@@ -63,6 +63,11 @@ unit test spawns a real Claude Code instance or hits the network**; real `claude
 end-to-end dogfood run. CI (`.github/workflows/ci.yml`) runs the gate on every push. Full conventions are in the
 plan (§ Engineering conventions).
 
+The repo keeps a **`CHANGELOG.md`** in [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format, aligned
+to the version line (plan `vX.Y` = CHANGELOG release = `pyproject` version = git tag `vX.Y.0`): each phase
+appends under `## [Unreleased]`; plan completion cuts `## [X.Y.0]`. Keeping it current is part of the phase
+ritual — see the plan + the vault's `conventions.md`.
+
 ---
 
 ## Engineering conventions
