@@ -3,3 +3,26 @@ name = "minions-factory"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.3",
+    "ty>=0.0.71",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
