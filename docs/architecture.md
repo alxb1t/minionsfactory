@@ -87,6 +87,38 @@ Another recurring rule visible in `provider.py`: **Pydantic at the trust boundar
 inside.** `RoleResult` parses untrusted subprocess JSON (Pydantic, tolerant of unknown fields);
 `Profile` is internal config (a frozen dataclass — no validation theater).
 
+### Why not inheritance? (structural typing, and why it's load-bearing)
+
+`ClaudeCodeProvider` and `FakeProvider` deliberately **do not inherit `Provider`**. Python offers two
+kinds of "interface", and we chose the structural one on purpose:
+
+| | **Nominal** (not used here) | **Structural** (what we use) |
+| --- | --- | --- |
+| Mechanism | `abc.ABC` + `class Foo(Base)` | `typing.Protocol`, no subclassing |
+| "Is it a `Provider`?" | it *inherited* the base | it *has the matching method shape* |
+| Coupling on implementers | must import + subclass our base | must know **nothing** about our seam |
+
+**This is driven directly by the harness-agnostic goal.** MinionsFactory is meant to drive other coding
+agents later (opencode, pi, Codex) via small adapters. With a `Protocol`, an adapter author just writes a
+class with a compatible `run_role` and it *is* a `Provider` — **they never import or subclass anything of
+ours.** An ABC would force every adapter to depend on `orchestrator`'s base class, reintroducing exactly
+the vendor coupling the design exists to avoid (and letting the weakest/most-coupled adapter set the
+floor). Structural typing keeps the seam definition and its implementations fully decoupled.
+
+**Where the contract is enforced:** not by a class hierarchy, but **statically by `ty`**, at every point
+a value flows into a `Provider`-typed slot — a `: Provider` parameter (the driver's case), a `: Provider`
+variable, a `-> Provider` return, or a `Provider` field. At each such site `ty` checks that the type is
+assignable to `Provider`, verifying **every** declared member matches with a compatible signature
+(parameter names/types + return type), not merely that a method by that name exists. A mismatch turns the
+gate red *before* the program runs — there is no runtime `isinstance` (a `Protocol` isn't runtime-checkable
+unless decorated `@runtime_checkable`, which we don't need). So in this codebase **"is a `Provider`"** and
+**"passes the gate"** are the same statement.
+
+You *can* subclass a `Protocol` for explicitness (`class ClaudeCodeProvider(Provider)`), and `ty` would
+then check conformance at the class definition instead of only at use sites. We choose not to: the
+implicit form keeps adapters decoupled from our code, and `ty` catches mistakes either way. Explicitness
+was judged not worth the coupling for a seam whose whole reason to exist is provider-neutrality.
+
 ## Roadmap (P0 → P6)
 
 | Phase | Deliverable | Status |
