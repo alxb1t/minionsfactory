@@ -1,6 +1,6 @@
 # Module reference — `orchestrator`
 
-The current public API of the `orchestrator` package, as built through **P2**. Signatures below mirror
+The current public API of the `orchestrator` package, as built through **P3**. Signatures below mirror
 the code; the docstrings in the source remain the authoritative "what each unit does".
 
 ---
@@ -58,7 +58,9 @@ Internal config (constructed by us, not parsed at a boundary → a plain datacla
 
 ```python
 class Provider(Protocol):
-    def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult: ...
+    def run_role(
+        self, role_prompt: str, repo: Path, profile: Profile
+    ) -> RoleResult: ...
 ```
 
 Any class with a matching `run_role` **is** a `Provider` (structural typing — no inheritance required).
@@ -101,11 +103,87 @@ what the driver's unit tests inject.
 
 ---
 
+## `orchestrator/gate.py` — the gate runner
+
+The orchestrator runs the **target repo's own** quality gate itself (un-gameable) and returns a typed
+verdict. The driver depends on the **`Gate` Protocol** here.
+
+### `StepResult` — one command's outcome (frozen `dataclass`)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `command` | `str` | the gate command as written in `minions.toml` |
+| `exit_code` | `int` | `0` = pass |
+| `output` | `str` | combined stdout + stderr (for the halt report) |
+
+### `GateResult` — the aggregate verdict (frozen `dataclass`)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `passed` | `bool` | all steps green |
+| `steps` | `tuple[StepResult, ...]` | steps actually run — truncated at the first failure |
+
+### `read_gate_commands`
+
+```python
+read_gate_commands(repo: Path) -> list[str]
+```
+
+Read the ordered gate command list from `repo/minions.toml` (`tomllib`). Language-neutral: a JS target
+ships a different list, no orchestrator change. Unit-tested.
+
+### `run_command`
+
+```python
+run_command(command: str, repo: Path) -> StepResult
+```
+
+Run one gate command in `repo` via `shlex.split` + `subprocess.run(check=False)` (no shell). `check=False`
+is deliberate — a non-zero exit is the gate's *signal*, captured into `StepResult`, not an exception. The
+one untested side effect (exercised only in the P6 dogfood).
+
+### `CommandRunner` — the injected-executor type
+
+```python
+CommandRunner = Callable[[str, Path], StepResult]
+```
+
+### `Gate` — the seam (`typing.Protocol`)
+
+```python
+class Gate(Protocol):
+    def run_gate(self, repo: Path) -> GateResult: ...
+```
+
+### `SubprocessGate` — the real gate
+
+```python
+class SubprocessGate:
+    def __init__(self, runner: CommandRunner = run_command) -> None
+    def run_gate(self, repo: Path) -> GateResult
+```
+
+Reads the commands, runs each via the injected `runner` (defaults to the real `run_command`), and
+**stops at the first non-zero step**. The `runner` injection is what lets the fail-fast logic be
+unit-tested without spawning real tools.
+
+### `FakeGate` — the scripted test double
+
+```python
+class FakeGate:
+    def __init__(self, result: GateResult) -> None
+    def run_gate(self, repo: Path) -> GateResult
+```
+
+Returns the preset `GateResult` (by identity), ignoring the repo; runs nothing. Satisfies `Gate`
+structurally. Ships in the package as the seam's reference double — what the driver's tests inject.
+
+---
+
 ## Planned modules (not yet built)
 
 | Module | Phase | Public surface (planned) |
 | --- | --- | --- |
-| `gate.py` | P3 | `run_gate(repo) -> GateResult` (runs the target's gate, stops at first failure) + a `Gate` seam + `FakeGate` |
 | `state.py` | P4 | `read_plan_state(vault_project_dir, repo) -> PlanState` (state-from-disk; highest-version plan) |
 | `driver.py` | P5 | `run(repo, provider, gate)` — the build-spine loop + halt-contract + resume |
 | `__main__.py` | P5 | `python -m orchestrator run --repo <target>` |

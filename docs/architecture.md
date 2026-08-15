@@ -29,7 +29,7 @@ release automation, the installed CLI, and the UI are all out of scope for v0.1.
 orchestrator/
 ├── __init__.py     # package marker + a trivial describe() smoke keeper          [BUILT  P1]
 ├── provider.py     # Provider seam: Protocol + ClaudeCodeProvider + FakeProvider [BUILT  P2]
-├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [PLANNED P3]
+├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [BUILT  P3]
 ├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [PLANNED P4]
 ├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [PLANNED P5]
 └── __main__.py     # `python -m orchestrator run --repo <target>`                 [PLANNED P5]
@@ -48,7 +48,7 @@ graph TD
     main["__main__.py<br/>CLI entry (PLANNED P5)"]:::planned
     driver["driver.py<br/>build-spine loop (PLANNED P5)"]:::planned
     state["state.py<br/>plan-state reader (PLANNED P4)"]:::planned
-    gate["gate.py<br/>gate runner (PLANNED P3)"]:::planned
+    gate["gate.py<br/>gate runner (BUILT P3)"]:::built
     provider["provider.py<br/>Provider seam (BUILT P2)"]:::built
 
     main --> driver
@@ -57,7 +57,7 @@ graph TD
     driver --> state
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
-    gate -. runs .-> targetgate["target repo's<br/>gate commands"]:::external
+    gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
     state -. reads .-> disk["target plan (vault)<br/>+ git head"]:::external
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
@@ -79,9 +79,9 @@ typing). Two concrete adapters satisfy it without any shared parent:
   in the target repo, parse the JSON result.
 - **`FakeProvider`** — a scripted double that returns a preset result and spawns nothing.
 
-The same pattern is planned for the gate (`Gate` Protocol + real runner + `FakeGate`). Fakes are treated
-as **first-class parts of the seam** and ship inside the package (not in `tests/`), so anyone integrating
-against a seam can exercise the driver without real side effects.
+The same pattern is now realized for the gate (`Gate` Protocol + real `SubprocessGate` + `FakeGate`, built
+in P3). Fakes are treated as **first-class parts of the seam** and ship inside the package (not in
+`tests/`), so anyone integrating against a seam can exercise the driver without real side effects.
 
 Another recurring rule visible in `provider.py`: **Pydantic at the trust boundary, plain dataclasses
 inside.** `RoleResult` parses untrusted subprocess JSON (Pydantic, tolerant of unknown fields);
@@ -126,7 +126,7 @@ was judged not worth the coupling for a seam whose whole reason to exist is prov
 | P0 | Repo + Q1 permission spike (recorded) + minimal `pyproject.toml` | **done** |
 | P1 | `orchestrator/` skeleton behind the own strict gate + CI + prompts | **done** |
 | P2 | Provider seam + Claude Code adapter (`run_role`) | **done** |
-| P3 | Gate runner — run the target's gate itself (per-repo command list) + `FakeGate` | planned |
+| P3 | Gate runner — run the target's gate itself (per-repo command list) + `FakeGate` | **done** |
 | P4 | Plan-state reader (state-from-disk; highest-version plan selection) | planned |
 | P5 | Build-spine driver + halt-contract (advance / commit / halt / resume) | planned |
 | P6 | Dogfood: drive the isekai v0.6 plan for real (`claude -p`, real gate) | planned |

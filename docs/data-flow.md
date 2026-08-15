@@ -1,7 +1,7 @@
 # Data & control flow
 
-Two views: **what runs today** (the provider seam, built in P2) and **the planned build-spine loop**
-(P3–P5) that will call it. Planned pieces are labelled as such.
+Two views: **what runs today** (the provider seam built in P2 + the gate runner built in P3) and **the
+planned build-spine loop** (P4–P5) that will call them. Planned pieces are labelled as such.
 
 ## Built today — running one role (`run_role`)
 
@@ -64,29 +64,65 @@ flowchart TD
 Halt conditions (P5): a HALT report from the coder, a non-advancing phase (gate green but no
 commit / `current_phase` didn't move), or a persistently-red gate.
 
-## Planned — the gate runner (P3)
+## Built today — the gate runner (`SubprocessGate.run_gate`)
 
 The orchestrator runs the **target's** gate itself so it can't be gamed. The command list is **read from
-the target** (language-neutral: a Python target and a JS target differ only in config, not in
-orchestrator code). It runs the commands in order and **stops at the first failure**.
+the target's `minions.toml`** (language-neutral: a Python target and a JS target differ only in config, not
+in orchestrator code). It runs the commands in order and **stops at the first failure**.
 
 ```mermaid
 sequenceDiagram
     participant Dr as driver (PLANNED P5)
-    participant G as gate runner (PLANNED P3)
-    participant Cfg as target gate config
-    participant Cmd as gate commands (ruff / ty / pytest / …)
+    participant G as SubprocessGate
+    participant Cfg as read_gate_commands (minions.toml)
+    participant Run as run_command (subprocess, no shell)
 
     Dr->>G: run_gate(repo)
     G->>Cfg: read ordered command list from target
     Cfg-->>G: [cmd1, cmd2, …]
     loop each command, in order
-        G->>Cmd: run in repo
-        Cmd-->>G: exit code + output
-        Note over G: stop at first non-zero
+        G->>Run: runner(command, repo)
+        Run-->>G: StepResult (command, exit_code, output)
+        Note over G: stop at first non-zero exit
     end
-    G-->>Dr: GateResult (passed + which step + output)
+    G-->>Dr: GateResult (passed + steps run)
 ```
+
+Same **injected-seam** pattern as the provider, with one twist: the gate's fail-fast *logic* is
+unit-tested by injecting a **fake `runner`** (scripted `StepResult`s), while the real `run_command`
+(`shlex.split` → `subprocess.run(check=False)`) is the untested side effect — exercised only in P6.
+`check=False` here is deliberate (opposite of the provider's `check=True`): a red gate is an *expected
+signal* to capture, not an exception to raise. `FakeGate.run_gate` short-circuits the whole diagram with a
+scripted `GateResult` — that's what the driver's tests inject.
+
+Testability map:
+
+| Piece | Pure/logic? | Unit-tested? |
+| --- | --- | --- |
+| `read_gate_commands(repo)` | yes (file read) | yes — parses the ordered list from `minions.toml` |
+| `SubprocessGate.run_gate` (loop, fail-fast) | yes (with injected runner) | yes — all-pass + stop-at-first-red |
+| `run_command(...)` | no (spawns tools) | **no** — exercised only in the P6 dogfood |
+
+### Example: a target's `minions.toml`
+
+A driven repo declares its gate as an ordered command list at its root — the whole per-repo config the
+gate runner reads. Swapping it (e.g. for a JS target's `npm`/`pnpm` commands) needs **no orchestrator
+change**; that language-neutrality is the point.
+
+```toml
+# minions.toml — at the *target* repo root
+gate = [
+  "uv sync --locked",
+  "uv run ruff format --check .",
+  "uv run ruff check .",
+  "uv run ty check",
+  "uv run pytest",
+]
+```
+
+The commands run in order and the gate stops at the first non-zero exit. (This example mirrors
+MinionsFactory's own gate — the same shape isekai gets in P6. Note MinionsFactory itself is *not* driven
+in v0.1, so it carries no `minions.toml`; this block is illustrative.)
 
 ## The state-on-disk backbone (why resume is free)
 

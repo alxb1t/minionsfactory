@@ -3,8 +3,8 @@
 Raw-markdown docs for the MinionsFactory orchestrator (the `minions_factory` product repo).
 No build tooling — read them directly, here or in any markdown viewer.
 
-> **Scope of these docs:** they describe the repo as built **through Phase P2** of the
-> `v0.1_loop_spine` plan (the provider seam). Modules planned for P3–P6 are labelled
+> **Scope of these docs:** they describe the repo as built **through Phase P3** of the
+> `v0.1_loop_spine` plan (the provider seam + the gate runner). Modules planned for P4–P6 are labelled
 > **PLANNED** wherever they appear, so "documented" never means "already built".
 
 ## Index
