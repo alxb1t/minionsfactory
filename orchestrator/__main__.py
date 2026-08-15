@@ -25,7 +25,9 @@ def _read_vault_dir(repo: Path) -> Path:
 
 def _coder_prompt() -> str:
     """Load the coder role prompt shipped with this repo."""
-    return (Path(__file__).resolve().parent.parent / "prompts" / "coder.md").read_text()
+    return (
+        Path(__file__).resolve().parent.parent / "prompts" / "coder-per-phase.md"
+    ).read_text()
 
 
 def main(argv: list[str] | None = None) -> int:
