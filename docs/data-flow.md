@@ -1,7 +1,9 @@
 # Data & control flow
 
-Two views: **what runs today** (the provider seam built in P2 + the gate runner built in P3) and **the
-planned build-spine loop** (P4–P5) that will call them. Planned pieces are labelled as such.
+All v0.1 orchestrator modules are built (P2–P5): the provider seam, the gate runner, the plan-state
+reader, and the build-spine loop that ties them together. The only thing exercised solely against the real
+world (real `claude`, real git) — and therefore not unit-tested — is the subprocess edge, run for real in
+the P6 dogfood.
 
 ## Built today — running one role (`run_role`)
 
@@ -11,7 +13,7 @@ logic that can be *wrong* (argv assembly, JSON parsing) is pure.
 
 ```mermaid
 sequenceDiagram
-    participant Caller as caller (driver, PLANNED)
+    participant Caller as caller (driver, BUILT P5)
     participant P as ClaudeCodeProvider
     participant BC as build_command()
     participant Sub as subprocess.run (claude -p)
@@ -39,26 +41,27 @@ Testability map:
 `FakeProvider.run_role` short-circuits the whole diagram: it returns a scripted `RoleResult` and spawns
 nothing — this is what the driver's tests use.
 
-## Planned — the build-spine loop (P5)
+## Built — the build-spine loop (P5)
 
 The driver is deterministic control flow with **no LLM**. Advance is **detected, not trusted**: a phase
 only advances when a new commit landed **and** the plan's `current_phase` moved. Everything it reads
-comes from disk, so resume is free.
+comes from disk, so resume is free. The verdict is a pure `decide(before, after, gate_result,
+coder_halted)`; the effectful `run()` loop calls it and acts.
 
 ```mermaid
 flowchart TD
-    start(["run(repo, provider, gate)"]) --> read["read_plan_state(...)<br/>(disk: plan + git)  — P4"]
-    read --> spawn["provider.run_role(coder prompt, repo, profile)  — P2"]
+    start(["run(repo, vault, provider, gate, …)"]) --> read["read_plan_state(...)<br/>(disk: plan + git)  — P4"]
+    read --> spawn["provider.run_role(coder prompt, repo, profile)  — P2<br/>(return discarded — not trusted)"]
     spawn --> rungate["gate.run_gate(repo)<br/>(orchestrator runs it)  — P3"]
-    rungate --> check{"gate green<br/>AND advance detected?<br/>(new commit + current_phase moved)"}
+    rungate --> check{"decide(before, after, gate, coder_halted)<br/>advance? (gate green AND new commit AND current_phase moved)"}
     check -- yes --> more{"more phases?"}
     more -- yes --> read
-    more -- no --> done(["plan complete"])
-    check -- no --> halt["write HALT contract<br/>(state + reason) to disk"]
-    halt --> stop(["halt — resume re-reads state from disk"])
+    more -- no --> done(["RunResult(COMPLETE)"])
+    check -- no --> halt["HALT: return RunResult(HALTED, reason)<br/>(coder HALT report / red gate / non-advance)"]
+    halt --> stop(["a fresh run() resumes by re-reading disk"])
 
-    classDef planned fill:#fdebd0,stroke:#b9770e,color:#000;
-    class read,rungate,check,halt planned;
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class read,rungate,check,halt built;
 ```
 
 Halt conditions (P5): a HALT report from the coder, a non-advancing phase (gate green but no
@@ -72,7 +75,7 @@ in orchestrator code). It runs the commands in order and **stops at the first fa
 
 ```mermaid
 sequenceDiagram
-    participant Dr as driver (PLANNED P5)
+    participant Dr as driver (BUILT P5)
     participant G as SubprocessGate
     participant Cfg as read_gate_commands (minions.toml)
     participant Run as run_command (subprocess, no shell)
@@ -128,7 +131,7 @@ in v0.1, so it carries no `minions.toml`; this block is illustrative.)
 
 Every arrow that crosses a role/phase boundary is mediated by **files on disk**, never in-memory state:
 
-- the **target plan** (frontmatter `current_phase` + progress ledger) — read by `state.py` (P4);
+- the **target plan** (frontmatter `current_phase` + `phaseN` flags) — read by `read_plan_state` (`state.py`, built P4);
 - **git** (did a new commit land?) — read by the driver (P5);
 - the **HALT contract** the coder writes on genuine ambiguity — read on resume (P5);
 - the framework's own **`CHANGELOG.md`** + per-phase commits — the resumable record of what shipped.

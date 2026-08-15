@@ -1,7 +1,8 @@
 # Module reference — `orchestrator`
 
-The current public API of the `orchestrator` package, as built through **P3**. Signatures below mirror
-the code; the docstrings in the source remain the authoritative "what each unit does".
+The current public API of the `orchestrator` package, as built through **P5** (all v0.1 modules).
+Signatures below mirror the code; the docstrings in the source remain the authoritative "what each unit
+does".
 
 ---
 
@@ -180,10 +181,112 @@ structurally. Ships in the package as the seam's reference double — what the d
 
 ---
 
-## Planned modules (not yet built)
+## `orchestrator/state.py` — the plan-state reader
 
-| Module | Phase | Public surface (planned) |
+Reconstructs "where are we" **purely from disk** — the driver reads this before and after each phase to
+detect advance.
+
+### `PlanState` — where-are-we (frozen `dataclass`)
+
+| Field | Type | Notes |
 | --- | --- | --- |
-| `state.py` | P4 | `read_plan_state(vault_project_dir, repo) -> PlanState` (state-from-disk; highest-version plan) |
-| `driver.py` | P5 | `run(repo, provider, gate)` — the build-spine loop + halt-contract + resume |
-| `__main__.py` | P5 | `python -m orchestrator run --repo <target>` |
+| `current_phase` | `str` | the plan's free-form phase pointer (frontmatter) |
+| `phases` | `dict[str, str]` | `phase0…phaseN` → `done`/`planned` |
+| `head` | `str` | the target repo's git HEAD sha |
+
+### `select_plan`
+
+```python
+select_plan(vault_project_dir: Path) -> Path
+```
+
+Return the **highest-version** `vX.Y_*implementation_plan.md` under `implementation_plans/`, **ignoring
+`archive/`**. Uses a shallow `glob` (never descends into `archive/`) and compares versions as `(int, int)`
+tuples (so `v0.10 > v0.2`). Unit-tested.
+
+### `parse_frontmatter`
+
+```python
+parse_frontmatter(text: str) -> dict[str, str]
+```
+
+Parse the plan's leading `---`-fenced YAML frontmatter into flat `key -> str` values — a small, stdlib-only
+extractor (no YAML dependency) for our known, flat keys. Splits each line on the **first** `:`
+(`str.partition`), stops at the closing fence. Unit-tested.
+
+### `read_head`
+
+```python
+read_head(repo: Path) -> str
+```
+
+Return the target repo's git HEAD sha via `git rev-parse HEAD` (list-argv, no shell). The one untested
+side effect (exercised in the P6 dogfood).
+
+### `read_plan_state`
+
+```python
+read_plan_state(vault_project_dir: Path, repo: Path, head_reader: Callable[[Path], str] = read_head) -> PlanState
+```
+
+Compose `select_plan` → `parse_frontmatter` → git head into a `PlanState`. The injectable `head_reader`
+(defaults to `read_head`) lets the composition be unit-tested **without spawning git**.
+
+---
+
+## `orchestrator/driver.py` — the build-spine loop
+
+The deterministic driver — **no LLM** — that advances the plan or halts. The verdict is a pure function;
+the loop is thin orchestration over the seams.
+
+### `Decision` — one phase's verdict (frozen `dataclass`)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `advance` | `bool` | continue to the next phase, or halt |
+| `reason` | `str` | halt reason when `advance` is `False`; `""` otherwise |
+
+### `decide`
+
+```python
+decide(before: PlanState, after: PlanState, gate_result: GateResult, coder_halted: bool) -> Decision
+```
+
+Pure verdict. Precedence: **halt-report → red-gate → non-advance → advance**, where advance requires **both**
+a new commit (`head` changed) **and** a moved `current_phase`. Unit-tested (the whole matrix).
+
+### `RunStatus` / `RunResult`
+
+`RunStatus` is `COMPLETE | HALTED`. `RunResult` (frozen `dataclass`) carries `status`, `reason`, and
+`phases_advanced`.
+
+### `run`
+
+```python
+run(repo, vault_project_dir, provider, gate, coder_prompt, profile,
+    state_reader=read_plan_state, halt_checker=halt_report_exists, max_phases=100) -> RunResult
+```
+
+The loop: read `PlanState` → `provider.run_role(...)` (return **discarded** — advance is detected from
+disk, not the coder's word) → `halt_checker` → `gate.run_gate` → read state again → `decide` → continue or
+halt. `state_reader`/`halt_checker` are injected seams (real defaults), so the full matrix — including
+**resume** — is unit-tested behind `FakeProvider` + `FakeGate`. `max_phases` is a runaway guard.
+`halt_report_exists` is the thin IO helper that checks the vault for the coder's HALT report.
+
+---
+
+## `orchestrator/__main__.py` — the run-from-source entry
+
+The **composition root** — wires the *real* `ClaudeCodeProvider` + `SubprocessGate` into `run()`.
+Deliberately untested (you validate it by running it; that's P6).
+
+```
+python -m orchestrator run --repo <target>
+```
+
+Resolves the target's vault from its `.env` (`VAULT_PROJECT_DIR`), loads `prompts/coder.md`, builds the
+coder `Profile` (Edit/Write/Bash), calls `run`, and exits `0` on COMPLETE / `1` on HALT.
+
+---
+
+_All v0.1 modules are built. **P6** is the dogfood run (drive isekai v0.6 for real), not a new module._

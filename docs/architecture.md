@@ -23,16 +23,16 @@ release automation, the installed CLI, and the UI are all out of scope for v0.1.
 5. **The framework's own green gate is the definition of done** (`ruff` `D`+`ANN` → `ty` strict →
    `pytest`), dogfooded on itself.
 
-## Package layout (built vs. planned)
+## Package layout (all v0.1 modules built)
 
 ```
 orchestrator/
 ├── __init__.py     # package marker + a trivial describe() smoke keeper          [BUILT  P1]
 ├── provider.py     # Provider seam: Protocol + ClaudeCodeProvider + FakeProvider [BUILT  P2]
 ├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [BUILT  P3]
-├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [PLANNED P4]
-├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [PLANNED P5]
-└── __main__.py     # `python -m orchestrator run --repo <target>`                 [PLANNED P5]
+├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [BUILT  P4]
+├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5]
+└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5]
 ```
 
 Supporting infrastructure already in place: the **own strict gate** (`pyproject.toml`: `ruff` with
@@ -41,13 +41,13 @@ Supporting infrastructure already in place: the **own strict gate** (`pyproject.
 
 ## Component & dependency graph
 
-Arrows mean "depends on / calls". Dashed nodes are **planned**.
+Arrows mean "depends on / calls". Green = built (all v0.1 modules); grey = external systems.
 
 ```mermaid
 graph TD
-    main["__main__.py<br/>CLI entry (PLANNED P5)"]:::planned
-    driver["driver.py<br/>build-spine loop (PLANNED P5)"]:::planned
-    state["state.py<br/>plan-state reader (PLANNED P4)"]:::planned
+    main["__main__.py<br/>CLI entry (BUILT P5)"]:::built
+    driver["driver.py<br/>build-spine loop (BUILT P5)"]:::built
+    state["state.py<br/>plan-state reader (BUILT P4)"]:::built
     gate["gate.py<br/>gate runner (BUILT P3)"]:::built
     provider["provider.py<br/>Provider seam (BUILT P2)"]:::built
 
@@ -65,7 +65,7 @@ graph TD
     classDef external fill:#eaeded,stroke:#566573,color:#000;
 ```
 
-The key structural fact: **the driver depends on seams** (`Provider`, and the planned `Gate`), not on
+The key structural fact: **the driver depends on seams** (`Provider` and `Gate`), not on
 the CLIs behind them. In tests the driver is handed `FakeProvider`/`FakeGate`; in a real run it is handed
 `ClaudeCodeProvider` and the real gate. Same driver code, no `if testing:` branches — this is what makes
 the whole loop unit-testable without ever spawning Claude or running a real gate.
@@ -127,8 +127,8 @@ was judged not worth the coupling for a seam whose whole reason to exist is prov
 | P1 | `orchestrator/` skeleton behind the own strict gate + CI + prompts | **done** |
 | P2 | Provider seam + Claude Code adapter (`run_role`) | **done** |
 | P3 | Gate runner — run the target's gate itself (per-repo command list) + `FakeGate` | **done** |
-| P4 | Plan-state reader (state-from-disk; highest-version plan selection) | planned |
-| P5 | Build-spine driver + halt-contract (advance / commit / halt / resume) | planned |
+| P4 | Plan-state reader (state-from-disk; highest-version plan selection) | **done** |
+| P5 | Build-spine driver + halt-contract (advance / commit / halt / resume) | **done** |
 | P6 | Dogfood: drive the isekai v0.6 plan for real (`claude -p`, real gate) | planned |
 
 See [data-flow.md](data-flow.md) for how these pieces execute together, and

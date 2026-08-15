@@ -3,16 +3,16 @@
 Raw-markdown docs for the MinionsFactory orchestrator (the `minions_factory` product repo).
 No build tooling — read them directly, here or in any markdown viewer.
 
-> **Scope of these docs:** they describe the repo as built **through Phase P3** of the
-> `v0.1_loop_spine` plan (the provider seam + the gate runner). Modules planned for P4–P6 are labelled
-> **PLANNED** wherever they appear, so "documented" never means "already built".
+> **Scope of these docs:** they describe the repo as built **through Phase P5** of the
+> `v0.1_loop_spine` plan — all orchestrator modules (provider seam, gate runner, plan-state reader,
+> build-spine driver, CLI entry) now exist. P6 is the dogfood *run*, not a new module.
 
 ## Index
 
 | Doc | What it covers |
 | --- | --- |
 | [architecture.md](architecture.md) | The big picture: what v0.1 builds, the load-bearing invariants, the package/dependency graph, and the P0→P6 roadmap. |
-| [data-flow.md](data-flow.md) | Control + data flow: how a role runs **today** (`run_role`), and the **planned** build-spine loop (driver → gate → advance/halt). |
+| [data-flow.md](data-flow.md) | Control + data flow: how a role runs (`run_role`), and the build-spine loop (driver → gate → advance/halt). |
 | [modules/orchestrator.md](modules/orchestrator.md) | Per-package API reference — every public symbol currently in `orchestrator/`, with signatures and purpose. |
 
 ## Where the rest of the truth lives
