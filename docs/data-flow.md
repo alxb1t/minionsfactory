@@ -180,6 +180,33 @@ The commands run in order and the gate stops at the first non-zero exit. (This e
 MinionsFactory's own gate — the same shape isekai gets in P6. Note MinionsFactory itself is *not* driven
 in v0.1, so it carries no `minions.toml`; this block is illustrative.)
 
+## Built — diff supply for read-only roles (v0.2 P2)
+
+A read-only role (review / security / simplify) has **no `Bash`**, so it cannot `git diff` itself — the
+orchestrator computes the diff and **hands it over as a file**. `compute_diff(repo, base, head)` runs
+list-argv git (`git diff base..head`) via an injected runner; `run_role_with_diff` writes that text under
+the target's `.minions/` and runs the role, whose prompt carries only the *path* (a large diff never
+bloats the prompt).
+
+```mermaid
+flowchart LR
+    cd["compute_diff(repo, base, head)<br/>git diff base..head (no shell)"] --> d["diff text"]
+    d --> inj["run_role_with_diff(...)"]
+    inj --> f[".minions/diff.patch<br/>(written for the role)"]
+    inj --> rr["provider.run_role(prompt, repo, read_only_profile)"]
+    f -. Read (role has no Bash) .-> rr
+
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class cd,inj,rr built;
+```
+
+Two scopes, one function: **`base..HEAD`** (frozen — the whole feature) feeds fan-out (P4);
+**`head..HEAD`** (just the fix) feeds re-verify (P5), scoping the verifier to the fix so the finding set
+shrinks and the loop terminates. The read-only `Profile` (`read_only_profile(findings)`) denies
+`Bash`+`Edit` and allows `Write` only to the role's findings file — the *sound* half of the Q1 permission
+finding (bare-tool denies enforce); the sandbox (≥ v0.3) will make it a mount-fact. Everything but the real
+`git diff` subprocess is unit-tested behind an injected runner / `FakeProvider`.
+
 ## The state-on-disk backbone (why resume is free)
 
 Every arrow that crosses a role/phase boundary is mediated by **files on disk**, never in-memory state:

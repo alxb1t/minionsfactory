@@ -33,11 +33,12 @@ release automation, the installed CLI, and the UI are all out of scope for v0.1.
 ```
 orchestrator/
 ├── __init__.py     # package marker + a trivial describe() smoke keeper          [BUILT  P1]
-├── provider.py     # Provider seam: Protocol + ClaudeCodeProvider + FakeProvider [BUILT  P2]
+├── provider.py     # Provider seam + read_only_profile(findings) (no Bash/Edit)   [BUILT  P2 · +read-only v0.2 P2]
 ├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [BUILT  P3]
 ├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [BUILT  P4]
 ├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5 · +emit_event v0.2 P1]
 ├── status.py       # typed Event stream: events.jsonl + status.json + render     [BUILT  v0.2 P1]
+├── diff.py         # compute_diff(base..head) + run_role_with_diff (inject file)  [BUILT  v0.2 P2]
 └── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status sink v0.2 P1]
 ```
 
@@ -58,8 +59,9 @@ graph TD
     driver["driver.py<br/>build-spine loop (BUILT P5)"]:::built
     state["state.py<br/>plan-state reader (BUILT P4)"]:::built
     gate["gate.py<br/>gate runner (BUILT P3)"]:::built
-    provider["provider.py<br/>Provider seam (BUILT P2)"]:::built
+    provider["provider.py<br/>Provider seam + read-only profile (BUILT P2)"]:::built
     status["status.py<br/>event stream + render (BUILT v0.2 P1)"]:::built
+    diff["diff.py<br/>compute_diff + inject (BUILT v0.2 P2)"]:::built
 
     main --> driver
     driver --> provider
@@ -67,11 +69,13 @@ graph TD
     driver --> state
     driver --> status
     main --> status
+    diff --> provider
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
     gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
     state -. reads .-> disk["target plan (vault)<br/>+ git head"]:::external
     status -. writes .-> minions[".minions/ (target)<br/>events.jsonl + status.json"]:::external
+    diff -. git diff / writes .-> minions
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
     classDef planned fill:#fdebd0,stroke:#b9770e,color:#000,stroke-dasharray: 4 3;

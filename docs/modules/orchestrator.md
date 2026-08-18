@@ -1,8 +1,9 @@
 # Module reference — `orchestrator`
 
 The current public API of the `orchestrator` package: all v0.1 modules (P2–P5) **plus** the v0.2 **P1**
-status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`). Signatures
-below mirror the code; the docstrings in the source remain the authoritative "what each unit does".
+status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`) and **P2** diff
+supply + the read-only role profile (`diff.py`, `read_only_profile`). Signatures below mirror the code; the
+docstrings in the source remain the authoritative "what each unit does".
 
 ---
 
@@ -54,6 +55,21 @@ Internal config (constructed by us, not parsed at a boundary → a plain datacla
 | `permission_mode` | `str` | `"default"` |
 | `allowed_tools` | `tuple[str, ...]` | `()` |
 | `disallowed_tools` | `tuple[str, ...]` | `()` |
+
+### `read_only_profile` — the read-only role factory (v0.2 P2)
+
+```python
+read_only_profile(findings_file: Path) -> Profile
+```
+
+The permission profile for a **read-only** role (review / security / simplify): denies `Bash` and `Edit`
+(bare-tool denies — the *sound* regime per the Q1 finding: bare/coarse denies enforce, only fine-grained
+`Bash` sub-patterns leak), and allows `Write` **only** to the role's single findings file
+(`Write(<findings_file>)`). No dataclass change — it's a particular `Profile`, so `build_command` emits it
+unchanged. Deliberately **not** a bare-`Write` deny: deny-precedence would override the scoped allow, so the
+boundary is expressed as *allow-only-`Write(findings)`* + headless-deny-by-default for any other write. A
+factory (not a subclass) — consistent with the frozen-dataclass, no-inheritance style. `Bash` denied is
+*why* the role can't `git diff` itself → the orchestrator supplies the diff (`diff.py`).
 
 ### `Provider` — the seam (`typing.Protocol`)
 
@@ -349,6 +365,39 @@ yet) *is* "running". (P4 widens the spawn set to the fan-out roles.)
 
 ---
 
+## `orchestrator/diff.py` — diff supply (v0.2 P2)
+
+Computes the diff the orchestrator hands to a read-only role, and injects it as a **file** (not in the
+prompt). A read-only role has no `Bash`, so it can't `git diff` itself — the orchestrator supplies it.
+
+### `compute_diff`
+
+```python
+compute_diff(repo, base, head, runner=_run_git) -> str
+```
+
+Returns the diff for **`base..head`** — list-argv git (`["git", "diff", f"{base}..{head}"]`), no shell.
+Two scopes serve two callers: **frozen `base..HEAD`** (the whole feature) for fan-out (P4), and
+**`head..HEAD`** (just the fix) for re-verify (P5) — scoping re-verify to the fix is what makes the
+converge loop shrink and terminate. The `runner: Callable[[list[str], Path], str]` is the injected seam
+(same pattern as the gate); the real `_run_git` (`subprocess.run(..., cwd=repo, check=True)`) is the
+untested subprocess edge. `check=True` (like the provider, unlike the gate): a failing `git diff` is an
+error to surface, not a signal to capture.
+
+### `run_role_with_diff`
+
+```python
+run_role_with_diff(provider, role_prompt, repo, profile, diff, diff_path) -> RoleResult
+```
+
+Writes `diff` to `diff_path` (under the target's `.minions/`; `mkdir(parents=True, exist_ok=True)` so it
+doesn't depend on the emitter having run), then runs the role via the provider — the prompt carries only
+the *path*, so a large diff never bloats it. **Role-agnostic on purpose**: it's the primitive the P4
+fan-out composes per role (review / security / simplify differ only in prompt + findings file). Unit-tested
+behind `FakeProvider` (file written + role ran); no real `claude`.
+
+---
+
 ## `orchestrator/__main__.py` — the run-from-source entry
 
 The **composition root** — wires the *real* `ClaudeCodeProvider` + `SubprocessGate` into `run()`.
@@ -370,5 +419,5 @@ consolidation). Still untested — the wiring is validated by running (a spy can
 
 ---
 
-_v0.1 modules built (P2–P5) + v0.2 **P1** (`status.py` + instrumented `run`). Next: **P2** — diff supply +
-read-only role profile._
+_v0.1 modules built (P2–P5) + v0.2 **P1** (`status.py` + instrumented `run`) + **P2** (`diff.py` +
+`read_only_profile`). Next: **P3** — findings-file reader (`FindingsState` from disk)._

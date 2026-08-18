@@ -97,3 +97,11 @@ class ClaudeCodeProvider:
             check=True,
         )
         return parse_result(completed.stdout)
+
+
+def read_only_profile(findings_file: Path) -> Profile:
+    """Read-only role: no Bash/Edit; Write only to its findings file."""
+    return Profile(
+        allowed_tools=(f"Write({findings_file})",),
+        disallowed_tools=("Bash", "Edit"),
+    )

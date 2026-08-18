@@ -6,6 +6,7 @@ from orchestrator.provider import (
     RoleResult,
     build_command,
     parse_result,
+    read_only_profile,
 )
 
 
@@ -46,3 +47,13 @@ def test_build_command_requests_headless_json() -> None:
     assert "--output-format" in command and "json" in command
     assert command[command.index("--permission-mode") + 1] == "default"
     assert command[command.index("--allowedTools") + 1 :] == ["Edit", "Bash"]
+
+
+def test_read_only_profile_emits_deny_perms_and_a_scoped_findings_write() -> None:
+    findings = Path("/vault/v0.2_review.md")
+    command = build_command("review the diff", read_only_profile(findings))
+
+    assert "--disallowedTools" in command
+    assert "Bash" in command
+    assert "Edit" in command
+    assert f"Write({findings})" in command
