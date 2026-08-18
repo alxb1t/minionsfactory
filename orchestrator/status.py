@@ -8,6 +8,8 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field, TypeAdapter
 
+Role = Literal["coder", "review", "security", "simplify"]
+
 
 class PhaseStart(BaseModel):
     """A phase began."""
@@ -17,19 +19,20 @@ class PhaseStart(BaseModel):
     phase: str
 
 
-class CoderSpawn(BaseModel):
-    """The coder instance was spawned (its result has not landed yet)."""
+class RoleSpawn(BaseModel):
+    """The role instance was spawned (its result has not landed yet)."""
 
-    kind: Literal["coder-spawn"] = "coder-spawn"
+    kind: Literal["role-spawn"] = "role-spawn"
     ts: AwareDatetime
-    phase: str
+    role: Role
 
 
-class CoderResult(BaseModel):
-    """The coder instance returned (summary of its RoleResult)."""
+class RoleReturned(BaseModel):
+    """The role instance has returned result."""
 
-    kind: Literal["coder-result"] = "coder-result"
+    kind: Literal["role-returned"] = "role-returned"
     ts: AwareDatetime
+    role: Role
     session_id: str
     total_cost_usd: float
     is_error: bool
@@ -72,10 +75,16 @@ class RunSummary(BaseModel):
 
 
 Event = Annotated[
-    PhaseStart | CoderSpawn | CoderResult | GateStep | Advance | Halt | RunSummary,
+    PhaseStart | RoleSpawn | RoleReturned | GateStep | Advance | Halt | RunSummary,
     Field(discriminator="kind"),
 ]
+
+
 _ADAPTER: TypeAdapter[Event] = TypeAdapter(Event)
+
+
+def _no_emit(event: Event) -> None:
+    """Default status sink: discard (a run without an observer is valid)."""
 
 
 def append_event(stream: Path, event: Event) -> None:
@@ -118,9 +127,9 @@ def render(event: Event) -> str:
     match event:
         case PhaseStart():
             return f"▶ phase {event.phase} — building"
-        case CoderSpawn():
+        case RoleSpawn():
             return "  coder spawned — running…"
-        case CoderResult():
+        case RoleReturned():
             flag = "error" if event.is_error else "ok"
             return f"  coder returned ({flag}, ${event.total_cost_usd:.2f})"
         case GateStep():
@@ -136,7 +145,7 @@ def render(event: Event) -> str:
 def is_in_progress(status: Path) -> bool:
     """Whether a spawned role is still running (its result has not landed)."""
     match read_status(status):
-        case CoderSpawn():
+        case RoleSpawn():
             return True
         case _:
             return False

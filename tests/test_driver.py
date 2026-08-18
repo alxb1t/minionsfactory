@@ -165,8 +165,8 @@ def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
     )
     assert [e.kind for e in events] == [
         "phase-start",
-        "coder-spawn",
-        "coder-result",
+        "role-spawn",
+        "role-returned",
         "advance",
         "run-summary",
     ]
@@ -190,3 +190,40 @@ def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
     summary = events[-1]
     assert isinstance(summary, RunSummary)
     assert summary.status == "complete"
+
+
+def test_run_triggers_fanout_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: calls.append(1) or [],
+    )
+    assert calls == [1]
+
+
+def test_run_does_not_fan_out_when_the_build_halts() -> None:
+    states = [
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+    ]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: calls.append(1) or [],
+    )
+    assert calls == []

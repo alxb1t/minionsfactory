@@ -2,9 +2,10 @@
 
 The current public API of the `orchestrator` package: all v0.1 modules (P2–P5) **plus** the v0.2 **P1**
 status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`), **P2** diff
-supply + the read-only role profile (`diff.py`, `read_only_profile`), and **P3** the findings-file reader
-(`findings.py`). Signatures below mirror the code; the docstrings in the source remain the authoritative
-"what each unit does".
+supply + the read-only role profile (`diff.py`, `read_only_profile`), **P3** the findings-file reader
+(`findings.py`), and **P4** the end-of-plan fan-out (`fanout.py`, and the `fanout` seam on `driver.run`).
+Signatures below mirror the code; the docstrings in the source remain the authoritative "what each unit
+does".
 
 ---
 
@@ -282,7 +283,7 @@ a new commit (`head` changed) **and** a moved `current_phase`. Unit-tested (the 
 ```python
 run(repo, vault_project_dir, provider, gate, coder_prompt, profile,
     state_reader=read_plan_state, halt_checker=halt_report_exists,
-    emit_event=_no_emit, max_phases=100) -> RunResult
+    emit_event=_no_emit, fanout=_no_fanout, max_phases=100) -> RunResult
 ```
 
 The loop: read `PlanState` → `provider.run_role(...)` → `halt_checker` → `gate.run_gate` → read state
@@ -292,21 +293,28 @@ is a runaway guard. `halt_report_exists` is the thin IO helper that checks the v
 report.
 
 **v0.2 P1 — `emit_event`.** The loop is instrumented: it emits typed status events around each observation
-(`phase-start` → `coder-spawn` → `coder-result` → `gate-step`* → `advance`/`halt` → `run-summary`).
+(`phase-start` → `role-spawn` → `role-returned` → `gate-step`* → `advance`/`halt` → `run-summary`).
 `emit_event: Callable[[Event], None]` is an injected sink defaulting to `_no_emit` (a no-op — a run without
 an observer is valid), so the six v0.1 tests are unaffected and the instrumentation tests inject a spy
 (`events.append`). Two nuances the tests pin: `provider.run_role(...)`'s return is now **captured** to
-build the `coder-result` event but is **still discarded by `decide`** (surfaced for observation, never
+build the `role-returned` event but is **still discarded by `decide`** (surfaced for observation, never
 trusted for the verdict); and every terminal path — complete, decision-halt, and the runaway guard — emits
 a `run-summary` (both halt paths emit `halt` then `run-summary`).
 
+**v0.2 P4 — `fanout`.** A second injected seam `fanout: Callable[[], list[FindingsState | None]] = _no_fanout`
+is invoked **once, at plan-complete** (after the build loop, before the final `run-summary`) — so a halted
+build never fans out. The default is a no-op (a build-only run is valid). Unit-tested: fan-out fires on
+completion, not on halt.
+
 ---
 
-## `orchestrator/status.py` — the status/event stream (v0.2 P1)
+## `orchestrator/status.py` — the status/event stream (v0.2 P1 · P4)
 
 Makes a run **observable** without an LLM: the orchestrator writes typed, timestamped events to disk and a
 renderer projects them to stdout. Observability is a **projection of on-disk state, not `print`** — a
 projection is resumable + machine-readable (the future UI reads the same schema); a `print` is neither.
+Also the home of `_no_emit` (the no-op sink) — moved here in P4 so both `driver.py` and `fanout.py` import
+it without a cycle.
 
 ### `Event` — a discriminated union of per-event models (Pydantic)
 
@@ -315,8 +323,8 @@ Seven `BaseModel` variants, tagged by a `kind` `Literal`, under `Event = Annotat
 | Variant (`kind`) | Carries (beyond `ts: AwareDatetime`) | Emitted when |
 | --- | --- | --- |
 | `PhaseStart` (`phase-start`) | `phase` | a phase begins |
-| `CoderSpawn` (`coder-spawn`) | `phase` | the coder is spawned (result not yet landed) |
-| `CoderResult` (`coder-result`) | `session_id`, `total_cost_usd`, `is_error` | the coder returns (fields off `RoleResult`) |
+| `RoleSpawn` (`role-spawn`) | `role` | any role is spawned (result not yet landed) |
+| `RoleReturned` (`role-returned`) | `role`, `session_id`, `total_cost_usd`, `is_error` | a role returns (fields off `RoleResult`) |
 | `GateStep` (`gate-step`) | `command`, `passed` | per gate command run (one event each) |
 | `Advance` (`advance`) | `from_phase`, `to_phase` | a phase advanced |
 | `Halt` (`halt`) | `reason` | the run halts |
@@ -324,6 +332,13 @@ Seven `BaseModel` variants, tagged by a `kind` `Literal`, under `Event = Annotat
 
 `ts` is `AwareDatetime` (a naive datetime is **rejected** at the boundary, not silently stored). Parsing a
 union needs a `TypeAdapter(Event)` (the alias is not a class) — the `kind` discriminator picks the variant.
+
+**v0.2 P4 — role events unified.** `role` is a `Role = Literal["coder", "review", "security", "simplify"]`
+alias (one source of truth, reused by `fanout.RoleSpec.name`). The old coder-specific `CoderSpawn`/
+`CoderResult` were replaced by the generic `RoleSpawn`/`RoleReturned` (the coder is just `role="coder"`) —
+so the fan-out roles reuse the same spawn/returned events instead of a parallel pair (avoiding the very
+"dual paths" smell `simplify` flags). *(The result event is `RoleReturned`, not `RoleResult`, to avoid a
+name clash with `provider.RoleResult`, the parsed CLI result.)*
 
 ### `append_event` / `read_events` — the append-only history (`events.jsonl`)
 
@@ -342,8 +357,9 @@ read_status(status: Path) -> Event                       # the latest event only
 ```
 
 `emit` couples the two writes so the snapshot can't drift from the log. The snapshot is a **materialized
-view** (the log is the source of truth; the snapshot is the O(1) "where are we now" read). *P1 scope: the
-snapshot holds the last event only; it grows to `{stage, phase, last_event}` at **P4**, when stages diverge.*
+view** (the log is the source of truth; the snapshot is the O(1) "where are we now" read). *Scope: the
+snapshot still holds the last event only; enriching it to `{stage, phase, last_event}` remains a deferred
+refinement (per-role observability already comes from the `role` field on the events).*
 
 ### `render` — the pure per-event projection to a stdout line
 
@@ -361,8 +377,9 @@ lines.
 is_in_progress(status: Path) -> bool     # True iff the snapshot's last event is a spawn
 ```
 
-The in-progress indicator falls out of the snapshot for free: a dangling `coder-spawn` (no `coder-result`
-yet) *is* "running". (P4 widens the spawn set to the fan-out roles.)
+The in-progress indicator falls out of the snapshot for free: a dangling `role-spawn` (no `role-returned`
+yet) *is* "running". Since P4 unified to `RoleSpawn`, this now covers *every* role (coder + fan-out) with
+one `case RoleSpawn()`.
 
 ---
 
@@ -434,6 +451,37 @@ coercion, `None` on missing, `ValidationError` on an unknown verdict).
 
 ---
 
+## `orchestrator/fanout.py` — the end-of-plan fan-out (v0.2 P4)
+
+Runs the three read-only roles (review ‖ security ‖ simplify) over the frozen diff — the driver's first
+post-build node. Pure **composition** of P1–P3: it invents no mechanism, it orchestrates the seams.
+
+### `RoleSpec` — one fan-out role (frozen `dataclass`)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | `Role` (`Literal[...]`) | → findings filename `${VERSION}_{name}.md` (and the `role-spawn` label) |
+| `prompt` | `str` | the role's prompt text |
+
+### `run_fanout`
+
+```python
+run_fanout(provider, repo, vault_dir, version, diff, diff_path, roles,
+           emit_event=_no_emit) -> list[FindingsState | None]
+```
+
+**Sequential** (a plain loop — the `‖` is deterministic-simplest sequential; parallel is a noted-not-built
+optimization) and **data-driven** (one loop over a `RoleSpec` table, *not* three near-identical functions —
+which would be the "overlapping paths" smell `simplify` exists to catch). Per role: build
+`read_only_profile(findings_file)` (P2) → `emit RoleSpawn` → `run_role_with_diff` (P2, diff injected as a
+file) → `emit RoleReturned` → `read_findings_state` (P3) → collect. The `diff` is passed *in* (the caller
+freezes `base..HEAD` once), so `run_fanout` needs no git and is fully unit-tested behind a recording
+`FakeProvider` (three read-only spawns over the frozen diff; per-role events; verdicts collected). Wired
+into `driver.run()` via the `fanout` seam; **its first live run — including `simplify.md`'s first execution
+ever — is the P4 dogfood** (pending).
+
+---
+
 ## `orchestrator/__main__.py` — the run-from-source entry
 
 The **composition root** — wires the *real* `ClaudeCodeProvider` + `SubprocessGate` into `run()`.
@@ -453,8 +501,18 @@ coder `Profile` (Edit/Write/Bash), calls `run`, and exits `0` on COMPLETE / `1` 
 target's per-run artifact dir (git-ignore it in the target; see the backlog for the `minions.toml`
 consolidation). Still untested — the wiring is validated by running (a spy can't catch a missing wire).
 
+**v0.2 P4 — the fan-out closure.** `_make_fanout(...)` returns a **zero-arg closure** bound with the
+provider, roles, base, and version; `run(..., fanout=...)` invokes it at plan-complete. The closure
+computes the **frozen diff at invoke-time** (`compute_diff(repo, base, "HEAD")`) — *not* at bind time,
+because the final `HEAD` doesn't exist until the build finishes. Supporting helpers: `_fanout_roles()`
+loads the three prompts (`reviewer.md`/`security.md`/`simplify.md` → `RoleSpec`s), `_plan_version(vault)`
+derives `vX.Y` from the plan filename, and a `--base` CLI arg (default `main`) sets the diff base. A
+higher-order-function gotcha to remember: pass `fanout=_make_fanout(...)` (the built closure), not
+`fanout=_make_fanout` (the factory).
+
 ---
 
 _v0.1 modules built (P2–P5) + v0.2 **P1** (`status.py` + instrumented `run`) + **P2** (`diff.py` +
-`read_only_profile`) + **P3** (`findings.py`). Next: **P4** — fan-out (review ‖ security ‖ simplify over
-the frozen diff)._
+`read_only_profile`) + **P3** (`findings.py`) + **P4 code** (`fanout.py` + the driver `fanout` seam;
+**dogfood pending**). Next: the **P4 dogfood** (first live `simplify.md` on a real branch), then **P5** —
+the converge loop._

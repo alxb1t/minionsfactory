@@ -76,24 +76,26 @@ posture as the orchestrator-run gate.
 
 ```mermaid
 flowchart TD
-    ps["emit phase-start"] --> cs["emit coder-spawn"]
+    ps["emit phase-start"] --> cs["emit role-spawn (role=coder)"]
     cs --> spawn["provider.run_role(...)  — result CAPTURED"]
-    spawn --> cr["emit coder-result<br/>(session_id / cost / is_error — off RoleResult)"]
+    spawn --> cr["emit role-returned<br/>(role / session_id / cost / is_error — off RoleResult)"]
     cr --> gate["gate.run_gate(repo)"]
     gate --> gs["emit gate-step  (one per command, pass/fail)"]
     gs --> dec{"decide(...)<br/>(ignores the captured result)"}
     dec -- advance --> adv["emit advance (from → to)"] --> ps
     dec -- halt --> h["emit halt (reason)"] --> rs["emit run-summary(halted)"]
-    dec -- plan complete --> rsc["emit run-summary(complete)"]
+    dec -- plan complete --> fo["fanout()  (P4)"] --> rsc["emit run-summary(complete)"]
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
-    class ps,cs,cr,gs,adv,h,rs,rsc built;
+    class ps,cs,cr,gs,adv,h,rs,rsc,fo built;
 ```
 
-The load-bearing nuance: `provider.run_role(...)`'s return is **captured** to fill the `coder-result`
+The load-bearing nuance: `provider.run_role(...)`'s return is **captured** to fill the `role-returned`
 event, yet `decide(...)` still **ignores it** (advance is detected from disk). *Surfaced for observation,
 discarded for the verdict.* Every terminal path — complete, decision-halt, runaway guard — ends with a
-`run-summary`.
+`run-summary`. **P4** unified the coder/fan-out spawn events into one `role-spawn`/`role-returned` pair
+(the coder is `role="coder"`), and slotted `fanout()` in on the plan-complete edge (before the final
+summary; a halt never reaches it).
 
 Each event is both **appended** to `events.jsonl` (immutable history) and written to `status.json` (the
 latest-event snapshot), then `render`ed to a stdout line — the log-vs-snapshot split:
@@ -116,7 +118,7 @@ Testability map:
 | `render(event)` | yes | yes — literal line per variant; exhaustive `match` (no `case _`) |
 | `append_event` / `read_events` | yes (file IO) | yes — round-trips to the typed variant |
 | `emit` / `read_status` | yes (file IO) | yes — snapshot = latest event only |
-| `is_in_progress(status)` | yes | yes — a dangling `coder-spawn` reads as running |
+| `is_in_progress(status)` | yes | yes — a dangling `role-spawn` reads as running |
 | `run(..., emit_event=spy)` | yes (with a spy sink) | yes — emitted kind-sequence + key fields |
 | `_make_emitter` / `emit_and_render` (`__main__`) | no (disk + stdout) | **no** — composition root, validated by running |
 
@@ -206,6 +208,37 @@ shrinks and the loop terminates. The read-only `Profile` (`read_only_profile(fin
 `Bash`+`Edit` and allows `Write` only to the role's findings file — the *sound* half of the Q1 permission
 finding (bare-tool denies enforce); the sandbox (≥ v0.3) will make it a mount-fact. Everything but the real
 `git diff` subprocess is unit-tested behind an injected runner / `FakeProvider`.
+
+## Built — the end-of-plan fan-out (v0.2 P4, dogfood pending)
+
+Where v0.1's `run()` returned `COMPLETE`, the driver now invokes the injected `fanout` seam first (only on
+completion — a halt returns earlier). `run_fanout` is a **sequential loop over a `RoleSpec` table** that
+composes P1–P3: for each of review/security/simplify it builds the read-only profile, injects the frozen
+diff, spawns the role, and reads back its verdict.
+
+```mermaid
+flowchart TD
+    pc["driver: plan complete"] --> fo["fanout() seam"]
+    fo --> cd["compute_diff(repo, base, HEAD)  — frozen base..HEAD, once"]
+    cd --> loop["for role in [review, security, simplify]:"]
+    loop --> prof["read_only_profile(vX.Y_role.md)  (P2)"]
+    prof --> sp["emit role-spawn(role)"]
+    sp --> rr["run_role_with_diff → claude -p (read-only, diff as a file)  (P2)"]
+    rr --> ret["emit role-returned(role)"]
+    ret --> rf["read_findings_state(vX.Y_role.md)  (P3)"]
+    rf --> loop
+    loop --> collect["list[FindingsState | None]  → (P5 converge loop consumes)"]
+
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class fo,cd,loop,prof,sp,rr,ret,rf,collect built;
+```
+
+**Sequential-first** (the `‖` is deterministic-simplest as a loop; parallel is a noted-not-built
+optimization) and **data-driven** (one loop, not three copy-paste functions — the "overlapping paths" smell
+`simplify` itself flags). Everything but the real `claude -p` spawns is unit-tested behind a recording
+`FakeProvider` (three read-only spawns over the frozen diff, per-role events, verdicts collected). The
+**first live run — `simplify.md`'s debut — is the P4 dogfood, still pending**. The collected
+`FindingsState`s are what the **P5 converge loop** will act on.
 
 ## Built — the findings reader = the convergence signal (v0.2 P3)
 

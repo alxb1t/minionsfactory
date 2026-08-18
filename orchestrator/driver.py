@@ -6,18 +6,20 @@ from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 
+from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
 from orchestrator.provider import Profile, Provider
 from orchestrator.state import PlanState, read_plan_state
 from orchestrator.status import (
     Advance,
-    CoderResult,
-    CoderSpawn,
     Event,
     GateStep,
     Halt,
     PhaseStart,
+    RoleReturned,
+    RoleSpawn,
     RunSummary,
+    _no_emit,
 )
 
 
@@ -81,8 +83,9 @@ def _plan_complete(state: PlanState) -> bool:
     return "planned" not in state.phases.values()
 
 
-def _no_emit(event: Event) -> None:
-    """Default status sink: discard (a run without an observer is valid)."""
+def _no_fanout() -> list[FindingsState | None]:
+    """Default post-build stage: do nothing (a build-only run is valid)."""
+    return []
 
 
 def run(
@@ -95,6 +98,7 @@ def run(
     state_reader: Callable[[Path, Path], PlanState] = read_plan_state,
     halt_checker: Callable[[Path], bool] = halt_report_exists,
     emit_event: Callable[[Event], None] = _no_emit,
+    fanout: Callable[[], list[FindingsState | None]] = _no_fanout,
     max_phases: int = 100,
 ) -> RunResult:
     """Drive the plan phase by phase.
@@ -129,14 +133,15 @@ def run(
         iterations += 1
 
         emit_event(
-            CoderSpawn(
+            RoleSpawn(
+                role="coder",
                 ts=datetime.now(timezone.utc),
-                phase=before.current_phase,
             )
         )
         result = provider.run_role(coder_prompt, repo, profile)
         emit_event(
-            CoderResult(
+            RoleReturned(
+                role="coder",
                 ts=datetime.now(timezone.utc),
                 session_id=result.session_id,
                 total_cost_usd=result.total_cost_usd,
@@ -180,6 +185,8 @@ def run(
             ),
         )
         before = after
+
+    fanout()
 
     emit_event(
         RunSummary(

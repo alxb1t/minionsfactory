@@ -40,7 +40,8 @@ orchestrator/
 ├── status.py       # typed Event stream: events.jsonl + status.json + render     [BUILT  v0.2 P1]
 ├── diff.py         # compute_diff(base..head) + run_role_with_diff (inject file)  [BUILT  v0.2 P2]
 ├── findings.py     # read_findings_state(path) -> FindingsState | None (verdict)  [BUILT  v0.2 P3]
-└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status sink v0.2 P1]
+├── fanout.py       # run_fanout: review ‖ security ‖ simplify over the frozen diff [BUILT  v0.2 P4 · dogfood pending]
+└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status/fanout wiring v0.2 P1/P4]
 ```
 
 _(v0.2 has begun: **P1** adds the status/event stream and instruments the v0.1 loop; the fan-out /
@@ -64,15 +65,20 @@ graph TD
     status["status.py<br/>event stream + render (BUILT v0.2 P1)"]:::built
     diff["diff.py<br/>compute_diff + inject (BUILT v0.2 P2)"]:::built
     findings["findings.py<br/>read_findings_state (BUILT v0.2 P3)"]:::built
+    fanout["fanout.py<br/>run_fanout: 3 read-only roles (BUILT v0.2 P4)"]:::built
 
     main --> driver
     driver --> provider
     driver --> gate
     driver --> state
     driver --> status
+    driver --> fanout
     main --> status
     diff --> provider
     findings --> state
+    fanout --> diff
+    fanout --> findings
+    fanout --> status
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
     gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
@@ -80,6 +86,7 @@ graph TD
     status -. writes .-> minions[".minions/ (target)<br/>events.jsonl + status.json"]:::external
     diff -. git diff / writes .-> minions
     findings -. reads .-> ff["findings files (vault)<br/>vX.Y_{review,security,simplify}.md"]:::external
+    fanout -. spawns 3 read-only roles .-> claude
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
     classDef planned fill:#fdebd0,stroke:#b9770e,color:#000,stroke-dasharray: 4 3;

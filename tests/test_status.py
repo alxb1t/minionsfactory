@@ -5,11 +5,11 @@ from pathlib import Path
 
 from orchestrator.status import (
     Advance,
-    CoderResult,
-    CoderSpawn,
     GateStep,
     Halt,
     PhaseStart,
+    RoleReturned,
+    RoleSpawn,
     RunSummary,
     append_event,
     emit,
@@ -22,7 +22,8 @@ from orchestrator.status import (
 
 def test_appended_event_reads_back_as_its_typed_variant(tmp_path: Path) -> None:
     stream = tmp_path / "events.jsonl"
-    event = CoderResult(
+    event = RoleReturned(
+        role="coder",
         ts=datetime.now(timezone.utc),
         session_id="abc",
         total_cost_usd=0.12,
@@ -38,7 +39,8 @@ def test_status_json_reflects_the_latest_event(tmp_path: Path) -> None:
     stream = tmp_path / "events.jsonl"
     status = tmp_path / "status.json"
     first = PhaseStart(ts=datetime.now(timezone.utc), phase="P1")
-    second = CoderResult(
+    second = RoleReturned(
+        role="coder",
         ts=datetime.now(timezone.utc),
         session_id="abc",
         total_cost_usd=0.12,
@@ -57,7 +59,8 @@ def test_render_formats_a_phase_start_line() -> None:
 
 
 def test_render_formats_a_coder_result_no_error_line() -> None:
-    event = CoderResult(
+    event = RoleReturned(
+        role="coder",
         ts=datetime.now(timezone.utc),
         session_id="abc",
         total_cost_usd=0.12,
@@ -67,7 +70,8 @@ def test_render_formats_a_coder_result_no_error_line() -> None:
 
 
 def test_render_formats_a_coder_result_error_line() -> None:
-    event = CoderResult(
+    event = RoleReturned(
+        role="coder",
         ts=datetime.now(timezone.utc),
         session_id="abc",
         total_cost_usd=0.12,
@@ -77,25 +81,26 @@ def test_render_formats_a_coder_result_error_line() -> None:
 
 
 def test_render_formats_a_coder_spawn_in_progress_line() -> None:
-    event = CoderSpawn(ts=datetime.now(timezone.utc), phase="P1")
+    event = RoleSpawn(role="coder", ts=datetime.now(timezone.utc))
     assert render(event) == "  coder spawned — running…"
 
 
 def test_snapshot_reads_in_progress_after_a_spawn(tmp_path: Path) -> None:
     stream = tmp_path / "events.jsonl"
     status = tmp_path / "status.json"
-    emit(stream, status, CoderSpawn(ts=datetime.now(timezone.utc), phase="P1"))
+    emit(stream, status, RoleSpawn(role="coder", ts=datetime.now(timezone.utc)))
     assert is_in_progress(status) is True
 
 
 def test_snapshot_reads_done_after_the_result_lands(tmp_path: Path) -> None:
     stream = tmp_path / "events.jsonl"
     status = tmp_path / "status.json"
-    emit(stream, status, CoderSpawn(ts=datetime.now(timezone.utc), phase="P1"))
+    emit(stream, status, RoleSpawn(role="coder", ts=datetime.now(timezone.utc)))
     emit(
         stream,
         status,
-        CoderResult(
+        RoleReturned(
+            role="coder",
             ts=datetime.now(timezone.utc),
             session_id="abc",
             total_cost_usd=0.12,
