@@ -1,9 +1,10 @@
 # Module reference — `orchestrator`
 
 The current public API of the `orchestrator` package: all v0.1 modules (P2–P5) **plus** the v0.2 **P1**
-status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`) and **P2** diff
-supply + the read-only role profile (`diff.py`, `read_only_profile`). Signatures below mirror the code; the
-docstrings in the source remain the authoritative "what each unit does".
+status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`), **P2** diff
+supply + the read-only role profile (`diff.py`, `read_only_profile`), and **P3** the findings-file reader
+(`findings.py`). Signatures below mirror the code; the docstrings in the source remain the authoritative
+"what each unit does".
 
 ---
 
@@ -398,6 +399,41 @@ behind `FakeProvider` (file written + role ran); no real `claude`.
 
 ---
 
+## `orchestrator/findings.py` — the findings-file reader (v0.2 P3)
+
+Reads a role's findings file into a typed, validated **convergence verdict** — purely from disk. This is
+**principle 2 made concrete**: the orchestrator decides "are we done?" from `verdict`/`open_blocking` in
+*this file*, never from what a fixer *claims*. The fields are owned by the **verify pass** (the fixer only
+flips a finding `open → fixed`), so the signal can't be gamed.
+
+### `FindingsState` — the verdict (Pydantic `BaseModel`, frozen)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `verdict` | `Literal["clean", "changes-requested"]` | closed set — a typo'd verdict is **rejected** at read |
+| `open_blocking` | `int` | coerced from the frontmatter string |
+| `round` | `int` | coerced |
+| `head` | `str` | the short SHA the pass reviewed (→ next re-verify scopes to `head..HEAD`) |
+
+**Pydantic, not a dataclass** (unlike its sibling `PlanState`): the findings file is a trust boundary
+*with structure worth enforcing* — ints to coerce and a closed `verdict` to validate. That's the refined
+rule — *Pydantic when boundary data needs validating*, not merely "boundary → Pydantic" (`PlanState` reads
+a boundary too but its pass-through strings need neither, so a dataclass suffices).
+
+### `read_findings_state`
+
+```python
+read_findings_state(path: Path) -> FindingsState | None
+```
+
+Reuses `parse_frontmatter` from `state.py` (**no new parser**) and `model_validate`s the resulting dict —
+Pydantic coerces the ints, ignores the extra frontmatter keys (`type`/`plan`/`branch`/…), and validates
+`verdict`. A **missing file → `None`** (a not-yet-run role, not a crash), which keeps `verdict` a strict
+`Literal` and makes `ty` force the converge loop to handle "not run" explicitly. Fully unit-tested (parse +
+coercion, `None` on missing, `ValidationError` on an unknown verdict).
+
+---
+
 ## `orchestrator/__main__.py` — the run-from-source entry
 
 The **composition root** — wires the *real* `ClaudeCodeProvider` + `SubprocessGate` into `run()`.
@@ -420,4 +456,5 @@ consolidation). Still untested — the wiring is validated by running (a spy can
 ---
 
 _v0.1 modules built (P2–P5) + v0.2 **P1** (`status.py` + instrumented `run`) + **P2** (`diff.py` +
-`read_only_profile`). Next: **P3** — findings-file reader (`FindingsState` from disk)._
+`read_only_profile`) + **P3** (`findings.py`). Next: **P4** — fan-out (review ‖ security ‖ simplify over
+the frozen diff)._

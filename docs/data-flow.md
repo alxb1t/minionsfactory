@@ -207,6 +207,31 @@ shrinks and the loop terminates. The read-only `Profile` (`read_only_profile(fin
 finding (bare-tool denies enforce); the sandbox (≥ v0.3) will make it a mount-fact. Everything but the real
 `git diff` subprocess is unit-tested behind an injected runner / `FakeProvider`.
 
+## Built — the findings reader = the convergence signal (v0.2 P3)
+
+`read_findings_state(path) -> FindingsState | None` reads a role's findings file into a validated verdict
+(`verdict` / `open_blocking` / `round` / `head`), reusing `parse_frontmatter` — no new parser. It is the
+**read-half of the converge loop** and the enforcement of principle 2: the orchestrator keys convergence on
+`verdict`/`open_blocking` written to disk by the **verify pass**, never on what the **fixer** returns (the
+fixer only flips a finding `open → fixed`; the verifier owns the counters). So a fixer cannot lie its way
+to "converged".
+
+```mermaid
+flowchart LR
+    file["vX.Y_review.md (vault)<br/>frontmatter: verdict / open_blocking / round / head"] --> pf["parse_frontmatter (state.py)"]
+    pf --> mv["FindingsState.model_validate<br/>(coerce ints · ignore extras · validate verdict)"]
+    mv --> fs["FindingsState | None"]
+    fs --> loop["P5 converge loop:<br/>clean iff verdict == 'clean' for all three"]
+
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class pf,mv,fs built;
+```
+
+A **missing** file → `None` (a not-yet-run role, not a crash); `verdict` is a strict `Literal`, so a typo'd
+verdict is rejected at read and `ty` forces the loop to handle the `None` case. `FindingsState` is Pydantic
+(unlike the dataclass `PlanState`) because *this* boundary read has ints to coerce and a closed verdict to
+validate — Pydantic-where-it-needs-validating, not merely at-any-boundary.
+
 ## The state-on-disk backbone (why resume is free)
 
 Every arrow that crosses a role/phase boundary is mediated by **files on disk**, never in-memory state:

@@ -39,6 +39,7 @@ orchestrator/
 ├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5 · +emit_event v0.2 P1]
 ├── status.py       # typed Event stream: events.jsonl + status.json + render     [BUILT  v0.2 P1]
 ├── diff.py         # compute_diff(base..head) + run_role_with_diff (inject file)  [BUILT  v0.2 P2]
+├── findings.py     # read_findings_state(path) -> FindingsState | None (verdict)  [BUILT  v0.2 P3]
 └── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status sink v0.2 P1]
 ```
 
@@ -62,6 +63,7 @@ graph TD
     provider["provider.py<br/>Provider seam + read-only profile (BUILT P2)"]:::built
     status["status.py<br/>event stream + render (BUILT v0.2 P1)"]:::built
     diff["diff.py<br/>compute_diff + inject (BUILT v0.2 P2)"]:::built
+    findings["findings.py<br/>read_findings_state (BUILT v0.2 P3)"]:::built
 
     main --> driver
     driver --> provider
@@ -70,12 +72,14 @@ graph TD
     driver --> status
     main --> status
     diff --> provider
+    findings --> state
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
     gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
     state -. reads .-> disk["target plan (vault)<br/>+ git head"]:::external
     status -. writes .-> minions[".minions/ (target)<br/>events.jsonl + status.json"]:::external
     diff -. git diff / writes .-> minions
+    findings -. reads .-> ff["findings files (vault)<br/>vX.Y_{review,security,simplify}.md"]:::external
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
     classDef planned fill:#fdebd0,stroke:#b9770e,color:#000,stroke-dasharray: 4 3;
