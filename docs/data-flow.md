@@ -3,7 +3,7 @@
 All v0.1 orchestrator modules are built (P2–P5): the provider seam, the gate runner, the plan-state
 reader, and the build-spine loop that ties them together. The only thing exercised solely against the real
 world (real `claude`, real git) — and therefore not unit-tested — is the subprocess edge, run for real in
-the P6 dogfood.
+the P6 dogfood. **v0.2 P1** adds a status/event stream woven through that loop (below).
 
 ## Built today — running one role (`run_role`)
 
@@ -66,6 +66,59 @@ flowchart TD
 
 Halt conditions (P5): a HALT report from the coder, a non-advancing phase (gate green but no
 commit / `current_phase` didn't move), or a persistently-red gate.
+
+## Built — the status/event stream (v0.2 P1)
+
+The same loop, now **observable**. The driver takes an injected `emit_event` sink and calls it around each
+observation it already makes — no new decisions, just narration. The events are the orchestrator's own
+view (it *observes* the role from outside; the role never emits), so the stream can't be gamed — the same
+posture as the orchestrator-run gate.
+
+```mermaid
+flowchart TD
+    ps["emit phase-start"] --> cs["emit coder-spawn"]
+    cs --> spawn["provider.run_role(...)  — result CAPTURED"]
+    spawn --> cr["emit coder-result<br/>(session_id / cost / is_error — off RoleResult)"]
+    cr --> gate["gate.run_gate(repo)"]
+    gate --> gs["emit gate-step  (one per command, pass/fail)"]
+    gs --> dec{"decide(...)<br/>(ignores the captured result)"}
+    dec -- advance --> adv["emit advance (from → to)"] --> ps
+    dec -- halt --> h["emit halt (reason)"] --> rs["emit run-summary(halted)"]
+    dec -- plan complete --> rsc["emit run-summary(complete)"]
+
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class ps,cs,cr,gs,adv,h,rs,rsc built;
+```
+
+The load-bearing nuance: `provider.run_role(...)`'s return is **captured** to fill the `coder-result`
+event, yet `decide(...)` still **ignores it** (advance is detected from disk). *Surfaced for observation,
+discarded for the verdict.* Every terminal path — complete, decision-halt, runaway guard — ends with a
+`run-summary`.
+
+Each event is both **appended** to `events.jsonl` (immutable history) and written to `status.json` (the
+latest-event snapshot), then `render`ed to a stdout line — the log-vs-snapshot split:
+
+```mermaid
+flowchart LR
+    e["Event"] --> emit["emit(stream, status, event)"]
+    emit --> log[".minions/events.jsonl<br/>append-only history (mode a)"]
+    emit --> snap[".minions/status.json<br/>snapshot (overwrite)"]
+    e --> render["render(event) -> str"] --> out["stdout (live line)"]
+
+    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
+    class emit,render built;
+```
+
+Testability map:
+
+| Piece | Pure/logic? | Unit-tested? |
+| --- | --- | --- |
+| `render(event)` | yes | yes — literal line per variant; exhaustive `match` (no `case _`) |
+| `append_event` / `read_events` | yes (file IO) | yes — round-trips to the typed variant |
+| `emit` / `read_status` | yes (file IO) | yes — snapshot = latest event only |
+| `is_in_progress(status)` | yes | yes — a dangling `coder-spawn` reads as running |
+| `run(..., emit_event=spy)` | yes (with a spy sink) | yes — emitted kind-sequence + key fields |
+| `_make_emitter` / `emit_and_render` (`__main__`) | no (disk + stdout) | **no** — composition root, validated by running |
 
 ## Built today — the gate runner (`SubprocessGate.run_gate`)
 

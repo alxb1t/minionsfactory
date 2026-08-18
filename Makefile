@@ -1,0 +1,11 @@
+.PHONY: fix gate
+
+fix:
+	uv run ruff format .
+	uv run ruff check --fix .
+
+gate:
+	uv run ruff format --check .
+	uv run ruff check .
+	uv run ty check
+	uv run pytest -q

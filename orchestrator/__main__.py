@@ -2,11 +2,14 @@
 
 import argparse
 import sys
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from orchestrator.driver import RunStatus, run
 from orchestrator.gate import SubprocessGate
 from orchestrator.provider import ClaudeCodeProvider, Profile
+from orchestrator.status import Event, emit, render
 
 _CODER_PROFILE = Profile(
     permission_mode="default",
@@ -30,6 +33,21 @@ def _coder_prompt() -> str:
     ).read_text()
 
 
+def emit_and_render(stream: Path, status: Path, event: Event) -> None:
+    """Record an event to disk and render it live to stdout."""
+    emit(stream, status, event)
+    print(render(event))
+
+
+def _make_emitter(repo: Path) -> Callable[[Event], None]:
+    """Build the disk+stdout status sink rooted at the target's .minions/."""
+    minions = repo / ".minions"
+    minions.mkdir(exist_ok=True)
+    stream, status = minions / "events.jsonl", minions / "status.json"
+    stream.write_text("")
+    return partial(emit_and_render, stream, status)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse args and drive the target repo's plan; return a process exit code."""
     parser = argparse.ArgumentParser(prog="orchestrator")
@@ -48,10 +66,11 @@ def main(argv: list[str] | None = None) -> int:
         gate=SubprocessGate(),
         coder_prompt=_coder_prompt(),
         profile=_CODER_PROFILE,
+        emit_event=_make_emitter(repo),
     )
     print(
         f"{result.status.name}: {result.reason} "
-        "(phases advanced: {result.phases_advanced})"
+        f"(phases advanced: {result.phases_advanced})"
     )
     return 0 if result.status is RunStatus.COMPLETE else 1
 

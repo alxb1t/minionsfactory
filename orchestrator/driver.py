@@ -2,12 +2,23 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 
 from orchestrator.gate import Gate, GateResult
 from orchestrator.provider import Profile, Provider
 from orchestrator.state import PlanState, read_plan_state
+from orchestrator.status import (
+    Advance,
+    CoderResult,
+    CoderSpawn,
+    Event,
+    GateStep,
+    Halt,
+    PhaseStart,
+    RunSummary,
+)
 
 
 @dataclass(frozen=True)
@@ -70,6 +81,10 @@ def _plan_complete(state: PlanState) -> bool:
     return "planned" not in state.phases.values()
 
 
+def _no_emit(event: Event) -> None:
+    """Default status sink: discard (a run without an observer is valid)."""
+
+
 def run(
     repo: Path,
     vault_project_dir: Path,
@@ -79,6 +94,7 @@ def run(
     profile: Profile,
     state_reader: Callable[[Path, Path], PlanState] = read_plan_state,
     halt_checker: Callable[[Path], bool] = halt_report_exists,
+    emit_event: Callable[[Event], None] = _no_emit,
     max_phases: int = 100,
 ) -> RunResult:
     """Drive the plan phase by phase.
@@ -90,19 +106,87 @@ def run(
     iterations = 0
     while not _plan_complete(before):
         if iterations >= max_phases:
-            return RunResult(
-                RunStatus.HALTED,
-                "exceeded max phases (runaway guard)",
-                advanced,
+            reason = "exceeded max phases (runaway guard)"
+            emit_event(
+                Halt(
+                    ts=datetime.now(timezone.utc),
+                    reason=reason,
+                )
             )
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=reason,
+                )
+            )
+            return RunResult(RunStatus.HALTED, reason, advanced)
+
+        emit_event(
+            PhaseStart(ts=datetime.now(timezone.utc), phase=before.current_phase)
+        )
         iterations += 1
-        provider.run_role(coder_prompt, repo, profile)
+
+        emit_event(
+            CoderSpawn(
+                ts=datetime.now(timezone.utc),
+                phase=before.current_phase,
+            )
+        )
+        result = provider.run_role(coder_prompt, repo, profile)
+        emit_event(
+            CoderResult(
+                ts=datetime.now(timezone.utc),
+                session_id=result.session_id,
+                total_cost_usd=result.total_cost_usd,
+                is_error=result.is_error,
+            )
+        )
+
         coder_halted = halt_checker(vault_project_dir)
+
         gate_result = gate.run_gate(repo)
+        for step in gate_result.steps:
+            emit_event(
+                GateStep(
+                    ts=datetime.now(timezone.utc),
+                    command=step.command,
+                    passed=step.exit_code == 0,
+                )
+            )
+
         after = state_reader(vault_project_dir, repo)
         decision = decide(before, after, gate_result, coder_halted)
+
         if not decision.advance:
+            emit_event(Halt(ts=datetime.now(timezone.utc), reason=decision.reason))
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=decision.reason,
+                )
+            )
             return RunResult(RunStatus.HALTED, decision.reason, advanced)
+
         advanced += 1
+        emit_event(
+            Advance(
+                ts=datetime.now(timezone.utc),
+                from_phase=before.current_phase,
+                to_phase=after.current_phase,
+            ),
+        )
         before = after
+
+    emit_event(
+        RunSummary(
+            ts=datetime.now(timezone.utc),
+            status="complete",
+            phases_advanced=advanced,
+            reason="",
+        )
+    )
     return RunResult(RunStatus.COMPLETE, "", advanced)

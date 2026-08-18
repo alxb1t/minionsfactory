@@ -1,0 +1,142 @@
+"""Status/event stream.
+
+A typed event schema, an append-only writer, and a stdout renderer.
+"""
+
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import AwareDatetime, BaseModel, Field, TypeAdapter
+
+
+class PhaseStart(BaseModel):
+    """A phase began."""
+
+    kind: Literal["phase-start"] = "phase-start"
+    ts: AwareDatetime
+    phase: str
+
+
+class CoderSpawn(BaseModel):
+    """The coder instance was spawned (its result has not landed yet)."""
+
+    kind: Literal["coder-spawn"] = "coder-spawn"
+    ts: AwareDatetime
+    phase: str
+
+
+class CoderResult(BaseModel):
+    """The coder instance returned (summary of its RoleResult)."""
+
+    kind: Literal["coder-result"] = "coder-result"
+    ts: AwareDatetime
+    session_id: str
+    total_cost_usd: float
+    is_error: bool
+
+
+class GateStep(BaseModel):
+    """The gate step."""
+
+    kind: Literal["gate-step"] = "gate-step"
+    ts: AwareDatetime
+    command: str
+    passed: bool
+
+
+class Advance(BaseModel):
+    """Advance from one step to next."""
+
+    kind: Literal["advance"] = "advance"
+    ts: AwareDatetime
+    from_phase: str
+    to_phase: str
+
+
+class Halt(BaseModel):
+    """Halt the process."""
+
+    kind: Literal["halt"] = "halt"
+    ts: AwareDatetime
+    reason: str
+
+
+class RunSummary(BaseModel):
+    """Summary of the implementation."""
+
+    kind: Literal["run-summary"] = "run-summary"
+    ts: AwareDatetime
+    status: Literal["complete", "halted"]
+    phases_advanced: int
+    reason: str
+
+
+Event = Annotated[
+    PhaseStart | CoderSpawn | CoderResult | GateStep | Advance | Halt | RunSummary,
+    Field(discriminator="kind"),
+]
+_ADAPTER: TypeAdapter[Event] = TypeAdapter(Event)
+
+
+def append_event(stream: Path, event: Event) -> None:
+    """Append one event as a JSON line (append-only history)."""
+    with stream.open("a") as f:
+        f.write(event.model_dump_json() + "\n")
+
+
+def read_events(stream: Path) -> list[Event]:
+    """Read the stream back into typed event variants."""
+    return [_ADAPTER.validate_json(line) for line in stream.read_text().splitlines()]
+
+
+def emit(stream: Path, status: Path, event: Event) -> None:
+    """Record an event: append to the history and refresh the snapshot."""
+    append_event(stream, event)
+    _write_status(status, event)
+
+
+class Status(BaseModel):
+    """Current-state snapshot: where the run is + the latest event."""
+
+    stage: str
+    phase: str
+    last_event: Event
+
+
+def _write_status(status: Path, event: Event) -> None:
+    """Overwrite the snapshot with the latest event (write mode — not append)."""
+    status.write_text(event.model_dump_json())
+
+
+def read_status(status: Path) -> Event:
+    """Read the snapshot back as its typed event variant."""
+    return _ADAPTER.validate_json(status.read_text())
+
+
+def render(event: Event) -> str:
+    """Format one event as a human-readable stdout line."""
+    match event:
+        case PhaseStart():
+            return f"▶ phase {event.phase} — building"
+        case CoderSpawn():
+            return "  coder spawned — running…"
+        case CoderResult():
+            flag = "error" if event.is_error else "ok"
+            return f"  coder returned ({flag}, ${event.total_cost_usd:.2f})"
+        case GateStep():
+            return f"  gate: {event.command} {'✓' if event.passed else '✗'}"
+        case Advance():
+            return f"Advanced {event.from_phase} -> {event.to_phase}"
+        case Halt():
+            return f"halted: {event.reason}"
+        case RunSummary():
+            return f"■ {event.status} — {event.phases_advanced} phase(s) advanced"
+
+
+def is_in_progress(status: Path) -> bool:
+    """Whether a spawned role is still running (its result has not landed)."""
+    match read_status(status):
+        case CoderSpawn():
+            return True
+        case _:
+            return False

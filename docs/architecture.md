@@ -22,6 +22,11 @@ release automation, the installed CLI, and the UI are all out of scope for v0.1.
    never on the `claude` CLI directly — harness-agnostic and unit-testable.
 5. **The framework's own green gate is the definition of done** (`ruff` `D`+`ANN` → `ty` strict →
    `pytest`), dogfooded on itself.
+6. **Observability is a projection of on-disk state, not `print`** (v0.2 P1). The orchestrator writes
+   typed events to an append-only log + a current-state snapshot; the stdout renderer is one projection of
+   that stream (the future UI is another). A projection is resumable + machine-readable; a `print` is
+   neither. The status stream is a side-channel — the driver's *logic* never depends on whether anyone is
+   listening (the sink defaults to a no-op).
 
 ## Package layout (all v0.1 modules built)
 
@@ -31,9 +36,13 @@ orchestrator/
 ├── provider.py     # Provider seam: Protocol + ClaudeCodeProvider + FakeProvider [BUILT  P2]
 ├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [BUILT  P3]
 ├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [BUILT  P4]
-├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5]
-└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5]
+├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5 · +emit_event v0.2 P1]
+├── status.py       # typed Event stream: events.jsonl + status.json + render     [BUILT  v0.2 P1]
+└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status sink v0.2 P1]
 ```
+
+_(v0.2 has begun: **P1** adds the status/event stream and instruments the v0.1 loop; the fan-out /
+converge / release stages that use it land in later phases.)_
 
 Supporting infrastructure already in place: the **own strict gate** (`pyproject.toml`: `ruff` with
 `D`+`ANN` and `pep257`, `ty` strict via `error-on-warning`, `pytest`), **CI** mirroring it
@@ -50,15 +59,19 @@ graph TD
     state["state.py<br/>plan-state reader (BUILT P4)"]:::built
     gate["gate.py<br/>gate runner (BUILT P3)"]:::built
     provider["provider.py<br/>Provider seam (BUILT P2)"]:::built
+    status["status.py<br/>event stream + render (BUILT v0.2 P1)"]:::built
 
     main --> driver
     driver --> provider
     driver --> gate
     driver --> state
+    driver --> status
+    main --> status
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
     gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
     state -. reads .-> disk["target plan (vault)<br/>+ git head"]:::external
+    status -. writes .-> minions[".minions/ (target)<br/>events.jsonl + status.json"]:::external
 
     classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
     classDef planned fill:#fdebd0,stroke:#b9770e,color:#000,stroke-dasharray: 4 3;

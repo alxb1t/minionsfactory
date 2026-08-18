@@ -1,8 +1,8 @@
 # Module reference — `orchestrator`
 
-The current public API of the `orchestrator` package, as built through **P5** (all v0.1 modules).
-Signatures below mirror the code; the docstrings in the source remain the authoritative "what each unit
-does".
+The current public API of the `orchestrator` package: all v0.1 modules (P2–P5) **plus** the v0.2 **P1**
+status/event stream (`status.py`, and the `emit_event` seam threaded through `driver.run`). Signatures
+below mirror the code; the docstrings in the source remain the authoritative "what each unit does".
 
 ---
 
@@ -264,14 +264,88 @@ a new commit (`head` changed) **and** a moved `current_phase`. Unit-tested (the 
 
 ```python
 run(repo, vault_project_dir, provider, gate, coder_prompt, profile,
-    state_reader=read_plan_state, halt_checker=halt_report_exists, max_phases=100) -> RunResult
+    state_reader=read_plan_state, halt_checker=halt_report_exists,
+    emit_event=_no_emit, max_phases=100) -> RunResult
 ```
 
-The loop: read `PlanState` → `provider.run_role(...)` (return **discarded** — advance is detected from
-disk, not the coder's word) → `halt_checker` → `gate.run_gate` → read state again → `decide` → continue or
-halt. `state_reader`/`halt_checker` are injected seams (real defaults), so the full matrix — including
-**resume** — is unit-tested behind `FakeProvider` + `FakeGate`. `max_phases` is a runaway guard.
-`halt_report_exists` is the thin IO helper that checks the vault for the coder's HALT report.
+The loop: read `PlanState` → `provider.run_role(...)` → `halt_checker` → `gate.run_gate` → read state
+again → `decide` → continue or halt. `state_reader`/`halt_checker` are injected seams (real defaults), so
+the full matrix — including **resume** — is unit-tested behind `FakeProvider` + `FakeGate`. `max_phases`
+is a runaway guard. `halt_report_exists` is the thin IO helper that checks the vault for the coder's HALT
+report.
+
+**v0.2 P1 — `emit_event`.** The loop is instrumented: it emits typed status events around each observation
+(`phase-start` → `coder-spawn` → `coder-result` → `gate-step`* → `advance`/`halt` → `run-summary`).
+`emit_event: Callable[[Event], None]` is an injected sink defaulting to `_no_emit` (a no-op — a run without
+an observer is valid), so the six v0.1 tests are unaffected and the instrumentation tests inject a spy
+(`events.append`). Two nuances the tests pin: `provider.run_role(...)`'s return is now **captured** to
+build the `coder-result` event but is **still discarded by `decide`** (surfaced for observation, never
+trusted for the verdict); and every terminal path — complete, decision-halt, and the runaway guard — emits
+a `run-summary` (both halt paths emit `halt` then `run-summary`).
+
+---
+
+## `orchestrator/status.py` — the status/event stream (v0.2 P1)
+
+Makes a run **observable** without an LLM: the orchestrator writes typed, timestamped events to disk and a
+renderer projects them to stdout. Observability is a **projection of on-disk state, not `print`** — a
+projection is resumable + machine-readable (the future UI reads the same schema); a `print` is neither.
+
+### `Event` — a discriminated union of per-event models (Pydantic)
+
+Seven `BaseModel` variants, tagged by a `kind` `Literal`, under `Event = Annotated[… , Field(discriminator="kind")]`:
+
+| Variant (`kind`) | Carries (beyond `ts: AwareDatetime`) | Emitted when |
+| --- | --- | --- |
+| `PhaseStart` (`phase-start`) | `phase` | a phase begins |
+| `CoderSpawn` (`coder-spawn`) | `phase` | the coder is spawned (result not yet landed) |
+| `CoderResult` (`coder-result`) | `session_id`, `total_cost_usd`, `is_error` | the coder returns (fields off `RoleResult`) |
+| `GateStep` (`gate-step`) | `command`, `passed` | per gate command run (one event each) |
+| `Advance` (`advance`) | `from_phase`, `to_phase` | a phase advanced |
+| `Halt` (`halt`) | `reason` | the run halts |
+| `RunSummary` (`run-summary`) | `status` (`complete`/`halted`), `phases_advanced`, `reason` | the run ends (always last) |
+
+`ts` is `AwareDatetime` (a naive datetime is **rejected** at the boundary, not silently stored). Parsing a
+union needs a `TypeAdapter(Event)` (the alias is not a class) — the `kind` discriminator picks the variant.
+
+### `append_event` / `read_events` — the append-only history (`events.jsonl`)
+
+```python
+append_event(stream: Path, event: Event) -> None      # one JSON line, mode "a"
+read_events(stream: Path) -> list[Event]              # each line → its typed variant
+```
+
+JSONL (one event per line) so appends are cheap and crash-safe; the whole file is *not* one JSON document.
+
+### `emit` / `read_status` — the current-state snapshot (`status.json`)
+
+```python
+emit(stream: Path, status: Path, event: Event) -> None   # append to history AND overwrite the snapshot
+read_status(status: Path) -> Event                       # the latest event only
+```
+
+`emit` couples the two writes so the snapshot can't drift from the log. The snapshot is a **materialized
+view** (the log is the source of truth; the snapshot is the O(1) "where are we now" read). *P1 scope: the
+snapshot holds the last event only; it grows to `{stage, phase, last_event}` at **P4**, when stages diverge.*
+
+### `render` — the pure per-event projection to a stdout line
+
+```python
+render(event: Event) -> str
+```
+
+A total function: a `match` with a `case` per variant and **no `case _`**, so `ty` enforces exhaustiveness
+(add an 8th event → the type check goes red until it's rendered). Pure → unit-tested by asserting literal
+lines.
+
+### `is_in_progress` — "is a role still running?", derived from the snapshot
+
+```python
+is_in_progress(status: Path) -> bool     # True iff the snapshot's last event is a spawn
+```
+
+The in-progress indicator falls out of the snapshot for free: a dangling `coder-spawn` (no `coder-result`
+yet) *is* "running". (P4 widens the spawn set to the fan-out roles.)
 
 ---
 
@@ -284,9 +358,17 @@ Deliberately untested (you validate it by running it; that's P6).
 python -m orchestrator run --repo <target>
 ```
 
-Resolves the target's vault from its `.env` (`VAULT_PROJECT_DIR`), loads `prompts/coder.md`, builds the
+Resolves the target's vault from its `.env` (`VAULT_PROJECT_DIR`), loads the coder prompt, builds the
 coder `Profile` (Edit/Write/Bash), calls `run`, and exits `0` on COMPLETE / `1` on HALT.
+
+**v0.2 P1 — the live status sink.** `_make_emitter(repo)` creates `<repo>/.minions/`, truncates
+`events.jsonl` (a fresh log per run), and returns `partial(emit_and_render, stream, status)` — the
+`(event) -> None` sink passed as `run(..., emit_event=...)`. `emit_and_render` writes each event to disk
+(`emit`) **and** prints `render(event)` to stdout, so a live run finally speaks. `.minions/` is the
+target's per-run artifact dir (git-ignore it in the target; see the backlog for the `minions.toml`
+consolidation). Still untested — the wiring is validated by running (a spy can't catch a missing wire).
 
 ---
 
-_All v0.1 modules are built. **P6** is the dogfood run (drive isekai v0.6 for real), not a new module._
+_v0.1 modules built (P2–P5) + v0.2 **P1** (`status.py` + instrumented `run`). Next: **P2** — diff supply +
+read-only role profile._

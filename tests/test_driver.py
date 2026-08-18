@@ -5,6 +5,7 @@ from orchestrator.driver import RunStatus, decide, run
 from orchestrator.gate import FakeGate, GateResult
 from orchestrator.provider import FakeProvider, Profile, RoleResult
 from orchestrator.state import PlanState
+from orchestrator.status import Event, RunSummary
 
 _GREEN = GateResult(passed=True, steps=())
 _RED = GateResult(passed=False, steps=())
@@ -143,3 +144,49 @@ def test_run_resumes_from_the_current_phase_on_disk() -> None:
     )
     assert result.status is RunStatus.COMPLETE
     assert result.phases_advanced == 1
+
+
+def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
+    states = [
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+        PlanState("done", {"phase0": "done"}, "c1"),
+    ]
+    events: list[Event] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert [e.kind for e in events] == [
+        "phase-start",
+        "coder-spawn",
+        "coder-result",
+        "advance",
+        "run-summary",
+    ]
+
+
+def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    events: list[Event] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert [e.kind for e in events] == ["run-summary"]
+    summary = events[-1]
+    assert isinstance(summary, RunSummary)
+    assert summary.status == "complete"
