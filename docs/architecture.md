@@ -41,7 +41,8 @@ orchestrator/
 ├── diff.py         # compute_diff(base..head) + run_role_with_diff (inject file)  [BUILT  v0.2 P2]
 ├── findings.py     # read_findings_state(path) -> FindingsState | None (verdict)  [BUILT  v0.2 P3]
 ├── fanout.py       # run_fanout: review ‖ security ‖ simplify over the frozen diff [BUILT  v0.2 P4 · dogfood pending]
-└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status/fanout wiring v0.2 P1/P4]
+├── converge.py     # converge: fix → gate → scoped re-verify loop, or halt        [BUILT  v0.2 P5 · dogfood pending]
+└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status/fanout/converge wiring]
 ```
 
 _(v0.2 has begun: **P1** adds the status/event stream and instruments the v0.1 loop; the fan-out /
@@ -66,6 +67,7 @@ graph TD
     diff["diff.py<br/>compute_diff + inject (BUILT v0.2 P2)"]:::built
     findings["findings.py<br/>read_findings_state (BUILT v0.2 P3)"]:::built
     fanout["fanout.py<br/>run_fanout: 3 read-only roles (BUILT v0.2 P4)"]:::built
+    converge["converge.py<br/>fix → gate → re-verify loop (BUILT v0.2 P5)"]:::built
 
     main --> driver
     driver --> provider
@@ -73,12 +75,17 @@ graph TD
     driver --> state
     driver --> status
     driver --> fanout
+    driver --> converge
     main --> status
     diff --> provider
     findings --> state
     fanout --> diff
     fanout --> findings
     fanout --> status
+    converge --> findings
+    converge --> gate
+    converge --> provider
+    converge --> status
 
     provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
     gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external

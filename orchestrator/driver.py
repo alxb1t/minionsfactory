@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 
+from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
 from orchestrator.provider import Profile, Provider
@@ -88,6 +89,11 @@ def _no_fanout() -> list[FindingsState | None]:
     return []
 
 
+def _no_converge() -> ConvergeResult:
+    """Default post-fan-out stage: nothing owed (a run without converge is valid)."""
+    return ConvergeResult(ConvergeStatus.CONVERGED, "", 0)
+
+
 def run(
     repo: Path,
     vault_project_dir: Path,
@@ -99,6 +105,7 @@ def run(
     halt_checker: Callable[[Path], bool] = halt_report_exists,
     emit_event: Callable[[Event], None] = _no_emit,
     fanout: Callable[[], list[FindingsState | None]] = _no_fanout,
+    converge: Callable[[], ConvergeResult] = _no_converge,
     max_phases: int = 100,
 ) -> RunResult:
     """Drive the plan phase by phase.
@@ -187,6 +194,28 @@ def run(
         before = after
 
     fanout()
+
+    outcome = converge()
+    if outcome.status is ConvergeStatus.HALTED:
+        emit_event(
+            Halt(
+                ts=datetime.now(timezone.utc),
+                reason=outcome.reason,
+            )
+        )
+        emit_event(
+            RunSummary(
+                ts=datetime.now(timezone.utc),
+                status="halted",
+                phases_advanced=advanced,
+                reason=outcome.reason,
+            )
+        )
+        return RunResult(
+            RunStatus.HALTED,
+            outcome.reason,
+            advanced,
+        )
 
     emit_event(
         RunSummary(

@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.driver import RunStatus, decide, run
+from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
 from orchestrator.provider import FakeProvider, Profile, RoleResult
 from orchestrator.state import PlanState
@@ -227,3 +229,49 @@ def test_run_does_not_fan_out_when_the_build_halts() -> None:
         fanout=lambda: calls.append(1) or [],
     )
     assert calls == []
+
+
+def test_run_converges_after_fanout_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    order: list[str] = []
+
+    def fake_fanout() -> list[FindingsState | None]:
+        order.append("fanout")
+        return []
+
+    def fake_converge() -> ConvergeResult:
+        order.append("converge")
+        return ConvergeResult(ConvergeStatus.CONVERGED, "", 1)
+
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=fake_fanout,
+        converge=fake_converge,
+    )
+    assert order == ["fanout", "converge"]
+    assert result.status is RunStatus.COMPLETE
+
+
+def test_run_halts_when_converge_halts() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.HALTED, "round cap exceeded", 3),
+    )
+    assert result.status is RunStatus.HALTED
+    assert "round cap" in result.reason

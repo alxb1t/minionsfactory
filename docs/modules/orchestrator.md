@@ -482,6 +482,58 @@ ever — is the P4 dogfood** (pending).
 
 ---
 
+## `orchestrator/converge.py` — the converge loop
+
+Drives open **blocking** review findings to clean by looping *fix → gate → re-verify*, or halts. No LLM in
+the loop — control flow over on-disk state.
+
+```mermaid
+flowchart TD
+    read["read_states() — the 3 findings from disk"] --> clean{"all verdicts clean?"}
+    clean -- yes --> converged([CONVERGED])
+    clean -- no --> cap{"rounds ≥ max?"}
+    cap -- yes --> halt1([HALTED — round cap])
+    cap -- no --> fix["provider.run_role(fixer) — fix pass"]
+    fix --> gate["gate.run_gate(repo)"]
+    gate -- red --> halt2([HALTED — gate red])
+    gate -- green --> verify["run_verify() — scoped head..HEAD re-check"]
+    verify --> read
+```
+
+### `ConvergeStatus`
+
+```python
+class ConvergeStatus(Enum):  # CONVERGED | HALTED
+```
+
+The two ways a converge run ends. The driver branches on it.
+
+### `ConvergeResult`
+
+```python
+@dataclass(frozen=True)
+class ConvergeResult:
+    status: ConvergeStatus
+    reason: str  # "" when converged
+    rounds: int
+```
+
+A converge run's outcome. Consumed by the driver — `HALTED` halts the whole run.
+
+### `converge`
+
+```python
+converge(provider, gate, repo, fixer_prompt, coder_profile,
+         read_states, run_verify, emit_event=_no_emit, max_rounds=3) -> ConvergeResult
+```
+
+**Does:** loops fix → gate → re-verify until every findings verdict is clean, else halts.
+**Called by:** the driver, once, after fan-out.
+**Needs:** `read_states` (the three findings, from disk), `run_verify` (the scoped re-check), `provider` + `gate` (spawn the fixer, run the gate).
+**Watch:** re-reads `read_states` **every** round (state changes on disk between rounds); the fixer's return is **discarded** — convergence is read from disk; halts at `rounds ≥ max_rounds` or a red gate after a fix.
+
+---
+
 ## `orchestrator/__main__.py` — the run-from-source entry
 
 The **composition root** — wires the *real* `ClaudeCodeProvider` + `SubprocessGate` into `run()`.

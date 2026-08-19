@@ -6,11 +6,12 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
+from orchestrator.converge import converge
 from orchestrator.diff import compute_diff
 from orchestrator.driver import RunStatus, run
 from orchestrator.fanout import RoleSpec, run_fanout
-from orchestrator.findings import FindingsState
-from orchestrator.gate import SubprocessGate
+from orchestrator.findings import FindingsState, read_findings_state
+from orchestrator.gate import Gate, SubprocessGate
 from orchestrator.provider import ClaudeCodeProvider, Profile, Provider
 from orchestrator.state import select_plan
 from orchestrator.status import Event, emit, render
@@ -90,6 +91,53 @@ def _make_fanout(
         )
 
     return _fanout
+
+
+def _make_converge(
+    provider: Provider,
+    gate: Gate,
+    repo: Path,
+    vault_dir: Path,
+    version: str,
+    base: str,
+    roles: list[RoleSpec],
+    fixer_prompt: str,
+    coder_profile: Profile,
+    emit_event: Callable[[Event], None],
+) -> Callable:
+    paths = [
+        vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
+    ]
+
+    def _read_states() -> list[FindingsState | None]:
+        return [read_findings_state(p) for p in paths]
+
+    def _run_verify() -> None:
+        states = _read_states()
+        head = next(s.head for s in states if s is not None)
+        diff = compute_diff(repo, head, "HEAD")
+        run_fanout(
+            provider,
+            repo,
+            vault_dir,
+            version,
+            diff,
+            repo / ".minions" / "diff.patch",
+            roles,
+            emit_event,
+        )
+
+    return lambda: converge(
+        provider,
+        gate,
+        repo,
+        fixer_prompt,
+        coder_profile,
+        _read_states,
+        _run_verify,
+        emit_event,
+        max_rounds=3,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
