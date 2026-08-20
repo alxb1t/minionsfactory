@@ -1,170 +1,86 @@
-# Architecture — MinionsFactory v0.1 (the coder build spine)
+# Architecture
 
-## What v0.1 is
+## What it is
 
-MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**.
-Pointed at a target repo, it drives a vault-backed implementation plan to completion.
+MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
+at a target repo, it drives a vault-backed implementation plan to completion: a warm **coder** builds the plan
+phase by phase (the orchestrator runs the quality gate itself and commits on green); at plan end it fans out
+**review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their blocking
+findings, and hands the gated result on. Every role is a fresh, single-role Claude Code instance behind a
+**provider seam**; the driver is deterministic control flow that **advances or halts** on machine-checkable disk
+state.
 
-**v0.1 builds only the minimal spine:** spawn one role — the **coder** — as a fresh headless
-`claude -p` instance → **the orchestrator runs the target's quality gate itself** → on green, advance +
-commit; otherwise **halt**. The end-of-plan fan-out (review ‖ security ‖ simplify), the converge loop,
-release automation, the installed CLI, and the UI are all out of scope for v0.1.
+## Load-bearing invariants
 
-## The load-bearing invariants (why the code is shaped the way it is)
+The rules that explain why the code is shaped the way it is:
 
-1. **No LLM in the orchestration layer.** The driver is deterministic, unit-testable Python control
-   flow. The only LLM is the coder instance it spawns.
-2. **The orchestrator runs the objective checks itself** — the gate and git state — so the agent it
-   drives cannot game them.
-3. **State lives on disk.** "Where are we" is reconstructed from the plan's `current_phase` + the
-   progress ledger + git — never from memory. Resume is therefore free.
-4. **Roles are fresh instances behind a provider seam.** The driver depends on a `Provider` **Protocol**,
-   never on the `claude` CLI directly — harness-agnostic and unit-testable.
-5. **The framework's own green gate is the definition of done** (`ruff` `D`+`ANN` → `ty` strict →
-   `pytest`), dogfooded on itself.
-6. **Observability is a projection of on-disk state, not `print`** (v0.2 P1). The orchestrator writes
-   typed events to an append-only log + a current-state snapshot; the stdout renderer is one projection of
-   that stream (the future UI is another). A projection is resumable + machine-readable; a `print` is
-   neither. The status stream is a side-channel — the driver's *logic* never depends on whether anyone is
-   listening (the sink defaults to a no-op).
+1. **No LLM in the orchestration layer.** The driver is deterministic, unit-testable Python control flow; the
+   only LLM is the role instance it spawns.
+2. **The orchestrator runs the objective checks itself** — the gate and git state — so the agent it drives
+   cannot game them.
+3. **State lives on disk.** "Where are we" is reconstructed from the plan's `current_phase` + the progress
+   ledger + git — never from memory, so resume is free.
+4. **Roles are fresh instances behind a `Provider` seam.** The driver depends on a Protocol, never on the
+   `claude` CLI — harness-agnostic and unit-testable.
+5. **Advance is detected, not trusted.** A phase advances only when a new commit landed **and** `current_phase`
+   moved; a role's self-report is captured for observation but never trusted for the verdict.
+6. **The framework's own green gate is the definition of done** (`ruff` `D`+`ANN` → `ty` strict → `pytest`),
+   dogfooded on itself.
+7. **Observability is a projection of on-disk state, not `print`.** Typed events go to an append-only log + a
+   snapshot; the sink defaults to a no-op, so the driver's logic never depends on whether anyone is listening.
+8. **Fakes are first-class parts of each seam and ship in the package.** No unit test spawns `claude` or runs a
+   real gate — the subprocess edges are exercised only in an end-to-end dogfood run.
 
-## Package layout (all v0.1 modules built)
+## Dependency graph
 
-```
-orchestrator/
-├── __init__.py     # package marker + a trivial describe() smoke keeper          [BUILT  P1]
-├── provider.py     # Provider seam + read_only_profile(findings) (no Bash/Edit)   [BUILT  P2 · +read-only v0.2 P2]
-├── gate.py         # run the target's gate itself -> GateResult (+ FakeGate)      [BUILT  P3]
-├── state.py        # read_plan_state(...) -> PlanState (state-from-disk)          [BUILT  P4]
-├── driver.py       # run(...) — the build-spine loop + halt-contract + resume    [BUILT  P5 · +emit_event v0.2 P1]
-├── status.py       # typed Event stream: events.jsonl + status.json + render     [BUILT  v0.2 P1]
-├── diff.py         # compute_diff(base..head) + run_role_with_diff (inject file)  [BUILT  v0.2 P2]
-├── findings.py     # read_findings_state(path) -> FindingsState | None (verdict)  [BUILT  v0.2 P3]
-├── fanout.py       # run_fanout: review ‖ security ‖ simplify over the frozen diff [BUILT  v0.2 P4 · dogfood pending]
-├── converge.py     # converge: fix → gate → scoped re-verify loop, or halt        [BUILT  v0.2 P5 · dogfood pending]
-└── __main__.py     # `python -m orchestrator run --repo <target>`                 [BUILT  P5 · +status/fanout/converge wiring]
-```
-
-_(v0.2 has begun: **P1** adds the status/event stream and instruments the v0.1 loop; the fan-out /
-converge / release stages that use it land in later phases.)_
-
-Supporting infrastructure already in place: the **own strict gate** (`pyproject.toml`: `ruff` with
-`D`+`ANN` and `pep257`, `ty` strict via `error-on-warning`, `pytest`), **CI** mirroring it
-(`.github/workflows/ci.yml`), the proven role **prompts/**, and a committed **`uv.lock`**.
-
-## Component & dependency graph
-
-Arrows mean "depends on / calls". Green = built (all v0.1 modules); grey = external systems.
+Arrows mean "imports / calls". Dotted arrows cross into external systems.
 
 ```mermaid
 graph TD
-    main["__main__.py<br/>CLI entry (BUILT P5)"]:::built
-    driver["driver.py<br/>build-spine loop (BUILT P5)"]:::built
-    state["state.py<br/>plan-state reader (BUILT P4)"]:::built
-    gate["gate.py<br/>gate runner (BUILT P3)"]:::built
-    provider["provider.py<br/>Provider seam + read-only profile (BUILT P2)"]:::built
-    status["status.py<br/>event stream + render (BUILT v0.2 P1)"]:::built
-    diff["diff.py<br/>compute_diff + inject (BUILT v0.2 P2)"]:::built
-    findings["findings.py<br/>read_findings_state (BUILT v0.2 P3)"]:::built
-    fanout["fanout.py<br/>run_fanout: 3 read-only roles (BUILT v0.2 P4)"]:::built
-    converge["converge.py<br/>fix → gate → re-verify loop (BUILT v0.2 P5)"]:::built
+    main["__main__ — CLI + composition root"]
+    driver["driver — build-spine loop"]
+    converge["converge — fix → gate → re-verify"]
+    fanout["fanout — review ‖ security ‖ simplify"]
+    diff["diff — diff supply for read-only roles"]
+    findings["findings — convergence verdict from disk"]
+    state["state — plan-state reader"]
+    gate["gate — gate runner"]
+    provider["provider — Provider seam"]
+    status["status — event stream + render"]
 
     main --> driver
-    driver --> provider
+    main --> converge
+    main --> fanout
+    driver --> converge
     driver --> gate
+    driver --> provider
     driver --> state
     driver --> status
-    driver --> fanout
-    driver --> converge
-    main --> status
-    diff --> provider
-    findings --> state
+    driver --> findings
+    converge --> provider
+    converge --> gate
+    converge --> findings
+    converge --> status
     fanout --> diff
     fanout --> findings
+    fanout --> provider
     fanout --> status
-    converge --> findings
-    converge --> gate
-    converge --> provider
-    converge --> status
+    diff --> provider
+    findings --> state
 
-    provider -. spawns .-> claude["claude -p<br/>(external CLI)"]:::external
-    gate -. runs .-> targetgate["target repo's<br/>gate commands (minions.toml)"]:::external
-    state -. reads .-> disk["target plan (vault)<br/>+ git head"]:::external
-    status -. writes .-> minions[".minions/ (target)<br/>events.jsonl + status.json"]:::external
-    diff -. git diff / writes .-> minions
-    findings -. reads .-> ff["findings files (vault)<br/>vX.Y_{review,security,simplify}.md"]:::external
-    fanout -. spawns 3 read-only roles .-> claude
-
-    classDef built fill:#d5f5e3,stroke:#1e8449,color:#000;
-    classDef planned fill:#fdebd0,stroke:#b9770e,color:#000,stroke-dasharray: 4 3;
-    classDef external fill:#eaeded,stroke:#566573,color:#000;
+    provider -. spawns .-> claude["claude -p (external CLI)"]
+    gate -. runs .-> targetgate["target's gate (minions.toml)"]
+    state -. reads .-> disk["plan (vault) + git head"]
+    status -. writes .-> minions[".minions/ (events.jsonl + status.json)"]
+    findings -. reads .-> ff["findings files (vault)"]
 ```
 
-The key structural fact: **the driver depends on seams** (`Provider` and `Gate`), not on
-the CLIs behind them. In tests the driver is handed `FakeProvider`/`FakeGate`; in a real run it is handed
-`ClaudeCodeProvider` and the real gate. Same driver code, no `if testing:` branches — this is what makes
-the whole loop unit-testable without ever spawning Claude or running a real gate.
+The key structural fact: **the driver depends on seams**, not on the CLIs behind them. In tests it is handed
+[`FakeProvider`](modules/provider.md#fakeprovider) / [`FakeGate`](modules/gate.md#fakegate); in a real run,
+[`ClaudeCodeProvider`](modules/provider.md#claudecodeprovider) / [`SubprocessGate`](modules/gate.md#subprocessgate).
+Same driver code, no `if testing:` branches — this is what makes the whole loop unit-testable without ever
+spawning Claude or running a real gate.
 
-## The seam pattern (dependency inversion via `typing.Protocol`)
-
-A `Provider` is defined by *having a `run_role` method*, not by inheriting a base class (structural
-typing). Two concrete adapters satisfy it without any shared parent:
-
-- **`ClaudeCodeProvider`** — the real adapter: build a `claude -p … --output-format json` argv, run it
-  in the target repo, parse the JSON result.
-- **`FakeProvider`** — a scripted double that returns a preset result and spawns nothing.
-
-The same pattern is now realized for the gate (`Gate` Protocol + real `SubprocessGate` + `FakeGate`, built
-in P3). Fakes are treated as **first-class parts of the seam** and ship inside the package (not in
-`tests/`), so anyone integrating against a seam can exercise the driver without real side effects.
-
-Another recurring rule visible in `provider.py`: **Pydantic at the trust boundary, plain dataclasses
-inside.** `RoleResult` parses untrusted subprocess JSON (Pydantic, tolerant of unknown fields);
-`Profile` is internal config (a frozen dataclass — no validation theater).
-
-### Why not inheritance? (structural typing, and why it's load-bearing)
-
-`ClaudeCodeProvider` and `FakeProvider` deliberately **do not inherit `Provider`**. Python offers two
-kinds of "interface", and we chose the structural one on purpose:
-
-| | **Nominal** (not used here) | **Structural** (what we use) |
-| --- | --- | --- |
-| Mechanism | `abc.ABC` + `class Foo(Base)` | `typing.Protocol`, no subclassing |
-| "Is it a `Provider`?" | it *inherited* the base | it *has the matching method shape* |
-| Coupling on implementers | must import + subclass our base | must know **nothing** about our seam |
-
-**This is driven directly by the harness-agnostic goal.** MinionsFactory is meant to drive other coding
-agents later (opencode, pi, Codex) via small adapters. With a `Protocol`, an adapter author just writes a
-class with a compatible `run_role` and it *is* a `Provider` — **they never import or subclass anything of
-ours.** An ABC would force every adapter to depend on `orchestrator`'s base class, reintroducing exactly
-the vendor coupling the design exists to avoid (and letting the weakest/most-coupled adapter set the
-floor). Structural typing keeps the seam definition and its implementations fully decoupled.
-
-**Where the contract is enforced:** not by a class hierarchy, but **statically by `ty`**, at every point
-a value flows into a `Provider`-typed slot — a `: Provider` parameter (the driver's case), a `: Provider`
-variable, a `-> Provider` return, or a `Provider` field. At each such site `ty` checks that the type is
-assignable to `Provider`, verifying **every** declared member matches with a compatible signature
-(parameter names/types + return type), not merely that a method by that name exists. A mismatch turns the
-gate red *before* the program runs — there is no runtime `isinstance` (a `Protocol` isn't runtime-checkable
-unless decorated `@runtime_checkable`, which we don't need). So in this codebase **"is a `Provider`"** and
-**"passes the gate"** are the same statement.
-
-You *can* subclass a `Protocol` for explicitness (`class ClaudeCodeProvider(Provider)`), and `ty` would
-then check conformance at the class definition instead of only at use sites. We choose not to: the
-implicit form keeps adapters decoupled from our code, and `ty` catches mistakes either way. Explicitness
-was judged not worth the coupling for a seam whose whole reason to exist is provider-neutrality.
-
-## Roadmap (P0 → P6)
-
-| Phase | Deliverable | Status |
-| --- | --- | --- |
-| P0 | Repo + Q1 permission spike (recorded) + minimal `pyproject.toml` | **done** |
-| P1 | `orchestrator/` skeleton behind the own strict gate + CI + prompts | **done** |
-| P2 | Provider seam + Claude Code adapter (`run_role`) | **done** |
-| P3 | Gate runner — run the target's gate itself (per-repo command list) + `FakeGate` | **done** |
-| P4 | Plan-state reader (state-from-disk; highest-version plan selection) | **done** |
-| P5 | Build-spine driver + halt-contract (advance / commit / halt / resume) | **done** |
-| P6 | Dogfood: drive the isekai v0.6 plan for real (`claude -p`, real gate) | planned |
-
-See [data-flow.md](data-flow.md) for how these pieces execute together, and
-[modules/orchestrator.md](modules/orchestrator.md) for the current API surface.
+Per-module detail (signatures, edge cases, data flow) lives in [`modules/`](modules/). The deep design
+rationale (why structural typing over an ABC, the read-only permission regime, and other settled trade-offs)
+lives in the vault's `decisions.md`, linked from the module docs that touch it.

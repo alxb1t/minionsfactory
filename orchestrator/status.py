@@ -28,7 +28,7 @@ class RoleSpawn(BaseModel):
 
 
 class RoleReturned(BaseModel):
-    """The role instance has returned result."""
+    """The role instance returned its result."""
 
     kind: Literal["role-returned"] = "role-returned"
     ts: AwareDatetime
@@ -39,7 +39,7 @@ class RoleReturned(BaseModel):
 
 
 class GateStep(BaseModel):
-    """The gate step."""
+    """One gate command ran (with its pass/fail outcome)."""
 
     kind: Literal["gate-step"] = "gate-step"
     ts: AwareDatetime
@@ -48,7 +48,7 @@ class GateStep(BaseModel):
 
 
 class Advance(BaseModel):
-    """Advance from one step to next."""
+    """A phase advanced to the next."""
 
     kind: Literal["advance"] = "advance"
     ts: AwareDatetime
@@ -57,7 +57,7 @@ class Advance(BaseModel):
 
 
 class Halt(BaseModel):
-    """Halt the process."""
+    """The run halted, with a reason."""
 
     kind: Literal["halt"] = "halt"
     ts: AwareDatetime
@@ -65,7 +65,7 @@ class Halt(BaseModel):
 
 
 class RunSummary(BaseModel):
-    """Summary of the implementation."""
+    """Terminal summary of the run (status + phases advanced)."""
 
     kind: Literal["run-summary"] = "run-summary"
     ts: AwareDatetime

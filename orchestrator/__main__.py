@@ -6,7 +6,7 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from orchestrator.converge import converge
+from orchestrator.converge import ConvergeResult, converge
 from orchestrator.diff import compute_diff
 from orchestrator.driver import RunStatus, run
 from orchestrator.fanout import RoleSpec, run_fanout
@@ -53,7 +53,7 @@ def _make_emitter(repo: Path) -> Callable[[Event], None]:
     return partial(emit_and_render, stream, status)
 
 
-def _fanaout_roles() -> list[RoleSpec]:
+def _fanout_roles() -> list[RoleSpec]:
     """Load the three read-only fan-out role prompts (review / security / simplify)."""
     prompts = Path(__file__).resolve().parent.parent / "prompts"
     return [
@@ -99,12 +99,11 @@ def _make_converge(
     repo: Path,
     vault_dir: Path,
     version: str,
-    base: str,
     roles: list[RoleSpec],
     fixer_prompt: str,
     coder_profile: Profile,
     emit_event: Callable[[Event], None],
-) -> Callable:
+) -> Callable[[], ConvergeResult]:
     paths = [
         vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
     ]
@@ -148,25 +147,42 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument(
         "--repo", type=Path, required=True, help="path to the target repo"
     )
+    run_parser.add_argument(
+        "--base",
+        default="main",
+        help="git ref the frozen feature diff is taken against (default: main)",
+    )
     args = parser.parse_args(argv)
 
     repo = args.repo.resolve()
     vault_dir = _read_vault_dir(repo)
     provider = ClaudeCodeProvider()
+    gate = SubprocessGate()
     emitter = _make_emitter(repo)
     version = _plan_version(vault_dir)
-    roles = _fanaout_roles()
+    roles = _fanout_roles()
 
     result = run(
         repo=repo,
         vault_project_dir=vault_dir,
         provider=provider,
-        gate=SubprocessGate(),
+        gate=gate,
         coder_prompt=_coder_prompt(),
         profile=_CODER_PROFILE,
-        emit_event=_make_emitter(repo),
+        emit_event=emitter,
         fanout=_make_fanout(
             provider, repo, vault_dir, version, args.base, roles, emitter
+        ),
+        converge=_make_converge(
+            provider,
+            gate,
+            repo,
+            vault_dir,
+            version,
+            roles,
+            _coder_prompt(),
+            _CODER_PROFILE,
+            emitter,
         ),
     )
     print(

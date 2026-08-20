@@ -108,9 +108,10 @@ def run(
     converge: Callable[[], ConvergeResult] = _no_converge,
     max_phases: int = 100,
 ) -> RunResult:
-    """Drive the plan phase by phase.
+    """Drive the plan phase by phase, then fan out and converge at plan end.
 
-    Spawn coder -> gate -> detect advance -> continue or halt.
+    Spawn coder -> gate -> detect advance -> continue or halt; at plan-complete,
+    run the fan-out then the converge loop before the final summary.
     """
     before = state_reader(vault_project_dir, repo)
     advanced = 0

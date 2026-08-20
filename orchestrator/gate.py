@@ -53,7 +53,7 @@ def read_gate_commands(repo: Path) -> list[str]:
 class SubprocessGate:
     """Real Gate: run the target repo's gate commands in order.
 
-    Stopping at the first failure.
+    Stops at the first failure.
     """
 
     def __init__(self, runner: CommandRunner = run_command) -> None:

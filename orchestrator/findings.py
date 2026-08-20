@@ -9,7 +9,7 @@ from orchestrator.state import parse_frontmatter
 
 
 class FindingsState(BaseModel):
-    """A role's findings verdict, read from file's frontmatter (a trust boundary)."""
+    """A role's findings verdict, read from the file's frontmatter (trust boundary)."""
 
     model_config = ConfigDict(frozen=True)
     verdict: Literal["clean", "changes-requested"]

@@ -64,6 +64,7 @@ CI (`.github/workflows/ci.yml`) mirrors it on every push.
 
 ## Docs
 
-Developer docs live in [`docs/`](docs/): [architecture](docs/architecture.md) (invariants + component
-graph), [data & control flow](docs/data-flow.md) (sequence/flow diagrams), and a per-package
-[API reference](docs/modules/orchestrator.md). See [`CHANGELOG.md`](CHANGELOG.md) for what's shipped.
+Developer docs live in [`docs/`](docs/): start at the [docs README](docs/README.md), then
+[architecture](docs/architecture.md) (invariants + the one dependency graph) and the per-module
+reference under [`docs/modules/`](docs/modules/) (one file per source module — signatures, data flow,
+edge cases). See [`CHANGELOG.md`](CHANGELOG.md) for what's shipped.
