@@ -1,10 +1,14 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.driver import RunStatus, decide, run
+from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
-from orchestrator.provider import FakeProvider, Profile, RoleResult
+from orchestrator.provider import FakeProvider, Profile, ProviderError, RoleResult
+from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState
+from orchestrator.status import Event, RunSummary
 
 _GREEN = GateResult(passed=True, steps=())
 _RED = GateResult(passed=False, steps=())
@@ -143,3 +147,229 @@ def test_run_resumes_from_the_current_phase_on_disk() -> None:
     )
     assert result.status is RunStatus.COMPLETE
     assert result.phases_advanced == 1
+
+
+def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
+    states = [
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+        PlanState("done", {"phase0": "done"}, "c1"),
+    ]
+    events: list[Event] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert [e.kind for e in events] == [
+        "phase-start",
+        "role-spawn",
+        "role-returned",
+        "advance",
+        "run-summary",
+    ]
+
+
+def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    events: list[Event] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert [e.kind for e in events] == ["run-summary"]
+    summary = events[-1]
+    assert isinstance(summary, RunSummary)
+    assert summary.status == "complete"
+
+
+def test_run_triggers_fanout_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: calls.append(1) or [],
+    )
+    assert calls == [1]
+
+
+def test_run_does_not_fan_out_when_the_build_halts() -> None:
+    states = [
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+        PlanState("P1", {"phase0": "planned"}, "c0"),
+    ]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: calls.append(1) or [],
+    )
+    assert calls == []
+
+
+def test_run_converges_after_fanout_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    order: list[str] = []
+
+    def fake_fanout() -> list[FindingsState | None]:
+        order.append("fanout")
+        return []
+
+    def fake_converge() -> ConvergeResult:
+        order.append("converge")
+        return ConvergeResult(ConvergeStatus.CONVERGED, "", 1)
+
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=fake_fanout,
+        converge=fake_converge,
+    )
+    assert order == ["fanout", "converge"]
+    assert result.status is RunStatus.COMPLETE
+
+
+def test_run_halts_when_converge_halts() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.HALTED, "round cap exceeded", 3),
+    )
+    assert result.status is RunStatus.HALTED
+    assert "round cap" in result.reason
+
+
+def test_run_prepares_release_after_converge_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    order: list[str] = []
+
+    def fake_converge() -> ConvergeResult:
+        order.append("converge")
+        return ConvergeResult(ConvergeStatus.CONVERGED, "", 0)
+
+    def fake_release() -> ReleaseResult:
+        order.append("release")
+        return ReleaseResult(ReleaseStatus.PREPARED, "", "handoff")
+
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: order.append("fanout") or [],
+        converge=fake_converge,
+        release=fake_release,
+    )
+    assert order == ["fanout", "converge", "release"]
+    assert result.status is RunStatus.COMPLETE
+
+
+def test_run_halts_when_release_is_refused() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.CONVERGED, "", 0),
+        release=lambda: ReleaseResult(
+            ReleaseStatus.REFUSED, "tag v0.2.0 already exists", ""
+        ),
+    )
+    assert result.status is RunStatus.HALTED
+    assert "already exists" in result.reason
+
+
+def test_run_does_not_release_when_converge_halts() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.HALTED, "round cap exceeded", 3),
+        release=lambda: (
+            calls.append(1) or ReleaseResult(ReleaseStatus.PREPARED, "", "")
+        ),
+    )
+    assert calls == []  # converge halted → the run returns before release
+
+
+class _ErroringProvider:
+    """A provider whose spawn fails — simulates an API error / usage limit."""
+
+    def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult:
+        raise ProviderError("claude -p exited 1 — usage limit reached")
+
+
+def test_run_halts_cleanly_on_a_provider_error() -> None:
+    states = [PlanState("P1", {"phase0": "planned"}, "c0")]
+    events: list[Event] = []
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        _ErroringProvider(),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert result.status is RunStatus.HALTED
+    assert "provider error" in result.reason
+    assert "halt" in [e.kind for e in events]  # a clean halt event, not a traceback

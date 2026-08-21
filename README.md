@@ -16,7 +16,7 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.1 — the "loop spine" (in progress).** This version builds the minimal warm-coder build spine
+**v0.1 — the "loop spine" (in progress).** This version builds the minimal per-phase-coder build spine
 (spawn coder → gate → advance/commit or halt → resume), with all control flow unit-tested behind a fake
 provider + fake gate. The end-of-plan review ‖ security ‖ simplify fan-out, the converge loop, release
 automation, the installed CLI, extra provider adapters, and the UI are **≥ v0.2**.
@@ -34,7 +34,7 @@ The **target repo** it drives must provide:
 
 - a **`.env`** with `VAULT_PROJECT_DIR` — the path to its plan vault (an Obsidian folder holding the
   versioned `implementation_plans/`), and
-- a **`minions.toml`** at its root — the ordered gate command list, e.g.:
+- a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
 
   ```toml
   gate = [
@@ -46,7 +46,12 @@ The **target repo** it drives must provide:
   ]
   ```
 
-The orchestrator resolves the highest-version plan from the vault, drives it phase by phase, and exits
+  (git-ignore the generated `.minions/` artifacts but keep the config: `.minions/*` + `!.minions/minions.toml`.)
+- a **`.claude/settings.local.json`** granting the coder write access to the vault (the vault dir, or an
+  ancestor, under `additionalDirectories`) — findings + bookkeeping land there, outside the repo cwd.
+
+The orchestrator runs a zero-token **preflight** first (the plan is well-formed, the vault grant is present),
+resolves the highest-version plan from the vault, drives it phase by phase, and exits
 `0` on completion / `1` on a halt.
 
 ## The quality gate (this repo's own)
@@ -64,6 +69,7 @@ CI (`.github/workflows/ci.yml`) mirrors it on every push.
 
 ## Docs
 
-Developer docs live in [`docs/`](docs/): [architecture](docs/architecture.md) (invariants + component
-graph), [data & control flow](docs/data-flow.md) (sequence/flow diagrams), and a per-package
-[API reference](docs/modules/orchestrator.md). See [`CHANGELOG.md`](CHANGELOG.md) for what's shipped.
+Developer docs live in [`docs/`](docs/): start at the [docs README](docs/README.md), then
+[architecture](docs/architecture.md) (invariants + the one dependency graph) and the per-module
+reference under [`docs/modules/`](docs/modules/) (one file per source module — signatures, data flow,
+edge cases). See [`CHANGELOG.md`](CHANGELOG.md) for what's shipped.

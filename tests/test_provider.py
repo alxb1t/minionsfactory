@@ -1,12 +1,30 @@
+import subprocess
 from pathlib import Path
 
+import pytest
+
 from orchestrator.provider import (
+    ClaudeCodeProvider,
     FakeProvider,
     Profile,
+    ProviderError,
     RoleResult,
     build_command,
     parse_result,
+    read_only_profile,
 )
+
+
+def test_claude_provider_raises_provider_error_on_a_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(1, ["claude"], stderr="usage limit reached")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+
+    with pytest.raises(ProviderError, match="usage limit reached"):
+        ClaudeCodeProvider().run_role("build", Path("/repo"), Profile())
 
 
 def test_parse_result_reads_the_headless_json_fields() -> None:
@@ -46,3 +64,33 @@ def test_build_command_requests_headless_json() -> None:
     assert "--output-format" in command and "json" in command
     assert command[command.index("--permission-mode") + 1] == "default"
     assert command[command.index("--allowedTools") + 1 :] == ["Edit", "Bash"]
+
+
+def test_build_command_pins_the_model_when_given() -> None:
+    command = build_command("build phase 1", Profile(), model="claude-opus-4-8")
+
+    assert command[command.index("--model") + 1] == "claude-opus-4-8"
+
+
+def test_build_command_omits_the_model_flag_by_default() -> None:
+    assert "--model" not in build_command("build phase 1", Profile())
+
+
+def test_build_command_sets_the_reasoning_effort_when_given() -> None:
+    command = build_command("build phase 1", Profile(), effort="xhigh")
+
+    assert command[command.index("--effort") + 1] == "xhigh"
+
+
+def test_build_command_omits_the_effort_flag_by_default() -> None:
+    assert "--effort" not in build_command("build phase 1", Profile())
+
+
+def test_read_only_profile_emits_deny_perms_and_a_scoped_findings_write() -> None:
+    findings = Path("/vault/v0.2_review.md")
+    command = build_command("review the diff", read_only_profile(findings))
+
+    assert "--disallowedTools" in command
+    assert "Bash" in command
+    assert "Edit" in command
+    assert f"Write({findings})" in command

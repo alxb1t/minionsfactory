@@ -8,6 +8,10 @@ from typing import Protocol
 from pydantic import BaseModel
 
 
+class ProviderError(Exception):
+    """A headless `claude -p` role failed — non-zero exit (e.g. a usage limit)."""
+
+
 class RoleResult(BaseModel):
     """Typed result of a headless role run (claude -p --output-format json)."""
 
@@ -59,7 +63,12 @@ class FakeProvider:
         return self._result
 
 
-def build_command(role_prompt: str, profile: Profile) -> list[str]:
+def build_command(
+    role_prompt: str,
+    profile: Profile,
+    model: str | None = None,
+    effort: str | None = None,
+) -> list[str]:
     """Build the `claude -p` argv for a headless role run under `profile`."""
     command = [
         "claude",
@@ -70,6 +79,12 @@ def build_command(role_prompt: str, profile: Profile) -> list[str]:
         "--permission-mode",
         profile.permission_mode,
     ]
+
+    if model:
+        command += ["--model", model]
+
+    if effort:
+        command += ["--effort", effort]
 
     if profile.allowed_tools:
         command += ["--allowedTools", *profile.allowed_tools]
@@ -86,14 +101,34 @@ class ClaudeCodeProvider:
     Parse its JSON result.
     """
 
+    def __init__(self, model: str | None = None, effort: str | None = None) -> None:
+        """Pin every role to `model` + reasoning `effort` (None → the CLI defaults)."""
+        self._model = model
+        self._effort = effort
+
     def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult:
-        """Spawn `claude -p` in `repo` under `profile`; return its parsed result."""
-        command = build_command(role_prompt, profile)
-        completed = subprocess.run(
-            command,
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        """Spawn `claude -p` in `repo` under `profile`; return its parsed result.
+
+        Raise ProviderError on a non-zero exit (API error / usage limit) so the driver
+        halts cleanly and resumably instead of crashing with a raw traceback.
+        """
+        command = build_command(role_prompt, profile, self._model, self._effort)
+        try:
+            completed = subprocess.run(
+                command, cwd=repo, capture_output=True, text=True, check=True
+            )
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or error.stdout or "").strip()[-400:]
+            raise ProviderError(
+                f"claude -p exited {error.returncode}"
+                + (f" — {detail}" if detail else "")
+            ) from error
         return parse_result(completed.stdout)
+
+
+def read_only_profile(findings_file: Path) -> Profile:
+    """Read-only role: no Bash/Edit; Write only to its findings file."""
+    return Profile(
+        allowed_tools=(f"Write({findings_file})",),
+        disallowed_tools=("Bash", "Edit"),
+    )

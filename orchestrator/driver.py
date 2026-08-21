@@ -2,12 +2,27 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 
+from orchestrator.converge import ConvergeResult, ConvergeStatus
+from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
-from orchestrator.provider import Profile, Provider
+from orchestrator.provider import Profile, Provider, ProviderError
+from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState, read_plan_state
+from orchestrator.status import (
+    Advance,
+    Event,
+    GateStep,
+    Halt,
+    PhaseStart,
+    RoleReturned,
+    RoleSpawn,
+    RunSummary,
+    _no_emit,
+)
 
 
 @dataclass(frozen=True)
@@ -70,6 +85,21 @@ def _plan_complete(state: PlanState) -> bool:
     return "planned" not in state.phases.values()
 
 
+def _no_fanout() -> list[FindingsState | None]:
+    """Default post-build stage: do nothing (a build-only run is valid)."""
+    return []
+
+
+def _no_converge() -> ConvergeResult:
+    """Default post-fan-out stage: nothing owed (a run without converge is valid)."""
+    return ConvergeResult(ConvergeStatus.CONVERGED, "", 0)
+
+
+def _no_release() -> ReleaseResult:
+    """Default post-converge stage: nothing to release (a build-only run is valid)."""
+    return ReleaseResult(ReleaseStatus.PREPARED, "", "")
+
+
 def run(
     repo: Path,
     vault_project_dir: Path,
@@ -79,30 +109,155 @@ def run(
     profile: Profile,
     state_reader: Callable[[Path, Path], PlanState] = read_plan_state,
     halt_checker: Callable[[Path], bool] = halt_report_exists,
+    emit_event: Callable[[Event], None] = _no_emit,
+    fanout: Callable[[], list[FindingsState | None]] = _no_fanout,
+    converge: Callable[[], ConvergeResult] = _no_converge,
+    release: Callable[[], ReleaseResult] = _no_release,
     max_phases: int = 100,
 ) -> RunResult:
-    """Drive the plan phase by phase.
+    """Drive the plan phase by phase, then fan out and converge at plan end.
 
-    Spawn coder -> gate -> detect advance -> continue or halt.
+    Spawn coder -> gate -> detect advance -> continue or halt; at plan-complete,
+    run the fan-out then the converge loop before the final summary.
     """
     before = state_reader(vault_project_dir, repo)
     advanced = 0
     iterations = 0
     while not _plan_complete(before):
         if iterations >= max_phases:
-            return RunResult(
-                RunStatus.HALTED,
-                "exceeded max phases (runaway guard)",
-                advanced,
+            reason = "exceeded max phases (runaway guard)"
+            emit_event(
+                Halt(
+                    ts=datetime.now(timezone.utc),
+                    reason=reason,
+                )
             )
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=reason,
+                )
+            )
+            return RunResult(RunStatus.HALTED, reason, advanced)
+
+        emit_event(
+            PhaseStart(ts=datetime.now(timezone.utc), phase=before.current_phase)
+        )
         iterations += 1
-        provider.run_role(coder_prompt, repo, profile)
+
+        emit_event(
+            RoleSpawn(
+                role="coder",
+                ts=datetime.now(timezone.utc),
+            )
+        )
+        try:
+            result = provider.run_role(coder_prompt, repo, profile)
+        except ProviderError as error:
+            reason = f"provider error: {error}"
+            emit_event(Halt(ts=datetime.now(timezone.utc), reason=reason))
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=reason,
+                )
+            )
+            return RunResult(RunStatus.HALTED, reason, advanced)
+        emit_event(
+            RoleReturned(
+                role="coder",
+                ts=datetime.now(timezone.utc),
+                session_id=result.session_id,
+                total_cost_usd=result.total_cost_usd,
+                is_error=result.is_error,
+                summary=result.result,
+            )
+        )
+
         coder_halted = halt_checker(vault_project_dir)
+
         gate_result = gate.run_gate(repo)
+        for step in gate_result.steps:
+            emit_event(
+                GateStep(
+                    ts=datetime.now(timezone.utc),
+                    command=step.command,
+                    passed=step.exit_code == 0,
+                )
+            )
+
         after = state_reader(vault_project_dir, repo)
         decision = decide(before, after, gate_result, coder_halted)
+
         if not decision.advance:
+            emit_event(Halt(ts=datetime.now(timezone.utc), reason=decision.reason))
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=decision.reason,
+                )
+            )
             return RunResult(RunStatus.HALTED, decision.reason, advanced)
+
         advanced += 1
+        emit_event(
+            Advance(
+                ts=datetime.now(timezone.utc),
+                from_phase=before.current_phase,
+                to_phase=after.current_phase,
+            ),
+        )
         before = after
+
+    fanout()
+
+    outcome = converge()
+    if outcome.status is ConvergeStatus.HALTED:
+        emit_event(
+            Halt(
+                ts=datetime.now(timezone.utc),
+                reason=outcome.reason,
+            )
+        )
+        emit_event(
+            RunSummary(
+                ts=datetime.now(timezone.utc),
+                status="halted",
+                phases_advanced=advanced,
+                reason=outcome.reason,
+            )
+        )
+        return RunResult(
+            RunStatus.HALTED,
+            outcome.reason,
+            advanced,
+        )
+
+    release_result = release()
+    if release_result.status is ReleaseStatus.REFUSED:
+        emit_event(Halt(ts=datetime.now(timezone.utc), reason=release_result.reason))
+        emit_event(
+            RunSummary(
+                ts=datetime.now(timezone.utc),
+                status="halted",
+                phases_advanced=advanced,
+                reason=release_result.reason,
+            )
+        )
+        return RunResult(RunStatus.HALTED, release_result.reason, advanced)
+
+    emit_event(
+        RunSummary(
+            ts=datetime.now(timezone.utc),
+            status="complete",
+            phases_advanced=advanced,
+            reason="",
+        )
+    )
     return RunResult(RunStatus.COMPLETE, "", advanced)

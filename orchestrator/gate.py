@@ -43,8 +43,13 @@ def run_command(command: str, repo: Path) -> StepResult:
 
 
 def read_gate_commands(repo: Path) -> list[str]:
-    """Read the ordered gate command list from the target repo's minions.toml."""
-    config_path = repo / "minions.toml"
+    """Read the ordered gate command list from the target's .minions/minions.toml."""
+    config_path = repo / ".minions" / "minions.toml"
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"no gate config at {config_path} — "
+            "the target must ship .minions/minions.toml"
+        )
     with config_path.open("rb") as config_file:
         config = tomllib.load(config_file)
     return config["gate"]
@@ -53,7 +58,7 @@ def read_gate_commands(repo: Path) -> list[str]:
 class SubprocessGate:
     """Real Gate: run the target repo's gate commands in order.
 
-    Stopping at the first failure.
+    Stops at the first failure.
     """
 
     def __init__(self, runner: CommandRunner = run_command) -> None:

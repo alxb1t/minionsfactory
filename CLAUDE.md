@@ -1,8 +1,8 @@
 # minions_factory — shared context for Claude Code
 
 MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
-at a target repo, it drives a **vault-backed implementation plan** to completion: a warm **coder** builds the
-plan phase by phase (the orchestrator **runs the quality gate itself** and commits on green); at plan end it
+at a target repo, it drives a **vault-backed implementation plan** to completion: a fresh, per-phase **coder** builds the
+plan one phase per spawn (the orchestrator **runs the quality gate itself** and detects the advance); at plan end it
 fans out **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their
 blocking findings, and hands a **release** step the gated, tagged result. Every role is a **fresh, single-role
 Claude Code instance**; the driver **advances or halts** on machine-checkable disk state. The project dogfoods

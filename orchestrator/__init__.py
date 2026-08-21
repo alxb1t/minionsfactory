@@ -2,5 +2,5 @@
 
 
 def describe() -> str:
-    """Describe for MinionsFactory orchestrator."""
+    """Return a one-line description of the orchestrator."""
     return "MinionsFactory orchestrator"
