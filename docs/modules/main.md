@@ -13,7 +13,10 @@ adapters and the post-build closures into [`driver.run`](driver.md#run).
 
 ## What it does
 
-[`main`](#main) resolves the target's vault from its `.env`, loads the coder prompt, builds the coder
+[`main`](#main) resolves the target's vault from its `.env`, runs a **zero-token preflight**
+([`read_plan_state`](state.md#read_plan_state) to validate the plan contract +
+[`verify_vault_access`](state.md#verify_vault_access)) that exits `1` with a diagnostic before any spend, loads
+the coder prompt, builds the coder
 [`Profile`](provider.md#profile), constructs [`ClaudeCodeProvider`](provider.md#claudecodeprovider) +
 [`SubprocessGate`](gate.md#subprocessgate) + the status sink + the fan-out, converge, and release closures, calls
 [`run`](driver.md#run), and exits `0` on `COMPLETE` / `1` on `HALTED`. Private `_make_*` helpers build the
@@ -30,6 +33,7 @@ modules it imports.
 ```mermaid
 flowchart TD
     main["main(argv)"] --> vault["_read_vault_dir(repo) — .env"]
+    main --> pre["preflight: read_plan_state (validate) + verify_vault_access — exit 1 on failure, no spend"]
     main --> emit["_make_emitter(repo) — .minions/ disk+stdout sink"]
     main --> ver["_plan_version(vault) — vX.Y from plan filename"]
     main --> roles["_fanout_roles() — reviewer/security/simplify prompts"]

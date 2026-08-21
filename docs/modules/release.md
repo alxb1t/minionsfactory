@@ -51,7 +51,9 @@ verdict = verify_release_gate(
     existing_tags=git_tags(repo),
     tree_is_clean=tree_is_clean(repo),
 )
-result = prepare_release(verdict, repo, vault_dir, "v0.2", today, branch, SubprocessReleaseGit())
+result = prepare_release(
+    verdict, repo, vault_dir, "v0.2", today, branch, SubprocessReleaseGit()
+)
 if result.status is ReleaseStatus.PREPARED:
     print(result.handoff)  # git checkout main; merge; push — the human's turn
 ```
@@ -116,8 +118,8 @@ How release-prep ended: `PREPARED` (local commit + tag, awaiting the human) or `
 @dataclass(frozen=True)
 class ReleaseResult:
     status: ReleaseStatus
-    reason: str    # "" when prepared; the blocking reason when refused
-    handoff: str   # merge+push instructions when prepared; "" when refused
+    reason: str  # "" when prepared; the blocking reason when refused
+    handoff: str  # merge+push instructions when prepared; "" when refused
 ```
 
 The outcome of [`prepare_release`](#prepare_release).

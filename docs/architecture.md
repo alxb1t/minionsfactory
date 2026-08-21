@@ -75,7 +75,7 @@ graph TD
     findings --> state
 
     provider -. spawns .-> claude["claude -p (external CLI)"]
-    gate -. runs .-> targetgate["target's gate (minions.toml)"]
+    gate -. runs .-> targetgate["target's gate (.minions/minions.toml)"]
     state -. reads .-> disk["plan (vault) + git head"]
     status -. writes .-> minions[".minions/ (events.jsonl + status.json)"]
     findings -. reads .-> ff["findings files (vault)"]

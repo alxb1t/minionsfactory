@@ -34,7 +34,7 @@ The **target repo** it drives must provide:
 
 - a **`.env`** with `VAULT_PROJECT_DIR` — the path to its plan vault (an Obsidian folder holding the
   versioned `implementation_plans/`), and
-- a **`minions.toml`** at its root — the ordered gate command list, e.g.:
+- a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
 
   ```toml
   gate = [
@@ -46,7 +46,12 @@ The **target repo** it drives must provide:
   ]
   ```
 
-The orchestrator resolves the highest-version plan from the vault, drives it phase by phase, and exits
+  (git-ignore the generated `.minions/` artifacts but keep the config: `.minions/*` + `!.minions/minions.toml`.)
+- a **`.claude/settings.local.json`** granting the coder write access to the vault (the vault dir, or an
+  ancestor, under `additionalDirectories`) — findings + bookkeeping land there, outside the repo cwd.
+
+The orchestrator runs a zero-token **preflight** first (the plan is well-formed, the vault grant is present),
+resolves the highest-version plan from the vault, drives it phase by phase, and exits
 `0` on completion / `1` on a halt.
 
 ## The quality gate (this repo's own)

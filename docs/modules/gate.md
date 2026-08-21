@@ -13,7 +13,7 @@ definition of done.
 
 ## What it does
 
-Reads the target's ordered gate command list from its `minions.toml`, runs each command in order, and **stops
+Reads the target's ordered gate command list from its `.minions/minions.toml`, runs each command in order, and **stops
 at the first failure**, returning a typed [`GateResult`](#gateresult). Like [`provider`](provider.md), it is a
 seam ([`Gate`](#gate) Protocol) with a real adapter ([`SubprocessGate`](#subprocessgate)) and a scripted double
 ([`FakeGate`](#fakegate)).
@@ -22,13 +22,13 @@ seam ([`Gate`](#gate) Protocol) with a real adapter ([`SubprocessGate`](#subproc
 
 The gate does not *decide* what to do with a red result — it only reports pass/fail plus each step. The driver
 ([`decide`](driver.md#decide)) turns a red gate into a halt. The command list is **read from the target**, not
-hardcoded, so a non-Python target needs no orchestrator change — only a different `minions.toml`.
+hardcoded, so a non-Python target needs no orchestrator change — only a different `.minions/minions.toml`.
 
 ## Data flow
 
 ```mermaid
 flowchart TD
-    rg["read_gate_commands(repo) — from minions.toml"] --> loop["for each command, in order"]
+    rg["read_gate_commands(repo) — from .minions/minions.toml"] --> loop["for each command, in order"]
     loop --> run["runner(command, repo) → StepResult"]
     run --> red{"exit_code != 0?"}
     red -- yes --> fail(["GateResult(passed=False) — stop"])
@@ -88,9 +88,10 @@ The gate's aggregate verdict.
 def read_gate_commands(repo: Path) -> list[str]
 ```
 
-Read the ordered gate command list from `repo/minions.toml` (`tomllib`, the `gate` key).
+Read the ordered gate command list from `repo/.minions/minions.toml` (`tomllib`, the `gate` key).
 
-- **Why** — language-neutrality: a JS target ships a different list, no orchestrator change.
+- **Why** — language-neutrality: a JS target ships a different list, no orchestrator change. Co-located with the generated `.minions/` run artifacts (one framework dir per target).
+- **Raises** — `FileNotFoundError` with a clear message when the config is absent — a fail-loud upgrade over a bare traceback deep in a run.
 - **Source** — [`gate.py`](../../orchestrator/gate.py) · **Tests** — [`test_gate.py`](../../tests/test_gate.py)
 
 ### `run_command`

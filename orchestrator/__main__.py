@@ -21,7 +21,13 @@ from orchestrator.release import (
     prepare_release,
     verify_release_gate,
 )
-from orchestrator.state import select_plan
+from orchestrator.state import (
+    PlanContractError,
+    PreflightError,
+    read_plan_state,
+    select_plan,
+    verify_vault_access,
+)
 from orchestrator.status import Event, emit, render
 
 _CODER_PROFILE = Profile(
@@ -229,6 +235,14 @@ def main(argv: list[str] | None = None) -> int:
 
     repo = args.repo.resolve()
     vault_dir = _read_vault_dir(repo)
+
+    try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
+        read_plan_state(vault_dir, repo)
+        verify_vault_access(repo, vault_dir)
+    except (PlanContractError, PreflightError) as error:
+        print(f"preflight failed: {error}")
+        return 1
+
     provider = ClaudeCodeProvider()
     gate = SubprocessGate()
     emitter = _make_emitter(repo)
