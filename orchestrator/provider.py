@@ -60,7 +60,10 @@ class FakeProvider:
 
 
 def build_command(
-    role_prompt: str, profile: Profile, model: str | None = None
+    role_prompt: str,
+    profile: Profile,
+    model: str | None = None,
+    effort: str | None = None,
 ) -> list[str]:
     """Build the `claude -p` argv for a headless role run under `profile`."""
     command = [
@@ -75,6 +78,9 @@ def build_command(
 
     if model:
         command += ["--model", model]
+
+    if effort:
+        command += ["--effort", effort]
 
     if profile.allowed_tools:
         command += ["--allowedTools", *profile.allowed_tools]
@@ -91,13 +97,14 @@ class ClaudeCodeProvider:
     Parse its JSON result.
     """
 
-    def __init__(self, model: str | None = None) -> None:
-        """Pin every role run to `model` (None → the claude CLI's own default)."""
+    def __init__(self, model: str | None = None, effort: str | None = None) -> None:
+        """Pin every role to `model` + reasoning `effort` (None → the CLI defaults)."""
         self._model = model
+        self._effort = effort
 
     def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult:
         """Spawn `claude -p` in `repo` under `profile`; return its parsed result."""
-        command = build_command(role_prompt, profile, self._model)
+        command = build_command(role_prompt, profile, self._model, self._effort)
         completed = subprocess.run(
             command,
             cwd=repo,

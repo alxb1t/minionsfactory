@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `--model` flag on `python -m orchestrator run` — pins every role's `claude -p` invocation to a specific model (e.g. `claude-opus-4-8`), threaded via `ClaudeCodeProvider(model=…)` → `build_command`'s optional `model` param (appends `--model`). Default `None` preserves the prior behaviour (the `claude` CLI's own default). So a run is now reproducible on an explicit model instead of an implicit machine default.
+- `--model` and `--effort` flags on `python -m orchestrator run` — pin every role's `claude -p` invocation to a specific model (e.g. `claude-opus-4-8`) and reasoning effort (`low|medium|high|xhigh|max`), threaded via `ClaudeCodeProvider(model=…, effort=…)` → `build_command`'s optional `model`/`effort` params (append `--model` / `--effort`). Each defaults to `None`, preserving the prior behaviour (the `claude` CLI's own defaults). So a run is now reproducible on an explicit model + effort instead of an implicit machine default.
 
 ### Changed
 

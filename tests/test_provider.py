@@ -59,6 +59,16 @@ def test_build_command_omits_the_model_flag_by_default() -> None:
     assert "--model" not in build_command("build phase 1", Profile())
 
 
+def test_build_command_sets_the_reasoning_effort_when_given() -> None:
+    command = build_command("build phase 1", Profile(), effort="xhigh")
+
+    assert command[command.index("--effort") + 1] == "xhigh"
+
+
+def test_build_command_omits_the_effort_flag_by_default() -> None:
+    assert "--effort" not in build_command("build phase 1", Profile())
+
+
 def test_read_only_profile_emits_deny_perms_and_a_scoped_findings_write() -> None:
     findings = Path("/vault/v0.2_review.md")
     command = build_command("review the diff", read_only_profile(findings))

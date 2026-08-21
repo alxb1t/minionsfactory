@@ -39,7 +39,9 @@ flowchart LR
 ## How clients use it
 
 ```python
-provider = ClaudeCodeProvider(model="claude-opus-4-8")  # or FakeProvider(preset) in tests
+provider = ClaudeCodeProvider(
+    model="claude-opus-4-8"
+)  # or FakeProvider(preset) in tests
 result = provider.run_role(coder_prompt, repo, coder_profile)
 if result.is_error:
     ...  # the role failed
@@ -133,13 +135,15 @@ no inheritance.
 ### `build_command`
 
 ```python
-def build_command(role_prompt: str, profile: Profile, model: str | None = None) -> list[str]
+def build_command(
+    role_prompt: str, profile: Profile, model: str | None = None, effort: str | None = None
+) -> list[str]
 ```
 
-Pure. Assembles the `claude -p … --output-format json --permission-mode <mode>` argv, appending `--model` (when
-pinned), then `--allowedTools` / `--disallowedTools` only when the profile carries them.
+Pure. Assembles the `claude -p … --output-format json --permission-mode <mode>` argv, appending `--model` /
+`--effort` (when pinned), then `--allowedTools` / `--disallowedTools` only when the profile carries them.
 
-- **Params** — `model`: pins every role to a specific model (e.g. `claude-opus-4-8`); `None` → the `claude` CLI's own default.
+- **Params** — `model`: pins every role to a specific model (e.g. `claude-opus-4-8`) · `effort`: reasoning effort `low|medium|high|xhigh|max`; each `None` → the `claude` CLI's own default.
 - **Returns** — the argv as a **list** (one element per argument), later passed to `subprocess.run` without a shell.
 - **Source** — [`provider.py`](../../orchestrator/provider.py) · **Tests** — [`test_provider.py`](../../tests/test_provider.py)
 
@@ -147,13 +151,13 @@ pinned), then `--allowedTools` / `--disallowedTools` only when the profile carri
 
 ```python
 class ClaudeCodeProvider:
-    def __init__(self, model: str | None = None) -> None
+    def __init__(self, model: str | None = None, effort: str | None = None) -> None
     def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult
 ```
 
 The real adapter: [`build_command`](#build_command) → `subprocess.run(argv, cwd=repo, check=True)` →
-[`parse_result`](#parse_result). Constructed with an optional `model` that pins every role's `claude -p` run
-(wired from `__main__`'s `--model` flag); `None` uses the CLI default.
+[`parse_result`](#parse_result). Constructed with an optional `model` + reasoning `effort` that pin every role's
+`claude -p` run (wired from `__main__`'s `--model` / `--effort` flags); each `None` uses the CLI default.
 
 - **Gotchas** — the `subprocess.run` call is the one untestable side effect (exercised only in the end-to-end dogfood run). `check=True` raises on a non-zero exit.
 - **Source** — [`provider.py`](../../orchestrator/provider.py)

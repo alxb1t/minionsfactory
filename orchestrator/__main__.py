@@ -254,6 +254,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="claude model for every role, e.g. claude-opus-4-8 (default: CLI default)",
     )
+    run_parser.add_argument(
+        "--effort",
+        default=None,
+        help="reasoning effort: low|medium|high|xhigh|max (default: CLI default)",
+    )
     args = parser.parse_args(argv)
 
     repo = args.repo.resolve()
@@ -266,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"preflight failed: {error}")
         return 1
 
-    provider = ClaudeCodeProvider(model=args.model)
+    provider = ClaudeCodeProvider(model=args.model, effort=args.effort)
     gate = SubprocessGate()
     emitter = _make_emitter(repo)
     version = _plan_version(vault_dir)
