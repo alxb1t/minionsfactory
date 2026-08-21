@@ -261,8 +261,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_parser.add_argument(
         "--effort",
-        default="high",
-        help="reasoning effort: low|medium|high|xhigh|max (default: high)",
+        default="medium",
+        help="reasoning effort: low|medium|high|xhigh|max (default: medium)",
     )
     args = parser.parse_args(argv)
 
