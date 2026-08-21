@@ -8,7 +8,7 @@ depends_on: [driver, provider, gate, state, status, diff, fanout, findings, conv
 
 # `__main__`
 
-The **composition root** — `python -m orchestrator run --repo <target> [--base <ref>]`. It wires the *real*
+The **composition root** — `python -m orchestrator run --repo <target> [--base <ref>] [--model <id>]`. It wires the *real*
 adapters and the post-build closures into [`driver.run`](driver.md#run).
 
 ## What it does
@@ -79,7 +79,7 @@ $ python -m orchestrator run --repo /path/to/target
 def main(argv: list[str] | None = None) -> int
 ```
 
-Parse `run --repo <target> [--base <ref>]`, wire the real adapters + the fan-out and converge closures into
+Parse `run --repo <target> [--base <ref>] [--model <id>]`, wire the real adapters + the fan-out and converge closures into
 [`run`](driver.md#run), print the outcome, and return a process exit code.
 
 - **Returns** — `0` on [`RunStatus.COMPLETE`](driver.md#runstatus--runresult), `1` on `HALTED`.

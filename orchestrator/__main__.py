@@ -249,6 +249,11 @@ def main(argv: list[str] | None = None) -> int:
         default="main",
         help="git ref the frozen feature diff is taken against (default: main)",
     )
+    run_parser.add_argument(
+        "--model",
+        default=None,
+        help="claude model for every role, e.g. claude-opus-4-8 (default: CLI default)",
+    )
     args = parser.parse_args(argv)
 
     repo = args.repo.resolve()
@@ -261,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"preflight failed: {error}")
         return 1
 
-    provider = ClaudeCodeProvider()
+    provider = ClaudeCodeProvider(model=args.model)
     gate = SubprocessGate()
     emitter = _make_emitter(repo)
     version = _plan_version(vault_dir)

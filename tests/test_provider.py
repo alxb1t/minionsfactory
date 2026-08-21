@@ -49,6 +49,16 @@ def test_build_command_requests_headless_json() -> None:
     assert command[command.index("--allowedTools") + 1 :] == ["Edit", "Bash"]
 
 
+def test_build_command_pins_the_model_when_given() -> None:
+    command = build_command("build phase 1", Profile(), model="claude-opus-4-8")
+
+    assert command[command.index("--model") + 1] == "claude-opus-4-8"
+
+
+def test_build_command_omits_the_model_flag_by_default() -> None:
+    assert "--model" not in build_command("build phase 1", Profile())
+
+
 def test_read_only_profile_emits_deny_perms_and_a_scoped_findings_write() -> None:
     findings = Path("/vault/v0.2_review.md")
     command = build_command("review the diff", read_only_profile(findings))
