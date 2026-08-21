@@ -36,6 +36,7 @@ class RoleReturned(BaseModel):
     session_id: str
     total_cost_usd: float
     is_error: bool
+    summary: str = ""  # the role's final message (why it stopped / what it did)
 
 
 class GateStep(BaseModel):
@@ -137,7 +138,12 @@ def render(event: Event) -> str:
             return f"  {event.role} spawned — running…"
         case RoleReturned():
             flag = "error" if event.is_error else "ok"
-            return f"  {event.role} returned ({flag}, ${event.total_cost_usd:.2f})"
+            line = f"  {event.role} returned ({flag}, ${event.total_cost_usd:.2f})"
+            if event.summary:
+                gist = " ".join(event.summary.split())
+                gist = gist[:300] + ("…" if len(gist) > 300 else "")
+                line += f"\n    ↳ {gist}"
+            return line
         case GateStep():
             return f"  gate: {event.command} {'✓' if event.passed else '✗'}"
         case Advance():

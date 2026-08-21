@@ -174,6 +174,7 @@ def run(
                 session_id=result.session_id,
                 total_cost_usd=result.total_cost_usd,
                 is_error=result.is_error,
+                summary=result.result,
             )
         )
 

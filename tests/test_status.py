@@ -151,3 +151,17 @@ def test_render_formats_a_run_summary_line() -> None:
         ts=datetime.now(timezone.utc), status="complete", phases_advanced=2, reason=""
     )
     assert render(event) == "■ complete — 2 phase(s) advanced"
+
+
+def test_render_surfaces_the_role_summary_when_present() -> None:
+    event = RoleReturned(
+        role="coder",
+        ts=datetime.now(timezone.utc),
+        session_id="s",
+        total_cost_usd=2.11,
+        is_error=False,
+        summary="Halted — stop-condition #5: the plan contradicts reality.",
+    )
+    line = render(event)
+    assert "coder returned (ok, $2.11)" in line
+    assert "stop-condition #5" in line  # the reason is surfaced, not hidden
