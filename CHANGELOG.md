@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-21
+
 ### Added
 
 - Preflight / contract guard (`orchestrator/state.py`) — the orchestrator's fail-closed read-side of the target contract, checked **before any spend**. `validate_plan(frontmatter)` refuses a malformed plan at read time (no `---` fence · missing `current_phase` · no `phaseN` flags · a non-code phase status outside `{done, wip, planned, todo}`) with a specific `PlanContractError` per violation — catching the *silent* failure where a zero-phase plan would read as already "complete", and the non-code-phase case the driver would otherwise false-halt on mid-run (the execution-side mirror of `/plan-check`; a non-code phase can't be told from a code phase structurally, so an out-of-vocabulary status *is* the signal). `read_plan_state` now validates before assembling. `verify_vault_access(repo, vault)` preflights that the target's `.claude/settings.local.json` grants the coder vault write access (the vault dir or an ancestor under `additionalDirectories`), raising `PreflightError` otherwise. `__main__` runs both as a zero-token preflight that prints a clean diagnostic and exits `1` before spawning anything.
