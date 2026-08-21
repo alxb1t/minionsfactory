@@ -24,6 +24,7 @@ from orchestrator.release import (
 from orchestrator.state import (
     PlanContractError,
     PreflightError,
+    read_head,
     read_plan_state,
     select_plan,
     verify_vault_access,
@@ -45,11 +46,19 @@ def _read_vault_dir(repo: Path) -> Path:
     raise SystemExit("VAULT_PROJECT_DIR not found in the target repo's .env")
 
 
+def _prompt(name: str) -> str:
+    """Load a role prompt shipped with this repo."""
+    return (Path(__file__).resolve().parent.parent / "prompts" / name).read_text()
+
+
 def _coder_prompt() -> str:
-    """Load the coder role prompt shipped with this repo."""
-    return (
-        Path(__file__).resolve().parent.parent / "prompts" / "coder-per-phase.md"
-    ).read_text()
+    """Load the warm whole-plan coder prompt."""
+    return _prompt("coder.md")
+
+
+def _fixer_prompt() -> str:
+    """Load the converge-loop fixer prompt."""
+    return _prompt("fixer.md")
 
 
 def emit_and_render(stream: Path, status: Path, event: Event) -> None:
@@ -91,6 +100,8 @@ def _make_fanout(
     roles: list[RoleSpec],
     emit_event: Callable[[Event], None],
 ) -> Callable[[], list[FindingsState | None]]:
+    plan_path = select_plan(vault_dir)
+
     def _fanout() -> list[FindingsState | None]:
         diff = compute_diff(repo, base, "HEAD")
         return run_fanout(
@@ -100,8 +111,11 @@ def _make_fanout(
             version,
             diff,
             repo / ".minions" / "diff.patch",
+            read_head(repo),
+            plan_path,
             roles,
-            emit_event,
+            mode="review",
+            emit_event=emit_event,
         )
 
     return _fanout
@@ -121,6 +135,7 @@ def _make_converge(
     paths = [
         vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
     ]
+    plan_path = select_plan(vault_dir)
 
     def _read_states() -> list[FindingsState | None]:
         return [read_findings_state(p) for p in paths]
@@ -136,8 +151,11 @@ def _make_converge(
             version,
             diff,
             repo / ".minions" / "diff.patch",
+            read_head(repo),
+            plan_path,
             roles,
-            emit_event,
+            mode="verify",
+            emit_event=emit_event,
         )
 
     return lambda: converge(
@@ -269,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             vault_dir,
             version,
             roles,
-            _coder_prompt(),
+            _fixer_prompt(),
             _CODER_PROFILE,
             emitter,
         ),

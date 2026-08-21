@@ -8,6 +8,7 @@ from orchestrator.status import Event
 _ROLE = RoleResult(
     subtype="success", is_error=False, result="ok", session_id="s", total_cost_usd=0.0
 )
+_ROLES = [RoleSpec("review", "R"), RoleSpec("security", "S"), RoleSpec("simplify", "P")]
 
 
 class _RecordingProvider:
@@ -26,20 +27,24 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     tmp_path: Path,
 ) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
-    vault.mkdir()
+    plans = vault / "implementation_plans"
+    plans.mkdir(parents=True)
     for name in ("review", "security", "simplify"):
-        (vault / f"v0.2_{name}.md").write_text(
+        (plans / f"v0.2_{name}.md").write_text(
             "---\nhead: h\nround: 1\nopen_blocking: 0\nverdict: clean\n---\n"
         )
     fake = _RecordingProvider(_ROLE)
-    roles = [
-        RoleSpec("review", "R"),
-        RoleSpec("security", "S"),
-        RoleSpec("simplify", "P"),
-    ]
 
     states = run_fanout(
-        fake, repo, vault, "v0.2", "THE DIFF", repo / ".minions" / "diff.patch", roles
+        fake,
+        repo,
+        vault,
+        "v0.2",
+        "THE DIFF",
+        repo / ".minions" / "diff.patch",
+        "abc123",
+        plans / "v0.2_x_implementation_plan.md",
+        _ROLES,
     )
 
     assert len(fake.calls) == 3
@@ -49,15 +54,10 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     assert states == [expected, expected, expected]
 
 
-def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
+def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
-    events: list[Event] = []
-    roles = [
-        RoleSpec("review", "R"),
-        RoleSpec("security", "S"),
-        RoleSpec("simplify", "P"),
-    ]
+
     run_fanout(
         fake,
         repo,
@@ -65,9 +65,39 @@ def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
         "v0.2",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
-        roles,
+        "abc123",
+        vault / "implementation_plans" / "plan.md",
+        [RoleSpec("review", "REVIEW-BODY")],
+        mode="review",
+    )
+
+    prompt, _ = fake.calls[0]
+    assert "## Inputs" in prompt
+    assert "Mode: review" in prompt
+    assert "abc123" in prompt  # the head SHA the orchestrator supplied
+    findings = vault / "implementation_plans" / "v0.2_review.md"
+    assert str(findings) in prompt  # the findings path to write
+    assert "REVIEW-BODY" in prompt  # the role prompt follows the Inputs block
+
+
+def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
+    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    fake = _RecordingProvider(_ROLE)
+    events: list[Event] = []
+
+    run_fanout(
+        fake,
+        repo,
+        vault,
+        "v0.2",
+        "THE DIFF",
+        repo / ".minions" / "diff.patch",
+        "abc123",
+        vault / "implementation_plans" / "plan.md",
+        _ROLES,
         emit_event=events.append,
     )
+
     assert [e.kind for e in events] == [
         "role-spawn",
         "role-returned",
