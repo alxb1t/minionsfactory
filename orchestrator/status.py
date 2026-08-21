@@ -122,22 +122,28 @@ def read_status(status: Path) -> Event:
     return _ADAPTER.validate_json(status.read_text())
 
 
+def _short_phase(phase: str) -> str:
+    """Trim a verbose `current_phase` to a short one-line CLI label."""
+    head = phase.split(" — ")[0].split("\n")[0].strip()
+    return head if len(head) <= 72 else head[:71] + "…"
+
+
 def render(event: Event) -> str:
     """Format one event as a human-readable stdout line."""
     match event:
         case PhaseStart():
-            return f"▶ phase {event.phase} — building"
+            return f"▶ building {_short_phase(event.phase)}"
         case RoleSpawn():
-            return "  coder spawned — running…"
+            return f"  {event.role} spawned — running…"
         case RoleReturned():
             flag = "error" if event.is_error else "ok"
-            return f"  coder returned ({flag}, ${event.total_cost_usd:.2f})"
+            return f"  {event.role} returned ({flag}, ${event.total_cost_usd:.2f})"
         case GateStep():
             return f"  gate: {event.command} {'✓' if event.passed else '✗'}"
         case Advance():
-            return f"Advanced {event.from_phase} -> {event.to_phase}"
+            return f"✅ phase done → advanced to {_short_phase(event.to_phase)}"
         case Halt():
-            return f"halted: {event.reason}"
+            return f"⛔ halted: {event.reason}"
         case RunSummary():
             return f"■ {event.status} — {event.phases_advanced} phase(s) advanced"
 

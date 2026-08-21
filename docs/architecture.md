@@ -3,7 +3,7 @@
 ## What it is
 
 MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
-at a target repo, it drives a vault-backed implementation plan to completion: a warm **coder** builds the plan
+at a target repo, it drives a vault-backed implementation plan to completion: a fresh, per-phase **coder** builds the plan
 phase by phase (the orchestrator runs the quality gate itself and commits on green); at plan end it fans out
 **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their blocking
 findings, then a **release** stage verifies the release gate and prepares the release locally — halting for the

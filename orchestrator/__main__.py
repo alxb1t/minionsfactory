@@ -14,7 +14,12 @@ from orchestrator.driver import RunStatus, run
 from orchestrator.fanout import RoleSpec, run_fanout
 from orchestrator.findings import FindingsState, read_findings_state
 from orchestrator.gate import Gate, SubprocessGate
-from orchestrator.provider import ClaudeCodeProvider, Profile, Provider
+from orchestrator.provider import (
+    ClaudeCodeProvider,
+    Profile,
+    Provider,
+    ProviderError,
+)
 from orchestrator.release import (
     ReleaseResult,
     SubprocessReleaseGit,
@@ -279,30 +284,37 @@ def main(argv: list[str] | None = None) -> int:
     branch = _current_branch(repo)
     today = date.today().isoformat()
 
-    result = run(
-        repo=repo,
-        vault_project_dir=vault_dir,
-        provider=provider,
-        gate=gate,
-        coder_prompt=_coder_prompt(),
-        profile=_CODER_PROFILE,
-        emit_event=emitter,
-        fanout=_make_fanout(
-            provider, repo, vault_dir, version, args.base, roles, emitter
-        ),
-        converge=_make_converge(
-            provider,
-            gate,
-            repo,
-            vault_dir,
-            version,
-            roles,
-            _fixer_prompt(),
-            _CODER_PROFILE,
-            emitter,
-        ),
-        release=_make_release(gate, repo, vault_dir, version, branch, today, roles),
-    )
+    try:
+        result = run(
+            repo=repo,
+            vault_project_dir=vault_dir,
+            provider=provider,
+            gate=gate,
+            coder_prompt=_coder_prompt(),
+            profile=_CODER_PROFILE,
+            emit_event=emitter,
+            fanout=_make_fanout(
+                provider, repo, vault_dir, version, args.base, roles, emitter
+            ),
+            converge=_make_converge(
+                provider,
+                gate,
+                repo,
+                vault_dir,
+                version,
+                roles,
+                _fixer_prompt(),
+                _CODER_PROFILE,
+                emitter,
+            ),
+            release=_make_release(gate, repo, vault_dir, version, branch, today, roles),
+        )
+    except ProviderError as error:
+        print(
+            "⛔ provider error — the run halted; re-run to resume from the last "
+            f"committed phase:\n   {error}"
+        )
+        return 2
     print(
         f"{result.status.name}: {result.reason} "
         f"(phases advanced: {result.phases_advanced})"

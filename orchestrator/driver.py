@@ -9,7 +9,7 @@ from pathlib import Path
 from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
-from orchestrator.provider import Profile, Provider
+from orchestrator.provider import Profile, Provider, ProviderError
 from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState, read_plan_state
 from orchestrator.status import (
@@ -153,7 +153,20 @@ def run(
                 ts=datetime.now(timezone.utc),
             )
         )
-        result = provider.run_role(coder_prompt, repo, profile)
+        try:
+            result = provider.run_role(coder_prompt, repo, profile)
+        except ProviderError as error:
+            reason = f"provider error: {error}"
+            emit_event(Halt(ts=datetime.now(timezone.utc), reason=reason))
+            emit_event(
+                RunSummary(
+                    ts=datetime.now(timezone.utc),
+                    status="halted",
+                    phases_advanced=advanced,
+                    reason=reason,
+                )
+            )
+            return RunResult(RunStatus.HALTED, reason, advanced)
         emit_event(
             RoleReturned(
                 role="coder",

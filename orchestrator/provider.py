@@ -8,6 +8,10 @@ from typing import Protocol
 from pydantic import BaseModel
 
 
+class ProviderError(Exception):
+    """A headless `claude -p` role failed — non-zero exit (e.g. a usage limit)."""
+
+
 class RoleResult(BaseModel):
     """Typed result of a headless role run (claude -p --output-format json)."""
 
@@ -103,15 +107,22 @@ class ClaudeCodeProvider:
         self._effort = effort
 
     def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult:
-        """Spawn `claude -p` in `repo` under `profile`; return its parsed result."""
+        """Spawn `claude -p` in `repo` under `profile`; return its parsed result.
+
+        Raise ProviderError on a non-zero exit (API error / usage limit) so the driver
+        halts cleanly and resumably instead of crashing with a raw traceback.
+        """
         command = build_command(role_prompt, profile, self._model, self._effort)
-        completed = subprocess.run(
-            command,
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        try:
+            completed = subprocess.run(
+                command, cwd=repo, capture_output=True, text=True, check=True
+            )
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or error.stdout or "").strip()[-400:]
+            raise ProviderError(
+                f"claude -p exited {error.returncode}"
+                + (f" — {detail}" if detail else "")
+            ) from error
         return parse_result(completed.stdout)
 
 

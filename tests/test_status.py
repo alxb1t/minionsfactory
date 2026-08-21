@@ -55,7 +55,15 @@ def test_status_json_reflects_the_latest_event(tmp_path: Path) -> None:
 
 def test_render_formats_a_phase_start_line() -> None:
     event = PhaseStart(ts=datetime.now(timezone.utc), phase="P1")
-    assert render(event) == "▶ phase P1 — building"
+    assert render(event) == "▶ building P1"
+
+
+def test_render_trims_a_verbose_phase_for_the_cli() -> None:
+    verbose = "🚧 P3 in progress — " + "some long detail " * 20
+    line = render(PhaseStart(ts=datetime.now(timezone.utc), phase=verbose))
+    assert line.startswith("▶ building")
+    assert "P3" in line
+    assert len(line) < 95  # trimmed, not the full ~350-char phase string
 
 
 def test_render_formats_a_coder_result_no_error_line() -> None:
@@ -112,12 +120,12 @@ def test_snapshot_reads_done_after_the_result_lands(tmp_path: Path) -> None:
 
 def test_render_formats_an_advance_line() -> None:
     event = Advance(ts=datetime.now(timezone.utc), from_phase="P1", to_phase="P2")
-    assert render(event) == "Advanced P1 -> P2"
+    assert render(event) == "✅ phase done → advanced to P2"
 
 
 def test_render_formats_a_halt_line() -> None:
     event = Halt(ts=datetime.now(timezone.utc), reason="gate is red")
-    assert render(event) == "halted: gate is red"
+    assert render(event) == "⛔ halted: gate is red"
 
 
 def test_render_shows_a_failed_gate_step() -> None:

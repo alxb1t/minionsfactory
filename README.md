@@ -16,7 +16,7 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.1 — the "loop spine" (in progress).** This version builds the minimal warm-coder build spine
+**v0.1 — the "loop spine" (in progress).** This version builds the minimal per-phase-coder build spine
 (spawn coder → gate → advance/commit or halt → resume), with all control flow unit-tested behind a fake
 provider + fake gate. The end-of-plan review ‖ security ‖ simplify fan-out, the converge loop, release
 automation, the installed CLI, extra provider adapters, and the UI are **≥ v0.2**.

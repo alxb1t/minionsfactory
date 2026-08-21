@@ -1,13 +1,30 @@
+import subprocess
 from pathlib import Path
 
+import pytest
+
 from orchestrator.provider import (
+    ClaudeCodeProvider,
     FakeProvider,
     Profile,
+    ProviderError,
     RoleResult,
     build_command,
     parse_result,
     read_only_profile,
 )
+
+
+def test_claude_provider_raises_provider_error_on_a_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(1, ["claude"], stderr="usage limit reached")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+
+    with pytest.raises(ProviderError, match="usage limit reached"):
+        ClaudeCodeProvider().run_role("build", Path("/repo"), Profile())
 
 
 def test_parse_result_reads_the_headless_json_fields() -> None:

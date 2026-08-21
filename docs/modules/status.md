@@ -123,7 +123,9 @@ def read_status(status: Path) -> Event                       # the latest event 
 def render(event: Event) -> str
 ```
 
-Pure per-event projection to a human-readable stdout line — a total `match` over the union.
+Pure per-event projection to a human-readable stdout line — a total `match` over the union. Trims a verbose
+`current_phase` to a short one-line label (via `_short_phase`), names the role on spawn/return, and marks a phase
+advance (`✅ phase done → advanced to …`) and a halt (`⛔ halted: …`).
 
 - **Gotchas** — no `case _`, so `ty` enforces exhaustiveness across all variants.
 - **Source** — [`status.py`](../../orchestrator/status.py) · **Tests** — [`test_status.py`](../../tests/test_status.py)

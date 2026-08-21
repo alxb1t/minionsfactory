@@ -2,7 +2,7 @@
 module: orchestrator/provider.py
 summary: Invoke a role as a fresh headless instance and parse its typed result.
 entry_point: Provider
-public_api: [Provider, RoleResult, Profile, read_only_profile, build_command, parse_result, ClaudeCodeProvider, FakeProvider]
+public_api: [Provider, RoleResult, Profile, read_only_profile, build_command, parse_result, ClaudeCodeProvider, FakeProvider, ProviderError]
 depends_on: []
 ---
 
@@ -159,8 +159,20 @@ The real adapter: [`build_command`](#build_command) → `subprocess.run(argv, cw
 [`parse_result`](#parse_result). Constructed with an optional `model` + reasoning `effort` that pin every role's
 `claude -p` run (wired from `__main__`'s `--model` / `--effort` flags); each `None` uses the CLI default.
 
-- **Gotchas** — the `subprocess.run` call is the one untestable side effect (exercised only in the end-to-end dogfood run). `check=True` raises on a non-zero exit.
-- **Source** — [`provider.py`](../../orchestrator/provider.py)
+- **Raises** — [`ProviderError`](#providererror) on a non-zero exit (it catches `CalledProcessError` and attaches the CLI's stderr tail), so the driver can halt cleanly rather than crash.
+- **Gotchas** — the `subprocess.run` call is the one live side effect; the non-zero-exit → `ProviderError` branch *is* unit-tested (monkeypatched `subprocess.run`).
+- **Source** — [`provider.py`](../../orchestrator/provider.py) · **Tests** — [`test_provider.py`](../../tests/test_provider.py)
+
+### `ProviderError`
+
+```python
+class ProviderError(Exception):  # a headless claude -p role failed (non-zero exit)
+```
+
+Raised by [`ClaudeCodeProvider.run_role`](#claudecodeprovider) when `claude -p` exits non-zero — most often a
+**subscription usage limit** or an API error. [`driver.run`](driver.md#run) catches it around the coder spawn and
+turns it into a clean, resumable **halt** (a `halt` event + `HALTED` result, not a traceback); [`__main__`](main.md)
+backstops the same error in the post-build stages.
 
 ### `FakeProvider`
 

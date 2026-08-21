@@ -5,7 +5,7 @@ from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.driver import RunStatus, decide, run
 from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
-from orchestrator.provider import FakeProvider, Profile, RoleResult
+from orchestrator.provider import FakeProvider, Profile, ProviderError, RoleResult
 from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState
 from orchestrator.status import Event, RunSummary
@@ -347,3 +347,29 @@ def test_run_does_not_release_when_converge_halts() -> None:
         ),
     )
     assert calls == []  # converge halted → the run returns before release
+
+
+class _ErroringProvider:
+    """A provider whose spawn fails — simulates an API error / usage limit."""
+
+    def run_role(self, role_prompt: str, repo: Path, profile: Profile) -> RoleResult:
+        raise ProviderError("claude -p exited 1 — usage limit reached")
+
+
+def test_run_halts_cleanly_on_a_provider_error() -> None:
+    states = [PlanState("P1", {"phase0": "planned"}, "c0")]
+    events: list[Event] = []
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        _ErroringProvider(),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        emit_event=events.append,
+    )
+    assert result.status is RunStatus.HALTED
+    assert "provider error" in result.reason
+    assert "halt" in [e.kind for e in events]  # a clean halt event, not a traceback
