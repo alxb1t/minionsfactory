@@ -1,5 +1,6 @@
 """Findings-file reader: a role's convergence verdict, read + validated from disk."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -23,3 +24,12 @@ def read_findings_state(path: Path) -> FindingsState | None:
     if not path.exists():
         return None
     return FindingsState.model_validate(parse_frontmatter(path.read_text()))
+
+
+def all_findings_clean(states: Sequence[FindingsState | None]) -> bool:
+    """Whether every findings file is present and its verdict is clean.
+
+    A missing file (None) counts as not clean, so a not-yet-run role can never
+    let the loop converge — or the release gate pass — falsely.
+    """
+    return all(s is not None and s.verdict == "clean" for s in states)

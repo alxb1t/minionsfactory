@@ -9,7 +9,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Sequence
 
-from orchestrator.findings import FindingsState
+from orchestrator.findings import FindingsState, all_findings_clean
 from orchestrator.gate import Gate
 from orchestrator.provider import Profile, Provider
 from orchestrator.status import Event, GateStep, RoleReturned, RoleSpawn, _no_emit
@@ -37,11 +37,6 @@ class ConvergeResult:
     rounds: int
 
 
-def _all_clean(states: Sequence[FindingsState | None]) -> bool:
-    """Converged iff every findings file is present and its verdict is clean."""
-    return all(s is not None and s.verdict == "clean" for s in states)
-
-
 def converge(
     provider: Provider,
     gate: Gate,
@@ -59,7 +54,7 @@ def converge(
     while True:
         states = read_states()
 
-        if _all_clean(states):
+        if all_findings_clean(states):
             return ConvergeResult(ConvergeStatus.CONVERGED, "", rounds)
 
         if rounds >= max_rounds:

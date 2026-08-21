@@ -1,8 +1,10 @@
 """Run-from-source entry: `python -m orchestrator run --repo <target>`."""
 
 import argparse
+import subprocess
 import sys
 from collections.abc import Callable
+from datetime import date
 from functools import partial
 from pathlib import Path
 
@@ -13,6 +15,12 @@ from orchestrator.fanout import RoleSpec, run_fanout
 from orchestrator.findings import FindingsState, read_findings_state
 from orchestrator.gate import Gate, SubprocessGate
 from orchestrator.provider import ClaudeCodeProvider, Profile, Provider
+from orchestrator.release import (
+    ReleaseResult,
+    SubprocessReleaseGit,
+    prepare_release,
+    verify_release_gate,
+)
 from orchestrator.state import select_plan
 from orchestrator.status import Event, emit, render
 
@@ -139,6 +147,71 @@ def _make_converge(
     )
 
 
+def _git_tags(repo: Path) -> list[str]:
+    """List the repo's git tags."""
+    completed = subprocess.run(
+        ["git", "tag"], cwd=repo, capture_output=True, text=True, check=True
+    )
+    return completed.stdout.split()
+
+
+def _tree_is_clean(repo: Path) -> bool:
+    """Whether the repo's working tree has no uncommitted changes."""
+    completed = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip() == ""
+
+
+def _current_branch(repo: Path) -> str:
+    """Return the repo's current git branch name."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def _make_release(
+    gate: Gate,
+    repo: Path,
+    vault_dir: Path,
+    version: str,
+    branch: str,
+    today: str,
+    roles: list[RoleSpec],
+) -> Callable[[], ReleaseResult]:
+    findings_paths = [
+        vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
+    ]
+
+    def _release() -> ReleaseResult:
+        verdict = verify_release_gate(
+            version=version,
+            gate_result=gate.run_gate(repo),
+            findings=[read_findings_state(p) for p in findings_paths],
+            backlog_text=(vault_dir / "backlog.md").read_text(),
+            changelog_text=(repo / "CHANGELOG.md").read_text(),
+            existing_tags=_git_tags(repo),
+            tree_is_clean=_tree_is_clean(repo),
+        )
+        result = prepare_release(
+            verdict, repo, vault_dir, version, today, branch, SubprocessReleaseGit()
+        )
+        if result.handoff:
+            print(result.handoff)
+        return result
+
+    return _release
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse args and drive the target repo's plan; return a process exit code."""
     parser = argparse.ArgumentParser(prog="orchestrator")
@@ -161,6 +234,8 @@ def main(argv: list[str] | None = None) -> int:
     emitter = _make_emitter(repo)
     version = _plan_version(vault_dir)
     roles = _fanout_roles()
+    branch = _current_branch(repo)
+    today = date.today().isoformat()
 
     result = run(
         repo=repo,
@@ -184,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             _CODER_PROFILE,
             emitter,
         ),
+        release=_make_release(gate, repo, vault_dir, version, branch, today, roles),
     )
     print(
         f"{result.status.name}: {result.reason} "

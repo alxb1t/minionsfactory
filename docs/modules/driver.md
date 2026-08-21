@@ -3,7 +3,7 @@ module: orchestrator/driver.py
 summary: The deterministic build-spine loop — advance the plan phase by phase, or halt.
 entry_point: run
 public_api: [run, decide, Decision, RunStatus, RunResult, halt_report_exists]
-depends_on: [provider, gate, state, status, fanout, findings, converge]
+depends_on: [provider, gate, state, status, fanout, findings, converge, release]
 ---
 
 # `driver`
@@ -16,7 +16,7 @@ function; the loop is thin orchestration over the seams.
 [`run`](#run) reads the [`PlanState`](state.md#planstate), spawns the coder, lets the orchestrator run the gate,
 re-reads state, and asks the pure [`decide`](#decide) whether the phase advanced. Advance is **detected, not
 trusted**: a phase only advances when a new commit landed **and** `current_phase` moved. At plan-complete it
-invokes the injected `fanout` then `converge` seams before the final summary.
+invokes the injected `fanout`, `converge`, then `release` seams before the final summary.
 
 ## Boundaries
 
@@ -39,7 +39,9 @@ flowchart TD
     more -- yes --> read
     more -- no --> fo["fanout()"] --> conv["converge()"]
     conv -- HALTED --> haltc(["RunResult(HALTED)"])
-    conv -- CONVERGED --> done(["RunResult(COMPLETE)"])
+    conv -- CONVERGED --> rel["release()"]
+    rel -- REFUSED --> haltr(["RunResult(HALTED, reason)"])
+    rel -- PREPARED --> done(["RunResult(COMPLETE)"])
     decide -- halt --> halt(["RunResult(HALTED, reason)"])
 ```
 
@@ -56,6 +58,7 @@ result = run(
     emit_event=emit_event,  # optional status sink
     fanout=fanout_closure,  # optional post-build stages
     converge=converge_closure,
+    release=release_closure,
 )
 exit_code = 0 if result.status is RunStatus.COMPLETE else 1
 ```
@@ -66,8 +69,9 @@ exit_code = 0 if result.status is RunStatus.COMPLETE else 1
   is not enough.
 - Precedence in `decide`: **halt-report → red-gate → non-advance → advance**.
 - Every terminal path emits a `run-summary` (both halt paths emit `halt` then `run-summary`).
-- `fanout` and `converge` run **only at plan-complete** — a halted build never reaches them; their defaults are
-  no-ops, so a build-only run is valid.
+- `fanout`, `converge`, and `release` run **only at plan-complete** — a halted build never reaches them; their
+  defaults are no-ops, so a build-only run is valid. `release` runs only after `converge` **converges** (a
+  converge halt returns first); a `REFUSED` release halts the run, a `PREPARED` release completes it.
 - `max_phases` is a runaway guard; hitting it halts with a `run-summary`.
 - Nothing is kept in memory across phases — a crashed or compacted run resumes by re-reading disk.
 
@@ -133,16 +137,16 @@ def run(
     repo, vault_project_dir, provider, gate, coder_prompt, profile,
     state_reader=read_plan_state, halt_checker=halt_report_exists,
     emit_event=_no_emit, fanout=_no_fanout, converge=_no_converge,
-    max_phases=100,
+    release=_no_release, max_phases=100,
 ) -> RunResult
 ```
 
 The loop: read [`PlanState`](state.md#planstate) → `provider.run_role` → `halt_checker` → `gate.run_gate` → read
-state again → [`decide`](#decide) → continue or halt; at plan-complete, `fanout()` then `converge()`.
+state again → [`decide`](#decide) → continue or halt; at plan-complete, `fanout()` → `converge()` → `release()`.
 
-- **Params** — [`provider`](provider.md#provider), [`gate`](gate.md#gate): the spawn + gate seams · `coder_prompt`, [`profile`](provider.md#profile): the coder role + its build perms · `state_reader`, `halt_checker`: injected disk seams (real defaults) · `emit_event`: status sink (default no-op) · `fanout`, `converge`: post-build seams run once at completion (default no-ops) · `max_phases`: runaway guard.
+- **Params** — [`provider`](provider.md#provider), [`gate`](gate.md#gate): the spawn + gate seams · `coder_prompt`, [`profile`](provider.md#profile): the coder role + its build perms · `state_reader`, `halt_checker`: injected disk seams (real defaults) · `emit_event`: status sink (default no-op) · `fanout`, `converge`, `release`: post-build seams run once at completion (default no-ops) · `max_phases`: runaway guard.
 - **Returns** — [`RunResult`](#runstatus--runresult): `COMPLETE`, or `HALTED` with a reason.
-- **Gotchas** — `provider.run_role(...)`'s return is **captured** (to fill `role-returned`) but **ignored** by `decide`; a `converge` that returns `HALTED` turns a completed build into a halted run.
-- **Halts when** — the coder wrote `HALT.md`, the gate is red, a phase didn't advance, `max_phases` is hit, or `converge` halted.
-- **Calls** — the four seams above; the `fanout`/`converge` closures are built in [`__main__`](main.md).
+- **Gotchas** — `provider.run_role(...)`'s return is **captured** (to fill `role-returned`) but **ignored** by `decide`; a `converge` that returns `HALTED` or a `release` that returns [`REFUSED`](release.md#releasestatus) turns a completed build into a halted run.
+- **Halts when** — the coder wrote `HALT.md`, the gate is red, a phase didn't advance, `max_phases` is hit, `converge` halted, or the [`release`](release.md#prepare_release) was refused.
+- **Calls** — the five seams above; the `fanout`/`converge`/`release` closures are built in [`__main__`](main.md).
 - **Source** — [`driver.py`](../../orchestrator/driver.py) · **Tests** — [`test_driver.py`](../../tests/test_driver.py)

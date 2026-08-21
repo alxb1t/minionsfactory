@@ -3,7 +3,7 @@ module: orchestrator/__main__.py
 summary: The composition root — wire the real adapters + post-build closures into the driver and run.
 entry_point: main
 public_api: [main, emit_and_render]
-depends_on: [driver, provider, gate, state, status, diff, fanout, findings, converge]
+depends_on: [driver, provider, gate, state, status, diff, fanout, findings, converge, release]
 ---
 
 # `__main__`
@@ -15,7 +15,7 @@ adapters and the post-build closures into [`driver.run`](driver.md#run).
 
 [`main`](#main) resolves the target's vault from its `.env`, loads the coder prompt, builds the coder
 [`Profile`](provider.md#profile), constructs [`ClaudeCodeProvider`](provider.md#claudecodeprovider) +
-[`SubprocessGate`](gate.md#subprocessgate) + the status sink + the fan-out and converge closures, calls
+[`SubprocessGate`](gate.md#subprocessgate) + the status sink + the fan-out, converge, and release closures, calls
 [`run`](driver.md#run), and exits `0` on `COMPLETE` / `1` on `HALTED`. Private `_make_*` helpers build the
 closures the driver's seams expect; one status sink and one gate are shared across the run.
 
@@ -35,7 +35,8 @@ flowchart TD
     main --> roles["_fanout_roles() — reviewer/security/simplify prompts"]
     main --> fo["_make_fanout(...) — zero-arg closure, frozen diff at invoke-time"]
     main --> cv["_make_converge(...) — zero-arg closure over the findings files"]
-    main --> run["run(provider, gate, coder_prompt, profile, emit_event, fanout, converge)"]
+    main --> rel["_make_release(...) — gather facts → verify_release_gate → prepare_release"]
+    main --> run["run(provider, gate, coder_prompt, profile, emit_event, fanout, converge, release)"]
 ```
 
 ## How clients use it
@@ -58,7 +59,11 @@ $ python -m orchestrator run --repo /path/to/target
   finishes.
 - The converge closure reads the same three findings files fan-out wrote and re-verifies each round over the
   scoped `head..HEAD` diff — the two stages communicate through disk, not return values.
-- Both closures are invoked by [`run`](driver.md#run) **only at plan-complete**; a halted build reaches neither.
+- The release closure gathers the facts for the **pure** [`verify_release_gate`](release.md#verify_release_gate)
+  (`gate.run_gate`, the three findings, backlog/CHANGELOG text, `_git_tags`, `_tree_is_clean`), then
+  [`prepare_release`](release.md#prepare_release)s with a real [`SubprocessReleaseGit`](release.md#releasegit) and
+  prints the handoff — `_current_branch` and `date.today()` supply the branch and date.
+- All three closures are invoked by [`run`](driver.md#run) **only at plan-complete**; a halted build reaches none.
 - A higher-order gotcha: each seam is passed the *built closure* (`fanout=_make_fanout(...)`), not the factory.
 - `.minions/` is the target's per-run artifact dir (git-ignore it in the target).
 

@@ -10,6 +10,7 @@ from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
 from orchestrator.provider import Profile, Provider
+from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState, read_plan_state
 from orchestrator.status import (
     Advance,
@@ -94,6 +95,11 @@ def _no_converge() -> ConvergeResult:
     return ConvergeResult(ConvergeStatus.CONVERGED, "", 0)
 
 
+def _no_release() -> ReleaseResult:
+    """Default post-converge stage: nothing to release (a build-only run is valid)."""
+    return ReleaseResult(ReleaseStatus.PREPARED, "", "")
+
+
 def run(
     repo: Path,
     vault_project_dir: Path,
@@ -106,6 +112,7 @@ def run(
     emit_event: Callable[[Event], None] = _no_emit,
     fanout: Callable[[], list[FindingsState | None]] = _no_fanout,
     converge: Callable[[], ConvergeResult] = _no_converge,
+    release: Callable[[], ReleaseResult] = _no_release,
     max_phases: int = 100,
 ) -> RunResult:
     """Drive the plan phase by phase, then fan out and converge at plan end.
@@ -217,6 +224,19 @@ def run(
             outcome.reason,
             advanced,
         )
+
+    release_result = release()
+    if release_result.status is ReleaseStatus.REFUSED:
+        emit_event(Halt(ts=datetime.now(timezone.utc), reason=release_result.reason))
+        emit_event(
+            RunSummary(
+                ts=datetime.now(timezone.utc),
+                status="halted",
+                phases_advanced=advanced,
+                reason=release_result.reason,
+            )
+        )
+        return RunResult(RunStatus.HALTED, release_result.reason, advanced)
 
     emit_event(
         RunSummary(

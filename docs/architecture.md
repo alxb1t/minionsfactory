@@ -6,7 +6,8 @@ MinionsFactory is a **CLI + orchestrator for autonomous Python feature developme
 at a target repo, it drives a vault-backed implementation plan to completion: a warm **coder** builds the plan
 phase by phase (the orchestrator runs the quality gate itself and commits on green); at plan end it fans out
 **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their blocking
-findings, and hands the gated result on. Every role is a fresh, single-role Claude Code instance behind a
+findings, then a **release** stage verifies the release gate and prepares the release locally — halting for the
+human to merge + push (the boundary never crosses). Every role is a fresh, single-role Claude Code instance behind a
 **provider seam**; the driver is deterministic control flow that **advances or halts** on machine-checkable disk
 state.
 
@@ -40,6 +41,7 @@ graph TD
     main["__main__ — CLI + composition root"]
     driver["driver — build-spine loop"]
     converge["converge — fix → gate → re-verify"]
+    release["release — verify gate → prepare → halt for human"]
     fanout["fanout — review ‖ security ‖ simplify"]
     diff["diff — diff supply for read-only roles"]
     findings["findings — convergence verdict from disk"]
@@ -51,7 +53,9 @@ graph TD
     main --> driver
     main --> converge
     main --> fanout
+    main --> release
     driver --> converge
+    driver --> release
     driver --> gate
     driver --> provider
     driver --> state
@@ -61,6 +65,8 @@ graph TD
     converge --> gate
     converge --> findings
     converge --> status
+    release --> gate
+    release --> findings
     fanout --> diff
     fanout --> findings
     fanout --> provider

@@ -6,6 +6,7 @@ from orchestrator.driver import RunStatus, decide, run
 from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
 from orchestrator.provider import FakeProvider, Profile, RoleResult
+from orchestrator.release import ReleaseResult, ReleaseStatus
 from orchestrator.state import PlanState
 from orchestrator.status import Event, RunSummary
 
@@ -275,3 +276,74 @@ def test_run_halts_when_converge_halts() -> None:
     )
     assert result.status is RunStatus.HALTED
     assert "round cap" in result.reason
+
+
+def test_run_prepares_release_after_converge_when_the_plan_completes() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    order: list[str] = []
+
+    def fake_converge() -> ConvergeResult:
+        order.append("converge")
+        return ConvergeResult(ConvergeStatus.CONVERGED, "", 0)
+
+    def fake_release() -> ReleaseResult:
+        order.append("release")
+        return ReleaseResult(ReleaseStatus.PREPARED, "", "handoff")
+
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: order.append("fanout") or [],
+        converge=fake_converge,
+        release=fake_release,
+    )
+    assert order == ["fanout", "converge", "release"]
+    assert result.status is RunStatus.COMPLETE
+
+
+def test_run_halts_when_release_is_refused() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    result = run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.CONVERGED, "", 0),
+        release=lambda: ReleaseResult(
+            ReleaseStatus.REFUSED, "tag v0.2.0 already exists", ""
+        ),
+    )
+    assert result.status is RunStatus.HALTED
+    assert "already exists" in result.reason
+
+
+def test_run_does_not_release_when_converge_halts() -> None:
+    states = [PlanState("done", {"phase0": "done"}, "c0")]
+    calls: list[int] = []
+    run(
+        Path("/repo"),
+        Path("/vault"),
+        FakeProvider(_ROLE),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=_reader(states),
+        halt_checker=_never_halts,
+        fanout=lambda: [],
+        converge=lambda: ConvergeResult(ConvergeStatus.HALTED, "round cap exceeded", 3),
+        release=lambda: (
+            calls.append(1) or ReleaseResult(ReleaseStatus.PREPARED, "", "")
+        ),
+    )
+    assert calls == []  # converge halted → the run returns before release

@@ -25,6 +25,7 @@ blocking findings to clean. These docs are raw markdown — read them here or in
 | `findings` | Read a role's findings file into a validated convergence verdict. | [findings.md](modules/findings.md) |
 | `fanout` | Run review ‖ security ‖ simplify over the frozen diff. | [fanout.md](modules/fanout.md) |
 | `converge` | Loop fix → gate → re-verify on blocking findings, or halt. | [converge.md](modules/converge.md) |
+| `release` | Verify the release gate over disk facts; prepare locally + halt for the human. | [release.md](modules/release.md) |
 | `__main__` | The composition root — wire the real adapters and run. | [main.md](modules/main.md) |
 
 ## Where the rest of the truth lives
