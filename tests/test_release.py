@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from pathlib import Path
 
+import pytest
+
 from orchestrator.findings import FindingsState
 from orchestrator.gate import GateResult
 from orchestrator.release import (
@@ -106,66 +108,81 @@ def _verify(
     )
 
 
+@pytest.mark.spec("release:release-gate:open-backlog-item-blocks")
 def test_open_item_in_current_release_section_blocks_release() -> None:
     assert _backlog_blocker(_BACKLOG_OPEN, "0.2") is not None
 
 
+@pytest.mark.spec("release:failclosed-guards:backlog-clear-passes")
 def test_clear_current_release_section_does_not_block() -> None:
     assert _backlog_blocker(_BACKLOG_CLEAR, "v0.2") is None
 
 
+@pytest.mark.spec("release:failclosed-guards:backlog-missing-section-blocks")
 def test_missing_current_release_section_fails_closed() -> None:
     text = "# Backlog\n\n## Future / unversioned\n\n- [x] all closed\n"
     assert _backlog_blocker(text, "v0.2") is not None
 
 
+@pytest.mark.spec("release:failclosed-guards:changelog-with-entries-passes")
 def test_unreleased_with_entries_does_not_block() -> None:
     assert _changelog_blocker(_CHANGELOG_READY) is None
 
 
+@pytest.mark.spec("release:failclosed-guards:changelog-empty-blocks")
 def test_empty_unreleased_blocks_release() -> None:
     assert _changelog_blocker(_CHANGELOG_EMPTY) is not None
 
 
+@pytest.mark.spec("release:failclosed-guards:changelog-missing-section-blocks")
 def test_missin_unreleased_section_fails_closed() -> None:
     text = "# Changelog\n\n## [0.1.0] — 2026-08-17\n\n- initial\n"
     assert _changelog_blocker(text) is not None
 
 
+@pytest.mark.spec("release:release-gate:all-met-releasable")
 def test_all_preconditions_met_is_releasable() -> None:
     assert _verify().ok is True
 
 
+@pytest.mark.spec("release:release-gate:red-gate-blocks")
 def test_red_gate_blocks_release() -> None:
     assert _verify(gate_result=_RED).ok is False
 
 
+@pytest.mark.spec("release:release-gate:unclean-findings-block")
 def test_unclean_findings_block_release() -> None:
     assert _verify(findings=(_CLEAN, _REQUESTED, _CLEAN)).ok is False
 
 
+@pytest.mark.spec("release:release-gate:unclean-findings-block")
 def test_missing_findings_file_blocks_release() -> None:
     assert _verify(findings=(_CLEAN, None, _CLEAN)).ok is False
 
 
+@pytest.mark.spec("release:release-gate:open-backlog-item-blocks")
 def test_open_backlog_item_blocks_release() -> None:
     assert _verify(backlog_text=_BACKLOG_OPEN).ok is False
 
 
+@pytest.mark.spec("release:release-gate:existing-tag-blocks")
 def test_existing_release_tag_blocks_release() -> None:
     verdict = _verify(version="v0.2.0", existing_tags=("v0.1.0", "v0.2.0"))
     assert verdict.ok is False
     assert "v0.2.0" in verdict.reason
 
 
+@pytest.mark.spec("release:failclosed-guards:changelog-empty-blocks")
 def test_empty_changelog_blocks_release() -> None:
     assert _verify(changelog_text=_CHANGELOG_EMPTY).ok is False
 
 
+@pytest.mark.spec("release:release-gate:dirty-tree-blocks")
 def test_dirty_tree_blocks_release() -> None:
     assert _verify(tree_is_clean=False).ok is False
 
 
+@pytest.mark.spec("release:changelog-cut:promotes-unreleased-dated")
 def test_cut_changelog_promotes_unreleased_to_a_dated_release() -> None:
     out = _cut_changelog(_CHANGELOG_READY, "v0.2", "2026-08-21")
     assert "## [0.2.0] - 2026-08-21" in out
@@ -176,11 +193,13 @@ def test_cut_changelog_promotes_unreleased_to_a_dated_release() -> None:
     assert "a real unreleased entry" not in above_release
 
 
+@pytest.mark.spec("release:changelog-cut:leaves-fresh-empty-unreleased")
 def test_cut_changelog_leaves_a_fresh_empty_unreleased() -> None:
     out = _cut_changelog(_CHANGELOG_READY, "v0.2", "2026-28-21")
     assert _changelog_blocker(out) is not None  # empty again — nothing to release yet
 
 
+@pytest.mark.spec("release:version-bump:sets-project-version")
 def test_bump_pyproject_sets_the_project_version() -> None:
     text = '[project]\nname = "minions-factory"\nversion = "0.1.0"\n'
     out = _bump_pyproject(text, "v0.2")
@@ -188,6 +207,7 @@ def test_bump_pyproject_sets_the_project_version() -> None:
     assert 'version = "0.1.0"' not in out
 
 
+@pytest.mark.spec("release:version-bump:preserves-other-lines")
 def test_bump_pyproject_preserves_other_lines() -> None:
     text = '[project]\nname = "x"\nversion = "0.1.0"\nrequires-python = ">=3.12"\n'
     out = _bump_pyproject(text, "v0.2")
@@ -195,6 +215,7 @@ def test_bump_pyproject_preserves_other_lines() -> None:
     assert 'requires-python = ">=3.12"' in out
 
 
+@pytest.mark.spec("release:prepare-or-refuse:red-verdict-refused-no-git")
 def test_prepare_release_refuses_on_a_red_verdict(tmp_path: Path) -> None:
     git = FakeReleaseGit()
     result = prepare_release(
@@ -212,6 +233,7 @@ def test_prepare_release_refuses_on_a_red_verdict(tmp_path: Path) -> None:
     assert git.tags == []
 
 
+@pytest.mark.spec("release:prepare-or-refuse:green-prepares-commit-and-tag")
 def test_prepare_release_cuts_bumps_commits_and_tags_on_green(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -241,6 +263,7 @@ def test_prepare_release_cuts_bumps_commits_and_tags_on_green(tmp_path: Path) ->
     assert "git push origin v0.2.0" in result.handoff
 
 
+@pytest.mark.spec("release:prepare-or-refuse:refused-leaves-repo-untouched")
 def test_prepare_release_leaves_the_repo_untouched_when_refused(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
