@@ -1,52 +1,54 @@
 # minions_factory — shared context for Claude Code
 
 MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
-at a target repo, it drives a **vault-backed implementation plan** to completion: a fresh, per-phase **coder** builds the
-plan one phase per spawn (the orchestrator **runs the quality gate itself** and detects the advance); at plan end it
-fans out **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their
-blocking findings, and hands a **release** step the gated, tagged result. Every role is a **fresh, single-role
-Claude Code instance**; the driver **advances or halts** on machine-checkable disk state. The project dogfoods
-its own conventions — vault-backed planning, a strict quality gate, all state on disk.
+at a target repo, it drives an **in-repo change** to completion: a **coder** builds the change's `tasks.md`
+phase by phase (the orchestrator **runs the quality gate itself** and detects the advance); at plan end it fans
+out **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their blocking
+findings, and hands a **release** step the gated, tagged result — which **folds the change's spec delta into the
+living `specs/`** and archives the change. Every role is a **fresh, single-role Claude Code instance**; the
+driver **advances or halts** on machine-checkable disk state. The project dogfoods its own conventions —
+spec-driven changes, a strict quality gate, all state on disk.
 
 Hard constraints that shape the code: **no LLM sits in the orchestration layer** (the driver is deterministic,
 unit-testable control flow); **the orchestrator runs the objective checks itself** (the gate + git state — so
-the agent it drives can't game them); **all state lives on disk** (a run resumes from the plan's `current_phase`
-+ git + the ledger, never from memory); and **roles are fresh instances behind a provider seam** (harness-
-agnostic — Claude Code is the default adapter, with no dependency on a harness's internals).
+the agent it drives can't game them); **all state lives on disk** (a run resumes from the change's `tasks.md`
+progress + git, never from memory); and **roles are fresh instances behind a provider seam** (harness-agnostic —
+Claude Code is the default adapter, with no dependency on a harness's internals).
 
 > **This file is shared, role-independent context — what is *true* about this repo. It is not a script.**
-> What you should *do* comes from the **prompt/task you were given** (build a phase, review the branch diff,
-> run a security pass, apply fixes). If your prompt conflicts with this file, **the prompt wins.** Read this
-> for the facts; follow your prompt for the actions — don't infer a workflow from this file alone.
+> What you should *do* comes from the **prompt/task you were given** (author a change, build a phase, review the
+> branch diff, run a security pass, apply fixes). If your prompt conflicts with this file, **the prompt wins.**
+> Read this for the facts; follow your prompt for the actions — don't infer a workflow from this file alone.
 
 ---
 
-## The plan lives in a private vault — read it first
+## Where the work is defined — spec-driven changes (in-repo)
 
-The full, canonical implementation plan is **not in this repo** (this repo is public — it must never contain
-the vault's absolute path). It lives in a private Obsidian vault whose location is stored in **`.env`**
-(gitignored) as **`VAULT_PROJECT_DIR`**.
+This repo follows **spec-driven development** (OpenSpec-style). Two in-repo trees carry the truth:
 
-1. Read `.env` and load `VAULT_PROJECT_DIR` — the absolute path to the vault project folder. If it is missing,
-   copy `.env.example` → `.env` and ask the human to fill it in. **Never hardcode or print the real path in
-   committed files.**
-2. Read the **latest implementation plan** in `$VAULT_PROJECT_DIR/implementation_plans/` — the
-   `vX.Y_*implementation_plan.md` with the **highest version number** (**ignore `archive/`**). It is the source
-   of truth for scope, decisions, architecture, repo layout, the engineering conventions, the per-phase steps,
-   **and the phase workflow contract** — including whether the plan runs **autonomously** or in a **human-
-   written / teacher mode**. Lower-versioned plans are completed predecessors — historical record only.
-3. The plan tracks progress via its **`current_phase`** frontmatter + the **Progress ledger** (bottom of the
-   plan); the newest entries sit at the **top** of `$VAULT_PROJECT_DIR/log.md` (this project's `log.md` is
-   **prepend / newest-first**). Read these to see where the work stands. If the plan references a Phase-0
-   research file, read it too.
+- **`specs/<capability>/spec.md`** — the **living, test-backed behavioral spec**: what the system does *now*.
+  Each requirement carries WHEN/THEN **scenarios**, and every scenario is bound to a proving test
+  (`@pytest.mark.spec("<key>")`) — enforced by the **spec-binding check** (`specs check`; see the gate below).
+- **`changes/<change-id>/`** — the **active change** you build: `proposal.md` (scope/approach), `design.md`
+  (technical decisions), `tasks.md` (the ordered phases + progress checkboxes), and `specs/` (the **delta** —
+  `## ADDED / MODIFIED / REMOVED Requirements` for this change). Read the change **in-tree**; record progress in
+  `tasks.md`. On release the delta **folds** into the top-level `specs/` and the change moves to
+  `changes/archive/<change-id>/`.
 
-Plans and their research/findings files live in `$VAULT_PROJECT_DIR/implementation_plans/` (version-prefixed,
-e.g. `v0.1_loop_spine_implementation_plan.md`); the project's `overview.md`, `log.md`, `backlog.md`,
-`release_log.md`, `decisions.md`, and `open_questions.md` sit at `$VAULT_PROJECT_DIR/`. Do not re-derive
-decisions already settled in the plan. If something there conflicts with reality, raise it with the human rather
-than silently diverging. Any vault writes stay **inside `$VAULT_PROJECT_DIR`** and follow the conventions already
-visible in that folder (the `log.md` / `overview.md` / `backlog.md` shapes) — `VAULT_PROJECT_DIR` is the only
-vault path this repo knows.
+**Progress lives in `tasks.md` + git** — read the active change (`changes/<id>/`), its `tasks.md`, and the tail
+of the vault `log.md` to see where the work stands. Don't re-derive decisions already settled in the change; if
+something there conflicts with reality, raise it with the human rather than silently diverging.
+
+**The vault holds product intent, research, findings, and bookkeeping.** A private Obsidian vault whose path is
+in **`.env`** (gitignored) as **`VAULT_PROJECT_DIR`** — **never hardcode or print it**; the committed
+`CLAUDE.md` / `.env.example` stay path-free. There: the **PRD** (`prd/` — the product intent *upstream* of a
+change), **research** (`research/`), the read-only roles' **findings files**, and the narrative record
+(`log.md` **newest-first**, `overview.md`, `backlog.md`, `release_log.md`, `decisions.md`). Any vault writes stay
+**inside `$VAULT_PROJECT_DIR`** and follow the shapes already there. If `.env` / `VAULT_PROJECT_DIR` is missing,
+copy `.env.example` → `.env` and ask the human to fill it in.
+
+**Commits carry a `Change: <change-id>` git trailer** so history reads back to intent
+(`git log --grep "Change: <id>"` → the commits → `changes/archive/<id>/` → proposal/design/tasks/delta).
 
 ---
 
@@ -56,35 +58,39 @@ vault path this repo knows.
   as executable documentation — name tests as behavioural sentences.
 - `ruff format --check` + `ruff check` — format + lint clean (`D` docstrings + `ANN` annotations enabled).
 - `ty check` — strict type-check clean.
+- **`specs check`** — the spec binding holds: every scenario is test-backed and every `spec` marker resolves
+  (a structural check; the reviewer judges whether a test *genuinely* exercises its scenario). This repo runs
+  **from source**: invoke it like the existing `run` command — `uv run python -m orchestrator specs check`.
+  There is **no installed `minions` binary yet**; `minions specs check` is only the future installed alias.
 
 External effects are **faked** in tests behind their seams — the **provider** (`claude -p`) behind the
 `Provider` Protocol (`FakeProvider`) and the **gate subprocess** behind the gate seam (`FakeGate`) — so **no
 unit test spawns a real Claude Code instance or hits the network**; real `claude -p` is exercised only in an
-end-to-end dogfood run. CI (`.github/workflows/ci.yml`) runs the gate on every push. Full conventions are in the
-plan (§ Engineering conventions).
+end-to-end dogfood run. CI (`.github/workflows/ci.yml`) runs the gate on every push. The gate **command list is
+read from the target repo** (`.minions/minions.toml`), not hardcoded, so a non-Python target needs no code change.
 
 The repo keeps a **`CHANGELOG.md`** in [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format, aligned
-to the version line (plan `vX.Y` = CHANGELOG release = `pyproject` version = git tag `vX.Y.0`): each phase
-appends under `## [Unreleased]`; plan completion cuts `## [X.Y.0]`. Keeping it current is part of the phase
-ritual — see the plan + the vault's `conventions.md`.
+to the version line (change `vX.Y` = CHANGELOG release = `pyproject` version = git tag `vX.Y.0`): each phase
+appends under `## [Unreleased]`; the release step cuts `## [X.Y.0]`. Keeping it current is part of the phase
+ritual — see the change + the vault's `conventions.md`.
 
 ---
 
 ## Engineering conventions
 
-The plan's **§ Non-negotiable principles / Engineering conventions** is authoritative — read it. In brief, the
+The change's **`design.md`** and the vault's **`decisions.md`** are authoritative — read them. In brief, the
 load-bearing seams are:
 
 - a **`Provider` Protocol** — a real `ClaudeCodeProvider` (`claude -p`, `--output-format json`) + a
   `FakeProvider`; the driver depends on the **seam**, never the CLI directly (harness-agnostic + unit-testable).
 - **the orchestrator runs the gate itself** via a `run_gate(repo)` seam (real subprocess + `FakeGate`); the gate
-  command list is **read from the target repo**, not hardcoded (so a non-Python target needs no code change).
-- **plan state is read from disk** — `read_plan_state(...) -> PlanState`; plan-selection = highest `vX.Y_`,
-  ignore `archive/`.
+  command list is **read from the target repo** (`.minions/minions.toml`), not hardcoded.
+- **the active change is read from disk** — the coder resolves `changes/<change-id>/` in-tree and builds its
+  `tasks.md` phase by phase; findings + spec state are read from disk, never trusted from a role's claim.
 - **the driver is deterministic control flow** — no LLM; **advance is *detected*** (a new commit landed **and**
-  `current_phase` moved), not trusted; a halt writes a disk contract the next run resumes from.
-- roles are defined by a **prompt + a disk I/O contract** — each role prompt (the vault's `prompts/`, copied
-  into the repo's `prompts/`) is the first-class authority for what that instance does.
+  the phase checkbox moved), not trusted; a halt writes a disk contract the next run resumes from.
+- roles are defined by a **prompt + a disk I/O contract** — each role prompt (`prompts/`) is the first-class
+  authority for what that instance does.
 
 ---
 
@@ -97,8 +103,9 @@ load-bearing seams are:
 - **No LLM in the orchestration layer; the orchestrator owns the objective checks.** The driver stays
   deterministic and testable; the gate + git state are run by the orchestrator (not the agent it drives) so they
   can't be gamed.
-- **State lives on disk.** Reconstruct "where are we" from the plan's `current_phase` + Progress ledger + git —
-  never from memory. Resume is therefore free.
-- The **vault is the single source of truth** for "where are we." If your role updates it, keep it accurate
-  (prepend newest-first in `log.md`, the plan's `current_phase` + Progress ledger, `backlog.md`); a fresh
+- **State lives on disk.** Reconstruct "where are we" from the active change's `tasks.md` + git (+ the folded
+  `specs/`) — never from memory. Resume is therefore free.
+- **Findings stay in the vault; progress + specs stay in the repo.** The read-only roles write only their vault
+  findings file; the coder writes code + `tasks.md` + the change's spec delta, and a `Change:` trailer on every
+  commit. Keep the vault narrative (`log.md` newest-first, `overview.md`, `backlog.md`) accurate — a fresh
   session relies on it.
