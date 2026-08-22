@@ -18,7 +18,7 @@ Read `proposal.md` + `design.md` (this dir) and the vault PRD/research first.
 
 - [x] 1 — Spec format + `specs.py` + `specs check` subcommand + wire MF gate
 - [x] 2 — Change-structure code (in-tree change resolution + contract-guard)
-- [ ] 3 — Prove the mechanism on `converge` + `release` (spec directly; bind tests; seed orphan/dangling)
+- [x] 3 — Prove the mechanism on `converge` + `release` (spec directly; bind tests; seed orphan/dangling)
 - [ ] 4 — Reviewer conformance axis (`prompts/reviewer.md`)
 - [ ] 5 — Release fold + gate predicate + `Change:`-trailer predicate + `changes/archive/`
 - [ ] 6 — `conventions.md`: the `Change: <id>` trailer + `specs/` / `changes/` conventions
