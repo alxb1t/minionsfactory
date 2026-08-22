@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-22
+
 ### Changed
 
 - Flipped MF's own gate to **`specs check --strict`** (change `0003-sdd-adoption`, phase 7b; R6) — the spec-binding checker now enforces **full bidirectional traceability** on every push: on top of the orphan + dangling checks, every collected test must carry a `@pytest.mark.spec("<key>")` or an explicit `@pytest.mark.spec_exempt("reason")`. The switch is in all three gate loci (`.minions/minions.toml` final entry, the `Makefile` `gate` target, `.github/workflows/ci.yml`). Only three genuinely-structural tests take the reviewable exemption — the `FakeGate` / `FakeProvider` scripted-result smokes (test doubles) and the package `describe()` smoke — mirroring the `tests/**`-waives-`D` convention. `uv run python -m orchestrator specs check --strict` exits 0.

@@ -15,6 +15,7 @@ from orchestrator.state import (
     read_plan_state,
     select_change,
     select_plan,
+    validate_change,
     validate_plan,
     verify_vault_access,
 )
@@ -324,12 +325,22 @@ def test_read_change_state_consults_no_vault_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.spec("sdd:change-structure:wellformed-resolves")
-def test_this_change_tasks_md_parses_under_read_change_state() -> None:
-    repo = Path(__file__).resolve().parent.parent
+def test_this_change_archived_tasks_md_stays_well_formed_after_release() -> None:
+    # Dogfood: after the v0.3.0 release fold, 0003-sdd-adoption is folded + archived.
+    # It stays a well-formed change (four artifacts) whose tasks.md parses to seven
+    # fully checked-off phases. `read_change_state` excludes archive/, so the archived
+    # change is validated + parsed directly.
+    archived = (
+        Path(__file__).resolve().parent.parent
+        / "openspec"
+        / "changes"
+        / "archive"
+        / "0003-sdd-adoption"
+    )
 
-    state = read_change_state(repo, head_reader=lambda _: "dogfood")
+    validate_change(archived)
+    phases = parse_progress((archived / "tasks.md").read_text())
 
-    assert state.change_id == "0003-sdd-adoption"
-    assert [p.index for p in state.phases] == [1, 2, 3, 4, 5, 6, 7]
-    assert state.phases[0].done is True  # phase 1 shipped
-    assert all(p.title for p in state.phases)
+    assert [p.index for p in phases] == [1, 2, 3, 4, 5, 6, 7]
+    assert all(p.done for p in phases)  # every phase shipped
+    assert all(p.title for p in phases)
