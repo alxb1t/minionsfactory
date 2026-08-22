@@ -9,6 +9,9 @@ from pathlib import Path
 
 _PLAN_PATTERN = re.compile(r"v(\d+)\.(\d+)_.*implementation_plan\.md$")
 _CODE_PHASE_STATUSES = frozenset({"done", "wip", "planned", "todo"})
+_CHANGE_PATTERN = re.compile(r"^(\d+)-")
+_PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
+_CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
 
 
 def select_plan(vault_project_dir: Path) -> Path:
@@ -148,3 +151,154 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
             f"the target's .claude/settings.local.json does not grant vault access "
             f"({vault_project_dir}) via additionalDirectories"
         )
+
+
+# --- in-tree change-state reader (sibling to the vault-plan reader above) ---------
+#
+# Change progress lives in the repo (`changes/<id>/tasks.md`), read with no vault hop
+# (R5). This reader is built and unit-tested here as a ready-for-v0.5 sibling; the
+# driver keeps running the vault-plan reader until the loop self-hosts on changes.
+
+
+@dataclass(frozen=True)
+class Phase:
+    """One ordered phase from a change's tasks.md `## Progress` checklist."""
+
+    index: int
+    title: str
+    done: bool
+
+
+@dataclass(frozen=True)
+class ChangeState:
+    """Where-are-we for an in-tree change: ordered phases + git head, read from disk."""
+
+    change_id: str
+    phases: tuple[Phase, ...]
+    head: str
+
+    @property
+    def current(self) -> Phase | None:
+        """The first unchecked phase, or None when every phase is done (complete)."""
+        for phase in self.phases:
+            if not phase.done:
+                return phase
+        return None
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether every phase is checked off (nothing left to build)."""
+        return self.current is None
+
+    @property
+    def current_index(self) -> int | None:
+        """The current phase's index, or None when complete — the advance cursor."""
+        phase = self.current
+        return None if phase is None else phase.index
+
+
+def select_change(repo: Path) -> Path:
+    """Return the active change dir under changes/ (highest version-id, no archive/).
+
+    A change dir is named `<version-id>-<slug>` (e.g. `0003-sdd-adoption`); the active
+    change is the highest numeric version-id. `changes/archive/` is excluded.
+    """
+    changes_dir = repo / "changes"
+    candidates: list[tuple[int, Path]] = []
+    if changes_dir.exists():
+        for path in changes_dir.iterdir():
+            if not path.is_dir() or path.name == "archive":
+                continue
+            match = _CHANGE_PATTERN.match(path.name)
+            if match is None:
+                continue
+            candidates.append((int(match.group(1)), path))
+    if not candidates:
+        raise PlanContractError(
+            f"no active change under {changes_dir} — expected a changes/<id>/ dir "
+            f"(excluding changes/archive/)"
+        )
+    best = max(candidates, key=lambda item: item[0])
+    return best[1]
+
+
+def validate_change(change_dir: Path) -> None:
+    """Raise PlanContractError if the change is missing any required artifact.
+
+    A well-formed change is `changes/<id>/` containing `proposal.md`, `design.md`,
+    `tasks.md`, and a `specs/` delta dir. A missing artifact is refused here, at read
+    time, with a diagnostic naming it — never a silent empty state or a late KeyError.
+    """
+    for artifact in _CHANGE_ARTIFACTS:
+        if not (change_dir / artifact).exists():
+            raise PlanContractError(
+                f"change '{change_dir.name}' is missing '{artifact}' — a well-formed "
+                f"change has proposal.md, design.md, tasks.md, and specs/"
+            )
+
+
+def parse_progress(text: str) -> list[Phase]:
+    """Parse a tasks.md `## Progress` checklist into ordered phases (checked = done).
+
+    Reads only the `## Progress` section: it opens at the `## Progress` heading and
+    closes at the next `## ` heading, so checkbox-shaped lines elsewhere in the file
+    (e.g. under a phase's prose) never leak into the phase list.
+    """
+    phases: list[Phase] = []
+    in_progress = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            if in_progress:
+                break
+            in_progress = stripped == "## Progress"
+            continue
+        if not in_progress:
+            continue
+        match = _PROGRESS_ITEM.match(line)
+        if match:
+            phases.append(
+                Phase(
+                    index=int(match.group(2)),
+                    title=match.group(3).strip(),
+                    done=match.group(1).lower() == "x",
+                )
+            )
+    return phases
+
+
+def read_change_state(
+    repo: Path,
+    head_reader: Callable[[Path], str] = read_head,
+) -> ChangeState:
+    """Read where-are-we for the active in-tree change — purely from the repo.
+
+    Resolve the active change dir under `<repo>/changes/` (highest version-id, excluding
+    archive/), refuse a malformed change (contract-guard), and parse its `tasks.md`
+    progress checklist into ordered phases with the current phase = the first unchecked
+    item. Consults no vault path (R5): the only inputs are the repo and the head reader.
+    """
+    change_dir = select_change(repo)
+    validate_change(change_dir)
+    phases = parse_progress((change_dir / "tasks.md").read_text())
+    if not phases:
+        raise PlanContractError(
+            f"change '{change_dir.name}' tasks.md has no '## Progress' checklist"
+        )
+    return ChangeState(
+        change_id=change_dir.name,
+        phases=tuple(phases),
+        head=head_reader(repo),
+    )
+
+
+def change_advanced(before: ChangeState, after: ChangeState) -> bool:
+    """Whether the change advanced: a new commit AND the current-phase index moved.
+
+    The change-state analog of the plan advance signal (`driver.decide`): deterministic,
+    no LLM. A checkbox progressing (the current index moves) is trusted only when proven
+    by a real commit landing, so the agent it drives cannot game the advance.
+    """
+    committed = after.head != before.head
+    phase_moved = after.current_index != before.current_index
+    return committed and phase_moved
