@@ -25,6 +25,10 @@ error-on-warning = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "spec(key): bind this test to a spec scenario key (proves it)",
+    "spec_exempt(reason): mark a genuinely structural test as traceable",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]

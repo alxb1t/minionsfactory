@@ -26,6 +26,7 @@ from orchestrator.release import (
     prepare_release,
     verify_release_gate,
 )
+from orchestrator.specs import run_check
 from orchestrator.state import (
     PlanContractError,
     PreflightError,
@@ -264,7 +265,21 @@ def main(argv: list[str] | None = None) -> int:
         default="medium",
         help="reasoning effort: low|medium|high|xhigh|max (default: medium)",
     )
+    specs_parser = subparsers.add_parser("specs", help="spec-binding checks")
+    specs_sub = specs_parser.add_subparsers(dest="specs_command", required=True)
+    check_parser = specs_sub.add_parser("check", help="check the spec↔test binding")
+    check_parser.add_argument(
+        "--repo", type=Path, default=Path.cwd(), help="repo to check (default: cwd)"
+    )
+    check_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="also require every test to carry a spec or spec_exempt marker",
+    )
     args = parser.parse_args(argv)
+
+    if args.command == "specs":
+        return run_check(args.repo.resolve(), strict=args.strict)
 
     repo = args.repo.resolve()
     vault_dir = _read_vault_dir(repo)
