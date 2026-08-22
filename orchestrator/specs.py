@@ -3,8 +3,8 @@
 A pure, stdlib-only module (no new dependency). It reads two sides of the binding
 from disk and compares them:
 
-- the **spec side** — scenario keys parsed from `specs/**/spec.md` (shipped) and each
-  active `changes/*/specs/**/spec.md` delta (`changes/archive/` excluded);
+- the **spec side** — scenario keys parsed from `openspec/specs/**/spec.md` (shipped)
+  and each active `openspec/changes/*/specs/**/spec.md` delta (`archive/` excluded);
 - the **test side** — `@pytest.mark.spec(...)` / `@pytest.mark.spec_exempt(...)` markers
   collected *statically* with `ast` (the checker never imports or runs the tests).
 
@@ -112,20 +112,20 @@ def parse_scenarios(text: str) -> list[ParsedScenario]:
 def collect_spec_keys(repo: Path) -> tuple[dict[str, frozenset[str]], set[str]]:
     """Read spec keys from disk into (shipped scenarios, resolvable keys).
 
-    `shipped` maps each top-level `specs/` scenario key to its layers — these are the
+    `shipped` maps each `openspec/specs/` scenario key to its layers — these are the
     keys the orphan check enforces. `resolvable` is the wider set a marker may point at:
     the shipped keys plus every active-delta ADDED/MODIFIED key (pending, orphan-exempt
     until folded), minus any the delta marks REMOVED.
     """
     shipped: dict[str, frozenset[str]] = {}
-    specs_dir = repo / "specs"
+    specs_dir = repo / "openspec" / "specs"
     if specs_dir.exists():
         for path in sorted(specs_dir.rglob("spec.md")):
             for scenario in parse_scenarios(path.read_text()):
                 shipped[scenario.key] = scenario.layers
 
     resolvable: set[str] = set(shipped)
-    changes_dir = repo / "changes"
+    changes_dir = repo / "openspec" / "changes"
     if changes_dir.exists():
         for change_dir in sorted(changes_dir.iterdir()):
             if not change_dir.is_dir() or change_dir.name == "archive":

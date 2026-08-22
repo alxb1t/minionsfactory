@@ -24,6 +24,11 @@ Read `proposal.md` + `design.md` (this dir) and the vault PRD/research first.
 - [x] 6 — `conventions.md`: the `Change: <id>` trailer + `specs/` / `changes/` conventions
 - [ ] 7 — Full backfill: every capability spec'd; every test → a scenario or `spec_exempt`
 
+> **openspec/ migration** (post-P6, pre-P7, not a numbered phase): the SDD trees were relocated under a single
+> `openspec/` dir to match OpenSpec's real layout — `specs/` → `openspec/specs/`, `changes/` →
+> `openspec/changes/` (this change now lives at `openspec/changes/0003-sdd-adoption/`). Behavior-preserving:
+> only paths moved (`git mv`, history preserved); code/tests/docs repathed; all 137 tests still pass.
+
 ---
 
 ## Phase 1 — Spec format + `specs.py` + `specs check` subcommand + wire MF gate
@@ -175,8 +180,9 @@ markers. **Vault-only** — no repo code, no edit to the vault-wide `CLAUDE.md` 
 
 Apply the proven mechanism across the whole suite (R6). **Sequenced last.**
 
-**Scope.** Author `specs/<cap>/spec.md` for every remaining capability (`build-loop`, `change-state`, `gate`,
-`provider`, `fanout`, `diff`, `status`, `cli` — plus `converge`/`release` from phase 3). Bind **every** test in
+**Scope.** Author `openspec/specs/<cap>/spec.md` for every remaining capability (`build-loop`, `change-state`,
+`gate`, `provider`, `fanout`, `diff`, `status`, `cli` — plus `converge`/`release` from phase 3). Bind **every**
+test in
 the test tree with `@pytest.mark.spec("<key>")`, or mark genuinely structural tests
 `@pytest.mark.spec_exempt("reason")`. Switch the gate's checker step to **`--strict`** (`.minions/minions.toml`,
 Makefile, `ci.yml`).
@@ -184,22 +190,22 @@ Makefile, `ci.yml`).
 **Machine-checkable acceptance.**
 - `uv run python -m orchestrator specs check --strict` exits **0**: every collected test carries a `spec` or
   `spec_exempt` marker (direction 2), and every shipped `unit` scenario has a proving test (direction 1).
-- `specs/` has a `spec.md` for every capability in the taxonomy (`design.md` §9); no capability module is
-  unspec'd.
+- `openspec/specs/` has a `spec.md` for every capability in the taxonomy (`design.md` §9); no capability module
+  is unspec'd.
 - No `spec` marker is dangling; no shipped `unit` scenario is orphaned.
 - The gate command list (`.minions/minions.toml` last entry, Makefile, `ci.yml`) uses `specs check --strict`.
 - Full gate green.
 
 **Proves (delta, pending):** `sdd:full-backfill:untraceable-test-fails`, `sdd:full-backfill:exempt-test-passes`;
-plus **every** shipped capability scenario across `specs/`.
+plus **every** shipped capability scenario across `openspec/specs/`.
 
 ---
 
 ## Release (end of build, after all phases)
 
-Not a numbered phase — the release role runs it. Fold `changes/0003-sdd-adoption/specs/sdd/` into
-`specs/sdd/spec.md` (the delta becomes living), which makes the R1/R3/R4/R6/R7 `unit` scenarios shipped and
-therefore orphan-enforced — the release gate confirms each has a proving test. `sdd:reviewer-conformance:*` and
-the `e2e`-declared scenarios remain reserved (unenforced in v0.3). Then cut `## [0.3.0]` in `CHANGELOG.md`, bump
-`pyproject`, verify every `base..HEAD` commit carries a `Change: 0003-sdd-adoption` trailer, tag `v0.3.0`, and
-move the change to `changes/archive/0003-sdd-adoption/`.
+Not a numbered phase — the release role runs it. Fold `openspec/changes/0003-sdd-adoption/specs/sdd/` into
+`openspec/specs/sdd/spec.md` (the delta becomes living), which makes the R1/R3/R4/R6/R7 `unit` scenarios shipped
+and therefore orphan-enforced — the release gate confirms each has a proving test. `sdd:reviewer-conformance:*`
+and the `e2e`-declared scenarios remain reserved (unenforced in v0.3). Then cut `## [0.3.0]` in `CHANGELOG.md`,
+bump `pyproject`, verify every `base..HEAD` commit carries a `Change: 0003-sdd-adoption` trailer, tag `v0.3.0`,
+and move the change to `openspec/changes/archive/0003-sdd-adoption/`.

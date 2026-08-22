@@ -353,7 +353,7 @@ def prepare_release(
     return ReleaseResult(ReleaseStatus.PREPARED, "", _handoff(tag, branch))
 
 
-# --- spec-delta fold: fold changes/<id>/specs/ into the living top-level specs/ ---
+# --- spec-delta fold: openspec/changes/<id>/specs/ into the living openspec/specs/ ---
 
 
 @dataclass(frozen=True)
@@ -473,23 +473,23 @@ class FoldResult:
 
 def _resolve_delta_specs(repo: Path, change_id: str) -> Path:
     """Return the change's delta specs dir — active, or archived if already folded."""
-    active = repo / "changes" / change_id / "specs"
+    active = repo / "openspec" / "changes" / change_id / "specs"
     if active.exists():
         return active
-    archived = repo / "changes" / "archive" / change_id / "specs"
+    archived = repo / "openspec" / "changes" / "archive" / change_id / "specs"
     if archived.exists():
         return archived
     raise FileNotFoundError(
-        f"no specs delta for change '{change_id}' under {repo / 'changes'}"
+        f"no specs delta for change '{change_id}' under {repo / 'openspec' / 'changes'}"
     )
 
 
 def _archive_change(repo: Path, change_id: str) -> bool:
-    """Move changes/<id>/ to changes/archive/<id>/; return whether it moved."""
-    source = repo / "changes" / change_id
+    """Move openspec/changes/<id>/ to its archive/ subdir; return whether it moved."""
+    source = repo / "openspec" / "changes" / change_id
     if not source.exists():
         return False
-    destination = repo / "changes" / "archive" / change_id
+    destination = repo / "openspec" / "changes" / "archive" / change_id
     destination.parent.mkdir(parents=True, exist_ok=True)
     source.rename(destination)
     return True
@@ -506,12 +506,13 @@ def fold_change(
     dry_run: bool = False,
     validator: Callable[[Path], bool] = _specs_valid,
 ) -> FoldResult:
-    """Fold a change's spec delta into the living top-level `specs/`.
+    """Fold a change's spec delta into the living `openspec/specs/`.
 
     ADDED adds, MODIFIED overwrites the whole requirement, REMOVED deletes. `dry_run`
     reports the planned edits and writes nothing. Otherwise it writes the folds, runs
     the validator (verify-after-fold) and HALTs without moving the change if the specs
-    are invalid, and on success moves the change to `changes/archive/<id>/`. Idempotent:
+    are invalid, and on success moves the change to `openspec/changes/archive/<id>/`.
+    Idempotent:
     re-folding an already-folded change writes nothing and moves nothing.
     """
     delta_specs = _resolve_delta_specs(repo, change_id)
@@ -520,7 +521,7 @@ def fold_change(
     for spec_file in sorted(delta_specs.rglob("spec.md")):
         relative = spec_file.relative_to(delta_specs)
         capability = relative.parts[0]
-        target_path = repo / "specs" / relative
+        target_path = repo / "openspec" / "specs" / relative
         _, delta_blocks = _parse_requirement_blocks(spec_file.read_text())
         target_text = target_path.read_text() if target_path.exists() else ""
         new_text, block_edits = _apply_fold(target_text, delta_blocks, capability)
