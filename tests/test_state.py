@@ -4,10 +4,16 @@ from pathlib import Path
 import pytest
 
 from orchestrator.state import (
+    ChangeState,
+    Phase,
     PlanContractError,
     PreflightError,
+    change_advanced,
     parse_frontmatter,
+    parse_progress,
+    read_change_state,
     read_plan_state,
+    select_change,
     select_plan,
     validate_plan,
     verify_vault_access,
@@ -149,3 +155,167 @@ def test_verify_vault_access_fails_when_the_vault_is_not_granted(
     _write_settings(repo, [str(tmp_path / "elsewhere")])
     with pytest.raises(PreflightError, match="vault"):
         verify_vault_access(repo, vault)
+
+
+# --- in-tree change-state reader (0003 phase 2) ---
+
+
+_PROGRESS = (
+    "# Tasks\n\nintro prose\n\n"
+    "**Per-phase ritual.** bullets here.\n\n"
+    "## Progress\n\n"
+    "- [x] 1 — First phase\n"
+    "- [ ] 2 — Second phase\n"
+    "- [ ] 3 — Third phase\n\n"
+    "---\n\n"
+    "## Phase 1 — First phase\n\nbody with a stray - [ ] 9 — not a progress item\n"
+)
+
+
+def _write_change(
+    repo: Path, change_id: str = "0003-x", progress: str = _PROGRESS
+) -> Path:
+    """Write a well-formed change dir (all four artifacts) under repo/changes/."""
+    change_dir = repo / "changes" / change_id
+    change_dir.mkdir(parents=True)
+    (change_dir / "specs").mkdir()
+    (change_dir / "proposal.md").write_text("# proposal\n")
+    (change_dir / "design.md").write_text("# design\n")
+    (change_dir / "tasks.md").write_text(progress)
+    return change_dir
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_parse_progress_reads_checked_and_unchecked_items() -> None:
+    phases = parse_progress(_PROGRESS)
+    assert [(p.index, p.done) for p in phases] == [(1, True), (2, False), (3, False)]
+    assert phases[1].title == "Second phase"
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_parse_progress_stops_at_the_next_heading() -> None:
+    # The stray checkbox under '## Phase 1' must not leak into the phase list.
+    phases = parse_progress(_PROGRESS)
+    assert [p.index for p in phases] == [1, 2, 3]
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_select_change_picks_highest_id_excluding_archive(tmp_path: Path) -> None:
+    changes = tmp_path / "changes"
+    (changes / "0001-old").mkdir(parents=True)
+    (changes / "0003-active").mkdir()
+    (changes / "archive" / "0099-archived").mkdir(parents=True)
+
+    assert select_change(tmp_path).name == "0003-active"
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_select_change_refuses_a_repo_with_no_active_change(tmp_path: Path) -> None:
+    (tmp_path / "changes" / "archive").mkdir(parents=True)
+    with pytest.raises(PlanContractError, match="no active change"):
+        select_change(tmp_path)
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_change_advanced_needs_a_new_commit_and_a_moved_phase() -> None:
+    before = ChangeState(
+        "0003-x", (Phase(1, "a", False), Phase(2, "b", False)), head="h0"
+    )
+    moved = ChangeState(
+        "0003-x", (Phase(1, "a", True), Phase(2, "b", False)), head="h1"
+    )
+
+    assert change_advanced(before, moved) is True
+    # a commit but the phase index did not move → not advanced
+    assert change_advanced(before, ChangeState("0003-x", before.phases, "h1")) is False
+    # the phase moved but no new commit landed → not advanced (un-gameable)
+    assert change_advanced(before, ChangeState("0003-x", moved.phases, "h0")) is False
+
+
+@pytest.mark.spec("sdd:change-structure:wellformed-resolves")
+def test_read_change_state_resolves_ordered_phases_current_first_unchecked(
+    tmp_path: Path,
+) -> None:
+    _write_change(tmp_path)
+
+    state = read_change_state(tmp_path, head_reader=lambda repo: "abc123")
+
+    assert state.change_id == "0003-x"
+    assert [p.index for p in state.phases] == [1, 2, 3]
+    assert state.phases[0].done is True
+    assert state.phases[1].done is False
+    assert state.current is not None
+    assert (state.current.index, state.current.title) == (2, "Second phase")
+    assert state.is_complete is False
+    assert state.head == "abc123"
+
+
+@pytest.mark.spec("sdd:change-structure:wellformed-resolves")
+def test_read_change_state_marks_a_fully_checked_change_complete(
+    tmp_path: Path,
+) -> None:
+    progress = "## Progress\n\n- [x] 1 — a\n- [x] 2 — b\n\n---\n\n## Phase\n"
+    _write_change(tmp_path, progress=progress)
+
+    state = read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert state.is_complete is True
+    assert state.current is None
+    assert state.current_index is None
+
+
+@pytest.mark.spec("sdd:change-structure:wellformed-resolves")
+def test_read_change_state_resolves_the_active_change_over_archive(
+    tmp_path: Path,
+) -> None:
+    _write_change(tmp_path, change_id="0002-active")
+    archived = tmp_path / "changes" / "archive" / "0099-old"
+    archived.mkdir(parents=True)  # a bare archived dir must not be resolved
+
+    state = read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert state.change_id == "0002-active"
+
+
+@pytest.mark.spec("sdd:change-structure:missing-artifact-refused")
+@pytest.mark.parametrize("missing", ["proposal.md", "design.md", "tasks.md", "specs"])
+def test_read_change_state_refuses_a_change_missing_an_artifact(
+    tmp_path: Path, missing: str
+) -> None:
+    change_dir = _write_change(tmp_path)
+    target = change_dir / missing
+    target.rmdir() if target.is_dir() else target.unlink()
+
+    with pytest.raises(PlanContractError, match=missing):
+        read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+
+@pytest.mark.spec("sdd:vault-layout:progress-in-repo")
+def test_read_change_state_consults_no_vault_path(tmp_path: Path) -> None:
+    # The reader's only inputs are the repo and a head reader — there is no vault
+    # parameter, so it structurally cannot hop to a vault plan file. It resolves with
+    # no vault present anywhere on disk.
+    repo = tmp_path / "repo"
+    _write_change(repo)
+    seen: dict[str, Path] = {}
+
+    def head_reader(passed_repo: Path) -> str:
+        seen["repo"] = passed_repo
+        return "h"
+
+    state = read_change_state(repo, head_reader=head_reader)
+
+    assert state.current is not None and state.current.index == 2
+    assert seen["repo"] == repo
+
+
+@pytest.mark.spec("sdd:change-structure:wellformed-resolves")
+def test_this_change_tasks_md_parses_under_read_change_state() -> None:
+    repo = Path(__file__).resolve().parent.parent
+
+    state = read_change_state(repo, head_reader=lambda _: "dogfood")
+
+    assert state.change_id == "0003-sdd-adoption"
+    assert [p.index for p in state.phases] == [1, 2, 3, 4, 5, 6, 7]
+    assert state.phases[0].done is True  # phase 1 shipped
+    assert all(p.title for p in state.phases)
