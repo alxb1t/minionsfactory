@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Spec-binding checker (`orchestrator/specs.py`) + `python -m orchestrator specs check` subcommand — the mechanism that enforces spec-driven development on this repo (change `0003-sdd-adoption`, phase 1). A pure, stdlib-only module (`ast`, `pathlib`, `tomllib` — no new dependency) that reads two sides of the scenario↔test binding from disk and compares them: the **spec side** parses scenario keys (`Key:` + `Layers:` bullets) from `specs/**/spec.md` (shipped) and each active `changes/*/specs/**/spec.md` delta (`changes/archive/` excluded; delta `ADDED`/`MODIFIED` keys are resolvable-but-pending, `REMOVED` subtracts), and the **test side** statically collects `@pytest.mark.spec(...)` / `@pytest.mark.spec_exempt(...)` markers with `ast` — the checker never imports or runs the tests or the gate. Three checks: **orphan** (a shipped `unit`-layer scenario with no proving test — pending delta scenarios are exempt until folded), **dangling** (a `spec` marker whose key resolves to no scenario), and — under `--strict`, off by default — **traceability** (every collected test carries a `spec` or `spec_exempt` marker). Exit 0 clean / 1 on any violation, naming each. Layer-aware (v0.3 enforces `unit`; `e2e` recorded, reserved). Wired as the final step of MF's own gate (`.minions/minions.toml`, `Makefile`, `.github/workflows/ci.yml`) — a green no-op until specs exist. `spec` / `spec_exempt` registered in `pyproject` `[tool.pytest.ini_options].markers`.
+
 ## [0.2.0] — 2026-08-21
 
 ### Added

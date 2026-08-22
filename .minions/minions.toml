@@ -1,0 +1,10 @@
+# MinionsFactory self-validates: the gate command list the orchestrator runs on this
+# repo. The four pillars plus the spec-binding checker as the final step (a no-op until
+# specs exist; switched to `... specs check --strict` at phase 7).
+gate = [
+  "uv run ruff format --check .",
+  "uv run ruff check .",
+  "uv run ty check",
+  "uv run pytest -q",
+  "uv run python -m orchestrator specs check",
+]
