@@ -21,7 +21,7 @@ Read `proposal.md` + `design.md` (this dir) and the vault PRD/research first.
 - [x] 3 — Prove the mechanism on `converge` + `release` (spec directly; bind tests; seed orphan/dangling)
 - [x] 4 — Reviewer conformance axis (`prompts/reviewer.md`)
 - [x] 5 — Release fold + gate predicate + `Change:`-trailer predicate + `changes/archive/`
-- [ ] 6 — `conventions.md`: the `Change: <id>` trailer + `specs/` / `changes/` conventions
+- [x] 6 — `conventions.md`: the `Change: <id>` trailer + `specs/` / `changes/` conventions
 - [ ] 7 — Full backfill: every capability spec'd; every test → a scenario or `spec_exempt`
 
 ---
