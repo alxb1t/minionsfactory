@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from orchestrator.converge import ConvergeStatus, converge
 from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
@@ -34,6 +36,7 @@ def _clean() -> FindingsState:
     return FindingsState(verdict="clean", open_blocking=0, round=1, head="h")
 
 
+@pytest.mark.spec("converge:converge-to-clean:already-clean-zero-rounds")
 def test_converge_is_clean_in_zero_rounds_when_nothing_is_blocking() -> None:
     reads = iter([[_clean(), _clean(), _clean()]])
     result = converge(
@@ -50,6 +53,7 @@ def test_converge_is_clean_in_zero_rounds_when_nothing_is_blocking() -> None:
     assert result.rounds == 0
 
 
+@pytest.mark.spec("converge:converge-to-clean:fix-then-verified-clean")
 def test_converge_fixes_then_verifies_to_clean_in_one_round() -> None:
     reads = iter(
         [
@@ -77,6 +81,7 @@ def test_converge_fixes_then_verifies_to_clean_in_one_round() -> None:
     assert verify_calls == [1]
 
 
+@pytest.mark.spec("converge:converge-to-clean:reopen-then-clears")
 def test_converge_continues_when_re_verify_reopens_then_clears() -> None:
     reads = iter(
         [
@@ -103,6 +108,7 @@ def test_converge_continues_when_re_verify_reopens_then_clears() -> None:
     assert verify_calls == [1, 1]
 
 
+@pytest.mark.spec("converge:bounded-termination:round-cap-halts")
 def test_converge_halts_at_the_round_cap_when_it_never_clears() -> None:
     result = converge(
         _RecordingProvider(_ROLE),
@@ -119,6 +125,7 @@ def test_converge_halts_at_the_round_cap_when_it_never_clears() -> None:
     assert result.rounds == 2
 
 
+@pytest.mark.spec("converge:bounded-termination:red-gate-halts")
 def test_converge_halts_when_the_gate_is_red_after_a_fix() -> None:
     verify_calls: list[int] = []
     result = converge(

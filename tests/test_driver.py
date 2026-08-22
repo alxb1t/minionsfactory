@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from orchestrator.converge import ConvergeResult, ConvergeStatus
 from orchestrator.driver import RunStatus, decide, run
 from orchestrator.findings import FindingsState
@@ -38,6 +40,7 @@ def _state(current_phase: str, head: str) -> PlanState:
     return PlanState(current_phase=current_phase, phases={}, head=head)
 
 
+@pytest.mark.spec("build-loop:phase-decision:advances-on-commit-and-moved-phase")
 def test_decide_advances_on_green_gate_with_new_commit_and_moved_phase() -> None:
     decision = decide(
         _state("P1", "aaa"), _state("P2", "bbb"), _GREEN, coder_halted=False
@@ -45,6 +48,7 @@ def test_decide_advances_on_green_gate_with_new_commit_and_moved_phase() -> None
     assert decision.advance is True
 
 
+@pytest.mark.spec("build-loop:phase-decision:coder-halt-report-halts")
 def test_decide_halts_when_the_coder_wrote_a_halt_report() -> None:
     decision = decide(
         _state("P1", "aaa"), _state("P2", "bbb"), _GREEN, coder_halted=True
@@ -53,6 +57,7 @@ def test_decide_halts_when_the_coder_wrote_a_halt_report() -> None:
     assert "halt" in decision.reason.lower()
 
 
+@pytest.mark.spec("build-loop:phase-decision:red-gate-halts")
 def test_decide_halts_on_a_red_gate() -> None:
     decision = decide(
         _state("P1", "aaa"), _state("P2", "bbb"), _RED, coder_halted=False
@@ -61,6 +66,7 @@ def test_decide_halts_on_a_red_gate() -> None:
     assert "gate" in decision.reason.lower()
 
 
+@pytest.mark.spec("build-loop:phase-decision:no-advance-halts")
 def test_decide_halts_when_the_phase_did_not_advance() -> None:
     # gate green, but current_phase and head are unchanged
     # → the coder didn't really finish the phase
@@ -70,6 +76,7 @@ def test_decide_halts_when_the_phase_did_not_advance() -> None:
     assert decision.advance is False
 
 
+@pytest.mark.spec("build-loop:run:advances-until-complete")
 def test_run_advances_through_phases_until_the_plan_is_complete() -> None:
     states = [
         PlanState("P1", {"phase0": "planned", "phase1": "planned"}, "c0"),
@@ -90,6 +97,7 @@ def test_run_advances_through_phases_until_the_plan_is_complete() -> None:
     assert result.phases_advanced == 2
 
 
+@pytest.mark.spec("build-loop:run:red-gate-halts")
 def test_run_halts_when_the_gate_is_red() -> None:
     states = [
         PlanState("P1", {"phase0": "planned"}, "c0"),
@@ -110,6 +118,7 @@ def test_run_halts_when_the_gate_is_red() -> None:
     assert result.phases_advanced == 0
 
 
+@pytest.mark.spec("build-loop:run:coder-halt-report-halts")
 def test_run_halts_when_the_coder_writes_a_halt_report() -> None:
     states = [
         PlanState("P1", {"phase0": "planned"}, "c0"),
@@ -129,6 +138,7 @@ def test_run_halts_when_the_coder_writes_a_halt_report() -> None:
     assert "halt" in result.reason.lower()
 
 
+@pytest.mark.spec("build-loop:run:resumes-from-disk")
 def test_run_resumes_from_the_current_phase_on_disk() -> None:
     # phase0 already done on disk; the run picks up at phase1 and finishes.
     states = [
@@ -149,6 +159,7 @@ def test_run_resumes_from_the_current_phase_on_disk() -> None:
     assert result.phases_advanced == 1
 
 
+@pytest.mark.spec("build-loop:run:emits-advancing-event-stream")
 def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
     states = [
         PlanState("P1", {"phase0": "planned"}, "c0"),
@@ -175,6 +186,7 @@ def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
     ]
 
 
+@pytest.mark.spec("build-loop:run:already-complete-summary")
 def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     events: list[Event] = []
@@ -195,6 +207,7 @@ def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
     assert summary.status == "complete"
 
 
+@pytest.mark.spec("build-loop:end-of-plan:fanout-on-complete")
 def test_run_triggers_fanout_when_the_plan_completes() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     calls: list[int] = []
@@ -212,6 +225,7 @@ def test_run_triggers_fanout_when_the_plan_completes() -> None:
     assert calls == [1]
 
 
+@pytest.mark.spec("build-loop:end-of-plan:no-fanout-on-halt")
 def test_run_does_not_fan_out_when_the_build_halts() -> None:
     states = [
         PlanState("P1", {"phase0": "planned"}, "c0"),
@@ -232,6 +246,7 @@ def test_run_does_not_fan_out_when_the_build_halts() -> None:
     assert calls == []
 
 
+@pytest.mark.spec("build-loop:end-of-plan:converge-after-fanout")
 def test_run_converges_after_fanout_when_the_plan_completes() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     order: list[str] = []
@@ -260,6 +275,7 @@ def test_run_converges_after_fanout_when_the_plan_completes() -> None:
     assert result.status is RunStatus.COMPLETE
 
 
+@pytest.mark.spec("build-loop:end-of-plan:converge-halt-halts-run")
 def test_run_halts_when_converge_halts() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     result = run(
@@ -278,6 +294,7 @@ def test_run_halts_when_converge_halts() -> None:
     assert "round cap" in result.reason
 
 
+@pytest.mark.spec("build-loop:end-of-plan:release-after-converge")
 def test_run_prepares_release_after_converge_when_the_plan_completes() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     order: list[str] = []
@@ -307,6 +324,7 @@ def test_run_prepares_release_after_converge_when_the_plan_completes() -> None:
     assert result.status is RunStatus.COMPLETE
 
 
+@pytest.mark.spec("build-loop:end-of-plan:release-refused-halts")
 def test_run_halts_when_release_is_refused() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     result = run(
@@ -328,6 +346,7 @@ def test_run_halts_when_release_is_refused() -> None:
     assert "already exists" in result.reason
 
 
+@pytest.mark.spec("build-loop:end-of-plan:no-release-when-converge-halts")
 def test_run_does_not_release_when_converge_halts() -> None:
     states = [PlanState("done", {"phase0": "done"}, "c0")]
     calls: list[int] = []
@@ -356,6 +375,7 @@ class _ErroringProvider:
         raise ProviderError("claude -p exited 1 — usage limit reached")
 
 
+@pytest.mark.spec("build-loop:run:provider-error-halts-cleanly")
 def test_run_halts_cleanly_on_a_provider_error() -> None:
     states = [PlanState("P1", {"phase0": "planned"}, "c0")]
     events: list[Event] = []

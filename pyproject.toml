@@ -1,6 +1,6 @@
 [project]
 name = "minions-factory"
-version = "0.2.0"
+version = "0.3.0"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.13.4",
@@ -25,6 +25,10 @@ error-on-warning = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "spec(key): bind this test to a spec scenario key (proves it)",
+    "spec_exempt(reason): mark a genuinely structural test as traceable",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]

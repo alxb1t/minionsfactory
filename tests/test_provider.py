@@ -15,6 +15,7 @@ from orchestrator.provider import (
 )
 
 
+@pytest.mark.spec("provider:result:nonzero-exit-raises-provider-error")
 def test_claude_provider_raises_provider_error_on_a_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -27,6 +28,7 @@ def test_claude_provider_raises_provider_error_on_a_nonzero_exit(
         ClaudeCodeProvider().run_role("build", Path("/repo"), Profile())
 
 
+@pytest.mark.spec("provider:result:parses-headless-json")
 def test_parse_result_reads_the_headless_json_fields() -> None:
     stdout = (
         '{"type": "result", "subtype": "success", "is_error": false, '
@@ -40,6 +42,7 @@ def test_parse_result_reads_the_headless_json_fields() -> None:
     assert result.total_cost_usd == 0.012
 
 
+@pytest.mark.spec_exempt("test double — FakeProvider scripted-result smoke")
 def test_fake_providers_returns_the_scripted_results() -> None:
     scripted = RoleResult(
         subtype="success",
@@ -55,6 +58,7 @@ def test_fake_providers_returns_the_scripted_results() -> None:
     assert result is scripted
 
 
+@pytest.mark.spec("provider:build-command:headless-json")
 def test_build_command_requests_headless_json() -> None:
     profile = Profile(permission_mode="default", allowed_tools=("Edit", "Bash"))
 
@@ -66,26 +70,31 @@ def test_build_command_requests_headless_json() -> None:
     assert command[command.index("--allowedTools") + 1 :] == ["Edit", "Bash"]
 
 
+@pytest.mark.spec("provider:build-command:pins-model")
 def test_build_command_pins_the_model_when_given() -> None:
     command = build_command("build phase 1", Profile(), model="claude-opus-4-8")
 
     assert command[command.index("--model") + 1] == "claude-opus-4-8"
 
 
+@pytest.mark.spec("provider:build-command:omits-model-by-default")
 def test_build_command_omits_the_model_flag_by_default() -> None:
     assert "--model" not in build_command("build phase 1", Profile())
 
 
+@pytest.mark.spec("provider:build-command:sets-effort")
 def test_build_command_sets_the_reasoning_effort_when_given() -> None:
     command = build_command("build phase 1", Profile(), effort="xhigh")
 
     assert command[command.index("--effort") + 1] == "xhigh"
 
 
+@pytest.mark.spec("provider:build-command:omits-effort-by-default")
 def test_build_command_omits_the_effort_flag_by_default() -> None:
     assert "--effort" not in build_command("build phase 1", Profile())
 
 
+@pytest.mark.spec("provider:read-only-profile:denies-and-scopes-write")
 def test_read_only_profile_emits_deny_perms_and_a_scoped_findings_write() -> None:
     findings = Path("/vault/v0.2_review.md")
     command = build_command("review the diff", read_only_profile(findings))
