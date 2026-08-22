@@ -155,7 +155,7 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
 
 # --- in-tree change-state reader (sibling to the vault-plan reader above) ---------
 #
-# Change progress lives in the repo (`changes/<id>/tasks.md`), read with no vault hop
+# Change progress lives in the repo (`openspec/changes/<id>/tasks.md`), no vault hop
 # (R5). This reader is built and unit-tested here as a ready-for-v0.5 sibling; the
 # driver keeps running the vault-plan reader until the loop self-hosts on changes.
 
@@ -203,7 +203,7 @@ def select_change(repo: Path) -> Path:
     A change dir is named `<version-id>-<slug>` (e.g. `0003-sdd-adoption`); the active
     change is the highest numeric version-id. `changes/archive/` is excluded.
     """
-    changes_dir = repo / "changes"
+    changes_dir = repo / "openspec" / "changes"
     candidates: list[tuple[int, Path]] = []
     if changes_dir.exists():
         for path in changes_dir.iterdir():
@@ -273,10 +273,10 @@ def read_change_state(
 ) -> ChangeState:
     """Read where-are-we for the active in-tree change — purely from the repo.
 
-    Resolve the active change dir under `<repo>/changes/` (highest version-id, excluding
-    archive/), refuse a malformed change (contract-guard), and parse its `tasks.md`
-    progress checklist into ordered phases with the current phase = the first unchecked
-    item. Consults no vault path (R5): the only inputs are the repo and the head reader.
+    Resolve the active change dir under `<repo>/openspec/changes/` (highest version-id,
+    excluding archive/), refuse a malformed change (contract-guard), and parse its
+    `tasks.md` progress checklist into ordered phases with the current phase = the first
+    unchecked item. Consults no vault path (R5): the only inputs are repo + head reader.
     """
     change_dir = select_change(repo)
     validate_change(change_dir)

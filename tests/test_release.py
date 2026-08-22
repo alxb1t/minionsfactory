@@ -355,15 +355,15 @@ The system SHALL do the NEW thing.
 
 
 def _write_delta(repo: Path, change_id: str, capability: str, body: str) -> None:
-    """Write a change's delta spec under changes/<id>/specs/<capability>/spec.md."""
-    delta = repo / "changes" / change_id / "specs" / capability
+    """Write a delta spec under openspec/changes/<id>/specs/<capability>/spec.md."""
+    delta = repo / "openspec" / "changes" / change_id / "specs" / capability
     delta.mkdir(parents=True)
     (delta / "spec.md").write_text(body)
 
 
 def _write_target(repo: Path, capability: str, body: str) -> None:
-    """Write a shipped top-level spec at specs/<capability>/spec.md."""
-    target = repo / "specs" / capability
+    """Write a shipped spec at openspec/specs/<capability>/spec.md."""
+    target = repo / "openspec" / "specs" / capability
     target.mkdir(parents=True)
     (target / "spec.md").write_text(body)
 
@@ -405,12 +405,12 @@ def test_fold_applies_added_requirement_and_archives(tmp_path: Path) -> None:
 
     assert result.ok is True
     assert result.moved is True
-    spec = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    spec = (tmp_path / "openspec" / "specs" / "cap" / "spec.md").read_text()
     assert "### Requirement: New thing" in spec
     assert "cap:new-thing:happens" in spec
     assert "must NOT be folded" not in spec  # delta preamble discarded
-    assert not (tmp_path / "changes" / "0007-x").exists()
-    assert (tmp_path / "changes" / "archive" / "0007-x").exists()
+    assert not (tmp_path / "openspec" / "changes" / "0007-x").exists()
+    assert (tmp_path / "openspec" / "changes" / "archive" / "0007-x").exists()
 
 
 @pytest.mark.spec("sdd:release-fold:modified-overwrites-whole")
@@ -421,7 +421,7 @@ def test_fold_modified_overwrites_the_whole_requirement(tmp_path: Path) -> None:
     result = fold_change(tmp_path, "0007-x", validator=_always_valid)
 
     assert result.ok is True
-    spec = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    spec = (tmp_path / "openspec" / "specs" / "cap" / "spec.md").read_text()
     assert "NEW thing" in spec and "cap:thing:new" in spec
     # the whole prior requirement is replaced, not patched or appended
     assert "OLD thing" not in spec
@@ -438,8 +438,8 @@ def test_fold_halts_and_does_not_move_when_specs_invalid(tmp_path: Path) -> None
     assert result.ok is False
     assert "invalid" in result.reason
     # the change is NOT moved to archive when the fold leaves specs invalid
-    assert (tmp_path / "changes" / "0007-x").exists()
-    assert not (tmp_path / "changes" / "archive" / "0007-x").exists()
+    assert (tmp_path / "openspec" / "changes" / "0007-x").exists()
+    assert not (tmp_path / "openspec" / "changes" / "archive" / "0007-x").exists()
 
 
 @pytest.mark.spec("sdd:release-fold:dry-run-writes-nothing")
@@ -454,8 +454,8 @@ def test_fold_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert result.changed is True
     assert result.edits  # planned edits are reported
     assert result.moved is False
-    assert not (tmp_path / "specs").exists()  # nothing written
-    assert (tmp_path / "changes" / "0007-x").exists()  # not moved
+    assert not (tmp_path / "openspec" / "specs").exists()  # nothing written
+    assert (tmp_path / "openspec" / "changes" / "0007-x").exists()  # not moved
 
 
 @pytest.mark.spec("sdd:release-fold:idempotent-rerun")
@@ -464,14 +464,14 @@ def test_fold_is_idempotent_on_rerun(tmp_path: Path) -> None:
 
     first = fold_change(tmp_path, "0007-x", validator=_always_valid)
     assert first.ok and first.moved and first.changed
-    after_first = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    after_first = (tmp_path / "openspec" / "specs" / "cap" / "spec.md").read_text()
 
     second = fold_change(tmp_path, "0007-x", validator=_always_valid)
 
     assert second.ok is True
     assert second.changed is False  # nothing to do the second time
     assert second.moved is False  # already archived
-    after_second = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    after_second = (tmp_path / "openspec" / "specs" / "cap" / "spec.md").read_text()
     assert after_second == after_first  # no duplicate / double-append
     assert after_second.count("### Requirement: New thing") == 1
 

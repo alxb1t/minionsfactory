@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Relocated the spec-driven-development trees under a single **`openspec/`** dir to match OpenSpec's real layout (change `0003-sdd-adoption`, post-phase-6 pre-phase-7 refactor): `specs/` → `openspec/specs/` and `changes/` → `openspec/changes/` (this change now lives at `openspec/changes/0003-sdd-adoption/`; a folded change will archive to `openspec/changes/archive/<id>/`). **Behavior-preserving** — only paths moved (`git mv`, history preserved). `collect_spec_keys` (`specs.py`) walks `openspec/specs/` ∪ `openspec/changes/*/specs/`; `select_change` (`state.py`) and `fold_change` / `_archive_change` (`release.py`) resolve under `openspec/changes/`; test fixtures and the docs (`CLAUDE.md`, the change's `tasks.md`) were repathed to match. No logic change, no new dependency: all 137 tests still pass and `specs check` stays green.
+
 ### Documentation
 
 - Documented the framework-wide spec-driven-development conventions in the vault's `conventions.md` (change `0003-sdd-adoption`, phase 6; R7/D10) — a vault-only doc edit, no repo code. Extends (does not replace) the existing CHANGELOG / gate-config / vault-bookkeeping sections with four new ones: the **`Change: <id>` commit trailer** (git-native, greppable via `git log --grep "Change: <id>"`, written on every phase commit and the release commit, verified by the release gate's `_trailer_blocker`, and the commit → `changes/archive/<id>/` → proposal/design/tasks/delta history→intent loop); the **`specs/` (living, shipped, test-backed) vs `changes/<id>/` (active — four artifacts)** layout with progress read from the repo `tasks.md`; the **delta markers + fold-on-release** (ADDED/MODIFIED-overwrites-whole/REMOVED, verify-after-fold, archive move on a green fold + gate); and the **scenario shape** (`Key:` + `Layers:`, `unit` enforced / `e2e` reserved) with the `@pytest.mark.spec` / `spec_exempt` markers and what `specs check` enforces.

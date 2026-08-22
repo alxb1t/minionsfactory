@@ -5,7 +5,7 @@ at a target repo, it drives an **in-repo change** to completion: a **coder** bui
 phase by phase (the orchestrator **runs the quality gate itself** and detects the advance); at plan end it fans
 out **review ‖ security ‖ simplify** as fresh read-only instances, runs a **converge loop** over their blocking
 findings, and hands a **release** step the gated, tagged result — which **folds the change's spec delta into the
-living `specs/`** and archives the change. Every role is a **fresh, single-role Claude Code instance**; the
+living `openspec/specs/`** and archives the change. Every role is a **fresh, single-role Claude Code instance**; the
 driver **advances or halts** on machine-checkable disk state. The project dogfoods its own conventions —
 spec-driven changes, a strict quality gate, all state on disk.
 
@@ -24,19 +24,20 @@ Claude Code is the default adapter, with no dependency on a harness's internals)
 
 ## Where the work is defined — spec-driven changes (in-repo)
 
-This repo follows **spec-driven development** (OpenSpec-style). Two in-repo trees carry the truth:
+This repo follows **spec-driven development** (OpenSpec-style). Two in-repo trees under **`openspec/`** carry the
+truth:
 
-- **`specs/<capability>/spec.md`** — the **living, test-backed behavioral spec**: what the system does *now*.
-  Each requirement carries WHEN/THEN **scenarios**, and every scenario is bound to a proving test
+- **`openspec/specs/<capability>/spec.md`** — the **living, test-backed behavioral spec**: what the system does
+  *now*. Each requirement carries WHEN/THEN **scenarios**, and every scenario is bound to a proving test
   (`@pytest.mark.spec("<key>")`) — enforced by the **spec-binding check** (`specs check`; see the gate below).
-- **`changes/<change-id>/`** — the **active change** you build: `proposal.md` (scope/approach), `design.md`
-  (technical decisions), `tasks.md` (the ordered phases + progress checkboxes), and `specs/` (the **delta** —
-  `## ADDED / MODIFIED / REMOVED Requirements` for this change). Read the change **in-tree**; record progress in
-  `tasks.md`. On release the delta **folds** into the top-level `specs/` and the change moves to
-  `changes/archive/<change-id>/`.
+- **`openspec/changes/<change-id>/`** — the **active change** you build: `proposal.md` (scope/approach),
+  `design.md` (technical decisions), `tasks.md` (the ordered phases + progress checkboxes), and `specs/` (the
+  **delta** — `## ADDED / MODIFIED / REMOVED Requirements` for this change). Read the change **in-tree**; record
+  progress in `tasks.md`. On release the delta **folds** into the living `openspec/specs/` and the change moves to
+  `openspec/changes/archive/<change-id>/`.
 
-**Progress lives in `tasks.md` + git** — read the active change (`changes/<id>/`), its `tasks.md`, and the tail
-of the vault `log.md` to see where the work stands. Don't re-derive decisions already settled in the change; if
+**Progress lives in `tasks.md` + git** — read the active change (`openspec/changes/<id>/`), its `tasks.md`, and
+the tail of the vault `log.md` to see where the work stands. Don't re-derive decisions already settled in the change; if
 something there conflicts with reality, raise it with the human rather than silently diverging.
 
 **The vault holds product intent, research, findings, and bookkeeping.** A private Obsidian vault whose path is
@@ -48,7 +49,7 @@ change), **research** (`research/`), the read-only roles' **findings files**, an
 copy `.env.example` → `.env` and ask the human to fill it in.
 
 **Commits carry a `Change: <change-id>` git trailer** so history reads back to intent
-(`git log --grep "Change: <id>"` → the commits → `changes/archive/<id>/` → proposal/design/tasks/delta).
+(`git log --grep "Change: <id>"` → the commits → `openspec/changes/archive/<id>/` → proposal/design/tasks/delta).
 
 ---
 
@@ -85,7 +86,7 @@ load-bearing seams are:
   `FakeProvider`; the driver depends on the **seam**, never the CLI directly (harness-agnostic + unit-testable).
 - **the orchestrator runs the gate itself** via a `run_gate(repo)` seam (real subprocess + `FakeGate`); the gate
   command list is **read from the target repo** (`.minions/minions.toml`), not hardcoded.
-- **the active change is read from disk** — the coder resolves `changes/<change-id>/` in-tree and builds its
+- **the active change is read from disk** — the coder resolves `openspec/changes/<change-id>/` in-tree and builds its
   `tasks.md` phase by phase; findings + spec state are read from disk, never trusted from a role's claim.
 - **the driver is deterministic control flow** — no LLM; **advance is *detected*** (a new commit landed **and**
   the phase checkbox moved), not trusted; a halt writes a disk contract the next run resumes from.
@@ -104,7 +105,7 @@ load-bearing seams are:
   deterministic and testable; the gate + git state are run by the orchestrator (not the agent it drives) so they
   can't be gamed.
 - **State lives on disk.** Reconstruct "where are we" from the active change's `tasks.md` + git (+ the folded
-  `specs/`) — never from memory. Resume is therefore free.
+  `openspec/specs/`) — never from memory. Resume is therefore free.
 - **Findings stay in the vault; progress + specs stay in the repo.** The read-only roles write only their vault
   findings file; the coder writes code + `tasks.md` + the change's spec delta, and a `Change:` trailer on every
   commit. Keep the vault narrative (`log.md` newest-first, `overview.md`, `backlog.md`) accurate — a fresh

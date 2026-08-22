@@ -46,7 +46,7 @@ def _shipped_spec(body: str) -> str:
 def _clean_repo(tmp_path: Path, *, key: str = "foo:bar:baz") -> Path:
     """A tree with one shipped unit scenario and a test that proves it."""
     _write(
-        tmp_path / "specs" / "foo" / "spec.md",
+        tmp_path / "openspec" / "specs" / "foo" / "spec.md",
         _shipped_spec(
             "### Requirement: Bar\nThe system SHALL bar.\n\n"
             "#### Scenario: Baz\n"
@@ -103,7 +103,7 @@ def test_parse_test_module_collects_spec_and_exempt_markers(tmp_path: Path) -> N
 @pytest.mark.spec("sdd:enforced-binding:orphan-scenario-fails")
 def test_orphan_scenario_fails_and_is_named(tmp_path: Path) -> None:
     _write(
-        tmp_path / "specs" / "foo" / "spec.md",
+        tmp_path / "openspec" / "specs" / "foo" / "spec.md",
         _shipped_spec(
             "### Requirement: Bar\nThe system SHALL bar.\n\n"
             "#### Scenario: Orphaned\n"
@@ -125,7 +125,7 @@ def test_orphan_scenario_fails_and_is_named(tmp_path: Path) -> None:
 
 @pytest.mark.spec("sdd:enforced-binding:dangling-marker-fails")
 def test_dangling_marker_fails_and_is_named(tmp_path: Path) -> None:
-    (tmp_path / "specs").mkdir()
+    (tmp_path / "openspec" / "specs").mkdir(parents=True)
     _write(
         tmp_path / "tests" / "test_foo.py",
         "import pytest\n\n\n"
@@ -144,7 +144,10 @@ def test_dangling_marker_fails_and_is_named(tmp_path: Path) -> None:
 
 @pytest.mark.spec("sdd:enforced-binding:pending-delta-resolves")
 def test_pending_delta_scenario_resolves(tmp_path: Path) -> None:
-    _write(tmp_path / "changes" / "0009-x" / "specs" / "foo" / "spec.md", _SPEC)
+    _write(
+        tmp_path / "openspec" / "changes" / "0009-x" / "specs" / "foo" / "spec.md",
+        _SPEC,
+    )
     _write(
         tmp_path / "tests" / "test_foo.py",
         "import pytest\n\n\n"
@@ -177,7 +180,14 @@ def test_empty_tree_is_a_green_noop(tmp_path: Path) -> None:
 @pytest.mark.spec("sdd:enforced-binding:pending-delta-resolves")
 def test_archived_change_delta_is_excluded(tmp_path: Path) -> None:
     _write(
-        tmp_path / "changes" / "archive" / "0001-old" / "specs" / "foo" / "spec.md",
+        tmp_path
+        / "openspec"
+        / "changes"
+        / "archive"
+        / "0001-old"
+        / "specs"
+        / "foo"
+        / "spec.md",
         _SPEC,
     )
     _write(
@@ -193,7 +203,7 @@ def test_archived_change_delta_is_excluded(tmp_path: Path) -> None:
 
 @pytest.mark.spec("sdd:full-backfill:untraceable-test-fails")
 def test_strict_flags_an_untraceable_test(tmp_path: Path) -> None:
-    (tmp_path / "specs").mkdir()
+    (tmp_path / "openspec" / "specs").mkdir(parents=True)
     _write(
         tmp_path / "tests" / "test_foo.py",
         "def test_unmarked() -> None:\n    assert True\n",

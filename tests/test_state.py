@@ -175,8 +175,8 @@ _PROGRESS = (
 def _write_change(
     repo: Path, change_id: str = "0003-x", progress: str = _PROGRESS
 ) -> Path:
-    """Write a well-formed change dir (all four artifacts) under repo/changes/."""
-    change_dir = repo / "changes" / change_id
+    """Write a well-formed change dir (four artifacts) under repo/openspec/changes/."""
+    change_dir = repo / "openspec" / "changes" / change_id
     change_dir.mkdir(parents=True)
     (change_dir / "specs").mkdir()
     (change_dir / "proposal.md").write_text("# proposal\n")
@@ -201,7 +201,7 @@ def test_parse_progress_stops_at_the_next_heading() -> None:
 
 @pytest.mark.spec_exempt("mechanism/plumbing")
 def test_select_change_picks_highest_id_excluding_archive(tmp_path: Path) -> None:
-    changes = tmp_path / "changes"
+    changes = tmp_path / "openspec" / "changes"
     (changes / "0001-old").mkdir(parents=True)
     (changes / "0003-active").mkdir()
     (changes / "archive" / "0099-archived").mkdir(parents=True)
@@ -211,7 +211,7 @@ def test_select_change_picks_highest_id_excluding_archive(tmp_path: Path) -> Non
 
 @pytest.mark.spec_exempt("mechanism/plumbing")
 def test_select_change_refuses_a_repo_with_no_active_change(tmp_path: Path) -> None:
-    (tmp_path / "changes" / "archive").mkdir(parents=True)
+    (tmp_path / "openspec" / "changes" / "archive").mkdir(parents=True)
     with pytest.raises(PlanContractError, match="no active change"):
         select_change(tmp_path)
 
@@ -269,7 +269,7 @@ def test_read_change_state_resolves_the_active_change_over_archive(
     tmp_path: Path,
 ) -> None:
     _write_change(tmp_path, change_id="0002-active")
-    archived = tmp_path / "changes" / "archive" / "0099-old"
+    archived = tmp_path / "openspec" / "changes" / "archive" / "0099-old"
     archived.mkdir(parents=True)  # a bare archived dir must not be resolved
 
     state = read_change_state(tmp_path, head_reader=lambda repo: "h")
