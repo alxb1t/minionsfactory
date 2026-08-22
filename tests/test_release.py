@@ -6,13 +6,18 @@ import pytest
 from orchestrator.findings import FindingsState
 from orchestrator.gate import GateResult
 from orchestrator.release import (
+    Commit,
     FakeReleaseGit,
     ReleaseStatus,
     ReleaseVerdict,
+    _apply_fold,
     _backlog_blocker,
     _bump_pyproject,
     _changelog_blocker,
     _cut_changelog,
+    _specs_blocker,
+    _trailer_blocker,
+    fold_change,
     prepare_release,
     verify_release_gate,
 )
@@ -95,6 +100,10 @@ def _verify(
     changelog_text: str = _CHANGELOG_READY,
     existing_tags: Sequence[str] = ("v0.1.0",),
     tree_is_clean: bool = True,
+    specs_valid: bool = True,
+    change_folded: bool = True,
+    commits: Sequence[Commit] = (),
+    known_change_ids: Sequence[str] = (),
 ) -> ReleaseVerdict:
     """All preconditions met; override one keyword to break exactly one."""
     return verify_release_gate(
@@ -105,6 +114,10 @@ def _verify(
         changelog_text=changelog_text,
         existing_tags=existing_tags,
         tree_is_clean=tree_is_clean,
+        specs_valid=specs_valid,
+        change_folded=change_folded,
+        commits=commits,
+        known_change_ids=known_change_ids,
     )
 
 
@@ -252,12 +265,16 @@ def test_prepare_release_cuts_bumps_commits_and_tags_on_green(tmp_path: Path) ->
         today="2026-08-21",
         branch="v0.2_loop_closure",
         git=git,
+        change_id="0003-sdd-adoption",
     )
 
     assert result.status is ReleaseStatus.PREPARED
     assert "## [0.2.0] - 2026-08-21" in (repo / "CHANGELOG.md").read_text()
     assert 'version = "0.2.0"' in (repo / "pyproject.toml").read_text()
-    assert git.commits == ["chore(release): v0.2.0"]
+    assert git.commits[0].startswith("chore(release): v0.2.0")
+    assert (
+        "Change: 0003-sdd-adoption" in git.commits[0]
+    )  # release commit carries trailer
     assert git.tags == ["v0.2.0"]
     assert "v0.2.0" in (vault / "release_log.md").read_text()
     assert "git push origin v0.2.0" in result.handoff
@@ -282,3 +299,229 @@ def test_prepare_release_leaves_the_repo_untouched_when_refused(tmp_path: Path) 
 
     assert 'version = "0.1.0"' in (repo / "pyproject.toml").read_text()
     assert "## [0.2.0]" not in (repo / "CHANGELOG.md").read_text()
+
+
+# --- spec-delta fold + commit-traceability (0003 phase 5) ---------------------
+
+
+_DELTA_ADDED = """\
+# Spec delta — capability: `cap`
+
+Intro prose that must NOT be folded into the living spec.
+
+## ADDED Requirements
+
+### Requirement: New thing
+The system SHALL do the new thing.
+
+#### Scenario: It happens
+- **Key:** `cap:new-thing:happens`
+- **Layers:** unit
+- **WHEN** a trigger
+- **THEN** the new thing happens
+"""
+
+
+_TARGET_OLD = """\
+# Capability: `cap`
+
+## Requirements
+
+### Requirement: Thing
+The system SHALL do the OLD thing.
+
+#### Scenario: Old behaviour
+- **Key:** `cap:thing:old`
+- **Layers:** unit
+- **WHEN** old
+- **THEN** old result
+"""
+
+
+_DELTA_MODIFIED = """\
+# Spec delta — capability: `cap`
+
+## MODIFIED Requirements
+
+### Requirement: Thing
+The system SHALL do the NEW thing.
+
+#### Scenario: New behaviour
+- **Key:** `cap:thing:new`
+- **Layers:** unit
+- **WHEN** new
+- **THEN** new result
+"""
+
+
+def _write_delta(repo: Path, change_id: str, capability: str, body: str) -> None:
+    """Write a change's delta spec under changes/<id>/specs/<capability>/spec.md."""
+    delta = repo / "changes" / change_id / "specs" / capability
+    delta.mkdir(parents=True)
+    (delta / "spec.md").write_text(body)
+
+
+def _write_target(repo: Path, capability: str, body: str) -> None:
+    """Write a shipped top-level spec at specs/<capability>/spec.md."""
+    target = repo / "specs" / capability
+    target.mkdir(parents=True)
+    (target / "spec.md").write_text(body)
+
+
+def _always_valid(repo: Path) -> bool:
+    return True
+
+
+def _always_invalid(repo: Path) -> bool:
+    return False
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_apply_fold_adds_modifies_and_removes_by_title() -> None:
+    target = (
+        "# Capability: cap\n\n"
+        "### Requirement: Keep\nSHALL keep.\n\n"
+        "### Requirement: Thing\nSHALL do OLD.\n"
+    )
+    from orchestrator.release import _parse_requirement_blocks
+
+    _, delta_blocks = _parse_requirement_blocks(
+        "## MODIFIED Requirements\n\n### Requirement: Thing\nSHALL do NEW.\n\n"
+        "## REMOVED Requirements\n\n### Requirement: Keep\nSHALL keep.\n"
+    )
+    new_text, edits = _apply_fold(target, delta_blocks, "cap")
+    assert "SHALL do NEW." in new_text
+    assert "SHALL do OLD." not in new_text
+    assert "### Requirement: Keep" not in new_text
+    assert ("modified", "Thing") in edits
+    assert ("removed", "Keep") in edits
+
+
+@pytest.mark.spec("sdd:release-fold:fold-applied")
+def test_fold_applies_added_requirement_and_archives(tmp_path: Path) -> None:
+    _write_delta(tmp_path, "0007-x", "cap", _DELTA_ADDED)
+
+    result = fold_change(tmp_path, "0007-x", validator=_always_valid)
+
+    assert result.ok is True
+    assert result.moved is True
+    spec = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    assert "### Requirement: New thing" in spec
+    assert "cap:new-thing:happens" in spec
+    assert "must NOT be folded" not in spec  # delta preamble discarded
+    assert not (tmp_path / "changes" / "0007-x").exists()
+    assert (tmp_path / "changes" / "archive" / "0007-x").exists()
+
+
+@pytest.mark.spec("sdd:release-fold:modified-overwrites-whole")
+def test_fold_modified_overwrites_the_whole_requirement(tmp_path: Path) -> None:
+    _write_target(tmp_path, "cap", _TARGET_OLD)
+    _write_delta(tmp_path, "0007-x", "cap", _DELTA_MODIFIED)
+
+    result = fold_change(tmp_path, "0007-x", validator=_always_valid)
+
+    assert result.ok is True
+    spec = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    assert "NEW thing" in spec and "cap:thing:new" in spec
+    # the whole prior requirement is replaced, not patched or appended
+    assert "OLD thing" not in spec
+    assert "cap:thing:old" not in spec
+    assert spec.count("### Requirement: Thing") == 1
+
+
+@pytest.mark.spec("sdd:release-fold:invalid-specs-halts")
+def test_fold_halts_and_does_not_move_when_specs_invalid(tmp_path: Path) -> None:
+    _write_delta(tmp_path, "0007-x", "cap", _DELTA_ADDED)
+
+    result = fold_change(tmp_path, "0007-x", validator=_always_invalid)
+
+    assert result.ok is False
+    assert "invalid" in result.reason
+    # the change is NOT moved to archive when the fold leaves specs invalid
+    assert (tmp_path / "changes" / "0007-x").exists()
+    assert not (tmp_path / "changes" / "archive" / "0007-x").exists()
+
+
+@pytest.mark.spec("sdd:release-fold:dry-run-writes-nothing")
+def test_fold_dry_run_writes_nothing(tmp_path: Path) -> None:
+    _write_delta(tmp_path, "0007-x", "cap", _DELTA_ADDED)
+
+    def _must_not_run(repo: Path) -> bool:
+        raise AssertionError("validator must not run in dry-run")
+
+    result = fold_change(tmp_path, "0007-x", dry_run=True, validator=_must_not_run)
+
+    assert result.changed is True
+    assert result.edits  # planned edits are reported
+    assert result.moved is False
+    assert not (tmp_path / "specs").exists()  # nothing written
+    assert (tmp_path / "changes" / "0007-x").exists()  # not moved
+
+
+@pytest.mark.spec("sdd:release-fold:idempotent-rerun")
+def test_fold_is_idempotent_on_rerun(tmp_path: Path) -> None:
+    _write_delta(tmp_path, "0007-x", "cap", _DELTA_ADDED)
+
+    first = fold_change(tmp_path, "0007-x", validator=_always_valid)
+    assert first.ok and first.moved and first.changed
+    after_first = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+
+    second = fold_change(tmp_path, "0007-x", validator=_always_valid)
+
+    assert second.ok is True
+    assert second.changed is False  # nothing to do the second time
+    assert second.moved is False  # already archived
+    after_second = (tmp_path / "specs" / "cap" / "spec.md").read_text()
+    assert after_second == after_first  # no duplicate / double-append
+    assert after_second.count("### Requirement: New thing") == 1
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_specs_blocker_blocks_invalid_or_unfolded() -> None:
+    assert _specs_blocker(specs_valid=True, change_folded=True) is None
+    assert _specs_blocker(specs_valid=False, change_folded=True) is not None
+    assert _specs_blocker(specs_valid=True, change_folded=False) is not None
+
+
+@pytest.mark.spec("sdd:commit-traceability:missing-trailer-halts")
+def test_trailer_blocker_blocks_and_names_an_untrailed_commit() -> None:
+    commits = (Commit(sha="aaa111", change="0003-x"), Commit(sha="bbb222", change=None))
+
+    reason = _trailer_blocker(commits, ("0003-x",))
+
+    assert reason is not None
+    assert "bbb222" in reason
+
+
+@pytest.mark.spec("sdd:commit-traceability:missing-trailer-halts")
+def test_release_gate_blocks_on_an_untrailed_commit() -> None:
+    verdict = _verify(
+        commits=(Commit(sha="bbb222", change=None),), known_change_ids=("0003-x",)
+    )
+    assert verdict.ok is False
+    assert "bbb222" in verdict.reason
+
+
+@pytest.mark.spec("sdd:commit-traceability:trailer-resolves")
+def test_trailer_blocker_passes_when_every_commit_resolves() -> None:
+    commits = (
+        Commit(sha="aaa111", change="0003-x"),
+        Commit(sha="bbb222", change="0003-x"),
+    )
+    assert _trailer_blocker(commits, ("0003-x",)) is None
+
+
+@pytest.mark.spec("sdd:commit-traceability:trailer-resolves")
+def test_release_gate_passes_with_all_trailed_and_resolving_commits() -> None:
+    verdict = _verify(
+        commits=(Commit(sha="aaa111", change="0003-x"),), known_change_ids=("0003-x",)
+    )
+    assert verdict.ok is True
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_trailer_blocker_blocks_a_trailer_resolving_to_no_known_change() -> None:
+    commits = (Commit(sha="ccc333", change="9999-ghost"),)
+    reason = _trailer_blocker(commits, ("0003-x",))
+    assert reason is not None
+    assert "ccc333" in reason
