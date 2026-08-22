@@ -219,7 +219,7 @@ def test_strict_flags_an_untraceable_test(tmp_path: Path) -> None:
     assert any("test_unmarked" in line for line in lines)
 
 
-@pytest.mark.spec("sdd:full-backfill:untraceable-test-fails")
+@pytest.mark.spec("sdd:full-backfill:exempt-test-passes")
 def test_strict_accepts_marked_and_exempt_tests(tmp_path: Path) -> None:
     repo = _clean_repo(tmp_path)
     _write(

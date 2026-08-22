@@ -20,6 +20,7 @@ from orchestrator.state import (
 )
 
 
+@pytest.mark.spec("change-state:plan-selection:highest-version-ignores-archive")
 def test_select_plan_picks_highest_version_ignoring_archive(tmp_path: Path) -> None:
     plans = tmp_path / "implementation_plans"
     (plans / "archive").mkdir(parents=True)
@@ -32,6 +33,7 @@ def test_select_plan_picks_highest_version_ignoring_archive(tmp_path: Path) -> N
     assert selected.name == "v0.10_b_implementation_plan.md"
 
 
+@pytest.mark.spec("change-state:plan-state:parses-frontmatter")
 def test_parse_frontmatter_reads_current_phase_and_phase_flags() -> None:
     text = (
         "---\n"
@@ -51,6 +53,7 @@ def test_parse_frontmatter_reads_current_phase_and_phase_flags() -> None:
     assert "phase2" not in frontmatter
 
 
+@pytest.mark.spec("change-state:plan-state:assembles-phases-and-head")
 def test_read_plan_state_assembles_phase_state_and_head(tmp_path: Path) -> None:
     plans = tmp_path / "implementation_plans"
     plans.mkdir()
@@ -76,30 +79,36 @@ def test_read_plan_state_assembles_phase_state_and_head(tmp_path: Path) -> None:
 # --- plan contract guard (P7) ---
 
 
+@pytest.mark.spec("change-state:plan-contract:accepts-conforming")
 def test_validate_plan_accepts_a_conforming_plan() -> None:
     validate_plan({"current_phase": "P1", "phase0": "done", "phase1": "planned"})
 
 
+@pytest.mark.spec("change-state:plan-contract:rejects-empty-frontmatter")
 def test_validate_plan_rejects_empty_frontmatter() -> None:
     with pytest.raises(PlanContractError, match="no YAML frontmatter"):
         validate_plan({})
 
 
+@pytest.mark.spec("change-state:plan-contract:rejects-missing-current-phase")
 def test_validate_plan_rejects_missing_current_phase() -> None:
     with pytest.raises(PlanContractError, match="current_phase"):
         validate_plan({"phase0": "done"})
 
 
+@pytest.mark.spec("change-state:plan-contract:rejects-no-phase-flags")
 def test_validate_plan_rejects_a_plan_with_no_phase_flags() -> None:
     with pytest.raises(PlanContractError, match="phaseN"):
         validate_plan({"current_phase": "P1", "type": "overview"})
 
 
+@pytest.mark.spec("change-state:plan-contract:rejects-non-code-status")
 def test_validate_plan_rejects_a_non_code_phase_status() -> None:
     with pytest.raises(PlanContractError, match="non-code"):
         validate_plan({"current_phase": "P1", "phase0": "research"})
 
 
+@pytest.mark.spec("change-state:plan-contract:accepts-conforming")
 def test_validate_plan_accepts_all_code_phase_statuses() -> None:
     validate_plan(
         {
@@ -112,6 +121,7 @@ def test_validate_plan_accepts_all_code_phase_statuses() -> None:
     )
 
 
+@pytest.mark.spec("change-state:plan-contract:refuses-malformed-at-read")
 def test_read_plan_state_refuses_a_malformed_plan(tmp_path: Path) -> None:
     plans = tmp_path / "implementation_plans"
     plans.mkdir()
@@ -131,23 +141,27 @@ def _write_settings(repo: Path, additional: list[str]) -> None:
     )
 
 
+@pytest.mark.spec("change-state:vault-preflight:grant-passes")
 def test_verify_vault_access_passes_when_the_vault_is_granted(tmp_path: Path) -> None:
     repo, vault = tmp_path / "repo", tmp_path / "vault"
     _write_settings(repo, [str(vault)])
     verify_vault_access(repo, vault)
 
 
+@pytest.mark.spec("change-state:vault-preflight:ancestor-grant-passes")
 def test_verify_vault_access_accepts_an_ancestor_grant(tmp_path: Path) -> None:
     repo, vault = tmp_path / "repo", tmp_path / "vaults" / "project"
     _write_settings(repo, [str(tmp_path / "vaults")])
     verify_vault_access(repo, vault)
 
 
+@pytest.mark.spec("change-state:vault-preflight:missing-settings-fails")
 def test_verify_vault_access_fails_without_settings(tmp_path: Path) -> None:
     with pytest.raises(PreflightError, match="settings.local.json"):
         verify_vault_access(tmp_path, tmp_path / "vault")
 
 
+@pytest.mark.spec("change-state:vault-preflight:ungranted-fails")
 def test_verify_vault_access_fails_when_the_vault_is_not_granted(
     tmp_path: Path,
 ) -> None:

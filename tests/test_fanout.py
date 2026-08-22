@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from orchestrator.fanout import RoleSpec, run_fanout
 from orchestrator.findings import FindingsState
 from orchestrator.provider import Profile, RoleResult
@@ -23,6 +25,7 @@ class _RecordingProvider:
         return self._result
 
 
+@pytest.mark.spec("fanout:read-only-roles:runs-each-over-frozen-diff")
 def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     tmp_path: Path,
 ) -> None:
@@ -54,6 +57,7 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     assert states == [expected, expected, expected]
 
 
+@pytest.mark.spec("fanout:read-only-roles:prepends-inputs-block")
 def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
@@ -80,6 +84,7 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
     assert "REVIEW-BODY" in prompt  # the role prompt follows the Inputs block
 
 
+@pytest.mark.spec("fanout:read-only-roles:emits-spawn-and-returned")
 def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
