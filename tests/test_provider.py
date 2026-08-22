@@ -42,6 +42,7 @@ def test_parse_result_reads_the_headless_json_fields() -> None:
     assert result.total_cost_usd == 0.012
 
 
+@pytest.mark.spec_exempt("test double — FakeProvider scripted-result smoke")
 def test_fake_providers_returns_the_scripted_results() -> None:
     scripted = RoleResult(
         subtype="success",

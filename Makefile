@@ -9,4 +9,4 @@ gate:
 	uv run ruff check .
 	uv run ty check
 	uv run pytest -q
-	uv run python -m orchestrator specs check
+	uv run python -m orchestrator specs check --strict
