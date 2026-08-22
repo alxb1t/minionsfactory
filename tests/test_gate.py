@@ -53,6 +53,7 @@ def test_run_gate_stops_at_the_first_failing_command(tmp_path: Path) -> None:
     assert result.steps[-1].exit_code == 1
 
 
+@pytest.mark.spec_exempt("test double — FakeGate scripted-result smoke")
 def test_fake_gate_returns_the_scripted_result() -> None:
     scripted = GateResult(passed=True, steps=())
 

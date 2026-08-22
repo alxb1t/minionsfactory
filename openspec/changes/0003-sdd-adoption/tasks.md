@@ -22,7 +22,7 @@ Read `proposal.md` + `design.md` (this dir) and the vault PRD/research first.
 - [x] 4 — Reviewer conformance axis (`prompts/reviewer.md`)
 - [x] 5 — Release fold + gate predicate + `Change:`-trailer predicate + `changes/archive/`
 - [x] 6 — `conventions.md`: the `Change: <id>` trailer + `specs/` / `changes/` conventions
-- [ ] 7 — Full backfill: every capability spec'd; every test → a scenario or `spec_exempt`
+- [x] 7 — Full backfill: every capability spec'd; every test → a scenario or `spec_exempt`
 
 > **openspec/ migration** (post-P6, pre-P7, not a numbered phase): the SDD trees were relocated under a single
 > `openspec/` dir to match OpenSpec's real layout — `specs/` → `openspec/specs/`, `changes/` →
