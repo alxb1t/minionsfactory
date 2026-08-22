@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from orchestrator.diff import compute_diff, run_role_with_diff
 from orchestrator.provider import FakeProvider, RoleResult, read_only_profile
 
@@ -10,6 +12,7 @@ _ROLE = RoleResult(
 )
 
 
+@pytest.mark.spec("diff:compute:builds-range-argv")
 def test_compute_diff_builds_the_range_argv_and_returns_output() -> None:
     caputed: dict[str, object] = {}
 
@@ -25,6 +28,7 @@ def test_compute_diff_builds_the_range_argv_and_returns_output() -> None:
     assert caputed["repo"] == Path("/repo")
 
 
+@pytest.mark.spec("diff:supply:writes-file-then-runs-role")
 def test_run_role_with_diff_writes_the_diff_file_then_runs_the_role(
     tmp_path: Path,
 ) -> None:
