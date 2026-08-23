@@ -11,7 +11,7 @@ PRD. Read `proposal.md` + `design.md` (this dir) and the vault PRD (`prd/v0.4_pl
 
 ## Progress
 
-- [ ] 1 — Rubrics (`prd-readiness` · `feasibility` · `conformance`) + `skills/rubrics/README.md`
+- [x] 1 — Rubrics (`prd-readiness` · `feasibility` · `conformance`) + `skills/rubrics/README.md`
 - [ ] 2 — `mf-order` (interview → PRD) + `mf-gauge` (PRD readiness gate, fresh + blind)
 - [ ] 3 — `mf-blueprint` (feasibility verdict + design proposition vs the codebase)
 - [ ] 4 — `mf-forge` (render PRD + design → `openspec/changes/<id>/`)
