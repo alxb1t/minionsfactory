@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-23
+
 ### Added
 
 - **Planning rubrics — the v0.4 planning surface begins** (change `0004-planning-skills`, phase 1; hand-authored, doc-only). Three shared rubrics under `skills/rubrics/` define "done" for each planning artifact — the planning-side analog of the machine gate: `prd-readiness.md` (drives `mf-order`, gates `mf-gauge`), `feasibility.md` (produced by `mf-blueprint`, re-checked by `mf-inspect`; the 4-way `feasible` / `feasible-with-caveats` / `needs-precursor` / `infeasible-as-specified` verdict), `conformance.md` (gates `mf-inspect`), and `README.md` holding the shared **(M) machine / (J) judgment** criterion split, the verdict/severity conventions, and the skill→rubric map. The change was scaffolded first (`openspec/changes/0004-planning-skills/` — proposal · design · tasks · **N-A spec delta**, PRD Option 1) so every commit carries a `Change: 0004-planning-skills` trailer. Markdown-only — the repo gate stays green (`specs check` parses `spec.md` only, so the N-A delta adds no scenarios).
