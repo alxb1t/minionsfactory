@@ -17,7 +17,7 @@ PRD. Read `proposal.md` + `design.md` (this dir) and the vault PRD (`prd/v0.4_pl
 - [x] 4 — `mf-forge` (render PRD + design → `openspec/changes/<id>/`)
 - [x] 5 — `mf-inspect` (PRD↔change conformance + executability, fresh + blind; loops)
 - [x] 6 — `mf-line` (LLM conductor over phases 2–5)
-- [ ] 7 — `template/vault-pm/` + `make install-skills`/`uninstall-skills` + README
+- [x] 7 — `template/vault-pm/` + `make install-skills`/`uninstall-skills` + README
 
 ---
 
