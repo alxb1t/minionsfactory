@@ -67,6 +67,36 @@ uv run pytest                  # tests
 
 CI (`.github/workflows/ci.yml`) mirrors it on every push.
 
+## Planning skills (the `mf-` line)
+
+The **planning side** of the framework — the PM-side mirror of `minions run` — ships as six Claude Code skills
+under [`skills/`](skills/) that take a feature idea to an execution-ready `openspec/changes/<id>/`:
+
+**Order → Gauge → Blueprint → Forge → Inspect → Run**
+
+- `mf-order` — interview → a well-defined PRD in the vault.
+- `mf-gauge` — an independent, blind readiness gate on the PRD.
+- `mf-blueprint` — feasibility verdict + design proposition against the target codebase.
+- `mf-forge` — render the PRD + design into an openspec change.
+- `mf-inspect` — an independent, blind PRD↔change conformance gate.
+- `mf-line` — a conductor that runs the whole sequence, pausing at the human go/no-go gates.
+
+They share three rubrics (the "definition of done" for each planning artifact) — see
+[`skills/rubrics/README.md`](skills/rubrics/README.md). A worked example of the planning-vault layout ships under
+[`template/vault-pm/`](template/vault-pm/).
+
+### Install / uninstall
+
+The skills live in the repo but run from `~/.claude/skills/`. Symlink them in (repo edits stay live everywhere,
+including the vault):
+
+```bash
+make install-skills     # symlink skills/mf-* + skills/rubrics into ~/.claude/skills/
+make uninstall-skills   # remove those symlinks (leaves other skills untouched)
+```
+
+Then invoke them from any project — e.g. `/mf-order` in the project's vault, or `/mf-line` to run the whole line.
+
 ## Docs
 
 Developer docs live in [`docs/`](docs/): start at the [docs README](docs/README.md), then
