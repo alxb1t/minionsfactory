@@ -63,11 +63,18 @@ diagnostic and a non-zero exit, never a traceback.
 MinionsFactory dogfoods the discipline it enforces. Its own gate:
 
 ```bash
-uv run ruff format --check .   # format
-uv run ruff check .            # lint (D docstrings + ANN annotations)
-uv run ty check                # strict type-check
-uv run pytest                  # tests
+uv sync --locked
+uv run ruff format --check .
+uv run ruff check .
+uv run ty check
+uv run pytest -q
+uv run python -m orchestrator specs check --strict
 ```
+
+Lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests · the spec-binding
+checker. The list above is `.minions/minions.toml`'s `gate` array **verbatim**, and `make gate` runs the same six
+in the same order — the orchestrator runs the array, so a paraphrase here would be a gate the repo does not
+actually run.
 
 CI (`.github/workflows/ci.yml`) mirrors it on every push.
 
@@ -85,9 +92,33 @@ under [`skills/`](skills/) that take a feature idea to an execution-ready `opens
 - `mf-inspect` — an independent, blind PRD↔change conformance gate.
 - `mf-line` — a conductor that runs the whole sequence, pausing at the human go/no-go gates.
 
-They share three rubrics (the "definition of done" for each planning artifact) — see
+They share four rubrics (the "definition of done" for each artifact the framework gates) — see
 [`skills/rubrics/README.md`](skills/rubrics/README.md). A worked example of the planning-vault layout ships under
 [`template/vault-pm/`](template/vault-pm/).
+
+### `mf-teardown` — a per-repo sibling, not a line stage
+
+The `mf-` line above runs once per **feature**. **`mf-teardown`** runs once per **repo**: point it at an existing
+project and it measures that repo against
+[`skills/rubrics/compliance.md`](skills/rubrics/compliance.md) — the fourth shared rubric, and the single source
+of truth for what a MinionsFactory-compliant repo is — then writes a gap report to the repo's own vault at
+`<vault>/findings/teardown.md`, with a `compliant | gaps-found` verdict over three severities.
+
+```bash
+cd /path/to/the/target/repo    # cwd must be the target
+# then, in Claude Code:
+/mf-teardown
+```
+
+It is **read-only against the target**: it writes nothing in the repo, runs no gate command and executes no
+target code — files and git metadata only — so it is safe to point at a repo you have not vetted yet. It halts
+before measuring anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR`, mirroring the
+orchestrator's own preflight condition for condition; the report needs a destination, and it never goes in the
+repo.
+
+Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to
+**v0.7 `mf-retrofit`**, which drives the gaps to clean and for which a teardown re-run is the independent
+checker.
 
 ### Install / uninstall
 

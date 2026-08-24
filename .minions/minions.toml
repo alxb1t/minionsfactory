@@ -1,8 +1,14 @@
 # MinionsFactory self-validates: the gate command list the orchestrator runs on this
-# repo. The four pillars plus the spec-binding checker as the final step. Switched to
-# `--strict` at phase 7: every test must carry a spec or spec_exempt marker (full
-# bidirectional traceability), on top of the orphan + dangling checks.
+# repo. Lock sync, then the four pillars, then the spec-binding checker as the final
+# step. `--strict` since v0.3 phase 7: every test must carry a spec or spec_exempt
+# marker (full bidirectional traceability), on top of the orphan + dangling checks.
+# `uv sync --locked` leads: without it the gate certifies whatever `.venv` happens to
+# hold rather than what `uv.lock` pins — the v0.6 `py:gate-commands` gap. This array is
+# mirrored command-for-command by `Makefile`'s `gate` target and by `README.md`; CI
+# already ran the sync step. Change one, change all of them, or `gate:make-mirrors` and
+# `gate:contract-agrees` break.
 gate = [
+  "uv sync --locked",
   "uv run ruff format --check .",
   "uv run ruff check .",
   "uv run ty check",
