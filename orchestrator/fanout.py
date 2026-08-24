@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from orchestrator.diff import run_role_with_diff
-from orchestrator.findings import FindingsState, read_findings_state
+from orchestrator.findings import FindingsState, findings_path, read_findings_state
 from orchestrator.provider import Provider, read_only_profile
 from orchestrator.status import Event, Role, RoleReturned, RoleSpawn, _no_emit
 
@@ -27,7 +27,7 @@ def _inputs_block(
     diff_path: Path,
     findings_file: Path,
     head: str,
-    plan_path: Path,
+    change_dir: Path,
     vault_dir: Path,
 ) -> str:
     """Build the Inputs block a read-only role needs (it can't resolve paths itself)."""
@@ -37,7 +37,7 @@ def _inputs_block(
         f"- Diff to review (read this file): {diff_path}\n"
         f"- Findings file (write ONLY this): {findings_file}\n"
         f"- head (for your `head:` frontmatter field): {head}\n"
-        f"- Plan (acceptance + conventions): {plan_path}\n"
+        f"- Change (proposal · design · tasks): {change_dir}\n"
         f"- Context: {vault_dir / 'overview.md'}, {vault_dir / 'log.md'}\n\n"
         "---\n\n"
     )
@@ -47,11 +47,11 @@ def run_fanout(
     provider: Provider,
     repo: Path,
     vault_dir: Path,
-    version: str,
+    change_id: str,
     diff: str,
     diff_path: Path,
     head: str,
-    plan_path: Path,
+    change_dir: Path,
     roles: Sequence[RoleSpec],
     mode: str = "review",
     emit_event: Callable[[Event], None] = _no_emit,
@@ -59,15 +59,20 @@ def run_fanout(
     """Run each read-only role over the supplied diff; collect each verdict from disk.
 
     Each role is spawned with an orchestrator-prepended Inputs block (it has no shell
-    to resolve paths itself); its findings file lives in the vault's
-    `implementation_plans/`, the single location the fixer + converge loop also read.
+    to resolve paths itself); its findings file is resolved through `findings_path`,
+    the single site the fixer, the converge loop and the release stage also read.
+
+    The `<vault>/findings/` directory is created **before the first spawn**: a read-only
+    role is granted `Write(<its findings file>)` and denied `Bash`, so it cannot create
+    the directory itself, and a findings file that never lands reads as not-clean.
     """
+    (vault_dir / "findings").mkdir(parents=True, exist_ok=True)
     states: list[FindingsState | None] = []
     for role in roles:
-        findings_file = vault_dir / "implementation_plans" / f"{version}_{role.name}.md"
+        findings_file = findings_path(vault_dir, change_id, role.name)
         profile = read_only_profile(findings_file)
         prompt = (
-            _inputs_block(mode, diff_path, findings_file, head, plan_path, vault_dir)
+            _inputs_block(mode, diff_path, findings_file, head, change_dir, vault_dir)
             + role.prompt
         )
         emit_event(RoleSpawn(ts=datetime.now(timezone.utc), role=role.name))

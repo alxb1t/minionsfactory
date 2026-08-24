@@ -12,7 +12,7 @@ from orchestrator.converge import ConvergeResult, converge
 from orchestrator.diff import compute_diff
 from orchestrator.driver import RunStatus, run
 from orchestrator.fanout import RoleSpec, run_fanout
-from orchestrator.findings import FindingsState, read_findings_state
+from orchestrator.findings import FindingsState, findings_path, read_findings_state
 from orchestrator.gate import Gate, SubprocessGate
 from orchestrator.provider import (
     ClaudeCodeProvider,
@@ -32,6 +32,7 @@ from orchestrator.state import (
     PreflightError,
     read_head,
     read_plan_state,
+    select_change,
     select_plan,
     verify_vault_access,
 )
@@ -101,12 +102,11 @@ def _make_fanout(
     provider: Provider,
     repo: Path,
     vault_dir: Path,
-    version: str,
     base: str,
     roles: list[RoleSpec],
     emit_event: Callable[[Event], None],
 ) -> Callable[[], list[FindingsState | None]]:
-    plan_path = select_plan(vault_dir)
+    change_dir = select_change(repo)
 
     def _fanout() -> list[FindingsState | None]:
         diff = compute_diff(repo, base, "HEAD")
@@ -114,11 +114,11 @@ def _make_fanout(
             provider,
             repo,
             vault_dir,
-            version,
+            change_dir.name,
             diff,
             repo / ".minions" / "diff.patch",
             read_head(repo),
-            plan_path,
+            change_dir,
             roles,
             mode="review",
             emit_event=emit_event,
@@ -132,16 +132,13 @@ def _make_converge(
     gate: Gate,
     repo: Path,
     vault_dir: Path,
-    version: str,
     roles: list[RoleSpec],
     fixer_prompt: str,
     coder_profile: Profile,
     emit_event: Callable[[Event], None],
 ) -> Callable[[], ConvergeResult]:
-    paths = [
-        vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
-    ]
-    plan_path = select_plan(vault_dir)
+    change_dir = select_change(repo)
+    paths = [findings_path(vault_dir, change_dir.name, r.name) for r in roles]
 
     def _read_states() -> list[FindingsState | None]:
         return [read_findings_state(p) for p in paths]
@@ -154,11 +151,11 @@ def _make_converge(
             provider,
             repo,
             vault_dir,
-            version,
+            change_dir.name,
             diff,
             repo / ".minions" / "diff.patch",
             read_head(repo),
-            plan_path,
+            change_dir,
             roles,
             mode="verify",
             emit_event=emit_event,
@@ -218,9 +215,8 @@ def _make_release(
     today: str,
     roles: list[RoleSpec],
 ) -> Callable[[], ReleaseResult]:
-    findings_paths = [
-        vault_dir / "implementation_plans" / f"{version}_{r.name}.md" for r in roles
-    ]
+    change_id = select_change(repo).name
+    findings_paths = [findings_path(vault_dir, change_id, r.name) for r in roles]
 
     def _release() -> ReleaseResult:
         verdict = verify_release_gate(
@@ -308,15 +304,12 @@ def main(argv: list[str] | None = None) -> int:
             coder_prompt=_coder_prompt(),
             profile=_CODER_PROFILE,
             emit_event=emitter,
-            fanout=_make_fanout(
-                provider, repo, vault_dir, version, args.base, roles, emitter
-            ),
+            fanout=_make_fanout(provider, repo, vault_dir, args.base, roles, emitter),
             converge=_make_converge(
                 provider,
                 gate,
                 repo,
                 vault_dir,
-                version,
                 roles,
                 _fixer_prompt(),
                 _CODER_PROFILE,
