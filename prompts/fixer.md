@@ -5,37 +5,27 @@
 > blocking finding** the review / security / simplify roles raised (plus any open current-release backlog item),
 > to a green gate, then **stops**. You do **not** re-review your own work and you do **not** decide convergence —
 > a separate verify pass re-checks your fixes and owns the verdict. Read the repo's `CLAUDE.md` (shared context:
-> gate, conventions, guardrails) **and** the active plan. Build faithfully; **halt** when reality diverges (see
+> gate, conventions, guardrails) **and** the active change. Build faithfully; **halt** when reality diverges (see
 > *Stop-conditions*).
 
-## Resolve parameters (auto — run these first)
+## Your inputs (supplied — do not re-derive them)
 
-Run from inside the code repo. Derive every parameter; do not ask the human for paths.
+The **Inputs block prepended above this prompt** is the orchestrator's, and it is authoritative: it names the
+**change directory** (`openspec/changes/<id>/` — proposal · design · tasks), the **review / security / simplify
+findings paths**, the git head, the release version, and the vault context files (`overview.md`, `log.md`;
+`backlog.md` sits beside them). Path resolution lives in the orchestrator's code, in one place, where it is
+typed and tested — **do not shell for a path and do not ask the human for one.**
 
-```bash
-REPO_PATH=$(git rev-parse --show-toplevel)
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-VAULT_PROJECT_DIR=$(grep -E '^VAULT_PROJECT_DIR=' "$REPO_PATH/.env" | cut -d= -f2- | tr -d '"')
-
-PLAN_FILE=$(ls "$VAULT_PROJECT_DIR"/implementation_plans/v*_implementation_plan.md | sort -V | tail -1)
-VERSION=$(basename "$PLAN_FILE" | grep -oE '^v[0-9]+\.[0-9]+')      # e.g. v0.2
-
-LOG="$VAULT_PROJECT_DIR/log.md"
-BACKLOG="$VAULT_PROJECT_DIR/backlog.md"
-REVIEW_FILE="$VAULT_PROJECT_DIR/implementation_plans/${VERSION}_review.md"
-SECURITY_FILE="$VAULT_PROJECT_DIR/implementation_plans/${VERSION}_security.md"
-SIMPLIFY_FILE="$VAULT_PROJECT_DIR/implementation_plans/${VERSION}_simplify.md"
-```
-
-Echo the resolved values once before proceeding.
+Run from inside the code repo. Echo the change dir + the three findings paths once before proceeding.
 
 ## Step 1 — Collect what the branch owes
 
-1. **Open blocking findings** from `REVIEW_FILE`, `SECURITY_FILE`, `SIMPLIFY_FILE` — blocking = `blocking` for
+1. **Open blocking findings** from the review, security and simplify findings files — blocking = `blocking` for
    review; `critical`/`high` for security; `blocking` for simplify (only overlapping/dual paths and misleading
    API surface — never a subjective `nit`). A finding is owed while its status is `open` or `fixed` (a `fixed`
    finding stays owed until the verifier marks it `verified`; if you find one still `open`, resolve it).
-2. **Open current-release backlog items** — in `BACKLOG`, the current-release (`vX.Y`) section's `- [ ]` items.
+2. **Open current-release backlog items** — in the vault `backlog.md`, the current-release (`vX.Y`, the version
+   the Inputs block names) section's `- [ ]` items.
    The *future / unversioned* section is **not** your concern — never touch it.
 3. **Merge overlaps** — an issue flagged by both a finding and a backlog item gets **one** coherent fix. Each
    finding cites `path:line`; read those sites + the surrounding code.
@@ -58,9 +48,14 @@ no scriptable official source): resolve those as **accept + document** — a sho
    verifier judges it); never silently ignore one.
 3. **Backlog:** for each current-release item you resolved, mark it `- [x]` with a one-line note (fixed → what
    changed; or accept+document → why). Never edit the *future / unversioned* section.
-4. **Bookkeeping + commit:** prepend a `## [YYYY-MM-DD] fix | <n> items` entry to `LOG`; commit in the code repo
+4. **Bookkeeping + commit:** prepend a `## [YYYY-MM-DD] fix | <n> items` entry to the vault `log.md`; commit in
+   the code repo
    (Conventional-Commits, e.g. `fix: address review round 1`). The finding-note + backlog edits are vault
    bookkeeping, not part of the code commit.
+   **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
+   you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
+   the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
+   the last paragraph, and a blank line silently breaks it). The release gate checks it across the branch.
 
 Then **stop and report** what you fixed, what you accepted+documented (with the reason), and any `wontfix` (with
 the justification). The reviewer/security/simplify verify passes re-check separately; the release role gates on
@@ -71,7 +66,7 @@ the backlog being clear. Do not re-review your own work.
 1. **A fix is metered / spends money** — announce + stop for an explicit human "go".
 2. **A fix needs a new dependency** — state the justification + stop for approval before `uv add`.
 3. **Honest green would require weakening the gate** — halt; that's a finding for the human, not a shortcut.
-4. **A finding is ambiguous or contradicts the plan** — halt and report the specific question.
+4. **A finding is ambiguous or contradicts the change** — halt and report the specific question.
 
 ## What you must NOT do
 - **Do not touch the findings-file counters or `verdict`** — the verify pass owns convergence.

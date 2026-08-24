@@ -52,7 +52,7 @@ class FindingsState(BaseModel):  # frozen
 
 A role's findings verdict, read from the file's frontmatter (a trust boundary).
 
-- **Why Pydantic, not a dataclass** — unlike its sibling [`PlanState`](state.md#planstate), this boundary read
+- **Why Pydantic, not a dataclass** — unlike its sibling [`ChangeState`](state.md#changestate), this boundary read
   has ints to coerce and a closed `verdict` to validate. Pydantic *where boundary data needs validating*, not
   at every boundary.
 - **Consumed by** — [`converge`](converge.md#converge) and [`verify_release_gate`](release.md#verify_release_gate)

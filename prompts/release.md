@@ -12,28 +12,23 @@
 > write the release log) and **halts for the human** to merge + push. It is the manual stand-in for what the
 > orchestrator will later do deterministically. It never touches `main`, never pushes, never edits feature code.
 >
-> **Run it from inside the code repo** and paste the whole file — the parameters below **resolve themselves**.
+> **Run it from inside the code repo** and paste the whole file, with the orchestrator's **Inputs block** above it.
 
 ---
 
-## Resolve parameters (auto — run these first)
+## Your inputs (supplied — do not re-derive them)
 
-```bash
-REPO_PATH=$(git rev-parse --show-toplevel)
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-VAULT_PROJECT_DIR=$(grep -E '^VAULT_PROJECT_DIR=' "$REPO_PATH/.env" | cut -d= -f2- | tr -d '"')
+The **Inputs block emitted with the release handoff** is the orchestrator's, and it is authoritative. It names
+the **change directory** (`openspec/changes/<id>/`), the **review / security / simplify findings paths**, the git
+head, and the **release version** (`vX.Y` — the version the change's `proposal.md` declares, so the tag is
+`vX.Y.0`). Path resolution lives in the orchestrator's code, in one place, where it is typed and tested — **do
+not shell for a path, do not derive the version from a filename, and do not ask the human for either.**
 
-PLAN_FILE=$(ls "$VAULT_PROJECT_DIR"/implementation_plans/v*_implementation_plan.md | sort -V | tail -1)
-VERSION=$(basename "$PLAN_FILE" | grep -oE '^v[0-9]+\.[0-9]+')     # e.g. v0.2  → release tag v0.2.0
+The vault's `backlog.md` and `release_log.md` sit beside the context files the block names; the repo's
+`CHANGELOG.md` is at its root (if the project keeps one).
 
-REVIEW_FILE="$VAULT_PROJECT_DIR/implementation_plans/${VERSION}_review.md"
-SECURITY_FILE="$VAULT_PROJECT_DIR/implementation_plans/${VERSION}_security.md"
-BACKLOG="$VAULT_PROJECT_DIR/backlog.md"
-RELEASE_LOG="$VAULT_PROJECT_DIR/release_log.md"
-CHANGELOG="$REPO_PATH/CHANGELOG.md"          # if the project keeps one
-```
-
-Echo the resolved values + the intended tag (`${VERSION}.0`) before proceeding.
+Echo the change id, the version, and the intended tag (`vX.Y.0`) before proceeding. Below, `${VERSION}` means
+that supplied version and `${BRANCH}` the current branch (`git rev-parse --abbrev-ref HEAD`).
 
 ---
 
@@ -44,26 +39,45 @@ Run every check and report a checklist. **If any fails, HALT** with exactly what
 
 1. **Gate green** — re-run the offline gate yourself (`ruff format --check` → `ruff check` → `ty check` →
    `pytest`, + `bash -n` / `docker build --check` if the project uses them). Red → HALT (→ coder).
-2. **Review clean** — `REVIEW_FILE` exists, `verdict: clean`, and **every** blocking finding is `verified`
-   (none `open`/`fixed`-but-unverified). Missing file, non-clean verdict, or an unverified blocker → HALT.
-3. **Security clean** — `SECURITY_FILE` exists, `verdict: clean`, every High/Critical `verified`. Else → HALT.
-4. **Backlog closed** — in `BACKLOG`, the **current-release (`${VERSION}`) section** has **no open (`- [ ]`)
+2. **Review clean** — the review findings file exists, `verdict: clean`, and **every** blocking finding is
+   `verified` (none `open`/`fixed`-but-unverified). Missing file, non-clean verdict, or an unverified blocker → HALT.
+3. **Security clean** — the security findings file exists, `verdict: clean`, every High/Critical `verified`. Else → HALT.
+4. **Backlog closed** — in the vault `backlog.md`, the **current-release (`${VERSION}`) section** has **no open (`- [ ]`)
    items** — each is fixed or accepted+documented (`- [x]`). Any open branch-introduced item → HALT (→ coder,
    or a human decision to accept+document it). Future/unversioned items are **not** release-gating — ignore them.
 5. **Version line aligned** — the tag `${VERSION}.0` does **not** already exist (`git tag -l`); if a `CHANGELOG`
    is used, its `## [Unreleased]` has real entries; if a `pyproject`/version file is used, it's ready to bump to
    `${VERSION}.0`.
 6. **Clean tree** — no uncommitted changes (`git status --porcelain` empty).
+7. **Spec binding holds** — `uv run python -m orchestrator specs check --strict` is green **before** the fold, so
+   you fold a delta that is already consistent. Red → HALT (→ coder).
 
 ## Step 2 — Finalize the release (only if every Step-1 check passed)
 
-1. **CHANGELOG** (if present): `## [Unreleased]` → `## [${VERSION#v}.0] - <today>`; seed a fresh empty
+1. **Fold the spec delta into the living specs, then verify, then archive the change.** This is part of the
+   release commit, not a follow-up — `specs check` skips `changes/archive/`, so the instant the change is
+   archived its ADDED/MODIFIED keys stop resolving and every marker bound to them goes **dangling**. Fold and
+   archive in the same commit or the next commit's gate is red.
+   1. **Fold** — apply the change's `specs/` delta into `openspec/specs/`: an `## ADDED Requirements` block
+      appends its `### Requirement:` to the target capability; a `## MODIFIED Requirements` block **replaces the
+      whole existing block matched by title**; a `## REMOVED Requirements` block deletes it. Capability
+      **preamble** prose is preserved verbatim — the fold cannot reach it, so check by eye whether a preamble
+      the change invalidates needs a hand-edit.
+   2. **Verify after the fold** — re-run `uv run python -m orchestrator specs check --strict`. Green means every
+      folded scenario resolves and every marker still binds. Red → **do not archive**; HALT and report.
+   3. **Archive** — move `openspec/changes/<id>/` to `openspec/changes/archive/<id>/`.
+2. **CHANGELOG** (if present): `## [Unreleased]` → `## [${VERSION#v}.0] - <today>`; seed a fresh empty
    `## [Unreleased]` above it.
-2. **Version file** (if present, e.g. `pyproject.toml`): bump the version to `${VERSION#v}.0`.
-3. **Commit** the release in the repo: `chore(release): ${VERSION}.0`.
-4. **Tag** the release commit: annotated `git tag -a ${VERSION}.0 -m "${VERSION}.0"` — **LOCAL ONLY, do not
+3. **Version file** (if present, e.g. `pyproject.toml`): bump the version to `${VERSION#v}.0`.
+4. **Commit** the release in the repo: `chore(release): ${VERSION}.0` — the fold, the archive move, the
+   CHANGELOG cut and the version bump land together.
+   **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
+   you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
+   the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
+   the last paragraph, and a blank line silently breaks it). The release gate checks it across the branch.
+5. **Tag** the release commit: annotated `git tag -a ${VERSION}.0 -m "${VERSION}.0"` — **LOCAL ONLY, do not
    push.**
-5. **Release log** (vault): **prepend** an entry to `RELEASE_LOG` in the file's documented format — version,
+6. **Release log** (vault): **prepend** an entry to `release_log.md` in the file's documented format — version,
    date, tag, `${BRANCH} → main`, one-paragraph shipped summary, gate/review/security status (+ links to the
    review/security files), the branch-introduced backlog items closed, and a note that future items remain
    deferred.
@@ -93,10 +107,11 @@ Then STOP. Do not run merge/push/checkout-main yourself.
 - **Do not edit feature code or tests.** A failed precondition goes back to the coder — you are a gate, not a fix.
 - **Do not release with** a red gate, a non-clean review/security, an unverified blocking finding, or an open
   branch-introduced backlog item. No exceptions, no "just this once".
-- **Do not invent the version** — it comes from the plan (`${VERSION}.0`).
+- **Do not invent the version** — it is declared by the change and supplied in the Inputs block (`${VERSION}.0`).
+- **Do not archive a change whose post-fold `specs check --strict` is red** — fold, verify, *then* archive.
 
 ## Permission profile (elevated but bounded)
-- **Allow:** Read/Grep, the offline gate, `git add`/`commit`/`tag` (local), write `CHANGELOG`/version file /
-  `release_log.md`.
+- **Allow:** Read/Grep, the offline gate + `specs check`, `git add`/`commit`/`mv`/`tag` (local), write
+  `CHANGELOG`/version file / `openspec/specs/` / the archive move / `release_log.md`.
 - **Deny:** `git push`, `git merge`, `git checkout main`, network, paid/GPU. (Release is the only role that
   tags — and even it cannot push or touch `main`.)

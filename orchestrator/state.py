@@ -1,4 +1,4 @@
-"""Plan-state reader: reconstruct 'where are we' from disk (plan + git)."""
+"""Change-state reader: reconstruct 'where are we' from disk (the change + git)."""
 
 import json
 import re
@@ -7,29 +7,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-_PLAN_PATTERN = re.compile(r"v(\d+)\.(\d+)_.*implementation_plan\.md$")
-_CODE_PHASE_STATUSES = frozenset({"done", "wip", "planned", "todo"})
 _CHANGE_PATTERN = re.compile(r"^(\d+)-")
+# Anchored with `\A`/`\Z`, not `^`/`$`: in Python `$` also matches immediately
+# before a *trailing newline*, and a newline is legal in a POSIX directory name —
+# so `0009-evil\n` passed the `$` form and reached the interpolated write grant.
+_CHANGE_ID_PATTERN = re.compile(r"\A\d+-[a-z0-9-]+\Z")
 _PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
 _CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
-
-
-def select_plan(vault_project_dir: Path) -> Path:
-    """Return the highest-version plan in implementation_plans/, ignoring archive/."""
-    plans_dir = vault_project_dir / "implementation_plans"
-    candidates: list[tuple[tuple[int, int], Path]] = []
-    for path in plans_dir.glob("v*implementation_plan.md"):
-        match = _PLAN_PATTERN.match(path.name)
-        if match is None:
-            continue
-        version = (int(match.group(1)), int(match.group(2)))
-        candidates.append((version, path))
-    best = max(candidates, key=lambda item: item[0])
-    return best[1]
+_VERSION_PATTERN = re.compile(r"^v\d+\.\d+$")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
-    """Parse a plan's leading YAML frontmatter into flat key -> string values."""
+    """Parse a document's leading YAML frontmatter into flat key -> string values."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
@@ -44,15 +33,6 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     return frontmatter
 
 
-@dataclass(frozen=True)
-class PlanState:
-    """Where-are-we, read from disk: the plan's phase pointer + git head."""
-
-    current_phase: str
-    phases: dict[str, str]
-    head: str
-
-
 def read_head(repo: Path) -> str:
     """Return the target repo's current git HEAD commit sha."""
     completed = subprocess.run(
@@ -65,65 +45,85 @@ def read_head(repo: Path) -> str:
     return completed.stdout.strip()
 
 
-def read_plan_state(
-    vault_project_dir: Path,
-    repo: Path,
-    head_reader: Callable[[Path], str] = read_head,
-) -> PlanState:
-    """Read where-are-we from disk.
-
-    The highest-version plan's phase state + the repo's git head.
-    """
-    plan_path = select_plan(vault_project_dir)
-    frontmatter = parse_frontmatter(plan_path.read_text())
-    validate_plan(frontmatter)
-    phases = {
-        key: value for key, value in frontmatter.items() if key.startswith("phase")
-    }
-    return PlanState(
-        current_phase=frontmatter["current_phase"],
-        phases=phases,
-        head=head_reader(repo),
-    )
-
-
 class PlanContractError(ValueError):
-    """A plan breaks the execution contract — refused at read time with a diagnostic."""
+    """A change breaks the execution contract — refused at read time with a diagnostic.
 
-
-def validate_plan(frontmatter: dict[str, str]) -> None:
-    """Raise PlanContractError if the plan frontmatter breaks the execution contract.
-
-    The contract: a YAML frontmatter fence carrying `current_phase` and at least one
-    `phaseN` flag, each with a recognized code-phase status (execution plans contain
-    only code phases). A malformed plan is refused here, at read time — never a silent
-    empty `{}`, a mid-run KeyError, or a non-code phase the driver would false-halt on.
+    Keeps its name although its subject is now a change: renaming it would touch every
+    raise site, every `except` clause in `__main__`, and the preflight's contract, for
+    no behavioural payoff.
     """
-    if not frontmatter:
-        raise PlanContractError("plan has no YAML frontmatter (expected a --- fence)")
-    if "current_phase" not in frontmatter:
-        raise PlanContractError("plan frontmatter is missing 'current_phase'")
-    phases = {
-        key: value for key, value in frontmatter.items() if key.startswith("phase")
-    }
-    if not phases:
-        raise PlanContractError("plan frontmatter has no phaseN flags")
-    for name, status in phases.items():
-        if status not in _CODE_PHASE_STATUSES:
-            raise PlanContractError(
-                f"plan phase '{name}' has non-code status '{status}' — "
-                f"execution plans contain only code phases "
-                f"(expected one of {sorted(_CODE_PHASE_STATUSES)})"
-            )
 
 
 class PreflightError(Exception):
     """The target repo isn't configured for a run — halt before spending."""
 
 
+def _granted_directories(container: object) -> list[str]:
+    """Return a settings object's `additionalDirectories` string entries, if any.
+
+    Tolerant of every malformed shape a hand-edited settings file can take (a scalar
+    where an object belongs, a string where a list belongs): a shape that grants
+    nothing reads as no grant, which the caller refuses with its own diagnostic.
+    """
+    if not isinstance(container, dict):
+        return []
+    value = container.get("additionalDirectories", [])
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value if isinstance(entry, str)]
+
+
 def _covers(directory: Path, target: Path) -> bool:
     """Whether `directory` is `target` or an ancestor of it."""
     return target.is_relative_to(directory)
+
+
+def read_vault_dir(repo: Path) -> Path:
+    """Resolve the vault the target declares in its `.env`, or raise PreflightError.
+
+    Part of the zero-token preflight, so every way a target can get this wrong is a
+    diagnostic rather than a traceback: no `.env`, no `VAULT_PROJECT_DIR` key, an empty
+    value, a relative path (it would resolve against the operator's cwd), or a path that
+    is not an existing directory. Nothing downstream creates the vault — `run_fanout`
+    would silently materialise a tree at whatever the value names — so the shape is
+    checked here, before any spend.
+    """
+    env_path = repo / ".env"
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PreflightError(
+            f"cannot read {env_path} — the target must carry a .env declaring "
+            f"VAULT_PROJECT_DIR ({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PreflightError(
+            f"{env_path} is not valid UTF-8 — the .env declaring VAULT_PROJECT_DIR "
+            f"is read as text ({error.reason} at byte {error.start})"
+        ) from error
+    value = ""
+    for line in text.splitlines():
+        key, separator, raw = line.partition("=")
+        if separator and key.strip() == "VAULT_PROJECT_DIR":
+            value = raw.strip().strip('"')
+            break
+    if not value:
+        raise PreflightError(
+            f"no VAULT_PROJECT_DIR in {env_path} — the target must declare the vault "
+            f"path its roles write findings and bookkeeping to"
+        )
+    vault_dir = Path(value)
+    if not vault_dir.is_absolute():
+        raise PreflightError(
+            f"VAULT_PROJECT_DIR in {env_path} is not an absolute path — a relative "
+            f"value resolves against the operator's working directory"
+        )
+    if not vault_dir.is_dir():
+        raise PreflightError(
+            f"VAULT_PROJECT_DIR in {env_path} does not name an existing directory — "
+            f"the vault is never created by a run, it is read and written in place"
+        )
+    return vault_dir
 
 
 def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
@@ -140,11 +140,33 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
             f"no .claude/settings.local.json in {repo} — the target must grant the "
             f"coder write access to the vault ({vault_project_dir})"
         )
-    settings = json.loads(settings_path.read_text())
-    permissions = settings.get("permissions", {})
+    try:
+        raw = settings_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PreflightError(
+            f"cannot read {settings_path} — the target must grant the coder write "
+            f"access to the vault ({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PreflightError(
+            f"{settings_path} is not valid UTF-8 — the vault grant is read as text "
+            f"({error.reason} at byte {error.start})"
+        ) from error
+    try:
+        settings = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise PreflightError(
+            f"{settings_path} is not valid JSON — the vault grant cannot be read "
+            f"({error.msg} at line {error.lineno})"
+        ) from error
+    if not isinstance(settings, dict):
+        raise PreflightError(
+            f"{settings_path} does not hold a JSON object — the vault grant is read "
+            f"from its `permissions.additionalDirectories`"
+        )
     granted = [
-        *permissions.get("additionalDirectories", []),
-        *settings.get("additionalDirectories", []),
+        *_granted_directories(settings.get("permissions")),
+        *_granted_directories(settings),
     ]
     if not any(_covers(Path(directory), vault_project_dir) for directory in granted):
         raise PreflightError(
@@ -153,11 +175,11 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
         )
 
 
-# --- in-tree change-state reader (sibling to the vault-plan reader above) ---------
+# --- in-tree change-state reader — the reader the driver runs -------------------
 #
 # Change progress lives in the repo (`openspec/changes/<id>/tasks.md`), no vault hop
-# (R5). This reader is built and unit-tested here as a ready-for-v0.5 sibling; the
-# driver keeps running the vault-plan reader until the loop self-hosts on changes.
+# (R5): the reader's only inputs are the repo and a git-head seam, so it structurally
+# cannot consult a vault path. `driver.run` reads its state through it.
 
 
 @dataclass(frozen=True)
@@ -171,11 +193,12 @@ class Phase:
 
 @dataclass(frozen=True)
 class ChangeState:
-    """Where-are-we for an in-tree change: ordered phases + git head, read from disk."""
+    """Where-are-we for an in-tree change: phases, git head + declared version."""
 
     change_id: str
     phases: tuple[Phase, ...]
     head: str
+    version: str
 
     @property
     def current(self) -> Phase | None:
@@ -219,7 +242,14 @@ def select_change(repo: Path) -> Path:
             f"(excluding changes/archive/)"
         )
     best = max(candidates, key=lambda item: item[0])
-    return best[1]
+    change_dir = best[1]
+    if not _CHANGE_ID_PATTERN.match(change_dir.name):
+        raise PlanContractError(
+            f"change id '{change_dir.name}' is malformed — a change dir is named "
+            f"'<digits>-<lowercase-slug>'. The id keys the findings path and the "
+            f"role's write grant, so it is refused here rather than interpolated"
+        )
+    return change_dir
 
 
 def validate_change(change_dir: Path) -> None:
@@ -235,6 +265,51 @@ def validate_change(change_dir: Path) -> None:
                 f"change '{change_dir.name}' is missing '{artifact}' — a well-formed "
                 f"change has proposal.md, design.md, tasks.md, and specs/"
             )
+
+
+def _read_change_artifact(change_dir: Path, name: str) -> str:
+    """Read one of a change's artifacts as text, or refuse with a diagnostic.
+
+    An artifact that is unreadable or not valid UTF-8 is a broken change, refused like
+    every other contract failure. Without this the decode failure escapes as a
+    `UnicodeDecodeError` — a `ValueError` *sibling* of `PlanContractError`, like the
+    `JSONDecodeError` the preflight already converts — so a target with a non-UTF-8
+    `proposal.md` or `tasks.md` would die on a traceback instead of the preflight
+    diagnostic. Not caught as a bare `ValueError`: that would swallow real bugs, and
+    `PlanContractError` is itself one, so the catch order would mask contract failures.
+    """
+    path = change_dir / name
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PlanContractError(
+            f"change '{change_dir.name}' has a {name} that cannot be read "
+            f"({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PlanContractError(
+            f"change '{change_dir.name}' has a {name} that is not valid UTF-8 — a "
+            f"change artifact is read as text ({error.reason} at byte {error.start})"
+        ) from error
+
+
+def read_change_version(change_dir: Path) -> str:
+    """Return the release version a change declares in its proposal.md frontmatter.
+
+    The change is the unit of release, so the version travels with it: `proposal.md`
+    opens with a `---` fence carrying `version: vX.Y`. Absent, unparseable, or not
+    `vX.Y` is refused here, at read time, with a diagnostic naming the file and the
+    field — never a version guessed from a filename or a prose header.
+    """
+    frontmatter = parse_frontmatter(_read_change_artifact(change_dir, "proposal.md"))
+    version = frontmatter.get("version", "")
+    if not _VERSION_PATTERN.match(version):
+        raise PlanContractError(
+            f"change '{change_dir.name}' declares no release version — its "
+            f"proposal.md must open with leading frontmatter 'version: vX.Y' "
+            f"(found: {version!r})"
+        )
+    return version
 
 
 def parse_progress(text: str) -> list[Phase]:
@@ -274,13 +349,15 @@ def read_change_state(
     """Read where-are-we for the active in-tree change — purely from the repo.
 
     Resolve the active change dir under `<repo>/openspec/changes/` (highest version-id,
-    excluding archive/), refuse a malformed change (contract-guard), and parse its
+    excluding archive/), refuse a malformed change (contract-guard), parse its
     `tasks.md` progress checklist into ordered phases with the current phase = the first
-    unchecked item. Consults no vault path (R5): the only inputs are repo + head reader.
+    unchecked item, and surface the version its `proposal.md` declares. Consults no
+    vault path (R5): the only inputs are repo + head reader.
     """
     change_dir = select_change(repo)
     validate_change(change_dir)
-    phases = parse_progress((change_dir / "tasks.md").read_text())
+    version = read_change_version(change_dir)
+    phases = parse_progress(_read_change_artifact(change_dir, "tasks.md"))
     if not phases:
         raise PlanContractError(
             f"change '{change_dir.name}' tasks.md has no '## Progress' checklist"
@@ -289,6 +366,7 @@ def read_change_state(
         change_id=change_dir.name,
         phases=tuple(phases),
         head=head_reader(repo),
+        version=version,
     )
 
 

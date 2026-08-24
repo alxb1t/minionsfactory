@@ -1,18 +1,17 @@
-# Capability: `build-loop` (the deterministic build spine)
+# Spec delta — capability: `build-loop` (the deterministic build spine)
 
-The driver that advances the active **in-tree change** phase by phase or halts — **no LLM in the
-loop**. It reads where the work stands from the repo alone (`openspec/changes/<id>/tasks.md` plus
-git head), spawns the coder, runs the gate itself, and **detects** the advance (a new commit landed
-**and** the current-phase index moved) rather than trusting the agent's word; at change-complete it
-fans out, runs the converge loop, and prepares the release, halting cleanly at the first blocker so
-the next run resumes from disk. This spec captures the behavior shipped in `orchestrator/driver.py`;
-each scenario declares `Layers: unit` and is bound to its proving test.
+v0.5 switches the loop's state from the vault plan to the in-tree change (R1, R2). The decision and the drive
+requirements are restated over `ChangeState` — ordered phases from `changes/<id>/tasks.md` plus git head — and the
+advance test is delegated to `change_advanced` rather than re-implemented in the driver.
 
-> Two requirement **titles** below still say "plan" — kept verbatim on purpose. The release fold
-> matches a requirement by title and replaces the whole block, so retitling one would append a
-> duplicate and orphan the original. Their bodies speak of the change, which is what ships.
+Both requirements below reproduce **all** of their scenarios — surviving ones verbatim — because the fold replaces
+the whole requirement block. Titles are kept **verbatim** (`_apply_fold` matches by title; a retitle would append a
+duplicate and orphan the original), so "plan" survives in the second title while its body speaks of the change; the
+capability preamble is hand-edited in phase 6, where the fold cannot reach.
 
-## Requirements
+On release this delta folds into top-level `specs/build-loop/spec.md`.
+
+## MODIFIED Requirements
 
 ### Requirement: Deterministic per-phase decision
 
@@ -109,51 +108,3 @@ state through an injected reader that consults the **repository only**.
 - **Layers:** unit
 - **WHEN** every phase is already checked off on disk
 - **THEN** the only event is a run-summary whose status is complete
-
-### Requirement: End-of-plan fan-out, converge, and release sequencing
-
-At plan-complete `run` SHALL run the fan-out, then the converge loop, then the release, in that
-order — but only when the build did not halt first — halting the run if converge halts or the
-release is refused, and never reaching release when converge halts.
-
-#### Scenario: Fan-out runs when the plan completes
-- **Key:** `build-loop:end-of-plan:fanout-on-complete`
-- **Layers:** unit
-- **WHEN** the plan reaches complete
-- **THEN** the fan-out stage is invoked
-
-#### Scenario: No fan-out when the build halts
-- **Key:** `build-loop:end-of-plan:no-fanout-on-halt`
-- **Layers:** unit
-- **WHEN** the build halts before the plan completes
-- **THEN** the fan-out stage is not invoked
-
-#### Scenario: Converge runs after the fan-out
-- **Key:** `build-loop:end-of-plan:converge-after-fanout`
-- **Layers:** unit
-- **WHEN** the plan completes
-- **THEN** the converge stage runs after the fan-out, in that order
-
-#### Scenario: A converge halt halts the run
-- **Key:** `build-loop:end-of-plan:converge-halt-halts-run`
-- **Layers:** unit
-- **WHEN** the converge loop halts (e.g. round cap exceeded)
-- **THEN** the run ends HALTED carrying the converge reason
-
-#### Scenario: Release is prepared after converge
-- **Key:** `build-loop:end-of-plan:release-after-converge`
-- **Layers:** unit
-- **WHEN** the plan completes and converge converges
-- **THEN** the release stage runs after fan-out and converge, in that order
-
-#### Scenario: A refused release halts the run
-- **Key:** `build-loop:end-of-plan:release-refused-halts`
-- **Layers:** unit
-- **WHEN** the release is refused
-- **THEN** the run ends HALTED carrying the refusal reason
-
-#### Scenario: A converge halt reaches neither release
-- **Key:** `build-loop:end-of-plan:no-release-when-converge-halts`
-- **Layers:** unit
-- **WHEN** converge halts
-- **THEN** the release stage is never invoked

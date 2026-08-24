@@ -1,4 +1,4 @@
-"""Build-spine driver: the deterministic loop that advances a plan or halts."""
+"""Build-spine driver: the deterministic loop that advances a change or halts."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from orchestrator.findings import FindingsState
 from orchestrator.gate import Gate, GateResult
 from orchestrator.provider import Profile, Provider, ProviderError
 from orchestrator.release import ReleaseResult, ReleaseStatus
-from orchestrator.state import PlanState, read_plan_state
+from orchestrator.state import ChangeState, Phase, change_advanced, read_change_state
 from orchestrator.status import (
     Advance,
     Event,
@@ -37,23 +37,27 @@ class Decision:
 
 
 def decide(
-    before: PlanState,
-    after: PlanState,
+    before: ChangeState,
+    after: ChangeState,
     gate_result: GateResult,
     coder_halted: bool,
 ) -> Decision:
-    """Decide whether the phase advanced or the driver must halt (and why)."""
+    """Decide whether the phase advanced or the driver must halt (and why).
+
+    The advance signal is not re-implemented here: it is delegated to
+    `state.change_advanced`, so a moved `tasks.md` checkbox counts only when a real
+    commit proves it — the advance is detected from disk, never trusted from the agent.
+    """
     if coder_halted:
         return Decision(advance=False, reason="coder wrote a HALT report")
     if not gate_result.passed:
         return Decision(advance=False, reason="gate is red")
-    commited = after.head != before.head
-    phase_moved = after.current_phase != before.current_phase
-    if not (commited and phase_moved):
+    if not change_advanced(before, after):
         return Decision(
             advance=False,
             reason=(
-                "phase did not advance (need a new commit and a moved current_phase)"
+                "phase did not advance "
+                "(need a new commit and a moved tasks.md progress checkbox)"
             ),
         )
     return Decision(advance=True, reason="")
@@ -80,9 +84,18 @@ def halt_report_exists(vault_project_dir: Path) -> bool:
     return (vault_project_dir / "HALT.md").exists()
 
 
-def _plan_complete(state: PlanState) -> bool:
-    """Return whether every phase is done (none still planned)."""
-    return "planned" not in state.phases.values()
+_COMPLETE_LABEL = "complete"
+
+
+def _phase_label(phase: Phase | None) -> str:
+    """Render a phase for the event stream as `index: title` (None → complete).
+
+    **A colon, not an em-dash.** `status._short_phase` trims a label by splitting on
+    `" — "`, so an em-dash-separated label would render as the bare index and drop the
+    title the event stream is required to carry. A colon passes through whole, leaving
+    the 72-char truncation as the only trim.
+    """
+    return _COMPLETE_LABEL if phase is None else f"{phase.index}: {phase.title}"
 
 
 def _no_fanout() -> list[FindingsState | None]:
@@ -107,7 +120,7 @@ def run(
     gate: Gate,
     coder_prompt: str,
     profile: Profile,
-    state_reader: Callable[[Path, Path], PlanState] = read_plan_state,
+    state_reader: Callable[[Path], ChangeState] = read_change_state,
     halt_checker: Callable[[Path], bool] = halt_report_exists,
     emit_event: Callable[[Event], None] = _no_emit,
     fanout: Callable[[], list[FindingsState | None]] = _no_fanout,
@@ -115,15 +128,17 @@ def run(
     release: Callable[[], ReleaseResult] = _no_release,
     max_phases: int = 100,
 ) -> RunResult:
-    """Drive the plan phase by phase, then fan out and converge at plan end.
+    """Drive the change phase by phase, then fan out and converge at change end.
 
-    Spawn coder -> gate -> detect advance -> continue or halt; at plan-complete,
-    run the fan-out then the converge loop before the final summary.
+    Spawn coder -> gate -> detect advance -> continue or halt; at change-complete,
+    run the fan-out then the converge loop before the final summary. The state reader
+    consults the **repository only** — the change and its progress live in-tree; the
+    vault is still read for the coder's HALT report.
     """
-    before = state_reader(vault_project_dir, repo)
+    before = state_reader(repo)
     advanced = 0
     iterations = 0
-    while not _plan_complete(before):
+    while not before.is_complete:
         if iterations >= max_phases:
             reason = "exceeded max phases (runaway guard)"
             emit_event(
@@ -143,7 +158,9 @@ def run(
             return RunResult(RunStatus.HALTED, reason, advanced)
 
         emit_event(
-            PhaseStart(ts=datetime.now(timezone.utc), phase=before.current_phase)
+            PhaseStart(
+                ts=datetime.now(timezone.utc), phase=_phase_label(before.current)
+            )
         )
         iterations += 1
 
@@ -190,7 +207,7 @@ def run(
                 )
             )
 
-        after = state_reader(vault_project_dir, repo)
+        after = state_reader(repo)
         decision = decide(before, after, gate_result, coder_halted)
 
         if not decision.advance:
@@ -209,8 +226,8 @@ def run(
         emit_event(
             Advance(
                 ts=datetime.now(timezone.utc),
-                from_phase=before.current_phase,
-                to_phase=after.current_phase,
+                from_phase=_phase_label(before.current),
+                to_phase=_phase_label(after.current),
             ),
         )
         before = after

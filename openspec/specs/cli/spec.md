@@ -31,11 +31,16 @@ run, and dispatch `specs check` to the checker — returning a process exit code
 
 ### Requirement: Zero-token preflight before spend
 
-Before spawning any role the entry point SHALL run the plan-state read and the vault-write preflight,
-refusing a malformed or misconfigured target with a diagnostic rather than spending tokens mid-run.
+Before spawning any role the entry point SHALL run the **change-state** read and the vault-write preflight,
+refusing a malformed or misconfigured target with a diagnostic naming the specific problem — no active change under
+`changes/` outside `archive/`, a change missing one of its four artifacts, a `tasks.md` with no `## Progress`
+checklist, a `proposal.md` with no declared `version`, or an ungranted vault — rather than spending tokens mid-run.
+Every refusal SHALL surface as a preflight diagnostic and a non-zero exit; no unhandled exception class SHALL be
+reachable from a misconfigured target.
 
 #### Scenario: A misconfigured target is refused before spend
 - **Key:** `cli:preflight:refuses-misconfigured-target`
 - **Layers:** e2e
-- **WHEN** the target's plan is malformed or its vault access is not granted
-- **THEN** the entry point prints a preflight failure and exits non-zero without spawning a role
+- **WHEN** the target's change is malformed, declares no version, or its vault access is not granted
+- **THEN** the entry point prints a preflight failure naming the specific problem and exits non-zero without
+  spawning a role

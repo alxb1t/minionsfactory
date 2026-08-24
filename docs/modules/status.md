@@ -124,7 +124,7 @@ def render(event: Event) -> str
 ```
 
 Pure per-event projection to a human-readable stdout line — a total `match` over the union. Trims a verbose
-`current_phase` to a short one-line label (via `_short_phase`), names the role on spawn/return, appends the role's
+phase label to a short one-line label (via `_short_phase`), names the role on spawn/return, appends the role's
 final-message `summary` as a trimmed `↳ …` gist (so an intentional halt shows *why*), and marks a phase advance
 (`✅ phase done → advanced to …`) and a halt (`⛔ halted: …`).
 

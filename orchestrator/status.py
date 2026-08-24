@@ -124,7 +124,7 @@ def read_status(status: Path) -> Event:
 
 
 def _short_phase(phase: str) -> str:
-    """Trim a verbose `current_phase` to a short one-line CLI label."""
+    """Trim a verbose phase label (`<index>: <title>`) to a short one-line CLI label."""
     head = phase.split(" — ")[0].split("\n")[0].strip()
     return head if len(head) <= 72 else head[:71] + "…"
 
