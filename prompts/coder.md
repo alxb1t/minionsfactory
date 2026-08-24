@@ -34,7 +34,7 @@ Echo the change dir + which phase (the first unchecked `## Progress` item in `ta
 
 ## Step 2 — Check for in-progress work (resume detection)
 
-Before building, run `git -C "$REPO_PATH" status --porcelain`. If it shows **uncommitted changes**, a previous
+Before building, run `git status --porcelain` (you are inside the repo). If it shows **uncommitted changes**, a previous
 attempt at **this** phase (the first unchecked `## Progress` item) was interrupted (a crashed session, a hit usage limit) — you are
 **resuming a phase mid-flight, not starting fresh**:
 
@@ -62,6 +62,10 @@ Build **only** that phase. Follow the change's per-phase ritual; in general:
    lands in the phase commit alongside the code.
 4. **Commit** this phase in the **code repo** with a Conventional-Commits message (the vault edits are not part
    of this commit). The commit is the other half of the advance signal.
+   **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
+   you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
+   the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
+   the last paragraph, and a blank line silently breaks it). The release gate checks it across the branch.
 5. **STOP and report.** Do **not** start the next phase. Report what you built, the test count, and the gate
    status. The orchestrator runs the gate, verifies the commit + the moved checkbox, and re-spawns a fresh
    coder for the next phase — so a clean commit + a correctly ticked checkbox is your whole contract.

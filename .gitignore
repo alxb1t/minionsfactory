@@ -1,6 +1,13 @@
 # Local config & secrets — NEVER commit
 .env
 
+# Run artifacts written into the target repo. `events.jsonl` persists each role's
+# full final message — which now echoes the Inputs block, vault path and all — so a
+# `git add -A` would otherwise sweep the operator's vault path into history. The
+# gate command list is config and stays tracked.
+.minions/*
+!.minions/minions.toml
+
 # Python
 __pycache__/
 *.py[cod]

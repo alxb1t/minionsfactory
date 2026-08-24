@@ -1,7 +1,7 @@
 # MinionsFactory
 
 A **CLI + orchestrator for autonomous Python feature development with Claude Code.** Pointed at a target
-repo, it drives a **vault-backed implementation plan** to completion: a coder builds the plan phase by
+repo, it drives an **in-repo change** to completion: a coder builds the change's `tasks.md` phase by
 phase, the **orchestrator runs the target's quality gate itself** and, on green, the phase advances and
 commits; otherwise the run **halts** with a readable reason.
 
@@ -10,16 +10,17 @@ The design rests on four invariants:
 - **No LLM in the orchestration layer** — the driver is deterministic, unit-tested Python control flow.
 - **The orchestrator runs the objective checks itself** (gate + git state), so the agent it drives can't
   game them.
-- **All state lives on disk** — a run resumes from the plan's `current_phase` + git, never from memory.
+- **All state lives on disk** — a run resumes from the change's `tasks.md` progress + git, never from memory.
 - **Roles are fresh instances behind a provider seam** — harness-agnostic; Claude Code (`claude -p`) is the
   default adapter.
 
 ## Status
 
-**v0.1 — the "loop spine" (in progress).** This version builds the minimal per-phase-coder build spine
-(spawn coder → gate → advance/commit or halt → resume), with all control flow unit-tested behind a fake
-provider + fake gate. The end-of-plan review ‖ security ‖ simplify fan-out, the converge loop, release
-automation, the installed CLI, extra provider adapters, and the UI are **≥ v0.2**.
+**v0.5 — the change cutover (in progress).** The loop is closed end to end: the per-phase build spine
+(spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖ security ‖ simplify
+fan-out, the converge loop, local release preparation, and the `mf-` planning skills — with all control
+flow unit-tested behind a fake provider + fake gate. This version makes the **in-repo change** the model
+the driver actually runs on. The installed CLI, extra provider adapters, and the UI are still ahead.
 
 Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
 
@@ -52,9 +53,10 @@ The **target repo** it drives must provide:
 - a **`.claude/settings.local.json`** granting the coder write access to the vault (the vault dir, or an
   ancestor, under `additionalDirectories`) — findings + bookkeeping land there, outside the repo cwd.
 
-The orchestrator runs a zero-token **preflight** first (the plan is well-formed, the vault grant is present),
-resolves the highest-version plan from the vault, drives it phase by phase, and exits
-`0` on completion / `1` on a halt.
+The orchestrator runs a zero-token **preflight** first — the active change is well-formed and declares its
+version, the vault is declared, exists and is granted — then resolves the active change in the target repo,
+drives its phases one fresh coder at a time, and exits `0` on completion / `1` on a halt. Every refusal is a
+diagnostic and a non-zero exit, never a traceback.
 
 ## The quality gate (this repo's own)
 

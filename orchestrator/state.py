@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _CHANGE_PATTERN = re.compile(r"^(\d+)-")
+_CHANGE_ID_PATTERN = re.compile(r"^\d+-[a-z0-9-]+$")
 _PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
 _CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
 _VERSION_PATTERN = re.compile(r"^v\d+\.\d+$")
@@ -54,9 +55,67 @@ class PreflightError(Exception):
     """The target repo isn't configured for a run — halt before spending."""
 
 
+def _granted_directories(container: object) -> list[str]:
+    """Return a settings object's `additionalDirectories` string entries, if any.
+
+    Tolerant of every malformed shape a hand-edited settings file can take (a scalar
+    where an object belongs, a string where a list belongs): a shape that grants
+    nothing reads as no grant, which the caller refuses with its own diagnostic.
+    """
+    if not isinstance(container, dict):
+        return []
+    value = container.get("additionalDirectories", [])
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value if isinstance(entry, str)]
+
+
 def _covers(directory: Path, target: Path) -> bool:
     """Whether `directory` is `target` or an ancestor of it."""
     return target.is_relative_to(directory)
+
+
+def read_vault_dir(repo: Path) -> Path:
+    """Resolve the vault the target declares in its `.env`, or raise PreflightError.
+
+    Part of the zero-token preflight, so every way a target can get this wrong is a
+    diagnostic rather than a traceback: no `.env`, no `VAULT_PROJECT_DIR` key, an empty
+    value, a relative path (it would resolve against the operator's cwd), or a path that
+    is not an existing directory. Nothing downstream creates the vault — `run_fanout`
+    would silently materialise a tree at whatever the value names — so the shape is
+    checked here, before any spend.
+    """
+    env_path = repo / ".env"
+    try:
+        text = env_path.read_text()
+    except OSError as error:
+        raise PreflightError(
+            f"cannot read {env_path} — the target must carry a .env declaring "
+            f"VAULT_PROJECT_DIR ({error.strerror})"
+        ) from error
+    value = ""
+    for line in text.splitlines():
+        key, separator, raw = line.partition("=")
+        if separator and key.strip() == "VAULT_PROJECT_DIR":
+            value = raw.strip().strip('"')
+            break
+    if not value:
+        raise PreflightError(
+            f"no VAULT_PROJECT_DIR in {env_path} — the target must declare the vault "
+            f"path its roles write findings and bookkeeping to"
+        )
+    vault_dir = Path(value)
+    if not vault_dir.is_absolute():
+        raise PreflightError(
+            f"VAULT_PROJECT_DIR in {env_path} is not an absolute path — a relative "
+            f"value resolves against the operator's working directory"
+        )
+    if not vault_dir.is_dir():
+        raise PreflightError(
+            f"VAULT_PROJECT_DIR in {env_path} does not name an existing directory — "
+            f"the vault is never created by a run, it is read and written in place"
+        )
+    return vault_dir
 
 
 def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
@@ -73,11 +132,28 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
             f"no .claude/settings.local.json in {repo} — the target must grant the "
             f"coder write access to the vault ({vault_project_dir})"
         )
-    settings = json.loads(settings_path.read_text())
-    permissions = settings.get("permissions", {})
+    try:
+        raw = settings_path.read_text()
+    except OSError as error:
+        raise PreflightError(
+            f"cannot read {settings_path} — the target must grant the coder write "
+            f"access to the vault ({error.strerror})"
+        ) from error
+    try:
+        settings = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise PreflightError(
+            f"{settings_path} is not valid JSON — the vault grant cannot be read "
+            f"({error.msg} at line {error.lineno})"
+        ) from error
+    if not isinstance(settings, dict):
+        raise PreflightError(
+            f"{settings_path} does not hold a JSON object — the vault grant is read "
+            f"from its `permissions.additionalDirectories`"
+        )
     granted = [
-        *permissions.get("additionalDirectories", []),
-        *settings.get("additionalDirectories", []),
+        *_granted_directories(settings.get("permissions")),
+        *_granted_directories(settings),
     ]
     if not any(_covers(Path(directory), vault_project_dir) for directory in granted):
         raise PreflightError(
@@ -153,7 +229,14 @@ def select_change(repo: Path) -> Path:
             f"(excluding changes/archive/)"
         )
     best = max(candidates, key=lambda item: item[0])
-    return best[1]
+    change_dir = best[1]
+    if not _CHANGE_ID_PATTERN.match(change_dir.name):
+        raise PlanContractError(
+            f"change id '{change_dir.name}' is malformed — a change dir is named "
+            f"'<digits>-<lowercase-slug>'. The id keys the findings path and the "
+            f"role's write grant, so it is refused here rather than interpolated"
+        )
+    return change_dir
 
 
 def validate_change(change_dir: Path) -> None:

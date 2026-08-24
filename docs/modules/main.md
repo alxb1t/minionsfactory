@@ -13,10 +13,12 @@ adapters and the post-build closures into [`driver.run`](driver.md#run).
 
 ## What it does
 
-[`main`](#main) resolves the target's vault from its `.env`, runs a **zero-token preflight**
-([`read_change_state`](state.md#read_change_state) to resolve + validate the active change, which also yields the
-declared release version, plus [`verify_vault_access`](state.md#verify_vault_access)) that exits `1` with a
-diagnostic before any spend, assembles the coder prompt from
+[`main`](#main) runs a **zero-token preflight** ([`read_change_state`](state.md#read_change_state) to resolve +
+validate the active change, which also yields the declared release version;
+[`read_vault_dir`](state.md#read_vault_dir) to resolve and shape-check the vault the target's `.env` declares; and
+[`verify_vault_access`](state.md#verify_vault_access) for the write grant) that exits `1` with a diagnostic before
+any spend — every refusal path in it raises, so no exception class escapes as a traceback. It then assembles the
+coder prompt from
 [`build_inputs_block`](fanout.md#build_inputs_block) + [`assemble_prompt`](fanout.md#assemble_prompt), builds the
 coder
 [`Profile`](provider.md#profile), constructs [`ClaudeCodeProvider`](provider.md#claudecodeprovider) +
@@ -34,8 +36,7 @@ modules it imports.
 
 ```mermaid
 flowchart TD
-    main["main(argv)"] --> vault["_read_vault_dir(repo) — .env"]
-    main --> pre["preflight: read_change_state (resolve + validate) + verify_vault_access — exit 1 on failure, no spend"]
+    main --> pre["preflight: read_change_state (resolve + validate) + read_vault_dir (.env) + verify_vault_access — exit 1 on failure, no spend"]
     main --> emit["_make_emitter(repo) — .minions/ disk+stdout sink"]
     pre --> ver["version = ChangeState.version — declared in the change's proposal.md"]
     main --> roles["_fanout_roles() — reviewer/security/simplify prompts"]

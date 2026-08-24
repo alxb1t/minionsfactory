@@ -6,16 +6,32 @@ import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
 
-# The retired vault-plan location. v0.5 deleted the reader; this guard keeps the string
-# from creeping back into shipped code, role prompts or docs.
-_RETIRED_PLAN_DIR = "implementation_plans"
+# The retired vault-plan model. v0.5 deleted the reader; this guard keeps its directory
+# AND its vocabulary from creeping back into shipped code, role prompts or docs. The
+# needle set is deliberately wider than the path: every miss the v0.5 review found was a
+# retired *symbol or phrase*, not the directory, and the two hand-run symbol greps that
+# phase 4 and phase 6 used as acceptance left nothing durable behind.
+#
+# `current_phase` is in the set although `status._short_phase` once documented itself
+# with it: that docstring was reworded to name the phase label it actually trims, so the
+# needle needs no carve-out and the scan stays a plain "no hits anywhere" assertion.
+_RETIRED = (
+    "implementation_plans",
+    "current_phase",
+    "phaseN",
+    "select_plan",
+    "read_plan_state",
+    "validate_plan",
+    "PlanState",
+    "_plan_version",
+)
 
 # The scan set, asserted below so narrowing it later is a visible edit, not a silent
 # one. Deliberately EXCLUDED, each for its own reason (0005-change-cutover design §5):
 #   - `openspec/specs/` — the specs describe the retirement and must be able to name it;
 #     correctness there is owned by `specs check --strict` plus the release fold's
 #     verify-after-fold, and this change's own delta prose folds in with the literal.
-#   - `tests/` — the guard's own needle is a literal in it.
+#   - `tests/` — the guard's own needles are literals in it.
 #   - `CHANGELOG.md` and `openspec/changes/archive/` — the historical record, which must
 #     keep saying what was true.
 _SCANNED = ("orchestrator", "prompts", "docs", "README.md")
@@ -45,32 +61,63 @@ def _hits(base: Path, roots: tuple[str, ...], needle: str) -> list[str]:
     return found
 
 
+def _declared_vault_dir() -> str | None:
+    """The vault path this repo's own (gitignored) `.env` declares, if it has one."""
+    env_path = _REPO / ".env"
+    if not env_path.exists():
+        return None
+    for line in env_path.read_text().splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "VAULT_PROJECT_DIR":
+            return value.strip().strip('"') or None
+    return None
+
+
 @pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
-def test_the_retired_plan_location_is_named_nowhere_in_code_prompts_or_docs() -> None:
+def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> None:
     assert _SCANNED == ("orchestrator", "prompts", "docs", "README.md")
 
-    assert _hits(_REPO, _SCANNED, _RETIRED_PLAN_DIR) == []
+    assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED} == {
+        needle: [] for needle in _RETIRED
+    }
 
 
 @pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
-def test_the_guard_fails_when_the_retired_path_is_reintroduced(tmp_path: Path) -> None:
-    # The guard is only worth having if it bites: plant the string in each scanned root
-    # and confirm every plant is reported.
+def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
+    tmp_path: Path,
+) -> None:
+    # The guard is only worth having if every needle bites: plant each one in a scanned
+    # root in turn and confirm the plant is reported.
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
     (tmp_path / "docs" / "modules").mkdir(parents=True)
-    (tmp_path / "orchestrator" / "state.py").write_text(f'D = "{_RETIRED_PLAN_DIR}"\n')
-    (tmp_path / "prompts" / "coder.md").write_text(f"read {_RETIRED_PLAN_DIR}/\n")
-    (tmp_path / "docs" / "modules" / "state.md").write_text(
-        f"the {_RETIRED_PLAN_DIR}/ dir\n"
-    )
-    (tmp_path / "README.md").write_text(f"a vault with {_RETIRED_PLAN_DIR}/\n")
 
-    hits = _hits(tmp_path, _SCANNED, _RETIRED_PLAN_DIR)
+    for needle in _RETIRED:
+        (tmp_path / "orchestrator" / "state.py").write_text(f'D = "{needle}"\n')
+        (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
+        (tmp_path / "docs" / "modules" / "state.md").write_text(f"the {needle} thing\n")
+        (tmp_path / "README.md").write_text(f"a vault with {needle}\n")
 
-    assert hits == [
-        "orchestrator/state.py:1",
-        "prompts/coder.md:1",
-        "docs/modules/state.md:1",
-        "README.md:1",
-    ]
+        assert _hits(tmp_path, _SCANNED, needle) == [
+            "orchestrator/state.py:1",
+            "prompts/coder.md:1",
+            "docs/modules/state.md:1",
+            "README.md:1",
+        ]
+
+
+@pytest.mark.spec("sdd:vault-layout:vault-path-not-in-repo")
+def test_the_operators_vault_path_is_named_nowhere_in_the_repo() -> None:
+    # "Never commit the vault path" is a standing guardrail; this is the test that
+    # proves it. The vault path travels in every role's Inputs block and every role
+    # prompt now echoes its inputs, so the literal is one `git add -A` away from
+    # history (`.minions/` is gitignored for the same reason).
+    vault_dir = _declared_vault_dir()
+    if vault_dir is None:  # CI has no .env — nothing to check against
+        pytest.skip("no VAULT_PROJECT_DIR declared in this repo's .env")
+
+    # Compare through a local, so a failure prints the offending sites and never the
+    # vault path itself.
+    hits = _hits(_REPO, _SCANNED, vault_dir)
+
+    assert hits == []

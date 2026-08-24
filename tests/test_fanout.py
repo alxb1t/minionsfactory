@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from orchestrator.__main__ import _findings_map  # the converge/release resolution site
 from orchestrator.fanout import (
     RoleSpec,
     assemble_prompt,
@@ -70,6 +71,40 @@ def test_findings_path_is_keyed_to_the_change_id(tmp_path: Path) -> None:
     assert findings_path(tmp_path, _CHANGE_ID, "review") == (
         tmp_path / "findings" / f"{_CHANGE_ID}_review.md"
     )
+
+
+@pytest.mark.spec("fanout:findings-path:change-id-keyed-path")
+def test_the_fanout_converge_and_release_stages_resolve_the_same_path(
+    tmp_path: Path,
+) -> None:
+    # The scenario's second THEN: the three stages cannot drift. The converge loop and
+    # the release stage both resolve their findings through `__main__._findings_map`;
+    # the fan-out resolves each role's grant itself. True today because `findings_path`
+    # is the only construction site — which is exactly why it is worth a test and not a
+    # grep, since a fourth hand-built path would be invisible to the gate.
+    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    fake = _RecordingProvider(_ROLE)
+
+    run_fanout(
+        fake,
+        repo,
+        vault,
+        _CHANGE_ID,
+        "v0.5",
+        "THE DIFF",
+        repo / ".minions" / "diff.patch",
+        "abc123",
+        repo / "openspec" / "changes" / _CHANGE_ID,
+        _ROLES,
+    )
+
+    shared = _findings_map(vault, _CHANGE_ID, _ROLES)  # converge + release read these
+
+    assert shared == {
+        role.name: findings_path(vault, _CHANGE_ID, role.name) for role in _ROLES
+    }
+    for role, (_, profile) in zip(_ROLES, fake.calls, strict=True):
+        assert f"Write({shared[role.name]})" in profile.allowed_tools
 
 
 @pytest.mark.spec("fanout:findings-path:fanout-writes-through-helper")

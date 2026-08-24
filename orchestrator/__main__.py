@@ -37,6 +37,7 @@ from orchestrator.state import (
     PreflightError,
     read_change_state,
     read_head,
+    read_vault_dir,
     select_change,
     verify_vault_access,
 )
@@ -46,15 +47,6 @@ _CODER_PROFILE = Profile(
     permission_mode="default",
     allowed_tools=("Edit", "Write", "Bash"),
 )
-
-
-def _read_vault_dir(repo: Path) -> Path:
-    """Read VAULT_PROJECT_DIR from the target repo's .env."""
-    for line in (repo / ".env").read_text().splitlines():
-        key, separator, value = line.partition("=")
-        if separator and key.strip() == "VAULT_PROJECT_DIR":
-            return Path(value.strip().strip('"'))
-    raise SystemExit("VAULT_PROJECT_DIR not found in the target repo's .env")
 
 
 def _prompt(name: str) -> str:
@@ -303,10 +295,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_check(args.repo.resolve(), strict=args.strict)
 
     repo = args.repo.resolve()
-    vault_dir = _read_vault_dir(repo)
 
     try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
         change_state = read_change_state(repo)
+        vault_dir = read_vault_dir(repo)
         verify_vault_access(repo, vault_dir)
     except (PlanContractError, PreflightError) as error:
         print(f"preflight failed: {error}")

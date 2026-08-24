@@ -52,6 +52,10 @@ no scriptable official source): resolve those as **accept + document** — a sho
    the code repo
    (Conventional-Commits, e.g. `fix: address review round 1`). The finding-note + backlog edits are vault
    bookkeeping, not part of the code commit.
+   **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
+   you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
+   the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
+   the last paragraph, and a blank line silently breaks it). The release gate checks it across the branch.
 
 Then **stop and report** what you fixed, what you accepted+documented (with the reason), and any `wontfix` (with
 the justification). The reviewer/security/simplify verify passes re-check separately; the release role gates on

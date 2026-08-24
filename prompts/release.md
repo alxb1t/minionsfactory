@@ -71,6 +71,10 @@ Run every check and report a checklist. **If any fails, HALT** with exactly what
 3. **Version file** (if present, e.g. `pyproject.toml`): bump the version to `${VERSION#v}.0`.
 4. **Commit** the release in the repo: `chore(release): ${VERSION}.0` — the fold, the archive move, the
    CHANGELOG cut and the version bump land together.
+   **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
+   you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
+   the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
+   the last paragraph, and a blank line silently breaks it). The release gate checks it across the branch.
 5. **Tag** the release commit: annotated `git tag -a ${VERSION}.0 -m "${VERSION}.0"` — **LOCAL ONLY, do not
    push.**
 6. **Release log** (vault): **prepend** an entry to `release_log.md` in the file's documented format — version,

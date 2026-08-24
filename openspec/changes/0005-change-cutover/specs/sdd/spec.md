@@ -19,8 +19,9 @@ A change SHALL be a directory `changes/<version-id>/` containing `proposal.md`, 
 brief `design.md`). Its `proposal.md` SHALL declare the release version as leading `version: vX.Y` frontmatter —
 the change is the unit of release, so the version travels with it. The change-state reader SHALL resolve the active
 change in-tree, derive the current phase from `tasks.md`, and surface the declared version; a contract-guard SHALL
-refuse a malformed change at read time with a diagnostic naming the specific problem — no active change, a missing
-artifact, a `tasks.md` with no `## Progress` checklist, or a `proposal.md` with no parseable `version`.
+refuse a malformed change at read time with a diagnostic naming the specific problem — no active change, a change
+id that is not `<digits>-<lowercase-slug>`, a missing artifact, a `tasks.md` with no `## Progress` checklist, or a
+`proposal.md` with no parseable `version`.
 
 #### Scenario: Well-formed change resolves in-tree
 - **Key:** `sdd:change-structure:wellformed-resolves`
@@ -42,6 +43,13 @@ artifact, a `tasks.md` with no `## Progress` checklist, or a `proposal.md` with 
 - **WHEN** the reader runs against a repo with no change dir under `changes/` outside `archive/`
 - **THEN** it raises a `PlanContractError` naming the changes directory — never an `IndexError`- or
   `ValueError`-class traceback from an empty candidate set
+
+#### Scenario: A malformed change id is refused
+- **Key:** `sdd:change-structure:malformed-change-id-refused`
+- **Layers:** unit
+- **WHEN** the active change directory's name is not `<digits>-<lowercase-slug>`
+- **THEN** it raises a `PlanContractError` naming the malformed id — the id keys the findings path and is
+  interpolated into the read-only role's write grant, so its shape is refused at the read site rather than carried
 
 #### Scenario: A tasks.md with no progress checklist is refused
 - **Key:** `sdd:change-structure:no-progress-checklist-refused`
@@ -77,8 +85,8 @@ artifact, a `tasks.md` with no `## Progress` checklist, or a `proposal.md` with 
 
 The repository SHALL hold the active change and its progress (`changes/<id>/tasks.md`); the vault SHALL hold
 product intent (PRD), findings (`findings/<change-id>_<role>.md`), and the narrative record. The **driver** SHALL
-determine where the work stands with no vault hop, and no shipped code, role prompt or doc SHALL name the retired
-plan location.
+determine where the work stands with no vault hop; no shipped code, role prompt or doc SHALL name the retired plan
+location or its retired vocabulary, and none SHALL name the operator's vault path.
 
 #### Scenario: Progress is read from the repo, not the vault
 - **Key:** `sdd:vault-layout:progress-in-repo`
@@ -87,13 +95,21 @@ plan location.
 - **THEN** it reads the phase state from the repo `changes/<id>/tasks.md` and consults no vault plan file — the
   run drives to completion against a target whose vault holds no plan
 
-#### Scenario: The retired plan location is named nowhere in code, prompts or docs
+#### Scenario: The retired plan model is named nowhere in code, prompts or docs
 - **Key:** `sdd:vault-layout:no-plan-path-references`
 - **Layers:** unit
 - **WHEN** `orchestrator/`, `prompts/`, `docs/` and `README.md` are scanned
-- **THEN** none of them names the retired plan directory
+- **THEN** none of them names the retired plan directory or the retired plan vocabulary — the deleted symbols and the
+  `current_phase` pointer the driver no longer reads
 - **AND** the scan set excludes the specs themselves, which describe the retirement and must be able to name it, and
   the historical record (`CHANGELOG.md`, `openspec/changes/archive/`), which must keep saying what was true
+
+#### Scenario: The operator's vault path is named nowhere in the repo tree
+- **Key:** `sdd:vault-layout:vault-path-not-in-repo`
+- **Layers:** unit
+- **WHEN** the same roots are scanned for the vault path the target's `.env` declares
+- **THEN** none of them names it — the guardrail that the vault path is never committed is proved by a test rather
+  than by discipline alone
 
 #### Scenario: Findings and product intent stay in the vault
 - **Key:** `sdd:vault-layout:findings-and-prd-in-vault`
