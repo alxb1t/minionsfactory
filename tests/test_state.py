@@ -188,13 +188,16 @@ _PROGRESS = (
 
 
 def _write_change(
-    repo: Path, change_id: str = "0003-x", progress: str = _PROGRESS
+    repo: Path,
+    change_id: str = "0003-x",
+    progress: str = _PROGRESS,
+    proposal: str = "---\nversion: v0.1\n---\n\n# proposal\n",
 ) -> Path:
     """Write a well-formed change dir (four artifacts) under repo/openspec/changes/."""
     change_dir = repo / "openspec" / "changes" / change_id
     change_dir.mkdir(parents=True)
     (change_dir / "specs").mkdir()
-    (change_dir / "proposal.md").write_text("# proposal\n")
+    (change_dir / "proposal.md").write_text(proposal)
     (change_dir / "design.md").write_text("# design\n")
     (change_dir / "tasks.md").write_text(progress)
     return change_dir
@@ -234,17 +237,23 @@ def test_select_change_refuses_a_repo_with_no_active_change(tmp_path: Path) -> N
 @pytest.mark.spec_exempt("mechanism/plumbing")
 def test_change_advanced_needs_a_new_commit_and_a_moved_phase() -> None:
     before = ChangeState(
-        "0003-x", (Phase(1, "a", False), Phase(2, "b", False)), head="h0"
+        "0003-x", (Phase(1, "a", False), Phase(2, "b", False)), "h0", "v0.1"
     )
     moved = ChangeState(
-        "0003-x", (Phase(1, "a", True), Phase(2, "b", False)), head="h1"
+        "0003-x", (Phase(1, "a", True), Phase(2, "b", False)), "h1", "v0.1"
     )
 
     assert change_advanced(before, moved) is True
     # a commit but the phase index did not move → not advanced
-    assert change_advanced(before, ChangeState("0003-x", before.phases, "h1")) is False
+    assert (
+        change_advanced(before, ChangeState("0003-x", before.phases, "h1", "v0.1"))
+        is False
+    )
     # the phase moved but no new commit landed → not advanced (un-gameable)
-    assert change_advanced(before, ChangeState("0003-x", moved.phases, "h0")) is False
+    assert (
+        change_advanced(before, ChangeState("0003-x", moved.phases, "h0", "v0.1"))
+        is False
+    )
 
 
 @pytest.mark.spec("sdd:change-structure:wellformed-resolves")
@@ -303,6 +312,40 @@ def test_read_change_state_refuses_a_change_missing_an_artifact(
 
     with pytest.raises(PlanContractError, match=missing):
         read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+
+@pytest.mark.spec("sdd:change-structure:version-declared-in-proposal")
+def test_read_change_state_carries_the_version_declared_in_the_proposal(
+    tmp_path: Path,
+) -> None:
+    _write_change(tmp_path, proposal="---\nversion: v0.6\n---\n\n# proposal\n")
+
+    state = read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert state.version == "v0.6"
+
+
+@pytest.mark.spec("sdd:change-structure:missing-version-refused")
+@pytest.mark.parametrize(
+    "proposal",
+    [
+        "# proposal with no frontmatter\n",
+        "---\ntitle: no version key\n---\n\n# proposal\n",
+        "---\nversion: 0.6\n---\n\n# proposal\n",
+        "---\nversion: v0.6.1\n---\n\n# proposal\n",
+        "---\nversion:\n---\n\n# proposal\n",
+    ],
+)
+def test_read_change_state_refuses_a_change_with_no_declared_version(
+    tmp_path: Path, proposal: str
+) -> None:
+    _write_change(tmp_path, proposal=proposal)
+
+    with pytest.raises(PlanContractError) as excinfo:
+        read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert "proposal.md" in str(excinfo.value)
+    assert "version" in str(excinfo.value)
 
 
 @pytest.mark.spec("sdd:vault-layout:progress-in-repo")

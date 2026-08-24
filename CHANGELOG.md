@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The release version is declared by the change** (change `0005-change-cutover`, phase 1). `ChangeState` gains `version: str`, and `read_change_state` now reads `openspec/changes/<id>/proposal.md`'s leading YAML frontmatter through the existing `parse_frontmatter` and a new contract guard (`read_change_version`): a `proposal.md` with no frontmatter, no `version` key, or a `version` that is not `vX.Y` raises `PlanContractError` naming the file and the field, at read time — before any role is spawned. The change is the unit of release, so the version travels with it instead of being derived from a vault plan's filename. `skills/mf-forge/SKILL.md` teaches the convention in the same breath, so the next `mf-`authored change ships with the frontmatter rather than being refused at preflight.
+
 ## [0.4.0] - 2026-08-23
 
 ### Added

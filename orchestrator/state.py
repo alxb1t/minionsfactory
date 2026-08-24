@@ -12,6 +12,7 @@ _CODE_PHASE_STATUSES = frozenset({"done", "wip", "planned", "todo"})
 _CHANGE_PATTERN = re.compile(r"^(\d+)-")
 _PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
 _CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
+_VERSION_PATTERN = re.compile(r"^v\d+\.\d+$")
 
 
 def select_plan(vault_project_dir: Path) -> Path:
@@ -171,11 +172,12 @@ class Phase:
 
 @dataclass(frozen=True)
 class ChangeState:
-    """Where-are-we for an in-tree change: ordered phases + git head, read from disk."""
+    """Where-are-we for an in-tree change: phases, git head + declared version."""
 
     change_id: str
     phases: tuple[Phase, ...]
     head: str
+    version: str
 
     @property
     def current(self) -> Phase | None:
@@ -237,6 +239,25 @@ def validate_change(change_dir: Path) -> None:
             )
 
 
+def read_change_version(change_dir: Path) -> str:
+    """Return the release version a change declares in its proposal.md frontmatter.
+
+    The change is the unit of release, so the version travels with it: `proposal.md`
+    opens with a `---` fence carrying `version: vX.Y`. Absent, unparseable, or not
+    `vX.Y` is refused here, at read time, with a diagnostic naming the file and the
+    field — never a version guessed from a filename or a prose header.
+    """
+    frontmatter = parse_frontmatter((change_dir / "proposal.md").read_text())
+    version = frontmatter.get("version", "")
+    if not _VERSION_PATTERN.match(version):
+        raise PlanContractError(
+            f"change '{change_dir.name}' declares no release version — its "
+            f"proposal.md must open with leading frontmatter 'version: vX.Y' "
+            f"(found: {version!r})"
+        )
+    return version
+
+
 def parse_progress(text: str) -> list[Phase]:
     """Parse a tasks.md `## Progress` checklist into ordered phases (checked = done).
 
@@ -274,12 +295,14 @@ def read_change_state(
     """Read where-are-we for the active in-tree change — purely from the repo.
 
     Resolve the active change dir under `<repo>/openspec/changes/` (highest version-id,
-    excluding archive/), refuse a malformed change (contract-guard), and parse its
+    excluding archive/), refuse a malformed change (contract-guard), parse its
     `tasks.md` progress checklist into ordered phases with the current phase = the first
-    unchecked item. Consults no vault path (R5): the only inputs are repo + head reader.
+    unchecked item, and surface the version its `proposal.md` declares. Consults no
+    vault path (R5): the only inputs are repo + head reader.
     """
     change_dir = select_change(repo)
     validate_change(change_dir)
+    version = read_change_version(change_dir)
     phases = parse_progress((change_dir / "tasks.md").read_text())
     if not phases:
         raise PlanContractError(
@@ -289,6 +312,7 @@ def read_change_state(
         change_id=change_dir.name,
         phases=tuple(phases),
         head=head_reader(repo),
+        version=version,
     )
 
 

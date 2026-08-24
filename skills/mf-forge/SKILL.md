@@ -24,9 +24,23 @@ Run with **cwd = the target repo**. Resolve the vault from `.env` → `VAULT_PRO
 
 Create `openspec/changes/NNNN-<name>/`:
 
-1. **`proposal.md`** — a header line (`**Change:** NNNN-<name> · **Version:** vX.Y · **PRD:** vault path`), then
-   **Why** (from the PRD Problem), **What (scope)** (the requirements as a numbered list), **Approach** (from the
-   design proposition, sanitized), **Out of scope**, **Success criteria**.
+1. **`proposal.md`** — leading YAML frontmatter declaring the release version, then a header line
+   (`**Change:** NNNN-<name> · **Version:** vX.Y · **PRD:** vault path`), then **Why** (from the PRD Problem),
+   **What (scope)** (the requirements as a numbered list), **Approach** (from the design proposition, sanitized),
+   **Out of scope**, **Success criteria**.
+
+   ```markdown
+   ---
+   version: vX.Y
+   ---
+
+   # Proposal — NNNN-<name>
+   ```
+
+   The `version:` frontmatter is **required and machine-read**: the change is the unit of release, so the version
+   travels with it, and the orchestrator's change-state reader takes the release version from here and nowhere else.
+   It must match `vX.Y` exactly (no patch component). A change whose `proposal.md` carries no frontmatter, no
+   `version` key, or a malformed value is **refused at preflight**, before any role is spawned.
 2. **`design.md`** — the technical *how*, from the blueprint's design proposition: real decisions (modules touched,
    new components, key trade-offs). **No open design questions** — those were resolved at `mf-blueprint`. A small
    change still gets a brief one.

@@ -20,7 +20,7 @@ delta as authored — see phase 4 and `specs/README.md`.
 
 ## Progress
 
-- [ ] 1 — Version source: `version:` in the change proposal, the reader, the guard, and `mf-forge`
+- [x] 1 — Version source: `version:` in the change proposal, the reader, the guard, and `mf-forge`
 - [ ] 2 — Findings home and key: `<vault>/findings/<change-id>_<role>.md`
 - [ ] 3 — Driver cutover: `decide` / `run` over `ChangeState`, preflight switch
 - [ ] 4 — Delete the vault-plan path (code + tests + the `change-state` REMOVED block, one commit)
