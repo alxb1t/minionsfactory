@@ -32,8 +32,10 @@ python -m orchestrator run --repo /path/to/target-repo
 
 The **target repo** it drives must provide:
 
-- a **`.env`** with `VAULT_PROJECT_DIR` — the path to its plan vault (an Obsidian folder holding the
-  versioned `implementation_plans/`), and
+- an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
+  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta,
+- a **`.env`** with `VAULT_PROJECT_DIR` — the path to its vault (an Obsidian folder holding the PRD, the
+  narrative record and the roles' `findings/`), and
 - a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
 
   ```toml

@@ -262,25 +262,6 @@ def test_read_change_state_refuses_a_change_with_no_declared_version(
     assert "version" in str(excinfo.value)
 
 
-@pytest.mark.spec("sdd:vault-layout:progress-in-repo")
-def test_read_change_state_consults_no_vault_path(tmp_path: Path) -> None:
-    # The reader's only inputs are the repo and a head reader — there is no vault
-    # parameter, so it structurally cannot hop to a vault plan file. It resolves with
-    # no vault present anywhere on disk.
-    repo = tmp_path / "repo"
-    _write_change(repo)
-    seen: dict[str, Path] = {}
-
-    def head_reader(passed_repo: Path) -> str:
-        seen["repo"] = passed_repo
-        return "h"
-
-    state = read_change_state(repo, head_reader=head_reader)
-
-    assert state.current is not None and state.current.index == 2
-    assert seen["repo"] == repo
-
-
 @pytest.mark.spec("sdd:change-structure:wellformed-resolves")
 def test_this_change_archived_tasks_md_stays_well_formed_after_release() -> None:
     # Dogfood: after the v0.3.0 release fold, 0003-sdd-adoption is folded + archived.

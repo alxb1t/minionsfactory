@@ -1,14 +1,15 @@
 # Capability: `change-state` (where-are-we, read from disk)
 
-Reconstruct "where are we" purely from disk — the plan's phase pointer plus git head — and refuse
-a malformed plan at read time with a diagnostic rather than a silent empty state or a mid-run
-`KeyError`. It also runs the zero-token vault-write preflight so a misconfigured target halts before
-spending. This spec captures the **vault-plan reader** and preflight shipped in
-`orchestrator/state.py`; each scenario declares `Layers: unit` and is bound to its proving test.
+Refuse a misconfigured target **before any spend**: this capability holds the zero-token
+**vault-write preflight** shipped in `orchestrator/state.py`, which checks that the target grants
+the coder write access to the vault before a single role is spawned. Its scenario declares
+`Layers: unit` and is bound to its proving test.
 
-> The **in-tree change reader** (`read_change_state` / `validate_change` — the v0.5 sibling) is
-> spec'd under the `sdd` capability (`change-structure`, `vault-layout`); its scenarios fold in on
-> release. This file covers the plan reader that the loop runs today.
+> The reader that reconstructs "where are we" is the **in-tree change reader**
+> (`read_change_state` / `select_change` / `validate_change` / `change_advanced`), spec'd under the
+> `sdd` capability (`change-structure`, `vault-layout`). The vault-plan reader this capability once
+> described was deleted in v0.5, along with its three requirements — see the `change-state`
+> `## REMOVED Requirements` block in `changes/archive/0005-change-cutover/`.
 
 ## Requirements
 

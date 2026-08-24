@@ -466,6 +466,40 @@ def test_run_drives_a_repo_only_change_with_no_vault_plan(tmp_path: Path) -> Non
     assert list(vault.iterdir()) == []
 
 
+@pytest.mark.spec("sdd:vault-layout:progress-in-repo")
+def test_the_driver_reads_progress_from_the_repo_and_hops_to_no_vault(
+    tmp_path: Path,
+) -> None:
+    # The requirement is about the *driver*, not the helper: `run` determines where the
+    # work stands through the real `read_change_state`, whose only inputs are the repo
+    # and a git-head seam. Here the vault path does not exist at all — a run that
+    # consulted any vault file could not complete.
+    repo, absent_vault = tmp_path / "repo", tmp_path / "no-such-vault"
+    change_dir = _write_repo_only_change(repo, phases=3)
+    heads = ["c0"]
+    reads: list[Path] = []
+
+    def state_reader(passed_repo: Path) -> ChangeState:
+        reads.append(passed_repo)
+        return read_change_state(passed_repo, head_reader=lambda _: heads[-1])
+
+    result = run(
+        repo,
+        absent_vault,
+        _TickingProvider(change_dir / "tasks.md", heads),
+        FakeGate(_GREEN),
+        "build",
+        Profile(),
+        state_reader=state_reader,
+        halt_checker=_never_halts,
+    )
+
+    assert result.status is RunStatus.COMPLETE
+    assert result.phases_advanced == 3
+    assert reads and all(path == repo for path in reads)  # the repo, and only the repo
+    assert not absent_vault.exists()  # never created, never read
+
+
 @pytest.mark.spec("build-loop:run:emits-advancing-event-stream")
 def test_run_renders_each_phase_as_its_index_and_title(tmp_path: Path) -> None:
     repo, vault = tmp_path / "repo", tmp_path / "vault"

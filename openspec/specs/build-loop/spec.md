@@ -1,11 +1,16 @@
 # Capability: `build-loop` (the deterministic build spine)
 
-The driver that advances a plan phase by phase or halts — **no LLM in the loop**. It spawns
-the coder, runs the gate itself, and **detects** the advance (a new commit landed **and** the
-current phase moved) rather than trusting the agent's word; at plan-complete it fans out, runs
-the converge loop, and prepares the release, halting cleanly at the first blocker so the next
-run resumes from disk. This spec captures the behavior shipped in `orchestrator/driver.py`; each
-scenario declares `Layers: unit` and is bound to its proving test.
+The driver that advances the active **in-tree change** phase by phase or halts — **no LLM in the
+loop**. It reads where the work stands from the repo alone (`openspec/changes/<id>/tasks.md` plus
+git head), spawns the coder, runs the gate itself, and **detects** the advance (a new commit landed
+**and** the current-phase index moved) rather than trusting the agent's word; at change-complete it
+fans out, runs the converge loop, and prepares the release, halting cleanly at the first blocker so
+the next run resumes from disk. This spec captures the behavior shipped in `orchestrator/driver.py`;
+each scenario declares `Layers: unit` and is bound to its proving test.
+
+> Two requirement **titles** below still say "plan" — kept verbatim on purpose. The release fold
+> matches a requirement by title and replaces the whole block, so retitling one would append a
+> duplicate and orphan the original. Their bodies speak of the change, which is what ships.
 
 ## Requirements
 
