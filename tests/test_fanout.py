@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.fanout import RoleSpec, run_fanout
+from orchestrator.fanout import (
+    RoleSpec,
+    assemble_prompt,
+    build_inputs_block,
+    run_fanout,
+)
 from orchestrator.findings import FindingsState, findings_path
 from orchestrator.provider import Profile, RoleResult
 from orchestrator.status import Event
@@ -12,6 +17,7 @@ _ROLE = RoleResult(
 )
 _ROLES = [RoleSpec("review", "R"), RoleSpec("security", "S"), RoleSpec("simplify", "P")]
 _CHANGE_ID = "0005-change-cutover"
+_PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 
 
 class _RecordingProvider:
@@ -44,6 +50,7 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
         repo,
         vault,
         _CHANGE_ID,
+        "v0.5",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
         "abc123",
@@ -77,6 +84,7 @@ def test_run_fanout_scopes_each_write_to_the_resolved_findings_path(
         repo,
         vault,
         _CHANGE_ID,
+        "v0.5",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
         "abc123",
@@ -113,6 +121,7 @@ def test_run_fanout_creates_the_findings_dir_before_the_first_spawn(
         repo,
         vault,
         _CHANGE_ID,
+        "v0.5",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
         "abc123",
@@ -135,6 +144,7 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
         repo,
         vault,
         _CHANGE_ID,
+        "v0.5",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
         "abc123",
@@ -155,6 +165,57 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
     assert "Plan" not in inputs_block  # no line of the block names a plan file
 
 
+@pytest.mark.spec("fanout:role-inputs:block-carries-change-and-findings")
+def test_inputs_block_carries_the_change_findings_head_and_version(
+    tmp_path: Path,
+) -> None:
+    vault = tmp_path / "vault"
+    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    findings: dict[str, Path] = {
+        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+    }
+
+    block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)
+
+    assert str(change_dir) in block
+    for path in findings.values():
+        assert str(path) in block
+    assert "abc123" in block
+    assert "v0.5" in block
+
+
+@pytest.mark.parametrize("role", ["coder", "fixer", "release"])
+@pytest.mark.spec("fanout:role-inputs:prompt-leads-with-inputs")
+def test_an_assembled_role_prompt_leads_with_the_inputs_block(
+    tmp_path: Path, role: str
+) -> None:
+    vault = tmp_path / "vault"
+    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    body = f"# {role.upper()}-BODY\n\nthe role's own mandate.\n"
+
+    findings: dict[str, Path] = {
+        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+    }
+
+    block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)
+    prompt = assemble_prompt(block, body)
+
+    assert prompt.startswith("## Inputs")
+    assert prompt.endswith(body)  # the Inputs block first, then the role body
+    assert prompt == block + body
+
+
+@pytest.mark.parametrize("prompt_file", ["coder.md", "fixer.md", "release.md"])
+@pytest.mark.spec("fanout:role-inputs:prompt-leads-with-inputs")
+def test_a_role_prompt_body_derives_no_path_by_shell(prompt_file: str) -> None:
+    # The orchestrator resolves paths in code and supplies them in the Inputs block;
+    # a prompt that shells for its own paths is the thing this replaces.
+    body = (_PROMPTS / prompt_file).read_text()
+
+    assert "PLAN_FILE" not in body
+    assert "implementation_plans" not in body
+
+
 @pytest.mark.spec("fanout:read-only-roles:emits-spawn-and-returned")
 def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
@@ -166,6 +227,7 @@ def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
         repo,
         vault,
         _CHANGE_ID,
+        "v0.5",
         "THE DIFF",
         repo / ".minions" / "diff.patch",
         "abc123",

@@ -3,7 +3,7 @@
 Read-only over the frozen diff.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,25 +22,43 @@ class RoleSpec:
     prompt: str
 
 
-def _inputs_block(
-    mode: str,
-    diff_path: Path,
-    findings_file: Path,
-    head: str,
+def build_inputs_block(
     change_dir: Path,
+    findings: Mapping[str, Path],
+    head: str,
+    version: str,
     vault_dir: Path,
+    lead_lines: Sequence[str] = (),
 ) -> str:
-    """Build the Inputs block a read-only role needs (it can't resolve paths itself)."""
-    return (
-        "## Inputs (supplied by the orchestrator — do not re-derive these)\n"
-        f"- Mode: {mode}\n"
-        f"- Diff to review (read this file): {diff_path}\n"
-        f"- Findings file (write ONLY this): {findings_file}\n"
-        f"- head (for your `head:` frontmatter field): {head}\n"
-        f"- Change (proposal · design · tasks): {change_dir}\n"
-        f"- Context: {vault_dir / 'overview.md'}, {vault_dir / 'log.md'}\n\n"
-        "---\n\n"
-    )
+    """Build the Inputs block a role receives — path resolution lives here, in code.
+
+    Every role gets one: the three read-only fan-out roles, and the coder, fixer and
+    release roles. A role has no shell with which to resolve paths (and deriving them
+    by shell is what this replaces), so the orchestrator names the change directory,
+    the findings paths the role needs, the git head and the declared release version.
+
+    `lead_lines` carries the role-specific bullets a caller wants above the common
+    core — the fan-out's mode, diff and single write target.
+    """
+    lines = [
+        "## Inputs (supplied by the orchestrator — do not re-derive these)",
+        *lead_lines,
+        f"- Change (proposal · design · tasks): {change_dir}",
+        f"- Release version: {version}",
+        f"- head (the branch tip the orchestrator read): {head}",
+    ]
+    lines += [f"- Findings ({role}): {path}" for role, path in findings.items()]
+    lines.append(f"- Context: {vault_dir / 'overview.md'}, {vault_dir / 'log.md'}")
+    return "\n".join(lines) + "\n\n---\n\n"
+
+
+def assemble_prompt(inputs_block: str, role_body: str) -> str:
+    """Assemble a role's final prompt: the Inputs block first, then the role's body.
+
+    A one-liner on purpose — it makes "the prompt leads with the Inputs block" a fact
+    a unit test can assert, rather than a property of `__main__`'s wiring.
+    """
+    return inputs_block + role_body
 
 
 def run_fanout(
@@ -48,6 +66,7 @@ def run_fanout(
     repo: Path,
     vault_dir: Path,
     change_id: str,
+    version: str,
     diff: str,
     diff_path: Path,
     head: str,
@@ -71,9 +90,20 @@ def run_fanout(
     for role in roles:
         findings_file = findings_path(vault_dir, change_id, role.name)
         profile = read_only_profile(findings_file)
-        prompt = (
-            _inputs_block(mode, diff_path, findings_file, head, change_dir, vault_dir)
-            + role.prompt
+        prompt = assemble_prompt(
+            build_inputs_block(
+                change_dir,
+                {str(role.name): findings_file},
+                head,
+                version,
+                vault_dir,
+                lead_lines=[
+                    f"- Mode: {mode}",
+                    f"- Diff to review (read this file): {diff_path}",
+                    f"- Findings file (write ONLY this): {findings_file}",
+                ],
+            ),
+            role.prompt,
         )
         emit_event(RoleSpawn(ts=datetime.now(timezone.utc), role=role.name))
         result = run_role_with_diff(provider, prompt, repo, profile, diff, diff_path)

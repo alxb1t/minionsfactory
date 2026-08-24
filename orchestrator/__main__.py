@@ -11,7 +11,12 @@ from pathlib import Path
 from orchestrator.converge import ConvergeResult, converge
 from orchestrator.diff import compute_diff
 from orchestrator.driver import RunStatus, run
-from orchestrator.fanout import RoleSpec, run_fanout
+from orchestrator.fanout import (
+    RoleSpec,
+    assemble_prompt,
+    build_inputs_block,
+    run_fanout,
+)
 from orchestrator.findings import FindingsState, findings_path, read_findings_state
 from orchestrator.gate import Gate, SubprocessGate
 from orchestrator.provider import (
@@ -92,10 +97,18 @@ def _fanout_roles() -> list[RoleSpec]:
     ]
 
 
+def _findings_map(
+    vault_dir: Path, change_id: str, roles: list[RoleSpec]
+) -> dict[str, Path]:
+    """Resolve every role's findings path, keyed by role name."""
+    return {r.name: findings_path(vault_dir, change_id, r.name) for r in roles}
+
+
 def _make_fanout(
     provider: Provider,
     repo: Path,
     vault_dir: Path,
+    version: str,
     base: str,
     roles: list[RoleSpec],
     emit_event: Callable[[Event], None],
@@ -109,6 +122,7 @@ def _make_fanout(
             repo,
             vault_dir,
             change_dir.name,
+            version,
             diff,
             repo / ".minions" / "diff.patch",
             read_head(repo),
@@ -126,13 +140,19 @@ def _make_converge(
     gate: Gate,
     repo: Path,
     vault_dir: Path,
+    version: str,
     roles: list[RoleSpec],
     fixer_prompt: str,
     coder_profile: Profile,
     emit_event: Callable[[Event], None],
 ) -> Callable[[], ConvergeResult]:
     change_dir = select_change(repo)
-    paths = [findings_path(vault_dir, change_dir.name, r.name) for r in roles]
+    findings = _findings_map(vault_dir, change_dir.name, roles)
+    paths = list(findings.values())
+    fixer = assemble_prompt(
+        build_inputs_block(change_dir, findings, read_head(repo), version, vault_dir),
+        fixer_prompt,
+    )
 
     def _read_states() -> list[FindingsState | None]:
         return [read_findings_state(p) for p in paths]
@@ -146,6 +166,7 @@ def _make_converge(
             repo,
             vault_dir,
             change_dir.name,
+            version,
             diff,
             repo / ".minions" / "diff.patch",
             read_head(repo),
@@ -159,7 +180,7 @@ def _make_converge(
         provider,
         gate,
         repo,
-        fixer_prompt,
+        fixer,
         coder_profile,
         _read_states,
         _run_verify,
@@ -209,8 +230,9 @@ def _make_release(
     today: str,
     roles: list[RoleSpec],
 ) -> Callable[[], ReleaseResult]:
-    change_id = select_change(repo).name
-    findings_paths = [findings_path(vault_dir, change_id, r.name) for r in roles]
+    change_dir = select_change(repo)
+    findings = _findings_map(vault_dir, change_dir.name, roles)
+    findings_paths = list(findings.values())
 
     def _release() -> ReleaseResult:
         verdict = verify_release_gate(
@@ -226,7 +248,16 @@ def _make_release(
             verdict, repo, vault_dir, version, today, branch, SubprocessReleaseGit()
         )
         if result.handoff:
-            print(result.handoff)
+            # The release stage spawns no role — `prompts/release.md` is invoked by
+            # hand — so the orchestrator *emits* the same Inputs block with the
+            # handoff rather than prepending it at spawn. Path resolution still
+            # lives in one place in code; the human-invoked role reads it, not a shell.
+            print(
+                build_inputs_block(
+                    change_dir, findings, read_head(repo), version, vault_dir
+                )
+                + result.handoff
+            )
         return result
 
     return _release
@@ -288,6 +319,17 @@ def main(argv: list[str] | None = None) -> int:
     roles = _fanout_roles()
     branch = _current_branch(repo)
     today = date.today().isoformat()
+    change_dir = select_change(repo)
+    coder_prompt = assemble_prompt(
+        build_inputs_block(
+            change_dir,
+            _findings_map(vault_dir, change_dir.name, roles),
+            change_state.head,
+            version,
+            vault_dir,
+        ),
+        _coder_prompt(),
+    )
 
     try:
         result = run(
@@ -295,15 +337,18 @@ def main(argv: list[str] | None = None) -> int:
             vault_project_dir=vault_dir,
             provider=provider,
             gate=gate,
-            coder_prompt=_coder_prompt(),
+            coder_prompt=coder_prompt,
             profile=_CODER_PROFILE,
             emit_event=emitter,
-            fanout=_make_fanout(provider, repo, vault_dir, args.base, roles, emitter),
+            fanout=_make_fanout(
+                provider, repo, vault_dir, version, args.base, roles, emitter
+            ),
             converge=_make_converge(
                 provider,
                 gate,
                 repo,
                 vault_dir,
+                version,
                 roles,
                 _fixer_prompt(),
                 _CODER_PROFILE,
