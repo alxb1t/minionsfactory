@@ -26,7 +26,7 @@ delta as authored — see phase 4 and `specs/README.md`.
 - [x] 4 — Delete the vault-plan path (code + tests + the `change-state` REMOVED block, one commit)
 - [x] 5 — Role inputs: coder / fixer / release; the release prompt gains the fold step
 - [x] 6 — Specs and docs: preambles, the docs sweep, and the retired-path regression guard
-- [ ] 7 — Bookkeeping: backlog, `findings/`, CHANGELOG
+- [x] 7 — Bookkeeping: backlog, `findings/`, CHANGELOG
 
 ---
 
