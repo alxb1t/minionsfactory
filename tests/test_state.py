@@ -227,11 +227,30 @@ def test_select_change_picks_highest_id_excluding_archive(tmp_path: Path) -> Non
     assert select_change(tmp_path).name == "0003-active"
 
 
-@pytest.mark.spec_exempt("mechanism/plumbing")
-def test_select_change_refuses_a_repo_with_no_active_change(tmp_path: Path) -> None:
+@pytest.mark.spec("sdd:change-structure:no-active-change-refused")
+def test_read_change_state_refuses_a_repo_with_no_active_change(tmp_path: Path) -> None:
+    # only archive/ — the candidate set is empty, and an empty `max()` would otherwise
+    # escape as a bare ValueError the preflight does not catch.
     (tmp_path / "openspec" / "changes" / "archive").mkdir(parents=True)
-    with pytest.raises(PlanContractError, match="no active change"):
-        select_change(tmp_path)
+
+    with pytest.raises(PlanContractError) as excinfo:
+        read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert "no active change" in str(excinfo.value)
+    assert str(tmp_path / "openspec" / "changes") in str(excinfo.value)
+
+
+@pytest.mark.spec("sdd:change-structure:no-progress-checklist-refused")
+def test_read_change_state_refuses_a_tasks_md_with_no_progress_checklist(
+    tmp_path: Path,
+) -> None:
+    _write_change(tmp_path, progress="# Tasks\n\n## Phase 1 — a\n\nprose only\n")
+
+    with pytest.raises(PlanContractError) as excinfo:
+        read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert "tasks.md" in str(excinfo.value)
+    assert "## Progress" in str(excinfo.value)
 
 
 @pytest.mark.spec_exempt("mechanism/plumbing")

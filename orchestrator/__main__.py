@@ -30,10 +30,9 @@ from orchestrator.specs import run_check
 from orchestrator.state import (
     PlanContractError,
     PreflightError,
+    read_change_state,
     read_head,
-    read_plan_state,
     select_change,
-    select_plan,
     verify_vault_access,
 )
 from orchestrator.status import Event, emit, render
@@ -91,11 +90,6 @@ def _fanout_roles() -> list[RoleSpec]:
         RoleSpec("security", (prompts / "security.md").read_text()),
         RoleSpec("simplify", (prompts / "simplify.md").read_text()),
     ]
-
-
-def _plan_version(vault_dir: Path) -> str:
-    """Derive the plan version (e.g. 'v0.6') from the highest plan's filename."""
-    return select_plan(vault_dir).name.split("_")[0]
 
 
 def _make_fanout(
@@ -281,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     vault_dir = _read_vault_dir(repo)
 
     try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
-        read_plan_state(vault_dir, repo)
+        change_state = read_change_state(repo)
         verify_vault_access(repo, vault_dir)
     except (PlanContractError, PreflightError) as error:
         print(f"preflight failed: {error}")
@@ -290,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
     provider = ClaudeCodeProvider(model=args.model, effort=args.effort)
     gate = SubprocessGate()
     emitter = _make_emitter(repo)
-    version = _plan_version(vault_dir)
+    version = change_state.version  # declared by the change, not derived from a path
     roles = _fanout_roles()
     branch = _current_branch(repo)
     today = date.today().isoformat()
