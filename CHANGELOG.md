@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-24
+
 **v0.5 — the change cutover.** v0.3 built, spec'd and unit-tested the in-tree change reader and then never wired it in: `driver.run` still defaulted to the vault-plan reader, the vault had since dropped `implementation_plans/` entirely, and the framework was **broken against its own vault** — a run died on an uncaught `ValueError` from `max()` over an empty glob instead of the diagnostic the preflight exists to produce. Two shipped specs asserted contradictory behaviour about where progress is read, and the one actually wired was the retired one. This release makes the in-tree change the **running** model: the driver reads `openspec/changes/<id>/tasks.md` and nothing else, the vault-plan path is deleted rather than kept alongside, the release version is declared by the change that ships it, findings move to `<vault>/findings/<change-id>_<role>.md`, and every role gets its paths from the orchestrator instead of shelling for them. Hand-built across seven phases — driving this change through `run` would have required the working state reader that *is* the deliverable.
 
 ### Added
