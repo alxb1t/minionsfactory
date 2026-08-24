@@ -114,3 +114,135 @@ second toolchain is a new Tier-2 section and no edit here.
     close would be a defect in the report rather than a finding, so it ships `advisory` and does not withhold
     `compliant`. MinionsFactory itself satisfies it precisely because it runs the checker from source. Making the
     checker distributable is its own work → backlog; the severity is revisited when it lands.
+
+### C · Gate quality
+
+- **`gate:covers-axes`** · (M+J) · `blocking`
+  - **Checked:** the `gate` array in `.minions/minions.toml` covers all four quality axes — **format** ·
+    **lint** · **typecheck** · **test**. **(M)** each axis maps to at least one array entry (one may serve two).
+    **(J)** the mapping is genuine: a formatter run in rewrite mode is not the format *check*, a command that
+    reports findings without failing does not cover its axis, and a linter is not counted as the type checker.
+  - **Fix:** add a command for each uncovered axis. A gate missing an axis still exits `0`, so the loop advances
+    on it and the missing axis is never enforced again.
+- **`gate:contract-agrees`** · (M) · `required`
+  - **Checked:** every place `CLAUDE.md` or `README.md` declares the gate **as commands** matches the `gate` array
+    in `.minions/minions.toml` **command-for-command** — the same commands, in the same order, with the same
+    flags. A flag difference is a mismatch: two commands that differ in their arguments are two different
+    commands, and the human types the one the doc shows.
+  - **Boundary — what counts as a declaration (the (M) line):** **only a literal command block** — a fenced code
+    block, or a list whose items are command lines. A **prose axis list** — one that names the quality *axes*
+    rather than the commands (*"tests pass"*, *"format + lint clean"*, *"strict type-check clean"*) — is
+    **out of scope for this criterion.** Command-for-command is a mechanical comparison and it needs commands on
+    both sides; grading prose against an array would turn an (M) criterion into a judgment call that can decide
+    differently on two runs of an unchanged repo, which is the rubric defect this rubric refuses to ship. Prose is
+    not left unchecked, it is checked by the criteria that own it: `gate:covers-axes` owns whether the axes are
+    the right ones, and `wiring:claude-md`'s (J) layer owns whether `CLAUDE.md` describes the contract the repo
+    actually runs.
+  - **Fix:** rewrite the declaring block to the array verbatim, or delete the block and point at
+    `.minions/minions.toml` — one source of truth, quoted or referenced, never paraphrased.
+- **`gate:make-mirrors`** · (M+J) · `required`
+  - **Checked:** a root `Makefile` declares a `gate` target whose recipe runs the same commands, in the same
+    order, as the `gate` array in `.minions/minions.toml`. **(M)** the target exists and its command lines are
+    compared against the array. **(J)** a difference in *form* that runs the same command — a variable in place
+    of a literal, a line continuation — is not a mismatch; a missing, extra or reordered check is.
+    **A repo with no `Makefile`, or one with no `gate` target, fails this criterion outright** — there is nothing
+    to mirror with, and the human's gate and the orchestrator's have no way to stay in step.
+  - **Fix:** add or correct the `Makefile` `gate` target so the gate a human types and the gate the orchestrator
+    runs cannot drift apart.
+- **`gate:no-gaming`** · (J) · `required`
+  - **Checked:** every waiver in the tool configuration the gate's commands read — an ignore, an exclude, a
+    per-path override, a severity downgrade — is **declared and defensible**: it scopes a rule where the rule
+    adds no value, and never hides a defect. Read each one and ask what it lets through. Relaxing a **docstring**
+    rule over a **test tree** is defensible — the test names are the documentation. Switching a whole check off
+    repo-wide, excluding the very package the gate exists to check, or downgrading an error to a warning so the
+    command exits `0`, is not.
+  - **Fix:** delete the waiver and fix what it was hiding, or narrow it to the smallest scope that earns it and
+    record why it is there — an undeclared waiver is how a gate goes quietly green.
+
+## Tier 2 — toolchain profiles
+
+A profile describes what the **toolchain** must look like. Exactly **one** profile is measured per run — the one
+the reader's outer step detects mechanically *before* the measurement starts — and its criteria are added to the
+Tier-1 set. No profile criterion restates a universal one: Tier 1 asks whether a gate exists, is declared
+consistently and covers the four axes; a profile asks whether the toolchain-specific files and commands are the
+ones that toolchain requires.
+
+### Profile `python-uv`
+
+**Detection rule (mechanical).** A tracked `pyproject.toml` **and** a uv signal — `uv.lock` tracked, **or** a
+`[tool.uv]` table in `pyproject.toml`. Both halves are required. A `pyproject.toml` alone is not enough: a poetry
+or pip-tools repo would then fail `py:lockfile` and `py:gate-commands` at `blocking` for using a toolchain this
+profile does not describe. A Python repo with **no** uv signal therefore degrades to the universal tier exactly as
+an unrecognised manifest does — `profile: none`, toolchain criteria not assessed, and the report says so.
+
+- **`py:manifest`** · (M) · `blocking`
+  - **Checked:** `pyproject.toml` declares the project — a `[project]` table with a `name` — and a
+    `requires-python` constraint.
+  - **Fix:** add the `[project]` table with `name` and `requires-python`; nothing resolves the environment
+    without them.
+- **`py:lockfile`** · (M) · `blocking`
+  - **Checked:** `uv.lock` exists at the repo root and is **tracked** (`git ls-files uv.lock` returns it).
+  - **Fix:** `uv lock`, then commit the file — an untracked lock cannot reproduce the environment a gate ran in,
+    so a green gate proves nothing about the next machine.
+- **`py:gate-commands`** · (M+J) · `blocking`
+  - **Checked:** the `gate` array in `.minions/minions.toml` is the **uv form** — `uv sync --locked` ·
+    `ruff format --check` · `ruff check` · `ty check` · `pytest` — each invoked through `uv run` where the tool
+    needs the project environment. **(M)** all five are present as array entries. **(J)** arguments may differ
+    (`pytest -q`, an explicit path) as long as the entry is the same check.
+  - **Fix:** bring the array to the uv form; a missing `uv sync --locked` means the gate runs against whatever
+    the environment happens to hold rather than the lock.
+- **`py:pinned-runtime`** · (M) · `required`
+  - **Checked:** `.python-version` exists at the repo root and pins a concrete interpreter version consistent
+    with `pyproject.toml`'s `requires-python`.
+  - **Fix:** write the pin into `.python-version` and commit it, so every machine and CI resolve the same
+    interpreter.
+- **`py:lint-select`** · (M) · `required`
+  - **Checked:** the ruff lint `select` list — `[tool.ruff.lint] select` in `pyproject.toml`, or the equivalent
+    in `ruff.toml` — includes at least `E`, `F` and `I`.
+  - **Fix:** add the missing codes; without them the lint axis passes on code it never looked at.
+- **`py:dev-deps-isolated`** · (M) · `required`
+  - **Checked:** the lint, type-check and test tooling sits in `[dependency-groups] dev` (or the project's
+    declared dev group), **never** in `[project] dependencies`.
+  - **Fix:** move the tooling out of the runtime dependency list — a consumer installing the package should not
+    be made to install its test tools.
+- **`py:import-resolution`** · (M+J) · `required`
+  - **Checked:** the package resolves for the test runner **and** the type checker by exactly **one** declared
+    mechanism — a src layout with an editable install, **or** a `[tool.pytest.ini_options] pythonpath` entry —
+    not both. **(M)** which mechanisms `pyproject.toml` declares. **(J)** the declared one actually resolves the
+    package the gate checks, and the type checker sees the same tree the test runner does.
+  - **Fix:** pick one mechanism, delete the other, and confirm both tools still resolve the package — two
+    mechanisms is how a repo passes locally and fails in CI.
+
+### Adding a profile (the extension rule)
+
+A second toolchain is a **new Tier-2 section** — not an edit to Tier 1, and not a change to the skill:
+
+1. add a `### Profile <name>` section here with its own **detection rule**: the mechanical file signals that
+   identify the toolchain, specific enough that no repo can match two profiles;
+2. give it criteria in the same field convention as everything above, with ids in the profile's own namespace
+   (`py:` belongs to `python-uv`);
+3. change **no Tier-1 criterion** — a would-be profile criterion that turns out to be language-agnostic belongs
+   in Tier 1 instead, and moves there rather than being written twice;
+4. change **no skill logic** — the reader detects a profile, names it to the measurement, and reports
+   `profile: none` when nothing matches. A new profile adds a detection rule to this file, not a branch to the
+   skill.
+
+## Planned — v0.8: groups D–G, named but not measured
+
+Four further groups are drafted and belong to **v0.8 `mf-stamp`**, which writes exactly those artifacts and so
+owns the criteria that describe them. **No id in these groups is live.** They carry **no ids, no severities and
+no measurement** at v0.6, and `mf-teardown` never reports a gap against them:
+
+- **D · Product record** — a changelog in a known format, a version line aligned across the change, the changelog,
+  the manifest and the tag, change-id commit trailers, and a README that says what the project is.
+- **E · Docs** — the documented docs layout, the module-doc shape, freshness against the code it describes, and
+  anti-bloat.
+- **F · Vault side** — the vault project dir's own layout, and a product-requirement doc present for the version
+  in flight.
+- **G · CI** — the gate runs on every push.
+
+**A repo failing every one of these is still `compliant` at v0.6.** The verdict is taken over the live criteria
+only — loop readiness — and reporting a D–G gap at v0.6 is a false gap, not thoroughness.
+
+These are **groups, not a tier**: "tier" means only the universal ⁄ toolchain split above, and D–G will be
+**universal (Tier 1)** criteria once v0.8 gives them ids.
