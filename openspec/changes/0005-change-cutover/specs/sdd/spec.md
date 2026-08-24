@@ -20,8 +20,8 @@ brief `design.md`). Its `proposal.md` SHALL declare the release version as leadi
 the change is the unit of release, so the version travels with it. The change-state reader SHALL resolve the active
 change in-tree, derive the current phase from `tasks.md`, and surface the declared version; a contract-guard SHALL
 refuse a malformed change at read time with a diagnostic naming the specific problem — no active change, a change
-id that is not `<digits>-<lowercase-slug>`, a missing artifact, a `tasks.md` with no `## Progress` checklist, or a
-`proposal.md` with no parseable `version`.
+id that is not `<digits>-<lowercase-slug>`, a missing artifact, an artifact that is unreadable or not valid UTF-8,
+a `tasks.md` with no `## Progress` checklist, or a `proposal.md` with no parseable `version`.
 
 #### Scenario: Well-formed change resolves in-tree
 - **Key:** `sdd:change-structure:wellformed-resolves`
@@ -56,6 +56,13 @@ id that is not `<digits>-<lowercase-slug>`, a missing artifact, a `tasks.md` wit
 - **Layers:** unit
 - **WHEN** the reader runs against a change whose `tasks.md` has no `## Progress` checklist items
 - **THEN** it raises a `PlanContractError` naming `tasks.md` and the missing `## Progress` checklist
+
+#### Scenario: An unreadable change artifact is refused
+- **Key:** `sdd:change-structure:undecodable-artifact-refused`
+- **Layers:** unit
+- **WHEN** the active change's `proposal.md` or `tasks.md` cannot be read as UTF-8 text
+- **THEN** it raises a `PlanContractError` naming the artifact — never a `UnicodeDecodeError`, another
+  `ValueError` sibling of `PlanContractError` that the entry point's `except` does not catch
 
 #### Scenario: The declared version is read from the proposal
 - **Key:** `sdd:change-structure:version-declared-in-proposal`
@@ -107,9 +114,14 @@ location or its retired vocabulary, and none SHALL name the operator's vault pat
 #### Scenario: The operator's vault path is named nowhere in the repo tree
 - **Key:** `sdd:vault-layout:vault-path-not-in-repo`
 - **Layers:** unit
-- **WHEN** the same roots are scanned for the vault path the target's `.env` declares
+- **WHEN** the tracked repo tree is scanned for the vault path the target's `.env` declares — this needle's **own**
+  root set, wider than the retired-vocabulary one: code, prompts, docs, tests, `openspec/`, `CHANGELOG.md` and the
+  repo's config files, so it walks the tracked files a role writes on every phase
 - **THEN** none of them names it — the guardrail that the vault path is never committed is proved by a test rather
   than by discipline alone
+- **AND** the exclusions are the gitignored `.env` that declares the path and the gitignored `.minions/` run
+  artifacts, whose leak route `.gitignore` closes instead — the retired-vocabulary needle's exclusions are its own
+  and do not apply here
 
 #### Scenario: Findings and product intent stay in the vault
 - **Key:** `sdd:vault-layout:findings-and-prd-in-vault`

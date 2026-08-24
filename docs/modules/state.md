@@ -70,9 +70,13 @@ advanced = change_advanced(before, after)
   four artifacts, a `tasks.md` with no `## Progress` checklist (the *silent* case where a zero-phase change
   would otherwise read as already "complete"), and a `proposal.md` declaring no parseable `version`.
   It refuses a change id that is not `<digits>-<lowercase-slug>` — the id keys the findings path and reaches a
-  role's write grant, so its shape is checked where it is read. `read_vault_dir` and `verify_vault_access`
-  refuse a vault that is undeclared, relative, absent or ungranted, and a settings file that is unreadable or
-  not a JSON object. Every one raises, never passes on doubt: no other exception class escapes the preflight.
+  role's write grant, so its shape is checked where it is read — anchored with `\A`/`\Z`, since Python's `$`
+  also matches before a *trailing newline*, which is legal in a directory name. `read_vault_dir` and
+  `verify_vault_access` refuse a vault that is undeclared, relative, absent or ungranted, and a settings file
+  that is unreadable or not a JSON object. Every file the preflight reads is read as UTF-8 and an undecodable
+  one is refused with a diagnostic naming it — `UnicodeDecodeError` is another `ValueError` sibling, and
+  `except OSError` does not catch it. Every one raises, never passes on doubt: no other exception class escapes
+  the preflight.
 - A change with **every** box ticked is complete (`ChangeState.is_complete`) — that is the loop's exit
   condition, and the trigger for the end-of-change fan-out.
 
@@ -123,7 +127,9 @@ excluding `archive/`.
 - **Raises** — [`PlanContractError`](#plancontracterror) naming the changes directory when no candidate exists,
   so an empty candidate set can never escape as a bare `ValueError` from `max()`; and naming the id when the
   selected dir is not `<digits>-<lowercase-slug>` — the id keys the findings path and is interpolated into the
-  read-only role's `Write(<path>)` grant, so its shape is refused where it is read.
+  read-only role's `Write(<path>)` grant, so its shape is refused where it is read. The pattern is anchored
+  `\A…\Z`, not `^…$`: `$` also matches immediately before a trailing newline, so `0009-evil\n` — a legal
+  directory name — passed the `$` form and reached the grant.
 - **Called by** — [`read_change_state`](#read_change_state); also [`__main__`](main.md) to resolve the change
   dir for the Inputs block and the findings key.
 - **Source** — [`state.py`](../../orchestrator/state.py) · **Tests** — [`test_state.py`](../../tests/test_state.py)
@@ -208,7 +214,7 @@ Compose [`select_change`](#select_change) → [`validate_change`](#validate_chan
 
 - **Params** — `head_reader`: the git-head seam (defaults to [`read_head`](#read_head)); tests inject a stub so the composition runs without git.
 - **Returns** — [`ChangeState`](#changestate)
-- **Raises** — [`PlanContractError`](#plancontracterror) on any contract violation (no active change, a missing artifact, no `## Progress` checklist, no declared `version`).
+- **Raises** — [`PlanContractError`](#plancontracterror) on any contract violation (no active change, a missing artifact, an artifact that is unreadable or not valid UTF-8, no `## Progress` checklist, no declared `version`).
 - **Called by** — [`driver.run`](driver.md#run) via the injected `state_reader` seam; also directly in [`__main__`](main.md)'s preflight (to refuse a malformed change before spend).
 - **Source** — [`state.py`](../../orchestrator/state.py) · **Tests** — [`test_state.py`](../../tests/test_state.py)
 
@@ -244,8 +250,8 @@ def read_vault_dir(repo: Path) -> Path
 ```
 
 Resolve the vault the target declares as `VAULT_PROJECT_DIR` in its `.env`, or raise
-[`PreflightError`](#preflighterror) — no `.env`, no key, an empty value, a relative path, or a path that is not
-an existing directory.
+[`PreflightError`](#preflighterror) — no `.env`, an `.env` that is not valid UTF-8, no key, an empty value, a
+relative path, or a path that is not an existing directory.
 
 - **Why** — nothing downstream creates the vault: the fan-out's `mkdir(parents=True, exist_ok=True)` would
   silently materialise a tree at whatever the value names, and a relative value would resolve against the
@@ -264,7 +270,7 @@ Raise [`PreflightError`](#preflighterror) unless the target's `.claude/settings.
 write access to the vault (the vault dir, or an ancestor, under `additionalDirectories`).
 
 - **Why** — the coder + read-only roles write vault files (findings, bookkeeping) *outside* the repo cwd; without the grant a run would fail mid-flight. Checked before any spawn.
-- **Gotchas** — checks both `permissions.additionalDirectories` and a top-level `additionalDirectories`; a grant *covers* the vault if it equals or is an ancestor of it (`Path.is_relative_to`). An unreadable, unparseable or non-object settings file is refused as a `PreflightError` too — `JSONDecodeError` is a `ValueError` *sibling* of [`PlanContractError`](#plancontracterror) and would otherwise escape the preflight's `except`; a malformed grant shape reads as no grant.
+- **Gotchas** — checks both `permissions.additionalDirectories` and a top-level `additionalDirectories`; a grant *covers* the vault if it equals or is an ancestor of it (`Path.is_relative_to`). An unreadable, unparseable or non-object settings file is refused as a `PreflightError` too — `JSONDecodeError` is a `ValueError` *sibling* of [`PlanContractError`](#plancontracterror) and would otherwise escape the preflight's `except`, and so is the `UnicodeDecodeError` a non-UTF-8 settings file raises; a malformed grant shape reads as no grant.
 - **Called by** — [`__main__`](main.md)'s preflight.
 - **Source** — [`state.py`](../../orchestrator/state.py) · **Tests** — [`test_state.py`](../../tests/test_state.py)
 

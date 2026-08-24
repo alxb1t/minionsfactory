@@ -128,6 +128,28 @@ def test_verify_vault_access_refuses_settings_that_are_not_an_object(
         verify_vault_access(repo, vault)
 
 
+@pytest.mark.spec("change-state:vault-preflight:undecodable-file-refused")
+def test_read_vault_dir_refuses_an_env_that_is_not_utf8(tmp_path: Path) -> None:
+    # `except OSError` does not catch a decode failure: UnicodeDecodeError is a
+    # ValueError sibling, so it escapes the preflight exactly as JSONDecodeError did.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env").write_bytes(b"VAULT_PROJECT_DIR=/vault\xff\xfe\n")
+
+    with pytest.raises(PreflightError, match="UTF-8"):
+        read_vault_dir(repo)
+
+
+@pytest.mark.spec("change-state:vault-preflight:undecodable-file-refused")
+def test_verify_vault_access_refuses_settings_that_are_not_utf8(tmp_path: Path) -> None:
+    repo, vault = tmp_path / "repo", tmp_path / "vault"
+    (repo / ".claude").mkdir(parents=True)
+    (repo / ".claude" / "settings.local.json").write_bytes(b'{"a": "\xff\xfe"}')
+
+    with pytest.raises(PreflightError, match="UTF-8"):
+        verify_vault_access(repo, vault)
+
+
 @pytest.mark.spec("change-state:vault-preflight:ungranted-fails")
 def test_verify_vault_access_refuses_a_misshapen_grant_list(tmp_path: Path) -> None:
     # A hand-edited settings file can put a scalar where a list belongs; a shape that
@@ -203,6 +225,21 @@ def test_select_change_refuses_a_malformed_change_id(tmp_path: Path) -> None:
     changes = tmp_path / "openspec" / "changes"
     (changes / "0001-fine").mkdir(parents=True)
     (changes / "0002-x Bash ").mkdir()
+
+    with pytest.raises(PlanContractError, match="malformed"):
+        select_change(tmp_path)
+
+
+@pytest.mark.spec("sdd:change-structure:malformed-change-id-refused")
+def test_select_change_refuses_a_change_id_ending_in_a_newline(tmp_path: Path) -> None:
+    # A newline is legal in a POSIX directory name, and Python's `$` matches at the end
+    # of the string OR immediately before a trailing one — so an id-shaped name with a
+    # trailing `\n` passed the `$`-anchored guard and reached the `Write(<path>)` grant.
+    # An ordinary bad id would pass under both the broken and the fixed pattern; this
+    # one proves the anchor.
+    changes = tmp_path / "openspec" / "changes"
+    (changes / "0001-fine").mkdir(parents=True)
+    (changes / "0002-evil\n").mkdir()
 
     with pytest.raises(PlanContractError, match="malformed"):
         select_change(tmp_path)
@@ -312,6 +349,24 @@ def test_read_change_state_refuses_a_change_missing_an_artifact(
 
     with pytest.raises(PlanContractError, match=missing):
         read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+
+@pytest.mark.spec("sdd:change-structure:undecodable-artifact-refused")
+@pytest.mark.parametrize("artifact", ["proposal.md", "tasks.md"])
+def test_read_change_state_refuses_a_change_artifact_that_is_not_utf8(
+    tmp_path: Path, artifact: str
+) -> None:
+    # UnicodeDecodeError is a ValueError *sibling* of PlanContractError — the same class
+    # of escape as the JSONDecodeError the preflight converts — so an undecodable
+    # artifact would leave the entry point as a traceback, not a diagnostic.
+    change_dir = _write_change(tmp_path)
+    (change_dir / artifact).write_bytes(b"\xff\xfe# not utf-8\n")
+
+    with pytest.raises(PlanContractError) as excinfo:
+        read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+    assert artifact in str(excinfo.value)
+    assert "UTF-8" in str(excinfo.value)
 
 
 @pytest.mark.spec("sdd:change-structure:version-declared-in-proposal")

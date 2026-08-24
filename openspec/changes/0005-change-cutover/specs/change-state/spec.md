@@ -32,8 +32,8 @@ On release this delta folds into top-level `specs/change-state/spec.md`.
 The zero-token preflight SHALL resolve the vault from the target's `.env` and refuse to run unless it names an
 existing absolute directory **and** the target's `.claude/settings.local.json` grants the coder write access to it
 (directly or via an ancestor) under `additionalDirectories` — a misconfigured target halts before any spawn, not
-mid-run. Every refusal SHALL raise `PreflightError`: no other exception class — a missing file, an unparseable or
-misshapen settings document — SHALL escape the preflight.
+mid-run. Every refusal SHALL raise `PreflightError`: no other exception class — a missing file, a file that is not
+valid UTF-8, an unparseable or misshapen settings document — SHALL escape the preflight.
 
 #### Scenario: A direct grant passes
 - **Key:** `change-state:vault-preflight:grant-passes`
@@ -96,6 +96,13 @@ misshapen settings document — SHALL escape the preflight.
 - **WHEN** the target's `.claude/settings.local.json` is not valid JSON, or does not hold a JSON object
 - **THEN** a `PreflightError` naming the problem is raised — never a `JSONDecodeError` (a `ValueError` sibling the
   entry point does not catch) or an `AttributeError`
+
+#### Scenario: A file the preflight reads that is not UTF-8 is refused
+- **Key:** `change-state:vault-preflight:undecodable-file-refused`
+- **Layers:** unit
+- **WHEN** the target's `.env` or `.claude/settings.local.json` is not valid UTF-8
+- **THEN** a `PreflightError` naming the file is raised — never a `UnicodeDecodeError`, the `ValueError` sibling
+  that `except OSError` does not catch either
 
 ## REMOVED Requirements
 

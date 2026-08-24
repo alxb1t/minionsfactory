@@ -36,6 +36,41 @@ _RETIRED = (
 #     keep saying what was true.
 _SCANNED = ("orchestrator", "prompts", "docs", "README.md")
 
+# The vault-path needle gets its OWN root set, and deliberately not `_SCANNED`: that
+# tuple's exclusions are argued for the retired-vocabulary needle, and none of them
+# holds here. `openspec/` and `CHANGELOG.md` are excluded there because the specs and
+# the historical record must be able to name the retirement — but they are exactly the
+# tracked files a role writes on every phase (the change's `tasks.md` and spec delta,
+# the per-phase `## [Unreleased]` append), committed by roles that hold `Edit`/`Write`
+# and told to echo an Inputs block carrying the vault's absolute path. The likeliest
+# leak route must be the one the guard walks. Widening `_SCANNED` instead would turn
+# the vocabulary guard red — this change's own delta names the retired path in order to
+# describe its retirement, and that prose folds into `openspec/specs/` at release.
+#
+# So: every tracked root, with exclusions of its own. `.env` declares the needle and is
+# gitignored; `.minions/` holds gitignored run artifacts (whose leak route `.gitignore`
+# closes — S4), so only its tracked file is listed; `.git`, `.venv` and the caches are
+# not part of the repo tree. Asserted below, so narrowing this later is a visible edit.
+_VAULT_SCANNED = (
+    "orchestrator",
+    "prompts",
+    "docs",
+    "tests",
+    "openspec",
+    "skills",
+    "template",
+    ".github",
+    "README.md",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "Makefile",
+    "pyproject.toml",
+    "uv.lock",
+    ".env.example",
+    ".gitignore",
+    ".minions/minions.toml",
+)
+
 _TEXT_SUFFIXES = frozenset({".py", ".md", ".toml", ".txt", ".yml", ".yaml", ".json"})
 
 
@@ -112,12 +147,35 @@ def test_the_operators_vault_path_is_named_nowhere_in_the_repo() -> None:
     # proves it. The vault path travels in every role's Inputs block and every role
     # prompt now echoes its inputs, so the literal is one `git add -A` away from
     # history (`.minions/` is gitignored for the same reason).
+    assert _VAULT_SCANNED[:4] == ("orchestrator", "prompts", "docs", "tests")
+    assert {"openspec", "CHANGELOG.md"} <= set(_VAULT_SCANNED)
+    assert set(_SCANNED) <= set(_VAULT_SCANNED)  # never narrower than the other guard
+
     vault_dir = _declared_vault_dir()
     if vault_dir is None:  # CI has no .env — nothing to check against
         pytest.skip("no VAULT_PROJECT_DIR declared in this repo's .env")
 
     # Compare through a local, so a failure prints the offending sites and never the
     # vault path itself.
-    hits = _hits(_REPO, _SCANNED, vault_dir)
+    hits = _hits(_REPO, _VAULT_SCANNED, vault_dir)
 
     assert hits == []
+
+
+@pytest.mark.spec("sdd:vault-layout:vault-path-not-in-repo")
+def test_the_vault_path_guard_scans_the_files_a_role_writes_each_phase(
+    tmp_path: Path,
+) -> None:
+    # The roots `_SCANNED` excludes are the ones a role commits every phase, so the
+    # guard is only worth having if it reports a plant in *those*: plant a stand-in path
+    # in the change tree and the CHANGELOG and confirm both are reported.
+    needle = "/Users/nobody/Vault/Project"
+    change_dir = tmp_path / "openspec" / "changes" / "0000-planted"
+    change_dir.mkdir(parents=True)
+    (change_dir / "tasks.md").write_text(f"- [x] 1 — wrote {needle}\n")
+    (tmp_path / "CHANGELOG.md").write_text(f"landed under {needle}\n")
+
+    assert sorted(_hits(tmp_path, _VAULT_SCANNED, needle)) == [
+        "CHANGELOG.md:1",
+        "openspec/changes/0000-planted/tasks.md:1",
+    ]

@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _CHANGE_PATTERN = re.compile(r"^(\d+)-")
-_CHANGE_ID_PATTERN = re.compile(r"^\d+-[a-z0-9-]+$")
+# Anchored with `\A`/`\Z`, not `^`/`$`: in Python `$` also matches immediately
+# before a *trailing newline*, and a newline is legal in a POSIX directory name —
+# so `0009-evil\n` passed the `$` form and reached the interpolated write grant.
+_CHANGE_ID_PATTERN = re.compile(r"\A\d+-[a-z0-9-]+\Z")
 _PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
 _CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
 _VERSION_PATTERN = re.compile(r"^v\d+\.\d+$")
@@ -87,11 +90,16 @@ def read_vault_dir(repo: Path) -> Path:
     """
     env_path = repo / ".env"
     try:
-        text = env_path.read_text()
+        text = env_path.read_text(encoding="utf-8")
     except OSError as error:
         raise PreflightError(
             f"cannot read {env_path} — the target must carry a .env declaring "
             f"VAULT_PROJECT_DIR ({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PreflightError(
+            f"{env_path} is not valid UTF-8 — the .env declaring VAULT_PROJECT_DIR "
+            f"is read as text ({error.reason} at byte {error.start})"
         ) from error
     value = ""
     for line in text.splitlines():
@@ -133,11 +141,16 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
             f"coder write access to the vault ({vault_project_dir})"
         )
     try:
-        raw = settings_path.read_text()
+        raw = settings_path.read_text(encoding="utf-8")
     except OSError as error:
         raise PreflightError(
             f"cannot read {settings_path} — the target must grant the coder write "
             f"access to the vault ({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PreflightError(
+            f"{settings_path} is not valid UTF-8 — the vault grant is read as text "
+            f"({error.reason} at byte {error.start})"
         ) from error
     try:
         settings = json.loads(raw)
@@ -254,6 +267,32 @@ def validate_change(change_dir: Path) -> None:
             )
 
 
+def _read_change_artifact(change_dir: Path, name: str) -> str:
+    """Read one of a change's artifacts as text, or refuse with a diagnostic.
+
+    An artifact that is unreadable or not valid UTF-8 is a broken change, refused like
+    every other contract failure. Without this the decode failure escapes as a
+    `UnicodeDecodeError` — a `ValueError` *sibling* of `PlanContractError`, like the
+    `JSONDecodeError` the preflight already converts — so a target with a non-UTF-8
+    `proposal.md` or `tasks.md` would die on a traceback instead of the preflight
+    diagnostic. Not caught as a bare `ValueError`: that would swallow real bugs, and
+    `PlanContractError` is itself one, so the catch order would mask contract failures.
+    """
+    path = change_dir / name
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PlanContractError(
+            f"change '{change_dir.name}' has a {name} that cannot be read "
+            f"({error.strerror})"
+        ) from error
+    except UnicodeDecodeError as error:
+        raise PlanContractError(
+            f"change '{change_dir.name}' has a {name} that is not valid UTF-8 — a "
+            f"change artifact is read as text ({error.reason} at byte {error.start})"
+        ) from error
+
+
 def read_change_version(change_dir: Path) -> str:
     """Return the release version a change declares in its proposal.md frontmatter.
 
@@ -262,7 +301,7 @@ def read_change_version(change_dir: Path) -> str:
     `vX.Y` is refused here, at read time, with a diagnostic naming the file and the
     field — never a version guessed from a filename or a prose header.
     """
-    frontmatter = parse_frontmatter((change_dir / "proposal.md").read_text())
+    frontmatter = parse_frontmatter(_read_change_artifact(change_dir, "proposal.md"))
     version = frontmatter.get("version", "")
     if not _VERSION_PATTERN.match(version):
         raise PlanContractError(
@@ -318,7 +357,7 @@ def read_change_state(
     change_dir = select_change(repo)
     validate_change(change_dir)
     version = read_change_version(change_dir)
-    phases = parse_progress((change_dir / "tasks.md").read_text())
+    phases = parse_progress(_read_change_artifact(change_dir, "tasks.md"))
     if not phases:
         raise PlanContractError(
             f"change '{change_dir.name}' tasks.md has no '## Progress' checklist"
