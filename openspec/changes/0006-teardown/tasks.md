@@ -41,7 +41,7 @@ checklist intact, and `version: v0.6` in `proposal.md` frontmatter — phase 6 m
 - [x] 3 — Source reconciliation (`bootstrap_steps.md`, `generic_root_claude.md`)
 - [x] 4 — The report contract (frontmatter, verdict rule, gap shape, merge + status machine)
 - [x] 5 — The `mf-teardown` skill
-- [ ] 6 — Proving runs + contract exercises + ship
+- [x] 6 — Proving runs + contract exercises + ship
 
 ---
 

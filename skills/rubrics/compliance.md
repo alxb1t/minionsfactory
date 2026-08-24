@@ -138,6 +138,13 @@ second toolchain is a new Tier-2 section and no edit here.
     not left unchecked, it is checked by the criteria that own it: `gate:covers-axes` owns whether the axes are
     the right ones, and `wiring:claude-md`'s (J) layer owns whether `CLAUDE.md` describes the contract the repo
     actually runs.
+  - **Boundary — whose gate is being declared:** the subject is **this repo's own gate**. A command block that
+    illustrates what some *other* repo should configure — a template, an `e.g.` in an onboarding section, a
+    quoted example of a target's config — is **not** a declaration of this repo's gate and is out of scope, even
+    when it is a literal command block in one of the two named files. Read the surrounding sentence: a block
+    introduced as an example of what a target must provide describes a different repo, and requiring it to match
+    this repo's array would force documentation to be wrong. If the block is genuinely this repo's gate, it is in
+    scope however it is captioned.
   - **Fix:** rewrite the declaring block to the array verbatim, or delete the block and point at
     `.minions/minions.toml` — one source of truth, quoted or referenced, never paraphrased.
 - **`gate:make-mirrors`** · (M+J) · `required`
