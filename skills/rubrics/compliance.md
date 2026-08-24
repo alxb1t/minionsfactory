@@ -246,3 +246,157 @@ only — loop readiness — and reporting a D–G gap at v0.6 is a false gap, no
 
 These are **groups, not a tier**: "tier" means only the universal ⁄ toolchain split above, and D–G will be
 **universal (Tier 1)** criteria once v0.8 gives them ids.
+
+## The report — `<vault>/findings/teardown.md`
+
+One stable path, resolved with no search: the reserved id `teardown` in the vault's `findings/` home. A repeat
+pass **overwrites it in place** and leaves exactly one file — the round counter and the resolution log carry the
+history, not a pile of dated files.
+
+The report is **not loop-readable by design.** `mf-teardown` is not one of the orchestrator's roles, its verdict
+vocabulary is not the roles' `clean | changes-requested`, and no code in the orchestrator globs `findings/` — so
+this file coexists with the role findings without ever reaching the converge loop or the release gate. v0.7 reads
+it directly rather than through the orchestrator.
+
+### Frontmatter
+
+```yaml
+---
+type: teardown            # fixed — identifies the file's contract
+repo: <name>              # the target repo measured (its directory name)
+head: <sha>               # the target's HEAD at measurement time — what the evidence refers to
+profile: python-uv|none   # the profile the OUTER step detected, before the measurement was spawned
+round: <n>                # 1 on a first run; incremented by the outer step on every later run
+criteria_total: <n>       # criteria actually assessed on this run — see the formula below
+open_gaps: <n>            # entries at status `open`, every severity, advisories included
+open_blocking: <n>        # of those, severity `blocking`
+open_required: <n>        # of those, severity `required`
+verdict: compliant|gaps-found
+---
+```
+
+Every field is populated on every run, and `open_gaps` / `open_blocking` / `open_required` must **agree with the
+body** — they are counts of what the file actually lists, not an estimate.
+
+**`criteria_total` counts what this run assessed** — the tier baseline, minus anything withheld by the
+absent-subject rule below:
+
+```
+criteria_total = (23 if a profile matched else 16) − (criteria marked "not measured" under rule 3)
+```
+
+Only criteria in this run's baseline can be subtracted: on a `profile: none` run the profile's seven were never in
+scope, so they are not "not measured", they are not assessed at all and the report says so in its own statement.
+**The report shows the subtraction** next to that statement (`criteria_total: 20 — 23 − 3 not measured`), so two
+runs of the same repo are comparable. Counting all 23 on a degraded run would claim seven profile criteria that
+were never looked at; counting the baseline while the rule silently withholds others would make
+`open_gaps / criteria_total` mean two different things across two reports.
+
+### The verdict rule
+
+**`compliant` iff `open_blocking: 0` and `open_required: 0`.** Open `advisory` gaps are listed, and counted in
+`open_gaps`, but never withhold the verdict — `sdd:checker-in-gate` is knowingly unsatisfiable by every target
+today, so a zero-gaps-of-any-severity rule would put `compliant` out of reach for every repo including
+MinionsFactory, and a verdict no repo can earn carries no information. Anything else is `gaps-found`.
+
+### Severity ordering
+
+Entries are listed **`blocking` → `required` → `advisory`**, so the top of the file is the work that unblocks a
+run. Within a severity, **`open` sorts above `verified`** — what still needs doing comes before what is already
+closed.
+
+### A gap entry
+
+```markdown
+### `wiring:gate-config` · blocking · open
+- **Evidence:** `minions.toml` is at the repo root; `.minions/minions.toml` does not exist. The orchestrator
+  reads only the latter, so the gate array is unreadable to it.
+- **Fix:** `git mv minions.toml .minions/minions.toml` and commit.
+```
+
+Four things, all required: the **criterion id** (it must exist in this rubric — no id, no gap), its **severity**
+(taken from the rubric, never re-decided per run), its **status**, and **evidence naming the path checked and
+what was actually found there** — a gap whose evidence names no real path is not a finding, it is a guess. The
+**fix pointer** comes from the criterion.
+
+Criteria that have never been gapped are **summarised, not enumerated** — a per-group pass count is enough.
+
+### Statuses, and who writes them
+
+`open → fixed → verified`, and the asymmetry is the point:
+
+- **`open`** — failing now. Every newly-found gap opens here.
+- **`fixed`** — **the producer's word.** v0.7 `mf-retrofit` writes it when it believes it closed the gap.
+  **`mf-teardown` never writes `fixed`**, in any round.
+- **`verified`** — **the checker's word.** Only a teardown re-run promotes a gap to it, by measuring the repo
+  again and finding the criterion passing.
+
+That asymmetry is what makes the pair a producer→checker loop rather than one agent grading its own work: the
+claim and the confirmation are written by different steps, and the confirming one is blind to the claim.
+
+### The cross-round merge (the outer step's job, never the measurement's)
+
+The measurement is a **blind, current-state** answer to "what fails right now" — failing ids and evidence, **no
+status field and no verdict**. The **outer step** owns the merge: it reads the existing report, takes the fresh
+measurement, increments `round`, and reconciles entry by entry.
+
+| Prior entry | Fails now? | Becomes |
+|---|---|---|
+| `open` | yes | stays `open` |
+| `open` | no | `verified`, keeping its original evidence |
+| `fixed` (written by v0.7) | yes | back to **`open`**, and a `## Resolution log` line records the rejected fix |
+| `fixed` (written by v0.7) | no | `verified` |
+| *(none — newly failing)* | yes | opens at **`open`** |
+
+`verified` entries **persist across later rounds**, so a converging run shows its own progress. When the report
+reaches `verdict: compliant` they are **cleared**, and the resolution log keeps the history — the file records
+progress without growing without bound.
+
+### `## Resolution log`
+
+**Append-only**, at the foot of the report, written by both teardown's merge and by v0.7. One dated line per
+transition — a gap opened, a fix rejected, a gap verified, a set of `verified` entries cleared at `compliant`.
+Nothing is ever deleted from it; it is the only place the history survives a `compliant` clear.
+
+### The absent-subject rule — so one defect is reported once
+
+A repo can fail a criterion because the thing it measures **is not there**. Without a stated rule, two runs of the
+same repo produce different `open_gaps` depending on how each measurer feels about cascading, which breaks the
+counts-agree clause and makes the reports incomparable. Three cases:
+
+1. **Existence criteria** — those asserting a path or file is present (`sdd:specs-tree`, `sdd:changes-tree`,
+   `wiring:gate-config`) → **fail**. They are genuinely unsatisfied, and each is the one entry that reports the
+   absence.
+2. **Universally-quantified criteria** — "*every* active change carries…", "*every* scenario carries…"
+   (`sdd:active-change-contract`, `sdd:scenario-shape`, `sdd:test-binding`) → **pass vacuously** over an empty
+   set. The emptiness is already reported by its existence criterion in case 1; failing both counts one defect
+   twice and sends the producer chasing a gap that closes itself.
+3. **Criteria whose subject *is* the unreadable file** — when `.minions/minions.toml` is absent or mis-located
+   (at the repo root, where the orchestrator does not look), every criterion whose subject is **the `gate` array
+   itself** is **not measured**: it is listed in its own `## Not measured` section naming the gap that gates it,
+   and excluded from **both** `open_gaps` and `criteria_total`. Measuring the *content* of a file the orchestrator
+   cannot read would report gaps that evaporate the moment the file moves.
+
+**Case 3's covered set is the complete list of gate-array-subject criteria, not a sample:**
+`gate:covers-axes` · `gate:contract-agrees` · `sdd:checker-in-gate` · **`py:gate-commands`** (in scope only when
+the `python-uv` profile matched — a criterion outside the run's baseline is not "not measured"). An omission here
+is not a small one: it reports a gap against a merely mis-located config, on a repo whose gate array may be
+perfectly well-formed. **Any criterion added later whose *Checked* line names the `gate` array joins this set.**
+
+**Two exclusions, both deliberate:**
+
+- **`gate:make-mirrors` is not blanket-covered.** Its subject is a **`Makefile`**, not the gate config. A repo
+  with **no `Makefile`, or no `gate` target in it, fails this criterion outright** — whatever its gate config is
+  doing, and however unreadable the array is. There is nothing to mirror with, and that is a real, reportable
+  gap. Only the *mirror comparison* is unmeasurable, and only in the one configuration where a `Makefile` `gate`
+  target **does** exist and the array **cannot** be read.
+- **`gate:no-gaming` is never gated by this rule.** Its subject is the tool configuration, which is readable
+  wherever `minions.toml` happens to sit.
+
+**Failing and not-measured are disjoint.** A criterion appears in exactly one of the two on any given run: a
+not-measured criterion contributes to no gap count and is not a gap; a failing criterion is a gap and is counted.
+No criterion is ever both, and the sum of assessed criteria in the body equals `criteria_total`.
+
+The rule composes with the verdict rule rather than weakening it: the gap that gates a not-measured criterion —
+`wiring:gate-config` — is itself **`blocking`**, so a repo with not-measured criteria can never read `compliant`
+on their account.
