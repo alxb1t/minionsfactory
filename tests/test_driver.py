@@ -442,7 +442,7 @@ class _TickingProvider:
 def test_run_drives_a_repo_only_change_with_no_vault_plan(tmp_path: Path) -> None:
     repo, vault = tmp_path / "repo", tmp_path / "vault"
     change_dir = _write_repo_only_change(repo)
-    vault.mkdir()  # a vault with no plan file and no implementation_plans/ dir
+    vault.mkdir()  # an empty vault: no plan file, and no plan directory of any name
     heads = ["c0"]
     fanned_out: list[int] = []
 
@@ -461,7 +461,8 @@ def test_run_drives_a_repo_only_change_with_no_vault_plan(tmp_path: Path) -> Non
     assert result.status is RunStatus.COMPLETE
     assert result.phases_advanced == 2
     assert fanned_out == [1]  # the fan-out still fires at change-complete
-    assert not (vault / "implementation_plans").exists()
+    # stronger than naming the retired directory: the vault holds nothing at all,
+    # so no plan file and no plan directory of any name was read or written.
     assert list(vault.iterdir()) == []
 
 

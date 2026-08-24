@@ -12,125 +12,10 @@ from orchestrator.state import (
     parse_frontmatter,
     parse_progress,
     read_change_state,
-    read_plan_state,
     select_change,
-    select_plan,
     validate_change,
-    validate_plan,
     verify_vault_access,
 )
-
-
-@pytest.mark.spec("change-state:plan-selection:highest-version-ignores-archive")
-def test_select_plan_picks_highest_version_ignoring_archive(tmp_path: Path) -> None:
-    plans = tmp_path / "implementation_plans"
-    (plans / "archive").mkdir(parents=True)
-    (plans / "v0.2_a_implementation_plan.md").write_text("x")
-    (plans / "v0.10_b_implementation_plan.md").write_text("x")
-    (plans / "archive" / "v0.99_old_implementation_plan.md").write_text("x")
-
-    selected = select_plan(tmp_path)
-
-    assert selected.name == "v0.10_b_implementation_plan.md"
-
-
-@pytest.mark.spec("change-state:plan-state:parses-frontmatter")
-def test_parse_frontmatter_reads_current_phase_and_phase_flags() -> None:
-    text = (
-        "---\n"
-        'current_phase: "P4: reader in progress"\n'
-        "phase0: done\n"
-        "phase1: planned\n"
-        "---\n"
-        "# Body\n"
-        "phase2: not-frontmatter\n"
-    )
-
-    frontmatter = parse_frontmatter(text)
-
-    assert frontmatter["current_phase"] == "P4: reader in progress"
-    assert frontmatter["phase0"] == "done"
-    assert frontmatter["phase1"] == "planned"
-    assert "phase2" not in frontmatter
-
-
-@pytest.mark.spec("change-state:plan-state:assembles-phases-and-head")
-def test_read_plan_state_assembles_phase_state_and_head(tmp_path: Path) -> None:
-    plans = tmp_path / "implementation_plans"
-    plans.mkdir()
-    (plans / "v0.1_x_implementation_plan.md").write_text(
-        "---\n"
-        'current_phase: "P4 in progress"\n'
-        "phase0: done\n"
-        "phase1: planned\n"
-        "---\n"
-        "# body\n"
-    )
-
-    def fake_head(repo: Path) -> str:
-        return "abc123"
-
-    state = read_plan_state(tmp_path, tmp_path, head_reader=fake_head)
-
-    assert state.current_phase == "P4 in progress"
-    assert state.phases == {"phase0": "done", "phase1": "planned"}
-    assert state.head == "abc123"
-
-
-# --- plan contract guard (P7) ---
-
-
-@pytest.mark.spec("change-state:plan-contract:accepts-conforming")
-def test_validate_plan_accepts_a_conforming_plan() -> None:
-    validate_plan({"current_phase": "P1", "phase0": "done", "phase1": "planned"})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-empty-frontmatter")
-def test_validate_plan_rejects_empty_frontmatter() -> None:
-    with pytest.raises(PlanContractError, match="no YAML frontmatter"):
-        validate_plan({})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-missing-current-phase")
-def test_validate_plan_rejects_missing_current_phase() -> None:
-    with pytest.raises(PlanContractError, match="current_phase"):
-        validate_plan({"phase0": "done"})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-no-phase-flags")
-def test_validate_plan_rejects_a_plan_with_no_phase_flags() -> None:
-    with pytest.raises(PlanContractError, match="phaseN"):
-        validate_plan({"current_phase": "P1", "type": "overview"})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-non-code-status")
-def test_validate_plan_rejects_a_non_code_phase_status() -> None:
-    with pytest.raises(PlanContractError, match="non-code"):
-        validate_plan({"current_phase": "P1", "phase0": "research"})
-
-
-@pytest.mark.spec("change-state:plan-contract:accepts-conforming")
-def test_validate_plan_accepts_all_code_phase_statuses() -> None:
-    validate_plan(
-        {
-            "current_phase": "P2",
-            "phase0": "done",
-            "phase1": "wip",
-            "phase2": "planned",
-            "phase3": "todo",
-        }
-    )
-
-
-@pytest.mark.spec("change-state:plan-contract:refuses-malformed-at-read")
-def test_read_plan_state_refuses_a_malformed_plan(tmp_path: Path) -> None:
-    plans = tmp_path / "implementation_plans"
-    plans.mkdir()
-    (plans / "v0.1_x_implementation_plan.md").write_text("# no frontmatter here\n")
-
-    with pytest.raises(PlanContractError):
-        read_plan_state(tmp_path, tmp_path, head_reader=lambda repo: "h")
-
 
 # --- vault-write preflight (P7) ---
 
@@ -331,6 +216,16 @@ def test_read_change_state_refuses_a_change_missing_an_artifact(
 
     with pytest.raises(PlanContractError, match=missing):
         read_change_state(tmp_path, head_reader=lambda repo: "h")
+
+
+@pytest.mark.spec("sdd:change-structure:version-declared-in-proposal")
+def test_parse_frontmatter_reads_the_proposals_version_and_ignores_the_body() -> None:
+    text = "---\nversion: v0.6\n---\n\n# Proposal\n\nversion: not-frontmatter\n"
+
+    frontmatter = parse_frontmatter(text)
+
+    assert frontmatter["version"] == "v0.6"
+    assert len(frontmatter) == 1  # body lines outside the fence are excluded
 
 
 @pytest.mark.spec("sdd:change-structure:version-declared-in-proposal")

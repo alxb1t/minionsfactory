@@ -9,7 +9,6 @@ from orchestrator.gate import (
     SubprocessGate,
     read_gate_commands,
 )
-from orchestrator.state import PlanContractError, read_plan_state, validate_plan
 
 
 def _write_gate_config(repo: Path, body: str) -> None:
@@ -68,36 +67,3 @@ def test_read_gate_commands_errors_clearly_when_the_config_is_missing(
 ) -> None:
     with pytest.raises(FileNotFoundError, match="minions.toml"):
         read_gate_commands(tmp_path)
-
-
-@pytest.mark.spec("change-state:plan-contract:accepts-conforming")
-def test_validate_plan_accepts_a_conforming_plan() -> None:
-    validate_plan({"current_phase": "P1", "phase0": "done", "phase1": "planned"})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-empty-frontmatter")
-def test_validate_plan_rejects_empty_frontmatter() -> None:
-    with pytest.raises(PlanContractError, match="no YAML frontmatter"):
-        validate_plan({})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-missing-current-phase")
-def test_validate_plan_rejects_missing_current_phase() -> None:
-    with pytest.raises(PlanContractError, match="current_phase"):
-        validate_plan({"phase0": "done"})
-
-
-@pytest.mark.spec("change-state:plan-contract:rejects-no-phase-flags")
-def test_validate_plan_rejects_a_plan_with_no_phase_flags() -> None:
-    with pytest.raises(PlanContractError, match="phaseN"):
-        validate_plan({"current_phase": "P1", "type": "overview"})
-
-
-@pytest.mark.spec("change-state:plan-contract:refuses-malformed-at-read")
-def test_read_plan_state_refuses_a_malformed_plan(tmp_path: Path) -> None:
-    plans = tmp_path / "implementation_plans"
-    plans.mkdir()
-    (plans / "v0.1_x_implementation_plan.md").write_text("# no frontmatter here\n")
-
-    with pytest.raises(PlanContractError):
-        read_plan_state(tmp_path, tmp_path, head_reader=lambda repo: "h")

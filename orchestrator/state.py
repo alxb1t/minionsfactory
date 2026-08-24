@@ -1,4 +1,4 @@
-"""Plan-state reader: reconstruct 'where are we' from disk (plan + git)."""
+"""Change-state reader: reconstruct 'where are we' from disk (the change + git)."""
 
 import json
 import re
@@ -7,30 +7,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-_PLAN_PATTERN = re.compile(r"v(\d+)\.(\d+)_.*implementation_plan\.md$")
-_CODE_PHASE_STATUSES = frozenset({"done", "wip", "planned", "todo"})
 _CHANGE_PATTERN = re.compile(r"^(\d+)-")
 _PROGRESS_ITEM = re.compile(r"^- \[([ xX])\]\s*(\d+)\s*[—–-]+\s*(.+?)\s*$")
 _CHANGE_ARTIFACTS = ("proposal.md", "design.md", "tasks.md", "specs")
 _VERSION_PATTERN = re.compile(r"^v\d+\.\d+$")
 
 
-def select_plan(vault_project_dir: Path) -> Path:
-    """Return the highest-version plan in implementation_plans/, ignoring archive/."""
-    plans_dir = vault_project_dir / "implementation_plans"
-    candidates: list[tuple[tuple[int, int], Path]] = []
-    for path in plans_dir.glob("v*implementation_plan.md"):
-        match = _PLAN_PATTERN.match(path.name)
-        if match is None:
-            continue
-        version = (int(match.group(1)), int(match.group(2)))
-        candidates.append((version, path))
-    best = max(candidates, key=lambda item: item[0])
-    return best[1]
-
-
 def parse_frontmatter(text: str) -> dict[str, str]:
-    """Parse a plan's leading YAML frontmatter into flat key -> string values."""
+    """Parse a document's leading YAML frontmatter into flat key -> string values."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
@@ -45,15 +29,6 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     return frontmatter
 
 
-@dataclass(frozen=True)
-class PlanState:
-    """Where-are-we, read from disk: the plan's phase pointer + git head."""
-
-    current_phase: str
-    phases: dict[str, str]
-    head: str
-
-
 def read_head(repo: Path) -> str:
     """Return the target repo's current git HEAD commit sha."""
     completed = subprocess.run(
@@ -66,56 +41,13 @@ def read_head(repo: Path) -> str:
     return completed.stdout.strip()
 
 
-def read_plan_state(
-    vault_project_dir: Path,
-    repo: Path,
-    head_reader: Callable[[Path], str] = read_head,
-) -> PlanState:
-    """Read where-are-we from disk.
-
-    The highest-version plan's phase state + the repo's git head.
-    """
-    plan_path = select_plan(vault_project_dir)
-    frontmatter = parse_frontmatter(plan_path.read_text())
-    validate_plan(frontmatter)
-    phases = {
-        key: value for key, value in frontmatter.items() if key.startswith("phase")
-    }
-    return PlanState(
-        current_phase=frontmatter["current_phase"],
-        phases=phases,
-        head=head_reader(repo),
-    )
-
-
 class PlanContractError(ValueError):
-    """A plan breaks the execution contract — refused at read time with a diagnostic."""
+    """A change breaks the execution contract — refused at read time with a diagnostic.
 
-
-def validate_plan(frontmatter: dict[str, str]) -> None:
-    """Raise PlanContractError if the plan frontmatter breaks the execution contract.
-
-    The contract: a YAML frontmatter fence carrying `current_phase` and at least one
-    `phaseN` flag, each with a recognized code-phase status (execution plans contain
-    only code phases). A malformed plan is refused here, at read time — never a silent
-    empty `{}`, a mid-run KeyError, or a non-code phase the driver would false-halt on.
+    Keeps its name although its subject is now a change: renaming it would touch every
+    raise site, every `except` clause in `__main__`, and the preflight's contract, for
+    no behavioural payoff.
     """
-    if not frontmatter:
-        raise PlanContractError("plan has no YAML frontmatter (expected a --- fence)")
-    if "current_phase" not in frontmatter:
-        raise PlanContractError("plan frontmatter is missing 'current_phase'")
-    phases = {
-        key: value for key, value in frontmatter.items() if key.startswith("phase")
-    }
-    if not phases:
-        raise PlanContractError("plan frontmatter has no phaseN flags")
-    for name, status in phases.items():
-        if status not in _CODE_PHASE_STATUSES:
-            raise PlanContractError(
-                f"plan phase '{name}' has non-code status '{status}' — "
-                f"execution plans contain only code phases "
-                f"(expected one of {sorted(_CODE_PHASE_STATUSES)})"
-            )
 
 
 class PreflightError(Exception):
@@ -154,11 +86,11 @@ def verify_vault_access(repo: Path, vault_project_dir: Path) -> None:
         )
 
 
-# --- in-tree change-state reader (sibling to the vault-plan reader above) ---------
+# --- in-tree change-state reader — the reader the driver runs -------------------
 #
 # Change progress lives in the repo (`openspec/changes/<id>/tasks.md`), no vault hop
-# (R5). This reader is built and unit-tested here as a ready-for-v0.5 sibling; the
-# driver keeps running the vault-plan reader until the loop self-hosts on changes.
+# (R5): the reader's only inputs are the repo and a git-head seam, so it structurally
+# cannot consult a vault path. `driver.run` reads its state through it.
 
 
 @dataclass(frozen=True)
