@@ -66,9 +66,12 @@ sources:
    `open_required` · `verdict: compliant | gaps-found`. **Verdict rule:** `compliant` iff `open_blocking: 0` **and**
    `open_required: 0`; open `advisory` gaps are listed and counted but do not withhold the verdict.
 9. **Severity ordering and the cross-round merge (R9).** Three severities — `blocking` · `required` · `advisory`.
-   The **outer step** reads the prior report, increments `round`, and reconciles: still failing → stays `open` (a
-   `fixed` gap that still fails returns to `open`); no longer failing → `verified`; newly failing → `open`.
-   `fixed` is written by the **producer** (v0.7), never by teardown.
+   The **outer step** reads the prior report, increments `round`, and reconciles **every state a prior report can
+   hold**: still failing → stays `open` (a `fixed` gap that still fails returns to `open`); no longer failing →
+   `verified`; **a `verified` gap that fails again returns to `open`** with fresh evidence and a
+   rejected-regression log line; newly failing → `open`. `verified` persists across rounds only while the
+   criterion still passes — a regression carried as `verified` would be counted nowhere and would let the verdict
+   rule certify a repo with an open gap. `fixed` is written by the **producer** (v0.7), never by teardown.
 10. **The two stale sources are reconciled (R10).** `bootstrap_steps.md` gains its missing SDD section and a
     rewritten *Handoff* step 2; `generic_root_claude.md` steps 2–3 move from `implementation_plans/` onto the
     in-tree `openspec/changes/<id>/` contract.

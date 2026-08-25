@@ -91,11 +91,21 @@ runs incomparable:
    (`sdd:active-change-contract`, `sdd:scenario-shape`, `sdd:test-binding`) → **vacuously pass** over an empty set.
    The emptiness is already reported by its own existence criterion in rule 1; failing both counts one defect
    twice and would send v0.7 chasing a gap that closes itself.
-3. **Criteria whose subject *is* an unreadable file** — `gate:covers-axes`, `gate:contract-agrees` and
-   `sdd:checker-in-gate` (its subject is the gate array too), when
+3. **Criteria whose subject *is* an unreadable file** — `gate:covers-axes`, `gate:contract-agrees`,
+   `sdd:checker-in-gate` (its subject is the gate array too) and **`py:gate-commands`** (likewise — its *Checked*
+   line names the `gate` array; **in the covered set only when the `python-uv` profile matched**, since a
+   criterion outside the run's baseline is not "not measured" but never assessed at all), when
    `.minions/minions.toml` is absent or mis-located → **not measured**, each naming the blocking gap that gates
    it. Excluded from `open_gaps` and from `criteria_total`, listed in their own section. Measuring the content of a
    file the orchestrator cannot read would report gaps that evaporate the moment the file moves.
+
+   **The set is four, and the rubric states it as complete rather than a sample** (`skills/rubrics/compliance.md`,
+   *Case 3's covered set*): any criterion added later whose *Checked* line names the `gate` array joins it.
+   `py:gate-commands` was added at phase 4 under `tasks.md`'s requirement that the rule name **every**
+   gate-array-subject criterion, and it does real work — isekai's array is well-formed and *leads* with
+   `uv sync --locked`, it is merely at the repo root, so measuring it against an unreadable config reports a
+   **blocking** gap that one `git mv` evaporates. Under a set of three, isekai's `criteria_total` reads 20 rather
+   than the 19 its committed report carries.
 
 **Rule 3 is deliberately narrow, and the boundary is load-bearing.** It covers *only* criteria whose subject is the
 unreadable file itself. It explicitly does **not** cover:
@@ -148,9 +158,9 @@ The report goes to the vault, never the repo. A repo with no vault wiring is **h
 to — which means teardown can never *report* "not vault-wired" as a gap; for an unwired repo the human adds that
 one `.env` line by hand first. Accepted deliberately.
 
-**Preflight mirrors the orchestrator's, condition for condition.** `read_vault_dir` (`orchestrator/state.py:81–126`)
-already enforces five — `.env` unreadable · not valid UTF-8 · key missing or empty · **value not absolute** · value
-not an existing directory — and the fourth is spec-bound
+**Preflight mirrors the orchestrator's five, then adds a sixth — five mirrored, one teardown-only.**
+`read_vault_dir` (`orchestrator/state.py:81–126`) already enforces five — `.env` unreadable · not valid UTF-8 ·
+key missing or empty · **value not absolute** · value not an existing directory — and the fourth is spec-bound
 (`change-state:vault-preflight:relative-vault-refused`). Teardown mirrors all five rather than the three an earlier
 draft named, because **a skill with a weaker preflight than the loop is a hole in the same wall**: a relative value
 such as `VAULT_PROJECT_DIR=docs` resolves to a directory **inside the target repo**, and the outer step would write
@@ -158,9 +168,25 @@ the report there — breaking §7's own read-only posture and the never-write-to
 import `read_vault_dir` (it is a skill, and the change adds no code), so it restates the conditions; they are
 listed here so the two cannot drift silently.
 
+**Condition 6 is teardown-only, and the asymmetry is deliberate** (added in the review round-1 fix pass, security
+finding **S2**). Conditions 1–5 refuse the *relative* spelling of "write the report inside the target" and nothing
+else; the same attack written **absolutely** —
+`VAULT_PROJECT_DIR="/abs/path/to/the/target/docs"`, or a `..`-laden or symlinked value — passes all five, because
+`Path.is_absolute()` normalises nothing and neither preflight compares the value to any known-good vault. Three
+outcomes follow from that one target-controlled string: the report lands **inside the target**; or it **overwrites
+another project's** `findings/teardown.md` in place; or the next run's merge reads **attacker-placed markdown**
+there as prior state and seeds the statuses and counts v0.7 acts on. So teardown additionally requires the
+**fully resolved** value to be outside the target repo (and, where the operator's vault root is known, under it).
+The loop is pointed at repos the human has already adopted; teardown at repos they have not — so teardown's
+destination check is stronger than the loop's rather than equal to it, and **the skill says so in those words**,
+because an unqualified "condition for condition" claim would be false after this edit. Weighing the same
+containment check for `read_vault_dir` — which the loop writes far more than one report through — is backlogged.
+
 **Parsing `.env` — strip quotes, keep spaces.** Real targets write the value **double-quoted**, and the vault path
-**contains spaces**: `/Users/alexey/Developer/AI_Engineering/isekai/.env:6` is
-`VAULT_PROJECT_DIR="/Users/…/Notebook/Lab/isekai"`, and MF's own `.env` is quoted the same way. A naive read that
+**contains spaces** (an iCloud-backed Obsidian folder does): `<target>/.env:6` reads
+`VAULT_PROJECT_DIR="/absolute/path/to/vault"` — a quoted value over a path with spaces in it — and MF's own `.env`
+is quoted the same way. (Placeholders on purpose: an operator's real absolute path never goes in a tracked file,
+and the point being illustrated survives without one.) A naive read that
 keeps the quote characters produces a path that does not resolve — which R7 would then report as *"the path does
 not resolve to an existing directory"* and **halt**, on a correctly-wired repo. So the resolver strips surrounding
 **double** quotes before resolving, and must not split the value on whitespace. This is a false-halt bug waiting in
@@ -221,6 +247,26 @@ in every declaration in the same commit. Phase 6 should treat C1 and C4 as one e
 tests pass"; "`ruff format --check` + `ruff check`"), not a command list, while `README.md:66–69` is a literal
 `bash` block. Whether a prose declaration is in `gate:contract-agrees`' scope decides whether MF has one failing
 declaration or two — so the criterion states its own (M) boundary (phase 2) before phase 6 measures against it.
+
+**Two corrections to the shipped criterion, made in the review round-1 fix pass and recorded here rather than in
+the PRD** (the PRD is the pre-build intent record and is not rewritten after the fact):
+
+- **`gate:contract-agrees` ships (M+J), where `prd/v0.6_teardown.md`'s table tags it (M).** The prose boundary
+  above is genuinely mechanical, but the criterion's *second* boundary — whether a command block declares **this**
+  repo's gate or illustrates some other repo's — decides by reading what the block is *for*, and a criterion whose
+  measurers must judge is not mechanical. The change's own paper trail is the evidence: both phase-6 measurers had
+  to exercise that judgment on `README.md:42-49` before the rubric authorised it. The substantive call stands (it
+  is a sharpening, not a relaxation); only the tag was wrong. Its two group-C siblings facing the same problem,
+  `gate:covers-axes` and `gate:make-mirrors`, are already (M+J). The criterion now says which half is (M) — the
+  command-for-command comparison — and which is (J), so neither can be skipped by reading the tag.
+- **The prose boundary now names the criterion it defers to, and that criterion carries the clause.** The boundary
+  put prose axis lists out of scope on the strength of `wiring:claude-md`'s (J) layer owning them, but that
+  criterion's *Checked* line reached only the retired-model and where-progress-lives clauses — so the coverage
+  claim was false as written and MF's own `CLAUDE.md` gate account drifted a version behind the array under it.
+  `wiring:claude-md` gains a third (J) clause (its account of the gate matches what the `gate` array runs, quoted
+  commands and flags included) and the two criteria now point at each other. Within the PRD's tag: `wiring:claude-md`
+  is **(M+J) blocking** there already, and the rubric already extended its (J) description beyond the PRD's
+  wording, so this is the same move rather than a deviation.
 
 **Also worth knowing:** all three MF gaps are closable by editing a tracked file, so **the closability rule's
 backlog branch has no live instance at v0.6.** Its motivating example — `record:change-trailer` on the trailer-less

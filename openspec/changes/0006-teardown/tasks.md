@@ -145,8 +145,18 @@ failing → `open`; `verified` entries persist until the report goes `compliant`
 Document the **absent-subject rule** (`design.md` §5), so one defect is reported once and two runs are comparable:
 existence criteria **fail**; universally-quantified criteria **vacuously pass** over an empty set (their emptiness
 is already reported by the existence criterion); and criteria **whose subject is the unreadable gate array
-itself** — `gate:covers-axes`, `gate:contract-agrees` and `sdd:checker-in-gate` — are **not measured**, each
-naming the gap that gates them and excluded from both counts. Write down the two exclusions too:
+itself** — `gate:covers-axes`, `gate:contract-agrees`, `sdd:checker-in-gate` **and `py:gate-commands`** — are
+**not measured**, each naming the gap that gates them and excluded from both counts.
+
+> **Corrected after the fact (review round 1, R4).** This phase brief originally enumerated **three**
+> gate-array-subject criteria. The rule as built names **four**: `py:gate-commands`' *Checked* line names the
+> `gate` array too, so it belongs in case 3 on the rule's own principle, and the completeness requirement two
+> paragraphs below authorised phase 4 to add it (`py:gate-commands` is in the covered set only when the
+> `python-uv` profile matched — a criterion outside the run's baseline is not "not measured"). The shipped
+> `skills/rubrics/compliance.md` and `design.md` §5 are the correct statement; the three named here was stale, and
+> under it isekai's `criteria_total` would read 20 rather than the 19 its report carries.
+
+Write down the two exclusions too:
 **`gate:make-mirrors` fails outright when a `Makefile` gate target is absent** (isekai's case, which R11 requires
 reported) and **`gate:no-gaming` is never gated**, its subject being tool config. The rule must name **every**
 gate-array-subject criterion — an omission means a gap reported against a merely mis-located config that

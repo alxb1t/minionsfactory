@@ -66,12 +66,20 @@ second toolchain is a new Tier-2 section and no edit here.
 - **`wiring:claude-md`** · (M+J) · `blocking`
   - **Checked:** a root `CLAUDE.md` exists; **(M)** it carries no unfilled `{{placeholder}}` and no absolute vault
     path (the path belongs in `.env` only); **(J)** it describes the contract the repo actually runs — it names no
-    retired `implementation_plans/` model, and its account of where progress lives matches the repo.
-  - **Fix:** fill the placeholders, move any vault path into `.env`, and rewrite stale sections onto the in-tree
-    `openspec/changes/<id>/` contract.
+    retired `implementation_plans/` model, its account of where progress lives matches the repo, and **its account
+    of the gate matches what the repo's `gate` array actually runs**: the axes it names, and any literal command
+    it quotes, flags included. That third clause is the one `gate:contract-agrees`' prose boundary **defers to** —
+    a prose axis list is out of *that* criterion's scope precisely because it is inside *this* one's, so a
+    `CLAUDE.md` describing a gate the array does not run fails here rather than going unchecked.
+  - **Fix:** fill the placeholders, move any vault path into `.env`, rewrite stale sections onto the in-tree
+    `openspec/changes/<id>/` contract, and bring the gate account into step with the array — a literal command
+    quoted in prose is still a literal command, and the human types the one the doc shows.
 - **`wiring:env-example`** · (M) · `required`
   - **Checked:** `.env.example` is tracked, declares the **same keys** as `.env` (`VAULT_PROJECT_DIR` at minimum),
-    and every value is a placeholder — no real path, no secret.
+    and every value is a placeholder — no real path, no secret. **The comparison is over key names only:** `.env`
+    is the gitignored file holding a target's live values, so it is read for the *set of keys it declares* and for
+    nothing else. A value read from either file is never reproduced — not in the report, not in what is relayed to
+    the human (see *A gap entry*).
   - **Fix:** commit `.env.example` with placeholder values; the real values stay in the gitignored `.env`.
 - **`wiring:gitignore`** · (M) · `required`
   - **Checked:** `.gitignore` ignores `.env`; ignores `.minions/*` with a `!.minions/minions.toml` negation (run
@@ -124,27 +132,40 @@ second toolchain is a new Tier-2 section and no edit here.
     reports findings without failing does not cover its axis, and a linter is not counted as the type checker.
   - **Fix:** add a command for each uncovered axis. A gate missing an axis still exits `0`, so the loop advances
     on it and the missing axis is never enforced again.
-- **`gate:contract-agrees`** · (M) · `required`
+- **`gate:contract-agrees`** · (M+J) · `required`
   - **Checked:** every place `CLAUDE.md` or `README.md` declares the gate **as commands** matches the `gate` array
     in `.minions/minions.toml` **command-for-command** — the same commands, in the same order, with the same
     flags. A flag difference is a mismatch: two commands that differ in their arguments are two different
     commands, and the human types the one the doc shows.
+  - **Which half is which:** **(M)** the command-for-command comparison itself, over the blocks that are in scope
+    — a mechanical diff of two command lists. **(J)** whether a given block declares *this* repo's gate at all,
+    the second boundary below. **Neither half is optional.** A measurer who reads the tag and skips the judgment
+    reports a false gap against a documented example; one who exercises the judgment and skips the comparison is
+    not measuring the criterion.
+  - **Deviation from the PRD table, on the record:** the v0.6 PRD tags this criterion **(M)**. It ships **(M+J)**,
+    because the second boundary decides by reading what a block is *for* — a judgment call, and a criterion whose
+    measurers must judge is not mechanical. Its two group-C siblings facing the same problem, `gate:covers-axes`
+    and `gate:make-mirrors`, are already (M+J) for the same reason. Recorded here (and in the change's
+    `design.md` and `CHANGELOG.md`) rather than by editing the PRD, which is the pre-build intent record.
   - **Boundary — what counts as a declaration (the (M) line):** **only a literal command block** — a fenced code
     block, or a list whose items are command lines. A **prose axis list** — one that names the quality *axes*
     rather than the commands (*"tests pass"*, *"format + lint clean"*, *"strict type-check clean"*) — is
     **out of scope for this criterion.** Command-for-command is a mechanical comparison and it needs commands on
-    both sides; grading prose against an array would turn an (M) criterion into a judgment call that can decide
+    both sides; grading prose against an array would turn the (M) half into a judgment call that can decide
     differently on two runs of an unchanged repo, which is the rubric defect this rubric refuses to ship. Prose is
     not left unchecked, it is checked by the criteria that own it: `gate:covers-axes` owns whether the axes are
-    the right ones, and `wiring:claude-md`'s (J) layer owns whether `CLAUDE.md` describes the contract the repo
-    actually runs.
-  - **Boundary — whose gate is being declared:** the subject is **this repo's own gate**. A command block that
-    illustrates what some *other* repo should configure — a template, an `e.g.` in an onboarding section, a
-    quoted example of a target's config — is **not** a declaration of this repo's gate and is out of scope, even
-    when it is a literal command block in one of the two named files. Read the surrounding sentence: a block
-    introduced as an example of what a target must provide describes a different repo, and requiring it to match
-    this repo's array would force documentation to be wrong. If the block is genuinely this repo's gate, it is in
-    scope however it is captioned.
+    the right ones, and **`wiring:claude-md`'s (J) layer owns whether `CLAUDE.md`'s account of the gate matches
+    what the `gate` array actually runs** — its third (J) clause exists for this boundary to defer to. The two
+    criteria point at each other on purpose: a later reader must not find this seam empty.
+  - **Boundary — whose gate is being declared (the (J) line):** the subject is **this repo's own gate**. A command
+    block that illustrates what some *other* repo should configure — a template, an `e.g.` in an onboarding
+    section, a quoted example of a target's config — is **not** a declaration of this repo's gate and is out of
+    scope, even when it is a literal command block in one of the two named files. Read the surrounding sentence: a
+    block introduced as an example of what a target must provide describes a different repo, and requiring it to
+    match this repo's array would force documentation to be wrong. If the block is genuinely this repo's gate, it
+    is in scope however it is captioned. **This reading is the judgment half of the tag** — no mechanical rule
+    reaches the case without someone deciding what a heading or a caption names, which is exactly why the
+    criterion is not (M).
   - **Fix:** rewrite the declaring block to the array verbatim, or delete the block and point at
     `.minions/minions.toml` — one source of truth, quoted or referenced, never paraphrased.
 - **`gate:make-mirrors`** · (M+J) · `required`
@@ -270,8 +291,8 @@ it directly rather than through the orchestrator.
 ```yaml
 ---
 type: teardown            # fixed — identifies the file's contract
-repo: <name>              # the target repo measured (its directory name)
-head: <sha>               # the target's HEAD at measurement time — what the evidence refers to
+repo: "<name>"            # the target repo measured (its directory name) — quoted + sanitised
+head: "<sha>"             # the target's HEAD at measurement time — what the evidence refers to
 profile: python-uv|none   # the profile the OUTER step detected, before the measurement was spawned
 round: <n>                # 1 on a first run; incremented by the outer step on every later run
 criteria_total: <n>       # criteria actually assessed on this run — see the formula below
@@ -284,6 +305,13 @@ verdict: compliant|gaps-found
 
 Every field is populated on every run, and `open_gaps` / `open_blocking` / `open_required` must **agree with the
 body** — they are counts of what the file actually lists, not an estimate.
+
+**`repo:` and `head:` come from the target, so they are quoted and sanitised before they are written.** Both are
+emitted **double-quoted**; `head:` must match `[0-9a-f]{7,40}` or the run halts rather than writing it, and
+`repo:` is stripped of newlines, quote characters and surrounding whitespace. A directory name is not always
+chosen by the human — git derives a clone's from the remote URL's basename — and an unquoted one carrying a `:`
+or a newline injects a second key into a block both the human and v0.7 parse. The report's **path** is the fixed
+reserved id `teardown` and derives nothing from the target.
 
 **`criteria_total` counts what this run assessed** — the tier baseline, minus anything withheld by the
 absent-subject rule below:
@@ -326,6 +354,13 @@ Four things, all required: the **criterion id** (it must exist in this rubric �
 what was actually found there** — a gap whose evidence names no real path is not a finding, it is a guess. The
 **fix pointer** comes from the criterion.
 
+**One constraint on that evidence: no line ever reproduces a value read from `.env` or `.env.example`.** Cite the
+**key name** and the verdict — *"`.env` declares `VAULT_PROJECT_DIR`; `.env.example` does not"*, or *"three keys
+in `.env`, two in `.env.example`"* — never the value a key holds. `wiring:env-example` is the criterion that
+reads those files and it fails **exactly when a live value is present**, the target is a repo the operator has
+not vetted, and this report is a vault file the human keeps and may commit — which is the whole path from a third
+party's secret into a git history. The same constraint applies to what the run relays to the human.
+
 Criteria that have never been gapped are **summarised, not enumerated** — a per-group pass count is enough.
 
 ### Statuses, and who writes them
@@ -336,7 +371,9 @@ Criteria that have never been gapped are **summarised, not enumerated** — a pe
 - **`fixed`** — **the producer's word.** v0.7 `mf-retrofit` writes it when it believes it closed the gap.
   **`mf-teardown` never writes `fixed`**, in any round.
 - **`verified`** — **the checker's word.** Only a teardown re-run promotes a gap to it, by measuring the repo
-  again and finding the criterion passing.
+  again and finding the criterion passing — and only a later teardown re-run takes it back, returning it to
+  `open` when the criterion fails again. `verified` is a statement about the round that measured it, never a
+  permanent one.
 
 That asymmetry is what makes the pair a producer→checker loop rather than one agent grading its own work: the
 claim and the confirmation are written by different steps, and the confirming one is blind to the claim.
@@ -353,16 +390,28 @@ measurement, increments `round`, and reconciles entry by entry.
 | `open` | no | `verified`, keeping its original evidence |
 | `fixed` (written by v0.7) | yes | back to **`open`**, and a `## Resolution log` line records the rejected fix |
 | `fixed` (written by v0.7) | no | `verified` |
+| `verified` (from an earlier round) | yes | back to **`open`**, carrying **this round's fresh evidence**, and a `## Resolution log` line records the **rejected regression** |
+| `verified` (from an earlier round) | no | stays `verified` |
 | *(none — newly failing)* | yes | opens at **`open`** |
 
-`verified` entries **persist across later rounds**, so a converging run shows its own progress. When the report
-reaches `verdict: compliant` they are **cleared**, and the resolution log keeps the history — the file records
-progress without growing without bound.
+**The table is exhaustive over the states a prior report can hold** — `open`, `fixed`, `verified`, and absent. A
+prior state with no row is not a small omission: nothing else in this contract tells a measurer what to do with
+it, two measurers resolve it differently, and the one that leaves it where it was writes a criterion that is
+failing *now* out of `open_gaps` / `open_blocking` / `open_required` — so the verdict rule reads zero and
+certifies a repo with an open `blocking` or `required` gap. Any status added later gets a row here in the same
+edit.
+
+`verified` entries **persist across later rounds only while the criterion still passes** — that is what lets a
+converging run show its own progress without re-listing closed work. A `verified` criterion that fails again is
+**never carried as `verified`**: it returns to `open` by the row above, with fresh evidence, and is counted like
+any other open gap. When the report reaches `verdict: compliant` the surviving `verified` entries are
+**cleared**, and the resolution log keeps the history — the file records progress without growing without bound.
 
 ### `## Resolution log`
 
 **Append-only**, at the foot of the report, written by both teardown's merge and by v0.7. One dated line per
-transition — a gap opened, a fix rejected, a gap verified, a set of `verified` entries cleared at `compliant`.
+transition — a gap opened, a fix rejected, a gap verified, a **verified gap reopened on a regression**, a set of
+`verified` entries cleared at `compliant`.
 Nothing is ever deleted from it; it is the only place the history survives a `compliant` clear.
 
 ### The absent-subject rule — so one defect is reported once
