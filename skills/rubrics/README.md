@@ -26,6 +26,12 @@ requirement secretly defers a decision" is (J)).
 - **feasibility** emits a 4-way verdict — `feasible` · `feasible-with-caveats` · `needs-precursor` ·
   `infeasible-as-specified` (see [feasibility](feasibility.md)) — because "can we build this here" is not
   pass/fail.
+- **compliance** emits `verdict: compliant | gaps-found` over **three** severities — `blocking` (the orchestrator
+  cannot run here at all) · `required` (below standard; the loop runs) · `advisory` (a nit) — rather than the
+  `blocking | nit` pair the other three share. `compliant` iff zero `blocking` **and** zero `required` gaps are
+  open; open advisories are listed and counted but never withhold the verdict (see
+  [compliance](compliance.md)). Its subject is a **repo** rather than a planning artifact, and its gaps carry the
+  same `open → fixed → verified` status machine across rounds.
 
 Checkers write a findings file with machine-readable frontmatter (the same `open → fixed → verified` status
 machine the execution reviewer uses); every finding cites the exact PRD requirement / change artifact it fails —
@@ -38,3 +44,4 @@ machine the execution reviewer uses); every finding cites the exact PRD requirem
 | [prd-readiness](prd-readiness.md) | `mf-order` | `mf-gauge` |
 | [feasibility](feasibility.md) | `mf-blueprint` | `mf-inspect` (re-checks) |
 | [conformance](conformance.md) | `mf-forge` | `mf-inspect` |
+| [compliance](compliance.md) | `mf-retrofit` (v0.7) · `mf-stamp` (v0.8) — forthcoming | `mf-teardown` |

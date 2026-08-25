@@ -55,14 +55,24 @@ copy `.env.example` → `.env` and ask the human to fill it in.
 
 ## The quality gate (a phase is done only when all are green)
 
+The gate **leads with a locked lock-sync step** — `uv sync --locked`, which asserts `uv.lock` is up to date and
+fails rather than silently re-resolving — so the gate certifies what the lock pins rather than whatever `.venv`
+happens to hold. It is environment setup rather than a quality *axis*, so it is listed here as the step it is and
+the four axes follow:
+
 - `pytest` — all tests pass. **Test-first (red → green)** for every unit of logic we control. The suite doubles
   as executable documentation — name tests as behavioural sentences.
 - `ruff format --check` + `ruff check` — format + lint clean (`D` docstrings + `ANN` annotations enabled).
 - `ty check` — strict type-check clean.
 - **`specs check`** — the spec binding holds: every scenario is test-backed and every `spec` marker resolves
   (a structural check; the reviewer judges whether a test *genuinely* exercises its scenario). This repo runs
-  **from source**: invoke it like the existing `run` command — `uv run python -m orchestrator specs check`.
-  There is **no installed `minions` binary yet**; `minions specs check` is only the future installed alias.
+  **from source**: invoke it like the existing `run` command —
+  `uv run python -m orchestrator specs check --strict`. There is **no installed `minions` binary yet**;
+  `minions specs check` is only the future installed alias.
+
+Six steps in all — the sync, format, lint, typecheck, test, and the spec checker last. `.minions/minions.toml`'s
+`gate` array is the source of truth (the orchestrator runs *it*); `Makefile`'s `gate` target, `README.md` and CI
+mirror it command-for-command.
 
 External effects are **faked** in tests behind their seams — the **provider** (`claude -p`) behind the
 `Provider` Protocol (`FakeProvider`) and the **gate subprocess** behind the gate seam (`FakeGate`) — so **no
