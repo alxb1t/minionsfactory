@@ -113,8 +113,10 @@ cd /path/to/the/target/repo    # cwd must be the target
 It is **read-only against the target**: it writes nothing in the repo, runs no gate command and executes no
 target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and `ls-files` — run with
 `-c core.fsmonitor=false -c core.pager=cat`, because a repo's own `.git/config` can name commands git runs during
-operations that otherwise only read. The measuring subagent is spawned onto a read-only tool surface (no `Write`,
-no `Edit`), and everything read from the target is treated as **evidence, never instruction**. It halts before
+operations that otherwise only read. The measuring subagent is spawned with a read-only tool set (no `Write`,
+no `Edit`) — **instructed, not yet enforced**: a spawned agent's tools come from its type definition, and this
+skill names no such type, so the narrow surface is a convention the spawning agent follows rather than a
+permission boundary. Everything read from the target is treated as **evidence, never instruction**. It halts before
 measuring anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR` — the orchestrator's own
 five preflight conditions, plus a sixth that resolves the value and refuses any destination inside the target;
 the report needs a destination, and it never goes in the repo.

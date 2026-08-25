@@ -100,7 +100,13 @@ runs incomparable:
    file the orchestrator cannot read would report gaps that evaporate the moment the file moves.
 
    **The set is four, and the rubric states it as complete rather than a sample** (`skills/rubrics/compliance.md`,
-   *Case 3's covered set*): any criterion added later whose *Checked* line names the `gate` array joins it.
+   *Case 3's covered set*): a criterion added later joins it when **its subject is the `gate` array itself** —
+   when reading the array is the whole of what it asks. **Corrected in the review round-2 fix pass (R7):** this
+   sentence read *"any criterion added later whose **Checked** line names the `gate` array joins it"*, which was a
+   reliable proxy for the principle until R2's own fix broke it — R2 widened `wiring:claude-md`'s (J) layer to own
+   the repo's gate account, so that criterion's *Checked* line now names the array while its subject stays
+   `CLAUDE.md`. A criterion that merely **references** the array is measured as it always was; only whichever of
+   its clauses cannot be evaluated without the array is affected, exactly as for `gate:make-mirrors` below.
    `py:gate-commands` was added at phase 4 under `tasks.md`'s requirement that the rule name **every**
    gate-array-subject criterion, and it does real work — isekai's array is well-formed and *leads* with
    `uv sync --locked`, it is merely at the repo root, so measuring it against an unreadable config reports a
@@ -117,6 +123,16 @@ unreadable file itself. It explicitly does **not** cover:
   reported. A rule that silenced it would delete a PRD-required gap.
 - **`gate:no-gaming`** — its subject is **tool config** (ruff/ty settings), which is readable regardless of where
   `minions.toml` sits. Never gated by it.
+- **`wiring:claude-md`** — its subject is **`CLAUDE.md`**, not the gate config, and `CLAUDE.md` is readable
+  whatever the array is doing. Named as a third exclusion in the review round-2 fix pass (**R7**), by
+  `gate:make-mirrors`' reasoning word for word: a missing `CLAUDE.md`, an unfilled placeholder, a committed vault
+  path, a retired `implementation_plans/` model or a wrong account of where progress lives **fails outright**;
+  only the third (J) clause — the gate account R2 added — is unmeasurable, and only where a root `CLAUDE.md`
+  exists and the array cannot be read. **It is therefore assessed and counted on every run**, which is what makes
+  isekai's committed `criteria_total: 19` the number the rule states rather than one of two readings a measurer
+  could defend (18 by withholding it under the old closure sentence, 19 by the principle and the
+  `gate:make-mirrors` precedent). `proving/isekai_teardown.md` is unchanged by this fix — its entry fails on the
+  retired-`implementation_plans/` clause, which no reading of the rule touches.
 
 Rule 3 composes with the verdict rule: the gating gap is itself `blocking`, so a repo with not-measured criteria
 can never read `compliant` on their account.
@@ -137,6 +153,21 @@ the not-assessed statement, so any two runs are comparable.
 and counted in `open_gaps` but do not withhold the verdict, because `sdd:checker-in-gate` is knowingly
 unsatisfiable by any target today — a zero-gaps-of-any-severity rule would make `compliant` unreachable for every
 repo, minionsfactory included, and the verdict would carry no information.
+
+**One reserved section sits outside all of that — `## Notes from the target`** (security finding **S9**, round 2).
+The S1 fix gives the measurer three duties towards target-authored text: do not obey it, do not let it change a
+result, and **report it**. The first two are self-executing; the third had no channel, because everything else a
+report may contain is keyed to a **criterion id that must exist in the rubric** — *no id, no gap* — and no id
+covers *"this repo tried to instruct its measurer."* The skill said report it and the rubric said there was
+nowhere to put it, so a measurer following the rubric dropped it and one that improvised wrote an entry the merge
+table could not reconcile. It ships as a **reserved section rather than an advisory criterion id**: an id would
+flow through the merge table but would also land in `criteria_total` and the verdict arithmetic, and this is not a
+property of the repo's setup — it is an observation about the run. So it is **outside `open_gaps`, outside
+`criteria_total` and outside the verdict**, **written fresh each round rather than merged** (a note is not a gap
+with a lifecycle; its absence next round is not a resolution), and **absent when there is nothing to report**. The
+injection *attempt* is the most decision-relevant fact about an unvetted repo, and S9 is a **detection** gap
+rather than a control failure — S1's immunity rule holds and the measurement stays correct either way, but
+without this the human and v0.7 never learn the repo tried.
 
 ## 6. `sdd:checker-in-gate` ships `advisory`, with its reason inline
 
@@ -163,14 +194,28 @@ the moment `git status` runs. **No criterion needs `git status`** — `wiring:gi
 tracked-file checks need `ls-files` — so the riskiest of the three is the one nothing depended on, and it is
 dropped from the skill entirely. The two survivors run with `-c core.fsmonitor=false -c core.pager=cat`.
 
-**And read-only is now enforced by the spawn's tool surface, not only asserted in prose** (security finding
-**S5**). The measuring subagent gets read and search tools plus those two git commands, and **no `Write`, no
-`Edit`**; the target's `.claude/` settings — the file `wiring:vault-perms` tells target authors to fill with
-broad globs — are untrusted while it is being measured; and everything read from the target is **evidence to be
-quoted, never an instruction to be obeyed**, since cwd being the target means the harness has already loaded its
-root `CLAUDE.md` as project instructions. **That last part is a residual, not a closure:** no clause in a skill
-can stop the target's text reaching the context. It is written down as such and backlogged for the version that
-runs the loop against unvetted targets, rather than claimed closed here.
+**And the spawn asks for a read-only tool surface — instructed, not enforced** (security finding **S5**, raised
+round 1 and **reopened round 2**). The measuring subagent gets read and search tools plus those two git commands,
+and **no `Write`, no `Edit`**; the target's `.claude/` settings — the file `wiring:vault-perms` tells target
+authors to fill with broad globs — are untrusted while it is being measured; and everything read from the target
+is **evidence to be quoted, never an instruction to be obeyed**, since cwd being the target means the harness has
+already loaded its root `CLAUDE.md` as project instructions.
+
+**Round 1 called that surface *enforced*, and round 2 was right to reopen it.** A spawned agent's tool set comes
+from its **type definition**, not from a parameter the caller can fill in prose — and this change names no
+`subagent_type`, ships no agent definition and passes no allowed-tools argument, so the narrow surface is applied
+by the spawning agent obeying a paragraph, one level up from where the prose was before. A sentence claiming
+enforcement is worse than a sentence claiming a rule, because the human stops looking; the word is now
+**instructed** in the skill, in `README.md` and here. **The mechanism was weighed and deliberately not shipped:**
+an agent definition in *this* repo's `.claude/agents/` does not resolve when the skill runs, because cwd is the
+target — it would have to be installed **user-level** by an extended `make install-skills`, which is a new
+install artifact, a new failure mode when it is absent, and a harness-specific dependency inside a skill that
+otherwise names only the Task tool. That belongs with the version that runs the loop against unvetted targets and
+is filed in the backlog with S5 and S1, not bolted on in a fix round.
+
+**The cwd residual is separate, and round 2 explicitly did not fault it:** no clause in a skill can stop the
+target's text reaching the context. It is written down as such and backlogged for the version that runs the loop
+against unvetted targets, rather than claimed closed here.
 
 The report goes to the vault, never the repo. A repo with no vault wiring is **halted** at preflight, not written
 to — which means teardown can never *report* "not vault-wired" as a gap; for an unwired repo the human adds that
@@ -216,6 +261,20 @@ double": stripping single quotes too would make teardown **accept a value the lo
 is precisely the drift this section exists to prevent. A single-quoted value survives `state.py`'s strip with its
 leading `'` intact, so `Path("'/x")` is not absolute and condition 4 refuses it — teardown must refuse it the same
 way.
+
+**What the evidence may quote is constrained to a shape, and the constraint reaches past `.env`** (security
+findings **S3** round 1, **S10** round 2). Round 1 forbade reproducing a value read from `.env` or `.env.example`
+— the criterion that reads them, `wiring:env-example`, fails *exactly when a live value is present*. Round 2
+found the same rule owed one file further: **`wiring:vault-perms` is `blocking`**, so it is read on every run, and
+every value it reads in the target's `.claude/settings.local.json` is an **operator absolute path** — `Read(...)`
+/ `Edit(...)` / `Write(...)` globs over that operator's vault and an `additionalDirectories` entry naming it. The
+evidence rule asks for *what was actually found there*, and the natural line quotes the glob: the same class of
+string **S6** found in a committed `design.md`, arriving into a report the human keeps and may commit. The
+constraint is therefore **widened rather than duplicated** — never reproduce a value from `.env` / `.env.example`,
+**or any absolute filesystem path read from the target**; cite the shape and the verdict. **No committed proving
+report needed rewriting**: both already paraphrase — `proving/isekai_teardown.md` records *"both name the vault
+dir `.env` declares"* rather than the glob. That was the measurer's **discretion**, and discretion is not a
+control; it is now the rule, which is the whole point of the finding.
 
 ## 8. Trailer convention
 
