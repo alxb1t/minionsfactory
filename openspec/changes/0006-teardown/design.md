@@ -149,10 +149,28 @@ checker distributable is its own work → backlog.
 
 ## 7. Read-only is the security posture, not a preference
 
-Teardown is pointed at repos the human has **not yet vetted for the loop**. It reads files and git metadata only:
-no writes in the target, no gate command executed, no target code run. A repo whose gate is red still produces a
-complete report. The skill's own instructions must forbid running the target's tooling — the constraint has to
-live where the agent reads it, not only in this document.
+Teardown is pointed at repos the human has **not yet vetted for the loop**: no writes in the target, no gate
+command executed, no target code run. A repo whose gate is red still produces a complete report. The skill's own
+instructions must forbid running the target's tooling — the constraint has to live where the agent reads it, not
+only in this document.
+
+**"Files and git metadata only" was too strong, and the skill no longer says it** (corrected in the review
+round-1 fix pass, security finding **S4**). Git honours **repository-local** configuration, and `core.fsmonitor`,
+`core.hooksPath`, `core.pager`, aliases and a `.gitattributes` `filter=` clean filter all name commands git runs
+during ostensibly read-only operations — so a repo arriving **with its own `.git/config`** (an archive, an
+rsync'd or shared checkout, a directory the human was sent rather than cloned) executes target-chosen commands
+the moment `git status` runs. **No criterion needs `git status`** — `wiring:git-repo` needs `rev-parse HEAD`, the
+tracked-file checks need `ls-files` — so the riskiest of the three is the one nothing depended on, and it is
+dropped from the skill entirely. The two survivors run with `-c core.fsmonitor=false -c core.pager=cat`.
+
+**And read-only is now enforced by the spawn's tool surface, not only asserted in prose** (security finding
+**S5**). The measuring subagent gets read and search tools plus those two git commands, and **no `Write`, no
+`Edit`**; the target's `.claude/` settings — the file `wiring:vault-perms` tells target authors to fill with
+broad globs — are untrusted while it is being measured; and everything read from the target is **evidence to be
+quoted, never an instruction to be obeyed**, since cwd being the target means the harness has already loaded its
+root `CLAUDE.md` as project instructions. **That last part is a residual, not a closure:** no clause in a skill
+can stop the target's text reaching the context. It is written down as such and backlogged for the version that
+runs the loop against unvetted targets, rather than claimed closed here.
 
 The report goes to the vault, never the repo. A repo with no vault wiring is **halted** at preflight, not written
 to — which means teardown can never *report* "not vault-wired" as a gap; for an unwired repo the human adds that

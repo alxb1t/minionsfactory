@@ -111,10 +111,13 @@ cd /path/to/the/target/repo    # cwd must be the target
 ```
 
 It is **read-only against the target**: it writes nothing in the repo, runs no gate command and executes no
-target code — files and git metadata only — so it is safe to point at a repo you have not vetted yet. It halts
-before measuring anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR`, mirroring the
-orchestrator's own preflight condition for condition; the report needs a destination, and it never goes in the
-repo.
+target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and `ls-files` — run with
+`-c core.fsmonitor=false -c core.pager=cat`, because a repo's own `.git/config` can name commands git runs during
+operations that otherwise only read. The measuring subagent is spawned onto a read-only tool surface (no `Write`,
+no `Edit`), and everything read from the target is treated as **evidence, never instruction**. It halts before
+measuring anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR` — the orchestrator's own
+five preflight conditions, plus a sixth that resolves the value and refuses any destination inside the target;
+the report needs a destination, and it never goes in the repo.
 
 Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to
 **v0.7 `mf-retrofit`**, which drives the gaps to clean and for which a teardown re-run is the independent
