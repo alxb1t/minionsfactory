@@ -272,12 +272,14 @@ the PRD** (the PRD is the pre-build intent record and is not rewritten after the
 backlog branch has no live instance at v0.6.** Its motivating example — `record:change-trailer` on the trailer-less
 merge commit `6149a64` — left for v0.8 with group D. The rule is insurance, not a planned path.
 
-**And a density note:** **6 of the 23** criteria are (J)/(M+J) at blocking or required severity
-(`wiring:claude-md`, `gate:covers-axes`, `gate:make-mirrors`, `gate:no-gaming`, `py:gate-commands`,
-`py:import-resolution`) — a *higher* proportion than the pre-rescope draft, since judgment-heavy group C stayed
-while `docs:freshness` left. Group C is where this version's judgment risk concentrates. R5's rule applies: a (J)
-criterion that flips pass/fail across two runs of an unchanged repo is a **rubric defect** — sharpen it until it
-decides the same way twice, or drop it to `advisory`.
+**And a density note:** **7 of the 23** criteria are (J)/(M+J) at blocking or required severity
+(`wiring:claude-md`, `gate:covers-axes`, `gate:contract-agrees`, `gate:make-mirrors`, `gate:no-gaming`,
+`py:gate-commands`, `py:import-resolution`) — a *higher* proportion than the pre-rescope draft, since
+judgment-heavy group C stayed while `docs:freshness` left. **All four of group C** now carry a judgment layer, so
+it is unambiguously where this version's judgment risk concentrates. (It was six until the review round-1 fix
+pass retagged `gate:contract-agrees` (M) → (M+J), above.) R5's rule applies: a (J) criterion that flips pass/fail
+across two runs of an unchanged repo is a **rubric defect** — sharpen it until it decides the same way twice, or
+drop it to `advisory`.
 
 ## 10. A resolved disagreement with the vault design proposition
 
