@@ -100,13 +100,20 @@ runs incomparable:
    file the orchestrator cannot read would report gaps that evaporate the moment the file moves.
 
    **The set is four, and the rubric states it as complete rather than a sample** (`skills/rubrics/compliance.md`,
-   *Case 3's covered set*): a criterion added later joins it when **its subject is the `gate` array itself** —
-   when reading the array is the whole of what it asks. **Corrected in the review round-2 fix pass (R7):** this
-   sentence read *"any criterion added later whose **Checked** line names the `gate` array joins it"*, which was a
-   reliable proxy for the principle until R2's own fix broke it — R2 widened `wiring:claude-md`'s (J) layer to own
-   the repo's gate account, so that criterion's *Checked* line now names the array while its subject stays
-   `CLAUDE.md`. A criterion that merely **references** the array is measured as it always was; only whichever of
-   its clauses cannot be evaluated without the array is affected, exactly as for `gate:make-mirrors` below.
+   *Case 3's covered set*): a criterion added later joins it when **no clause of it can be decided without reading
+   the array** — where deciding means returning a real pass or fail about the repo, not passing vacuously over an
+   empty in-scope set. **Corrected twice, both on the record.** It first read *"any criterion added later whose
+   **Checked** line names the `gate` array joins it"* (review round-2 fix pass, **R7**), a reliable proxy for the
+   principle until R2's own fix broke it — R2 widened `wiring:claude-md`'s (J) layer to own the repo's gate
+   account, so that criterion's *Checked* line now names the array while the file it reads stays `CLAUDE.md`. The
+   replacement then read *"its **subject** is the `gate` array itself"* (**R9**, review round-3 fix pass), which
+   misplaced a criterion already **in** the set: by the same grammar the rule uses to exclude `gate:make-mirrors`,
+   `gate:contract-agrees`' subject is `CLAUDE.md` / `README.md` and its **Fix** edits the doc block, so *subject*
+   excluded a member the enumeration admits. The **clause** test separates all of them without a special case: a
+   criterion with even one clause that **fails outright on a readable file** is excluded, assessed on that clause,
+   with its unmeasurable clause noted — exactly as for `gate:make-mirrors` below — and `gate:contract-agrees` has
+   none, since without the array it can only pass vacuously or be uncomparable, never fail. **No count moved
+   either time:** the covered set and both exclusion lists are enumerated by id and stated complete.
    `py:gate-commands` was added at phase 4 under `tasks.md`'s requirement that the rule name **every**
    gate-array-subject criterion, and it does real work — isekai's array is well-formed and *leads* with
    `uv sync --locked`, it is merely at the repo root, so measuring it against an unreadable config reports a
@@ -168,6 +175,24 @@ with a lifecycle; its absence next round is not a resolution), and **absent when
 injection *attempt* is the most decision-relevant fact about an unvetted repo, and S9 is a **detection** gap
 rather than a control failure — S1's immunity rule holds and the measurement stays correct either way, but
 without this the human and v0.7 never learn the repo tried.
+
+**How a note is rendered is part of the contract, not the measurer's discretion (security finding **S11**, round
+3).** The section relays target-authored text **verbatim by design** into a vault file the human keeps, may
+commit, and v0.7 `mf-retrofit` reads as its work list — the same hazard class the report already handles for a
+mere directory name (**S7**: `repo:` stripped and quoted, because an unquoted one injects a second key into a
+block the human and v0.7 parse). So the rubric now states the note's **shape** where the section is defined, and
+`SKILL.md` mirrors it in the subagent's return contract and in the write-step self-check: each note is **inert**
+(fenced with a longer backtick run, or line-prefixed `> `, with no line of the quote starting at column 0 with a
+`#` or a fence delimiter — otherwise a `##` line inside the quote closes the section and opens what renders as
+report structure, up to a gap entry in the contract's own `### <id> · severity · status` shape), **bounded** (20
+lines / 1000 characters, cut with an explicit truncation marker), **labelled** with its repo-relative path as the
+note's own header (a path, never a criterion id), and **addressed to no one** — the section carries a fixed
+preamble saying no reader takes instruction from a note, because S1's rule binds the **measurer** and v0.7's
+agent, which has write access to the target, reads the **report**. It also settles the collision **S10** left:
+"verbatim" and "never reproduce an absolute filesystem path read from the target" cannot both hold over a quote
+containing a path, so the constraint wins and the elision is marked — verbatim *except* for elided absolute
+paths, stated once rather than guessed per measurer. **No committed proving report is affected:** none carries a
+`## Notes from the target` section.
 
 ## 6. `sdd:checker-in-gate` ships `advisory`, with its reason inline
 
