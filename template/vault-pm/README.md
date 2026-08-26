@@ -2,7 +2,7 @@
 
 A worked example of the **PM / planning vault** a MinionsFactory-managed project keeps — the private,
 tool-agnostic (local markdown) side where features are thought through *before* they cross into the repo as
-openspec changes. `minions bootstrap` (v0.8) will stamp this layout; the `mf-` planning skills read and write it.
+openspec changes. `mf-stamp` (v0.12) will stamp this layout; the `mf-` planning skills read and write it.
 
 This example is a fictional project — **Tasknip**, a tiny CLI to-do manager — filled in so you can see the shape,
 not empty placeholders. Copy the structure, replace the content.

@@ -92,6 +92,12 @@ under [`skills/`](skills/) that take a feature idea to an execution-ready `opens
 - `mf-inspect` — an independent, blind PRD↔change conformance gate.
 - `mf-line` — a conductor that runs the whole sequence, pausing at the human go/no-go gates.
 
+The line runs **from the vault** — the project's vault dir is the working directory — and its repo-touching stages
+resolve the target repo from the project page's **`repo:`** key in `overview.md` frontmatter, an absolute path to
+the local clone. Nothing
+needs to `cd` into the code to plan against it. Because the session is rooted in the vault, the first write into the
+repo (at `mf-forge`) will ask for access to it; the supervising human approves that once.
+
 They share four rubrics (the "definition of done" for each artifact the framework gates) — see
 [`skills/rubrics/README.md`](skills/rubrics/README.md). A worked example of the planning-vault layout ships under
 [`template/vault-pm/`](template/vault-pm/).
@@ -121,8 +127,8 @@ measuring anything if the target's `.env` does not declare a usable `VAULT_PROJE
 five preflight conditions, plus a sixth that resolves the value and refuses any destination inside the target;
 the report needs a destination, and it never goes in the repo.
 
-Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to
-**v0.7 `mf-retrofit`**, which drives the gaps to clean and for which a teardown re-run is the independent
+Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to a
+later **retrofit** pass, which drives the gaps to clean and for which a teardown re-run is the independent
 checker.
 
 ### Install / uninstall
