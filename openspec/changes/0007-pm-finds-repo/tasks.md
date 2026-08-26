@@ -32,7 +32,7 @@ editing the PRD.
 
 - [x] 1 — The vault declares its repo
 - [x] 2 — The path axis: `prd/` retires across `skills/` and `template/`
-- [ ] 3 — The resolution axis: three skills run from the vault
+- [x] 3 — The resolution axis: three skills run from the vault
 - [ ] 4 — Docs, and the `mf-teardown` gap recorded
 - [ ] 5 — Prove it: the corrected line renders v0.8
 
