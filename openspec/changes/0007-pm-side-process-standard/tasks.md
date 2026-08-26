@@ -53,7 +53,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 3 — The resolution axis: three skills run from the vault
 - [x] 4 — Docs, and the `mf-teardown` gap recorded
 - [x] 5 — Prove it: rename the change, then render this version
-- [ ] 6 — Findings and the HALT report re-root under `.minions/`
+- [x] 6 — Findings and the HALT report re-root under `.minions/`
 - [ ] 7 — The deferred-work backlog re-roots, and its predicate reverses
 - [ ] 8 — The vault release-log writer is deleted
 - [ ] 9 — The Inputs block drops the vault

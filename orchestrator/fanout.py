@@ -81,14 +81,15 @@ def run_fanout(
     to resolve paths itself); its findings file is resolved through `findings_path`,
     the single site the fixer, the converge loop and the release stage also read.
 
-    The `<vault>/findings/` directory is created **before the first spawn**: a read-only
-    role is granted `Write(<its findings file>)` and denied `Bash`, so it cannot create
-    the directory itself, and a findings file that never lands reads as not-clean.
+    The `<repo>/.minions/findings/` directory is created **before the first spawn**: a
+    read-only role is granted `Write(<its findings file>)` and denied `Bash`, so it
+    cannot create the directory itself, and a findings file that never lands reads as
+    not-clean.
     """
-    (vault_dir / "findings").mkdir(parents=True, exist_ok=True)
+    (repo / ".minions" / "findings").mkdir(parents=True, exist_ok=True)
     states: list[FindingsState | None] = []
     for role in roles:
-        findings_file = findings_path(vault_dir, change_id, role.name)
+        findings_file = findings_path(repo, change_id, role.name)
         profile = read_only_profile(findings_file)
         prompt = assemble_prompt(
             build_inputs_block(

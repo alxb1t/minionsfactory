@@ -38,7 +38,7 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     tmp_path: Path,
 ) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
-    findings = vault / "findings"
+    findings = repo / ".minions" / "findings"
     findings.mkdir(parents=True)
     for name in ("review", "security", "simplify"):
         (findings / f"{_CHANGE_ID}_{name}.md").write_text(
@@ -68,8 +68,10 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
 
 @pytest.mark.spec("fanout:findings-path:change-id-keyed-path")
 def test_findings_path_is_keyed_to_the_change_id(tmp_path: Path) -> None:
-    assert findings_path(tmp_path, _CHANGE_ID, "review") == (
-        tmp_path / "findings" / f"{_CHANGE_ID}_review.md"
+    repo = tmp_path / "repo"
+
+    assert findings_path(repo, _CHANGE_ID, "review") == (
+        repo / ".minions" / "findings" / f"{_CHANGE_ID}_review.md"
     )
 
 
@@ -98,10 +100,10 @@ def test_the_fanout_converge_and_release_stages_resolve_the_same_path(
         _ROLES,
     )
 
-    shared = _findings_map(vault, _CHANGE_ID, _ROLES)  # converge + release read these
+    shared = _findings_map(repo, _CHANGE_ID, _ROLES)  # converge + release read these
 
     assert shared == {
-        role.name: findings_path(vault, _CHANGE_ID, role.name) for role in _ROLES
+        role.name: findings_path(repo, _CHANGE_ID, role.name) for role in _ROLES
     }
     for role, (_, profile) in zip(_ROLES, fake.calls, strict=True):
         assert f"Write({shared[role.name]})" in profile.allowed_tools
@@ -128,7 +130,7 @@ def test_run_fanout_scopes_each_write_to_the_resolved_findings_path(
     )
 
     for role, (prompt, profile) in zip(_ROLES, fake.calls, strict=True):
-        expected = findings_path(vault, _CHANGE_ID, role.name)
+        expected = findings_path(repo, _CHANGE_ID, role.name)
         # the role is granted write access to exactly that file, and told to write it
         assert f"Write({expected})" in profile.allowed_tools
         assert str(expected) in prompt
@@ -139,17 +141,18 @@ def test_run_fanout_creates_the_findings_dir_before_the_first_spawn(
     tmp_path: Path,
 ) -> None:
     vault, repo = tmp_path / "vault", tmp_path / "repo"
-    vault.mkdir()
+    repo.mkdir()
+    findings_dir = repo / ".minions" / "findings"
     existed_at_spawn: list[bool] = []
 
     class _DirWatchingProvider(_RecordingProvider):
         def run_role(
             self, role_prompt: str, repo: Path, profile: Profile
         ) -> RoleResult:
-            existed_at_spawn.append((vault / "findings").is_dir())
+            existed_at_spawn.append(findings_dir.is_dir())
             return super().run_role(role_prompt, repo, profile)
 
-    assert not (vault / "findings").exists()
+    assert not findings_dir.exists()
 
     run_fanout(
         _DirWatchingProvider(_ROLE),
@@ -193,7 +196,7 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
     assert "## Inputs" in prompt
     assert "Mode: review" in prompt
     assert "abc123" in prompt  # the head SHA the orchestrator supplied
-    findings = findings_path(vault, _CHANGE_ID, "review")
+    findings = findings_path(repo, _CHANGE_ID, "review")
     assert str(findings) in prompt  # the findings path to write
     assert str(change_dir) in prompt  # the change dir, not a plan file
     assert "REVIEW-BODY" in prompt  # the role prompt follows the Inputs block
@@ -204,10 +207,10 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
 def test_inputs_block_carries_the_change_findings_head_and_version(
     tmp_path: Path,
 ) -> None:
-    vault = tmp_path / "vault"
-    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    change_dir = repo / "openspec" / "changes" / _CHANGE_ID
     findings: dict[str, Path] = {
-        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+        str(r.name): findings_path(repo, _CHANGE_ID, r.name) for r in _ROLES
     }
 
     block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)
@@ -224,12 +227,12 @@ def test_inputs_block_carries_the_change_findings_head_and_version(
 def test_an_assembled_role_prompt_leads_with_the_inputs_block(
     tmp_path: Path, role: str
 ) -> None:
-    vault = tmp_path / "vault"
-    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    change_dir = repo / "openspec" / "changes" / _CHANGE_ID
     body = f"# {role.upper()}-BODY\n\nthe role's own mandate.\n"
 
     findings: dict[str, Path] = {
-        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+        str(r.name): findings_path(repo, _CHANGE_ID, r.name) for r in _ROLES
     }
 
     block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)

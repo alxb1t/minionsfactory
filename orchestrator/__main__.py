@@ -89,11 +89,9 @@ def _fanout_roles() -> list[RoleSpec]:
     ]
 
 
-def _findings_map(
-    vault_dir: Path, change_id: str, roles: list[RoleSpec]
-) -> dict[str, Path]:
-    """Resolve every role's findings path, keyed by role name."""
-    return {r.name: findings_path(vault_dir, change_id, r.name) for r in roles}
+def _findings_map(repo: Path, change_id: str, roles: list[RoleSpec]) -> dict[str, Path]:
+    """Resolve every role's findings path under the repo, keyed by role name."""
+    return {r.name: findings_path(repo, change_id, r.name) for r in roles}
 
 
 def _make_fanout(
@@ -139,7 +137,7 @@ def _make_converge(
     emit_event: Callable[[Event], None],
 ) -> Callable[[], ConvergeResult]:
     change_dir = select_change(repo)
-    findings = _findings_map(vault_dir, change_dir.name, roles)
+    findings = _findings_map(repo, change_dir.name, roles)
     paths = list(findings.values())
     fixer = assemble_prompt(
         build_inputs_block(change_dir, findings, read_head(repo), version, vault_dir),
@@ -223,7 +221,7 @@ def _make_release(
     roles: list[RoleSpec],
 ) -> Callable[[], ReleaseResult]:
     change_dir = select_change(repo)
-    findings = _findings_map(vault_dir, change_dir.name, roles)
+    findings = _findings_map(repo, change_dir.name, roles)
     findings_paths = list(findings.values())
 
     def _release() -> ReleaseResult:
@@ -315,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     coder_prompt = assemble_prompt(
         build_inputs_block(
             change_dir,
-            _findings_map(vault_dir, change_dir.name, roles),
+            _findings_map(repo, change_dir.name, roles),
             change_state.head,
             version,
             vault_dir,
@@ -326,7 +324,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run(
             repo=repo,
-            vault_project_dir=vault_dir,
             provider=provider,
             gate=gate,
             coder_prompt=coder_prompt,
