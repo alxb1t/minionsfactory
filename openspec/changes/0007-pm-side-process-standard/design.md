@@ -1,107 +1,121 @@
-# Design — 0007-pm-finds-repo
+# Design — 0007-pm-side-process-standard
 
-Technical decisions for v0.7. Doc-only: twelve files, one directory move, no code. Read with `proposal.md` and the
-vault PRD (`planning/v0.7/v0.7_pm_finds_repo.md`).
+The technical *how* for the v0.7 migration. Every decision below is settled; nothing here is an open question.
 
-## 1. Two root classes, not one
+## 1. One root replaces another, and the parameter goes
 
-The single highest-risk decision in this change, because the obvious rule is wrong for exactly two paths.
+`vault_dir: Path` is threaded from `__main__.py` into `findings.py`, `driver.py`, `fanout.py` and `release.py`.
+Every call site that receives it already receives `repo`, so the migration is a **substitution followed by a
+deletion**, not a re-plumbing:
 
-Moving the working directory to the vault re-points every relative path in the retargeted skills. They carry
-**two kinds**, which must not be treated alike:
-
-| Class | Sites | Roots at |
+| Symbol | Before | After |
 |---|---|---|
-| **Target-repo paths** | `mf-forge:20,25` (`openspec/changes/…`), `mf-inspect:16`, `mf-blueprint`'s codebase reads | the resolved `repo:` |
-| **The skills' own rubrics** | `mf-blueprint:18`, `mf-inspect:26` (`skills/rubrics/<name>.md` *"(source repo)"*) | the **installed** absolute path |
+| `findings_path` | `(vault_dir, change_id, role)` → `<vault>/findings/…` | `(repo, change_id, role)` → `repo/.minions/findings/…` |
+| `halt_report_exists` | `(vault_project_dir)` → `<vault>/HALT.md` | `(repo)` → `repo/.minions/HALT.md` |
+| `build_inputs_block` | `(…, version, vault_dir)` + a `Context:` line | `(…, version)`, no `Context:` line |
+| `prepare_release` | `(verdict, repo, vault_dir, …)` | `(verdict, repo, …)` |
+| `read_vault_dir` · `verify_vault_access` | resolve + assert the vault | **deleted** |
 
-The rubrics belong to **MinionsFactory**, not to the target. A target that is not MinionsFactory does not ship
-them, so a blanket "root everything at `repo:`" rule fixes them **wrongly** — silently, by resolving to a path
-that exists only when the target happens to be this repo.
+The single-resolution-site property `findings_path` exists for is preserved exactly: fan-out, converge and release
+keep resolving the identical path for identical inputs, and the location stays one edit away.
 
-**Decision.** Rubric reads resolve to `~/.claude/skills/rubrics/<name>.md`. The source-repo fallback is written
-`<repo>/skills/rubrics/<name>.md` and carries an explicit *"only when the resolved repo ships them"* qualification.
+**`.minions/` is already ignored** (`.gitignore`: `.minions/*` with `!.minions/minions.toml`), so findings, the
+HALT report and the backlog land ignored with no `.gitignore` rule added. The comment above that rule claims
+`events.jsonl` would otherwise sweep a vault path into history — false once the Inputs block stops carrying one,
+and phase 10 corrects it.
 
-## 2. The change id derives from the version
+## 2. The preflight is deleted, not made optional
 
-`mf-forge:20` computes `NNNN` as *"the next number after the highest existing dir under `openspec/changes/`
-including `archive/`"*. Under this change that read crosses the seam: unrooted, it scans the **vault** and
-restarts numbering at `0001`.
+`read_vault_dir` reads an absolute path out of a target's `.env` and hands it to code that writes there. A guard
+would narrow the hole; deletion closes it. The entry point's two call sites go with the functions, and `minions
+run` against a repo with no `.env`, no key and no settings grant proceeds straight to the change-state read.
 
-Re-rooting it would work. Deleting it is better, because the scan only ever implemented a coincidence: the
-*one small feature = one change = one version* rule has made the id equal the version in every change shipped —
-`v0.3`→`0003`, `v0.4`→`0004`, `v0.5`→`0005`, `v0.6`→`0006`.
+`.env` and `.env.example` **keep their shape as empty scaffolding** — the files stay, the key and its comment
+block go, and `.env.example` declares zero keys. `.claude/settings.local.json` is untracked, so removing its vault
+grant is an operator edit this change documents and cannot test.
 
-**Decision.** `NNNN = (major × 100) + minor`, zero-padded to four digits. `v0.7`→`0007`, `v0.8`→`0008`,
-`v1.0`→`0100`. Properties that were checked rather than assumed:
+## 3. The release gate's deferred-work predicate reverses, deliberately
 
-- **Reproduces every shipped id**, so no archived change is renamed.
-- **Monotonic past the 1.0 boundary** (`v0.9`→0009 < `v0.10`→0010 < `v1.0`→0100), so `state.py::select_change`'s
-  "highest numeric id wins" invariant survives and needs no revisiting at 1.0.
-- **Shape satisfies `_CHANGE_ID_PATTERN`** and the `sdd:change-structure:malformed-change-id-refused` scenario.
-- **Domain is closed** — undefined for patch versions, but `mf-forge` already refuses a non-`vX.Y` version.
-- **No repo read at all**, so the id is knowable before the target is resolved.
+Today the backlog guard **fails closed**: a missing current-release section blocks, because a vault backlog is a
+long-lived document whose absence means something went wrong. The new file is per-version and lives in ephemeral
+`.minions/`, where **absence means nothing was deferred** — the common case. So the predicate becomes: *any list
+line in `.minions/<version>_backlog.md` blocks the release*, checkbox state irrelevant, and a missing file passes.
 
-**Collision halts.** If the derived directory already exists, two changes claim one version — a violation of the
-one-change-one-version rule, and a question for the human. `mf-forge` stops rather than incrementing past it;
-incrementing would silently restore the coincidence this decision removes.
+An item leaves that file by being fixed and removed, or exported by the human. The residual is accepted and
+stated: a wiring bug that silently stopped writing the file would read as clean, mitigated because the file's
+contents are read by a human at release time.
 
-## 3. The harness loads a different root `CLAUDE.md`
+## 4. Needle sets get their own root sets
 
-Running from the vault means the *vault's* operating manual is the project instruction set and the repo's is not
-loaded. Each retargeted skill therefore names the repo files it needs rather than assuming repo context.
+The retired-vocabulary guard already ships two needle sets with two root sets, and the file argues why: one set's
+exclusions were reasoned for its own needle and do not transfer. This change adds a third — six retired **vault**
+symbols — over `("orchestrator", "prompts", "docs", "README.md")` **plus `skills/`**.
 
-This is also a quiet security improvement: the target repo's `CLAUDE.md` becomes **data the skill reads** rather
-than **instructions the harness obeys** — the posture `mf-teardown`'s untrusted-target clause argues for, now true
-by construction for the whole line.
+One root set crossed with all needles cannot go green: `implementation_plans` is a live needle of the *plan* set,
+and `skills/rubrics/compliance.md` legitimately names it in check text this change keeps.
 
-## 4. Write direction, and what is deliberately not specified
+The needles are the six **dead symbols** — `VAULT_PROJECT_DIR`, `vault_dir`, `vault_project_dir`,
+`read_vault_dir`, `verify_vault_access`, `release_log`. `vault_project_dir` is listed separately although
+`vault_dir` looks like a substring of it: it is not, and without it a doc could ship a stale
+`halt_report_exists(vault_project_dir)` signature and pass. The word *vault* and the token `<vault>/` are **not**
+needles — the vault still exists, and the vault-side skills must be able to name what they resolve.
 
-`mf-forge` now writes into the repo from a vault-rooted session, the opposite of today. The first such write
-raises a **permission prompt**, which the supervising human approves — Track A is supervised by design, so a
-prompt is the normal interaction.
+**Recommended widening, carried from the blueprint:** the root set should also cover `CLAUDE.md` and
+`.env.example`. Both are cleared by requirements in this change, but they sit outside the root allowlist while
+falling inside the whole-tree grep the success criteria state, so a later regression into either would be caught
+by nothing.
 
-**Deliberately not a requirement.** That grant is operator-local, untracked config in the human's own vault, not
-part of the standard this repo ships. Specifying it would encode one machine's setup into the product — precisely
-the coupling v0.8 removes when it deletes the repo's vault grant. The two are not symmetric: one is a tracked
-coupling being removed, the other a local convenience that never needed specifying. R5 carries one line of
-orientation prose instead, naming no path.
+## 5. The scan lands in stage C, and no carve-out is ever declared
 
-## 5. Carried caveat — `mf-teardown` stays transitional
+`skills/mf-teardown/` holds twelve `VAULT_PROJECT_DIR` lines plus a `read_vault_dir` reference until phase 16
+clears them, so a scan closing stage B would go red against the build-order rule this change otherwise follows —
+*no phase asserts the absence of a needle while a live dependent still names it.*
 
-This change leaves one skill of four on the old model, reading `.env` → `VAULT_PROJECT_DIR`. That is a deliberate
-scope boundary, not an oversight: its fix carries an unsettled product question (what happens to a target repo
-with **no vault project page**, which its *"point it at any existing project"* pitch promises), and settling that
-would grow a twelve-file prose change into a design discussion.
+The alternative was a dated `skills/mf-teardown/` exclusion in stage B that stage C deletes. It was **declined**: a
+suppression that must be remembered to be removed is the failure mode the scan exists to catch. Instead stage B
+performs the deletions and stage C extends the scan **once**, over the full root set, already clean.
 
-**Consequence to state in the CHANGELOG** so the asymmetry reads as designed: three skills resolve from the vault,
-one still reads the repo's `.env`. It keeps working through v0.7; **v0.8 empties the key and records the break;
-v0.11 owns the fix.**
+**Accepted cost:** phases 14–16 carry deletions nothing asserts. They are caught by phase 17, before the tag, and
+never reach the default branch.
 
-## 6. Proving, and the two-active-changes overlap
+## 6. The audit skill's report moves into the repo it measures
 
-A doc-only change to instructions cannot be proved by a unit test. It is proved by use: all three retargeted
-stages run against the v0.8 PRD, recorded under `proving/` following the v0.6 convention.
+`mf-teardown`'s report lands at `.minions/findings/teardown.md` — the same home as every other findings file, under
+the reserved id `teardown`. This reverses a property three documents advertise, and each is rewritten with it: the
+README's read-only claim and its report home, the skill's own *"the report is never written in a repo being
+measured"*, and — the copy that actually steers a run — the compliance rubric's report section.
 
-Two constraints on that record:
+The skill's preflight condition 6 (*"the report is never written inside the repo being measured"*) is retired **by
+decision, not by moot-ness**, because its three named outcomes do not dissolve evenly:
 
-- **The vault's absolute path is elided**, written `<vault>/planning/v0.8/…`. `proving/` sits under `openspec/`,
-  which `tests/test_conventions.py::test_the_operators_vault_path_is_named_nowhere_in_the_repo` scans for that
-  literal string; writing it turns the gate red and breaks this change's own "163 tests, unchanged" constraint.
-  v0.6's `proving/README.md` already states the convention.
-- **The run leaves two active change directories** — `0007-pm-finds-repo`, still being built, beside the freshly
-  forged `0008-decoupling` — so `select_change` begins answering `0008`. Harmless as planned: v0.7 is hand-built
-  and Track B is parked, so nothing consults `select_change` during the overlap, and the hand-build reads `0007`
-  explicitly. The overlap ends when v0.7's release archives `0007`.
+1. *the report written inside the target, voiding the read-only guarantee* — now true **by design**; the documents
+   selling the old guarantee are rewritten rather than left standing.
+2. *overwriting another project's report via a traversing path* — genuinely gone: the path derives from the vault's
+   `repo:` with no operator-supplied string to traverse.
+3. *a re-run's merge reading placed markdown as prior state* — **real, and accepted.** Every target is the
+   operator's own repo, so whoever can write `.minions/` can already write the code being measured: the report is
+   not a new trust boundary but inside an existing one. Bounded further by the sequence — the measuring subagent is
+   spawned **blind to the existing report**, so seeded prose can reach the merge and the gap history, never the
+   measurement. **Revisit if the skill is ever pointed at a repo the operator did not write.**
 
-**Ordering.** Phase 5 requires the v0.8 PRD to be gauge-`clean` first — forging from an ungated PRD would prove
-the plumbing while breaking the discipline the line exists to enforce. It does not block phases 1–4.
+The skill stays read-only where it matters: it makes no change to the target's **tracked** tree, runs no gate
+command and executes no target code. The documents say that, instead of claiming it writes nothing at all.
 
-## 7. Enforcement is by grep, and that is proportionate
+**The redaction rule outlives the criteria that motivated it.** The evidence-redaction constraint — *never
+reproduce a value read from a target's `.env` or settings file, never an absolute filesystem path; cite the shape
+and the verdict* — exists **twice**: in the audit skill, and in the compliance rubric, which is the copy the
+measuring subagent actually follows. Both teach it through worked examples built on `wiring:env-example` and
+`wiring:vault-perms`, the two criteria this change deletes. **The examples are rewritten; the rule is not
+touched.** It does not rest on the target being untrusted — it rests on **destination**: values and home-directory
+paths do not belong in a report the human keeps and may commit, whoever wrote the repo they came from. That reason
+survives both the criteria and this change's move of the report into the target's own working tree.
 
-Nothing machine-checks prose skills. R3's enforcement is `grep -rn 'prd/' skills/ template/`, run by hand at the
-end of phases 2 and 3. The committed convention scan (`_SCANNED`) does not cover `skills/`, and v0.8 widens it
-only for the five *vault* needles — `prd/` is not among them, so a regression here is silent.
+## 7. Two notes for whoever executes this
 
-**Accepted**, with a pointer: when v0.8 rewrites that test, `prd/` is worth adding to the needle set. Building the
-guard here and again there would mean writing it twice.
+- **Phase 10 must stay one phase.** `specs check --strict` reports a dangling key for any test marker whose
+  scenario is gone, so splitting the spec removal from its fourteen test deletions puts the gate red at the
+  boundary.
+- **The emptied capability.** Removing the vault-write preflight leaves `openspec/specs/change-state/` holding no
+  requirement. The checker derives orphans from shipped scenarios, so an empty spec file is green either way;
+  this change leaves the file in place as a **tombstone**, matching how it already records the reader deleted in
+  the previous version, rather than deleting the capability directory.
