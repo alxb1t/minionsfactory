@@ -28,6 +28,7 @@ from orchestrator.provider import (
 from orchestrator.release import (
     ReleaseResult,
     SubprocessReleaseGit,
+    deferred_work_text,
     prepare_release,
     verify_release_gate,
 )
@@ -229,7 +230,7 @@ def _make_release(
             version=version,
             gate_result=gate.run_gate(repo),
             findings=[read_findings_state(p) for p in findings_paths],
-            backlog_text=(vault_dir / "backlog.md").read_text(),
+            backlog_text=deferred_work_text(repo, version),
             changelog_text=(repo / "CHANGELOG.md").read_text(),
             existing_tags=_git_tags(repo),
             tree_is_clean=_tree_is_clean(repo),

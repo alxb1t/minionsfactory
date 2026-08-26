@@ -53,7 +53,17 @@ The changelog guard SHALL fail closed: a missing or empty `[Unreleased]` section
 read as all-clear. The deferred-work guard SHALL **not**: a missing `<repo>/.minions/<version>_backlog.md` means
 nothing was deferred and SHALL pass. This asymmetry is deliberate — the changelog is a durable tracked document
 whose absence signals damage, while the deferred-work file is per-version and lives in ignored run-artifact space,
-where absence is the ordinary case.
+where absence is the ordinary case. An **unreadable** deferred-work file is neither: a directory at that path, a
+broken symlink, a permissions error or a file that is not valid UTF-8 means the guard cannot tell whether work was
+deferred, and SHALL block with a reason naming the problem — never a traceback out of the release gate, and never a
+silent pass.
+
+#### Scenario: An unreadable deferred-work file blocks
+- **Key:** `release:failclosed-guards:backlog-unreadable-blocks`
+- **Layers:** unit
+- **WHEN** the version's deferred-work file exists but cannot be read as text — a directory at that path, a broken
+  symlink, or bytes that are not valid UTF-8
+- **THEN** the deferred-work guard blocks with a reason naming the problem, rather than raising or passing
 
 #### Scenario: A missing deferred-work file passes
 - **Key:** `release:failclosed-guards:backlog-missing-file-passes`
@@ -63,8 +73,6 @@ where absence is the ordinary case.
 
 #### Scenario: An empty deferred-work file passes
 - **Key:** `release:failclosed-guards:backlog-clear-passes`
-<!-- The old key `backlog-missing-section-blocks` is retired with the behaviour it named — see the pending
-     removal at the foot of this file. -->
 - **Layers:** unit
 - **WHEN** the version's deferred-work file exists and holds no list line
 - **THEN** the deferred-work guard does not block
@@ -120,20 +128,36 @@ durable release record is `git log`, `CHANGELOG.md` and the annotated tag.
 - **WHEN** `prepare_release` refuses
 - **THEN** the CHANGELOG and pyproject on disk are unchanged
 
-## Pending removal — authored by phase 7, not before
+## REMOVED Requirements
 
-One scenario key is retired outright rather than modified: `release:failclosed-guards:backlog-missing-section-blocks`.
+> **No requirement is removed by this change — exactly one scenario key is.** A REMOVED block must sit under a
+> `### Requirement:` heading for the parser to reach its scenario, so the heading below is a deliberate
+> **placeholder that matches no live requirement**: `Fail-closed document guards` stays, restated by the MODIFIED
+> block above, and a REMOVED block whose title matches nothing degrades to a no-op in `release._apply_fold`. The
+> retired scenario has already been hand-deleted from `openspec/specs/release/spec.md` in phase 7's commit, so the
+> fold has nothing left to do here. **Do not read this block as licence to delete `Fail-closed document guards`.**
 
-It asserted that a **missing** backlog section **blocks** release. The new predicate passes on absence
-deliberately, so the key now names the opposite of what it proves, and it is replaced by
-`release:failclosed-guards:backlog-missing-file-passes` above.
+### Requirement: Retired scenario keys (placeholder — no live requirement is removed)
+
+Carrier for one renamed scenario key. This heading intentionally matches no requirement in
+`openspec/specs/release/spec.md`.
+
+#### Scenario: A missing backlog current-release section fails closed
+- **Key:** `release:failclosed-guards:backlog-missing-section-blocks`
+- **Layers:** unit
+- **WHEN** the backlog has no `## Current release (<version>)` section
+- **THEN** the backlog guard returns a blocking reason (not all-clear)
+
+This key is retired outright rather than modified. It asserted that a **missing** backlog section **blocks**
+release. The new predicate passes on absence deliberately, so the key now names the opposite of what it proves,
+and it is replaced by `release:failclosed-guards:backlog-missing-file-passes` above.
 
 **A rename is a removal plus an addition, and only the removal half needs the delta.** `collect_spec_keys` drops a
 shipped key from the orphan set **only** on a REMOVED block — a MODIFIED requirement that merely stops mentioning
 the key does not, because MODIFIED takes effect at the release fold, not at check time. So re-binding the test
 without a REMOVED block leaves `openspec/specs/release/spec.md`'s shipped scenario with no proving test, and
-`specs check --strict` reports it as an orphan.
+`specs check --strict` reports it as an orphan. Authoring the removal *earlier* than the re-bind would instead
+leave the still-present marker dangling.
 
-**Phase 7 therefore does all of it in one commit**, the same rule phases 10 and 14 follow: author the live
-`## REMOVED Requirements` block here naming that one scenario, hand-delete the scenario from
-`openspec/specs/release/spec.md`, and re-bind the test to the new key.
+**Phase 7 therefore does all of it in one commit**, the same rule phases 10 and 14 follow: this block lands with
+the hand-deletion of that scenario from `openspec/specs/release/spec.md` and the test's re-binding to the new key.

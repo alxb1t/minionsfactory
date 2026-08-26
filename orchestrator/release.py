@@ -17,6 +17,15 @@ _FOLD_SECTION_RE = re.compile(
 )
 _REQUIREMENT_RE = re.compile(r"^###\s+Requirement:\s*(.+?)\s*$")
 
+# An ordinary markdown list line: a `-`/`*`/`+` bullet or an ordered `N.`/`N)` marker,
+# followed by whitespace. The trailing `\s` is what keeps prose out — `-- note`,
+# `*emphasis*` and `1.5x` all carry a marker character but no separator after it.
+_LIST_LINE_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s")
+
+# What `deferred_work_text` returns when it cannot read the file: itself a list line, so
+# the guard blocks on it, and one that names the problem instead of inventing an item.
+_UNREADABLE_BACKLOG = "- the deferred-work file could not be read ({reason})\n"
+
 
 @dataclass(frozen=True)
 class Commit:
@@ -29,23 +38,51 @@ class Commit:
     change: str | None
 
 
-def _backlog_blocker(backlog_text: str, version: str) -> str | None:
-    """Why the backlog blocks release, or None when current-release section is clear.
+def deferred_work_text(repo: Path, version: str) -> str:
+    """Read `<repo>/.minions/<version>_backlog.md` as text the guard can judge.
 
-    Fail-closed: a missing `## Current release (`version`)` section is treated as
-    a malformed backlog (a release-blocking reason), never as an all-clear.
+    The asymmetry is deliberate. An **absent** file passes: the deferred-work file is
+    per-version and lives in ephemeral run-artifact space, so its absence means nothing
+    was deferred (`design.md` §3) — it reads as `""`, which holds no list line. An
+    **unreadable** one blocks: a directory at that path, a broken symlink or any other
+    `OSError` — or a file that is not valid UTF-8 — means we cannot tell whether work
+    was deferred, so rather than raising a
+    traceback out of the release gate — or, for a broken symlink, silently reading as
+    absent — it returns a single list line naming the problem, which `_backlog_blocker`
+    turns into a named blocking reason. The read is the effectful half; the predicate
+    judges the text it returns.
     """
-    in_section = False
-    seen_section = False
+    path = repo / ".minions" / f"{version}_backlog.md"
+    try:
+        return path.read_text()
+    except FileNotFoundError:
+        if path.is_symlink():  # a dirent that exists but resolves to nothing
+            return _UNREADABLE_BACKLOG.format(reason="broken symlink")
+        return ""
+    except OSError as error:
+        return _UNREADABLE_BACKLOG.format(reason=error.strerror or type(error).__name__)
+    except UnicodeDecodeError:  # a ValueError, so it escapes the OSError arm above
+        return _UNREADABLE_BACKLOG.format(reason="not valid UTF-8")
+
+
+def _backlog_blocker(backlog_text: str, version: str) -> str | None:
+    """Why the deferred-work file blocks release, or None when it holds no item.
+
+    **Any** markdown list line blocks — `-`, `*` or `+` bullets and ordered items
+    (`1.` / `1)`) alike — whatever its checkbox state: an item leaves the file by being
+    fixed and removed, or exported by the human, never by being ticked. The marker must
+    be followed by whitespace, so prose such as `-- note`, `*emphasis*` or `1.5x` is not
+    an item. Empty text — including the empty string a missing file reads as — does not
+    block. The first offending line is quoted in the reason, so a file the reader could
+    not read names *that* as the problem rather than claiming an item was found.
+    """
     for line in backlog_text.splitlines():
-        if line.startswith("## "):
-            in_section = line.startswith("## Current release") and f"{version}" in line
-            seen_section = seen_section or in_section
-            continue
-        if in_section and line.lstrip().startswith("- [ ]"):
-            return f"backlog: open item in the {version} current-release section"
-    if not seen_section:
-        return f"backlog: no current-release section for {version}"
+        item = line.lstrip()
+        if _LIST_LINE_RE.match(item):
+            return (
+                f"backlog: deferred work remains in "
+                f".minions/{version}_backlog.md: {item}"
+            )
     return None
 
 

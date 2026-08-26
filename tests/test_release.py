@@ -17,38 +17,57 @@ from orchestrator.release import (
     _cut_changelog,
     _specs_blocker,
     _trailer_blocker,
+    deferred_work_text,
     fold_change,
     prepare_release,
     verify_release_gate,
 )
 
-# A backlog with one OPEN item in the current-release section,
-# and an open item in Future (which must be ignored).
+# A per-version deferred-work file (`.minions/<version>_backlog.md`) holding one
+# unticked and one TICKED item — both block: an item leaves this file by being
+# removed or exported, never by being ticked. The `*` bullet is deliberate: the
+# requirement says **any** list line, so the fixture is not all `- `.
 _BACKLOG_OPEN = """\
-# MinionsFactory — Backlog
+# Deferred work — v0.2
 
-## Current release (`v0.2`) — close before release
-
-- [x] a closed loose end
 - [ ] a still-open loose end
-
-## Future / unversioned
-
-- [ ] a deferred feature (NOT release-gating)
+- [x] a ticked loose end that is still deferred work
+* a third loose end, written with the other bullet character
 """
 
 
-# The same, but the current-release section is fully closed.
+# One deferred item per ordinary markdown list marker, each alone in its file: the
+# predicate must block on every one of them, not just on `- `.
+_BACKLOG_BY_MARKER = {
+    marker: f"# Deferred work — v0.2\n\n{marker} a deferred item\n"
+    for marker in ("-", "*", "+", "1.", "1)")
+}
+
+
+# Prose that merely starts with a marker character but no whitespace after it — an
+# em-dash-ish rule, emphasis, and a number. None of these is a list line.
+_BACKLOG_PROSE = """\
+# Deferred work — v0.2
+
+-- nothing deferred this round
+*emphasis*, not a bullet
+1.5x faster than v0.1
+"""
+
+
+# The same file after every item left it: prose only, no list line.
 _BACKLOG_CLEAR = """\
-# MinionsFactory — Backlog
+# Deferred work — v0.2
 
-## Current release (`v0.2`) — close before release
+Nothing deferred.
+"""
 
-- [x] a closed loose end
 
-## Future / unversioned
+# Only a TICKED item — the case the old `- [ ]`-only predicate let through.
+_BACKLOG_TICKED_ONLY = """\
+# Deferred work — v0.2
 
-- [ ] a deferred feature (NOT release-gating)
+- [x] a ticked loose end that is still deferred work
 """
 
 
@@ -122,19 +141,65 @@ def _verify(
 
 
 @pytest.mark.spec("release:release-gate:open-backlog-item-blocks")
-def test_open_item_in_current_release_section_blocks_release() -> None:
-    assert _backlog_blocker(_BACKLOG_OPEN, "0.2") is not None
+def test_any_deferred_work_item_blocks_release_ticked_or_not() -> None:
+    assert _backlog_blocker(_BACKLOG_OPEN, "v0.2") is not None
+    # checkbox state is irrelevant: a ticked item is still deferred work
+    assert _backlog_blocker(_BACKLOG_TICKED_ONLY, "v0.2") is not None
+
+
+@pytest.mark.spec("release:release-gate:open-backlog-item-blocks")
+def test_a_deferred_item_blocks_whichever_list_marker_wrote_it() -> None:
+    # "any list line" is the requirement: `- ` alone would let four of these through
+    for marker, text in _BACKLOG_BY_MARKER.items():
+        assert _backlog_blocker(text, "v0.2") is not None, marker
+        assert _verify(backlog_text=text).ok is False, marker
 
 
 @pytest.mark.spec("release:failclosed-guards:backlog-clear-passes")
-def test_clear_current_release_section_does_not_block() -> None:
+def test_prose_beginning_with_a_marker_character_is_not_a_list_line() -> None:
+    # the marker must be followed by whitespace, or `1.5x` reads as deferred work
+    assert _backlog_blocker(_BACKLOG_PROSE, "v0.2") is None
+
+
+@pytest.mark.spec("release:failclosed-guards:backlog-clear-passes")
+def test_a_deferred_work_file_with_no_list_line_does_not_block() -> None:
     assert _backlog_blocker(_BACKLOG_CLEAR, "v0.2") is None
 
 
-@pytest.mark.spec("release:failclosed-guards:backlog-missing-section-blocks")
-def test_missing_current_release_section_fails_closed() -> None:
-    text = "# Backlog\n\n## Future / unversioned\n\n- [x] all closed\n"
-    assert _backlog_blocker(text, "v0.2") is not None
+@pytest.mark.spec("release:failclosed-guards:backlog-missing-file-passes")
+def test_a_missing_deferred_work_file_passes(tmp_path: Path) -> None:
+    # absence means nothing was deferred — the guard does NOT fail closed here
+    assert deferred_work_text(tmp_path, "v0.2") == ""
+    assert _backlog_blocker(deferred_work_text(tmp_path, "v0.2"), "v0.2") is None
+
+
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_deferred_work_text_reads_the_per_version_file(tmp_path: Path) -> None:
+    (tmp_path / ".minions").mkdir()
+    (tmp_path / ".minions" / "v0.2_backlog.md").write_text(_BACKLOG_OPEN)
+    assert deferred_work_text(tmp_path, "v0.2") == _BACKLOG_OPEN
+
+
+@pytest.mark.spec("release:failclosed-guards:backlog-unreadable-blocks")
+def test_an_unreadable_deferred_work_file_blocks_with_a_named_reason(
+    tmp_path: Path,
+) -> None:
+    # absent passes (nothing was deferred); unreadable blocks (we cannot tell) —
+    # a traceback out of the release gate, or a silent pass, are both wrong.
+    (tmp_path / ".minions").mkdir()
+    (tmp_path / ".minions" / "v0.2_backlog.md").mkdir()  # a directory, not a file
+    directory_text = deferred_work_text(tmp_path, "v0.2")
+    reason = _backlog_blocker(directory_text, "v0.2")
+    assert reason is not None
+    assert "could not be read" in reason
+
+    (tmp_path / ".minions" / "v0.3_backlog.md").symlink_to(tmp_path / "nowhere.md")
+    broken_link_text = deferred_work_text(tmp_path, "v0.3")
+    assert _backlog_blocker(broken_link_text, "v0.3") is not None
+
+    (tmp_path / ".minions" / "v0.4_backlog.md").write_bytes(b"- [ ] item \xff\xfe\n")
+    undecodable_text = deferred_work_text(tmp_path, "v0.4")
+    assert _backlog_blocker(undecodable_text, "v0.4") is not None
 
 
 @pytest.mark.spec("release:failclosed-guards:changelog-with-entries-passes")
@@ -174,13 +239,14 @@ def test_missing_findings_file_blocks_release() -> None:
 
 
 @pytest.mark.spec("release:release-gate:open-backlog-item-blocks")
-def test_open_backlog_item_blocks_release() -> None:
+def test_deferred_work_blocks_the_release_gate() -> None:
     assert _verify(backlog_text=_BACKLOG_OPEN).ok is False
+    assert _verify(backlog_text=_BACKLOG_TICKED_ONLY).ok is False
 
 
 @pytest.mark.spec("release:release-gate:existing-tag-blocks")
 def test_existing_release_tag_blocks_release() -> None:
-    verdict = _verify(version="v0.2.0", existing_tags=("v0.1.0", "v0.2.0"))
+    verdict = _verify(version="v0.2", existing_tags=("v0.1.0", "v0.2.0"))
     assert verdict.ok is False
     assert "v0.2.0" in verdict.reason
 

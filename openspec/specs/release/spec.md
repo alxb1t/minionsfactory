@@ -57,12 +57,6 @@ The backlog and changelog guards SHALL fail closed: a missing backlog current-re
 missing or empty `[Unreleased]` changelog section, SHALL block release rather than read as all-clear;
 a genuinely clear backlog and a `[Unreleased]` with entries SHALL pass.
 
-#### Scenario: A missing backlog current-release section fails closed
-- **Key:** `release:failclosed-guards:backlog-missing-section-blocks`
-- **Layers:** unit
-- **WHEN** the backlog has no `## Current release (<version>)` section
-- **THEN** the backlog guard returns a blocking reason (not all-clear)
-
 #### Scenario: A clear backlog current-release section passes
 - **Key:** `release:failclosed-guards:backlog-clear-passes`
 - **Layers:** unit
