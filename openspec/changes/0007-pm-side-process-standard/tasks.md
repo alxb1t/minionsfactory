@@ -52,7 +52,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 2 — The path axis: `prd/` retires across `skills/` and `template/`
 - [x] 3 — The resolution axis: three skills run from the vault
 - [x] 4 — Docs, and the `mf-teardown` gap recorded
-- [ ] 5 — Prove it: rename the change, then render this version
+- [x] 5 — Prove it: rename the change, then render this version
 - [ ] 6 — Findings and the HALT report re-root under `.minions/`
 - [ ] 7 — The deferred-work backlog re-roots, and its predicate reverses
 - [ ] 8 — The vault release-log writer is deleted
