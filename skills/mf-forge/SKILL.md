@@ -13,9 +13,9 @@ repo. You are a producer; `mf-inspect` verifies your output.
 ## Setup
 
 Run with **cwd = the target repo**. Resolve the vault from `.env` → `VAULT_PROJECT_DIR`. Read both:
-- `$VAULT_PROJECT_DIR/prd/vX.Y_<name>.md` (requirements + acceptance),
-- `$VAULT_PROJECT_DIR/prd/vX.Y_design.md` (the blueprint — must be `feasible` / `feasible-with-caveats`; if it
-  HALTed, stop and send the human back).
+- `$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_<name>.md` (requirements + acceptance),
+- `$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_design.md` (the blueprint — must be `feasible` /
+  `feasible-with-caveats`; if it HALTed, stop and send the human back).
 
 **Determine the change id.** `NNNN` = the next number after the highest existing dir under `openspec/changes/`
 **including `archive/`**; `<name>` = the PRD's `<short-name>`. E.g. `0005-<name>`.

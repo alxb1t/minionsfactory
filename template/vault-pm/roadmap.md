@@ -8,7 +8,7 @@ updated: 2026-01-01
 One small feature per version.
 
 ## v0.1 — Add & list tasks  *(active)*
-Add a task and list tasks from a local store. See [prd/v0.1_add_list.md](prd/v0.1_add_list.md).
+Add a task and list tasks from a local store. See [planning/v0.1/v0.1_add_list.md](planning/v0.1/v0.1_add_list.md).
 
 ## v0.2 — Mark done
 Mark a task complete; `list` shows its status.

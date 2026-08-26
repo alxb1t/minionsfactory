@@ -18,12 +18,12 @@ calls**; you sequence the stages, delegate the checks to fresh subagents, and pa
 
 Run each stage by following its skill. Interactive stages run here in the **main session**; checks are delegated.
 
-1. **`mf-order`** (main session) — interview the human → `prd/vX.Y_<name>.md`.
+1. **`mf-order`** (main session) — interview the human → `planning/vX.Y/vX.Y_<name>.md`.
    → Pause: let the human read the PRD.
 2. **`mf-gauge`** (fresh subagent) — gate the PRD.
    → `changes-requested`? relay findings, **loop back to `mf-order`** to fix, re-gauge. `clean`? continue.
-3. **`mf-blueprint`** (main session; cwd = repo) — feasibility + design proposition → `prd/vX.Y_design.md` + a
-   verdict.
+3. **`mf-blueprint`** (main session; cwd = repo) — feasibility + design proposition →
+   `planning/vX.Y/vX.Y_design.md` + a verdict.
    → **Human go/no-go gate.** `feasible` / `feasible-with-caveats`: continue on the human's go. `needs-precursor` /
    `infeasible-as-specified`: **HALT** — the human rescopes (back to `mf-order`) or authors a precursor version.
 4. **`mf-forge`** (main session; cwd = repo) — render PRD + design → `openspec/changes/NNNN-<name>/`.

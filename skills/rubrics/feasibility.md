@@ -1,9 +1,9 @@
 # Rubric — Feasibility & design
 
-The definition of "done" for the **feasibility spike + design proposition** (`prd/vX.Y_design.md`): can this PRD
-actually be built in *this* codebase, and how? **`mf-blueprint`** produces the design proposition + verdict by
-reading the PRD against the real code; **`mf-inspect`** independently re-checks the design's soundness later. See
-[README](README.md) for the (M)/(J) split.
+The definition of "done" for the **feasibility spike + design proposition** (`planning/vX.Y/vX.Y_design.md`): can
+this PRD actually be built in *this* codebase, and how? **`mf-blueprint`** produces the design proposition +
+verdict by reading the PRD against the real code; **`mf-inspect`** independently re-checks the design's soundness
+later. See [README](README.md) for the (M)/(J) split.
 
 Unlike the other rubrics, feasibility is **not pass/fail** — it emits a 4-way verdict (below), because "can we
 build this here" is a judgment with degrees.

@@ -1,6 +1,6 @@
 # Rubric — PRD readiness
 
-The definition of "done" for a **PRD** (`prd/vX.Y_<name>.md`): is it well-defined enough to hand downstream
+The definition of "done" for a **PRD** (`planning/vX.Y/vX.Y_<name>.md`): is it well-defined enough to hand downstream
 (blueprint → forge → execution)? **`mf-order`** drives the interview toward every criterion; **`mf-gauge`** gates
 the finished PRD as a fresh, blind instance. See [README](README.md) for the (M)/(J) split + verdict conventions.
 

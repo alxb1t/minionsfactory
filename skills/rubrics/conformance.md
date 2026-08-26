@@ -17,7 +17,7 @@ The change is **conformant** when every (M) criterion passes and no (J) criterio
    (J): the scenario genuinely expresses that requirement's acceptance, not an adjacent claim.
 4. **(J) design.md is real — blocking.** `design.md` makes actual technical decisions (the *how*), leaves **no
    open design question**, is not a restatement of the *what*, and is **consistent with the blueprint**
-   (`prd/vX.Y_design.md`).
+   (`planning/vX.Y/vX.Y_design.md`).
 5. **(J) Phases execution-ready — blocking.** Each phase in `tasks.md` is machine-checkable, self-contained, and
    right-sized, and every phase is **code+commit** — **no research/design-lock phase** (all research/design was
    resolved on the planning side). A non-code phase is a blocking finding.

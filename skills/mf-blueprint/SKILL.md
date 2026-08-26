@@ -1,6 +1,6 @@
 ---
 name: mf-blueprint
-description: Assess whether a PRD is technically feasible in this codebase and produce a design proposition before any tasks are cut. Use after mf-gauge passes — stage 3 of the planning line. Reads the PRD + the repo, writes prd/vX.Y_design.md, and emits a feasible|feasible-with-caveats|needs-precursor|infeasible-as-specified verdict (a human go/no-go gate).
+description: Assess whether a PRD is technically feasible in this codebase and produce a design proposition before any tasks are cut. Use after mf-gauge passes — stage 3 of the planning line. Reads the PRD + the repo, writes planning/vX.Y/vX.Y_design.md, and emits a feasible|feasible-with-caveats|needs-precursor|infeasible-as-specified verdict (a human go/no-go gate).
 ---
 
 # mf-blueprint — feasibility spike + design proposition
@@ -14,8 +14,8 @@ later, so you run in the main session — no fresh-subagent requirement here.)
 ## Setup
 
 Run with **cwd = the target repo** (you must read its code). Resolve the vault from the repo's `.env` →
-`VAULT_PROJECT_DIR`; the PRD is `$VAULT_PROJECT_DIR/prd/vX.Y_<name>.md`. First read the **feasibility rubric** —
-`~/.claude/skills/rubrics/feasibility.md` (installed) or `skills/rubrics/feasibility.md` (source repo).
+`VAULT_PROJECT_DIR`; the PRD is `$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_<name>.md`. First read the **feasibility
+rubric** — `~/.claude/skills/rubrics/feasibility.md` (installed) or `skills/rubrics/feasibility.md` (source repo).
 
 ## Do the spike
 
@@ -34,8 +34,8 @@ real paths — a proposition that doesn't reference the actual code isn't feasib
 
 ## Write the design proposition
 
-Write `$VAULT_PROJECT_DIR/prd/vX.Y_design.md` (private thinking stays in the vault; `mf-forge` later renders the
-sanitized subset into the change's `design.md`):
+Write `$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_design.md` (private thinking stays in the vault; `mf-forge` later
+renders the sanitized subset into the change's `design.md`):
 
 ```markdown
 ---

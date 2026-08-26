@@ -13,7 +13,7 @@ execution loop's fresh reviewer.
 ## Setup
 
 Run with **cwd = the target repo**. Resolve the vault from `.env` → `VAULT_PROJECT_DIR`. Inputs are the PRD
-(`$VAULT_PROJECT_DIR/prd/vX.Y_<name>.md`) and the change dir (`openspec/changes/NNNN-<name>/`).
+(`$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_<name>.md`) and the change dir (`openspec/changes/NNNN-<name>/`).
 
 ## The mechanism: a fresh, blind subagent
 
@@ -38,7 +38,7 @@ findings to the human.
 > - **no scope creep** — nothing in the change is untraceable to a PRD requirement;
 > - **bidirectional trace** — every spec-delta `#### Scenario:` ↔ a PRD acceptance clause (each scenario has a
 >   `Key:`; each genuinely expresses its requirement);
-> - **design.md is real** — actual decisions, no open questions, consistent with `prd/vX.Y_design.md`;
+> - **design.md is real** — actual decisions, no open questions, consistent with `planning/vX.Y/vX.Y_design.md`;
 > - **phases execution-ready** — every `tasks.md` phase is machine-checkable, self-contained, right-sized, and
 >   **code+commit only** (a research/design-lock phase is blocking);
 > - **contract complete (M)** — all four artifacts present; change id/version matches the PRD;
@@ -51,7 +51,7 @@ findings to the human.
 
 ## Findings file
 
-Written by the subagent to `$VAULT_PROJECT_DIR/prd/vX.Y_inspect.md`:
+Written by the subagent to `$VAULT_PROJECT_DIR/planning/vX.Y/vX.Y_inspect.md`:
 
 ```markdown
 ---

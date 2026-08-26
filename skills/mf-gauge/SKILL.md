@@ -38,7 +38,7 @@ verdict + headline findings to the human.
 
 ## Findings file
 
-Written by the subagent to `prd/vX.Y_gauge.md` (in the vault, beside the PRD):
+Written by the subagent to `planning/vX.Y/vX.Y_gauge.md` (in the vault, beside the PRD):
 
 ```markdown
 ---

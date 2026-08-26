@@ -11,9 +11,10 @@ not empty placeholders. Copy the structure, replace the content.
 
 - `overview.md` — the one-screen "where is this project" (current state, key decisions, links).
 - `roadmap.md` — the version sequence (one small feature per version).
-- `prd/` — one PRD per version (`vX.Y_<name>.md`): the source of truth `mf-order` writes and `mf-forge` renders
-  into the repo's `openspec/changes/`. The blueprint's design proposition lands here too (`vX.Y_design.md`), plus
-  the planning findings (`vX.Y_gauge.md`, `vX.Y_inspect.md`).
+- `planning/vX.Y/` — one directory per version, holding that version's PRD (`vX.Y_<name>.md`): the source of
+  truth `mf-order` writes and `mf-forge` renders into the repo's `openspec/changes/`. The blueprint's design
+  proposition lands beside it (`vX.Y_design.md`), plus the planning findings (`vX.Y_gauge.md`,
+  `vX.Y_inspect.md`).
 - `backlog.md` — deferred work (two sections: current-release loose ends, and future/unversioned).
 - `log.md` — the narrative session log, newest first.
 - `decisions.md` — the ADR-style record of settled calls.

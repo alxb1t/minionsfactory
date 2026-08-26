@@ -1,6 +1,6 @@
 ---
 name: mf-order
-description: Interview the user to turn a raw feature idea into a well-defined, execution-ready PRD in the vault. Use at the start of a new feature/version for a MinionsFactory-style project — stage 1 of the planning line (Order → Gauge → Blueprint → Forge → Inspect). Produces prd/vX.Y_<name>.md.
+description: Interview the user to turn a raw feature idea into a well-defined, execution-ready PRD in the vault. Use at the start of a new feature/version for a MinionsFactory-style project — stage 1 of the planning line (Order → Gauge → Blueprint → Forge → Inspect). Produces planning/vX.Y/vX.Y_<name>.md.
 ---
 
 # mf-order — feature intake interview (idea → PRD)
@@ -30,11 +30,12 @@ PRD toward satisfying one of them. Keep it in mind throughout.
 ## Determine the version
 
 The PRD is one version `vX.Y`. Infer the next slot from the project's `roadmap.md`; if unclear, ask. The filename
-is `prd/vX.Y_<short-name>.md`, and `<short-name>` also becomes the future change id (`NNNN-<short-name>`).
+is `planning/vX.Y/vX.Y_<short-name>.md`, and `<short-name>` also becomes the future change id (`NNNN-<short-name>`).
 
 ## Write the PRD
 
-Write `prd/vX.Y_<name>.md` in the project's vault PRD dir. Match existing PRDs in `prd/` — the minimal contract:
+Write `planning/vX.Y/vX.Y_<name>.md` in the project's vault, creating the version dir if it does not exist.
+Match existing PRDs under `planning/` — the minimal contract:
 
 ```yaml
 ---
