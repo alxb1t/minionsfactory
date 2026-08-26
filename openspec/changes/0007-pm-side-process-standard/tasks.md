@@ -55,7 +55,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 5 — Prove it: rename the change, then render this version
 - [x] 6 — Findings and the HALT report re-root under `.minions/`
 - [x] 7 — The deferred-work backlog re-roots, and its predicate reverses
-- [ ] 8 — The vault release-log writer is deleted
+- [x] 8 — The vault release-log writer is deleted
 - [ ] 9 — The Inputs block drops the vault
 - [ ] 10 — The vault preflight is deleted, not guarded
 - [ ] 11 — All six role prompts stop writing the vault

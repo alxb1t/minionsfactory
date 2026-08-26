@@ -1,3 +1,4 @@
+import inspect
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -300,7 +301,6 @@ def test_prepare_release_refuses_on_a_red_verdict(tmp_path: Path) -> None:
     result = prepare_release(
         ReleaseVerdict(ok=False, reason="gate is red"),
         repo=tmp_path,
-        vault_dir=tmp_path,
         version="v0.2",
         today="2026-08-21",
         branch="v0.2_loop_closure",
@@ -318,15 +318,11 @@ def test_prepare_release_cuts_bumps_commits_and_tags_on_green(tmp_path: Path) ->
     repo.mkdir()
     (repo / "CHANGELOG.md").write_text(_CHANGELOG_READY)
     (repo / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n')
-    vault = tmp_path / "vault"
-    vault.mkdir()
-    (vault / "release_log.md").write_text("# Release log\n\n<!-- format -->\n")
     git = FakeReleaseGit()
 
     result = prepare_release(
         ReleaseVerdict(ok=True, reason=""),
         repo=repo,
-        vault_dir=vault,
         version="v0.2",
         today="2026-08-21",
         branch="v0.2_loop_closure",
@@ -342,8 +338,53 @@ def test_prepare_release_cuts_bumps_commits_and_tags_on_green(tmp_path: Path) ->
         "Change: 0003-sdd-adoption" in git.commits[0]
     )  # release commit carries trailer
     assert git.tags == ["v0.2.0"]
-    assert "v0.2.0" in (vault / "release_log.md").read_text()
     assert "git push origin v0.2.0" in result.handoff
+
+
+@pytest.mark.spec("release:prepare-or-refuse:no-external-record")
+def test_prepare_release_writes_no_record_outside_the_repository(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CHANGELOG.md").write_text(_CHANGELOG_READY)
+    (repo / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n')
+    # A plausible external destination sitting right beside the repo: were any
+    # narrative record still written, this is where it would land.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "release_log.md").write_text("# Release log\n\n<!-- format -->\n")
+
+    def snapshot() -> dict[Path, bytes]:
+        """Every file outside the repo, by path and bytes — the whole tree, not one
+        guessed destination: a record re-introduced at any external path is caught."""
+        return {
+            p: p.read_bytes()
+            for p in sorted(tmp_path.rglob("*"))
+            if p.is_file() and repo not in p.parents
+        }
+
+    before = snapshot()
+
+    result = prepare_release(
+        ReleaseVerdict(ok=True, reason=""),
+        repo=repo,
+        version="v0.2",
+        today="2026-08-21",
+        branch="v0.2_loop_closure",
+        git=FakeReleaseGit(),
+    )
+
+    assert result.status is ReleaseStatus.PREPARED
+    assert snapshot() == before  # nothing outside the repo was created or appended to
+    # Structural half: no parameter names a destination other than the repo, so a
+    # caller cannot re-point the release record outside it.
+    path_parameters = [
+        name
+        for name, parameter in inspect.signature(prepare_release).parameters.items()
+        if "Path" in str(parameter.annotation)  # catches `Path | None` too
+    ]
+    assert path_parameters == ["repo"]
 
 
 @pytest.mark.spec("release:prepare-or-refuse:refused-leaves-repo-untouched")
@@ -356,7 +397,6 @@ def test_prepare_release_leaves_the_repo_untouched_when_refused(tmp_path: Path) 
     prepare_release(
         ReleaseVerdict(ok=False, reason="working tree has uncommitted changes"),
         repo=repo,
-        vault_dir=tmp_path,
         version="v0.2",
         today="2026-08-21",
         branch="b",

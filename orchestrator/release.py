@@ -315,36 +315,6 @@ def _handoff(tag: str, branch: str) -> str:
     )
 
 
-def _release_log_entry(tag: str, today: str, branch: str) -> str:
-    """Release-log entry in the vault's documented format."""
-    number = tag.removeprefix("v")
-    return (
-        f"## {tag} — {today}\n"
-        f"- **Tag:** `{tag}` (created locally; **merged + pushed by a human**)\n"
-        f"- **Shipped:** see CHANGELOG `[{number}]`.\n"
-        f"- **Gate at ship:** ruff + ty + pytest green.\n"
-        f"- **Review/security/simplify:** `verdict: clean`.\n"
-        f"- **Branch → main:** `{branch}` → `main`.\n\n"
-    )
-
-
-def _prepend_release_log(path: Path, entry: str) -> None:
-    """Insert an entry after the template marker in the vault's release_log.md.
-
-    Entries go directly after the format comment's closing `-->`, so the newest
-    sits at the top of the entries region; a file without the marker gets the
-    entry appended.
-    """
-    existing = path.read_text() if path.exists() else ""
-    marker = "-->"
-    idx = existing.find(marker)
-    if idx == -1:
-        path.write_text(existing + "\n" + entry)
-        return
-    cut = idx + len(marker)
-    path.write_text(existing[:cut] + "\n\n" + entry + existing[cut:])
-
-
 def _release_message(tag: str, change_id: str | None) -> str:
     """Build the release commit message, appending a `Change:` trailer when known."""
     message = f"chore(release): {tag}"
@@ -356,7 +326,6 @@ def _release_message(tag: str, change_id: str | None) -> str:
 def prepare_release(
     verdict: ReleaseVerdict,
     repo: Path,
-    vault_dir: Path,
     version: str,
     today: str,
     branch: str,
@@ -367,8 +336,9 @@ def prepare_release(
 
     On a red verdict: do nothing, return REFUSED with the reason. On green: cut the
     CHANGELOG, bump pyproject, commit (with a `Change: <id>` trailer when the change is
-    known) + annotated-tag locally, prepend the release log, return PREPARED with the
-    merge+push handoff. Never pushes or merges — the git seam has no such operation.
+    known) + annotated-tag locally, and return PREPARED with the merge+push handoff.
+    Never pushes or merges — the git seam has no such operation — and writes nothing
+    outside `repo`: the durable release record is `git log`, `CHANGELOG.md` and the tag.
     """
     if verdict.ok is False:
         return ReleaseResult(ReleaseStatus.REFUSED, verdict.reason, "")
@@ -382,10 +352,6 @@ def prepare_release(
 
     git.commit_all(repo, _release_message(tag, change_id))
     git.tag(repo, tag, tag)
-
-    _prepend_release_log(
-        vault_dir / "release_log.md", _release_log_entry(tag, today, branch)
-    )
 
     return ReleaseResult(ReleaseStatus.PREPARED, "", _handoff(tag, branch))
 
