@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`repo:` — the vault project page declares its repo** (change `0007-pm-finds-repo`, phase 1). The planning line's PM side lives in the vault, and the standing rule is *the vault reaches the repo; the repo never reaches the vault* — so the vault project page's `overview.md` frontmatter now carries **`repo:`, an absolute path to the local clone**, and that key is where `mf-blueprint` / `mf-forge` / `mf-inspect` resolve their target from. It replaces the inverted mechanism the line shipped with, in which the PM side ran with cwd = the target repo and asked *that repo's* `.env` → `VAULT_PROJECT_DIR` where the vault was. `template/vault-pm/overview.md` carries the key, so the worked example teaches the new convention rather than the retired one; its value is the fictional Tasknip clone path, absolute as the convention requires. The two remaining declarations — the operator's own vault project page and the vault's autonomous-build `CLAUDE.md` variant, whose required-field list gains `repo:` — are **vault edits, outside this repo and not in this commit**.
+
 ## [0.6.0] - 2026-08-25
 
 ### Added
