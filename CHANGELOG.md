@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-27
+
 ### Added
 
 - **The end-of-change fan-out ran, and corrected four claims this changelog was making** (change `0007-pm-side-process-standard`, converge). Review, security and simplify each read the branch blind — the first simplify pass over any part of it, and the first review of the tail past phase 16. Verdicts: security `clean`, simplify `clean`, review `changes-requested` with one blocking finding, now fixed. **What it caught was documentation asserting things the code does not do**, which is the failure mode a green gate cannot see: this file claimed the release gate enforces `Change:` trailers on every commit (it does not — see the trailer entry below), and that the retired-vault scan covers everything the success criteria's whole-tree grep does (it does not — four roots sit outside it, verified clean today). `docs/modules/release.md` described a composition root that omits `change_id` **after** the commit that made it pass one, and `docs/modules/state.md` claimed every pre-spend refusal is a change-contract error when `read_head` can still surface a raw `CalledProcessError` against a non-git target. All four now say what is true, and the two underlying code holes are recorded against v0.10 rather than papered over. One dedup landed with them: `findings_dir()` joins `findings_path()` in `orchestrator/findings.py`, so the fan-out's `mkdir` stops rebuilding `.minions/findings` as a literal — the findings contract this version writes into `CLAUDE.md` states one resolution site, and there were two.
