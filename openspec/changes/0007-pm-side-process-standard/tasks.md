@@ -62,7 +62,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 12 — Root `CLAUDE.md` declares the findings contract
 - [x] 13 — The rubric sheds three criteria; nine docs describe a self-contained repo
 - [x] 14 — The `sdd` spec stops requiring the vault
-- [ ] 15 — The audit report moves into the repo it measures
+- [x] 15 — The audit report moves into the repo it measures
 - [ ] 16 — The audit preflight resolves from `repo:`, and the file empties
 - [ ] 17 — The retired-vault scan lands, over its full root set
 - [ ] 18 — Re-measure: `mf-teardown` against this repo reports `compliant`

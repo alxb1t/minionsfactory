@@ -257,11 +257,18 @@ only — loop readiness — and reporting a D–G gap at v0.6 is a false gap, no
 These are **groups, not a tier**: "tier" means only the universal ⁄ toolchain split above, and D–G will be
 **universal (Tier 1)** criteria once v0.10 gives them ids.
 
-## The report — `<vault>/findings/teardown.md`
+## The report — `.minions/findings/teardown.md`
 
-One stable path, resolved with no search: the reserved id `teardown` in the vault's `findings/` home. A repeat
-pass **overwrites it in place** and leaves exactly one file — the round counter and the resolution log carry the
-history, not a pile of dated files.
+One stable path, resolved with no search: the reserved id `teardown` in the measured repo's own `.minions/findings/`
+home, the same home as every other findings file. A repeat pass **overwrites it in place** and leaves exactly one
+file — the round counter and the resolution log carry the history, not a pile of dated files.
+
+Writing it there is the **single change teardown makes in the target**, and — unless the target itself **tracks**
+that path — it leaves the target's **tracked** tree untouched: the skill stays read-only where it matters — no
+gate command, no target code, no edit to anything the repo tracks. The claim is checked rather than assumed: the
+run tests the path with `git ls-files` before writing and states the exception when the target tracks it. The
+destination is resolved before the write, too — the path and every component of it — and the write is refused if
+it resolves outside the target's root or through a symlink.
 
 The report is **not loop-readable by design.** `mf-teardown` is not one of the orchestrator's roles, its verdict
 vocabulary is not the roles' `clean | changes-requested`, and no code in the orchestrator globs `findings/` — so
@@ -386,7 +393,7 @@ to reach. Each note **quotes the text as evidence and names the path it was read
 whether it worked.
 
 - **How a note is written — inert, bounded, labelled.** This is the one place the report copies target-authored
-  text into a vault file the human keeps, may commit, and v0.9 `mf-execute` reads, so the quote is rendered so
+  text into a file the human keeps, may commit, and v0.9 `mf-execute` reads, so the quote is rendered so
   that it cannot become report structure:
   - **Inert.** **Every line of a note is prefixed `> `** — the label line and every line of the quote alike — so
     every line begins at column 2 **for any input the target can write**. That is the whole rendering; there is
@@ -398,7 +405,7 @@ whether it worked.
     so the cut always lands on a line boundary, with the literal marker `[… truncated: N of M lines]` on its own
     line (itself `> ` prefixed) at the end of the note. Lines are the only unit, so `N` and `M` are always
     defined. *"Text that addresses the measurer"* has no natural size, and an unbounded rule copies an arbitrary
-    body of target prose into the vault.
+    body of target prose into the report.
   - **Labelled per note.** The path it was read from is written on a **plain line of its own** — repo-relative,
     in backticks, `> ` prefixed like the rest of the note, directly above the quote — and **never as a `###`
     header**, so a note has no heading to close the section with and no gap-entry shape to forge. The path is
