@@ -1,5 +1,6 @@
 """Repo-hygiene guards: conventions a grep can prove, so prose discipline can't slip."""
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -91,4 +92,116 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
             "prompts/coder.md:1",
             "docs/modules/state.md:1",
             "README.md:1",
+        ]
+
+
+# The retired vault-write model. v0.7 moved findings, the HALT report and the
+# deferred-work backlog into the target repo's `.minions/` and deleted the vault
+# preflight, so the symbols that named the old root are dead. The needles are the six
+# dead *symbols*: the declared environment key, the resolved-directory parameter in both
+# its spellings, the two deleted preflight functions, and the release-record symbol.
+#
+# `vault_project_dir` is listed although `vault_dir` looks like a substring of it — it
+# is not, and without it a doc could ship a stale
+# `halt_report_exists(vault_project_dir)` signature and pass. The bare word *vault* and
+# the token `<vault>/` are NOT needles: the vault still exists, and the vault-side
+# skills must be able to name what they resolve.
+_RETIRED_VAULT = (
+    "VAULT_PROJECT_DIR",
+    "vault_dir",
+    "vault_project_dir",
+    "read_vault_dir",
+    "verify_vault_access",
+    "release_log",
+)
+
+# This needle set's OWN root set (0007-pm-side-process-standard design §4). One root set
+# crossed with both needle sets cannot go green: `implementation_plans` is a live needle
+# of the plan set above, and `skills/rubrics/compliance.md` legitimately names it in
+# check text this change keeps. So the vault set adds `skills/` — and the root
+# `CLAUDE.md` and the tracked environment example, both cleared by this change but
+# otherwise inside no root allowlist, so that the scan covers everything the success
+# criteria's whole-tree grep does.
+#
+# Excluded for the same three reasons as above: `openspec/specs/`, the historical record
+# (`CHANGELOG.md`, `openspec/changes/archive/`) and `tests/`, where the guard's own
+# needles are literals. NO exclusion is declared for any directory inside the scanned
+# roots — the deletions land before the scan does, so nothing needs suppressing.
+_SCANNED_VAULT = (
+    "orchestrator",
+    "prompts",
+    "docs",
+    "README.md",
+    "skills",
+    "CLAUDE.md",
+    ".env.example",
+)
+
+
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_docs_or_skills() -> None:
+    assert _SCANNED_VAULT == (
+        "orchestrator",
+        "prompts",
+        "docs",
+        "README.md",
+        "skills",
+        "CLAUDE.md",
+        ".env.example",
+    )
+
+    assert {
+        needle: _hits(_REPO, _SCANNED_VAULT, needle) for needle in _RETIRED_VAULT
+    } == {needle: [] for needle in _RETIRED_VAULT}
+
+
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots() -> None:
+    # The scenario asserts the absence of a carve-out, which is a property of the guard
+    # itself and not only of the tree it scans. Two halves: the scan takes no exclusion
+    # argument, so there is no seam a suppression could enter through...
+    assert list(inspect.signature(_hits).parameters) == ["base", "roots", "needle"]
+    assert list(inspect.signature(_text_files).parameters) == ["root"]
+
+    # ...and in fact it reaches every directory inside the scanned roots — enumerated
+    # here with `iterdir`, independently of the `rglob` walk under test, so the two can
+    # disagree. That includes the skill directory phase 16 emptied, the one carve-out
+    # this change considered and declined.
+    for name in _SCANNED_VAULT:
+        root = _REPO / name
+        if not root.is_dir():
+            continue
+        visited = {path.relative_to(root).parts[0] for path in _text_files(root)}
+        declared = {entry.name for entry in root.iterdir() if entry.is_dir()}
+        assert declared - {"__pycache__"} <= visited
+
+
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
+    tmp_path: Path,
+) -> None:
+    # Same bar as the plan needles: each one must bite, in every root of this set —
+    # including the three roots it adds — or the scan is decoration.
+    (tmp_path / "orchestrator").mkdir()
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "docs" / "modules").mkdir(parents=True)
+    (tmp_path / "skills" / "mf-teardown").mkdir(parents=True)
+
+    for needle in _RETIRED_VAULT:
+        (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
+        (tmp_path / "prompts" / "coder.md").write_text(f"write to the {needle}\n")
+        (tmp_path / "docs" / "modules" / "findings.md").write_text(f"the {needle}\n")
+        (tmp_path / "README.md").write_text(f"a report under {needle}\n")
+        (tmp_path / "skills" / "mf-teardown" / "SKILL.md").write_text(f"{needle}\n")
+        (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
+        (tmp_path / ".env.example").write_text(f"{needle}=\n")
+
+        assert _hits(tmp_path, _SCANNED_VAULT, needle) == [
+            "orchestrator/findings.py:1",
+            "prompts/coder.md:1",
+            "docs/modules/findings.md:1",
+            "README.md:1",
+            "skills/mf-teardown/SKILL.md:1",
+            "CLAUDE.md:1",
+            ".env.example:1",
         ]
