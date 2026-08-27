@@ -141,7 +141,7 @@ misleading surface only). Either way `open_blocking` counts *that role's* blocki
 declaring `verdict: clean` is obliged to leave it at zero — a **role obligation**, not a machine check: the
 orchestrator never cross-checks the counter against the body. A non-blocking finding never stalls the converge
 loop; it is carried into the release's deferred-work file, `<repo>/.minions/<version>_backlog.md`, where **any**
-remaining list line holds the release until it is fixed and removed, or retired by the human.
+remaining list line holds the release until it is fixed and removed, or exported by the human.
 
 **Status: `open → fixed → verified`, with a producer/checker asymmetry that is the whole point.** A finding is
 born `open`. The **fixer — the producer — writes `fixed`** and touches nothing else: per-finding status and note

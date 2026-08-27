@@ -233,9 +233,15 @@ Whether the change advanced: a **new commit** landed **and** the current-phase i
 class PlanContractError(ValueError):  # a change breaks the execution contract
 ```
 
-Raised by the change contract guards, and the **only** exception the preflight catches: every refusal a run
-can hit before spend is a broken change contract. Caught in [`__main__`](main.md)'s preflight to print a clean
+Raised by the change contract guards, and the **only** exception the preflight catches: every refusal *this
+reader* raises is a broken change contract. Caught in [`__main__`](main.md)'s preflight to print a clean
 diagnostic and exit `1` — never a bare traceback mid-run.
+
+> **Not every pre-spend failure is one of these.** `read_head` shells out to `git rev-parse HEAD` with
+> `check=True`, so a target that is not a git repository — or is one with no commit yet — surfaces a raw
+> `CalledProcessError` rather than a diagnostic. That contradicts `cli`'s *no unhandled exception class SHALL be
+> reachable from a misconfigured target*, it predates this version, and it is recorded in the vault backlog
+> against **v0.10** rather than fixed here.
 
 - **Gotchas** — keeps its name although its subject is now a change; renaming it would touch every raise site
   and every `except` clause for no behavioural payoff.

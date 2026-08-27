@@ -9,6 +9,17 @@ from pydantic import BaseModel, ConfigDict
 from orchestrator.state import parse_frontmatter
 
 
+def findings_dir(repo: Path) -> Path:
+    """Resolve the directory every findings file lives in: `<repo>/.minions/findings/`.
+
+    Exists so the fan-out can create the directory without rebuilding the path: the
+    single-resolution-site rule the findings contract states covers the directory as
+    well as the file, and a literal `.minions/findings` elsewhere would keep creating
+    the old location on the day this one moves.
+    """
+    return repo / ".minions" / "findings"
+
+
 def findings_path(repo: Path, change_id: str, role: str) -> Path:
     """Resolve a role's findings file: `<repo>/.minions/findings/<change-id>_<role>.md`.
 
@@ -20,7 +31,7 @@ def findings_path(repo: Path, change_id: str, role: str) -> Path:
     `Change:` commit trailer — not on the release version, which is a property of the
     change rather than its name.
     """
-    return repo / ".minions" / "findings" / f"{change_id}_{role}.md"
+    return findings_dir(repo) / f"{change_id}_{role}.md"
 
 
 class FindingsState(BaseModel):

@@ -54,7 +54,7 @@ verdict = verify_release_gate(
 )
 result = prepare_release(
     verdict, repo, "v0.2", today, branch, SubprocessReleaseGit()
-)  # `change_id=` would stamp the commit's `Change:` trailer; the entry point omits it
+)  # `change_id=` stamps the commit's `Change:` trailer; the entry point passes it
 if result.status is ReleaseStatus.PREPARED:
     print(result.handoff)  # git checkout main; merge; push — the human's turn
 ```
@@ -102,7 +102,7 @@ Verify every release precondition; return `ok`, or the first blocking reason. **
 of [`decide`](driver.md#decide): it judges over already-gathered facts, so the whole gate is one first-non-`None`
 scan over `str | None` blocker predicates.
 
-- **Params** — `version`: e.g. `"v0.2"` → tag `v0.2.0` · [`gate_result`](gate.md#gateresult): the gate verdict (run by the caller) · [`findings`](findings.md#findingsstate): the three role verdicts (all must be `clean` — see [`all_findings_clean`](findings.md#all_findings_clean)) · `backlog_text`: the deferred-work text the caller read via [`deferred_work_text`](#deferred_work_text) · `changelog_text`: the raw `CHANGELOG.md` · `existing_tags`: the repo's tags (tag must be free) · `tree_is_clean`: no uncommitted changes · `specs_valid`, `change_folded`, `commits`, `known_change_ids`: the spec-fold and commit-trailer facts.
+- **Params** — `version`: e.g. `"v0.2"` → tag `v0.2.0` · [`gate_result`](gate.md#gateresult): the gate verdict (run by the caller) · [`findings`](findings.md#findingsstate): the three role verdicts (all must be `clean` — see [`all_findings_clean`](findings.md#all_findings_clean)) · `backlog_text`: the deferred-work text the caller read via [`deferred_work_text`](#deferred_work_text) · `changelog_text`: the raw `CHANGELOG.md` · `existing_tags`: the repo's tags (tag must be free) · `tree_is_clean`: no uncommitted changes · `specs_valid`, `change_folded`, `commits`, `known_change_ids`: the spec-fold and commit-trailer facts. **The composition root does not supply these four**, so they sit at their permissive defaults and the checks they gate — `_trailer_blocker` among them — are inert in every release the entry point drives. Feeding them means the release stage gathering commit, spec and fold state; owned by v0.10.
 - **Returns** — [`ReleaseVerdict`](#releaseverdict): `ok=True`, or `ok=False` with the first reason.
 - **Edge cases** — a missing/empty `[Unreleased]` blocks release, and a missing findings file (`None`) counts as not clean; a **missing** deferred-work file passes, while **any** list line in it blocks.
 - **Gotchas** — takes `gate_result` (data), **not** the [`gate`](gate.md#gate) seam — it never runs the gate itself, unlike [`converge`](converge.md#converge).
@@ -169,7 +169,7 @@ def prepare_release(verdict, repo, version, today, branch, git, change_id=None) 
 
 Prepare the release on a green verdict, then hand off to the human; refuse on red.
 
-- **Params** — [`verdict`](#releaseverdict): the gate result (refuse if not `ok`) · `repo`: the target repo, and the only tree written · `version`, `today`, `branch`: the tag/date/branch woven into the CHANGELOG, tag, and handoff · [`git`](#releasegit): the commit + local-tag seam · `change_id`: stamped as the commit's `Change:` trailer when known — **the composition root does not pass it today**, so a release commit carries no trailer; recorded as an open question rather than changed here.
+- **Params** — [`verdict`](#releaseverdict): the gate result (refuse if not `ok`) · `repo`: the target repo, and the only tree written · `version`, `today`, `branch`: the tag/date/branch woven into the CHANGELOG, tag, and handoff · [`git`](#releasegit): the commit + local-tag seam · `change_id`: stamped as the commit's `Change:` trailer. The composition root passes it (`change_id=change_dir.name`), pinned by a test that drives `_make_release` end to end; the `| None = None` default is vestigial and kept only so the signature stays compatible with the direct-call tests.
 - **Returns** — [`ReleaseResult`](#releaseresult): `REFUSED` (repo untouched) or `PREPARED` (with the handoff).
 - **Edge cases** — refuse-on-red is a **true no-op**: no file write, no commit, no tag. On green the order is cut/bump → commit → tag (the commit is the point of no return). Nothing is written outside `repo`: the durable record is `git log`, `CHANGELOG.md` and the annotated tag.
 - **Gotchas** — never pushes or merges (the `git` seam can't); the tag keeps the leading `v` (`v0.2.0`) while the CHANGELOG/`pyproject` version drops it (`0.2.0`).

@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from orchestrator.diff import run_role_with_diff
-from orchestrator.findings import FindingsState, findings_path, read_findings_state
+from orchestrator.findings import (
+    FindingsState,
+    findings_dir,
+    findings_path,
+    read_findings_state,
+)
 from orchestrator.provider import Provider, read_only_profile
 from orchestrator.status import Event, Role, RoleReturned, RoleSpawn, _no_emit
 
@@ -86,7 +91,7 @@ def run_fanout(
     cannot create the directory itself, and a findings file that never lands reads as
     not-clean.
     """
-    (repo / ".minions" / "findings").mkdir(parents=True, exist_ok=True)
+    findings_dir(repo).mkdir(parents=True, exist_ok=True)
     states: list[FindingsState | None] = []
     for role in roles:
         findings_file = findings_path(repo, change_id, role.name)
