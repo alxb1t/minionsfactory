@@ -120,8 +120,12 @@ _RETIRED_VAULT = (
 # of the plan set above, and `skills/rubrics/compliance.md` legitimately names it in
 # check text this change keeps. So the vault set adds `skills/` — and the root
 # `CLAUDE.md` and the tracked environment example, both cleared by this change but
-# otherwise inside no root allowlist, so that the scan covers everything the success
-# criteria's whole-tree grep does.
+# otherwise inside no root allowlist.
+#
+# These seven are where the retired vocabulary lived or was cleared from. They are
+# deliberately NARROWER than a whole-tree grep: `template/`, `.github/`, `Makefile` and
+# `pyproject.toml` are outside, free of all six needles today, so the gap is a future
+# regression rather than a live hole. Widening is recorded for v0.8.
 #
 # Excluded for the same three reasons as above: `openspec/specs/`, the historical record
 # (`CHANGELOG.md`, `openspec/changes/archive/`) and `tests/`, where the guard's own

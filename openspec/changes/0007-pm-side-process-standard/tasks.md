@@ -447,8 +447,10 @@ name only live criteria; the README's cwd example roots at the vault project dir
 - `tests/test_conventions.py` — a third needle set with its **own** root set, in the pattern the file already
   ships and argues for. Needles: `VAULT_PROJECT_DIR`, `vault_dir`, `vault_project_dir`, `read_vault_dir`,
   `verify_vault_access`, `release_log`. Roots: `("orchestrator", "prompts", "docs", "README.md")` **plus
-  `skills/`** — and, per `design.md` §4, `CLAUDE.md` and `.env.example`, so the root set covers everything the
-  success criteria's whole-tree grep does.
+  `skills/`** — and, per `design.md` §4, `CLAUDE.md` and `.env.example`: seven roots, where the retired
+  vocabulary lived or was cleared from. Deliberately **narrower** than the success criteria's whole-tree grep —
+  `template/`, `.github/`, `Makefile` and `pyproject.toml` are outside it, clean of all six needles today, and
+  widening is a v0.8 question.
 - **No `skills/mf-teardown/` exclusion is declared anywhere in the file.** Phase 16 emptied it; there is nothing
   to suppress.
 - Each needle is proved to bite, via the existing guard-fails test extended.
