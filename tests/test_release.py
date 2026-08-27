@@ -503,6 +503,28 @@ def test_apply_fold_adds_modifies_and_removes_by_title() -> None:
     assert ("removed", "Keep") in edits
 
 
+@pytest.mark.spec_exempt("mechanism/plumbing")
+def test_a_removed_block_whose_title_matches_nothing_is_a_no_op() -> None:
+    # Two of this change's deltas retire *scenarios* from a requirement that stays, and
+    # a REMOVED block needs a `### Requirement:` heading for the parser to reach its
+    # keys — so they carry a placeholder heading deliberately matching no live
+    # requirement. That idiom is only safe because an unmatched REMOVED title folds to
+    # nothing; if it ever deleted by prefix or by proximity, it would take the live
+    # requirement with it.
+    from orchestrator.release import _parse_requirement_blocks
+
+    target = "# Capability: cap\n\n### Requirement: Keep\nSHALL keep.\n"
+    _, delta_blocks = _parse_requirement_blocks(
+        "## REMOVED Requirements\n\n"
+        "### Requirement: Retired scenario keys (placeholder)\nCarrier only.\n"
+    )
+    new_text, edits = _apply_fold(target, delta_blocks, "cap")
+
+    assert edits == []  # nothing was removed, and nothing reports as removed
+    assert "### Requirement: Keep" in new_text
+    assert "placeholder" not in new_text  # the carrier is not folded in either
+
+
 @pytest.mark.spec("sdd:release-fold:fold-applied")
 def test_fold_applies_added_requirement_and_archives(tmp_path: Path) -> None:
     _write_delta(tmp_path, "0007-x", "cap", _DELTA_ADDED)

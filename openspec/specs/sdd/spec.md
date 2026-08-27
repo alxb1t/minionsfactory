@@ -196,28 +196,6 @@ location or its retired vocabulary, and none SHALL name the operator's vault pat
 - **AND** the scan set excludes the specs themselves, which describe the retirement and must be able to name it, and
   the historical record (`CHANGELOG.md`, `openspec/changes/archive/`), which must keep saying what was true
 
-#### Scenario: The operator's vault path is named nowhere in the repo tree
-- **Key:** `sdd:vault-layout:vault-path-not-in-repo`
-- **Layers:** unit
-- **WHEN** the tracked repo tree is scanned for the vault path the target's `.env` declares — this needle's **own**
-  root set, wider than the retired-vocabulary one: code, prompts, docs, tests, `openspec/`, `CHANGELOG.md` and the
-  repo's config files, so it walks the tracked files a role writes on every phase
-- **THEN** none of them names it — the guardrail that the vault path is never committed is proved by a test rather
-  than by discipline alone
-- **AND** the exclusions are the gitignored `.env` that declares the path and the gitignored `.minions/` run
-  artifacts, whose leak route `.gitignore` closes instead — the retired-vocabulary needle's exclusions are its own
-  and do not apply here
-
-#### Scenario: Findings and product intent stay in the vault
-- **Key:** `sdd:vault-layout:findings-and-prd-in-vault`
-- **Layers:** e2e
-- **WHEN** a read-only role or the PM authors findings or a PRD
-- **THEN** they are written under the vault (`prd/`, `findings/`), keeping the reviewers' repo access
-  fully read-only
-
-> `Layers: e2e` (reserved): the vault directory restructure was a one-time hand op; the durable, unit-provable
-> invariants are `progress-in-repo` and `no-plan-path-references` above.
-
 ### Requirement: Full backfill traceability
 
 Under strict checking, the system SHALL require that **every** collected test carries either a `@pytest.mark.spec`
