@@ -1,4 +1,4 @@
-"""Entry-point tests: the zero-token preflight reads nothing outside the repository."""
+"""Entry-point tests: the preflight reads nothing outside the repo, and the wiring."""
 
 import os
 import subprocess
@@ -6,14 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.__main__ import main
+from orchestrator.__main__ import _fanout_roles, _make_release, main
 from orchestrator.gate import FakeGate, GateResult
 from orchestrator.provider import Profile, RoleResult
+from orchestrator.release import FakeReleaseGit, ReleaseStatus
 
 _ROLE = RoleResult(
     subtype="success", is_error=False, result="ok", session_id="s", total_cost_usd=0.0
 )
 _RED = GateResult(passed=False, steps=())
+_GREEN = GateResult(passed=True, steps=())
 
 
 class _RecordingProvider:
@@ -93,3 +95,61 @@ def test_run_spawns_against_a_repo_with_no_env_and_no_settings_grant(
     assert exit_code == 1
     assert len(provider.calls) == 1
     assert "0001-a-change" in provider.calls[0][0]
+
+
+_CHANGELOG_READY = """\
+# Changelog
+
+## [Unreleased]
+
+- something worth releasing
+"""
+
+
+def _release_ready(repo: Path) -> None:
+    """Bring `repo` to a state the release gate passes: changelog, pyproject, findings.
+
+    Everything the gate reads that `_target_repo` does not already provide. No
+    deferred-work file (absent reads as nothing deferred) and no tags.
+    """
+    (repo / "CHANGELOG.md").write_text(_CHANGELOG_READY)
+    (repo / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n')
+    findings = repo / ".minions" / "findings"
+    findings.mkdir(parents=True)
+    for role in ("review", "security", "simplify"):
+        (findings / f"0001-a-change_{role}.md").write_text(
+            "---\nverdict: clean\nopen_blocking: 0\nround: 2\nhead: abc123\n---\n"
+        )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "release-ready")
+
+
+@pytest.mark.spec_exempt("wiring — composition root hands the change id to the release")
+def test_release_closure_stamps_the_change_trailer_on_the_release_commit(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `prepare_release` stamps the trailer only when given a `change_id`, and its own
+    # tests pass one in. What is untested — and is where the trailer went missing — is
+    # the seam: whether the composition root, which already holds the change directory,
+    # actually passes it. So this drives `_make_release` end to end against a real repo
+    # with only the git-writing seam faked, and reads the message git would have got.
+    repo = _target_repo(tmp_path)
+    _release_ready(repo)
+    git = FakeReleaseGit()
+    monkeypatch.setattr("orchestrator.__main__.SubprocessReleaseGit", lambda: git)
+
+    release = _make_release(
+        gate=FakeGate(_GREEN),
+        repo=repo,
+        version="v0.1",
+        branch="main",
+        today="2026-08-27",
+        roles=_fanout_roles(),
+    )
+    result = release()
+    capsys.readouterr()  # the handoff block; not what this test is about
+
+    assert result.status is ReleaseStatus.PREPARED, result.reason
+    assert git.commits[0].endswith("\n\nChange: 0001-a-change")

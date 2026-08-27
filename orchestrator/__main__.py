@@ -229,7 +229,13 @@ def _make_release(
             tree_is_clean=_tree_is_clean(repo),
         )
         result = prepare_release(
-            verdict, repo, version, today, branch, SubprocessReleaseGit()
+            verdict,
+            repo,
+            version,
+            today,
+            branch,
+            SubprocessReleaseGit(),
+            change_id=change_dir.name,
         )
         if result.handoff:
             # The release stage spawns no role — `prompts/release.md` is invoked by
