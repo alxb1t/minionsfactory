@@ -44,4 +44,4 @@ machine the execution reviewer uses); every finding cites the exact PRD requirem
 | [prd-readiness](prd-readiness.md) | `mf-order` | `mf-gauge` |
 | [feasibility](feasibility.md) | `mf-blueprint` | `mf-inspect` (re-checks) |
 | [conformance](conformance.md) | `mf-forge` | `mf-inspect` |
-| [compliance](compliance.md) | `mf-retrofit` (v0.7) · `mf-stamp` (v0.8) — forthcoming | `mf-teardown` |
+| [compliance](compliance.md) | the human · `mf-execute` (v0.9) · `mf-stamp` (v0.10) — forthcoming | `mf-teardown` |

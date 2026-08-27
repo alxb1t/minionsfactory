@@ -108,9 +108,10 @@ def read_only_profile(findings_file: Path) -> Profile
 ```
 
 The profile for a **read-only** role (review / security / simplify): denies `Bash` and `Edit`, allows `Write`
-only to the role's own findings file.
+only to the role's own findings file — `<repo>/.minions/findings/<change-id>_<role>.md`, resolved by
+[`findings_path`](findings.md#findings_path).
 
-- **Why** — a read-only role must not touch the repo; the one thing it may write is its verdict. (Rationale — bare-tool denies enforce, scoped `Bash` sub-patterns leak: the vault's `decisions.md` → read-only permission profile / Q1.)
+- **Why** — a read-only role must not touch the repo's **tracked** tree; the one thing it may write is its verdict, and that lands in the target's gitignored `.minions/` rather than anywhere outside the repo. (Rationale — bare-tool denies enforce, scoped `Bash` sub-patterns leak: the vault's `decisions.md` → read-only permission profile / Q1.)
 - **Gotchas** — expressed as *allow-only-`Write(findings)`*, not a bare-`Write` deny: deny-precedence would override a scoped allow. `Bash` denied is *why* the role cannot `git diff` itself → the orchestrator supplies the diff ([`diff`](diff.md)).
 - **Returns** — [`Profile`](#profile)
 - **Called by** — [`run_fanout`](fanout.md#run_fanout), once per role.

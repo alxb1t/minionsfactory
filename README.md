@@ -34,9 +34,7 @@ python -m orchestrator run --repo /path/to/target-repo
 The **target repo** it drives must provide:
 
 - an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
-  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta,
-- a **`.env`** with `VAULT_PROJECT_DIR` — the path to its vault (an Obsidian folder holding the PRD, the
-  narrative record and the roles' `findings/`), and
+  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta, and
 - a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
 
   ```toml
@@ -50,13 +48,16 @@ The **target repo** it drives must provide:
   ```
 
   (git-ignore the generated `.minions/` artifacts but keep the config: `.minions/*` + `!.minions/minions.toml`.)
-- a **`.claude/settings.local.json`** granting the coder write access to the vault (the vault dir, or an
-  ancestor, under `additionalDirectories`) — findings + bookkeeping land there, outside the repo cwd.
+
+That is the whole contract — **nothing outside the repo is declared, resolved or written.** Everything a run
+produces lands under the gitignored `.minions/`: each role's findings at
+`.minions/findings/<change-id>_<role>.md`, the coder's halt report at `.minions/HALT.md`, deferred work at
+`.minions/<version>_backlog.md` (any list line there blocks the release; a missing file means nothing was
+deferred), and the run's `events.jsonl` + `status.json`.
 
 The orchestrator runs a zero-token **preflight** first — the active change is well-formed and declares its
-version, the vault is declared, exists and is granted — then resolves the active change in the target repo,
-drives its phases one fresh coder at a time, and exits `0` on completion / `1` on a halt. Every refusal is a
-diagnostic and a non-zero exit, never a traceback.
+version — then resolves the active change in the target repo, drives its phases one fresh coder at a time, and
+exits `0` on completion / `1` on a halt. Every refusal is a diagnostic and a non-zero exit, never a traceback.
 
 ## The quality gate (this repo's own)
 

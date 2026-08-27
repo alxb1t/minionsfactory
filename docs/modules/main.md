@@ -13,12 +13,11 @@ adapters and the post-build closures into [`driver.run`](driver.md#run).
 
 ## What it does
 
-[`main`](#main) runs a **zero-token preflight** ([`read_change_state`](state.md#read_change_state) to resolve +
-validate the active change, which also yields the declared release version;
-[`read_vault_dir`](state.md#read_vault_dir) to resolve and shape-check the vault the target's `.env` declares; and
-[`verify_vault_access`](state.md#verify_vault_access) for the write grant) that exits `1` with a diagnostic before
-any spend — every refusal path in it raises, so no exception class escapes as a traceback. It then assembles the
-coder prompt from
+[`main`](#main) runs a **zero-token preflight** — [`read_change_state`](state.md#read_change_state) to resolve +
+validate the active change, which also yields the declared release version — that exits `1` with a diagnostic
+before any spend; every refusal path in it raises, so no exception class escapes as a traceback. **The preflight
+reads the repo and nothing else:** no `.env` is read, no directory outside the target is resolved, and the run
+needs no permission grant beyond the repo it is pointed at. It then assembles the coder prompt from
 [`build_inputs_block`](fanout.md#build_inputs_block) + [`assemble_prompt`](fanout.md#assemble_prompt), builds the
 coder
 [`Profile`](provider.md#profile), constructs [`ClaudeCodeProvider`](provider.md#claudecodeprovider) +
@@ -36,7 +35,7 @@ modules it imports.
 
 ```mermaid
 flowchart TD
-    main --> pre["preflight: read_change_state (resolve + validate) + read_vault_dir (.env) + verify_vault_access — exit 1 on failure, no spend"]
+    main --> pre["preflight: read_change_state (resolve + validate) — repo-only, exit 1 on failure, no spend"]
     main --> emit["_make_emitter(repo) — .minions/ disk+stdout sink"]
     pre --> ver["version = ChangeState.version — declared in the change's proposal.md"]
     main --> roles["_fanout_roles() — reviewer/security/simplify prompts"]
@@ -68,12 +67,15 @@ $ python -m orchestrator run --repo /path/to/target
 - The converge closure reads the same three findings files fan-out wrote and re-verifies each round over the
   scoped `head..HEAD` diff — the two stages communicate through disk, not return values.
 - The release closure gathers the facts for the **pure** [`verify_release_gate`](release.md#verify_release_gate)
-  (`gate.run_gate`, the three findings, backlog/CHANGELOG text, `_git_tags`, `_tree_is_clean`), then
+  (`gate.run_gate`, the three findings, [`deferred_work_text`](release.md#deferred_work_text) +
+  `CHANGELOG.md` text, `_git_tags`, `_tree_is_clean`), then
   [`prepare_release`](release.md#prepare_release)s with a real [`SubprocessReleaseGit`](release.md#releasegit) and
   prints the handoff — `_current_branch` and `date.today()` supply the branch and date.
 - All three closures are invoked by [`run`](driver.md#run) **only at plan-complete**; a halted build reaches none.
 - A higher-order gotcha: each seam is passed the *built closure* (`fanout=_make_fanout(...)`), not the factory.
-- `.minions/` is the target's per-run artifact dir (git-ignore it in the target).
+- `.minions/` is the target's per-run artifact dir and the **only** place a run writes outside the tracked
+  tree it builds: `findings/`, `HALT.md`, `<version>_backlog.md`, `diff.patch`, `events.jsonl`, `status.json`
+  (git-ignore it in the target, keeping `minions.toml`).
 
 ## Reference
 
