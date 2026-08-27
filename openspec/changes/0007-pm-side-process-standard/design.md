@@ -119,3 +119,24 @@ survives both the criteria and this change's move of the report into the target'
   requirement. The checker derives orphans from shipped scenarios, so an empty spec file is green either way;
   this change leaves the file in place as a **tombstone**, matching how it already records the reader deleted in
   the previous version, rather than deleting the capability directory.
+
+## 8. The change id derives from the version, and the collision rule forks
+
+`mf-forge` computed `NNNN` by scanning `openspec/changes/` for the highest existing number and adding one. Read
+from a vault-rooted session that scan crosses the seam and restarts numbering at `0001`, so it had to go — and it
+is **deleted rather than re-rooted**, because it only ever implemented a coincidence: `NNNN = (major × 100) +
+minor`, zero-padded, reproduces every shipped id, stays monotonic past the 1.0 boundary so `select_change`'s
+"highest numeric id wins" survives, and needs no repo read at all.
+
+Deriving the number means it can already be taken, and the first rule written here was a blanket halt: **stop
+rather than increment past it**, because a directory holding this version's number means two changes claim one
+version, which nothing downstream can resolve — the `Change:` trailer, the change directory and the folded delta
+all key on the same id. That rationale is right and is what the rule still protects. The blanket halt was not:
+phase 3's review found it dead-ends the routine fix pass that `mf-line` and `mf-inspect` both prescribe, where
+`mf-forge` re-renders a change and halts on the directory it wrote itself.
+
+So the rule **forks**, and each arm preserves the same reasoning. HALT on some other `NNNN-*` holding the number,
+and HALT on a different change at the same path — both are two changes claiming one version. HALT on anything
+under `archive/`: that change has shipped, its delta is folded, and it is the only artifact its trailer traces
+back to. **Proceed** only when re-rendering *this* change live, replacing the directory's own prior contents —
+re-rendering one change does not make two changes claim one version, so the halt has nothing to protect there.

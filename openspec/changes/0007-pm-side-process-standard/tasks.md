@@ -115,7 +115,12 @@ vault; `mf-line` agrees with them.
 - **Rubric fallbacks NOT rooted there** — `mf-blueprint:18`, `mf-inspect:26`. See the two-root-classes decision (stage-A design, since superseded by this dir's re-rendered `design.md`): the obvious rule
   is wrong for exactly these two.
 - **The change id derives from the version** — `NNNN = (major × 100) + minor`, zero-padded; the scan at
-  `mf-forge:20` is deleted, not re-rooted. Collision on an existing directory **halts**. (Stage-A design decision; the current `design.md` no longer carries it, and phase 5 records how the collision was actually resolved.)
+  `mf-forge:20` is deleted, not re-rooted. A collision on the derived number **halts** — two changes claiming one
+  version is what the rule protects against. (Stage-A design decision; phase 5 records how the collision was
+  actually resolved. **Refined in phase 3's review, and the skill carries the refinement:** a blanket halt
+  dead-ends the fix pass `mf-line` and `mf-inspect` prescribe, so the rule forks — halt on some other `NNNN-*`,
+  on a different change at the same path, or on anything under `archive/`; **proceed** when re-rendering *this*
+  change live, which does not make two changes claim one version. `design.md` §8 carries the reasoning.)
 - **Halt diagnostics** — a missing, relative, or non-git `repo:` halts naming the **field**; never a traceback,
   never a silent fall-back to cwd.
 - **`mf-line:25,29`** — the two `(main session; cwd = repo)` stage annotations. They carry no `prd/` string, so
