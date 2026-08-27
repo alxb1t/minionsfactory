@@ -14,9 +14,10 @@
 ## Your inputs (supplied — do not re-derive them)
 
 The **Inputs block prepended above this prompt** is the orchestrator's, and it is authoritative: it names the
-**change directory** (`openspec/changes/<id>/` — proposal · design · tasks), the findings paths, the git head,
-the release version, and the vault context files. Path resolution lives in the orchestrator's code, in one
-place, where it is typed and tested — **do not shell for a path and do not ask the human for one.**
+**change directory** (`openspec/changes/<id>/` — proposal · design · tasks), the findings paths, the git head
+and the release version — every path it names resolves **inside the repository**. Path resolution lives in the
+orchestrator's code, in one place, where it is typed and tested — **do not shell for a path and do not ask the
+human for one.**
 
 Run from inside the code repo; `git rev-parse --show-toplevel` and `--abbrev-ref HEAD` are yours to run if you
 need the repo root or the branch name.
@@ -29,8 +30,8 @@ Echo the change dir + which phase (the first unchecked `## Progress` item in `ta
 2. **The change** (the change dir from the Inputs block) — `proposal.md` (scope), `design.md` (the settled
    technical decisions) and `tasks.md`: the whole file, but especially **your phase**'s scope and
    machine-checkable acceptance, plus the per-phase ritual. Archived changes are historical — don't execute them.
-3. **Vault bookkeeping** — the top of `log.md` (newest first) + `overview.md` (both named in the Inputs block):
-   the source of truth for where the work stands. Trust it over memory.
+3. **Where the work stands** — the `## Progress` list in `tasks.md` and `git log` are the source of truth. Trust
+   them over memory.
 
 ## Step 2 — Check for in-progress work (resume detection)
 
@@ -40,8 +41,8 @@ attempt at **this** phase (the first unchecked `## Progress` item) was interrupt
 
 - **Assess** what's already there: read the modified/added files against the phase's acceptance to judge what is
   done vs remaining. Do **not** delete or restart working code — continue from where it stopped.
-- **Say so:** state in your report (and in the vault `log.md` entry) that the phase was found in-progress and
-  you continued it, rather than restarting.
+- **Say so:** state in your report that the phase was found in-progress and you continued it, rather than
+  restarting.
 
 If the tree is clean, start the phase fresh.
 
@@ -54,14 +55,17 @@ Build **only** that phase. Follow the change's per-phase ritual; in general:
 2. **Green gate.** The phase is not done until the full gate is green — `tasks.md` defines it (typically
    `ruff format --check` → `ruff check` → `ty check` → `pytest`). Run it to confirm green **before you commit**;
    the orchestrator runs it independently afterwards. **Never weaken the gate to pass** (see *Stop-conditions*).
-3. **Bookkeeping.** In the vault (the context files named in the Inputs block): prepend a dated entry to `log.md`
-   (`## [YYYY-MM-DD] <verb> | <title>` + what changed, test count, gate status; note if this was a *resumed*
-   phase); record any deferred work in `backlog.md`'s current-release section; update `overview.md`. In the
-   **repo**: **tick this phase's checkbox in the `## Progress` list at the top of `tasks.md`** (`- [ ] N` →
-   `- [x] N`). That checkbox move is half of how the orchestrator detects your advance — do not skip it, and it
-   lands in the phase commit alongside the code.
-4. **Commit** this phase in the **code repo** with a Conventional-Commits message (the vault edits are not part
-   of this commit). The commit is the other half of the advance signal.
+3. **Bookkeeping.** **Tick this phase's checkbox in the `## Progress` list at the top of `tasks.md`**
+   (`- [ ] N` → `- [x] N`). That checkbox move is half of how the orchestrator detects your advance — do not skip
+   it, and it lands in the phase commit alongside the code. Record any deferred work as a list item in
+   `<repo>/.minions/<version>_backlog.md` (the release version from your Inputs block) — **any** list line there
+   blocks the release until it is fixed and removed, or exported by the human, so defer only what you mean to
+   leave open.
+4. **Commit** this phase in the **code repo** with a Conventional-Commits message — a backlog edit is not part of
+   this commit **because** `.minions/` is gitignored; confirm that holds in this target (`git check-ignore
+   .minions`). If it does not, **still commit the phase** — stage the paths you changed **by name**, never
+   `git add -A`, so no run artifact under `.minions/` is swept into history — and flag the un-ignored `.minions/`
+   in your report. The commit is the other half of the advance signal.
    **Every commit carries a `Change: <change-id>` git trailer** — the change id from your Inputs block, not one
    you shell for — so history reads back to the intent that produced it. Put it in the trailer block at the end of
    the message, **contiguous** with `Co-Authored-By:` (no blank line between them: git parses the trailer block as
@@ -88,12 +92,15 @@ the orchestrator recognizes a halt.
    verification rather than fake it.
 5. **`tasks.md` is ambiguous, contradicts reality, or needs a decision it doesn't cover** — halt and report the
    specific question (there is no human to answer mid-flight in an orchestrated run).
-6. **Preflight fails** — `.env` / `VAULT_PROJECT_DIR` / the change / the gate config is missing.
+6. **The run's inputs are missing** — the change directory or the gate config (`.minions/minions.toml`) is
+   absent.
 
 ## What you must NOT do
 - **Do not continue to the next phase** — one phase per spawn; the orchestrator owns the loop.
 - **Do not review or sign off your own work** — review and security are separate roles.
 - **Do not spend money or add un-authorized dependencies** without an explicit human "go".
-- **Do not weaken the gate** to pass, or skip the test-first step / the vault bookkeeping.
+- **Do not weaken the gate** to pass, or skip the test-first step / the phase bookkeeping.
 - **Do not invent scope** beyond the approved change, or re-open decisions `design.md` already settled.
-- **Do not commit secrets or the vault's absolute path** into the repo.
+- **Do not commit secrets, or any absolute filesystem path — this repository's own root included** (it names
+  the operator's home directory) — into the repo, least of all one transcribed out of a `.minions/` artifact into
+  tracked prose; cite repo-relative paths.
