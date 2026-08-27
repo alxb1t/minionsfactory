@@ -46,15 +46,21 @@ information.
 Nothing in Tier 1 names a language, a toolchain or a tool. Everything toolchain-specific lives in Tier 2, so a
 second toolchain is a new Tier-2 section and no edit here.
 
+**Every path and every command below is rooted at the repo under measurement**, never at the reader's working
+directory: a path written `pyproject.toml` means `<repo>/pyproject.toml`, and a command written `git ls-files …`
+is run as `git -C <repo> ls-files …`. A reader measures a repo it is not running inside — `mf-teardown` runs from
+the vault project dir — so a bare command answers about the wrong tree **without erroring**, which is how a
+satisfied criterion becomes a false gap.
+
 ### A · Loop wiring — can the orchestrator start at all?
 
 - **`wiring:git-repo`** · (M) · `blocking`
-  - **Checked:** the repo root holds a `.git/` and `git rev-parse HEAD` resolves to a commit — the driver diffs
+  - **Checked:** the repo root holds a `.git/` and `git -C <repo> rev-parse HEAD` resolves to a commit — the driver diffs
     every phase against `HEAD` and detects an advance from it.
   - **Fix:** `git init` and land one commit before pointing the loop at the repo.
 - **`wiring:gate-config`** · (M) · `blocking`
   - **Checked:** `.minions/minions.toml` exists **at that path** (not the repo root), is **tracked**
-    (`git ls-files .minions/minions.toml` returns it), and declares a non-empty `gate` array.
+    (`git -C <repo> ls-files .minions/minions.toml` returns it), and declares a non-empty `gate` array.
   - **Fix:** move or create the file at `.minions/minions.toml` and commit it — the orchestrator reads that path
     and no other, so a root-level `minions.toml` is invisible to it and the gate is unreadable.
 - **`wiring:claude-md`** · (M+J) · `blocking`
@@ -191,7 +197,7 @@ an unrecognised manifest does — `profile: none`, toolchain criteria not assess
   - **Fix:** add the `[project]` table with `name` and `requires-python`; nothing resolves the environment
     without them.
 - **`py:lockfile`** · (M) · `blocking`
-  - **Checked:** `uv.lock` exists at the repo root and is **tracked** (`git ls-files uv.lock` returns it).
+  - **Checked:** `uv.lock` exists at the repo root and is **tracked** (`git -C <repo> ls-files uv.lock` returns it).
   - **Fix:** `uv lock`, then commit the file — an untracked lock cannot reproduce the environment a gate ran in,
     so a green gate proves nothing about the next machine.
 - **`py:gate-commands`** · (M+J) · `blocking`

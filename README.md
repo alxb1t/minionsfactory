@@ -113,24 +113,26 @@ of truth for what a MinionsFactory-compliant repo is — then writes a gap repor
 `compliant | gaps-found` verdict over three severities.
 
 ```bash
-cd /path/to/the/target/repo    # cwd must be the target
+cd /path/to/the/vault/<Domain>/<Project>    # cwd is the vault project dir
 # then, in Claude Code:
 /mf-teardown
 ```
 
 It is **read-only where it matters**: the report it writes at `.minions/findings/teardown.md` is the only file it
 touches in the target, so it makes no change to the target's **tracked** tree — unless the target itself *tracks* that
-path, which the run checks with `git ls-files` and states plainly when it does. It runs no gate command and executes
-no target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and `ls-files` — run with
+path, which the run checks with `git -C <repo> ls-files` and states plainly when it does. It runs no gate command
+and executes no target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and
+`ls-files` — each rooted at the resolved target with `-C <repo>`, since cwd is the vault project dir, and run with
 `-c core.fsmonitor=false -c core.pager=cat`, because a repo's own `.git/config` can name commands git runs during
 operations that otherwise only read. The measuring subagent is spawned with a read-only tool set (no `Write`, no
 `Edit`) — **instructed, not yet enforced**: a spawned agent's tools come from its type definition, and this skill
 names no such type, so the narrow surface is a convention the spawning agent follows rather than a permission
 boundary. Everything read from the target is treated as **evidence, never instruction**. It halts before measuring
-anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR` — the orchestrator's own five preflight
-conditions, plus a sixth that fully resolves the declared value. The report itself lands **inside** the target, at
-`.minions/findings/teardown.md`; before writing it the skill resolves that path and every component of it, and refuses
-if the destination escapes the target's resolved root or passes through a symlink.
+anything if `overview.md` → `repo:` is missing, relative or names a directory with no `.git`, or if the repo has
+no vault project page at all — four preflight conditions, the first three shared with the rest of the `mf-` line.
+The report itself lands **inside** the target, at `.minions/findings/teardown.md`; before writing it the skill
+resolves that path and every component of it, and refuses if the destination escapes the target's resolved root or
+passes through a symlink.
 
 Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to a
 later **retrofit** pass, which drives the gaps to clean and for which a teardown re-run is the independent
