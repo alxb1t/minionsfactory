@@ -53,10 +53,6 @@ class PlanContractError(ValueError):
     """
 
 
-class PreflightError(Exception):
-    """The target repo isn't configured for a run — halt before spending."""
-
-
 # --- in-tree change-state reader — the reader the driver runs -------------------
 #
 # Change progress lives in the repo (`openspec/changes/<id>/tasks.md`), no vault hop

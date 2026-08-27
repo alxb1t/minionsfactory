@@ -35,7 +35,6 @@ from orchestrator.release import (
 from orchestrator.specs import run_check
 from orchestrator.state import (
     PlanContractError,
-    PreflightError,
     read_change_state,
     read_head,
     select_change,
@@ -294,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
         change_state = read_change_state(repo)
-    except (PlanContractError, PreflightError) as error:
+    except PlanContractError as error:
         print(f"preflight failed: {error}")
         return 1
 

@@ -2,7 +2,7 @@
 module: orchestrator/state.py
 summary: Reconstruct "where are we" from disk, and guard the target contract before a run.
 entry_point: read_change_state
-public_api: [read_change_state, ChangeState, Phase, select_change, validate_change, read_change_version, parse_progress, parse_frontmatter, read_head, change_advanced, PlanContractError, PreflightError]
+public_api: [read_change_state, ChangeState, Phase, select_change, validate_change, read_change_version, parse_progress, parse_frontmatter, read_head, change_advanced, PlanContractError]
 depends_on: []
 ---
 
@@ -233,20 +233,9 @@ Whether the change advanced: a **new commit** landed **and** the current-phase i
 class PlanContractError(ValueError):  # a change breaks the execution contract
 ```
 
-Raised by the change contract guards. Caught in [`__main__`](main.md)'s preflight to print a clean
+Raised by the change contract guards, and the **only** exception the preflight catches: every refusal a run
+can hit before spend is a broken change contract. Caught in [`__main__`](main.md)'s preflight to print a clean
 diagnostic and exit `1` — never a bare traceback mid-run.
 
 - **Gotchas** — keeps its name although its subject is now a change; renaming it would touch every raise site
   and every `except` clause for no behavioural payoff.
-
-### `PreflightError`
-
-```python
-class PreflightError(Exception):  # the target isn't configured for a run
-```
-
-The "target isn't configured" arm of the preflight's `except`. **Nothing raises it today** — the two preflight
-helpers that did were deleted when the run stopped resolving any directory outside the target repo, and every
-remaining refusal is a [`PlanContractError`](#plancontracterror). The class and [`__main__`](main.md)'s `except`
-arm are kept as the declared home for a future non-change configuration refusal; whether to retire them is an
-open question for the human, not a silent deletion.
