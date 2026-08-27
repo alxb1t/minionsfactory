@@ -98,7 +98,6 @@ def _findings_map(repo: Path, change_id: str, roles: list[RoleSpec]) -> dict[str
 def _make_fanout(
     provider: Provider,
     repo: Path,
-    vault_dir: Path,
     version: str,
     base: str,
     roles: list[RoleSpec],
@@ -111,7 +110,6 @@ def _make_fanout(
         return run_fanout(
             provider,
             repo,
-            vault_dir,
             change_dir.name,
             version,
             diff,
@@ -130,7 +128,6 @@ def _make_converge(
     provider: Provider,
     gate: Gate,
     repo: Path,
-    vault_dir: Path,
     version: str,
     roles: list[RoleSpec],
     fixer_prompt: str,
@@ -141,7 +138,7 @@ def _make_converge(
     findings = _findings_map(repo, change_dir.name, roles)
     paths = list(findings.values())
     fixer = assemble_prompt(
-        build_inputs_block(change_dir, findings, read_head(repo), version, vault_dir),
+        build_inputs_block(change_dir, findings, read_head(repo), version),
         fixer_prompt,
     )
 
@@ -155,7 +152,6 @@ def _make_converge(
         run_fanout(
             provider,
             repo,
-            vault_dir,
             change_dir.name,
             version,
             diff,
@@ -215,7 +211,6 @@ def _current_branch(repo: Path) -> str:
 def _make_release(
     gate: Gate,
     repo: Path,
-    vault_dir: Path,
     version: str,
     branch: str,
     today: str,
@@ -244,9 +239,7 @@ def _make_release(
             # handoff rather than prepending it at spawn. Path resolution still
             # lives in one place in code; the human-invoked role reads it, not a shell.
             print(
-                build_inputs_block(
-                    change_dir, findings, read_head(repo), version, vault_dir
-                )
+                build_inputs_block(change_dir, findings, read_head(repo), version)
                 + result.handoff
             )
         return result
@@ -317,7 +310,6 @@ def main(argv: list[str] | None = None) -> int:
             _findings_map(repo, change_dir.name, roles),
             change_state.head,
             version,
-            vault_dir,
         ),
         _coder_prompt(),
     )
@@ -330,21 +322,18 @@ def main(argv: list[str] | None = None) -> int:
             coder_prompt=coder_prompt,
             profile=_CODER_PROFILE,
             emit_event=emitter,
-            fanout=_make_fanout(
-                provider, repo, vault_dir, version, args.base, roles, emitter
-            ),
+            fanout=_make_fanout(provider, repo, version, args.base, roles, emitter),
             converge=_make_converge(
                 provider,
                 gate,
                 repo,
-                vault_dir,
                 version,
                 roles,
                 _fixer_prompt(),
                 _CODER_PROFILE,
                 emitter,
             ),
-            release=_make_release(gate, repo, vault_dir, version, branch, today, roles),
+            release=_make_release(gate, repo, version, branch, today, roles),
         )
     except ProviderError as error:
         print(

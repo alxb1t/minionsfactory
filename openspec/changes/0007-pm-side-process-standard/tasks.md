@@ -56,7 +56,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 6 — Findings and the HALT report re-root under `.minions/`
 - [x] 7 — The deferred-work backlog re-roots, and its predicate reverses
 - [x] 8 — The vault release-log writer is deleted
-- [ ] 9 — The Inputs block drops the vault
+- [x] 9 — The Inputs block drops the vault
 - [ ] 10 — The vault preflight is deleted, not guarded
 - [ ] 11 — All six role prompts stop writing the vault
 - [ ] 12 — Root `CLAUDE.md` declares the findings contract
@@ -241,10 +241,19 @@ dangling key. Gate green.
 - Update the fan-out and the release handoff emitter.
 
 **Acceptance.** The built block names no path outside the repo; an assembled prompt still leads with the block.
-**And this phase is where `fanout:findings-path:no-external-root-argument` becomes true and is bound**: it sits
-under phase 6's requirement because that is where the findings root moves, but it asserts a property of the whole
-orchestrator — *no signature takes a parameter naming a directory outside the repository* — and `build_inputs_block`
-is the last one holding it. Prove it here: `grep -rn 'vault_dir' orchestrator/` returns nothing. Gate green.
+Gate green.
+
+> **Two clauses moved to phase 10 during execution, with the human's decision on the record.** This phase
+> originally claimed to be where `fanout:findings-path:no-external-root-argument` *becomes true and is bound*,
+> proved by `grep -rn 'vault_dir' orchestrator/` returning nothing. It is not, and both blind checkers found so
+> independently. `build_inputs_block` is **not** the last holder: `verify_vault_access(repo, vault_project_dir)`
+> in `orchestrator/state.py` is itself a signature taking a parameter naming a directory outside the repository,
+> and it is still called from `__main__.py` — so the scenario is false **in substance**, not merely unprovable by
+> grep, which additionally matches the substring inside the function name `read_vault_dir`. Satisfying either
+> clause here would mean doing phase 10's work, and phase 10 must stay one commit. Both clauses therefore move
+> **verbatim** into phase 10's acceptance, where the deletions make them true. Dropping rather than moving them
+> would not be harmless: an active-delta key is orphan-exempt until the fold, so an unbound
+> `no-external-root-argument` stays invisible for the whole change and surfaces as a red gate at the release fold.
 
 ---
 
@@ -280,6 +289,12 @@ change-state read and spawns normally — no preflight error; neither deleted sy
 --strict` is green with no orphaned marker. Test count falls by fourteen. **And, by hand:**
 `.claude/settings.local.json` names no vault directory under `additionalDirectories` and no `Read`/`Edit`/`Write`
 glob covers one — confirm by reading the file and say so in the phase's report, since nothing else will.
+
+**And the two clauses moved here from phase 9** (see the note under that phase): this is where
+`fanout:findings-path:no-external-root-argument` **becomes true and is bound**. It sits under phase 6's
+requirement because that is where the findings root moves, but it asserts a property of the whole orchestrator —
+*no signature takes a parameter naming a directory outside the repository* — and `verify_vault_access`, deleted
+here, is the last one holding it. Prove it here: `grep -rn 'vault_dir' orchestrator/` returns nothing.
 
 ---
 
