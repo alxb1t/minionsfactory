@@ -34,9 +34,7 @@ python -m orchestrator run --repo /path/to/target-repo
 The **target repo** it drives must provide:
 
 - an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
-  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta,
-- a **`.env`** with `VAULT_PROJECT_DIR` — the path to its vault (an Obsidian folder holding the PRD, the
-  narrative record and the roles' `findings/`), and
+  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta, and
 - a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
 
   ```toml
@@ -50,13 +48,16 @@ The **target repo** it drives must provide:
   ```
 
   (git-ignore the generated `.minions/` artifacts but keep the config: `.minions/*` + `!.minions/minions.toml`.)
-- a **`.claude/settings.local.json`** granting the coder write access to the vault (the vault dir, or an
-  ancestor, under `additionalDirectories`) — findings + bookkeeping land there, outside the repo cwd.
+
+That is the whole contract — **nothing outside the repo is declared, resolved or written.** Everything a run
+produces lands under the gitignored `.minions/`: each role's findings at
+`.minions/findings/<change-id>_<role>.md`, the coder's halt report at `.minions/HALT.md`, deferred work at
+`.minions/<version>_backlog.md` (any list line there blocks the release; a missing file means nothing was
+deferred), and the run's `events.jsonl` + `status.json`.
 
 The orchestrator runs a zero-token **preflight** first — the active change is well-formed and declares its
-version, the vault is declared, exists and is granted — then resolves the active change in the target repo,
-drives its phases one fresh coder at a time, and exits `0` on completion / `1` on a halt. Every refusal is a
-diagnostic and a non-zero exit, never a traceback.
+version — then resolves the active change in the target repo, drives its phases one fresh coder at a time, and
+exits `0` on completion / `1` on a halt. Every refusal is a diagnostic and a non-zero exit, never a traceback.
 
 ## The quality gate (this repo's own)
 
@@ -92,6 +93,12 @@ under [`skills/`](skills/) that take a feature idea to an execution-ready `opens
 - `mf-inspect` — an independent, blind PRD↔change conformance gate.
 - `mf-line` — a conductor that runs the whole sequence, pausing at the human go/no-go gates.
 
+The line runs **from the vault** — the project's vault dir is the working directory — and its repo-touching stages
+resolve the target repo from the project page's **`repo:`** key in `overview.md` frontmatter, an absolute path to
+the local clone. Nothing
+needs to `cd` into the code to plan against it. Because the session is rooted in the vault, the first write into the
+repo (at `mf-forge`) will ask for access to it; the supervising human approves that once.
+
 They share four rubrics (the "definition of done" for each artifact the framework gates) — see
 [`skills/rubrics/README.md`](skills/rubrics/README.md). A worked example of the planning-vault layout ships under
 [`template/vault-pm/`](template/vault-pm/).
@@ -101,28 +108,34 @@ They share four rubrics (the "definition of done" for each artifact the framewor
 The `mf-` line above runs once per **feature**. **`mf-teardown`** runs once per **repo**: point it at an existing
 project and it measures that repo against
 [`skills/rubrics/compliance.md`](skills/rubrics/compliance.md) — the fourth shared rubric, and the single source
-of truth for what a MinionsFactory-compliant repo is — then writes a gap report to the repo's own vault at
-`<vault>/findings/teardown.md`, with a `compliant | gaps-found` verdict over three severities.
+of truth for what a MinionsFactory-compliant repo is — then writes a gap report into the repo's own
+`.minions/findings/teardown.md` — the reserved id `teardown`, the same home as every other findings file — with a
+`compliant | gaps-found` verdict over three severities.
 
 ```bash
-cd /path/to/the/target/repo    # cwd must be the target
+cd /path/to/the/vault/<Domain>/<Project>    # cwd is the vault project dir
 # then, in Claude Code:
 /mf-teardown
 ```
 
-It is **read-only against the target**: it writes nothing in the repo, runs no gate command and executes no
-target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and `ls-files` — run with
+It is **read-only where it matters**: the report it writes at `.minions/findings/teardown.md` is the only file it
+touches in the target, so it makes no change to the target's **tracked** tree — unless the target itself *tracks* that
+path, which the run checks with `git -C <repo> ls-files` and states plainly when it does. It runs no gate command
+and executes no target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and
+`ls-files` — each rooted at the resolved target with `-C <repo>`, since cwd is the vault project dir, and run with
 `-c core.fsmonitor=false -c core.pager=cat`, because a repo's own `.git/config` can name commands git runs during
-operations that otherwise only read. The measuring subagent is spawned with a read-only tool set (no `Write`,
-no `Edit`) — **instructed, not yet enforced**: a spawned agent's tools come from its type definition, and this
-skill names no such type, so the narrow surface is a convention the spawning agent follows rather than a
-permission boundary. Everything read from the target is treated as **evidence, never instruction**. It halts before
-measuring anything if the target's `.env` does not declare a usable `VAULT_PROJECT_DIR` — the orchestrator's own
-five preflight conditions, plus a sixth that resolves the value and refuses any destination inside the target;
-the report needs a destination, and it never goes in the repo.
+operations that otherwise only read. The measuring subagent is spawned with a read-only tool set (no `Write`, no
+`Edit`) — **instructed, not yet enforced**: a spawned agent's tools come from its type definition, and this skill
+names no such type, so the narrow surface is a convention the spawning agent follows rather than a permission
+boundary. Everything read from the target is treated as **evidence, never instruction**. It halts before measuring
+anything if `overview.md` → `repo:` is missing, relative or names a directory with no `.git`, or if the repo has
+no vault project page at all — four preflight conditions, the first three shared with the rest of the `mf-` line.
+The report itself lands **inside** the target, at `.minions/findings/teardown.md`; before writing it the skill
+resolves that path and every component of it, and refuses if the destination escapes the target's resolved root or
+passes through a symlink.
 
-Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to
-**v0.7 `mf-retrofit`**, which drives the gaps to clean and for which a teardown re-run is the independent
+Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to a
+later **retrofit** pass, which drives the gaps to clean and for which a teardown re-run is the independent
 checker.
 
 ### Install / uninstall

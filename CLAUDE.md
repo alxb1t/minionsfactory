@@ -37,16 +37,20 @@ truth:
   `openspec/changes/archive/<change-id>/`.
 
 **Progress lives in `tasks.md` + git** — read the active change (`openspec/changes/<id>/`), its `tasks.md`, and
-the tail of the vault `log.md` to see where the work stands. Don't re-derive decisions already settled in the change; if
-something there conflicts with reality, raise it with the human rather than silently diverging.
+the recent `git log` (every commit carries its `Change:` trailer) to see where the work stands. Don't re-derive
+decisions already settled in the change; if something there conflicts with reality, raise it with the human
+rather than silently diverging.
 
-**The vault holds product intent, research, findings, and bookkeeping.** A private Obsidian vault whose path is
-in **`.env`** (gitignored) as **`VAULT_PROJECT_DIR`** — **never hardcode or print it**; the committed
-`CLAUDE.md` / `.env.example` stay path-free. There: the **PRD** (`prd/` — the product intent *upstream* of a
-change), **research** (`research/`), the read-only roles' **findings files**, and the narrative record
-(`log.md` **newest-first**, `overview.md`, `backlog.md`, `release_log.md`, `decisions.md`). Any vault writes stay
-**inside `$VAULT_PROJECT_DIR`** and follow the shapes already there. If `.env` / `VAULT_PROJECT_DIR` is missing,
-copy `.env.example` → `.env` and ask the human to fill it in.
+**Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the
+target repo**: findings, the coder's HALT report and the release's deferred-work backlog all land under
+**`.minions/`**, whose run artefacts are gitignored — `minions.toml`, the gate command list, is the one tracked
+file in it (see *The findings contract* below). Product intent lives *upstream* of the code, in a private
+Obsidian vault the human keeps — the planning docs, research, the narrative record — and **no role the
+orchestrator spawns reaches into it**. The **PM-side skills** run from there, out of band: they take the
+vault project dir as cwd and resolve the target repo from its `overview.md` → `repo:`. The vault reaches the
+repo; the repo never reaches the vault. `.env` is gitignored local
+scaffolding declaring nothing the orchestrator needs, and the committed `CLAUDE.md` / `.env.example` stay
+path-free.
 
 **Commits carry a `Change: <change-id>` git trailer** so history reads back to intent
 (`git log --grep "Change: <id>"` → the commits → `openspec/changes/archive/<id>/` → proposal/design/tasks/delta).
@@ -83,13 +87,15 @@ read from the target repo** (`.minions/minions.toml`), not hardcoded, so a non-P
 The repo keeps a **`CHANGELOG.md`** in [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format, aligned
 to the version line (change `vX.Y` = CHANGELOG release = `pyproject` version = git tag `vX.Y.0`): each phase
 appends under `## [Unreleased]`; the release step cuts `## [X.Y.0]`. Keeping it current is part of the phase
-ritual — see the change + the vault's `conventions.md`.
+ritual — the change's `tasks.md` carries it phase by phase, and `CHANGELOG.md`'s own `## [Unreleased]`
+section is the shape to follow.
 
 ---
 
 ## Engineering conventions
 
-The change's **`design.md`** and the vault's **`decisions.md`** are authoritative — read them. In brief, the
+The change's **`design.md`** is authoritative, with this file behind it — read it. (The human keeps a longer
+decision record upstream in the vault; it is the *human's*, not an input any role reads.) In brief, the
 load-bearing seams are:
 
 - a **`Provider` Protocol** — a real `ClaudeCodeProvider` (`claude -p`, `--output-format json`) + a
@@ -105,10 +111,64 @@ load-bearing seams are:
 
 ---
 
+## The findings contract
+
+The three read-only roles — **review ‖ security ‖ simplify** — each write exactly **one** findings file and
+nothing else, and the fan-out, the converge loop and the release stage all read them back from disk. The shape is
+a contract, not a convention: an execution line downstream parses it.
+
+**Path.** One resolution site — `findings_path()` in `orchestrator/findings.py` — yields
+**`<repo>/.minions/findings/<change-id>_<role>.md`**. Rooted in the **repository being built** (findings are run
+artefacts of that repo, and `.minions/`'s artefacts are gitignored), and keyed on the **change id** — the same
+identifier as the change directory and the `Change:` commit trailer, not the release version. Because all three
+stages resolve through the one function, they cannot drift.
+
+**Frontmatter.** Each file opens with a YAML block the orchestrator parses — the boundary where a role's
+declared verdict enters the driver, though what the parse enforces is **shape only**. Four keys are
+shape-validated (`FindingsState`, frozen): **`verdict`** (`clean | changes-requested`), **`open_blocking`**
+(int), **`round`** (int, bumped by each verify pass) and **`head`** (an unconstrained string — the SHA that round
+judged, off which the next verify pass scopes its diff; nothing checks that it looks like a commit id).
+**Convergence turns on `verdict` alone**: `all_findings_clean` reads that one field, and `open_blocking` is
+parsed but consulted by no decision anywhere in the orchestrator. The prompts write five more for the human —
+`type` (`review | security | simplify`), `plan`, `project`, `branch`, `reviewed`. A missing file is **not**
+clean: `all_findings_clean` counts an absent file as unconverged, so a role that never ran can't let the loop
+or the release gate pass falsely.
+
+**Two severity vocabularies — which one applies is the role's.** Security grades
+`critical | high | medium | low` and **blocks on `critical` + `high`**; review and simplify grade
+`blocking | nit` and **block on `blocking`** (simplify's blocking tier is deliberately narrow — dual paths and
+misleading surface only). Either way `open_blocking` counts *that role's* blocking tier, and a role
+declaring `verdict: clean` is obliged to leave it at zero — a **role obligation**, not a machine check: the
+orchestrator never cross-checks the counter against the body. A non-blocking finding never stalls the converge
+loop; it is carried into the release's deferred-work file, `<repo>/.minions/<version>_backlog.md`, where **any**
+remaining list line holds the release until it is fixed and removed, or exported by the human.
+
+**Status: `open → fixed → verified`, with a producer/checker asymmetry that is the whole point.** A finding is
+born `open`. The **fixer — the producer — writes `fixed`** and touches nothing else: per-finding status and note
+only, counters and `verdict` left alone. `fixed` is a claim, not a resolution. **Only the checker promotes to
+`verified`** — the same read-only role on its verify pass (`round ≥ 2`), which re-judges each finding against the
+scoped fix diff and either promotes it or **reopens** it to `open` with a one-line reason; a regression the fix
+introduced becomes a new finding at `open`. A finding the fixer believes is wrong is marked `wontfix` with a
+justification — also the checker's to accept or reopen. No role verifies its own fix, and the producer never
+converges the loop. The same asymmetry governs the compliance rubric's gap report
+(`skills/rubrics/compliance.md`): the side that applies the fixes writes `fixed`, and only a fresh teardown
+measurement promotes to `verified`.
+
+**The resolution log is append-only.** The verify pass rewrites the frontmatter counters in place, but records
+each transition as a dated line **appended** to a `## Resolution log` at the foot of the file. Past rounds are
+never rewritten — the counters say where the loop stands now, the log says how it got there.
+
+---
+
 ## Guardrails (invariants — hold for every role)
 
-- **Never commit `.env` or any secret** (the vault path, any API key). `.env` is gitignored; keep the vault path
-  and secrets there only. The committed `CLAUDE.md` / `.env.example` stay path-free.
+- **Never commit a secret, or a *real* absolute path from the machine the run is on** — `.env` itself, an API
+  key; the **operator's home or vault path** (a PM-side skill runs from the vault and writes into this repo's
+  *tracked* `openspec/` tree, so that path is one careless paste away from history), or **this repository's own
+  root** transcribed out of a `.minions/` artefact into tracked prose. Paths a fixture or a worked example
+  *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
+  one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` / `.env.example` stay
+  path-free.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.
 - **No LLM in the orchestration layer; the orchestrator owns the objective checks.** The driver stays
@@ -116,7 +176,7 @@ load-bearing seams are:
   can't be gamed.
 - **State lives on disk.** Reconstruct "where are we" from the active change's `tasks.md` + git (+ the folded
   `openspec/specs/`) — never from memory. Resume is therefore free.
-- **Findings stay in the vault; progress + specs stay in the repo.** The read-only roles write only their vault
-  findings file; the coder writes code + `tasks.md` + the change's spec delta, and a `Change:` trailer on every
-  commit. Keep the vault narrative (`log.md` newest-first, `overview.md`, `backlog.md`) accurate — a fresh
-  session relies on it.
+- **Findings stay under `.minions/`; progress + specs stay in git.** The read-only roles write only their one
+  findings file (gitignored run artefact); the coder writes code + `tasks.md` + the change's spec delta, keeps
+  `CHANGELOG.md` current, and puts a `Change:` trailer on every commit. The durable record of a release is the
+  repository's own — `git log`, `CHANGELOG.md` and the tag; no role writes one anywhere else.

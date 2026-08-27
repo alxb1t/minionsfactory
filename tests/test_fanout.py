@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 import pytest
@@ -37,8 +38,8 @@ class _RecordingProvider:
 def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     tmp_path: Path,
 ) -> None:
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
-    findings = vault / "findings"
+    repo = tmp_path / "repo"
+    findings = repo / ".minions" / "findings"
     findings.mkdir(parents=True)
     for name in ("review", "security", "simplify"):
         (findings / f"{_CHANGE_ID}_{name}.md").write_text(
@@ -49,7 +50,6 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
     states = run_fanout(
         fake,
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -68,8 +68,10 @@ def test_run_fanout_runs_three_read_only_roles_over_the_frozen_diff(
 
 @pytest.mark.spec("fanout:findings-path:change-id-keyed-path")
 def test_findings_path_is_keyed_to_the_change_id(tmp_path: Path) -> None:
-    assert findings_path(tmp_path, _CHANGE_ID, "review") == (
-        tmp_path / "findings" / f"{_CHANGE_ID}_review.md"
+    repo = tmp_path / "repo"
+
+    assert findings_path(repo, _CHANGE_ID, "review") == (
+        repo / ".minions" / "findings" / f"{_CHANGE_ID}_review.md"
     )
 
 
@@ -82,13 +84,12 @@ def test_the_fanout_converge_and_release_stages_resolve_the_same_path(
     # the fan-out resolves each role's grant itself. True today because `findings_path`
     # is the only construction site — which is exactly why it is worth a test and not a
     # grep, since a fourth hand-built path would be invisible to the gate.
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    repo = tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
 
     run_fanout(
         fake,
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -98,10 +99,10 @@ def test_the_fanout_converge_and_release_stages_resolve_the_same_path(
         _ROLES,
     )
 
-    shared = _findings_map(vault, _CHANGE_ID, _ROLES)  # converge + release read these
+    shared = _findings_map(repo, _CHANGE_ID, _ROLES)  # converge + release read these
 
     assert shared == {
-        role.name: findings_path(vault, _CHANGE_ID, role.name) for role in _ROLES
+        role.name: findings_path(repo, _CHANGE_ID, role.name) for role in _ROLES
     }
     for role, (_, profile) in zip(_ROLES, fake.calls, strict=True):
         assert f"Write({shared[role.name]})" in profile.allowed_tools
@@ -111,13 +112,12 @@ def test_the_fanout_converge_and_release_stages_resolve_the_same_path(
 def test_run_fanout_scopes_each_write_to_the_resolved_findings_path(
     tmp_path: Path,
 ) -> None:
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    repo = tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
 
     run_fanout(
         fake,
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -128,7 +128,7 @@ def test_run_fanout_scopes_each_write_to_the_resolved_findings_path(
     )
 
     for role, (prompt, profile) in zip(_ROLES, fake.calls, strict=True):
-        expected = findings_path(vault, _CHANGE_ID, role.name)
+        expected = findings_path(repo, _CHANGE_ID, role.name)
         # the role is granted write access to exactly that file, and told to write it
         assert f"Write({expected})" in profile.allowed_tools
         assert str(expected) in prompt
@@ -138,23 +138,23 @@ def test_run_fanout_scopes_each_write_to_the_resolved_findings_path(
 def test_run_fanout_creates_the_findings_dir_before_the_first_spawn(
     tmp_path: Path,
 ) -> None:
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
-    vault.mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    findings_dir = repo / ".minions" / "findings"
     existed_at_spawn: list[bool] = []
 
     class _DirWatchingProvider(_RecordingProvider):
         def run_role(
             self, role_prompt: str, repo: Path, profile: Profile
         ) -> RoleResult:
-            existed_at_spawn.append((vault / "findings").is_dir())
+            existed_at_spawn.append(findings_dir.is_dir())
             return super().run_role(role_prompt, repo, profile)
 
-    assert not (vault / "findings").exists()
+    assert not findings_dir.exists()
 
     run_fanout(
         _DirWatchingProvider(_ROLE),
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -170,14 +170,13 @@ def test_run_fanout_creates_the_findings_dir_before_the_first_spawn(
 
 @pytest.mark.spec("fanout:read-only-roles:prepends-inputs-block")
 def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> None:
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    repo = tmp_path / "repo"
     change_dir = repo / "openspec" / "changes" / _CHANGE_ID
     fake = _RecordingProvider(_ROLE)
 
     run_fanout(
         fake,
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -193,7 +192,7 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
     assert "## Inputs" in prompt
     assert "Mode: review" in prompt
     assert "abc123" in prompt  # the head SHA the orchestrator supplied
-    findings = findings_path(vault, _CHANGE_ID, "review")
+    findings = findings_path(repo, _CHANGE_ID, "review")
     assert str(findings) in prompt  # the findings path to write
     assert str(change_dir) in prompt  # the change dir, not a plan file
     assert "REVIEW-BODY" in prompt  # the role prompt follows the Inputs block
@@ -204,13 +203,13 @@ def test_run_fanout_prepends_the_orchestrator_inputs_block(tmp_path: Path) -> No
 def test_inputs_block_carries_the_change_findings_head_and_version(
     tmp_path: Path,
 ) -> None:
-    vault = tmp_path / "vault"
-    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    repo = tmp_path / "repo"
+    change_dir = repo / "openspec" / "changes" / _CHANGE_ID
     findings: dict[str, Path] = {
-        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+        str(r.name): findings_path(repo, _CHANGE_ID, r.name) for r in _ROLES
     }
 
-    block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)
+    block = build_inputs_block(change_dir, findings, "abc123", "v0.5")
 
     assert str(change_dir) in block
     for path in findings.values():
@@ -219,20 +218,57 @@ def test_inputs_block_carries_the_change_findings_head_and_version(
     assert "v0.5" in block
 
 
+@pytest.mark.spec("fanout:role-inputs:block-is-repo-only")
+def test_inputs_block_names_no_path_outside_the_repository(tmp_path: Path) -> None:
+    # The block used to end with a `Context:` line naming two vault files. Every path
+    # it names now resolves under the repo the run was invoked against — asserted by
+    # walking the tokens, so a future line pointing outside fails here.
+    repo = tmp_path / "repo"
+    change_dir = repo / "openspec" / "changes" / _CHANGE_ID
+    findings_file = findings_path(repo, _CHANGE_ID, "review")
+
+    block = build_inputs_block(
+        change_dir,
+        {"review": findings_file},
+        "abc123",
+        "v0.5",
+        lead_lines=[
+            "- Mode: review",
+            f"- Diff to review (read this file): {repo / '.minions' / 'diff.patch'}",
+            f"- Findings file (write ONLY this): {findings_file}",
+        ],
+    )
+
+    # Each line reads `- <label>: <value>`; take the value, and treat anything
+    # path-shaped as a path — including `~/…` and `../…`, which a token walk keyed on
+    # a leading `/` would let through.
+    values = [
+        line.split(": ", 1)[1].strip()
+        for line in block.splitlines()
+        if line.startswith("- ") and ": " in line
+    ]
+    named = [Path(value) for value in values if "/" in value or value.startswith("~")]
+    assert named  # the block does name paths — otherwise this proves nothing
+    for path in named:
+        assert path.is_absolute(), f"{path} is not resolved for the role"
+        assert path.is_relative_to(repo), f"{path} resolves outside {repo}"
+    assert "Context:" not in block
+
+
 @pytest.mark.parametrize("role", ["coder", "fixer", "release"])
 @pytest.mark.spec("fanout:role-inputs:prompt-leads-with-inputs")
 def test_an_assembled_role_prompt_leads_with_the_inputs_block(
     tmp_path: Path, role: str
 ) -> None:
-    vault = tmp_path / "vault"
-    change_dir = tmp_path / "repo" / "openspec" / "changes" / _CHANGE_ID
+    repo = tmp_path / "repo"
+    change_dir = repo / "openspec" / "changes" / _CHANGE_ID
     body = f"# {role.upper()}-BODY\n\nthe role's own mandate.\n"
 
     findings: dict[str, Path] = {
-        str(r.name): findings_path(vault, _CHANGE_ID, r.name) for r in _ROLES
+        str(r.name): findings_path(repo, _CHANGE_ID, r.name) for r in _ROLES
     }
 
-    block = build_inputs_block(change_dir, findings, "abc123", "v0.5", vault)
+    block = build_inputs_block(change_dir, findings, "abc123", "v0.5")
     prompt = assemble_prompt(block, body)
 
     assert prompt.startswith("## Inputs")
@@ -253,14 +289,13 @@ def test_a_role_prompt_body_derives_no_path_by_shell(prompt_file: str) -> None:
 
 @pytest.mark.spec("fanout:read-only-roles:emits-spawn-and-returned")
 def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
-    vault, repo = tmp_path / "vault", tmp_path / "repo"
+    repo = tmp_path / "repo"
     fake = _RecordingProvider(_ROLE)
     events: list[Event] = []
 
     run_fanout(
         fake,
         repo,
-        vault,
         _CHANGE_ID,
         "v0.5",
         "THE DIFF",
@@ -279,3 +314,84 @@ def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
         "role-spawn",
         "role-returned",
     ]
+
+
+# --- no signature takes a directory outside the repository --------------------------
+#
+# The scenario sits under the findings-path requirement because that is where the
+# findings root moved, but it asserts a property of the WHOLE orchestrator package:
+# every filesystem location a function is handed derives from the repo the run was
+# invoked against. `verify_vault_access(repo, vault_project_dir)` was the last signature
+# holding it false; it is gone. A grep for the old literal would not be this test — a
+# fresh external root under a new name would sail past — so the check is structural:
+# statically scan every signature and pin the set of location-shaped parameters.
+
+_ORCHESTRATOR = Path(__file__).resolve().parent.parent / "orchestrator"
+
+# A parameter is location-shaped when one of its `_`-separated words IS one of these,
+# or ENDS in one of `_LOCATION_SUFFIXES` — the vocabulary a filesystem argument is
+# written in, wide enough that a newly introduced external root has to work at hiding
+# from it. Whole words rather than substrings, so `profile` is not read as a `file`;
+# `file` is deliberately absent from the suffixes for that reason, while `path` is
+# present, so an unseparated `vaultpath` cannot slip through.
+_LOCATION_WORDS = ("repo", "dir", "root", "path", "file", "vault", "home")
+_LOCATION_SUFFIXES = ("dir", "root", "vault", "repo", "path")
+
+# Every location-shaped parameter in the package, and why each is inside the repository.
+# Pinned as an exact set, so introducing one is a failing test rather than a silent
+# widening: whoever adds a parameter here must say where it resolves.
+#   repo        — the repository root itself, the run's one filesystem input
+#   change_dir  — <repo>/openspec/changes/<id>, derived from `repo`
+#   diff_path   — <repo>/.minions/diff.patch, derived from `repo`
+#   findings_file, path — a single file under <repo>/.minions/, derived from `repo`
+_INSIDE_THE_REPO = frozenset(
+    {"repo", "change_dir", "diff_path", "findings_file", "path"}
+)
+
+
+def _location_parameters(package: Path) -> set[str]:
+    """Every location-shaped parameter name in a package's function signatures."""
+    found: set[str] = set()
+    for module in sorted(package.rglob("*.py")):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            arguments = node.args
+            for argument in (
+                *arguments.posonlyargs,
+                *arguments.args,
+                *arguments.kwonlyargs,
+                arguments.vararg,
+                arguments.kwarg,
+            ):
+                if argument is None:
+                    continue
+                name = argument.arg
+                words = name.split("_")
+                if any(
+                    word in _LOCATION_WORDS or word.endswith(_LOCATION_SUFFIXES)
+                    for word in words
+                ):
+                    found.add(name)
+    return found
+
+
+@pytest.mark.spec("fanout:findings-path:no-external-root-argument")
+def test_no_orchestrator_signature_takes_a_directory_outside_the_repository() -> None:
+    assert _location_parameters(_ORCHESTRATOR) == set(_INSIDE_THE_REPO)
+
+
+@pytest.mark.spec("fanout:findings-path:no-external-root-argument")
+def test_the_signature_scan_reports_a_reintroduced_external_root(
+    tmp_path: Path,
+) -> None:
+    # The guard is only worth having if it bites: plant the signature that used to
+    # hold the property false and confirm the scan reports its parameter.
+    package = tmp_path / "orchestrator"
+    package.mkdir()
+    (package / "state.py").write_text(
+        "def verify_vault_access(repo, vault_project_dir):\n    return None\n"
+    )
+
+    assert _location_parameters(package) == {"repo", "vault_project_dir"}

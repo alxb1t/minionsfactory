@@ -2,7 +2,7 @@
 module: orchestrator/state.py
 summary: Reconstruct "where are we" from disk, and guard the target contract before a run.
 entry_point: read_change_state
-public_api: [read_change_state, ChangeState, Phase, select_change, validate_change, read_change_version, parse_progress, parse_frontmatter, read_head, change_advanced, PlanContractError, read_vault_dir, verify_vault_access, PreflightError]
+public_api: [read_change_state, ChangeState, Phase, select_change, validate_change, read_change_version, parse_progress, parse_frontmatter, read_head, change_advanced, PlanContractError]
 depends_on: []
 ---
 
@@ -22,17 +22,15 @@ phase and asks [`change_advanced`](#change_advanced) whether the phase really mo
 from disk, never trusted from the agent.
 
 It also owns the **read-side of the target contract**: the contract guards refuse a malformed change at read
-time (a [`PlanContractError`](#plancontracterror)), [`read_vault_dir`](#read_vault_dir) resolves the vault the
-target's `.env` declares and refuses one that is missing, relative or not a directory, and
-[`verify_vault_access`](#verify_vault_access) preflights that the target grants the coder vault write access
-(both a [`PreflightError`](#preflighterror)) — so a misconfigured target halts **before any spend**, not
-obscurely mid-run.
+time (a [`PlanContractError`](#plancontracterror)) — so a malformed target halts **before any spend**, not
+obscurely mid-run. **The contract is now the repo and nothing but the repo:** this module reads no `.env`, and
+resolves no directory outside the target.
 
 ## Boundaries
 
 It reads state; it never writes it. It knows nothing about *why* a phase advanced — it only reports the two
 facts (the current-phase index, `head`) the driver compares. Its only inputs are the **repo** and a git-head
-seam, so it structurally cannot hop to a vault path. Change selection deliberately ignores
+seam, so it structurally cannot hop outside the repository. Change selection deliberately ignores
 `openspec/changes/archive/` (shipped predecessors are historical record).
 
 ## Data flow
@@ -71,12 +69,10 @@ advanced = change_advanced(before, after)
   would otherwise read as already "complete"), and a `proposal.md` declaring no parseable `version`.
   It refuses a change id that is not `<digits>-<lowercase-slug>` — the id keys the findings path and reaches a
   role's write grant, so its shape is checked where it is read — anchored with `\A`/`\Z`, since Python's `$`
-  also matches before a *trailing newline*, which is legal in a directory name. `read_vault_dir` and
-  `verify_vault_access` refuse a vault that is undeclared, relative, absent or ungranted, and a settings file
-  that is unreadable or not a JSON object. Every file the preflight reads is read as UTF-8 and an undecodable
-  one is refused with a diagnostic naming it — `UnicodeDecodeError` is another `ValueError` sibling, and
-  `except OSError` does not catch it. Every one raises, never passes on doubt: no other exception class escapes
-  the preflight.
+  also matches before a *trailing newline*, which is legal in a directory name. Every file the reader touches is
+  read as UTF-8 and an undecodable one is refused with a diagnostic naming it — `UnicodeDecodeError` is another
+  `ValueError` sibling, and `except OSError` does not catch it. Every one raises, never passes on doubt: no other
+  exception class escapes the preflight.
 - A change with **every** box ticked is complete (`ChangeState.is_complete`) — that is the loop's exit
   condition, and the trigger for the end-of-change fan-out.
 
@@ -237,48 +233,15 @@ Whether the change advanced: a **new commit** landed **and** the current-phase i
 class PlanContractError(ValueError):  # a change breaks the execution contract
 ```
 
-Raised by the change contract guards. Caught in [`__main__`](main.md)'s preflight to print a clean
+Raised by the change contract guards, and the **only** exception the preflight catches: every refusal *this
+reader* raises is a broken change contract. Caught in [`__main__`](main.md)'s preflight to print a clean
 diagnostic and exit `1` — never a bare traceback mid-run.
+
+> **Not every pre-spend failure is one of these.** `read_head` shells out to `git rev-parse HEAD` with
+> `check=True`, so a target that is not a git repository — or is one with no commit yet — surfaces a raw
+> `CalledProcessError` rather than a diagnostic. That contradicts `cli`'s *no unhandled exception class SHALL be
+> reachable from a misconfigured target*, it predates this version, and it is recorded in the vault backlog
+> against **v0.10** rather than fixed here.
 
 - **Gotchas** — keeps its name although its subject is now a change; renaming it would touch every raise site
   and every `except` clause for no behavioural payoff.
-
-### `read_vault_dir`
-
-```python
-def read_vault_dir(repo: Path) -> Path
-```
-
-Resolve the vault the target declares as `VAULT_PROJECT_DIR` in its `.env`, or raise
-[`PreflightError`](#preflighterror) — no `.env`, an `.env` that is not valid UTF-8, no key, an empty value, a
-relative path, or a path that is not an existing directory.
-
-- **Why** — nothing downstream creates the vault: the fan-out's `mkdir(parents=True, exist_ok=True)` would
-  silently materialise a tree at whatever the value names, and a relative value would resolve against the
-  *operator's* working directory rather than the target's. Read inside the preflight so every way to get it
-  wrong is a diagnostic before spend, not a traceback out of the composition root.
-- **Called by** — [`__main__`](main.md)'s preflight.
-- **Source** — [`state.py`](../../orchestrator/state.py) · **Tests** — [`test_state.py`](../../tests/test_state.py)
-
-### `verify_vault_access`
-
-```python
-def verify_vault_access(repo: Path, vault_project_dir: Path) -> None
-```
-
-Raise [`PreflightError`](#preflighterror) unless the target's `.claude/settings.local.json` grants the coder
-write access to the vault (the vault dir, or an ancestor, under `additionalDirectories`).
-
-- **Why** — the coder + read-only roles write vault files (findings, bookkeeping) *outside* the repo cwd; without the grant a run would fail mid-flight. Checked before any spawn.
-- **Gotchas** — checks both `permissions.additionalDirectories` and a top-level `additionalDirectories`; a grant *covers* the vault if it equals or is an ancestor of it (`Path.is_relative_to`). An unreadable, unparseable or non-object settings file is refused as a `PreflightError` too — `JSONDecodeError` is a `ValueError` *sibling* of [`PlanContractError`](#plancontracterror) and would otherwise escape the preflight's `except`, and so is the `UnicodeDecodeError` a non-UTF-8 settings file raises; a malformed grant shape reads as no grant.
-- **Called by** — [`__main__`](main.md)'s preflight.
-- **Source** — [`state.py`](../../orchestrator/state.py) · **Tests** — [`test_state.py`](../../tests/test_state.py)
-
-### `PreflightError`
-
-```python
-class PreflightError(Exception):  # the target isn't configured for a run
-```
-
-Raised by [`read_vault_dir`](#read_vault_dir) and [`verify_vault_access`](#verify_vault_access). Caught in
-[`__main__`](main.md)'s preflight → clean diagnostic + exit `1`, before any spend.

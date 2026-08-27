@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from orchestrator.diff import run_role_with_diff
-from orchestrator.findings import FindingsState, findings_path, read_findings_state
+from orchestrator.findings import (
+    FindingsState,
+    findings_dir,
+    findings_path,
+    read_findings_state,
+)
 from orchestrator.provider import Provider, read_only_profile
 from orchestrator.status import Event, Role, RoleReturned, RoleSpawn, _no_emit
 
@@ -27,7 +32,6 @@ def build_inputs_block(
     findings: Mapping[str, Path],
     head: str,
     version: str,
-    vault_dir: Path,
     lead_lines: Sequence[str] = (),
 ) -> str:
     """Build the Inputs block a role receives — path resolution lives here, in code.
@@ -36,6 +40,9 @@ def build_inputs_block(
     release roles. A role has no shell with which to resolve paths (and deriving them
     by shell is what this replaces), so the orchestrator names the change directory,
     the findings paths the role needs, the git head and the declared release version.
+
+    Every path the block names resolves under the repository: the block carries no
+    context line pointing at an external narrative or overview document.
 
     `lead_lines` carries the role-specific bullets a caller wants above the common
     core — the fan-out's mode, diff and single write target.
@@ -48,7 +55,6 @@ def build_inputs_block(
         f"- head (the branch tip the orchestrator read): {head}",
     ]
     lines += [f"- Findings ({role}): {path}" for role, path in findings.items()]
-    lines.append(f"- Context: {vault_dir / 'overview.md'}, {vault_dir / 'log.md'}")
     return "\n".join(lines) + "\n\n---\n\n"
 
 
@@ -64,7 +70,6 @@ def assemble_prompt(inputs_block: str, role_body: str) -> str:
 def run_fanout(
     provider: Provider,
     repo: Path,
-    vault_dir: Path,
     change_id: str,
     version: str,
     diff: str,
@@ -81,14 +86,15 @@ def run_fanout(
     to resolve paths itself); its findings file is resolved through `findings_path`,
     the single site the fixer, the converge loop and the release stage also read.
 
-    The `<vault>/findings/` directory is created **before the first spawn**: a read-only
-    role is granted `Write(<its findings file>)` and denied `Bash`, so it cannot create
-    the directory itself, and a findings file that never lands reads as not-clean.
+    The `<repo>/.minions/findings/` directory is created **before the first spawn**: a
+    read-only role is granted `Write(<its findings file>)` and denied `Bash`, so it
+    cannot create the directory itself, and a findings file that never lands reads as
+    not-clean.
     """
-    (vault_dir / "findings").mkdir(parents=True, exist_ok=True)
+    findings_dir(repo).mkdir(parents=True, exist_ok=True)
     states: list[FindingsState | None] = []
     for role in roles:
-        findings_file = findings_path(vault_dir, change_id, role.name)
+        findings_file = findings_path(repo, change_id, role.name)
         profile = read_only_profile(findings_file)
         prompt = assemble_prompt(
             build_inputs_block(
@@ -96,7 +102,6 @@ def run_fanout(
                 {str(role.name): findings_file},
                 head,
                 version,
-                vault_dir,
                 lead_lines=[
                     f"- Mode: {mode}",
                     f"- Diff to review (read this file): {diff_path}",

@@ -28,18 +28,16 @@ from orchestrator.provider import (
 from orchestrator.release import (
     ReleaseResult,
     SubprocessReleaseGit,
+    deferred_work_text,
     prepare_release,
     verify_release_gate,
 )
 from orchestrator.specs import run_check
 from orchestrator.state import (
     PlanContractError,
-    PreflightError,
     read_change_state,
     read_head,
-    read_vault_dir,
     select_change,
-    verify_vault_access,
 )
 from orchestrator.status import Event, emit, render
 
@@ -89,17 +87,14 @@ def _fanout_roles() -> list[RoleSpec]:
     ]
 
 
-def _findings_map(
-    vault_dir: Path, change_id: str, roles: list[RoleSpec]
-) -> dict[str, Path]:
-    """Resolve every role's findings path, keyed by role name."""
-    return {r.name: findings_path(vault_dir, change_id, r.name) for r in roles}
+def _findings_map(repo: Path, change_id: str, roles: list[RoleSpec]) -> dict[str, Path]:
+    """Resolve every role's findings path under the repo, keyed by role name."""
+    return {r.name: findings_path(repo, change_id, r.name) for r in roles}
 
 
 def _make_fanout(
     provider: Provider,
     repo: Path,
-    vault_dir: Path,
     version: str,
     base: str,
     roles: list[RoleSpec],
@@ -112,7 +107,6 @@ def _make_fanout(
         return run_fanout(
             provider,
             repo,
-            vault_dir,
             change_dir.name,
             version,
             diff,
@@ -131,7 +125,6 @@ def _make_converge(
     provider: Provider,
     gate: Gate,
     repo: Path,
-    vault_dir: Path,
     version: str,
     roles: list[RoleSpec],
     fixer_prompt: str,
@@ -139,10 +132,10 @@ def _make_converge(
     emit_event: Callable[[Event], None],
 ) -> Callable[[], ConvergeResult]:
     change_dir = select_change(repo)
-    findings = _findings_map(vault_dir, change_dir.name, roles)
+    findings = _findings_map(repo, change_dir.name, roles)
     paths = list(findings.values())
     fixer = assemble_prompt(
-        build_inputs_block(change_dir, findings, read_head(repo), version, vault_dir),
+        build_inputs_block(change_dir, findings, read_head(repo), version),
         fixer_prompt,
     )
 
@@ -156,7 +149,6 @@ def _make_converge(
         run_fanout(
             provider,
             repo,
-            vault_dir,
             change_dir.name,
             version,
             diff,
@@ -216,14 +208,13 @@ def _current_branch(repo: Path) -> str:
 def _make_release(
     gate: Gate,
     repo: Path,
-    vault_dir: Path,
     version: str,
     branch: str,
     today: str,
     roles: list[RoleSpec],
 ) -> Callable[[], ReleaseResult]:
     change_dir = select_change(repo)
-    findings = _findings_map(vault_dir, change_dir.name, roles)
+    findings = _findings_map(repo, change_dir.name, roles)
     findings_paths = list(findings.values())
 
     def _release() -> ReleaseResult:
@@ -231,13 +222,19 @@ def _make_release(
             version=version,
             gate_result=gate.run_gate(repo),
             findings=[read_findings_state(p) for p in findings_paths],
-            backlog_text=(vault_dir / "backlog.md").read_text(),
+            backlog_text=deferred_work_text(repo, version),
             changelog_text=(repo / "CHANGELOG.md").read_text(),
             existing_tags=_git_tags(repo),
             tree_is_clean=_tree_is_clean(repo),
         )
         result = prepare_release(
-            verdict, repo, vault_dir, version, today, branch, SubprocessReleaseGit()
+            verdict,
+            repo,
+            version,
+            today,
+            branch,
+            SubprocessReleaseGit(),
+            change_id=change_dir.name,
         )
         if result.handoff:
             # The release stage spawns no role — `prompts/release.md` is invoked by
@@ -245,9 +242,7 @@ def _make_release(
             # handoff rather than prepending it at spawn. Path resolution still
             # lives in one place in code; the human-invoked role reads it, not a shell.
             print(
-                build_inputs_block(
-                    change_dir, findings, read_head(repo), version, vault_dir
-                )
+                build_inputs_block(change_dir, findings, read_head(repo), version)
                 + result.handoff
             )
         return result
@@ -298,9 +293,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
         change_state = read_change_state(repo)
-        vault_dir = read_vault_dir(repo)
-        verify_vault_access(repo, vault_dir)
-    except (PlanContractError, PreflightError) as error:
+    except PlanContractError as error:
         print(f"preflight failed: {error}")
         return 1
 
@@ -315,10 +308,9 @@ def main(argv: list[str] | None = None) -> int:
     coder_prompt = assemble_prompt(
         build_inputs_block(
             change_dir,
-            _findings_map(vault_dir, change_dir.name, roles),
+            _findings_map(repo, change_dir.name, roles),
             change_state.head,
             version,
-            vault_dir,
         ),
         _coder_prompt(),
     )
@@ -326,27 +318,23 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run(
             repo=repo,
-            vault_project_dir=vault_dir,
             provider=provider,
             gate=gate,
             coder_prompt=coder_prompt,
             profile=_CODER_PROFILE,
             emit_event=emitter,
-            fanout=_make_fanout(
-                provider, repo, vault_dir, version, args.base, roles, emitter
-            ),
+            fanout=_make_fanout(provider, repo, version, args.base, roles, emitter),
             converge=_make_converge(
                 provider,
                 gate,
                 repo,
-                vault_dir,
                 version,
                 roles,
                 _fixer_prompt(),
                 _CODER_PROFILE,
                 emitter,
             ),
-            release=_make_release(gate, repo, vault_dir, version, branch, today, roles),
+            release=_make_release(gate, repo, version, branch, today, roles),
         )
     except ProviderError as error:
         print(

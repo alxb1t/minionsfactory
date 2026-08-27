@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from orchestrator.converge import ConvergeResult, ConvergeStatus
-from orchestrator.driver import RunStatus, decide, run
+from orchestrator.driver import RunStatus, decide, halt_report_exists, run
 from orchestrator.findings import FindingsState
 from orchestrator.gate import FakeGate, GateResult
 from orchestrator.provider import FakeProvider, Profile, ProviderError, RoleResult
@@ -28,11 +28,11 @@ def _reader(states: list[ChangeState]) -> Callable[[Path], ChangeState]:
     return read
 
 
-def _never_halts(vault_project_dir: Path) -> bool:
+def _never_halts(repo: Path) -> bool:
     return False
 
 
-def _always_halts(vault_project_dir: Path) -> bool:
+def _always_halts(repo: Path) -> bool:
     return True
 
 
@@ -84,6 +84,24 @@ def test_decide_halts_on_a_red_gate() -> None:
     assert "gate" in decision.reason.lower()
 
 
+@pytest.mark.spec("build-loop:phase-decision:halt-report-in-repo")
+def test_the_halt_report_is_resolved_inside_the_repository(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / ".minions").mkdir(parents=True)
+
+    assert not halt_report_exists(repo)
+
+    (repo / ".minions" / "HALT.md").write_text("# HALT\n")
+
+    assert halt_report_exists(repo)
+    # only `<repo>/.minions/HALT.md` counts: a HALT.md at a repo's own root is
+    # invisible, so a checker that also consulted the root would fail here
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "HALT.md").write_text("# HALT\n")
+    assert not halt_report_exists(other)
+
+
 @pytest.mark.spec("build-loop:phase-decision:no-advance-halts")
 def test_decide_halts_when_the_phase_did_not_advance() -> None:
     # gate green, but the current-phase index and head are unchanged
@@ -130,7 +148,6 @@ def test_run_advances_through_phases_until_the_plan_is_complete() -> None:
     ]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -150,7 +167,6 @@ def test_run_halts_when_the_gate_is_red() -> None:
     ]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(GateResult(passed=False, steps=())),
         "build",
@@ -171,7 +187,6 @@ def test_run_halts_when_the_coder_writes_a_halt_report() -> None:
     ]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -192,7 +207,6 @@ def test_run_resumes_from_the_current_phase_on_disk() -> None:
     ]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -213,7 +227,6 @@ def test_run_emits_the_event_stream_for_an_advancing_phase() -> None:
     events: list[Event] = []
     run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -237,7 +250,6 @@ def test_run_emits_a_complete_summary_when_the_plan_is_already_done() -> None:
     events: list[Event] = []
     run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -258,7 +270,6 @@ def test_run_triggers_fanout_when_the_plan_completes() -> None:
     calls: list[int] = []
     run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -279,7 +290,6 @@ def test_run_does_not_fan_out_when_the_build_halts() -> None:
     calls: list[int] = []
     run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -306,7 +316,6 @@ def test_run_converges_after_fanout_when_the_plan_completes() -> None:
 
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -325,7 +334,6 @@ def test_run_halts_when_converge_halts() -> None:
     states = [_state([True], "c0")]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -354,7 +362,6 @@ def test_run_prepares_release_after_converge_when_the_plan_completes() -> None:
 
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -374,7 +381,6 @@ def test_run_halts_when_release_is_refused() -> None:
     states = [_state([True], "c0")]
     result = run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -397,7 +403,6 @@ def test_run_does_not_release_when_converge_halts() -> None:
     calls: list[int] = []
     run(
         Path("/repo"),
-        Path("/vault"),
         FakeProvider(_ROLE),
         FakeGate(_GREEN),
         "build",
@@ -448,7 +453,6 @@ def test_run_drives_a_repo_only_change_with_no_vault_plan(tmp_path: Path) -> Non
 
     result = run(
         repo,
-        vault,
         _TickingProvider(change_dir / "tasks.md", heads),
         FakeGate(_GREEN),
         "build",
@@ -485,7 +489,6 @@ def test_the_driver_reads_progress_from_the_repo_and_hops_to_no_vault(
 
     result = run(
         repo,
-        absent_vault,
         _TickingProvider(change_dir / "tasks.md", heads),
         FakeGate(_GREEN),
         "build",
@@ -510,7 +513,6 @@ def test_run_renders_each_phase_as_its_index_and_title(tmp_path: Path) -> None:
 
     run(
         repo,
-        vault,
         _TickingProvider(change_dir / "tasks.md", heads),
         FakeGate(_GREEN),
         "build",
@@ -542,7 +544,6 @@ def test_run_halts_cleanly_on_a_provider_error() -> None:
     events: list[Event] = []
     result = run(
         Path("/repo"),
-        Path("/vault"),
         _ErroringProvider(),
         FakeGate(_GREEN),
         "build",

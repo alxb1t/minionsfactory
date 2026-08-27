@@ -79,9 +79,14 @@ class RunResult:
     phases_advanced: int
 
 
-def halt_report_exists(vault_project_dir: Path) -> bool:
-    """Return whether the coder left a HALT report in the vault."""
-    return (vault_project_dir / "HALT.md").exists()
+def halt_report_exists(repo: Path) -> bool:
+    """Return whether the coder left a HALT report at `<repo>/.minions/HALT.md`.
+
+    The report is a run artefact of the repository being built — it lives beside the
+    run's other artefacts under the gitignored `.minions/`, so the driver resolves no
+    path outside the repo it was invoked against.
+    """
+    return (repo / ".minions" / "HALT.md").exists()
 
 
 _COMPLETE_LABEL = "complete"
@@ -115,7 +120,6 @@ def _no_release() -> ReleaseResult:
 
 def run(
     repo: Path,
-    vault_project_dir: Path,
     provider: Provider,
     gate: Gate,
     coder_prompt: str,
@@ -131,9 +135,9 @@ def run(
     """Drive the change phase by phase, then fan out and converge at change end.
 
     Spawn coder -> gate -> detect advance -> continue or halt; at change-complete,
-    run the fan-out then the converge loop before the final summary. The state reader
-    consults the **repository only** — the change and its progress live in-tree; the
-    vault is still read for the coder's HALT report.
+    run the fan-out then the converge loop before the final summary. Both the state
+    reader and the halt checker consult the **repository only** — the change and its
+    progress live in-tree, and the coder's HALT report lands under `.minions/`.
     """
     before = state_reader(repo)
     advanced = 0
@@ -195,7 +199,7 @@ def run(
             )
         )
 
-        coder_halted = halt_checker(vault_project_dir)
+        coder_halted = halt_checker(repo)
 
         gate_result = gate.run_gate(repo)
         for step in gate_result.steps:

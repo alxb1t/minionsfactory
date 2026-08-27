@@ -19,8 +19,10 @@ The rules that explain why the code is shaped the way it is:
    only LLM is the role instance it spawns.
 2. **The orchestrator runs the objective checks itself** — the gate and git state — so the agent it drives
    cannot game them.
-3. **State lives on disk.** "Where are we" is reconstructed from the active change's `tasks.md` progress
-   checklist + git — never from memory, so resume is free.
+3. **State lives on disk — and the disk is the target repo.** "Where are we" is reconstructed from the active
+   change's `tasks.md` progress checklist + git, never from memory, so resume is free. Every artefact a run
+   produces (findings, the HALT report, the deferred-work file, the event stream) lands under the target's
+   gitignored `.minions/`: the orchestrator declares, resolves and writes **no directory outside the repo**.
 4. **Roles are fresh instances behind a `Provider` seam.** The driver depends on a Protocol, never on the
    `claude` CLI — harness-agnostic and unit-testable.
 5. **Advance is detected, not trusted.** A phase advances only when a new commit landed **and** the change's
@@ -78,7 +80,7 @@ graph TD
     gate -. runs .-> targetgate["target's gate (.minions/minions.toml)"]
     state -. reads .-> disk["the in-repo change (tasks.md) + git head"]
     status -. writes .-> minions[".minions/ (events.jsonl + status.json)"]
-    findings -. reads .-> ff["findings files (vault)"]
+    findings -. reads .-> ff["findings files (.minions/findings/)"]
 ```
 
 The key structural fact: **the driver depends on seams**, not on the CLIs behind them. In tests it is handed

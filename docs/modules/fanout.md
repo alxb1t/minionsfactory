@@ -15,8 +15,8 @@ post-build node.
 
 [`run_fanout`](#run_fanout) loops over a [`RoleSpec`](#rolespec) table; for each role it builds the read-only
 profile, **prepends an orchestrator Inputs block** (mode · diff path · findings path · head SHA · change dir ·
-version · context) to the role prompt — the read-only role has no shell to resolve those itself — injects the
-diff, spawns the role, emits spawn/returned events, and reads back the verdict. It is pure **composition** of the
+version) to the role prompt — the read-only role has no shell to resolve those itself — injects the diff,
+spawns the role, emits spawn/returned events, and reads back the verdict. It is pure **composition** of the
 lower modules — it invents no mechanism. `mode` is `review` for the initial fan-out and `verify` for the converge
 re-run.
 
@@ -36,8 +36,8 @@ to catch).
 
 ```mermaid
 flowchart TD
-    mk["mkdir <vault>/findings/ (before any spawn)"] --> loop["for role in roles:"]
-    loop --> prof["read_only_profile(findings_path(vault, change_id, role))"]
+    mk["mkdir <repo>/.minions/findings/ (before any spawn)"] --> loop["for role in roles:"]
+    loop --> prof["read_only_profile(findings_path(repo, change_id, role))"]
     prof --> inp["assemble_prompt(build_inputs_block(change · findings · head · version), body)"]
     inp --> sp["emit RoleSpawn(role)"]
     sp --> rr["run_role_with_diff → claude -p (read-only, diff as a file)"]
@@ -54,7 +54,6 @@ diff = compute_diff(repo, base, "HEAD")  # freeze base..HEAD once
 states = run_fanout(
     provider,
     repo,
-    vault_dir,
     change_dir.name,  # the change id — the findings key
     version,
     diff,
@@ -71,11 +70,11 @@ states = run_fanout(
 
 - The diff + head + change dir are passed **in** (the caller resolves them); `run_fanout` does no git and is fully
   unit-testable behind a recording [`FakeProvider`](provider.md#fakeprovider).
-- Each role's findings file is `<vault>/findings/<change-id>_<role>.md`, resolved through the single
+- Each role's findings file is `<repo>/.minions/findings/<change-id>_<role>.md`, resolved through the single
   [`findings_path`](findings.md#findings_path) site — the **one** location the read-only profile grants write to,
   the role is told to write, and the [`converge`](converge.md) loop and the release stage read.
-- **`<vault>/findings/` is created before the first spawn.** A read-only role is granted `Write(<its file>)` and
-  denied `Bash`, so it cannot create the directory itself, and a findings file that never lands reads as
+- **`<repo>/.minions/findings/` is created before the first spawn.** A read-only role is granted
+  `Write(<its file>)` and denied `Bash`, so it cannot create the directory itself, and a findings file that never lands reads as
   not-clean — a missing directory would silently fail every verdict.
 - The role has no shell, so the **orchestrator supplies the paths** via the prepended Inputs block; a role that
   never wrote its findings file collects as `None` (see [`read_findings_state`](findings.md#read_findings_state)).
@@ -91,8 +90,8 @@ class RoleSpec:
     prompt: str
 ```
 
-One fan-out role: its name (→ findings file `<vault>/findings/<change-id>_<name>.md`, and the `role-spawn`
-label) and its prompt text.
+One fan-out role: its name (→ findings file `<repo>/.minions/findings/<change-id>_<name>.md`, and the
+`role-spawn` label) and its prompt text.
 
 - **`name`** — the same [`Role`](status.md#event) alias the status events use (one source of truth).
 - **Built by** — [`__main__`](main.md), which loads `reviewer.md` / `security.md` / `simplify.md` into three specs.
@@ -101,7 +100,7 @@ label) and its prompt text.
 
 ```python
 def run_fanout(
-    provider: Provider, repo: Path, vault_dir: Path, change_id: str, version: str,
+    provider: Provider, repo: Path, change_id: str, version: str,
     diff: str, diff_path: Path, head: str, change_dir: Path, roles: Sequence[RoleSpec],
     mode: str = "review", emit_event: Callable[[Event], None] = _no_emit,
 ) -> list[FindingsState | None]
@@ -110,7 +109,7 @@ def run_fanout(
 Run each read-only role over the supplied diff; collect each verdict from disk.
 
 - **Params** — [`provider`](provider.md#provider): the spawn seam · `change_id`: the findings key · `version`: the release version the change declares · `diff`, `diff_path`: the diff text and where to write it · `head`: the SHA the diff ends at (the role stamps it into `head:`) · `change_dir`: the change the role reviews against · `roles`: the [`RoleSpec`](#rolespec) table · `mode`: `review` (initial) or `verify` (converge re-run) · `emit_event`: the status sink (defaults to a no-op).
-- **Side effect** — creates `<vault>/findings/` before the first spawn (the read-only role cannot).
+- **Side effect** — creates `<repo>/.minions/findings/` before the first spawn (the read-only role cannot).
 - **Returns** — `list[FindingsState | None]`, one per role — what the [`converge`](converge.md#converge) loop consumes.
 - **Calls** — [`findings_path`](findings.md#findings_path) · [`build_inputs_block`](#build_inputs_block) · [`assemble_prompt`](#assemble_prompt) · [`read_only_profile`](provider.md#read_only_profile) · [`run_role_with_diff`](diff.md#run_role_with_diff) · [`read_findings_state`](findings.md#read_findings_state), per role.
 - **Called by** — [`driver.run`](driver.md#run) via the `fanout` seam (built as a closure in [`__main__`](main.md)); reused inside the converge re-verify closure.
@@ -121,12 +120,13 @@ Run each read-only role over the supplied diff; collect each verdict from disk.
 ```python
 def build_inputs_block(
     change_dir: Path, findings: Mapping[str, Path], head: str, version: str,
-    vault_dir: Path, lead_lines: Sequence[str] = (),
+    lead_lines: Sequence[str] = (),
 ) -> str
 ```
 
-Build the Inputs block a role receives: the change directory, the findings paths that role needs, the git head,
-the declared release version, and the vault context files.
+Build the Inputs block a role receives: the change directory, the findings paths that role needs, the git head
+and the declared release version. **Every path it names resolves under the repository** — there is no context
+line pointing at an external narrative or overview document, and no external-root parameter to supply one.
 
 - **Why it is here** — path resolution is an orchestrator concern (the role has no shell to resolve paths, and
   deriving them by shell is what this replaces). The block was already framed that way in this module, and all

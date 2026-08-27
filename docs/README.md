@@ -33,9 +33,12 @@ blocking findings to clean. These docs are raw markdown — read them here or in
 - **The active change** lives **in the repo**, under `openspec/changes/<id>/` — proposal · design · tasks ·
   spec delta — and its `tasks.md` `## Progress` checklist is where the driver reads the phase pointer. The
   living, test-backed behavioural spec is `openspec/specs/`, which the delta folds into on release.
-- **Product intent, findings and the narrative record** live in a **private Obsidian vault** (its path is in
-  `.env` → `VAULT_PROJECT_DIR`, never committed): the PRD in `prd/`, each role's findings at
-  `findings/<change-id>_<role>.md`, and rationale in its `decisions.md`.
+- **A run's own artefacts** live **in the target repo**, under the gitignored `.minions/`: each role's findings
+  at `.minions/findings/<change-id>_<role>.md`, the coder's halt report at `.minions/HALT.md`, deferred work at
+  `.minions/<version>_backlog.md`, and the event stream + snapshot. The orchestrator resolves no directory
+  outside the repo it is pointed at.
+- **Product intent and the narrative record** live in a **private Obsidian vault** kept by the human — the PRD,
+  the rationale in its `decisions.md`. Nothing in the orchestrator reads or writes it.
 - **What is *true* about the repo** (layout, gate, invariants) is in the root [`CLAUDE.md`](../CLAUDE.md).
 - **What shipped, per version** is in [`CHANGELOG.md`](../CHANGELOG.md) (Keep a Changelog).
 

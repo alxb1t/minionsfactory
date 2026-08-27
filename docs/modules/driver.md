@@ -31,9 +31,9 @@ is captured for the `role-returned` event but **ignored** by `decide`.
 
 ```mermaid
 flowchart TD
-    start(["run(repo, vault, provider, gate, …)"]) --> read["state_reader(vault, repo)"]
+    start(["run(repo, provider, gate, …)"]) --> read["state_reader(repo)"]
     read --> spawn["provider.run_role(coder prompt) — result captured, not trusted"]
-    spawn --> halt?["halt_checker(vault) — HALT.md?"]
+    spawn --> halt?["halt_checker(repo) — .minions/HALT.md?"]
     halt? --> gate["gate.run_gate(repo) — orchestrator runs it"]
     gate --> reread["state_reader(...) again"]
     reread --> decide{"decide(before, after, gate, coder_halted)"}
@@ -52,7 +52,6 @@ flowchart TD
 ```python
 result = run(
     repo,
-    vault_project_dir,
     provider,
     gate,
     coder_prompt,
@@ -126,10 +125,12 @@ The terminal outcome of a [`run`](#run): how it ended, why, and how far it got.
 ### `halt_report_exists`
 
 ```python
-def halt_report_exists(vault_project_dir: Path) -> bool
+def halt_report_exists(repo: Path) -> bool
 ```
 
-The thin IO helper `run` uses as its `halt_checker`: whether the coder left a `HALT.md` in the vault.
+The thin IO helper `run` uses as its `halt_checker`: whether the coder left a `HALT.md` at
+`<repo>/.minions/HALT.md`, alongside the run's other artefacts under the gitignored `.minions/`. It resolves no
+directory outside the repo.
 
 - **Source** — [`driver.py`](../../orchestrator/driver.py) · **Tests** — [`test_driver.py`](../../tests/test_driver.py)
 
@@ -137,7 +138,7 @@ The thin IO helper `run` uses as its `halt_checker`: whether the coder left a `H
 
 ```python
 def run(
-    repo, vault_project_dir, provider, gate, coder_prompt, profile,
+    repo, provider, gate, coder_prompt, profile,
     state_reader=read_change_state, halt_checker=halt_report_exists,
     emit_event=_no_emit, fanout=_no_fanout, converge=_no_converge,
     release=_no_release, max_phases=100,
@@ -148,7 +149,7 @@ The loop: read [`ChangeState`](state.md#changestate) → `provider.run_role` →
 read state again → [`decide`](#decide) → continue or halt; at change-complete, `fanout()` → `converge()` →
 `release()`. It loops on `not before.is_complete`.
 
-- **Params** — [`provider`](provider.md#provider), [`gate`](gate.md#gate): the spawn + gate seams · `coder_prompt`, [`profile`](provider.md#profile): the coder role + its build perms · `state_reader`: the injected disk seam, **repo-only** (`Callable[[Path], ChangeState]`, default [`read_change_state`](state.md#read_change_state)) · `halt_checker`: reads `<vault>/HALT.md`, which is why `vault_project_dir` stays on the signature · `emit_event`: status sink (default no-op) · `fanout`, `converge`, `release`: post-build seams run once at completion (default no-ops) · `max_phases`: runaway guard.
+- **Params** — [`provider`](provider.md#provider), [`gate`](gate.md#gate): the spawn + gate seams · `coder_prompt`, [`profile`](provider.md#profile): the coder role + its build perms · `state_reader`: the injected disk seam, **repo-only** (`Callable[[Path], ChangeState]`, default [`read_change_state`](state.md#read_change_state)) · `halt_checker`: reads `<repo>/.minions/HALT.md` (`Callable[[Path], bool]`, default [`halt_report_exists`](#halt_report_exists)) — **repo-only**, like the state reader · `emit_event`: status sink (default no-op) · `fanout`, `converge`, `release`: post-build seams run once at completion (default no-ops) · `max_phases`: runaway guard.
 - **Event labels** — a phase renders as `f"{index}: {title}"`. A **colon, not an em-dash**: [`status._short_phase`](status.md#render) trims a label by splitting on `" — "`, so an em-dash-separated label would render as the bare index and drop the title. `after.current` is `None` at completion, so the final `Advance` carries an explicit terminal label.
 - **Returns** — [`RunResult`](#runstatus--runresult): `COMPLETE`, or `HALTED` with a reason.
 - **Gotchas** — `provider.run_role(...)`'s return is **captured** (to fill `role-returned`) but **ignored** by `decide`; a `converge` that returns `HALTED` or a `release` that returns [`REFUSED`](release.md#releasestatus) turns a completed build into a halted run.

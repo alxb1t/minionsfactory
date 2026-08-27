@@ -1,5 +1,6 @@
 """Repo-hygiene guards: conventions a grep can prove, so prose discipline can't slip."""
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -36,41 +37,6 @@ _RETIRED = (
 #     keep saying what was true.
 _SCANNED = ("orchestrator", "prompts", "docs", "README.md")
 
-# The vault-path needle gets its OWN root set, and deliberately not `_SCANNED`: that
-# tuple's exclusions are argued for the retired-vocabulary needle, and none of them
-# holds here. `openspec/` and `CHANGELOG.md` are excluded there because the specs and
-# the historical record must be able to name the retirement — but they are exactly the
-# tracked files a role writes on every phase (the change's `tasks.md` and spec delta,
-# the per-phase `## [Unreleased]` append), committed by roles that hold `Edit`/`Write`
-# and told to echo an Inputs block carrying the vault's absolute path. The likeliest
-# leak route must be the one the guard walks. Widening `_SCANNED` instead would turn
-# the vocabulary guard red — this change's own delta names the retired path in order to
-# describe its retirement, and that prose folds into `openspec/specs/` at release.
-#
-# So: every tracked root, with exclusions of its own. `.env` declares the needle and is
-# gitignored; `.minions/` holds gitignored run artifacts (whose leak route `.gitignore`
-# closes — S4), so only its tracked file is listed; `.git`, `.venv` and the caches are
-# not part of the repo tree. Asserted below, so narrowing this later is a visible edit.
-_VAULT_SCANNED = (
-    "orchestrator",
-    "prompts",
-    "docs",
-    "tests",
-    "openspec",
-    "skills",
-    "template",
-    ".github",
-    "README.md",
-    "CHANGELOG.md",
-    "CLAUDE.md",
-    "Makefile",
-    "pyproject.toml",
-    "uv.lock",
-    ".env.example",
-    ".gitignore",
-    ".minions/minions.toml",
-)
-
 _TEXT_SUFFIXES = frozenset({".py", ".md", ".toml", ".txt", ".yml", ".yaml", ".json"})
 
 
@@ -94,18 +60,6 @@ def _hits(base: Path, roots: tuple[str, ...], needle: str) -> list[str]:
                 if needle in line:
                     found.append(f"{path.relative_to(base)}:{number}")
     return found
-
-
-def _declared_vault_dir() -> str | None:
-    """The vault path this repo's own (gitignored) `.env` declares, if it has one."""
-    env_path = _REPO / ".env"
-    if not env_path.exists():
-        return None
-    for line in env_path.read_text().splitlines():
-        key, separator, value = line.partition("=")
-        if separator and key.strip() == "VAULT_PROJECT_DIR":
-            return value.strip().strip('"') or None
-    return None
 
 
 @pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
@@ -141,41 +95,117 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
         ]
 
 
-@pytest.mark.spec("sdd:vault-layout:vault-path-not-in-repo")
-def test_the_operators_vault_path_is_named_nowhere_in_the_repo() -> None:
-    # "Never commit the vault path" is a standing guardrail; this is the test that
-    # proves it. The vault path travels in every role's Inputs block and every role
-    # prompt now echoes its inputs, so the literal is one `git add -A` away from
-    # history (`.minions/` is gitignored for the same reason).
-    assert _VAULT_SCANNED[:4] == ("orchestrator", "prompts", "docs", "tests")
-    assert {"openspec", "CHANGELOG.md"} <= set(_VAULT_SCANNED)
-    assert set(_SCANNED) <= set(_VAULT_SCANNED)  # never narrower than the other guard
+# The retired vault-write model. v0.7 moved findings, the HALT report and the
+# deferred-work backlog into the target repo's `.minions/` and deleted the vault
+# preflight, so the symbols that named the old root are dead. The needles are the six
+# dead *symbols*: the declared environment key, the resolved-directory parameter in both
+# its spellings, the two deleted preflight functions, and the release-record symbol.
+#
+# `vault_project_dir` is listed although `vault_dir` looks like a substring of it — it
+# is not, and without it a doc could ship a stale
+# `halt_report_exists(vault_project_dir)` signature and pass. The bare word *vault* and
+# the token `<vault>/` are NOT needles: the vault still exists, and the vault-side
+# skills must be able to name what they resolve.
+_RETIRED_VAULT = (
+    "VAULT_PROJECT_DIR",
+    "vault_dir",
+    "vault_project_dir",
+    "read_vault_dir",
+    "verify_vault_access",
+    "release_log",
+)
 
-    vault_dir = _declared_vault_dir()
-    if vault_dir is None:  # CI has no .env — nothing to check against
-        pytest.skip("no VAULT_PROJECT_DIR declared in this repo's .env")
+# This needle set's OWN root set (0007-pm-side-process-standard design §4). One root set
+# crossed with both needle sets cannot go green: `implementation_plans` is a live needle
+# of the plan set above, and `skills/rubrics/compliance.md` legitimately names it in
+# check text this change keeps. So the vault set adds `skills/` — and the root
+# `CLAUDE.md` and the tracked environment example, both cleared by this change but
+# otherwise inside no root allowlist.
+#
+# These seven are where the retired vocabulary lived or was cleared from. They are
+# deliberately NARROWER than a whole-tree grep: `template/`, `.github/`, `Makefile` and
+# `pyproject.toml` are outside, free of all six needles today, so the gap is a future
+# regression rather than a live hole. Widening is recorded for v0.8.
+#
+# Excluded for the same three reasons as above: `openspec/specs/`, the historical record
+# (`CHANGELOG.md`, `openspec/changes/archive/`) and `tests/`, where the guard's own
+# needles are literals. NO exclusion is declared for any directory inside the scanned
+# roots — the deletions land before the scan does, so nothing needs suppressing.
+_SCANNED_VAULT = (
+    "orchestrator",
+    "prompts",
+    "docs",
+    "README.md",
+    "skills",
+    "CLAUDE.md",
+    ".env.example",
+)
 
-    # Compare through a local, so a failure prints the offending sites and never the
-    # vault path itself.
-    hits = _hits(_REPO, _VAULT_SCANNED, vault_dir)
 
-    assert hits == []
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_docs_or_skills() -> None:
+    assert _SCANNED_VAULT == (
+        "orchestrator",
+        "prompts",
+        "docs",
+        "README.md",
+        "skills",
+        "CLAUDE.md",
+        ".env.example",
+    )
+
+    assert {
+        needle: _hits(_REPO, _SCANNED_VAULT, needle) for needle in _RETIRED_VAULT
+    } == {needle: [] for needle in _RETIRED_VAULT}
 
 
-@pytest.mark.spec("sdd:vault-layout:vault-path-not-in-repo")
-def test_the_vault_path_guard_scans_the_files_a_role_writes_each_phase(
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots() -> None:
+    # The scenario asserts the absence of a carve-out, which is a property of the guard
+    # itself and not only of the tree it scans. Two halves: the scan takes no exclusion
+    # argument, so there is no seam a suppression could enter through...
+    assert list(inspect.signature(_hits).parameters) == ["base", "roots", "needle"]
+    assert list(inspect.signature(_text_files).parameters) == ["root"]
+
+    # ...and in fact it reaches every directory inside the scanned roots — enumerated
+    # here with `iterdir`, independently of the `rglob` walk under test, so the two can
+    # disagree. That includes the skill directory phase 16 emptied, the one carve-out
+    # this change considered and declined.
+    for name in _SCANNED_VAULT:
+        root = _REPO / name
+        if not root.is_dir():
+            continue
+        visited = {path.relative_to(root).parts[0] for path in _text_files(root)}
+        declared = {entry.name for entry in root.iterdir() if entry.is_dir()}
+        assert declared - {"__pycache__"} <= visited
+
+
+@pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
+def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    # The roots `_SCANNED` excludes are the ones a role commits every phase, so the
-    # guard is only worth having if it reports a plant in *those*: plant a stand-in path
-    # in the change tree and the CHANGELOG and confirm both are reported.
-    needle = "/Users/nobody/Vault/Project"
-    change_dir = tmp_path / "openspec" / "changes" / "0000-planted"
-    change_dir.mkdir(parents=True)
-    (change_dir / "tasks.md").write_text(f"- [x] 1 — wrote {needle}\n")
-    (tmp_path / "CHANGELOG.md").write_text(f"landed under {needle}\n")
+    # Same bar as the plan needles: each one must bite, in every root of this set —
+    # including the three roots it adds — or the scan is decoration.
+    (tmp_path / "orchestrator").mkdir()
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "docs" / "modules").mkdir(parents=True)
+    (tmp_path / "skills" / "mf-teardown").mkdir(parents=True)
 
-    assert sorted(_hits(tmp_path, _VAULT_SCANNED, needle)) == [
-        "CHANGELOG.md:1",
-        "openspec/changes/0000-planted/tasks.md:1",
-    ]
+    for needle in _RETIRED_VAULT:
+        (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
+        (tmp_path / "prompts" / "coder.md").write_text(f"write to the {needle}\n")
+        (tmp_path / "docs" / "modules" / "findings.md").write_text(f"the {needle}\n")
+        (tmp_path / "README.md").write_text(f"a report under {needle}\n")
+        (tmp_path / "skills" / "mf-teardown" / "SKILL.md").write_text(f"{needle}\n")
+        (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
+        (tmp_path / ".env.example").write_text(f"{needle}=\n")
+
+        assert _hits(tmp_path, _SCANNED_VAULT, needle) == [
+            "orchestrator/findings.py:1",
+            "prompts/coder.md:1",
+            "docs/modules/findings.md:1",
+            "README.md:1",
+            "skills/mf-teardown/SKILL.md:1",
+            "CLAUDE.md:1",
+            ".env.example:1",
+        ]

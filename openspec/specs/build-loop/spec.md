@@ -17,10 +17,11 @@ each scenario declares `Layers: unit` and is bound to its proving test.
 ### Requirement: Deterministic per-phase decision
 
 `decide` SHALL advance a phase only when the gate is green, the coder left no HALT report, a new commit landed,
-and the current phase moved — otherwise it SHALL halt with a reason. It SHALL take the before and after
-`ChangeState` and delegate the advance signal to `change_advanced`, so a moved `tasks.md` checkbox is trusted only
-when a real commit proves it. The advance is **detected** from disk state (commit + phase index), never trusted
-from the agent, so it cannot be gamed.
+and the current phase moved — otherwise it SHALL halt with a reason. The HALT report SHALL be resolved **inside
+the repository**, at `.minions/HALT.md`. `decide` SHALL take the before and after `ChangeState` and delegate the
+advance signal to `change_advanced`, so a moved `tasks.md` checkbox is trusted only when a real commit proves it.
+The advance is **detected** from disk state (commit + phase index), never trusted from the agent, so it cannot be
+gamed.
 
 #### Scenario: A green gate with a new commit and a moved phase advances
 - **Key:** `build-loop:phase-decision:advances-on-commit-and-moved-phase`
@@ -40,6 +41,12 @@ from the agent, so it cannot be gamed.
 - **Layers:** unit
 - **WHEN** the coder wrote a HALT report
 - **THEN** the decision is not to advance and the reason names the halt
+
+#### Scenario: The HALT report is resolved inside the repository
+- **Key:** `build-loop:phase-decision:halt-report-in-repo`
+- **Layers:** unit
+- **WHEN** the HALT report's existence is tested for a repo
+- **THEN** the path checked is `<repo>/.minions/HALT.md`, and no path outside the repository is resolved
 
 #### Scenario: An unchanged commit or phase halts the phase
 - **Key:** `build-loop:phase-decision:no-advance-halts`
