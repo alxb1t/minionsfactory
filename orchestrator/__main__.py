@@ -38,9 +38,7 @@ from orchestrator.state import (
     PreflightError,
     read_change_state,
     read_head,
-    read_vault_dir,
     select_change,
-    verify_vault_access,
 )
 from orchestrator.status import Event, emit, render
 
@@ -290,8 +288,6 @@ def main(argv: list[str] | None = None) -> int:
 
     try:  # zero-token preflight: refuse a malformed / misconfigured target before spend
         change_state = read_change_state(repo)
-        vault_dir = read_vault_dir(repo)
-        verify_vault_access(repo, vault_dir)
     except (PlanContractError, PreflightError) as error:
         print(f"preflight failed: {error}")
         return 1

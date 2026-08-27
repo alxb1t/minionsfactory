@@ -57,7 +57,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 7 — The deferred-work backlog re-roots, and its predicate reverses
 - [x] 8 — The vault release-log writer is deleted
 - [x] 9 — The Inputs block drops the vault
-- [ ] 10 — The vault preflight is deleted, not guarded
+- [x] 10 — The vault preflight is deleted, not guarded
 - [ ] 11 — All six role prompts stop writing the vault
 - [ ] 12 — Root `CLAUDE.md` declares the findings contract
 - [ ] 13 — The rubric sheds three criteria; nine docs describe a self-contained repo

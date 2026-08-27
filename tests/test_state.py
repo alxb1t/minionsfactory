@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -7,161 +6,13 @@ from orchestrator.state import (
     ChangeState,
     Phase,
     PlanContractError,
-    PreflightError,
     change_advanced,
     parse_frontmatter,
     parse_progress,
     read_change_state,
-    read_vault_dir,
     select_change,
     validate_change,
-    verify_vault_access,
 )
-
-# --- vault-write preflight (P7) ---
-
-
-def _write_settings(repo: Path, additional: list[str]) -> None:
-    (repo / ".claude").mkdir(parents=True)
-    (repo / ".claude" / "settings.local.json").write_text(
-        json.dumps({"permissions": {"additionalDirectories": additional}})
-    )
-
-
-@pytest.mark.spec("change-state:vault-preflight:grant-passes")
-def test_verify_vault_access_passes_when_the_vault_is_granted(tmp_path: Path) -> None:
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    _write_settings(repo, [str(vault)])
-    verify_vault_access(repo, vault)
-
-
-@pytest.mark.spec("change-state:vault-preflight:ancestor-grant-passes")
-def test_verify_vault_access_accepts_an_ancestor_grant(tmp_path: Path) -> None:
-    repo, vault = tmp_path / "repo", tmp_path / "vaults" / "project"
-    _write_settings(repo, [str(tmp_path / "vaults")])
-    verify_vault_access(repo, vault)
-
-
-@pytest.mark.spec("change-state:vault-preflight:missing-settings-fails")
-def test_verify_vault_access_fails_without_settings(tmp_path: Path) -> None:
-    with pytest.raises(PreflightError, match="settings.local.json"):
-        verify_vault_access(tmp_path, tmp_path / "vault")
-
-
-@pytest.mark.spec("change-state:vault-preflight:ungranted-fails")
-def test_verify_vault_access_fails_when_the_vault_is_not_granted(
-    tmp_path: Path,
-) -> None:
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    _write_settings(repo, [str(tmp_path / "elsewhere")])
-    with pytest.raises(PreflightError, match="vault"):
-        verify_vault_access(repo, vault)
-
-
-def _write_env(repo: Path, body: str) -> None:
-    repo.mkdir(parents=True, exist_ok=True)
-    (repo / ".env").write_text(body)
-
-
-@pytest.mark.spec("change-state:vault-preflight:vault-declared-in-env")
-def test_read_vault_dir_returns_the_declared_vault(tmp_path: Path) -> None:
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    vault.mkdir()
-    _write_env(repo, f'# comment\nVAULT_PROJECT_DIR="{vault}"\n')
-
-    assert read_vault_dir(repo) == vault
-
-
-@pytest.mark.spec("change-state:vault-preflight:missing-env-refused")
-def test_read_vault_dir_refuses_a_target_with_no_env(tmp_path: Path) -> None:
-    # Read *inside* the preflight: a target with no .env is a diagnostic, not a
-    # FileNotFoundError traceback out of the composition root.
-    (tmp_path / "repo").mkdir()
-    with pytest.raises(PreflightError, match=".env"):
-        read_vault_dir(tmp_path / "repo")
-
-
-@pytest.mark.spec("change-state:vault-preflight:missing-vault-key-refused")
-def test_read_vault_dir_refuses_an_env_without_the_vault_key(tmp_path: Path) -> None:
-    _write_env(tmp_path / "repo", "OTHER=1\nVAULT_PROJECT_DIR=\n")
-    with pytest.raises(PreflightError, match="VAULT_PROJECT_DIR"):
-        read_vault_dir(tmp_path / "repo")
-
-
-@pytest.mark.spec("change-state:vault-preflight:relative-vault-refused")
-def test_read_vault_dir_refuses_a_relative_vault_path(tmp_path: Path) -> None:
-    # A relative value resolves against the operator's cwd, not the target.
-    _write_env(tmp_path / "repo", "VAULT_PROJECT_DIR=../vault\n")
-    with pytest.raises(PreflightError, match="absolute"):
-        read_vault_dir(tmp_path / "repo")
-
-
-@pytest.mark.spec("change-state:vault-preflight:absent-vault-refused")
-def test_read_vault_dir_refuses_a_vault_that_is_not_a_directory(tmp_path: Path) -> None:
-    # Nothing downstream creates the vault; the fan-out would silently materialise a
-    # tree at whatever this names, so an absent vault is refused before any spend.
-    _write_env(tmp_path / "repo", f"VAULT_PROJECT_DIR={tmp_path / 'no-such-vault'}\n")
-    with pytest.raises(PreflightError, match="existing directory"):
-        read_vault_dir(tmp_path / "repo")
-
-
-@pytest.mark.spec("change-state:vault-preflight:malformed-settings-refused")
-def test_verify_vault_access_refuses_unparseable_settings(tmp_path: Path) -> None:
-    # JSONDecodeError is a ValueError *sibling* of PlanContractError, so it would
-    # escape the preflight's except clause as a traceback.
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    (repo / ".claude").mkdir(parents=True)
-    (repo / ".claude" / "settings.local.json").write_text("{not json")
-    with pytest.raises(PreflightError, match="valid JSON"):
-        verify_vault_access(repo, vault)
-
-
-@pytest.mark.spec("change-state:vault-preflight:malformed-settings-refused")
-def test_verify_vault_access_refuses_settings_that_are_not_an_object(
-    tmp_path: Path,
-) -> None:
-    # `settings.get` on a non-object would otherwise raise AttributeError.
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    (repo / ".claude").mkdir(parents=True)
-    (repo / ".claude" / "settings.local.json").write_text('"a string"')
-    with pytest.raises(PreflightError, match="JSON object"):
-        verify_vault_access(repo, vault)
-
-
-@pytest.mark.spec("change-state:vault-preflight:undecodable-file-refused")
-def test_read_vault_dir_refuses_an_env_that_is_not_utf8(tmp_path: Path) -> None:
-    # `except OSError` does not catch a decode failure: UnicodeDecodeError is a
-    # ValueError sibling, so it escapes the preflight exactly as JSONDecodeError did.
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / ".env").write_bytes(b"VAULT_PROJECT_DIR=/vault\xff\xfe\n")
-
-    with pytest.raises(PreflightError, match="UTF-8"):
-        read_vault_dir(repo)
-
-
-@pytest.mark.spec("change-state:vault-preflight:undecodable-file-refused")
-def test_verify_vault_access_refuses_settings_that_are_not_utf8(tmp_path: Path) -> None:
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    (repo / ".claude").mkdir(parents=True)
-    (repo / ".claude" / "settings.local.json").write_bytes(b'{"a": "\xff\xfe"}')
-
-    with pytest.raises(PreflightError, match="UTF-8"):
-        verify_vault_access(repo, vault)
-
-
-@pytest.mark.spec("change-state:vault-preflight:ungranted-fails")
-def test_verify_vault_access_refuses_a_misshapen_grant_list(tmp_path: Path) -> None:
-    # A hand-edited settings file can put a scalar where a list belongs; a shape that
-    # grants nothing reads as no grant, never as an AttributeError.
-    repo, vault = tmp_path / "repo", tmp_path / "vault"
-    (repo / ".claude").mkdir(parents=True)
-    (repo / ".claude" / "settings.local.json").write_text(
-        json.dumps({"permissions": {"additionalDirectories": str(vault)}})
-    )
-    with pytest.raises(PreflightError, match="vault"):
-        verify_vault_access(repo, vault)
-
 
 # --- in-tree change-state reader (0003 phase 2) ---
 

@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 import pytest
@@ -313,3 +314,84 @@ def test_run_fanout_emits_spawn_and_returned_per_role(tmp_path: Path) -> None:
         "role-spawn",
         "role-returned",
     ]
+
+
+# --- no signature takes a directory outside the repository --------------------------
+#
+# The scenario sits under the findings-path requirement because that is where the
+# findings root moved, but it asserts a property of the WHOLE orchestrator package:
+# every filesystem location a function is handed derives from the repo the run was
+# invoked against. `verify_vault_access(repo, vault_project_dir)` was the last signature
+# holding it false; it is gone. A grep for the old literal would not be this test — a
+# fresh external root under a new name would sail past — so the check is structural:
+# statically scan every signature and pin the set of location-shaped parameters.
+
+_ORCHESTRATOR = Path(__file__).resolve().parent.parent / "orchestrator"
+
+# A parameter is location-shaped when one of its `_`-separated words IS one of these,
+# or ENDS in one of `_LOCATION_SUFFIXES` — the vocabulary a filesystem argument is
+# written in, wide enough that a newly introduced external root has to work at hiding
+# from it. Whole words rather than substrings, so `profile` is not read as a `file`;
+# `file` is deliberately absent from the suffixes for that reason, while `path` is
+# present, so an unseparated `vaultpath` cannot slip through.
+_LOCATION_WORDS = ("repo", "dir", "root", "path", "file", "vault", "home")
+_LOCATION_SUFFIXES = ("dir", "root", "vault", "repo", "path")
+
+# Every location-shaped parameter in the package, and why each is inside the repository.
+# Pinned as an exact set, so introducing one is a failing test rather than a silent
+# widening: whoever adds a parameter here must say where it resolves.
+#   repo        — the repository root itself, the run's one filesystem input
+#   change_dir  — <repo>/openspec/changes/<id>, derived from `repo`
+#   diff_path   — <repo>/.minions/diff.patch, derived from `repo`
+#   findings_file, path — a single file under <repo>/.minions/, derived from `repo`
+_INSIDE_THE_REPO = frozenset(
+    {"repo", "change_dir", "diff_path", "findings_file", "path"}
+)
+
+
+def _location_parameters(package: Path) -> set[str]:
+    """Every location-shaped parameter name in a package's function signatures."""
+    found: set[str] = set()
+    for module in sorted(package.rglob("*.py")):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            arguments = node.args
+            for argument in (
+                *arguments.posonlyargs,
+                *arguments.args,
+                *arguments.kwonlyargs,
+                arguments.vararg,
+                arguments.kwarg,
+            ):
+                if argument is None:
+                    continue
+                name = argument.arg
+                words = name.split("_")
+                if any(
+                    word in _LOCATION_WORDS or word.endswith(_LOCATION_SUFFIXES)
+                    for word in words
+                ):
+                    found.add(name)
+    return found
+
+
+@pytest.mark.spec("fanout:findings-path:no-external-root-argument")
+def test_no_orchestrator_signature_takes_a_directory_outside_the_repository() -> None:
+    assert _location_parameters(_ORCHESTRATOR) == set(_INSIDE_THE_REPO)
+
+
+@pytest.mark.spec("fanout:findings-path:no-external-root-argument")
+def test_the_signature_scan_reports_a_reintroduced_external_root(
+    tmp_path: Path,
+) -> None:
+    # The guard is only worth having if it bites: plant the signature that used to
+    # hold the property false and confirm the scan reports its parameter.
+    package = tmp_path / "orchestrator"
+    package.mkdir()
+    (package / "state.py").write_text(
+        "def verify_vault_access(repo, vault_project_dir):\n    return None\n"
+    )
+
+    assert _location_parameters(package) == {"repo", "vault_project_dir"}
