@@ -65,7 +65,7 @@ stages B and C carry the removals and modifications listed in each phase.
 - [x] 15 — The audit report moves into the repo it measures
 - [x] 16 — The audit preflight resolves from `repo:`, and the file empties
 - [x] 17 — The retired-vault scan lands, over its full root set
-- [ ] 18 — Re-measure: `mf-teardown` against this repo reports `compliant`
+- [x] 18 — Re-measure: `mf-teardown` against this repo reports `compliant`
 
 ---
 
