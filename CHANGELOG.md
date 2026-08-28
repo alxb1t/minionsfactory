@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`docs/sdd.md` Part I — the method stated once, above the tool layer** (change `0008-surface-collapse`, phase 1). The SDD approach the project runs on now has a single page: the three practices, the change as the unit of work *and* the unit of release, the three machine-checkable traceability bindings (the `Change:` trailer, scenario keys bound to proving tests, the one version line `change vX.Y = CHANGELOG = tag`), the gate — **declared on disk and run, never summarized** — the loop from grill to release with its builder-interactive/checkers-blind asymmetry, the findings contract in full, and the release fold. It is written as **stations and disk artifacts**, never as *who* runs them: nothing on the page names an orchestrator module, a planning skill or a path outside the repository being built, and a reader with no access to this repository can act on it. That is what makes it referenceable rather than restated. Part II — adoption and the readiness checklist — follows in phase 2.
+
 ## [0.7.0] - 2026-08-27
 
 ### Added
