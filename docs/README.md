@@ -30,6 +30,8 @@ blocking findings to clean. These docs are raw markdown — read them here or in
 
 ## Where the rest of the truth lives
 
+- **The method itself** — spec-driven development as this project practises it, stated once above the tool
+  layer — is [sdd.md](sdd.md): the one page here that is about the *method* rather than about this codebase.
 - **The active change** lives **in the repo**, under `openspec/changes/<id>/` — proposal · design · tasks ·
   spec delta — and its `tasks.md` `## Progress` checklist is where the driver reads the phase pointer. The
   living, test-backed behavioural spec is `openspec/specs/`, which the delta folds into on release.

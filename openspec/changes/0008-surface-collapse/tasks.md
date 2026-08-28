@@ -41,7 +41,7 @@ content that has no home in `docs/sdd.md` and no other home either · the fix wo
 ## Progress
 
 - [x] 1 — `docs/sdd.md` Part I — the method
-- [ ] 2 — `docs/sdd.md` Part II — adoption, wired into the docs map
+- [x] 2 — `docs/sdd.md` Part II — adoption, wired into the docs map
 - [ ] 3 — `CLAUDE.md` gives up the method
 - [ ] 4 — The skills go, and the guard follows the tree
 - [ ] 5 — `template/` and the README section go, and the scan widens

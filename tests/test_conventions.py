@@ -209,3 +209,13 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
             "CLAUDE.md:1",
             ".env.example:1",
         ]
+
+
+@pytest.mark.spec_exempt("structural — the method doc is wired into the docs map")
+def test_the_method_doc_exists_and_the_docs_map_links_it() -> None:
+    # Two independent halves, so removing either one fails: the page exists, and the
+    # docs map names it. A page nothing links to is as good as absent to a reader who
+    # starts where the map tells them to.
+    assert (_REPO / "docs" / "sdd.md").is_file()
+
+    assert "sdd.md" in (_REPO / "docs" / "README.md").read_text()
