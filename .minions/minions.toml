@@ -3,10 +3,14 @@
 # step. `--strict` since v0.3 phase 7: every test must carry a spec or spec_exempt
 # marker (full bidirectional traceability), on top of the orphan + dangling checks.
 # `uv sync --locked` leads: without it the gate certifies whatever `.venv` happens to
-# hold rather than what `uv.lock` pins — the v0.6 `py:gate-commands` gap. This array is
-# mirrored command-for-command by `Makefile`'s `gate` target and by `README.md`; CI
-# already ran the sync step. Change one, change all of them, or `gate:make-mirrors` and
-# `gate:contract-agrees` break.
+# hold rather than what `uv.lock` pins — the v0.6 `py:gate-commands` gap. Four places
+# restate this array command-for-command and in order: `Makefile`'s `gate` target,
+# `README.md`'s "quality gate (this repo's own)" block (not the example config above
+# it — that one is an arbitrary target repo's), `.github/workflows/ci.yml`'s six steps,
+# and `CLAUDE.md`'s gate section. Change one, change all four. Nothing checks that they
+# agree, and they are only where a reader — human or agent — learns what the gate is,
+# while this array is what the orchestrator actually runs: a drifted mirror documents a
+# gate this repo does not run.
 gate = [
   "uv sync --locked",
   "uv run ruff format --check .",
