@@ -179,7 +179,8 @@ The repository SHALL hold the active change, its progress (`changes/<id>/tasks.m
 artifacts** — findings, the HALT report and deferred work, all under `.minions/`. The **driver** SHALL determine
 where the work stands with no hop outside the repository. No shipped code, role prompt or doc SHALL name the
 retired plan location or its retired vocabulary, and none SHALL name the **retired vault vocabulary** — the
-symbols by which the repository once reached a directory outside itself.
+symbols by which the repository once reached a directory outside itself. Both retirements SHALL be scanned over
+**one root set**, asserted verbatim so that narrowing it is a visible edit.
 
 #### Scenario: Progress is read from the repo, not the vault
 - **Key:** `sdd:vault-layout:progress-in-repo`
@@ -191,21 +192,23 @@ symbols by which the repository once reached a directory outside itself.
 #### Scenario: The retired plan model is named nowhere in code, prompts or docs
 - **Key:** `sdd:vault-layout:no-plan-path-references`
 - **Layers:** unit
-- **WHEN** `orchestrator/`, `prompts/`, `docs/` and `README.md` are scanned
+- **WHEN** the shared root set is scanned — `orchestrator/`, `prompts/`, `docs/`, `README.md`, the root
+  `CLAUDE.md`, the tracked environment example, `.github/`, `Makefile` and `pyproject.toml`
 - **THEN** none of them names the retired plan directory or the retired plan vocabulary — the deleted symbols and the
   `current_phase` pointer the driver no longer reads
 - **AND** the scan set excludes the specs themselves, which describe the retirement and must be able to name it, and
   the historical record (`CHANGELOG.md`, `openspec/changes/archive/`), which must keep saying what was true
 
-#### Scenario: The retired vault vocabulary is named nowhere in shipped code, prompts, docs or skills
+#### Scenario: The retired vault vocabulary is named nowhere in shipped code, prompts or docs
 - **Key:** `sdd:vault-layout:no-retired-vault-vocabulary`
 - **Layers:** unit
 - **WHEN** the retired vault symbols are scanned for — the declared environment key, the resolved-directory
   parameter in both its spellings, the two deleted preflight functions, and the external release-record symbol
-- **THEN** none of them appears, over this needle set's **own** root set: `orchestrator/`, `prompts/`, `docs/`,
-  `README.md`, **`skills/`**, the root `CLAUDE.md` and the tracked environment example
-- **AND** the root set is the needle set's own, not the retired-plan needle's: one root set crossed with both
-  needle sets cannot pass, because a retired *plan* needle is live check text inside `skills/`
+- **THEN** none of them appears, over the **same** root set as the retired-plan needles: `orchestrator/`,
+  `prompts/`, `docs/`, `README.md`, the root `CLAUDE.md`, the tracked environment example, `.github/`, `Makefile`
+  and `pyproject.toml`
+- **AND** the two needle sets share one root set: the split existed only because a retired *plan* needle was live
+  check text inside the planning-skill surface, and that surface is deleted
 - **AND** no exclusion is declared for any directory inside the scanned roots — the deletions land before the scan
   does, so nothing needs suppressing
 - **AND** the exclusions are the specs, the historical record, and `tests/`, where the guard's own needles are
