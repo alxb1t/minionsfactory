@@ -121,9 +121,10 @@ this phase. Nothing the method defines is stated in both files. Gate green; 163 
    validates delta prose. Do not narrow it here and re-widen it in phase 5; the phase-4 obligation is the test and
    the merge, which the delta already describes.
 
-**Acceptance.** `skills/` does not exist. `grep -rn "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` over the tree returns hits **only** in `CHANGELOG.md`, `openspec/changes/archive/`, this
-change's own documents — and `README.md`, which still carries the planning-line section until phase 5 closes it.
-The unqualified whole-tree grep is phase 5's acceptance, not this one. `~/.claude/skills/` holds no symlink into
+**Acceptance.** `skills/` does not exist. `git grep -n "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` returns hits **only** in `CHANGELOG.md`, `openspec/changes/archive/`, this change's own
+documents, and the two surfaces phase 5 owns — `README.md` and `template/`, both of which still name the line
+until then. The unqualified form is phase 5's acceptance, not this one. (`git grep`, not `grep -rn`: the latter
+descends into `.venv/` and the caches, where matches prove nothing.) `~/.claude/skills/` holds no symlink into
 this repository. The merged scan is asserted verbatim as one tuple, and every needle is proven to bite in every
 root of it. No comment in `tests/test_conventions.py` justifies the guard by a deleted file. Gate green; 163
 tests.
@@ -139,16 +140,16 @@ tests.
 3. `tests/test_conventions.py`: widen the merged root set with `.github`, `Makefile`, `pyproject.toml`, and update
    the comment that records the widening as v0.8's — it is done. Extend the tmp-tree fixtures to the three new
    roots.
-4. `specs/sdd/spec.md`: the merged root set in both scenarios' THEN clauses now lists the widened set.
+The delta needs no edit in this phase — it was landed at the change's end state and already names the widened
+root set (see phase 4, item 5).
 
 **Acceptance.** `template/` does not exist. `README.md` names no deleted skill and links `docs/sdd.md`. **The
-unqualified whole-tree grep now passes:** `grep -rn "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` returns hits only in `CHANGELOG.md`, `openspec/changes/archive/` and this change's own
-documents. The scan covers `orchestrator`, `prompts`, `docs`, `README.md`, `CLAUDE.md`, `.env.example`, `.github`,
+unqualified form now passes:** `git grep -n "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` returns hits only in `CHANGELOG.md`, `openspec/changes/archive/` and this change's own documents. The scan covers `orchestrator`, `prompts`, `docs`, `README.md`, `CLAUDE.md`, `.env.example`, `.github`,
 `Makefile`, `pyproject.toml`, and each of the fourteen needles is proven to bite in each. Gate green; 163 tests.
 
 ## 6 — CHANGELOG and the version line
 
-**Deliverable, two parts.**
+**Deliverable, three parts.**
 
 *Repo.* `CHANGELOG.md`'s `## [Unreleased]` reads as one coherent release rather than five phase appends — the
 deletion, the one page, the `CLAUDE.md` split and the guard changes, each with its reason.
@@ -158,22 +159,50 @@ record is ambiguous — D18's phase table assigns "CHANGELOG + version bump" her
 this change takes D21, matching the house convention where a `chore(release):` commit owns the bump and the tag.
 Recorded so the omission does not read as a dropped decision.
 
-*Vault (a separate commit, per the ritual).* Close what this version made moot in the vault's `backlog.md` —
-**not** the repo's `.minions/<version>_backlog.md`, which is a gitignored run artefact with a different gate. Each
-affected line is closed **with its reason**, never silently deleted:
+*The release-gating backlog (repo).* `.minions/v0.8_backlog.md` exists on disk and is the abandoned branch's —
+`# Deferred work — v0.8 (0008-compliance-surface)`, six open items about `report-contract.md` and
+`compliance.md`, files this version deletes outright. `.minions/` is gitignored, so deleting that branch did not
+remove it, and `_backlog_blocker` blocks the release on **any** list line whatever its checkbox state
+(`prompts/release.md`: "no exceptions"). Left alone it halts the v0.8 release over a change that no longer
+exists. Empty it of items following the `v0.7_backlog.md` precedent — keep the header and record how it emptied,
+here: every item was moot on deletion of its subject. Remove `.minions/v0.8_resume.md` for the same reason: it is
+the resume pointer for a run that no longer has a branch.
 
-- *Fixed by this version* — the widening at `backlog.md:114`, which names v0.8 as its owner and is delivered in
-  phase 5.
-- *Moot on deletion* — every open item whose subject is a deleted skill or rubric: the `mf-order`/`mf-gauge`
-  rubric fallbacks, the `mf-blueprint`/`mf-inspect` cwd premise, the redaction rule's orphaned value clause, the
-  two phase-16 rubric items, the four `mf-forge` follow-ups, the `mf-gauge` root-widening item, the conformance
-  rubric's rename question, the `mf-line` successor CLI, and cross-model `mf-gauge`/`mf-inspect` runs.
-- *Superseded, not moot* — the item proposing the `notes/compliance/` relocation is answered by `docs/sdd.md`
-  and closes citing it; the research/design-lock rule survives into the method doc and closes citing that.
+*The vault backlog (a separate commit, per the ritual).* Close what this version made moot in the vault's
+`backlog.md`. This is a different file from the one above, with a different gate — that one blocks the release,
+this one holds the project's deferred work.
 
-Also correct the stale section header — it still reads *"Current release (`v0.6`)"* two versions on.
+**Apply a rule, not a list.** An open item is **moot** when its *subject* is a deleted skill or rubric — closing
+it would require editing a file this version deletes. An item that merely **cites** one as provenance, as the
+vehicle it was going to be executed through, or as an example is **not** moot: its subject survives, and it stays
+open with its wording corrected where the citation has become misleading.
 
-**Acceptance.** `## [Unreleased]` names every user-visible change and nothing that did not happen. In
-`backlog.md`, **no open `- [ ]` line names a deleted skill, a deleted rubric or `template/`**, and every line
-closed by this sweep carries its reason. Gate green; 163 tests. The change is ready for the fan-out
-(review ‖ security ‖ simplify) and then release.
+Measured 2026-08-28: **nineteen** open items match a name grep for the seven skills, the four rubrics or
+`template/`; `backlog.md:114` is a twentieth candidate the grep misses because it names no skill. They do not all
+resolve the same way, and three groups look moot without being so:
+
+- **The record's own non-goals keep two.** `template/` as a stampable skeleton, and genericizing `prompts/` into
+  it, both belong to `mf-stamp` — which the non-goals explicitly leave on the backlog. Deleting `template/` in
+  phase 5 does not close them; it is the reason they are still wanted.
+- **The widening item is closed in part, not in whole.** Phase 5 delivers the root-set widening it names, but it
+  also carries two gaps this version does not touch — `_text_files`'s seven-suffix allowlist, and the active
+  `openspec/changes/<id>/` being neither scanned nor declared as an exclusion. Close the widening clause with its
+  reason; leave the item open stating what remains. (The second gap is the one the round-1 blind check found this
+  change asserting away — see `design.md` §3.3.)
+- **Citation is not subject.** Items whose subject is the loop, the orchestrator, or migrating live targets, and
+  which name a deleted skill only as the vehicle or the provenance, stay open. Where the named vehicle no longer
+  exists, correct the sentence rather than closing the item.
+
+**Do not close an item by deletion.** Each closed line says which of the three it was — fixed by this version,
+moot on deletion of its subject, or superseded by `docs/sdd.md` — and cites what replaced it.
+
+**Acceptance.**
+
+1. `## [Unreleased]` names every user-visible change and nothing that did not happen.
+2. `_backlog_blocker` finds **no list line** in `.minions/v0.8_backlog.md`, and `.minions/v0.8_resume.md` is
+   gone — the release gate's own precondition, checkable by reading the file.
+3. In the vault's `backlog.md`, **every open item that names a deleted skill, rubric or `template/` is either
+   closed with its reason, or carries a one-line note saying why its subject survives the deletion.** The name
+   grep lists the candidates; each candidate is then accounted for one way or the other. No open item requires
+   editing a deleted file in order to be closed.
+4. Gate green; 163 tests. The change is ready for the fan-out (review ‖ security ‖ simplify) and then release.
