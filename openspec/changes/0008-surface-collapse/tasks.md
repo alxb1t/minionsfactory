@@ -213,7 +213,7 @@ no backlog line names it — so it is recorded here or it does not happen. Archi
 reasoning `docs/sdd.md` compresses, and the compression is lossy by design.
 
 `overview.md` loses the ⚠ *"Documents under refinement"* section, but **not by deleting the block wholesale**: its
-last entry is the [vault standard](notes/vault_standard.md), which D24 does **not** archive — this version
+last entry is the vault standard (`notes/vault_standard.md`), which D24 does **not** archive — this version
 *updated* it — and which has no other link in the page. Move that entry into the Links list, then drop the
 section. Also drop the `workflow` entry from the Links list, which sits **outside** the section and would
 otherwise survive as a live link to an archived document.
