@@ -27,15 +27,38 @@ _RETIRED = (
     "_plan_version",
 )
 
-# The scan set, asserted below so narrowing it later is a visible edit, not a silent
-# one. Deliberately EXCLUDED, each for its own reason (0005-change-cutover design §5):
+# The ONE root set, shared by both needle sets below and asserted verbatim in each scan
+# test, so narrowing *the tuple* is a visible edit and not a silent one. The literal
+# does not catch a root that disappears from disk — `rglob` on a missing path yields
+# nothing rather than raising — so what closes that half is the rule that a deletion
+# lands in the same commit as the guard edit it forces, leaving no commit shipping a
+# scan narrower than the tuple it asserts (0008-surface-collapse design §4). The two
+# sets were once scanned over separate roots, because a retired *plan* needle was live
+# check text inside the planning-skill surface; that surface is deleted, so one root set
+# now crosses both needle sets green.
+#
+# Deliberately EXCLUDED, each for its own reason (0005-change-cutover design §5):
 #   - `openspec/specs/` — the specs describe the retirement and must be able to name it;
 #     correctness there is owned by `specs check --strict` plus the release fold's
 #     verify-after-fold, and this change's own delta prose folds in with the literal.
 #   - `tests/` — the guard's own needles are literals in it.
 #   - `CHANGELOG.md` and `openspec/changes/archive/` — the historical record, which must
 #     keep saying what was true.
-_SCANNED = ("orchestrator", "prompts", "docs", "README.md")
+#
+# Still narrower than a whole-tree grep: `.github/`, `Makefile` and `pyproject.toml` are
+# outside it, free of all fourteen needles today, so the gap is a future regression
+# rather than a live hole. Widening is recorded for v0.8.
+#
+# NO exclusion is declared for any directory inside the scanned roots — the deletions
+# land in the same commit as the guard edit they force, so nothing needs suppressing.
+_SCANNED = (
+    "orchestrator",
+    "prompts",
+    "docs",
+    "README.md",
+    "CLAUDE.md",
+    ".env.example",
+)
 
 _TEXT_SUFFIXES = frozenset({".py", ".md", ".toml", ".txt", ".yml", ".yaml", ".json"})
 
@@ -64,7 +87,14 @@ def _hits(base: Path, roots: tuple[str, ...], needle: str) -> list[str]:
 
 @pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
 def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> None:
-    assert _SCANNED == ("orchestrator", "prompts", "docs", "README.md")
+    assert _SCANNED == (
+        "orchestrator",
+        "prompts",
+        "docs",
+        "README.md",
+        "CLAUDE.md",
+        ".env.example",
+    )
 
     assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED} == {
         needle: [] for needle in _RETIRED
@@ -75,8 +105,8 @@ def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> No
 def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    # The guard is only worth having if every needle bites: plant each one in a scanned
-    # root in turn and confirm the plant is reported.
+    # The guard is only worth having if every needle bites: plant each one in every
+    # scanned root in turn and confirm every plant is reported.
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
     (tmp_path / "docs" / "modules").mkdir(parents=True)
@@ -86,12 +116,16 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
         (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
         (tmp_path / "docs" / "modules" / "state.md").write_text(f"the {needle} thing\n")
         (tmp_path / "README.md").write_text(f"a vault with {needle}\n")
+        (tmp_path / "CLAUDE.md").write_text(f"the {needle} model is retired\n")
+        (tmp_path / ".env.example").write_text(f"{needle}=\n")
 
         assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/state.py:1",
             "prompts/coder.md:1",
             "docs/modules/state.md:1",
             "README.md:1",
+            "CLAUDE.md:1",
+            ".env.example:1",
         ]
 
 
@@ -101,11 +135,16 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
 # dead *symbols*: the declared environment key, the resolved-directory parameter in both
 # its spellings, the two deleted preflight functions, and the release-record symbol.
 #
+# Kept DISTINCT from the plan needles above although both are now scanned over the same
+# roots: the two record different retirements with different histories, and merging them
+# would lose which regression a future failure is.
+#
 # `vault_project_dir` is listed although `vault_dir` looks like a substring of it — it
 # is not, and without it a doc could ship a stale
 # `halt_report_exists(vault_project_dir)` signature and pass. The bare word *vault* and
-# the token `<vault>/` are NOT needles: the vault still exists, and the vault-side
-# skills must be able to name what they resolve.
+# the token `<vault>/` are NOT needles: the vault still exists, and the layout rule this
+# repo states — the vault reaches the repo, the repo never reaches the vault — must be
+# able to name it.
 _RETIRED_VAULT = (
     "VAULT_PROJECT_DIR",
     "vault_dir",
@@ -115,52 +154,27 @@ _RETIRED_VAULT = (
     "release_log",
 )
 
-# This needle set's OWN root set (0007-pm-side-process-standard design §4). One root set
-# crossed with both needle sets cannot go green: `implementation_plans` is a live needle
-# of the plan set above, and `skills/rubrics/compliance.md` legitimately names it in
-# check text this change keeps. So the vault set adds `skills/` — and the root
-# `CLAUDE.md` and the tracked environment example, both cleared by this change but
-# otherwise inside no root allowlist.
-#
-# These seven are where the retired vocabulary lived or was cleared from. They are
-# deliberately NARROWER than a whole-tree grep: `template/`, `.github/`, `Makefile` and
-# `pyproject.toml` are outside, free of all six needles today, so the gap is a future
-# regression rather than a live hole. Widening is recorded for v0.8.
-#
-# Excluded for the same three reasons as above: `openspec/specs/`, the historical record
-# (`CHANGELOG.md`, `openspec/changes/archive/`) and `tests/`, where the guard's own
-# needles are literals. NO exclusion is declared for any directory inside the scanned
-# roots — the deletions land before the scan does, so nothing needs suppressing.
-_SCANNED_VAULT = (
-    "orchestrator",
-    "prompts",
-    "docs",
-    "README.md",
-    "skills",
-    "CLAUDE.md",
-    ".env.example",
-)
-
 
 @pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
-def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_docs_or_skills() -> None:
-    assert _SCANNED_VAULT == (
+def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs() -> (
+    None
+):
+    assert _SCANNED == (
         "orchestrator",
         "prompts",
         "docs",
         "README.md",
-        "skills",
         "CLAUDE.md",
         ".env.example",
     )
 
-    assert {
-        needle: _hits(_REPO, _SCANNED_VAULT, needle) for needle in _RETIRED_VAULT
-    } == {needle: [] for needle in _RETIRED_VAULT}
+    assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED_VAULT} == {
+        needle: [] for needle in _RETIRED_VAULT
+    }
 
 
 @pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
-def test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots() -> None:
+def test_the_scan_carves_out_no_directory_inside_its_scanned_roots() -> None:
     # The scenario asserts the absence of a carve-out, which is a property of the guard
     # itself and not only of the tree it scans. Two halves: the scan takes no exclusion
     # argument, so there is no seam a suppression could enter through...
@@ -169,9 +183,9 @@ def test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots() -> No
 
     # ...and in fact it reaches every directory inside the scanned roots — enumerated
     # here with `iterdir`, independently of the `rglob` walk under test, so the two can
-    # disagree. That includes the skill directory phase 16 emptied, the one carve-out
-    # this change considered and declined.
-    for name in _SCANNED_VAULT:
+    # disagree. Nothing is suppressed: a deletion lands in the same commit as the guard
+    # edit it forces, so no commit ever ships a scan that steps around a live directory.
+    for name in _SCANNED:
         root = _REPO / name
         if not root.is_dir():
             continue
@@ -184,28 +198,25 @@ def test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots() -> No
 def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    # Same bar as the plan needles: each one must bite, in every root of this set —
-    # including the three roots it adds — or the scan is decoration.
+    # Same bar as the plan needles: each one must bite, in every root of the shared set,
+    # or the scan is decoration.
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
     (tmp_path / "docs" / "modules").mkdir(parents=True)
-    (tmp_path / "skills" / "mf-teardown").mkdir(parents=True)
 
     for needle in _RETIRED_VAULT:
         (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
         (tmp_path / "prompts" / "coder.md").write_text(f"write to the {needle}\n")
         (tmp_path / "docs" / "modules" / "findings.md").write_text(f"the {needle}\n")
         (tmp_path / "README.md").write_text(f"a report under {needle}\n")
-        (tmp_path / "skills" / "mf-teardown" / "SKILL.md").write_text(f"{needle}\n")
         (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
         (tmp_path / ".env.example").write_text(f"{needle}=\n")
 
-        assert _hits(tmp_path, _SCANNED_VAULT, needle) == [
+        assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/findings.py:1",
             "prompts/coder.md:1",
             "docs/modules/findings.md:1",
             "README.md:1",
-            "skills/mf-teardown/SKILL.md:1",
             "CLAUDE.md:1",
             ".env.example:1",
         ]
