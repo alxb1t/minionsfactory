@@ -45,7 +45,7 @@ content that has no home in `docs/sdd.md` and no other home either · the fix wo
 - [x] 3 — `CLAUDE.md` gives up the method
 - [x] 4 — The skills go, and the guard follows the tree
 - [x] 5 — `template/` and the README section go, and the scan widens
-- [ ] 6 — CHANGELOG and the version line
+- [x] 6 — CHANGELOG and the version line
 
 ---
 
