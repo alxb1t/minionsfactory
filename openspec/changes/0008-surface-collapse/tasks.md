@@ -205,12 +205,18 @@ same way, and three groups look moot without being so:
 
 *The superseded vault documents (a separate commit).* The intent record's **D24** settles that four vault
 documents move to `archive/notes/` with a README naming what replaced them, *"when `docs/sdd.md` ships"*:
-`conventions.md`, `principles.md`, `notes/compliance/` (five files) and `notes/workflow.md`. All eight files
-describe the surface this version deletes or the five-stage line it removes, and `overview.md` already promises
-the supersession. Nothing downstream can do this — the release role cannot reach the vault, and no backlog line
-names it — so it is recorded here or it does not happen. Archiving, not deleting: they hold reasoning
-`docs/sdd.md` compresses, and the compression is lossy by design. `overview.md`'s section warning readers which
-of its own links to distrust goes with them.
+`conventions.md`, `principles.md`, `notes/compliance/` (five files) and `notes/workflow.md`. Two warrants, not
+one: `notes/compliance/` and `notes/workflow.md` **describe** the surface this version deletes and the five-stage
+line it removes; `conventions.md` and `principles.md` are **superseded** by `docs/sdd.md`, which `overview.md`
+already promises in as many words. Nothing downstream can do this — the release role cannot reach the vault, and
+no backlog line names it — so it is recorded here or it does not happen. Archiving, not deleting: they hold
+reasoning `docs/sdd.md` compresses, and the compression is lossy by design.
+
+`overview.md` loses the ⚠ *"Documents under refinement"* section, but **not by deleting the block wholesale**: its
+last entry is the [vault standard](notes/vault_standard.md), which D24 does **not** archive — this version
+*updated* it — and which has no other link in the page. Move that entry into the Links list, then drop the
+section. Also drop the `workflow` entry from the Links list, which sits **outside** the section and would
+otherwise survive as a live link to an archived document.
 
 **Do not close an item by deletion.** Each closed line says which of the three it was — fixed by this version,
 moot on deletion of its subject, or superseded by `docs/sdd.md` — and cites what replaced it.
@@ -221,7 +227,8 @@ moot on deletion of its subject, or superseded by `docs/sdd.md` — and cites wh
 2. `_backlog_blocker` finds **no list line** in `.minions/v0.8_backlog.md`, and `.minions/v0.8_resume.md` is
    gone — the release gate's own precondition, checkable by reading the file.
 3. `archive/notes/` holds the four superseded documents with a README naming what replaced each, none of them
-   remains at its old path, and no live vault page links to an unarchived copy.
+   remains at its old path, and no live vault page links to an unarchived copy. `notes/vault_standard.md` is
+   **not** among them and is still linked from `overview.md`.
 4. In the vault's `backlog.md`, **every open item that names a deleted skill, rubric or `template/` is either
    closed with its reason, or carries a one-line note saying why its subject survives the deletion.** The name
    grep lists the candidates; each candidate is then accounted for one way or the other. No open item requires
