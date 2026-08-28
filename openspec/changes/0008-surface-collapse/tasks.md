@@ -85,8 +85,11 @@ def test_the_method_doc_exists_and_the_docs_map_links_it() -> None:
 — asserting `docs/sdd.md` exists and `docs/README.md` references it. Structural only; nothing about contents.
 
 **Acceptance.** `docs/sdd.md` is 220–260 lines; every criterion of the four rubrics is either present in the page
-or explicitly accounted for as runner machinery; the new test passes and fails if either half is removed. Gate
-green; **163 tests**.
+or explicitly accounted for as runner machinery; the new test passes and fails if either half is removed. **The
+genericity bar from phase 1 applies to Part II and is re-checked over the whole page** — no orchestrator module,
+no vault path, nothing assuming an installed package. Part II is distilled from `compliance.md`, the most
+orchestrator-shaped source in the tree, so this is where the bar is most likely to slip. Gate green; **163
+tests**.
 
 ## 3 — `CLAUDE.md` gives up the method
 
@@ -109,11 +112,15 @@ this phase. Nothing the method defines is stated in both files. Gate green; 163 
 4. `tests/test_conventions.py`: drop `skills` from the vault root set and **merge the two root sets into one**
    shared `_SCANNED` (`design.md` §3.1), keeping the two needle sets distinct. Rename
    `test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots` to drop "vault" — there is one scan now.
-   Update the tmp-tree fixtures so each needle still bites in every root of the merged set. **Rewrite the comment
-   block at `:118-133` and the carve-out comment in the renamed test** (`:172-173`) so that neither justifies the
-   guard by a file this phase deletes — the split's rationale (`compliance.md` holding a live plan needle) and the
-   "skill directory phase 16 emptied" aside both describe a tree that no longer exists. `tests/` is outside the
-   scan, so nothing else catches these.
+   Update the tmp-tree fixtures so each needle still bites in every root of the merged set. **Then sweep the whole
+   file, not a list of sites:** no comment, test name, docstring or fixture in `tests/test_conventions.py` may
+   justify the guard by — or name as live — a surface this phase deletes. Known at authoring time: the split's
+   rationale block (`compliance.md` holding a live plan needle), the "skill directory phase 16 emptied" carve-out
+   aside, the needle-boundary note reasoning from *"the vault-side skills must be able to name what they
+   resolve"*, and the test name `test_the_retired_vault_vocabulary_is_named_nowhere_in_code_docs_or_skills`,
+   whose `_or_skills` is the exact wording the spec delta drops from the scenario title it proves. That list is a
+   starting point, **not the boundary** — `tests/` is outside the scan, so nothing mechanical catches a site the
+   list misses.
 5. `specs/sdd/spec.md` in this change dir: the `MODIFIED` requirement, both scenarios' THEN clauses naming the
    merged root set, and `no-retired-vault-vocabulary` losing its *"the root set is the needle set's own"* clause.
    **The delta as landed already reads at the change's end state** — its THEN clauses name the *widened* root set
@@ -126,8 +133,8 @@ documents, and the two surfaces phase 5 owns — `README.md` and `template/`, bo
 until then. The unqualified form is phase 5's acceptance, not this one. (`git grep`, not `grep -rn`: the latter
 descends into `.venv/` and the caches, where matches prove nothing.) `~/.claude/skills/` holds no symlink into
 this repository. The merged scan is asserted verbatim as one tuple, and every needle is proven to bite in every
-root of it. No comment in `tests/test_conventions.py` justifies the guard by a deleted file. Gate green; 163
-tests.
+root of it. `git grep -n "skills\|template/" tests/test_conventions.py` returns nothing that
+names either as a live surface — comments, test names, docstrings and fixtures alike. Gate green; 163 tests.
 
 ## 5 — `template/` and the README section go, and the scan widens
 
@@ -150,7 +157,7 @@ unqualified form now passes:** `git grep -n "mf-order\|mf-gauge\|mf-blueprint\|m
 
 ## 6 — CHANGELOG and the version line
 
-**Deliverable, three parts.**
+**Deliverable, four parts.**
 
 *Repo.* `CHANGELOG.md`'s `## [Unreleased]` reads as one coherent release rather than five phase appends — the
 deletion, the one page, the `CLAUDE.md` split and the guard changes, each with its reason.
@@ -196,6 +203,15 @@ same way, and three groups look moot without being so:
   which name a deleted skill only as the vehicle or the provenance, stay open. Where the named vehicle no longer
   exists, correct the sentence rather than closing the item.
 
+*The superseded vault documents (a separate commit).* The intent record's **D24** settles that four vault
+documents move to `archive/notes/` with a README naming what replaced them, *"when `docs/sdd.md` ships"*:
+`conventions.md`, `principles.md`, `notes/compliance/` (five files) and `notes/workflow.md`. All eight files
+describe the surface this version deletes or the five-stage line it removes, and `overview.md` already promises
+the supersession. Nothing downstream can do this — the release role cannot reach the vault, and no backlog line
+names it — so it is recorded here or it does not happen. Archiving, not deleting: they hold reasoning
+`docs/sdd.md` compresses, and the compression is lossy by design. `overview.md`'s section warning readers which
+of its own links to distrust goes with them.
+
 **Do not close an item by deletion.** Each closed line says which of the three it was — fixed by this version,
 moot on deletion of its subject, or superseded by `docs/sdd.md` — and cites what replaced it.
 
@@ -204,8 +220,10 @@ moot on deletion of its subject, or superseded by `docs/sdd.md` — and cites wh
 1. `## [Unreleased]` names every user-visible change and nothing that did not happen.
 2. `_backlog_blocker` finds **no list line** in `.minions/v0.8_backlog.md`, and `.minions/v0.8_resume.md` is
    gone — the release gate's own precondition, checkable by reading the file.
-3. In the vault's `backlog.md`, **every open item that names a deleted skill, rubric or `template/` is either
+3. `archive/notes/` holds the four superseded documents with a README naming what replaced each, none of them
+   remains at its old path, and no live vault page links to an unarchived copy.
+4. In the vault's `backlog.md`, **every open item that names a deleted skill, rubric or `template/` is either
    closed with its reason, or carries a one-line note saying why its subject survives the deletion.** The name
    grep lists the candidates; each candidate is then accounted for one way or the other. No open item requires
    editing a deleted file in order to be closed.
-4. Gate green; 163 tests. The change is ready for the fan-out (review ‖ security ‖ simplify) and then release.
+5. Gate green; 163 tests. The change is ready for the fan-out (review ‖ security ‖ simplify) and then release.
