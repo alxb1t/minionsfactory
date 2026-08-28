@@ -38,8 +38,6 @@ symbols by which the repository once reached a directory outside itself. Both re
   and `pyproject.toml`
 - **AND** the two needle sets share one root set: the split existed only because a retired *plan* needle was live
   check text inside the planning-skill surface, and that surface is deleted
-- **AND** the root set covers every tracked location a shipped file can occupy except the three standing
-  exclusions, so a retirement cannot be reintroduced in an unscanned corner
 - **AND** no exclusion is declared for any directory inside the scanned roots — the deletions land before the scan
   does, so nothing needs suppressing
 - **AND** the exclusions are the specs, the historical record, and `tests/`, where the guard's own needles are

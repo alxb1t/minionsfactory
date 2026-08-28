@@ -109,13 +109,24 @@ this phase. Nothing the method defines is stated in both files. Gate green; 163 
 4. `tests/test_conventions.py`: drop `skills` from the vault root set and **merge the two root sets into one**
    shared `_SCANNED` (`design.md` §3.1), keeping the two needle sets distinct. Rename
    `test_the_vault_scan_carves_out_no_directory_inside_its_scanned_roots` to drop "vault" — there is one scan now.
-   Update the tmp-tree fixtures so each needle still bites in every root of the merged set.
+   Update the tmp-tree fixtures so each needle still bites in every root of the merged set. **Rewrite the comment
+   block at `:118-133` and the carve-out comment in the renamed test** (`:172-173`) so that neither justifies the
+   guard by a file this phase deletes — the split's rationale (`compliance.md` holding a live plan needle) and the
+   "skill directory phase 16 emptied" aside both describe a tree that no longer exists. `tests/` is outside the
+   scan, so nothing else catches these.
 5. `specs/sdd/spec.md` in this change dir: the `MODIFIED` requirement, both scenarios' THEN clauses naming the
    merged root set, and `no-retired-vault-vocabulary` losing its *"the root set is the needle set's own"* clause.
+   **The delta as landed already reads at the change's end state** — its THEN clauses name the *widened* root set
+   from phase 5. That is deliberate: a change document describes the change, not one phase of it, and no gate
+   validates delta prose. Do not narrow it here and re-widen it in phase 5; the phase-4 obligation is the test and
+   the merge, which the delta already describes.
 
-**Acceptance.** `skills/` does not exist. `grep -rn "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` over the tree returns hits **only** in `CHANGELOG.md`, `openspec/changes/archive/` and this
-change's own documents. `~/.claude/skills/` holds no symlink into this repository. The merged scan is asserted
-verbatim as one tuple, and every needle is proven to bite in every root of it. Gate green; 163 tests.
+**Acceptance.** `skills/` does not exist. `grep -rn "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` over the tree returns hits **only** in `CHANGELOG.md`, `openspec/changes/archive/`, this
+change's own documents — and `README.md`, which still carries the planning-line section until phase 5 closes it.
+The unqualified whole-tree grep is phase 5's acceptance, not this one. `~/.claude/skills/` holds no symlink into
+this repository. The merged scan is asserted verbatim as one tuple, and every needle is proven to bite in every
+root of it. No comment in `tests/test_conventions.py` justifies the guard by a deleted file. Gate green; 163
+tests.
 
 ## 5 — `template/` and the README section go, and the scan widens
 
@@ -130,16 +141,39 @@ verbatim as one tuple, and every needle is proven to bite in every root of it. G
    roots.
 4. `specs/sdd/spec.md`: the merged root set in both scenarios' THEN clauses now lists the widened set.
 
-**Acceptance.** `template/` does not exist. `README.md` names no deleted skill and links `docs/sdd.md`. The scan
-covers `orchestrator`, `prompts`, `docs`, `README.md`, `CLAUDE.md`, `.env.example`, `.github`, `Makefile`,
-`pyproject.toml`, and each of the fourteen needles is proven to bite in each. Gate green; 163 tests.
+**Acceptance.** `template/` does not exist. `README.md` names no deleted skill and links `docs/sdd.md`. **The
+unqualified whole-tree grep now passes:** `grep -rn "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` returns hits only in `CHANGELOG.md`, `openspec/changes/archive/` and this change's own
+documents. The scan covers `orchestrator`, `prompts`, `docs`, `README.md`, `CLAUDE.md`, `.env.example`, `.github`,
+`Makefile`, `pyproject.toml`, and each of the fourteen needles is proven to bite in each. Gate green; 163 tests.
 
 ## 6 — CHANGELOG and the version line
 
-**Deliverable:** `CHANGELOG.md`'s `## [Unreleased]` reads as one coherent release rather than five phase
-appends — the deletion, the one page, the `CLAUDE.md` split and the guard changes, each with its reason. Confirm
-the version line is consistent and ready for the release step to cut `## [0.8.0]` and bump `pyproject` to
-`0.8.0`.
+**Deliverable, two parts.**
 
-**Acceptance.** `## [Unreleased]` names every user-visible change and nothing that did not happen. Gate green;
-163 tests. The change is ready for the fan-out (review ‖ security ‖ simplify) and then release.
+*Repo.* `CHANGELOG.md`'s `## [Unreleased]` reads as one coherent release rather than five phase appends — the
+deletion, the one page, the `CLAUDE.md` split and the guard changes, each with its reason.
+
+**The `pyproject` bump and the `## [0.8.0]` cut belong to the release step, not to this phase.** The intent
+record is ambiguous — D18's phase table assigns "CHANGELOG + version bump" here, D21 puts both at release — and
+this change takes D21, matching the house convention where a `chore(release):` commit owns the bump and the tag.
+Recorded so the omission does not read as a dropped decision.
+
+*Vault (a separate commit, per the ritual).* Close what this version made moot in the vault's `backlog.md` —
+**not** the repo's `.minions/<version>_backlog.md`, which is a gitignored run artefact with a different gate. Each
+affected line is closed **with its reason**, never silently deleted:
+
+- *Fixed by this version* — the widening at `backlog.md:114`, which names v0.8 as its owner and is delivered in
+  phase 5.
+- *Moot on deletion* — every open item whose subject is a deleted skill or rubric: the `mf-order`/`mf-gauge`
+  rubric fallbacks, the `mf-blueprint`/`mf-inspect` cwd premise, the redaction rule's orphaned value clause, the
+  two phase-16 rubric items, the four `mf-forge` follow-ups, the `mf-gauge` root-widening item, the conformance
+  rubric's rename question, the `mf-line` successor CLI, and cross-model `mf-gauge`/`mf-inspect` runs.
+- *Superseded, not moot* — the item proposing the `notes/compliance/` relocation is answered by `docs/sdd.md`
+  and closes citing it; the research/design-lock rule survives into the method doc and closes citing that.
+
+Also correct the stale section header — it still reads *"Current release (`v0.6`)"* two versions on.
+
+**Acceptance.** `## [Unreleased]` names every user-visible change and nothing that did not happen. In
+`backlog.md`, **no open `- [ ]` line names a deleted skill, a deleted rubric or `template/`**, and every line
+closed by this sweep carries its reason. Gate green; 163 tests. The change is ready for the fan-out
+(review ‖ security ‖ simplify) and then release.
