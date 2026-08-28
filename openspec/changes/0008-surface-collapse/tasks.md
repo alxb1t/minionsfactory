@@ -140,8 +140,9 @@ tests.
 3. `tests/test_conventions.py`: widen the merged root set with `.github`, `Makefile`, `pyproject.toml`, and update
    the comment that records the widening as v0.8's — it is done. Extend the tmp-tree fixtures to the three new
    roots.
-The delta needs no edit in this phase — it was landed at the change's end state and already names the widened
-root set (see phase 4, item 5).
+
+There is **no delta item in this phase**: the delta was landed at the change's end state and already names the
+widened root set (see phase 4, item 5).
 
 **Acceptance.** `template/` does not exist. `README.md` names no deleted skill and links `docs/sdd.md`. **The
 unqualified form now passes:** `git grep -n "mf-order\|mf-gauge\|mf-blueprint\|mf-forge\|mf-inspect\|mf-line\|mf-teardown"` returns hits only in `CHANGELOG.md`, `openspec/changes/archive/` and this change's own documents. The scan covers `orchestrator`, `prompts`, `docs`, `README.md`, `CLAUDE.md`, `.env.example`, `.github`,
@@ -177,9 +178,11 @@ it would require editing a file this version deletes. An item that merely **cite
 vehicle it was going to be executed through, or as an example is **not** moot: its subject survives, and it stays
 open with its wording corrected where the citation has become misleading.
 
-Measured 2026-08-28: **nineteen** open items match a name grep for the seven skills, the four rubrics or
-`template/`; `backlog.md:114` is a twentieth candidate the grep misses because it names no skill. They do not all
-resolve the same way, and three groups look moot without being so:
+**The candidate set is whatever the grep returns when you run it** — a count written here would be a fourth
+hand-enumeration, and the first three were each wrong in a different direction. Run the name grep over
+`backlog.md` (the seven skills, the four rubrics, `template/`), remembering that an item's body spans several
+lines, so a match can sit below the `- [ ]` that owns it. Then account for every hit. They do not all resolve the
+same way, and three groups look moot without being so:
 
 - **The record's own non-goals keep two.** `template/` as a stampable skeleton, and genericizing `prompts/` into
   it, both belong to `mf-stamp` — which the non-goals explicitly leave on the backlog. Deleting `template/` in
