@@ -16,11 +16,12 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.5 — the change cutover (in progress).** The loop is closed end to end: the per-phase build spine
-(spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖ security ‖ simplify
-fan-out, the converge loop, and local release preparation — with all control flow unit-tested behind a fake
-provider + fake gate. This version makes the **in-repo change** the model the driver actually runs on. The
-installed CLI, extra provider adapters, and the UI are still ahead.
+**v0.7.0 is the current release; work on the v0.8 line is in progress.** The loop is closed end to end: the
+per-phase build spine (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖
+security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
+unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
+everything a run declares, resolves or writes lands inside the target repository. The installed CLI, extra
+provider adapters, and the UI are still ahead.
 
 Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
 
