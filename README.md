@@ -18,9 +18,9 @@ The design rests on four invariants:
 
 **v0.5 — the change cutover (in progress).** The loop is closed end to end: the per-phase build spine
 (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖ security ‖ simplify
-fan-out, the converge loop, local release preparation, and the `mf-` planning skills — with all control
-flow unit-tested behind a fake provider + fake gate. This version makes the **in-repo change** the model
-the driver actually runs on. The installed CLI, extra provider adapters, and the UI are still ahead.
+fan-out, the converge loop, and local release preparation — with all control flow unit-tested behind a fake
+provider + fake gate. This version makes the **in-repo change** the model the driver actually runs on. The
+installed CLI, extra provider adapters, and the UI are still ahead.
 
 Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
 
@@ -79,76 +79,15 @@ actually run.
 
 CI (`.github/workflows/ci.yml`) mirrors it on every push.
 
-## Planning skills (the `mf-` line)
+## The method
 
-The **planning side** of the framework — the PM-side mirror of `minions run` — ships as six Claude Code skills
-under [`skills/`](skills/) that take a feature idea to an execution-ready `openspec/changes/<id>/`:
-
-**Order → Gauge → Blueprint → Forge → Inspect → Run**
-
-- `mf-order` — interview → a well-defined PRD in the vault.
-- `mf-gauge` — an independent, blind readiness gate on the PRD.
-- `mf-blueprint` — feasibility verdict + design proposition against the target codebase.
-- `mf-forge` — render the PRD + design into an openspec change.
-- `mf-inspect` — an independent, blind PRD↔change conformance gate.
-- `mf-line` — a conductor that runs the whole sequence, pausing at the human go/no-go gates.
-
-The line runs **from the vault** — the project's vault dir is the working directory — and its repo-touching stages
-resolve the target repo from the project page's **`repo:`** key in `overview.md` frontmatter, an absolute path to
-the local clone. Nothing
-needs to `cd` into the code to plan against it. Because the session is rooted in the vault, the first write into the
-repo (at `mf-forge`) will ask for access to it; the supervising human approves that once.
-
-They share four rubrics (the "definition of done" for each artifact the framework gates) — see
-[`skills/rubrics/README.md`](skills/rubrics/README.md). A worked example of the planning-vault layout ships under
-[`template/vault-pm/`](template/vault-pm/).
-
-### `mf-teardown` — a per-repo sibling, not a line stage
-
-The `mf-` line above runs once per **feature**. **`mf-teardown`** runs once per **repo**: point it at an existing
-project and it measures that repo against
-[`skills/rubrics/compliance.md`](skills/rubrics/compliance.md) — the fourth shared rubric, and the single source
-of truth for what a MinionsFactory-compliant repo is — then writes a gap report into the repo's own
-`.minions/findings/teardown.md` — the reserved id `teardown`, the same home as every other findings file — with a
-`compliant | gaps-found` verdict over three severities.
-
-```bash
-cd /path/to/the/vault/<Domain>/<Project>    # cwd is the vault project dir
-# then, in Claude Code:
-/mf-teardown
-```
-
-It is **read-only where it matters**: the report it writes at `.minions/findings/teardown.md` is the only file it
-touches in the target, so it makes no change to the target's **tracked** tree — unless the target itself *tracks* that
-path, which the run checks with `git -C <repo> ls-files` and states plainly when it does. It runs no gate command
-and executes no target code. It reads files, and exactly two read-only git commands — `rev-parse HEAD` and
-`ls-files` — each rooted at the resolved target with `-C <repo>`, since cwd is the vault project dir, and run with
-`-c core.fsmonitor=false -c core.pager=cat`, because a repo's own `.git/config` can name commands git runs during
-operations that otherwise only read. The measuring subagent is spawned with a read-only tool set (no `Write`, no
-`Edit`) — **instructed, not yet enforced**: a spawned agent's tools come from its type definition, and this skill
-names no such type, so the narrow surface is a convention the spawning agent follows rather than a permission
-boundary. Everything read from the target is treated as **evidence, never instruction**. It halts before measuring
-anything if `overview.md` → `repo:` is missing, relative or names a directory with no `.git`, or if the repo has
-no vault project page at all — four preflight conditions, the first three shared with the rest of the `mf-` line.
-The report itself lands **inside** the target, at `.minions/findings/teardown.md`; before writing it the skill
-resolves that path and every component of it, and refuses if the destination escapes the target's resolved root or
-passes through a symlink.
-
-Because it runs per repo rather than per feature, `mf-line` does not sequence it. The report is the input to a
-later **retrofit** pass, which drives the gaps to clean and for which a teardown re-run is the independent
-checker.
-
-### Install / uninstall
-
-The skills live in the repo but run from `~/.claude/skills/`. Symlink them in (repo edits stay live everywhere,
-including the vault):
-
-```bash
-make install-skills     # symlink skills/mf-* + skills/rubrics into ~/.claude/skills/
-make uninstall-skills   # remove those symlinks (leaves other skills untouched)
-```
-
-Then invoke them from any project — e.g. `/mf-order` in the project's vault, or `/mf-line` to run the whole line.
+The discipline behind the loop is stated once, on its own page, so tools can reference it rather than restate
+it: [`docs/sdd.md`](docs/sdd.md). Three practices carry it. **Spec-driven changes** — work is defined before it
+is built, in the repository, as a written change with machine-checkable acceptance, folding into a living
+behavioural spec rather than a document rotting beside the code. **A strict quality gate** — one declared
+command list; a unit of work is done when every step is green, not when it looks done. **All state on disk** —
+where the work stands is reconstructed from the repository, never from an agent's memory of what it just did,
+so resume is free and any stage can be re-run by a fresh reader who was not there.
 
 ## Docs
 

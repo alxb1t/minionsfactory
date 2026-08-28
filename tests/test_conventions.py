@@ -45,9 +45,15 @@ _RETIRED = (
 #   - `CHANGELOG.md` and `openspec/changes/archive/` — the historical record, which must
 #     keep saying what was true.
 #
-# Still narrower than a whole-tree grep: `.github/`, `Makefile` and `pyproject.toml` are
-# outside it, free of all fourteen needles today, so the gap is a future regression
-# rather than a live hole. Widening is recorded for v0.8.
+# v0.8 widened it to its current nine: `.github/`, `Makefile` and `pyproject.toml` were
+# outside the scan and free of all fourteen needles, a future-regression gap rather than
+# a live hole, and they are now inside it. That is the gap this widening closes, and not
+# the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`, `uv.lock`
+# and the four files of the ACTIVE `openspec/changes/<id>/` are tracked, non-historical,
+# and neither scanned nor declared above. The active change is the load-bearing one,
+# and it cannot simply be added — a change's own delta must be able to name the
+# vocabulary it retires, the same reason `openspec/specs/` is excluded, so scanning it
+# turns this guard red today.
 #
 # NO exclusion is declared for any directory inside the scanned roots — the deletions
 # land in the same commit as the guard edit they force, so nothing needs suppressing.
@@ -58,6 +64,9 @@ _SCANNED = (
     "README.md",
     "CLAUDE.md",
     ".env.example",
+    ".github",
+    "Makefile",
+    "pyproject.toml",
 )
 
 _TEXT_SUFFIXES = frozenset({".py", ".md", ".toml", ".txt", ".yml", ".yaml", ".json"})
@@ -94,6 +103,9 @@ def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> No
         "README.md",
         "CLAUDE.md",
         ".env.example",
+        ".github",
+        "Makefile",
+        "pyproject.toml",
     )
 
     assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED} == {
@@ -110,6 +122,7 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
     (tmp_path / "docs" / "modules").mkdir(parents=True)
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
 
     for needle in _RETIRED:
         (tmp_path / "orchestrator" / "state.py").write_text(f'D = "{needle}"\n')
@@ -118,6 +131,9 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
         (tmp_path / "README.md").write_text(f"a vault with {needle}\n")
         (tmp_path / "CLAUDE.md").write_text(f"the {needle} model is retired\n")
         (tmp_path / ".env.example").write_text(f"{needle}=\n")
+        (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
+        (tmp_path / "Makefile").write_text(f"\t@echo {needle}\n")
+        (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
 
         assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/state.py:1",
@@ -126,6 +142,9 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
             "README.md:1",
             "CLAUDE.md:1",
             ".env.example:1",
+            ".github/workflows/ci.yml:1",
+            "Makefile:1",
+            "pyproject.toml:1",
         ]
 
 
@@ -166,6 +185,9 @@ def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs()
         "README.md",
         "CLAUDE.md",
         ".env.example",
+        ".github",
+        "Makefile",
+        "pyproject.toml",
     )
 
     assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED_VAULT} == {
@@ -203,6 +225,7 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
     (tmp_path / "docs" / "modules").mkdir(parents=True)
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
 
     for needle in _RETIRED_VAULT:
         (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
@@ -211,6 +234,9 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
         (tmp_path / "README.md").write_text(f"a report under {needle}\n")
         (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
         (tmp_path / ".env.example").write_text(f"{needle}=\n")
+        (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
+        (tmp_path / "Makefile").write_text(f"\t@echo {needle}\n")
+        (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
 
         assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/findings.py:1",
@@ -219,6 +245,9 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
             "README.md:1",
             "CLAUDE.md:1",
             ".env.example:1",
+            ".github/workflows/ci.yml:1",
+            "Makefile:1",
+            "pyproject.toml:1",
         ]
 
 
