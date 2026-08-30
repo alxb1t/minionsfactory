@@ -43,10 +43,14 @@ artifacts, always all four:
 
 A change id is `<digits>-<lowercase-slug>`. A change missing an artifact, or a `tasks.md` with no `## Progress`
 checklist, or a `proposal.md` with no parseable version, is **malformed** — refused at read time with a diagnostic
-naming the problem, rather than half-built. A change with no behavioural consequence marks its delta **explicitly
-N-A** — a declaration, not a missing artifact, and nothing to trace. **Progress lives in `tasks.md` + git**: a phase
-is finished by a commit *and* a ticked box, either alone is not an advance. Decisions `design.md` settled are not
-re-derived — where the change contradicts reality, that is a finding or a halt, never a silent divergence.
+naming the problem, rather than half-built. A change with no behavioural consequence **declares the absence in the
+change's own metadata** — an explicit, machine-readable statement that this change has no delta, not a placeholder
+standing in for one and not a requirement invented to fill the gap. It is a declaration, and there is nothing to
+trace. Tooling may leave **its own metadata beside the four artifacts** — a marker file, a scaffolding record; such a
+file is outside this contract, is neither read nor traced as part of it, and its presence does not make the change
+malformed. **Progress lives in `tasks.md` + git**: a phase is finished by a commit *and* a ticked box, either alone
+is not an advance. Decisions `design.md` settled are not re-derived — where the change contradicts reality, that is a
+finding or a halt, never a silent divergence.
 
 ## Traceability
 
@@ -86,13 +90,16 @@ sentences; external effects are faked behind seams, so the suite runs offline an
 
 > **grill → cut → build → review ‖ security ‖ simplify → converge → release**
 
-**Grill.** The idea is stress-tested against a person before anything is cut. **Grilling produces a written
-record of what was settled; the change is cut from it and checked against it.** Unresolved research, an
-untestable acceptance, an unbounded scope — cheap here, expensive everywhere downstream.
+**Grill.** The idea is stress-tested **against a person** before anything is cut — argued until the decisions are
+settled and the feasibility verdict can be stated. Unresolved research, an untestable acceptance, an unbounded scope
+— cheap here, expensive everywhere downstream. Nothing here is a separate deliverable: what the grilling settles is
+written down as the change itself.
 
-**Cut.** The record becomes `openspec/changes/<id>/` — proposal, design, tasks, delta — then is checked back against
-the record by a reader who did not write it: nothing asked for is dropped, nothing unauthorized is added, every delta
-scenario traces to an acceptance in the record and back, and the design is re-checked against the real code.
+**Cut.** The settled decisions are written into `openspec/changes/<id>/` — proposal, design, tasks, delta. **Those
+four artifacts are the record**; there is no other, and none is kept outside the repository. The check that follows
+is therefore **internal**, performed by a reader who did not write them: the four artifacts are consistent with each
+other, every delta scenario traces to an acceptance in `tasks.md` and back, and the design is re-checked against the
+real code.
 
 **Build.** One phase per pass, in order: test-first to a green gate, then commit and tick the box. The builder is
 **interactive** — it may ask, and it must halt rather than guess past an ambiguity, an unauthorized dependency, an
@@ -203,9 +210,11 @@ touched** and any new component; architecture impact is bounded — it fits as-i
 judged as a possible **precursor version** first; effort is proportionate and inside the phase bound, with a rough
 count stated; blockers are surfaced rather than met mid-build — new dependencies, missing infrastructure, unknowns
 needing a spike; at least one **simpler alternative** is weighed, the planning-side echo of the simplify station; and
-the risks that could balloon the build are named. It ends in exactly one verdict with a short why, a **human
-go/no-go**: **feasible** and **feasible-with-caveats** proceed (caveats carried into `design.md`); **needs-precursor**
-and **infeasible-as-specified** **halt**, for a precursor version or a rescope.
+the risks that could balloon the build are named. The axis ends in exactly one verdict with a short why — emitted at
+the **grill** station, where the argument that produced it happened, and recorded in the change's `design.md`. It is a
+**human go/no-go**: **feasible** and **feasible-with-caveats** proceed (the caveats carried, named as such);
+**needs-precursor** and **infeasible-as-specified** **halt**, for a precursor version or a rescope. The two halting
+values are the point of the vocabulary — an axis with nothing but shades of yes cannot stop a change.
 
 ## Readiness — can the loop be run here
 

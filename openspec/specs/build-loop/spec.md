@@ -1,5 +1,7 @@
 # Capability: `build-loop` (the deterministic build spine)
 
+## Purpose
+
 The driver that advances the active **in-tree change** phase by phase or halts — **no LLM in the
 loop**. It reads where the work stands from the repo alone (`openspec/changes/<id>/tasks.md` plus
 git head), spawns the coder, runs the gate itself, and **detects** the advance (a new commit landed

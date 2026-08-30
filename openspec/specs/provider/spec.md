@@ -1,5 +1,7 @@
 # Capability: `provider` (the harness seam)
 
+## Purpose
+
 The seam the driver depends on to run one role instance and get a typed result — a real
 `ClaudeCodeProvider` (`claude -p --output-format json`) plus a `FakeProvider` double, behind a
 `Provider` Protocol so the driver never touches the CLI directly (harness-agnostic + unit-testable).

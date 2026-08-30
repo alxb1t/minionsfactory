@@ -1,5 +1,7 @@
 # Capability: `diff` (frozen-diff supply)
 
+## Purpose
+
 Compute the target repo's diff for a commit range — list-argv git, never a shell — and supply it to a
 read-only role by writing it to a patch file the role reads (the role has no shell of its own). This
 spec captures the behavior shipped in `orchestrator/diff.py`; each scenario declares `Layers: unit`

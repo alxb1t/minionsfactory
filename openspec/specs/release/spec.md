@@ -1,5 +1,7 @@
 # Capability: `release` (release verification + preparation)
 
+## Purpose
+
 The run's last deterministic stage: verify every release precondition (a **pure** verdict over
 already-gathered facts, the release-time analog of `driver.decide`), then prepare the release
 **locally** and hand off to the human to merge + push — the boundary never crosses. This spec

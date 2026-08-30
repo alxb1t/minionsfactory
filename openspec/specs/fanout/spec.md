@@ -1,5 +1,7 @@
 # Capability: `fanout` (end-of-plan review ‖ security ‖ simplify)
 
+## Purpose
+
 At plan end the orchestrator fans out the three read-only roles over the **frozen** diff, each as a
 fresh instance that can only write its own findings file, then reads each verdict back from disk (the
 trust boundary — never the role's word). A missing findings file counts as not-clean, so a

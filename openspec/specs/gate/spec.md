@@ -1,5 +1,7 @@
 # Capability: `gate` (the quality-gate runner)
 
+## Purpose
+
 The orchestrator runs the target repo's own quality gate itself — so the agent it drives cannot game
 it. The command list is **read from the target** (`.minions/minions.toml`), not hardcoded, and the
 runner executes each command in order (no shell), stopping at the first failure. This spec captures
