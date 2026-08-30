@@ -12,7 +12,7 @@ sub-tasks for the builder and are invisible to that parser (`design.md` — Deci
 
 ## Progress
 
-- [ ] 1 — `openspec/config.yaml` and `CLAUDE.md`: how a change is cut here
+- [x] 1 — `openspec/config.yaml` and `CLAUDE.md`: how a change is cut here
 - [ ] 2 — The spec tree validates under a portable checker
 - [ ] 3 — `docs/sdd.md` describes the line actually run
 
@@ -23,30 +23,30 @@ sub-tasks for the builder and are invisible to that parser (`design.md` — Deci
 Two files, one subject: where the contract is taught. The vault corrections ride here because this phase already
 opens `CLAUDE.md` and the sentences are false as of this version.
 
-- [ ] 1.1 Write `openspec/config.yaml` — keep `schema: spec-driven`, add `context:` as a **pointer** to
+- [x] 1.1 Write `openspec/config.yaml` — keep `schema: spec-driven`, add `context:` as a **pointer** to
   `docs/sdd.md` and `CLAUDE.md` (never a restatement of either). *Verify:* the file parses as YAML and
   `openspec status --change 0009-planning-line` still resolves the schema.
-- [ ] 1.2 Add per-artifact `rules:` carrying only the non-derivable overrides: four artifacts always; the approach
+- [x] 1.2 Add per-artifact `rules:` carrying only the non-derivable overrides: four artifacts always; the approach
   names the files it touches; one `spec.md` per capability directory, never one at the root; a zero-delta change
   declares `skip_specs: true` with `specs/.gitkeep`; `tasks.md` opens with a `## Progress` checklist in
   `- [ ] N — Title` form with `N.M` used only for sub-tasks inside phase sections; and on the `design` artifact,
   sketch the seams the work will be tested at, preferring existing seams and the highest one available.
   *Verify:* `openspec instructions proposal --change 0009-planning-line` and `… tasks --change …` each emit the
   rules for that artifact.
-- [ ] 1.3 Add a **How a change is cut here** section to `CLAUDE.md`: `openspec new change <NN-slug>`; author
+- [x] 1.3 Add a **How a change is cut here** section to `CLAUDE.md`: `openspec new change <NN-slug>`; author
   `proposal.md` (with `version: vX.Y` frontmatter, which this repo's reader requires and the CLI does not),
   `design.md` and `tasks.md` against `openspec instructions <artifact>`; `skip_specs: true` + `specs/.gitkeep` for
   a zero-delta change; finish with `openspec validate <id> --strict`. Name the measured CLI version
   (`@fission-ai/openspec@1.11.0`) and point at `docs/sdd.md` for the method rather than restating it.
   *Verify:* the section exists, names all four commands, and `grep -n "/Users/\|/home/" CLAUDE.md` returns nothing.
-- [ ] 1.4 Correct the three obsolete vault sentences in `CLAUDE.md` — the upstream decision record, *"any PM-side
+- [x] 1.4 Correct the three obsolete vault sentences in `CLAUDE.md` — the upstream decision record, *"any PM-side
   tooling runs from the vault, out of band"*, and the rationale attached to the absolute-path guardrail. **Keep**
   the guardrail rule itself and the v0.7 containment invariant (*everything a run reads or writes is inside the
   repository*). *Verify:* `grep -n -i vault CLAUDE.md` returns only the containment invariant and the guardrail
   rule; `uv run pytest -q tests/test_conventions.py` is green (no retired needle introduced).
-- [ ] 1.5 Append the phase entry under `## [Unreleased]` in `CHANGELOG.md`. *Verify:* the entry names the change id
+- [x] 1.5 Append the phase entry under `## [Unreleased]` in `CHANGELOG.md`. *Verify:* the entry names the change id
   and describes the split between `config.yaml`, `CLAUDE.md` and `docs/sdd.md`.
-- [ ] 1.6 Run the gate and commit. *Verify:* all six commands in `.minions/minions.toml` exit 0; the commit carries
+- [x] 1.6 Run the gate and commit. *Verify:* all six commands in `.minions/minions.toml` exit 0; the commit carries
   the `Change: 0009-planning-line` trailer.
 
 ## 2 — The spec tree validates under a portable checker
