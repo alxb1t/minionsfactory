@@ -257,8 +257,9 @@ produced by the line is not something disk can prove.
   `- **Layers:**` scenario bullets, prose `tasks.md`. `0008-surface-collapse` validates clean unmodified.
 - **The CLI's fold and `orchestrator/release.py`'s fold agree** — run over a spec `release.py` had already folded,
   the CLI reported *"Specs already in sync; no files changed."*
-- **`--all` covers the living specs and the active change, never the archive** — measured at 12 items in this tree.
-  The historical record needs no backfill.
+- **`--all` covers the living specs and the active change, never the archive** — 12 items when measured during
+  phase 1 (eleven spec directories including the `change-state` tombstone, plus this change); 11 in the shipped
+  tree, once phase 2 deleted the tombstone. The historical record needs no backfill.
 - **`skip_specs` does not stall the artifact graph** — `openspec status` reports `[~] specs (skipped)` and unblocks
   `tasks` normally.
 - **The instructions are authority on structure and wrong on format** (decision 8). A tool that says *"follow the

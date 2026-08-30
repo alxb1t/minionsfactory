@@ -20,11 +20,10 @@ context: |
 rules:
   proposal:
     - "A change is always four artifacts — `proposal.md`, `specs/`, `design.md`, `tasks.md`. All four exist for every change, including one that changes no requirement."
-    - "A change that changes no requirement declares the absence rather than manufacturing one: set `skip_specs: true` in the change's `.openspec.yaml` and keep `specs/.gitkeep` so the directory stays tracked. The two mechanisms are mutually exclusive — a spec file under `specs/` alongside `skip_specs` fails validation."
-    - "`proposal.md` opens with `version: vX.Y` frontmatter. This repository's reader requires it; the CLI neither emits nor checks it."
+    - "The `version:` frontmatter this repo's reader requires, and the way a change that changes no requirement declares that absence, are prescribed in `CLAUDE.md`, *How a change is cut here*, steps 3-4. Follow those steps as written; the mechanics are maintained there and are not copied here."
   specs:
     - "One `spec.md` per capability directory — `specs/<capability>/spec.md`. A `spec.md` at the root of `specs/` is a malformed change."
-    - "Never invent a requirement to produce a delta. If nothing behavioural changes, declare `skip_specs: true` instead."
+    - "Never invent a requirement to produce a delta. If nothing behavioural changes, declare the absence the way `CLAUDE.md`, *How a change is cut here*, step 4 prescribes."
   design:
     - "Sketch the seams the work will be tested at, and name them. Prefer a seam that already exists over a new one, and take the highest seam that gives the coverage — this repository lives on its seams (the `Provider` Protocol, the `run_gate` seam)."
     - "Name the actual files the approach touches. This repo's approach is expected to be concrete about paths; a design that names no file is not yet settled."

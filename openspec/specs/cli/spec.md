@@ -55,5 +55,6 @@ outside the repository: no `.env`, no vault path, no settings grant.
 - **THEN** the preflight passes to the change-state read and the first role is spawned — no preflight error, since
   no path outside the repository is resolved
 
-> The vault-write half of this requirement is deleted with the `change-state` capability's *Vault-write preflight*.
-> What remains is the half that was always about the repository: is there a well-formed change to build?
+> The vault-write half of this requirement was deleted; the record is the `## REMOVED Requirements` block in
+> `changes/archive/0007-pm-side-process-standard/specs/change-state/spec.md`. What remains is the half that was
+> always about the repository: is there a well-formed change to build?
