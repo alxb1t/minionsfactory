@@ -1,5 +1,7 @@
 # Capability: `converge` (the converge loop)
 
+## Purpose
+
 The end-of-plan converge loop drives open **blocking** review findings to clean by looping
 *fix → gate → scoped re-verify*, or halts. Pure deterministic control flow — **no LLM in the loop**:
 it re-reads the findings files from disk each round and gates convergence on the verifier-owned

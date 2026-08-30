@@ -1,5 +1,7 @@
 # Capability: `status` (the event stream)
 
+## Purpose
+
 A typed event schema with an append-only history, a current-state snapshot, and a stdout renderer —
 so a run's progress lives on disk (round-tripping through its typed variants) and renders as
 human-readable lines. This spec captures the behavior shipped in `orchestrator/status.py`; each

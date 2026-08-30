@@ -1,5 +1,7 @@
 # Capability: `cli` (the run-from-source entry point)
 
+## Purpose
+
 The `python -m orchestrator` entry: it parses args, wires the real seams (provider, gate, emitter,
 fan-out, converge, release) together, runs the zero-token preflight before spend, and dispatches the
 `specs check` subcommand. This spec captures the behavior shipped in `orchestrator/__main__.py`.

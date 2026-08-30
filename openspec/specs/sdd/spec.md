@@ -1,5 +1,15 @@
 # Capability: sdd
 
+## Purpose
+
+The repository's own spec-driven contract, made machine-checkable: the shape of a change on disk, the
+scenario-key-to-proving-test binding the gate enforces, and the version line that ties a change to its
+CHANGELOG entry and its tag. **The reader that reconstructs "where are we" is spec'd here** — the in-tree
+change reader (`read_change_state` / `select_change` / `validate_change` / `change_advanced`), under
+`change-structure`; nothing outside the repository is consulted to answer that question.
+
+## Requirements
+
 ### Requirement: Enforced binding
 
 The system SHALL fail the gate when a shipped scenario has no proving test (an **orphan**) or when a `spec`

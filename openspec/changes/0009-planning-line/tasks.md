@@ -13,7 +13,7 @@ sub-tasks for the builder and are invisible to that parser (`design.md` — Deci
 ## Progress
 
 - [x] 1 — `openspec/config.yaml` and `CLAUDE.md`: how a change is cut here
-- [ ] 2 — The spec tree validates under a portable checker
+- [x] 2 — The spec tree validates under a portable checker
 - [ ] 3 — `docs/sdd.md` describes the line actually run
 
 ---
@@ -54,23 +54,23 @@ opens `CLAUDE.md` and the sentences are false as of this version.
 One commit, deliberately whole: splitting it produces a first phase whose only honest acceptance is *"still red,
 for one remaining reason"*, and the outcome this phase exists for is a single binary.
 
-- [ ] 2.1 Add a `## Purpose` section to each of the ten living capability specs — `build-loop`, `cli`, `converge`,
+- [x] 2.1 Add a `## Purpose` section to each of the ten living capability specs — `build-loop`, `cli`, `converge`,
   `diff`, `fanout`, `gate`, `provider`, `release`, `sdd`, `status`. Each must be **at least 50 characters** of real
   prose; `--strict` fails a shorter one with *"Purpose section is too brief"*. Most capabilities already open with a
   preamble paragraph that can become the Purpose. *Verify:* `openspec validate --specs --strict` reports no
   `overview` error or warning for any of the ten.
-- [ ] 2.2 Add the `## Requirements` heading to `openspec/specs/sdd/spec.md`, which today jumps from its title
+- [x] 2.2 Add the `## Requirements` heading to `openspec/specs/sdd/spec.md`, which today jumps from its title
   straight to `### Requirement:`. *Verify:* the heading precedes the first requirement and `specs check --strict`
   still resolves every `sdd:` key.
-- [ ] 2.3 Carry the tombstone's one load-bearing sentence into `sdd`'s new `## Purpose` — that the reader which
+- [x] 2.3 Carry the tombstone's one load-bearing sentence into `sdd`'s new `## Purpose` — that the reader which
   reconstructs where-are-we is spec'd here — then delete `openspec/specs/change-state/` entirely. *Verify:* the
   sentence is present in `sdd`'s Purpose before the directory is removed, and the deletion lands in this same
   commit.
-- [ ] 2.4 *Verify the phase:* `openspec validate --all --strict` exits **0** over 11 items (ten specs plus this
+- [x] 2.4 *Verify the phase:* `openspec validate --all --strict` exits **0** over 11 items (ten specs plus this
   change), **and** `uv run python -m orchestrator specs check --strict` exits **0**. Both, or the phase is not done.
-- [ ] 2.5 Append the phase entry under `## [Unreleased]`, recording that the tombstone **convention** is retired
+- [x] 2.5 Append the phase entry under `## [Unreleased]`, recording that the tombstone **convention** is retired
   and not merely applied differently to one file. *Verify:* the entry names both the deletion and the convention.
-- [ ] 2.6 Run the gate and commit. *Verify:* all six commands exit 0; trailer present.
+- [x] 2.6 Run the gate and commit. *Verify:* all six commands exit 0; trailer present.
 
 ## 3 — `docs/sdd.md` describes the line actually run
 
