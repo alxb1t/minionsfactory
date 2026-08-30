@@ -14,7 +14,7 @@ sub-tasks for the builder and are invisible to that parser (`design.md` — Deci
 
 - [x] 1 — `openspec/config.yaml` and `CLAUDE.md`: how a change is cut here
 - [x] 2 — The spec tree validates under a portable checker
-- [ ] 3 — `docs/sdd.md` describes the line actually run
+- [x] 3 — `docs/sdd.md` describes the line actually run
 
 ---
 
@@ -77,23 +77,23 @@ for one remaining reason"*, and the outcome this phase exists for is a single bi
 Four edits, all consequences of deletions this project already made. The page stays **tool-neutral**: none of these
 may name the OpenSpec CLI, `.openspec.yaml` or `skip_specs`.
 
-- [ ] 3.1 Rewrite the **Grill** and **Cut** paragraphs together. Grilling settles decisions against a person; the
+- [x] 3.1 Rewrite the **Grill** and **Cut** paragraphs together. Grilling settles decisions against a person; the
   change artifacts **are** the record; the check that follows the cut is internal — consistency across the four
   artifacts, every delta scenario tracing to an acceptance and back, and the design re-checked against the real
   code. Drop *"nothing asked for is dropped, nothing unauthorized is added"*, which needs an intent document this
   repository does not hold. *Verify:* neither paragraph refers to a record kept outside the repository, and the
   three surviving checks are each stated.
-- [ ] 3.2 Part II — the feasibility axis now ends in a verdict emitted by the **grill station** and recorded in the
+- [x] 3.2 Part II — the feasibility axis now ends in a verdict emitted by the **grill station** and recorded in the
   change's `design.md`. Keep all four values; `needs-precursor` and `infeasible-as-specified` are halts and the
   vocabulary is why the axis can stop a change. *Verify:* the four values survive and no deleted stage is named.
-- [ ] 3.3 Rewrite the N-A sentence so the absence of a delta is **declared in the change's metadata**, not by a
+- [x] 3.3 Rewrite the N-A sentence so the absence of a delta is **declared in the change's metadata**, not by a
   placeholder file under `specs/`. *Verify:* the sentence names no tool and no filename.
-- [ ] 3.4 Add one clause admitting that tooling may leave metadata beside the four artifacts without making the
+- [x] 3.4 Add one clause admitting that tooling may leave metadata beside the four artifacts without making the
   change malformed, and that such metadata is outside the contract. *Verify:* the clause is tool-neutral.
-- [ ] 3.5 *Verify the page:* `grep -n -i "openspec cli\|\.openspec\.yaml\|skip_specs\|npm\|node" docs/sdd.md`
+- [x] 3.5 *Verify the page:* `grep -n -i "openspec cli\|\.openspec\.yaml\|skip_specs\|npm\|node" docs/sdd.md`
   returns nothing, and `uv run pytest -q tests/test_conventions.py` is green — `docs/` is inside the scanned roots
   and all fourteen retired needles must stay at zero hits.
-- [ ] 3.6 Append the phase entry under `## [Unreleased]`. *Verify:* the entry states that all four edits correct
+- [x] 3.6 Append the phase entry under `## [Unreleased]`. *Verify:* the entry states that all four edits correct
   claims about stages this project deleted, and that the execution loop's blindness was deliberately left alone.
-- [ ] 3.7 Run the gate and commit. *Verify:* all six commands exit 0; trailer present; `openspec validate --all
+- [x] 3.7 Run the gate and commit. *Verify:* all six commands exit 0; trailer present; `openspec validate --all
   --strict` still exits 0.
