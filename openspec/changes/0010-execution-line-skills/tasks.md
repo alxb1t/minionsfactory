@@ -78,12 +78,15 @@ The largest file, and the one that carries the invariants. It conducts and judge
   report: **a missing findings file is not clean**, and **an empty review is not clean** — a station reporting
   zero files reviewed writes `changes-requested` with a scope-resolution finding, and the conductor compares the
   reported count against the count it printed in 2.3. *Verify:* both rules are stated, and the count comparison
-  is described as the conductor's action.
+  is described as the conductor's action. **Corrected in review round 1 (R2):** the baseline is the freeze the
+  round under judgement was frozen from — 2.3's in round 1, Step 6's re-freeze after it — not 2.3's on every
+  round; see `design.md` — *Acceptance corrections*.
 - [x] 2.7 Write the fix station: one subagent, clears open blocking findings to a green gate, flips per-finding
   status `open → fixed` with a note, touches **no** frontmatter counter and never writes `verdict: clean`, carries
   nits to `.minions/<version>_backlog.md`, commits staged by name with the trailer. Then re-freeze the patch to
   the **scoped** range `<previous head>..<new head>`. *Verify:* the file states the counter prohibition and the
-  scoped re-freeze.
+  scoped re-freeze. **Corrected in review round 1 (R1):** carrying the nits is the conductor's Step 5, run every
+  round, and a prohibition on the fix station; see `design.md` — *Acceptance corrections*.
 - [x] 2.8 Write the verify round (same two roles, fresh subagents, `round ≥ 2`), the **cap of 3** with a halt that
   leaves every findings file as it stands and names the still-open blockers by id, and the final report (verdicts
   quoted from disk · every blocking finding's end state · nits carried · the gate's exit code re-run at the end ·
@@ -140,14 +143,18 @@ The strongest prohibition in the set, and the step with the least prior evidence
 - [x] 4.6 Write the closing: re-run the gate on the released tree, then **stop** — report each precondition and
   how it was verified, what the fold changed or that it was a no-op and why, the release commit and tag, and
   **what it did not do: merge, push** — naming both as the human's, with the squash-caveat note. *Verify:* the
-  file names merge and push as the human's and performs neither.
+  file names merge and push as the human's and performs neither. **Corrected in review round 1 (R5):** the gate
+  runs at Step 4.3, before the commit and the tag, and the closing does not re-run it; see `design.md` —
+  *Acceptance corrections*.
 
 ## 5 — The install path, and the README catches up
 
 - [x] 5.1 Add `install-skills` and `uninstall-skills` targets to `Makefile`, with their `.PHONY` entries,
   symlinking each `skills/mf-*` directory into the operator's personal skills directory. The `gate` target is not
   touched. *Verify:* `make install-skills` creates four live symlinks; `make uninstall-skills` removes exactly
-  those and strands none; `git diff Makefile` shows no change inside the `gate` target.
+  those and strands none; `git diff Makefile` shows no change inside the `gate` target. **Qualified in review
+  round 1 (R9, non-blocking, still open):** the uninstall matches on symlink **name** and checks no target, so
+  "exactly those" is the intent, not a verified property; carried to `.minions/v0.10_backlog.md`.
 - [x] 5.2 Run the portability check over all four skills: no absolute path, no `~/` expansion, no path outside the
   repository the skill is invoked in (`design.md` — D15). *Verify:* the grep returns zero hits across
   `skills/**/SKILL.md`.

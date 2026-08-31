@@ -222,6 +222,38 @@ This change adds no code seam. It is tested at three that already exist:
 3. **`/simplify` runs unheld inside `mf-build`** (D6) — a declared deviation from `docs/sdd.md`'s
    three-read-only-station *Check*, mitigated by review verifying its edits.
 
+## Acceptance corrections — converge round 1
+
+Review round 1 (R1, R2, R5) removed behaviour that three of this change's **ticked** acceptance lines had
+specified. `mf-release` archives `openspec/changes/<change-id>/` whole as this change's permanent record and
+nothing gates `tasks.md`, so a later author — or a fresh `mf-build` resuming from `tasks.md` + git, the resume
+path `CLAUDE.md` mandates — would read those lines as the specification and re-introduce the defect. The
+corrections are stated here once and the three task lines point at this section rather than being rewritten:
+what was accepted stays legible, and what superseded it is one clause away.
+
+- **2.7 — the fix station does *not* carry the nits.** As accepted, the fix station carried non-blocking findings
+  to `.minions/<version>_backlog.md`. R1 found that Step 5 routes a both-clean round straight to the report, so
+  on the *normal* round-1 outcome no fix station runs and nothing is carried anywhere. The carry became a
+  **conductor** step in Step 5, run on every round whatever the verdicts, and the fix station's bullet was
+  inverted to a prohibition, so exactly one writer owns that file. The rest of 2.7 — the frontmatter-counter
+  prohibition, the scoped re-freeze — stands as written.
+- **2.6 — the count comparison's baseline is *this round's* freeze, not 2.3's.** As accepted, the conductor
+  compared each station's reported counts against the counts printed at the round-1 freeze. R2 found that Step 6
+  re-freezes to the scoped range `<previous head>..<new head>`, so a round-2 station correctly reporting one file
+  over a one-file fix range read as a scope failure and halted a loop one step from converging. The baseline is
+  now the freeze the round under judgement was frozen from, and Step 6 prints its own numbers before any station
+  speaks. The two fail-closed rules themselves are unchanged.
+- **4.6 — the closing does *not* re-run the gate.** As accepted, `mf-release`'s closing re-ran the gate on the
+  released tree. R5 found that this put the gate *after* the release commit and the annotated tag, over a tree
+  the station has no permission to repair. The gate moved to Step 4.3 — after the changelog cut, before the
+  commit and the tag — and Step 5 now says outright not to re-run it. The report contents 4.6 accepted, and its
+  prohibition on merging and pushing, stand as written.
+
+One further acceptance line is stale for a reason **not yet fixed**: 5.1's *"removes exactly those"* describes
+`uninstall-skills` as removing exactly the symlinks `install-skills` created, while the target matches on **name**
+and checks no link target. That is review finding R9 — non-blocking, still open, carried to
+`.minions/v0.10_backlog.md`. It is recorded here so the archived record does not carry the claim unqualified.
+
 ## Field notes
 
 <!-- Filled during the end-of-change run: one line per divergence between what a skill says and what happened,
