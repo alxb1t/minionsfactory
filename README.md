@@ -16,12 +16,13 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.7.0 is the current release; work on the v0.8 line is in progress.** The loop is closed end to end: the
+**v0.9.0 is the current release; work on the v0.10 line is in progress.** The loop is closed end to end: the
 per-phase build spine (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖
 security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
 unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
 everything a run declares, resolves or writes lands inside the target repository. The installed CLI, extra
-provider adapters, and the UI are still ahead.
+provider adapters, and the UI are still ahead. Alongside that automated line, the **execution-line skills**
+under [`skills/`](skills/) are the human-invoked line that ships releases today — see below.
 
 Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
 
@@ -79,6 +80,27 @@ in the same order — the orchestrator runs the array, so a paraphrase here woul
 actually run.
 
 CI (`.github/workflows/ci.yml`) mirrors it on every push.
+
+## The execution-line skills
+
+Four hand-invoked skills under [`skills/`](skills/) drive a change from built to released. They are the
+human-invoked line — the one this repository's own releases are cut with — beside the automated line under
+`orchestrator/`. Each skill is the authority on what it does; this list is a map, not a summary:
+
+| skill | what it is for |
+| --- | --- |
+| [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
+| [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
+| [`mf-backlog-export`](skills/mf-backlog-export/SKILL.md) | carry the release's deferred work out and empty the file |
+| [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
+
+Install them into your personal skills directory as symlinks, so an edit in this tree is live in the next
+session with no re-install:
+
+```bash
+make install-skills      # symlink skills/mf-* into your personal skills directory
+make uninstall-skills    # remove exactly those symlinks
+```
 
 ## The method
 

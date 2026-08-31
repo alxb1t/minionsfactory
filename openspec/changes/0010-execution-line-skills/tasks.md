@@ -20,7 +20,7 @@ phase 5.
 - [x] 2 — `mf-converge` — the conductor
 - [x] 3 — `mf-backlog-export` — the human-invoked vault bridge
 - [x] 4 — `mf-release` — verify, fold, archive, tag, stop
-- [ ] 5 — The install path, and the README catches up
+- [x] 5 — The install path, and the README catches up
 - [ ] 6 — `CLAUDE.md` declares the two lines
 - [ ] 7 — `skills/` becomes the tenth scanned root
 
@@ -144,17 +144,17 @@ The strongest prohibition in the set, and the step with the least prior evidence
 
 ## 5 — The install path, and the README catches up
 
-- [ ] 5.1 Add `install-skills` and `uninstall-skills` targets to `Makefile`, with their `.PHONY` entries,
+- [x] 5.1 Add `install-skills` and `uninstall-skills` targets to `Makefile`, with their `.PHONY` entries,
   symlinking each `skills/mf-*` directory into the operator's personal skills directory. The `gate` target is not
   touched. *Verify:* `make install-skills` creates four live symlinks; `make uninstall-skills` removes exactly
   those and strands none; `git diff Makefile` shows no change inside the `gate` target.
-- [ ] 5.2 Run the portability check over all four skills: no absolute path, no `~/` expansion, no path outside the
+- [x] 5.2 Run the portability check over all four skills: no absolute path, no `~/` expansion, no path outside the
   repository the skill is invoked in (`design.md` — D15). *Verify:* the grep returns zero hits across
   `skills/**/SKILL.md`.
-- [ ] 5.3 Add a short `README.md` section naming the four skills and the two install commands, pointing at the
+- [x] 5.3 Add a short `README.md` section naming the four skills and the two install commands, pointing at the
   skills themselves rather than restating what they do. *Verify:* the section names all four skills and both
   targets.
-- [ ] 5.4 Correct `README.md`'s `## Status` section, which still says v0.7.0 is the current release and the v0.8
+- [x] 5.4 Correct `README.md`'s `## Status` section, which still says v0.7.0 is the current release and the v0.8
   line is in progress. *Verify:* `grep -n 'v0.7.0 is the current release' README.md` returns nothing.
 
 ## 6 — `CLAUDE.md` declares the two lines
