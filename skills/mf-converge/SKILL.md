@@ -54,7 +54,8 @@ one wrong guess that is *invisible* — a discovered command exits 0 and the loo
 3. **Write the patch** to `.minions/findings/<change-id>_diff.patch`, holding `<base>..HEAD`. It sits beside the
    findings files, under the gitignored `.minions/`, and is never committed.
 4. **Print, so the numbers exist before any station speaks:** `base` · `head` · the **commit count** in the
-   range · the **files changed** count. You will compare a station's reported scope against these in Step 5.
+   range · the **files changed** count. You will compare a station's reported scope against these in Step 5 —
+   these are **round 1's** numbers, and Step 6's re-freeze prints its own for every round after it.
 
 ## Step 3 — Fan out (two fresh read-only subagents, in parallel)
 
@@ -131,10 +132,28 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
 - **An empty review is not clean.** A station that resolved **zero files** must not write `verdict: clean`; it
   writes `changes-requested` with one finding — *scope resolution failed* — and you **halt on it**. This is the
   one hole where a clean verdict is indistinguishable from a real one, so close it by hand: **compare the file
-  count and commit count each station reported against the counts you printed in Step 2**, and treat a station
-  that reviewed materially less than the range as a scope failure, not as a clean branch.
+  count and commit count each station reported against the counts you printed for the freeze *this round* is
+  judging** — Step 2's in round 1, Step 6's re-freeze in every later round — and treat a station that reviewed
+  materially less than **that** range as a scope failure, not as a clean branch. Never against round 1's numbers
+  once they are superseded: a verify round is scoped to the fix, so a station correctly reporting one file over a
+  one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 
-If both verdicts are `clean` and both counts check out, the loop is converged — go to Step 8.
+**Then carry the non-blocking findings — every round, before you branch.** Append every non-blocking finding in
+either file — review nits, security `medium`/`low` — to `.minions/<version>_backlog.md` as a list line, whole:
+id · severity · source role · repository-relative `path:line` · the defect · the suggested fix. Carry each id
+once; one already on the list is not re-appended. Any list line there holds the release until it is fixed and
+removed, or exported by the human.
+
+This is **yours, on every round, whatever the verdicts** — including the round that converges. It is the one
+piece of the loop that must not hang off the fix station: a round that comes back both-clean dispatches no fix
+station, so the deferred work would be carried nowhere, and the findings files are gitignored run output that
+`mf-backlog-export` says outright will be gone. `mf-release`'s deferred-work precondition passes on a **missing**
+file, so nothing downstream would notice — the release would ship reporting success with its deferred work
+destroyed. Write the file even when the round is clean; write no file only when there is genuinely no
+non-blocking finding to carry.
+
+If both verdicts are `clean` and both counts check out, the loop is converged — carry as above, then go to
+Step 8.
 
 ## Step 6 — The fix station (one subagent, inside this loop)
 
@@ -149,9 +168,8 @@ Dispatch **one** subagent to clear every **open blocking** finding across both f
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
-- **carries every non-blocking finding** — review nits, security medium/low — into
-  `.minions/<version>_backlog.md` as a list line. Any list line there holds the release until it is fixed and
-  removed, or exported by the human;
+- does **not** carry the non-blocking findings — you did that in Step 5, on this round, before dispatching it;
+  a second writer would duplicate ids into `.minions/<version>_backlog.md`;
 - **commits** the code fix staged **by name** (never `git add -A`), Conventional-Commits, with the trailer block
   at the end of the message — `Co-Authored-By:` and `Change: <change-id>` **contiguous**, since a blank line
   between them silently breaks the block.
@@ -160,6 +178,10 @@ Then **re-freeze the patch to the scoped range** `<previous head>..<new head>` �
 to the head the fix produced — overwriting `.minions/findings/<change-id>_diff.patch`. The verify pass judges
 **the fix**, not the branch again. There are no per-round patch files: the per-round record already exists as
 each findings file's `head:` field plus the append-only `## Resolution log`, and a second record drifts.
+
+**Then print the re-frozen range's numbers exactly as Step 2 does** — `base` · `head` · commit count · files
+changed. These supersede the previous round's, and they are the ones Step 5's scope comparison uses next round.
+Each round is judged against its own freeze, so every round has its own numbers before any station speaks.
 
 ## Step 7 — Verify, and the cap
 
