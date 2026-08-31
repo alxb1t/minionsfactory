@@ -21,7 +21,7 @@ phase 5.
 - [x] 3 — `mf-backlog-export` — the human-invoked vault bridge
 - [x] 4 — `mf-release` — verify, fold, archive, tag, stop
 - [x] 5 — The install path, and the README catches up
-- [ ] 6 — `CLAUDE.md` declares the two lines
+- [x] 6 — `CLAUDE.md` declares the two lines
 - [ ] 7 — `skills/` becomes the tenth scanned root
 
 ---
@@ -161,13 +161,13 @@ The strongest prohibition in the set, and the step with the least prior evidence
 
 Additive only. The gate section, the seams and the guardrails are untouched.
 
-- [ ] 6.1 Add one short paragraph naming the two lines: `orchestrator/` + `prompts/` implement the automated
+- [x] 6.1 Add one short paragraph naming the two lines: `orchestrator/` + `prompts/` implement the automated
   line; `skills/mf-*` is the human-invoked line that ships releases; the duplication (one review axis, two
   rubrics) is deliberate and declared, not resolved. *Verify:* the paragraph names both lines and the word
   *declared*.
-- [ ] 6.2 Add `skills/` to the **Layout** section. *Verify:* the layout section names `skills/` and what it
+- [x] 6.2 Add `skills/` to the **Layout** section. *Verify:* the layout section names `skills/` and what it
   holds.
-- [ ] 6.3 Confirm nothing else moved. *Verify:* `git diff CLAUDE.md` shows no change to the gate command list,
+- [x] 6.3 Confirm nothing else moved. *Verify:* `git diff CLAUDE.md` shows no change to the gate command list,
   the engineering conventions, *How a change is cut here*, or the guardrails.
 
 ## 7 — `skills/` becomes the tenth scanned root

@@ -17,6 +17,15 @@ deterministic, unit-testable control flow); **the orchestrator runs the objectiv
 state — so the agent it drives can't game them); and **roles are fresh instances behind a provider seam**
 (harness-agnostic — Claude Code is the default adapter, with no dependency on a harness's internals).
 
+**Two lines run here, and the duplication is declared rather than resolved.** `orchestrator/` + `prompts/`
+implement the **automated** line — a deterministic fan-out → converge → release, unit-tested behind the
+provider and gate seams. `skills/mf-*` is the **human-invoked** line, and it is the one this repository's own
+releases are actually cut with today. One review axis therefore has two rubrics — `prompts/reviewer.md` for the
+automated line, the adopted community review engine for the skills — and that cost is accepted deliberately:
+collapsing them would mean rewriting the role prompts to dispatch skills a headless read-only role may not be
+able to run, which is unprovable here. Neither line is the other's spec; where they disagree, the change that
+touches one says so.
+
 > **This file is shared, role-independent context — what is *true* about this repo. It is not a script.**
 > What you should *do* comes from the **prompt/task you were given** (author a change, build a phase, review the
 > branch diff, run a security pass, apply fixes). If your prompt conflicts with this file, **the prompt wins.**
@@ -98,6 +107,9 @@ never turn CI red; it can only hand a future author different authoring instruct
 - **`orchestrator/`** — the driver, the seams, the CLI. **`prompts/`** — the six role prompts. **`tests/`** — the
   suite. **`docs/`** — the orchestrator's own map, plus `sdd.md`, the one page there that is about the *method*
   rather than about this codebase.
+- **`skills/`** — the four `mf-*` execution-line skills, one `SKILL.md` each: build, converge, backlog export,
+  release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
+  is inside the retired-vocabulary scan for that reason.
 - **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`).
 - **`.minions/`** — run artefacts, **gitignored**; `minions.toml`, the gate command list, is the one tracked file
   in it.

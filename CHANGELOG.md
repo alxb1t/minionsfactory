@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`README.md` catches up and gains the skills section** (change `0010-execution-line-skills`, phase 5). A new *The execution-line skills* section names all four skills as links to the files themselves, plus the two install commands — a map, not a summary, since each skill is the authority on what it does. The `## Status` section, which still said **v0.7.0 is the current release and the v0.8 line is in progress** two releases later, now says v0.9.0 and v0.10, and names the human-invoked line beside the automated one.
 
+- **`CLAUDE.md` declares the two lines** (change `0010-execution-line-skills`, phase 6). One paragraph, additive: `orchestrator/` + `prompts/` implement the **automated** line, `skills/mf-*` is the **human-invoked** line and the one this repository's releases are actually cut with today. The duplication is stated as **declared, not resolved** — one review axis now has two rubrics, `prompts/reviewer.md` and the adopted community review engine — with the reason it is not collapsed: doing so would mean rewriting the role prompts to dispatch skills a headless read-only role may not be able to run, which is unprovable in a doc-only change and would therefore be invention (`design.md` — D1). The **Layout** section gains `skills/` — four `mf-*` directories, one `SKILL.md` each, tracked here, installed by symlink, and inside the retired-vocabulary scan because a shipped skill is a role prompt. `git diff CLAUDE.md` is **12 insertions and 0 deletions** across two hunks, neither of which touches the gate command list, the engineering conventions, *How a change is cut here* or the guardrails.
+
 ## [0.9.0] - 2026-08-30
 
 ### Added
