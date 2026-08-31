@@ -17,7 +17,7 @@ phase 5.
 ## Progress
 
 - [x] 1 — `mf-build` — the phase-by-phase builder
-- [ ] 2 — `mf-converge` — the conductor
+- [x] 2 — `mf-converge` — the conductor
 - [ ] 3 — `mf-backlog-export` — the human-invoked vault bridge
 - [ ] 4 — `mf-release` — verify, fold, archive, tag, stop
 - [ ] 5 — The install path, and the README catches up
@@ -56,40 +56,40 @@ carries the conventions an agent loses natively rather than the building an agen
 
 The largest file, and the one that carries the invariants. It conducts and judges nothing itself.
 
-- [ ] 2.1 Create `skills/mf-converge/SKILL.md` with `name` / `description` frontmatter and the required
+- [x] 2.1 Create `skills/mf-converge/SKILL.md` with `name` / `description` frontmatter and the required
   `change-id` parameter. *Verify:* `head -4` shows the frontmatter; the body names the halt on a missing id.
-- [ ] 2.2 Write the five preconditions, each halting and naming what is missing: tree clean · **every
+- [x] 2.2 Write the five preconditions, each halting and naming what is missing: tree clean · **every
   `## Progress` box ticked** · derived range non-empty · `.minions/minions.toml` present with a non-empty `gate`
   array · gate green before round 1. *Verify:* five preconditions are enumerated, each with its halt.
-- [ ] 2.3 Write the freeze step: derive `base` via `git merge-base` against the default branch, write
+- [x] 2.3 Write the freeze step: derive `base` via `git merge-base` against the default branch, write
   `.minions/findings/<change-id>_diff.patch`, print base · head · commit count · files changed, and **halt if
   `base` equals `HEAD`**. *Verify:* the file names the patch path, the printed fields and the empty-range halt.
-- [ ] 2.4 Write the fan-out: **two** fresh read-only subagents (review, security — simplify already ran in
+- [x] 2.4 Write the fan-out: **two** fresh read-only subagents (review, security — simplify already ran in
   `mf-build`), dispatched in parallel, each given the range, the patch path and its own findings path; each scopes
   its skill to the range, falls back to reading the patch only if that scope was empty or wrong, and **states in
   its Summary which it did**. Include the three engine overrides: never `--fix`, never `--comment`, never `ultra`
   (user-triggered and billed, not agent-launchable). *Verify:* both roles, the fallback rule, the declare-scope
   rule and the three overrides are present.
-- [ ] 2.5 Write the findings-file contract: the exact frontmatter (`type` · `plan` · `project` · `branch` ·
+- [x] 2.5 Write the findings-file contract: the exact frontmatter (`type` · `plan` · `project` · `branch` ·
   `head` · `reviewed` · `round` · `open_blocking` · `verdict`), the two severity vocabularies and which station
   owns which, `open → fixed → verified` with only the checker promoting, and the append-only `## Resolution log`.
   *Verify:* the frontmatter block in the file lists all nine keys.
-- [ ] 2.6 Write the two fail-closed rules as the conductor's own reads, from disk and never from a station's
+- [x] 2.6 Write the two fail-closed rules as the conductor's own reads, from disk and never from a station's
   report: **a missing findings file is not clean**, and **an empty review is not clean** — a station reporting
   zero files reviewed writes `changes-requested` with a scope-resolution finding, and the conductor compares the
   reported count against the count it printed in 2.3. *Verify:* both rules are stated, and the count comparison
   is described as the conductor's action.
-- [ ] 2.7 Write the fix station: one subagent, clears open blocking findings to a green gate, flips per-finding
+- [x] 2.7 Write the fix station: one subagent, clears open blocking findings to a green gate, flips per-finding
   status `open → fixed` with a note, touches **no** frontmatter counter and never writes `verdict: clean`, carries
   nits to `.minions/<version>_backlog.md`, commits staged by name with the trailer. Then re-freeze the patch to
   the **scoped** range `<previous head>..<new head>`. *Verify:* the file states the counter prohibition and the
   scoped re-freeze.
-- [ ] 2.8 Write the verify round (same two roles, fresh subagents, `round ≥ 2`), the **cap of 3** with a halt that
+- [x] 2.8 Write the verify round (same two roles, fresh subagents, `round ≥ 2`), the **cap of 3** with a halt that
   leaves every findings file as it stands and names the still-open blockers by id, and the final report (verdicts
   quoted from disk · every blocking finding's end state · nits carried · the gate's exit code re-run at the end ·
   what it did **not** do: archive, fold, tag, merge, push). *Verify:* the cap, the halt contents and the five
   report items are present.
-- [ ] 2.9 Write the `Never` block: never review in your own context — if subagents cannot be dispatched, **halt**
+- [x] 2.9 Write the `Never` block: never review in your own context — if subagents cannot be dispatched, **halt**
   and say so; never edit a findings file yourself; never weaken the gate; never archive, fold, tag, merge or push.
   *Verify:* the block names all five.
 
