@@ -16,7 +16,7 @@ phase 5.
 
 ## Progress
 
-- [ ] 1 — `mf-build` — the phase-by-phase builder
+- [x] 1 — `mf-build` — the phase-by-phase builder
 - [ ] 2 — `mf-converge` — the conductor
 - [ ] 3 — `mf-backlog-export` — the human-invoked vault bridge
 - [ ] 4 — `mf-release` — verify, fold, archive, tag, stop
@@ -31,24 +31,24 @@ phase 5.
 Transcribed from the build hand-off. It is the one skill with no prior recorded run (`design.md` — D13), so it
 carries the conventions an agent loses natively rather than the building an agent does natively.
 
-- [ ] 1.1 Create `skills/mf-build/SKILL.md` with YAML frontmatter carrying `name: mf-build` and a
+- [x] 1.1 Create `skills/mf-build/SKILL.md` with YAML frontmatter carrying `name: mf-build` and a
   `description:` that names when to use it. *Verify:* `head -4 skills/mf-build/SKILL.md` shows both keys inside a
   `---` block.
-- [ ] 1.2 Write the per-phase ritual: build only the first unticked `## Progress` phase · **run each task's stated
+- [x] 1.2 Write the per-phase ritual: build only the first unticked `## Progress` phase · **run each task's stated
   verification, never summarize it** · run the full gate read from `.minions/minions.toml` · append the
   `CHANGELOG.md` entry · tick the box · **one commit for that phase**, staged by name, with the
   `Change: <change-id>` trailer contiguous with `Co-Authored-By:` · never batch phases.
   *Verify:* `grep -c 'never summarize\|Change: <change-id>\|one commit' skills/mf-build/SKILL.md` is non-zero for
   each of the three literals.
-- [ ] 1.3 Write the closing simplify pass: after the last phase, run `/simplify` over the change diff and let it
+- [x] 1.3 Write the closing simplify pass: after the last phase, run `/simplify` over the change diff and let it
   fix in place; **re-run the gate — red is a halt**; commit its edits as their own trailered commit. State that
   this is a declared deviation from `docs/sdd.md`'s three-read-only-station *Check*, and why it is safe (review
   verifies simplify's work). *Verify:* the section names `/simplify`, the re-run gate and the deviation.
-- [ ] 1.4 Write the five stop-conditions, each a halt with no guessing past it: an acceptance that cannot be a
+- [x] 1.4 Write the five stop-conditions, each a halt with no guessing past it: an acceptance that cannot be a
   passing check · the design contradicting the code · a task ambiguous enough that two readings give different
   work · a dependency that would need adding · a gate that only goes green by weakening.
   *Verify:* five distinct halt conditions are enumerated in the file.
-- [ ] 1.5 State that the change id is a **required parameter** and that the skill halts without it — never
+- [x] 1.5 State that the change id is a **required parameter** and that the skill halts without it — never
   inferred from the highest directory number (`design.md` — D12). *Verify:* the file names the parameter and the
   halt.
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/mf-build/SKILL.md` — the phase-by-phase builder** (change `0010-execution-line-skills`, phase 1). The first of the four execution-line skills, transcribed from the build hand-off that drove `v0.9` rather than invented. It takes the change id as an **explicit, required parameter** and halts without it — never `max()` over the change directory numbers, because the id keys both the phase state read and the `Change:` trailer written, so a wrong id builds one change and files it under another's name (`design.md` — D12). Its ritual is one phase per pass, in `## Progress` order and never batched: do the phase's tasks test-first, **run each sub-task's stated verification rather than summarize it** — a verification described is a claim about the check, only the command that exited is the check — run the full gate read from `.minions/minions.toml`'s `gate` array (halting and naming the file if it is absent or empty, never inferring one), append the `CHANGELOG.md` entry, tick the box, and land **one commit for that phase** staged by name with the `Change: <change-id>` trailer contiguous with `Co-Authored-By:`. It closes with a `/simplify` pass that fixes in place, re-gates (red is a halt) and commits its edits separately — a **declared deviation** from `docs/sdd.md`'s three-read-only-station *Check*, safe because simplify runs first and the review station that fans out afterwards reads a diff including its edits, so no station verifies its own work (`design.md` — D6). Five stop-conditions are enumerated as halts with nothing past them: an unmakeable acceptance, `design.md` contradicting the code, an ambiguity with two readings, a dependency that would need adding, and a gate that only goes green by weakening. The skill ships **unattested** by design — it is the one station with no prior recorded run, and a doc-only version cannot give it one (`design.md` — D13).
+
 ## [0.9.0] - 2026-08-30
 
 ### Added
