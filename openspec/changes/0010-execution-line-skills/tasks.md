@@ -22,7 +22,7 @@ phase 5.
 - [x] 4 — `mf-release` — verify, fold, archive, tag, stop
 - [x] 5 — The install path, and the README catches up
 - [x] 6 — `CLAUDE.md` declares the two lines
-- [ ] 7 — `skills/` becomes the tenth scanned root
+- [x] 7 — `skills/` becomes the tenth scanned root
 
 ---
 
@@ -174,14 +174,14 @@ Additive only. The gate section, the seams and the guardrails are untouched.
 
 The delta this change carries, and the only test edit in it.
 
-- [ ] 7.1 Add `"skills"` to `_SCANNED` in `tests/test_conventions.py` and update the verbatim tuple asserted in
+- [x] 7.1 Add `"skills"` to `_SCANNED` in `tests/test_conventions.py` and update the verbatim tuple asserted in
   **both** scan tests to the same ten entries. *Verify:* `uv run pytest -q tests/test_conventions.py` is green and
   both assertions name ten roots.
-- [ ] 7.2 Update both reintroduction tests to plant every needle in **all ten** roots and assert the full
+- [x] 7.2 Update both reintroduction tests to plant every needle in **all ten** roots and assert the full
   ten-entry hit list, so no root is asserted that a needle cannot bite in. *Verify:* `uv run pytest -q
   tests/test_conventions.py` is green, and temporarily removing `"skills"` from the tuple turns it red.
-- [ ] 7.3 Confirm the four shipped skills are clean under the widened scan — all fourteen retired needles at zero
+- [x] 7.3 Confirm the four shipped skills are clean under the widened scan — all fourteen retired needles at zero
   hits across `skills/`. *Verify:* `uv run pytest -q` is green with `skills/` inside the scan.
-- [ ] 7.4 Run the full gate and the spec binding. *Verify:* `make gate` exits 0, and
+- [x] 7.4 Run the full gate and the spec binding. *Verify:* `make gate` exits 0, and
   `uv run python -m orchestrator specs check --strict` is green with the delta in place (no scenario key changes,
   so no marker moves).

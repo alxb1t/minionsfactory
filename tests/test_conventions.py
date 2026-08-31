@@ -45,10 +45,14 @@ _RETIRED = (
 #   - `CHANGELOG.md` and `openspec/changes/archive/` — the historical record, which must
 #     keep saying what was true.
 #
-# v0.8 widened it to its current nine: `.github/`, `Makefile` and `pyproject.toml` were
-# outside the scan and free of all fourteen needles, a future-regression gap rather than
-# a live hole, and they are now inside it. That is the gap this widening closes, and not
-# the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`, `uv.lock`
+# v0.8 widened it to nine: `.github/`, `Makefile` and `pyproject.toml` were outside the
+# scan and free of all fourteen needles, a future-regression gap rather than a live
+# hole, and they are now inside it. v0.10 makes it ten by re-adding `skills/`, which WAS
+# a scanned root under v0.7 and left the tuple in v0.8 only because that version deleted
+# the directory — re-creating it without re-adding it would re-open a gap already closed
+# once, and a shipped skill is a role prompt. That is the gap this widening closes, and
+# not the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`,
+# `uv.lock`
 # and the four files of the ACTIVE `openspec/changes/<id>/` are tracked, non-historical,
 # and neither scanned nor declared above. The active change is the load-bearing one,
 # and it cannot simply be added — a change's own delta must be able to name the
@@ -60,6 +64,7 @@ _RETIRED = (
 _SCANNED = (
     "orchestrator",
     "prompts",
+    "skills",
     "docs",
     "README.md",
     "CLAUDE.md",
@@ -99,6 +104,7 @@ def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> No
     assert _SCANNED == (
         "orchestrator",
         "prompts",
+        "skills",
         "docs",
         "README.md",
         "CLAUDE.md",
@@ -121,12 +127,14 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
     # scanned root in turn and confirm every plant is reported.
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
+    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
     (tmp_path / "docs" / "modules").mkdir(parents=True)
     (tmp_path / ".github" / "workflows").mkdir(parents=True)
 
     for needle in _RETIRED:
         (tmp_path / "orchestrator" / "state.py").write_text(f'D = "{needle}"\n')
         (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
+        (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
         (tmp_path / "docs" / "modules" / "state.md").write_text(f"the {needle} thing\n")
         (tmp_path / "README.md").write_text(f"a vault with {needle}\n")
         (tmp_path / "CLAUDE.md").write_text(f"the {needle} model is retired\n")
@@ -138,6 +146,7 @@ def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
         assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/state.py:1",
             "prompts/coder.md:1",
+            "skills/mf-build/SKILL.md:1",
             "docs/modules/state.md:1",
             "README.md:1",
             "CLAUDE.md:1",
@@ -181,6 +190,7 @@ def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs()
     assert _SCANNED == (
         "orchestrator",
         "prompts",
+        "skills",
         "docs",
         "README.md",
         "CLAUDE.md",
@@ -224,12 +234,14 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
     # or the scan is decoration.
     (tmp_path / "orchestrator").mkdir()
     (tmp_path / "prompts").mkdir()
+    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
     (tmp_path / "docs" / "modules").mkdir(parents=True)
     (tmp_path / ".github" / "workflows").mkdir(parents=True)
 
     for needle in _RETIRED_VAULT:
         (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
         (tmp_path / "prompts" / "coder.md").write_text(f"write to the {needle}\n")
+        (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
         (tmp_path / "docs" / "modules" / "findings.md").write_text(f"the {needle}\n")
         (tmp_path / "README.md").write_text(f"a report under {needle}\n")
         (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
@@ -241,6 +253,7 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
         assert _hits(tmp_path, _SCANNED, needle) == [
             "orchestrator/findings.py:1",
             "prompts/coder.md:1",
+            "skills/mf-build/SKILL.md:1",
             "docs/modules/findings.md:1",
             "README.md:1",
             "CLAUDE.md:1",
