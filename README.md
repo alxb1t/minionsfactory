@@ -16,7 +16,7 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.9.0 is the current release; work on the v0.10 line is in progress.** The loop is closed end to end: the
+**v0.10.0 is the current release; the v0.11 line has not opened.** The loop is closed end to end: the
 per-phase build spine (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖
 security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
 unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
