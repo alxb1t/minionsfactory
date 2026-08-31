@@ -20,6 +20,7 @@ gate:
 install-skills:
 	@mkdir -p "$(HOME)/.claude/skills"
 	@for d in skills/mf-*; do \
+		[ -d "$$d" ] || continue; \
 		name=$$(basename $$d); \
 		ln -sfn "$(CURDIR)/$$d" "$(HOME)/.claude/skills/$$name"; \
 		echo "linked ~/.claude/skills/$$name -> $$d"; \
@@ -29,6 +30,7 @@ install-skills:
 # directory of the same name in the operator's skills tree is never touched.
 uninstall-skills:
 	@for d in skills/mf-*; do \
+		[ -d "$$d" ] || continue; \
 		name=$$(basename $$d); \
 		if [ -L "$(HOME)/.claude/skills/$$name" ]; then \
 			rm "$(HOME)/.claude/skills/$$name"; \

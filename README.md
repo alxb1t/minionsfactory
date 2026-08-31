@@ -21,8 +21,8 @@ per-phase build spine (spawn coder → gate → advance/commit or halt → resum
 security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
 unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
 everything a run declares, resolves or writes lands inside the target repository. The installed CLI, extra
-provider adapters, and the UI are still ahead. Alongside that automated line, the **execution-line skills**
-under [`skills/`](skills/) are the human-invoked line that ships releases today — see below.
+provider adapters, and the UI are still ahead. Beside that automated line sit the **execution-line skills** —
+see below.
 
 Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
 
@@ -94,8 +94,7 @@ human-invoked line — the one this repository's own releases are cut with — b
 | [`mf-backlog-export`](skills/mf-backlog-export/SKILL.md) | carry the release's deferred work out and empty the file |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
 
-Install them into your personal skills directory as symlinks, so an edit in this tree is live in the next
-session with no re-install:
+Install them into your personal skills directory as symlinks (the `Makefile` records why a symlink):
 
 ```bash
 make install-skills      # symlink skills/mf-* into your personal skills directory

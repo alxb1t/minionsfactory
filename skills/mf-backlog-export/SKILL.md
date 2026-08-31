@@ -72,9 +72,9 @@ reader can tell which is current. Linking keeps one record and makes the relatio
 
 ## Step 4 — Empty the repository-side file
 
-1. **Remove every list line** from it. Not tick them — remove them. A ticked list is the failure this step
-   exists to prevent: **a ticked item still blocks the release**, because the release predicate reads *any*
-   remaining list line as deferred work regardless of its checkbox.
+1. **Remove every list line** from it — remove, never tick. **A ticked item still blocks the release**,
+   because the release precondition reads *any* remaining list line as deferred work regardless of its
+   checkbox, so a ticked list is the failure this step exists to prevent.
 2. **Never delete the file.** It is the artefact the release precondition reads; its header stays, and an empty
    file is a **pass** — nothing was deferred — rather than a missing one.
 3. **Replace the list with a prose record of where each item went** — which items were exported and to which
@@ -112,5 +112,4 @@ Then report: every item by id, its class, and where it went.
 - **Never resolve, search for, or guess a path outside the repository** — it is a parameter or it is a halt.
 - **Never drop an item** without a class and a stated reason.
 - **Never invent a version commitment** to make an item look scheduled.
-- **Never tick an item instead of removing it** — a tick clears nothing.
 - **Never fix code, edit a findings file, or make a release decision.** You are a bridge.

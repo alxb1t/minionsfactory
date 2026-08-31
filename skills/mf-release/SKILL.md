@@ -32,8 +32,10 @@ The gate is the ordered command list in **`.minions/minions.toml`**'s `gate` arr
 inferred gate exits 0 over nothing and releases a branch nobody checked.
 
 Two constants may legitimately be absent, and their absence is a **stated skip, not a halt**: a **version file**
-(many repos keep none) and a **spec-binding check** command (many repos have none to run). Say in your report
-that each was `none` and why, rather than passing over it silently.
+(many repos keep none) and a **spec-binding check** command. The binding check is read from the **same `gate`
+array** — it is the entry that runs the repository's spec-binding checker, conventionally the last one — and if
+that array holds none, it is `none`. Do not infer one from a command you found, for the same reason you do not
+infer a gate. Say in your report that each was `none` and why, rather than passing over it silently.
 
 ## Step 1 — Preconditions (seven; every one holds, or halt)
 
@@ -100,7 +102,9 @@ archive**, so the instant a change is archived its delta's keys stop resolving a
    **Write no new changelog prose here.** The entries were written by the phases that earned them; a release
    that adds prose is describing work from outside the work, and what it adds has no phase behind it.
 2. **Version file**, if the repository keeps one — bump it to the same number. If it keeps none, record `none`
-   and move on.
+   and move on. Then check whether the repository states its current version in **prose** anywhere it is read
+   as current — a README status line is the usual one — and correct it here. A prose claim no step reaches goes
+   stale by construction, one release at a time.
 3. **Commit** — **one** release commit: `chore(release): <version>.0`. The fold, the archive move, the changelog
    cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. End the message with
    the trailer block, `Co-Authored-By:` and `Change: <change-id>` **contiguous** — git parses the trailer block
@@ -142,8 +146,8 @@ Then **STOP**. Do not run the merge, the push, or a checkout of the default bran
   ceiling; the human ships.
 - **Never edit feature code or tests.** A failed precondition goes back to the build or the converge loop — you
   are a gate, not a fix.
-- **Never release over** a red gate, a non-clean verdict, an unverified blocking finding, a missing findings
-  file, or any remaining list line in the deferred-work file. No exceptions, no "just this once".
+- **Never release over a failed precondition.** All seven of Step 1 hold, or you halt. No exceptions, no
+  "just this once", and no precondition summarized here — Step 1 is the list, and a second copy of it drifts.
 - **Never archive a change whose post-fold binding check is red** — fold, verify, *then* archive.
 - **Never invent the version**, and never write new changelog prose at release.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file. Cite

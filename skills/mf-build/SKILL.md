@@ -1,9 +1,9 @@
 ---
 name: mf-build
-description: Build the active in-repo change phase by phase — one phase per pass, each verification run rather than summarized, each phase ending on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with a /simplify pass. Use when a change under openspec/changes/ has been cut and its phases need building.
+description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with a /simplify pass. Use when a change under openspec/changes/ has been cut and its phases need building.
 ---
 
-# mf-build — build the active change, one phase per pass
+# mf-build — build the active change, one phase at a time
 
 > **Your role is BUILD.** You build the phases of one change, in order, to a green gate, and you commit each
 > phase on its own. You do **not** review your own work, and you do **not** converge or release: `mf-converge`
@@ -40,8 +40,9 @@ If every `## Progress` box is already ticked, do not invent scope: the change is
 
 ## Step 2 — The per-phase ritual
 
-Build **only the first unticked `## Progress` phase**. Never batch phases, and never start the next one in the
-same pass — the ordering exists so each phase is reviewable and revertible on its own.
+Take the **first unticked `## Progress` phase** and finish its whole ritual — through its own commit — before
+you look at the next one. Never batch phases: the ordering exists so each phase is reviewable and revertible on
+its own.
 
 1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance,
    then implement to green. External effects are faked behind the repo's declared seams, so the suite stays
@@ -60,14 +61,14 @@ same pass — the ordering exists so each phase is reviewable and revertible on 
    `.minions/` holds gitignored run output and an un-ignored one would be swept into history. Write a
    Conventional-Commits subject, and end the message with the trailer block:
 
-       Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+       Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
 
-   **Every commit carries a `Change: <change-id>` git trailer**, and the two lines are **contiguous** — git
-   parses the trailer block as the last paragraph of the message, so a blank line between them silently breaks
-   it.
+   **Every commit carries a `Change: <change-id>` git trailer**, and it is **contiguous** with any
+   `Co-Authored-By:` — git parses the trailer block as the last paragraph of the message, so a blank line
+   between them silently breaks it.
 
-Then take the next unticked phase, from Step 2 again, until every box is ticked.
+Only then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 ## Step 3 — Close with the `/simplify` pass
 

@@ -50,9 +50,8 @@ _RETIRED = (
 # hole, and they are now inside it. v0.10 makes it ten by re-adding `skills/`, which WAS
 # a scanned root under v0.7 and left the tuple in v0.8 only because that version deleted
 # the directory — re-creating it without re-adding it would re-open a gap already closed
-# once, and a shipped skill is a role prompt. That is the gap this widening closes, and
-# not the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`,
-# `uv.lock`
+# once, and a shipped skill is a role prompt. That is the gap this widening closes, not
+# the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`, `uv.lock`
 # and the four files of the ACTIVE `openspec/changes/<id>/` are tracked, non-historical,
 # and neither scanned nor declared above. The active change is the load-bearing one,
 # and it cannot simply be added — a change's own delta must be able to name the
