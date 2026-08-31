@@ -19,7 +19,7 @@ phase 5.
 - [x] 1 — `mf-build` — the phase-by-phase builder
 - [x] 2 — `mf-converge` — the conductor
 - [x] 3 — `mf-backlog-export` — the human-invoked vault bridge
-- [ ] 4 — `mf-release` — verify, fold, archive, tag, stop
+- [x] 4 — `mf-release` — verify, fold, archive, tag, stop
 - [ ] 5 — The install path, and the README catches up
 - [ ] 6 — `CLAUDE.md` declares the two lines
 - [ ] 7 — `skills/` becomes the tenth scanned root
@@ -118,26 +118,26 @@ The only skill that touches anything outside the repository, and the only one th
 
 The strongest prohibition in the set, and the step with the least prior evidence — `v0.9`'s fold was a no-op.
 
-- [ ] 4.1 Create `skills/mf-release/SKILL.md` with frontmatter and the required `change-id` parameter.
+- [x] 4.1 Create `skills/mf-release/SKILL.md` with frontmatter and the required `change-id` parameter.
   *Verify:* `head -4` shows the frontmatter; the body names the halt on a missing id.
-- [ ] 4.2 Write the preconditions, each a halt naming what is missing and who owns it: gate **re-run** in this
+- [x] 4.2 Write the preconditions, each a halt naming what is missing and who owns it: gate **re-run** in this
   session · review and security `verdict: clean` with every blocking finding `verified`, not merely `fixed` · **a
   missing findings file is not clean**, and **simplify is declared out by name** (it produces no file by design,
   `design.md` — D6) · the deferred-work file holds no list line whatever its checkbox state, a missing file
   passing · the version line aligned (tag absent, `## [Unreleased]` has real entries) · tree clean · the spec
   binding green **before** the fold. *Verify:* seven preconditions enumerated; simplify named as excluded.
-- [ ] 4.3 Write the fold: `ADDED` appends · `MODIFIED` **replaces the whole requirement matched by title**, byte
+- [x] 4.3 Write the fold: `ADDED` appends · `MODIFIED` **replaces the whole requirement matched by title**, byte
   for byte · `REMOVED` deletes · capability preamble prose preserved verbatim and flagged for a hand-edit if the
   change invalidated it · a `skip_specs` change folds nothing but **still archives**. *Verify:* all three
   operations, the preamble caveat and the skip-specs branch are present.
-- [ ] 4.4 Write verify-after-fold then archive, and state that **fold, verify and archive land in the same
+- [x] 4.4 Write verify-after-fold then archive, and state that **fold, verify and archive land in the same
   commit** — the binding check ignores the archive, so an archived delta's keys stop resolving and every marker
   bound to them dangles. Red post-fold check → **do not archive, halt**. *Verify:* the ordering, the one-commit
   rule and its reason are stated.
-- [ ] 4.5 Write the version-line cut (changelog heading and a fresh empty `## [Unreleased]`; version file if the
+- [x] 4.5 Write the version-line cut (changelog heading and a fresh empty `## [Unreleased]`; version file if the
   repo keeps one; no new changelog prose written here), the one release commit and the annotated tag.
   *Verify:* the file forbids writing new changelog prose at release.
-- [ ] 4.6 Write the closing: re-run the gate on the released tree, then **stop** — report each precondition and
+- [x] 4.6 Write the closing: re-run the gate on the released tree, then **stop** — report each precondition and
   how it was verified, what the fold changed or that it was a no-op and why, the release commit and tag, and
   **what it did not do: merge, push** — naming both as the human's, with the squash-caveat note. *Verify:* the
   file names merge and push as the human's and performs neither.
