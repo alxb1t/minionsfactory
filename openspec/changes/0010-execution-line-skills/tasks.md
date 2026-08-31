@@ -18,7 +18,7 @@ phase 5.
 
 - [x] 1 — `mf-build` — the phase-by-phase builder
 - [x] 2 — `mf-converge` — the conductor
-- [ ] 3 — `mf-backlog-export` — the human-invoked vault bridge
+- [x] 3 — `mf-backlog-export` — the human-invoked vault bridge
 - [ ] 4 — `mf-release` — verify, fold, archive, tag, stop
 - [ ] 5 — The install path, and the README catches up
 - [ ] 6 — `CLAUDE.md` declares the two lines
@@ -97,20 +97,20 @@ The largest file, and the one that carries the invariants. It conducts and judge
 
 The only skill that touches anything outside the repository, and the only one that commits nothing.
 
-- [ ] 3.1 Create `skills/mf-backlog-export/SKILL.md` with frontmatter, and declare the vault path an **explicit
+- [x] 3.1 Create `skills/mf-backlog-export/SKILL.md` with frontmatter, and declare the vault path an **explicit
   parameter with no default** — the skill resolves nothing, searches for nothing, and halts if either path does
   not resolve. *Verify:* the file names the parameter and the halt, and `grep -c '~/' skills/mf-backlog-export/SKILL.md`
   returns 0.
-- [ ] 3.2 Write the classification step — **moot** (subject deleted or superseded, closed with what removed it) ·
+- [x] 3.2 Write the classification step — **moot** (subject deleted or superseded, closed with what removed it) ·
   **next release** · **future / unversioned** — with the rule that no item is silently dropped and no version
   commitment is invented. *Verify:* three classes, each with its stated reason requirement.
-- [ ] 3.3 Write the carry-whole rule (id · severity · source role · `path:line` · the defect · the suggested fix)
+- [x] 3.3 Write the carry-whole rule (id · severity · source role · `path:line` · the defect · the suggested fix)
   and the no-duplicate rule (link, never restate — two copies drift). *Verify:* both rules are present with their
   reasons.
-- [ ] 3.4 Write the empty-the-file step: remove every list line, never delete the file, never leave a ticked list,
+- [x] 3.4 Write the empty-the-file step: remove every list line, never delete the file, never leave a ticked list,
   and replace the list with a prose record of where each item went. *Verify:* the file states that a ticked item
   still blocks.
-- [ ] 3.5 Write the two verification greps (zero list lines in the repo-side file; the new block present in the
+- [x] 3.5 Write the two verification greps (zero list lines in the repo-side file; the new block present in the
   vault) and the guardrails: never write a vault path into a tracked repository file, and **commit nothing**.
   *Verify:* both greps and both guardrails are present.
 
