@@ -8,7 +8,7 @@ contract, and `mf-cut-change` is written. Each phase is one commit. The why of e
 
 - [x] 1 — `mf-release` drops its separate binding step
 - [x] 2 — The skills run `make gate`
-- [ ] 3 — `mf-build` gets its input contract
+- [x] 3 — `mf-build` gets its input contract
 - [ ] 4 — `mf-cut-change`, the cut station
 
 ## 1 — `mf-release` drops its separate binding step
@@ -62,21 +62,21 @@ runner only, per [D3](design.md#d3).
 All edits are in `skills/mf-build/SKILL.md`: the table is [The input contract](design.md#the-input-contract),
 Step 1 is [D6](design.md#d6), Step 2 and the stop-conditions are [D7](design.md#d7).
 
-- [ ] 3.1 Add `## Input contract` after *Parameter*: rows `**I1**`…`**I15**`, columns *the change must* and
+- [x] 3.1 Add `## Input contract` after *Parameter*: rows `**I1**`…`**I15**`, columns *the change must* and
   *Step 1 checks it*. Verify: `grep -c '^| \*\*I[0-9]*\*\* |' skills/mf-build/SKILL.md` prints `15`.
-- [ ] 3.2 Step 1: check `I1`, `I4`, `I13`, `I14` first, halting with the id; narrow the dirty-tree rule. Verify:
+- [x] 3.2 Step 1: check `I1`, `I4`, `I13`, `I14` first, halting with the id; narrow the dirty-tree rule. Verify:
   `sed -n '/^## Step 1/,/^## Step 2/p' skills/mf-build/SKILL.md | grep -c 'ls-files --error-unmatch'` prints `1`.
-- [ ] 3.3 Step 2: the HUMAN-phase rule. Verify:
+- [x] 3.3 Step 2: the HUMAN-phase rule. Verify:
   `sed -n '/^## Step 2/,/^## Step 3/p' skills/mf-build/SKILL.md | grep -c '\*\*HUMAN'` prints `1` or more.
-- [ ] 3.4 Step 2 item 2: tick each `N.M` once its check passes; a failed `**HALT CHECK**` halts. Verify:
+- [x] 3.4 Step 2 item 2: tick each `N.M` once its check passes; a failed `**HALT CHECK**` halts. Verify:
   `sed -n '/^## Step 2/,/^## Step 3/p' skills/mf-build/SKILL.md | grep -c -e 'N.M' -e 'HALT CHECK'` prints `2` or more.
-- [ ] 3.5 Step 2 item 4: a CHANGELOG entry is 1–3 short lines, what changed and why. Verify:
+- [x] 3.5 Step 2 item 4: a CHANGELOG entry is 1–3 short lines, what changed and why. Verify:
   `grep -c 'the style of the entries already there' skills/mf-build/SKILL.md` prints `0`.
-- [ ] 3.6 Stop-condition 4: a package under `design.md`'s `## Dependencies` is added as listed; any other halts.
+- [x] 3.6 Stop-condition 4: a package under `design.md`'s `## Dependencies` is added as listed; any other halts.
   Verify: `sed -n '/^## Stop-conditions/,/^## What you must NOT/p' skills/mf-build/SKILL.md | grep -c '## Dependencies'` prints `1` or more.
-- [ ] 3.7 **HALT CHECK** — this change meets `I1`. Verify:
+- [x] 3.7 **HALT CHECK** — this change meets `I1`. Verify:
   `git ls-files --error-unmatch openspec/changes/0011-cut-and-gate/tasks.md` exits 0, and `git branch --show-current` prints `v0.11_cut_and_gate`.
-- [ ] 3.8 **HALT CHECK** — this change meets `I4` and `I13`. Verify:
+- [x] 3.8 **HALT CHECK** — this change meets `I4` and `I13`. Verify:
   `grep -c '^- \[.\] [0-9]* — ' openspec/changes/0011-cut-and-gate/tasks.md` prints `4`; `grep -c '^version: v0.11$' openspec/changes/0011-cut-and-gate/proposal.md` prints `1`.
 
 ## 4 — `mf-cut-change`, the cut station

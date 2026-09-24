@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `gate` target. The `Makefile` recipe is now the one list: CI runs it, and the docs name it instead of copying
   it. The toml stays for the parked runner, marked deprecated. **BREAKING** for a target repo with no root
   `gate` target. `tests/test_skills.py` holds the rule.
+- **`mf-build` gets its input contract** (change `0011-cut-and-gate`, phase 3). A new `## Input contract`
+  lists `I1`…`I15`, what a change must meet; Step 1 checks `I1`, `I4`, `I13`, `I14` first. The build now halts
+  before a HUMAN phase, halts on a failed HALT CHECK, ticks `N.M` boxes, adds a dependency `design.md` approved,
+  and writes short CHANGELOG entries.
 
 ## [0.10.0] - 2026-08-31
 

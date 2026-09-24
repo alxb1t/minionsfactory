@@ -20,7 +20,42 @@ write, so a wrong id builds one change's phases and files them under another's n
 
 Echo the change id and the phase you are about to build before you build anything.
 
+## Input contract
+
+What a change must meet before you build it. This skill owns the list; `mf-cut-change` writes to it and carries
+the same ids. Step 1 checks the four marked **yes** itself; the rest surface through the stop-conditions.
+
+| id | the change must | Step 1 checks it |
+|---|---|---|
+| **I1** | be committed, on its own branch `v<version>_<slug>` cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
+| **I2** | have all four artifacts and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
+| **I3** | leave `make gate` green on the cut commit | — |
+| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
+| **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
+| **I6** | give every task one reading: it names its files, offers no "or", and any count shows the command that produced it | — (stop-condition 3) |
+| **I7** | name, in some task, every existing file the change will turn red | — |
+| **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | — (stop-condition 5) |
+| **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
+| **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | — (stop-condition 2) |
+| **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
+| **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `/simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
+| **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
+| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`), and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
+| **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
+
 ## Step 1 — Lift the context
+
+**First, check the four input-contract items marked yes** — a failure halts, naming the id:
+
+- **`I1`** — `git ls-files --error-unmatch openspec/changes/<change-id>/tasks.md` exits 0, and
+  `git branch --show-current` is not the default branch.
+- **`I4`** — `tasks.md` has a `## Progress` list with at least one line of the form `- [ ] N — Title`
+  (ticked or not).
+- **`I13`** — `proposal.md` opens with frontmatter holding a `version:` key.
+- **`I14`** — every `## Progress` line containing `**HUMAN` has a `## N — Title` section with at least one
+  `Verify:`.
+
+Then lift the context:
 
 1. **The change** — `openspec/changes/<change-id>/`: `proposal.md` (scope), `design.md` and `tasks.md`
    (the whole file, and your phase's sub-tasks and their stated verifications in particular).
@@ -35,8 +70,9 @@ Echo the change id and the phase you are about to build before you build anythin
    it prints no command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`.
    Never infer a gate, never ask for one, never run a command you found instead.
 
-If the tree is dirty when you start, a previous pass at this phase was interrupted. Read what is there against
-the phase's acceptance and **continue** it rather than restarting; say so in your report.
+If the tree is dirty when you start **and `tasks.md` is tracked** (the `I1` check above), a previous pass at this
+phase was interrupted. Read what is there against the phase's acceptance and **continue** it rather than
+restarting; say so in your report. An untracked change is never a phase to continue: it fails `I1`, and halts.
 
 If every `## Progress` box is already ticked, do not invent scope: the change is built. Report that and stop.
 
@@ -46,17 +82,25 @@ Take the **first unticked `## Progress` phase** and finish its whole ritual — 
 you look at the next one. Never batch phases: the ordering exists so each phase is reviewable and revertible on
 its own.
 
+**A HUMAN phase is done by a person, not by you.** Its `## Progress` line contains `**HUMAN`. Do none of its
+tasks; run its `Verify:` checks. If any fails, **halt**: print its sub-tasks as the person's checklist, and the
+checks that will close it. If all pass, the person has done it: run the gate, write the CHANGELOG entry, tick the
+phase and its `N.M` boxes, and commit — staging the person's evidence files by name.
+
 1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance,
    then implement to green. External effects are faked behind the repo's declared seams, so the suite stays
    offline and deterministic.
 2. **Run each sub-task's stated verification — run it, never summarize it.** Paste the command's real output
    into your report. A verification you describe is a claim about the check; only the command that exited is the
-   check. This is the same rule the gate is under, applied to the per-task acceptance.
+   check. This is the same rule the gate is under, applied to the per-task acceptance. Tick each `- [ ] N.M` →
+   `- [x] N.M` once its check has run and passed.
+   A sub-task marked `**HALT CHECK**` whose check fails is a **halt**: the plan's premise broke. Never change
+   code to make it pass.
 3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate
    to pass:** deleting or skipping a test, a blanket suppression, a loosened config — each is a plan problem, and
    the move is to halt (see *Stop-conditions*).
-4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — what the phase changed and why, in
-   the style of the entries already there.
+4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
+   changed and why, in plain words.
 5. **Tick the phase's box** in the `## Progress` list in `tasks.md` (`- [ ] N` → `- [x] N`). A phase is finished
    by a commit **and** a ticked box; either alone is not an advance.
 6. **One commit for that phase.** Stage the paths you changed **by name** — never `git add -A`, because
@@ -107,7 +151,8 @@ were whole is not.
 2. **`design.md` contradicting the code** — the decisions were settled against reality; where reality has moved,
    that is a finding, never a silent divergence.
 3. **A task ambiguous enough that two readings give different work** — halt and state both readings.
-4. **A dependency that would need adding** — state the justification and stop for approval. Dependencies are the
+4. **A dependency that would need adding** — a package listed under `design.md`'s `## Dependencies` was approved
+   at the cut: add it as listed. Any other: state the justification and stop for approval. Dependencies are the
    supply-chain surface and are human-gated.
 5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut.
 
