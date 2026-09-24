@@ -15,7 +15,7 @@ gate:
 	uv run pytest -q
 	uv run python -m orchestrator specs check --strict
 
-# Symlink the four mf- execution-line skills into the operator's personal skills
+# Symlink the mf- execution-line skills into the operator's personal skills
 # directory — `SKILLS_DIR`, which defaults to `~/.claude/skills` and is the ONE place
 # that directory is named (no skill names it; see the change's design note on where
 # paths may appear). Override it to install elsewhere, or to exercise these targets
@@ -27,7 +27,7 @@ SKILLS_DIR ?= $(HOME)/.claude/skills
 
 # Two rules make this an install rather than a claim about one. The loop is joined with
 # `&&`, not `;`: a `;`-joined loop reports the exit status of its trailing `echo`, so a
-# failed `ln` is swallowed and the target exits 0 announcing four links it did not
+# failed `ln` is swallowed and the target exits 0 announcing links it did not
 # create. And a destination that already exists and is NOT a symlink is refused, never
 # overwritten: `ln -f` will not unlink a directory, so it would silently create the link
 # one level INSIDE it — invisible to the harness, and out of reach of `uninstall-skills`,

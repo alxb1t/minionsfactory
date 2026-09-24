@@ -10,7 +10,7 @@ automates** — it is built the way it builds.
 contract and the release fold; and, in its Part II, what must be settled before a change is cut and the
 readiness checklist for a repository. That page is authoritative for *how the work is done*, and this file does
 not restate it. What follows is what is true of **this repository in particular**: its gate, its seams,
-how a change is cut here, its guardrails, its layout.
+its guardrails, its layout. A change is cut with the `mf-cut-change` skill.
 
 Hard constraints that shape the code here: **no LLM sits in the orchestration layer** (the driver is
 deterministic, unit-testable control flow); **the orchestrator runs the objective checks itself** (the gate + git
@@ -67,40 +67,19 @@ else. In brief, the load-bearing seams are:
 
 ---
 
-## How a change is cut here
-
-The method is `docs/sdd.md`'s and is not restated here; what follows is the mechanics — which commands, against
-which tooling. Planning runs **in this repository**, and the four artifacts are the record.
-
-1. **Settle the decisions first.** A change is cut from decisions that have been argued against a person, not from
-   a first draft. The verdict that comes out of it — `feasible` / `feasible-with-caveats` / `needs-precursor` /
-   `infeasible-as-specified` — is recorded in the change's `design.md`.
-2. **Scaffold** — `openspec new change <NN-slug>`. It creates the change directory and the artifact skeletons.
-3. **Author the four artifacts** against `openspec instructions <artifact> --change <NN-slug>`, which emits that
-   artifact's structure together with this repo's overrides from `openspec/config.yaml`. `proposal.md` additionally
-   opens with `version: vX.Y` frontmatter — **this repo's reader requires it and the CLI neither emits nor checks
-   it**, so it is on the author.
-4. **A change that changes no requirement** declares the absence rather than inventing one: `skip_specs: true` in
-   the change's tracked `.openspec.yaml`, plus `specs/.gitkeep` so the directory stays tracked. The two are
-   mutually exclusive — a spec file under `specs/` alongside `skip_specs` fails validation.
-5. **Finish on a green check** — `openspec validate <NN-slug> --strict`.
-
-The tooling is **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and
-resolved on `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can
-never turn CI red; it can only hand a future author different authoring instructions. This repository's own
-`uv run python -m orchestrator specs check --strict` remains the binding authority, and it *is* in the gate.
-
----
-
 ## Layout — where things live here
 
 - **`orchestrator/`** — the driver, the seams, the CLI. **`prompts/`** — the six role prompts. **`tests/`** — the
   suite. **`docs/`** — the orchestrator's own map, plus `sdd.md`, the one page there that is about the *method*
   rather than about this codebase.
-- **`skills/`** — the four `mf-*` execution-line skills, one `SKILL.md` each: build, converge, backlog export,
-  release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
+- **`skills/`** — the five `mf-*` execution-line skills, one `SKILL.md` each: cut, build, converge, backlog
+  export, release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
   is inside the retired-vocabulary scan for that reason.
-- **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`).
+- **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`). The OpenSpec CLI is
+  **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on
+  `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can never turn CI
+  red; it can only hand a future author different authoring instructions. The binding authority is this
+  repository's own spec-binding check, and it *is* in the gate.
 - **`.minions/`** — run artefacts, **gitignored**; `minions.toml`, the runner's deprecated copy of the gate, is
   the one tracked file in it.
 - **Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the

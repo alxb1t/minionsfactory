@@ -72,12 +72,13 @@ CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
 
 ## The execution-line skills
 
-Four hand-invoked skills under [`skills/`](skills/) drive a change from built to released. They are the
+Five hand-invoked skills under [`skills/`](skills/) drive a change from cut to released. They are the
 human-invoked line — the one this repository's own releases are cut with — beside the automated line under
 `orchestrator/`. Each skill is the authority on what it does; this list is a map, not a summary:
 
 | skill | what it is for |
 | --- | --- |
+| [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
 | [`mf-backlog-export`](skills/mf-backlog-export/SKILL.md) | carry the release's deferred work out and empty the file |

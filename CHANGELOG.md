@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before a HUMAN phase, halts on a failed HALT CHECK, ticks `N.M` boxes, adds a dependency `design.md` approved,
   and writes short CHANGELOG entries.
 
+### Added
+
+- **`skills/mf-cut-change/SKILL.md`, the cut station** (change `0011-cut-and-gate`, phase 4). It cuts a change
+  from a settled grilling in eleven steps — branch, write with the OpenSpec CLI, self-check against `I1`…`I15`,
+  show the human, commit on their OK — so `mf-build` gets a change it can run. `CLAUDE.md` loses its cut section.
+
 ## [0.10.0] - 2026-08-31
 
 ### Added

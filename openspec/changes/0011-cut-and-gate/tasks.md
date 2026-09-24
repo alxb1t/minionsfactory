@@ -9,7 +9,7 @@ contract, and `mf-cut-change` is written. Each phase is one commit. The why of e
 - [x] 1 — `mf-release` drops its separate binding step
 - [x] 2 — The skills run `make gate`
 - [x] 3 — `mf-build` gets its input contract
-- [ ] 4 — `mf-cut-change`, the cut station
+- [x] 4 — `mf-cut-change`, the cut station
 
 ## 1 — `mf-release` drops its separate binding step
 
@@ -85,26 +85,26 @@ The skill's body is [The cut, step by step](design.md#the-cut-step-by-step) and
 [How the artifacts read](design.md#how-the-artifacts-read). Its sections, in order: *Parameters* · Step 1…11 ·
 *Input contract* · *How the artifacts read* · *Never*.
 
-- [ ] 4.1 Test first: add the contract-ids scan and its bite test to `tests/test_skills.py`, bound to
+- [x] 4.1 Test first: add the contract-ids scan and its bite test to `tests/test_skills.py`, bound to
   `sdd:input-contract:ids-agree`. Verify: `uv run pytest tests/test_skills.py -q` fails —
   `skills/mf-cut-change/SKILL.md` does not exist.
-- [ ] 4.2 Create `skills/mf-cut-change/SKILL.md` with `name: mf-cut-change` and a `description:` saying when to
+- [x] 4.2 Create `skills/mf-cut-change/SKILL.md` with `name: mf-cut-change` and a `description:` saying when to
   use it. It sits inside `tests/test_conventions.py`'s retired-vocabulary scan. Verify: `head -4 skills/mf-cut-change/SKILL.md`
   shows both keys inside a `---` block; `uv run pytest tests/test_conventions.py -q` exits 0.
-- [ ] 4.3 Write *Parameters* and the eleven steps, one `## Step N` heading each.
+- [x] 4.3 Write *Parameters* and the eleven steps, one `## Step N` heading each.
   Verify: `grep -c '^## Step [0-9]' skills/mf-cut-change/SKILL.md` prints `11`.
-- [ ] 4.4 Write `## Input contract`: rows `**I1**`…`**I15**`, each saying how the cutter meets and checks it.
+- [x] 4.4 Write `## Input contract`: rows `**I1**`…`**I15**`, each saying how the cutter meets and checks it.
   Verify: `grep -c '^| \*\*I[0-9]*\*\* |' skills/mf-cut-change/SKILL.md` prints `15`.
-- [ ] 4.5 Write `## How the artifacts read`: 16 numbered table rows, then the before → after example. Verify:
+- [x] 4.5 Write `## How the artifacts read`: 16 numbered table rows, then the before → after example. Verify:
   `sed -n '/^## How the artifacts read/,/^## Never/p' skills/mf-cut-change/SKILL.md | grep -c '^| [0-9]* |'` prints `16`.
-- [ ] 4.6 Write `## Never`: the seven bullets in [design.md → Never](design.md#never).
+- [x] 4.6 Write `## Never`: the seven bullets in [design.md → Never](design.md#never).
   Verify: `sed -n '/^## Never/,$p' skills/mf-cut-change/SKILL.md | grep -c '^- '` prints `7`.
-- [ ] 4.7 `CLAUDE.md`: delete *How a change is cut here*; move its OpenSpec tooling sentence into *Layout*'s
+- [x] 4.7 `CLAUDE.md`: delete *How a change is cut here*; move its OpenSpec tooling sentence into *Layout*'s
   `openspec/` bullet; the `skills/` bullet names five skills. Verify: `grep -c -i 'how a change is cut here' CLAUDE.md`
   prints `0`; `grep -c 'fission-ai/openspec' CLAUDE.md` prints `1`.
-- [ ] 4.8 `openspec/config.yaml`: the `context:` line and the two rules that point at the deleted section state
+- [x] 4.8 `openspec/config.yaml`: the `context:` line and the two rules that point at the deleted section state
   their facts directly — the `version:` frontmatter, and the `skip_specs` + `specs/.gitkeep` pair. Verify:
   `grep -c -i 'how a change is cut here' openspec/config.yaml` prints `0`; `openspec validate 0011-cut-and-gate --strict` exits 0.
-- [ ] 4.9 `README.md`: the skills section lists five skills, `mf-cut-change` first. Verify:
+- [x] 4.9 `README.md`: the skills section lists five skills, `mf-cut-change` first. Verify:
   `grep -c 'skills/mf-cut-change/SKILL.md' README.md` prints `1`; `make install-skills SKILLS_DIR="$(mktemp -d)"` prints five `linked` lines.
-- [ ] 4.10 The contract scan passes. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 4.10 The contract scan passes. Verify: `uv run pytest tests/test_skills.py -q` exits 0.

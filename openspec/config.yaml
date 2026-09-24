@@ -11,8 +11,8 @@ context: |
   any artifact.
 
   What is true of this repository in particular — the gate (`make gate`), the seams the
-  work is tested at, the guardrails, the layout, and how a change is cut here — is in
-  `CLAUDE.md`. Read it too.
+  work is tested at, the guardrails and the layout — is in `CLAUDE.md`. Read it too. A
+  change is cut with the `mf-cut-change` skill.
 
   Neither page is restated in this file. Where an instruction below and either page
   disagree, the page wins and this file is the thing to fix.
@@ -20,10 +20,10 @@ context: |
 rules:
   proposal:
     - "A change is always four artifacts — `proposal.md`, `specs/`, `design.md`, `tasks.md`. All four exist for every change, including one that changes no requirement."
-    - "The `version:` frontmatter this repo's reader requires, and the way a change that changes no requirement declares that absence, are prescribed in `CLAUDE.md`, *How a change is cut here*, steps 3-4. Follow those steps as written; the mechanics are maintained there and are not copied here."
+    - "`proposal.md` opens with `version: vX.Y` frontmatter (`vX.Y.Z` for a patch). This repo's reader requires it, and the CLI neither emits nor checks it."
   specs:
     - "One `spec.md` per capability directory — `specs/<capability>/spec.md`. A `spec.md` at the root of `specs/` is a malformed change."
-    - "Never invent a requirement to produce a delta. If nothing behavioural changes, declare the absence the way `CLAUDE.md`, *How a change is cut here*, step 4 prescribes."
+    - "Never invent a requirement to produce a delta. If nothing behavioural changes, declare the absence: `skip_specs: true` in the change's `.openspec.yaml`, plus `specs/.gitkeep` so the directory stays tracked. The two go together; a spec file under `specs/` beside `skip_specs` fails validation."
   design:
     - "Sketch the seams the work will be tested at, and name them. Prefer a seam that already exists over a new one, and take the highest seam that gives the coverage — this repository lives on its seams (the `Provider` Protocol, the `run_gate` seam)."
     - "Name the actual files the approach touches. This repo's approach is expected to be concrete about paths; a design that names no file is not yet settled."
