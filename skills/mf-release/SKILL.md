@@ -27,15 +27,15 @@ never derive it from a filename. Below, `<version>` is that value (`vX.Y`) and t
 
 ## Where the constants come from — disk, never a guess
 
-The gate is the ordered command list in **`.minions/minions.toml`**'s `gate` array. Read it from there, and
-**halt naming the file** if it is absent or its array is empty. Never infer a gate from a target you found: an
-inferred gate exits 0 over nothing and releases a branch nobody checked.
+The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
+`make -n gate` and paste its output: it shows what will run. **Halt, naming the root `Makefile`,** when there is
+no `Makefile` at the root, when `make -n gate` exits non-zero (there is no `gate` target), or when it prints no
+command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`. Never infer a gate,
+never run a command you found instead: an inferred gate exits 0 over nothing and releases a branch nobody
+checked.
 
-Two constants may legitimately be absent, and their absence is a **stated skip, not a halt**: a **version file**
-(many repos keep none) and a **spec-binding check** command. The binding check is read from the **same `gate`
-array** — it is the entry that runs the repository's spec-binding checker, conventionally the last one — and if
-that array holds none, it is `none`. Do not infer one from a command you found, for the same reason you do not
-infer a gate. Say in your report that each was `none` and why, rather than passing over it silently.
+One constant may legitimately be absent, and its absence is a **stated skip, not a halt**: a **version file**
+(many repos keep none). Say in your report that it was `none` and why, rather than passing over it silently.
 
 ## Step 1 — Preconditions (seven; every one holds, or halt)
 
@@ -73,8 +73,7 @@ prevent. A file absent at its stated path is a halt (precondition 4), not an inv
    clears nothing. A **missing** file passes — nothing was deferred. Any remaining list line → halt.
 6. **The version line is aligned** — the tag `<version>.0` does **not** already exist (`git tag -l`), and
    `CHANGELOG.md`'s `## [Unreleased]` holds **real entries** rather than an empty heading. Else → halt.
-7. **The tree is clean** (`git status --porcelain` empty) **and the spec binding is green *before* the fold** —
-   so you fold a delta that is already consistent. Red → halt.
+7. **The tree is clean** — `git status --porcelain` prints nothing. Else → halt.
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -87,6 +86,8 @@ Apply the change's `specs/` delta into `openspec/specs/`:
   nor what the change decided.
 - **`## REMOVED Requirements`** — **delete** the matching requirement.
 
+A rename arrives as REMOVED (old title) + ADDED (new title) — the fold has no rename operation.
+
 **Capability preamble prose is preserved verbatim.** The fold cannot reach it, so read it by eye: if the change
 invalidated something the preamble states, **flag it for a hand-edit** and say so in your report. Do not
 silently rewrite it, and do not silently leave it wrong.
@@ -94,16 +95,20 @@ silently rewrite it, and do not silently leave it wrong.
 **A change that declares no delta (`skip_specs`) folds nothing — and still archives.** The absence of a delta is
 a declaration, not a step to skip; Step 3 runs exactly as it does for any other change.
 
-## Step 3 — Verify after the fold, then archive — one commit
+## Step 3 — Archive — staged, not committed
 
-1. **Verify** — re-run the spec-binding check. Green means every folded scenario resolves and every marker still
-   binds.
-2. **Red → do not archive. Halt** and report. An unverified fold archived is a fold nobody can check.
-3. **Archive** — move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/`.
+Move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/`, then stage the fold and the
+move **by name** — each capability file Step 2 touched, the old change path and the new archive path. **Commit
+nothing here.** Step 4 makes the one commit, after its full gate has judged this tree.
 
-**The fold, the verification and the archive land in the same commit.** The binding check **ignores the
-archive**, so the instant a change is archived its delta's keys stop resolving and every marker bound to them
-**dangles**. Splitting them across two commits leaves one commit whose gate is red by construction.
+**A declared deviation from `docs/sdd.md`'s *The release fold*, which checks the spec binding before the fold and
+again before archiving:** this station runs no separate step for it. Precondition 1's gate runs before the fold
+and Step 4.3's gate after the archive, so in any repository whose gate includes that check, those two runs are
+the method's two — and a repository whose gate lacks it gives a separate step nothing to run.
+
+**The fold and the archive land in the same commit.** Once archived, a delta's scenario keys resolve only from
+the living specs the fold wrote; split across two commits, one of them holds tests whose markers point at
+nothing.
 
 ## Step 4 — Cut the version line
 
@@ -122,11 +127,13 @@ archive**, so the instant a change is archived its delta's keys stop resolving a
    change re-runnable: tag and commit *first* would leave a release commit and an annotated tag over a red tree,
    and precondition 6 — the tag does not already exist — would then make every retry a guaranteed halt, a state
    this station has no permission to leave (it may not edit feature code, and rolling back a tag is not its job).
-   Verify, *then* act, exactly as Step 3 does around the fold.
 4. **Commit** — **one** release commit: `chore(release): <version>.0`. The fold, the archive move, the changelog
-   cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. End the message with
-   the trailer block, `Co-Authored-By:` and `Change: <change-id>` **contiguous** — git parses the trailer block
-   as the last paragraph, so a blank line between them silently breaks it.
+   cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. Then
+   `git diff --quiet` must exit 0 and `git ls-files --others --exclude-standard` must print nothing — else
+   **halt**: the commit must hold exactly the tree item 3 gated. After it, `git status --porcelain` prints
+   nothing. End the message with the trailer block, `Co-Authored-By:` and `Change: <change-id>`
+   **contiguous** — git parses the trailer block as the last paragraph, so a blank line between them silently
+   breaks it.
 5. **Tag** — annotated, on the release commit, **local only**:
    `git tag -a <version>.0 -m "<version>.0"`. The tag, the release commit and the changelog entry **are** the
    release record; write no separate narrative anywhere.
@@ -167,7 +174,6 @@ Then **STOP**. Do not run the merge, the push, or a checkout of the default bran
   are a gate, not a fix.
 - **Never release over a failed precondition.** All seven of Step 1 hold, or you halt. No exceptions, no
   "just this once", and no precondition summarized here — Step 1 is the list, and a second copy of it drifts.
-- **Never archive a change whose post-fold binding check is red** — fold, verify, *then* archive.
 - **Never commit or tag a tree whose full gate has not gone green in this session, on that tree.** A tag over a
   red tree is the one failure this station cannot undo from inside its own permissions.
 - **Never invent the version**, and never write new changelog prose at release.

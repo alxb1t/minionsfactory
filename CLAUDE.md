@@ -9,8 +9,8 @@ automates** — it is built the way it builds.
 `Change:` trailer, the traceability bindings and the version line, the gate rules, the loop, the findings
 contract and the release fold; and, in its Part II, what must be settled before a change is cut and the
 readiness checklist for a repository. That page is authoritative for *how the work is done*, and this file does
-not restate it. What follows is what is true of **this repository in particular**: its gate commands, its seams,
-how a change is cut here, its guardrails, its layout.
+not restate it. What follows is what is true of **this repository in particular**: its gate, its seams,
+its guardrails, its layout. A change is cut with the `mf-cut-change` skill.
 
 Hard constraints that shape the code here: **no LLM sits in the orchestration layer** (the driver is
 deterministic, unit-testable control flow); **the orchestrator runs the objective checks itself** (the gate + git
@@ -33,22 +33,12 @@ touches one says so.
 
 ---
 
-## The quality gate — this repo's six commands
+## The quality gate — `make gate`
 
-**These** are the commands this repo declares, in `.minions/minions.toml`'s `gate` array, in order:
-
-- `uv sync --locked` — locked lock-sync. Environment setup rather than a quality axis, so it is the step it is
-  and the four axes follow.
-- `uv run ruff format --check .` + `uv run ruff check .` — format + lint clean (`D` docstrings + `ANN`
-  annotations enabled).
-- `uv run ty check` — strict type-check clean.
-- `uv run pytest -q` — all tests pass.
-- `uv run python -m orchestrator specs check --strict` — the spec binding holds. Note the form: this repo runs
-  **from source**, like the existing `run` command. There is **no installed `minions` binary yet**;
-  `minions specs check` is only the future installed alias.
-
-`Makefile`'s `gate` target, `README.md` and CI (`.github/workflows/ci.yml`) mirror that array; the array is the
-one the orchestrator runs.
+The gate is **`make gate`**, run at the repository root. It checks, in order: the lock is in sync · format ·
+lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests · the spec binding. The `Makefile`
+recipe is this repo's only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`,
+and no prose here copies them.
 
 External effects are faked in tests behind this repo's two seams — the **provider** (`claude -p`) behind the
 `Provider` Protocol (`FakeProvider`) and the **gate subprocess** behind the gate seam (`FakeGate`); real
@@ -65,8 +55,8 @@ else. In brief, the load-bearing seams are:
 - a **`Provider` Protocol** — a real `ClaudeCodeProvider` (`claude -p`, `--output-format json`) + a
   `FakeProvider`; the driver depends on the **seam**, never the CLI directly (harness-agnostic + unit-testable).
 - **the orchestrator runs the gate itself** via a `run_gate(repo)` seam (real subprocess + `FakeGate`); the gate
-  command list is **read from the target repo** (`.minions/minions.toml`), not hardcoded, so a non-Python target
-  needs no code change.
+  is **read from the target repo**, not hardcoded, so a non-Python target needs no code change. The skills run
+  `make gate`; the parked runner still reads the deprecated `.minions/minions.toml` copy of the recipe.
 - **the change is read from disk** — the coder resolves `openspec/changes/<change-id>/` in-tree; findings + spec
   state are likewise read from disk, never trusted from a role's claim.
 - **the driver is deterministic control flow** — no LLM; **advance is *detected*** on disk, never trusted from a
@@ -77,42 +67,21 @@ else. In brief, the load-bearing seams are:
 
 ---
 
-## How a change is cut here
-
-The method is `docs/sdd.md`'s and is not restated here; what follows is the mechanics — which commands, against
-which tooling. Planning runs **in this repository**, and the four artifacts are the record.
-
-1. **Settle the decisions first.** A change is cut from decisions that have been argued against a person, not from
-   a first draft. The verdict that comes out of it — `feasible` / `feasible-with-caveats` / `needs-precursor` /
-   `infeasible-as-specified` — is recorded in the change's `design.md`.
-2. **Scaffold** — `openspec new change <NN-slug>`. It creates the change directory and the artifact skeletons.
-3. **Author the four artifacts** against `openspec instructions <artifact> --change <NN-slug>`, which emits that
-   artifact's structure together with this repo's overrides from `openspec/config.yaml`. `proposal.md` additionally
-   opens with `version: vX.Y` frontmatter — **this repo's reader requires it and the CLI neither emits nor checks
-   it**, so it is on the author.
-4. **A change that changes no requirement** declares the absence rather than inventing one: `skip_specs: true` in
-   the change's tracked `.openspec.yaml`, plus `specs/.gitkeep` so the directory stays tracked. The two are
-   mutually exclusive — a spec file under `specs/` alongside `skip_specs` fails validation.
-5. **Finish on a green check** — `openspec validate <NN-slug> --strict`.
-
-The tooling is **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and
-resolved on `PATH`. It is deliberately **not** in the gate array — nothing in CI runs it, so a moving version can
-never turn CI red; it can only hand a future author different authoring instructions. This repository's own
-`uv run python -m orchestrator specs check --strict` remains the binding authority, and it *is* in the gate.
-
----
-
 ## Layout — where things live here
 
 - **`orchestrator/`** — the driver, the seams, the CLI. **`prompts/`** — the six role prompts. **`tests/`** — the
   suite. **`docs/`** — the orchestrator's own map, plus `sdd.md`, the one page there that is about the *method*
   rather than about this codebase.
-- **`skills/`** — the four `mf-*` execution-line skills, one `SKILL.md` each: build, converge, backlog export,
-  release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
+- **`skills/`** — the five `mf-*` execution-line skills, one `SKILL.md` each: cut, build, converge, backlog
+  export, release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
   is inside the retired-vocabulary scan for that reason.
-- **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`).
-- **`.minions/`** — run artefacts, **gitignored**; `minions.toml`, the gate command list, is the one tracked file
-  in it.
+- **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`). The OpenSpec CLI is
+  **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on
+  `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can never turn CI
+  red; it can only hand a future author different authoring instructions. The binding authority is this
+  repository's own spec-binding check, and it *is* in the gate.
+- **`.minions/`** — run artefacts, **gitignored**; `minions.toml`, the runner's deprecated copy of the gate, is
+  the one tracked file in it.
 - **Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the
   target repo**. Product intent — the research and the narrative record the human keeps — lives *upstream* of the
   code in a private Obsidian vault, and **no role the orchestrator spawns reaches into it**; planning itself runs

@@ -1,16 +1,8 @@
-# MinionsFactory self-validates: the gate command list the orchestrator runs on this
-# repo. Lock sync, then the four pillars, then the spec-binding checker as the final
-# step. `--strict` since v0.3 phase 7: every test must carry a spec or spec_exempt
-# marker (full bidirectional traceability), on top of the orphan + dangling checks.
-# `uv sync --locked` leads: without it the gate certifies whatever `.venv` happens to
-# hold rather than what `uv.lock` pins — the v0.6 `py:gate-commands` gap. Four places
-# restate this array command-for-command and in order: `Makefile`'s `gate` target,
-# `README.md`'s "quality gate (this repo's own)" block (not the example config above
-# it — that one is an arbitrary target repo's), `.github/workflows/ci.yml`'s six steps,
-# and `CLAUDE.md`'s gate section. Change one, change all four. Nothing checks that they
-# agree, and they are only where a reader — human or agent — learns what the gate is,
-# while this array is what the orchestrator actually runs: a drifted mirror documents a
-# gate this repo does not run.
+# DEPRECATED. The gate is the root `Makefile`'s `gate` target; the mf-* skills and CI
+# run `make gate`.
+# Only the parked runner (`orchestrator/gate.py`) reads this array.
+# It must match the `Makefile` recipe command for command until the runner moves.
+# When the runner runs `make gate`, delete this file.
 gate = [
   "uv sync --locked",
   "uv run ruff format --check .",
