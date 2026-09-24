@@ -6,7 +6,7 @@ contract, and `mf-cut-change` is written. Each phase is one commit. The why of e
 
 ## Progress
 
-- [ ] 1 — `mf-release` drops its separate binding step
+- [x] 1 — `mf-release` drops its separate binding step
 - [ ] 2 — The skills run `make gate`
 - [ ] 3 — `mf-build` gets its input contract
 - [ ] 4 — `mf-cut-change`, the cut station
@@ -16,19 +16,19 @@ contract, and `mf-cut-change` is written. Each phase is one commit. The why of e
 First, so no later commit ships a skill that runs a binding command read from an array it stopped reading
 ([D16](design.md#d16)). All edits are in `skills/mf-release/SKILL.md`, per [D4](design.md#d4).
 
-- [ ] 1.1 *Where the constants come from*: drop the spec-binding constant; the version file is the one constant
+- [x] 1.1 *Where the constants come from*: drop the spec-binding constant; the version file is the one constant
   that may be absent. Verify: `sed -n '/^## Where the constants/,/^## Step 1/p' skills/mf-release/SKILL.md | grep -c -i binding` prints `0`.
-- [ ] 1.2 Step 1, item 7: the tree is clean (`git status --porcelain` prints nothing), and nothing more.
+- [x] 1.2 Step 1, item 7: the tree is clean (`git status --porcelain` prints nothing), and nothing more.
   Verify: `grep '^7\. ' skills/mf-release/SKILL.md | grep -c -i binding` prints `0`.
-- [ ] 1.3 Step 2: add one line — a rename arrives as REMOVED (old title) + ADDED (new title); the fold has no
+- [x] 1.3 Step 2: add one line — a rename arrives as REMOVED (old title) + ADDED (new title); the fold has no
   rename operation. Verify: `grep -c 'old title' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 1.4 Step 3 becomes `## Step 3 — Archive — staged, not committed`: move the change into the archive, stage
+- [x] 1.4 Step 3 becomes `## Step 3 — Archive — staged, not committed`: move the change into the archive, stage
   the fold and the move by name, commit nothing (`R8`). Verify: `grep -c '^## Step 3 — Archive — staged, not committed' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 1.5 Step 4, item 3: delete the closing sentence that points at Step 3's verification.
+- [x] 1.5 Step 4, item 3: delete the closing sentence that points at Step 3's verification.
   Verify: `grep -c 'as Step 3 does' skills/mf-release/SKILL.md` prints `0`.
-- [ ] 1.6 Step 4, item 4: after staging by name, `git status --porcelain` must print nothing, else halt (`R16`).
+- [x] 1.6 Step 4, item 4: after staging by name, `git status --porcelain` must print nothing, else halt (`R16`).
   Verify: `sed -n '/^4\. \*\*Commit\*\*/,/^5\. /p' skills/mf-release/SKILL.md | grep -c 'status --porcelain'` prints `1`.
-- [ ] 1.7 *Never*: delete the post-fold binding line. Verify: `grep -c -i binding skills/mf-release/SKILL.md`
+- [x] 1.7 *Never*: delete the post-fold binding line. Verify: `grep -c -i binding skills/mf-release/SKILL.md`
   prints `0` — no line of the skill names a binding check.
 
 ## 2 — The skills run `make gate`
