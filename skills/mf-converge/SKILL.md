@@ -42,8 +42,8 @@ never substitute a command that looks like it tests things: an inferred gate is 
    interrupted, and a verdict about a change that does not exist yet is worse than no verdict. Halt naming the
    first unticked phase — `mf-build` owns it.
 3. **The derived range is non-empty** — see Step 2. Halt if `base` equals `HEAD`.
-4. **The root `Makefile` has a `gate` target that runs a command** — `make -n gate`, as *Where the constants
-   come from* states. Halt naming the root `Makefile`.
+4. **The root `Makefile` has a `gate` target that runs a command** — the dry run *Where the constants come
+   from* prints has passed. Halt naming the root `Makefile`.
 5. **The gate is green before round 1** — run `make gate` yourself. This is the precondition
    usually skipped, and skipping it is how a red gate at round 1 gets attributed to a station's findings instead
    of to the build: the fix pass then chases the wrong thing. Red → halt; `mf-build` owns it.

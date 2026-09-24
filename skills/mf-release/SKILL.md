@@ -123,10 +123,10 @@ nothing.
    and precondition 6 — the tag does not already exist — would then make every retry a guaranteed halt, a state
    this station has no permission to leave (it may not edit feature code, and rolling back a tag is not its job).
 4. **Commit** — **one** release commit: `chore(release): <version>.0`. The fold, the archive move, the changelog
-   cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. Then read
-   `git status --porcelain`: every line it prints must be staged only — no `??` line and no change left in the
-   work tree — else **halt**. The commit must hold exactly the tree item 3 gated; after it, the same command
-   prints nothing. End the message with the trailer block, `Co-Authored-By:` and `Change: <change-id>`
+   cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. Then
+   `git diff --quiet` must exit 0 and `git ls-files --others --exclude-standard` must print nothing — else
+   **halt**: the commit must hold exactly the tree item 3 gated. After it, `git status --porcelain` prints
+   nothing. End the message with the trailer block, `Co-Authored-By:` and `Change: <change-id>`
    **contiguous** — git parses the trailer block as the last paragraph, so a blank line between them silently
    breaks it.
 5. **Tag** — annotated, on the release commit, **local only**:
