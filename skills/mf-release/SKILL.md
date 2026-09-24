@@ -27,9 +27,12 @@ never derive it from a filename. Below, `<version>` is that value (`vX.Y`) and t
 
 ## Where the constants come from — disk, never a guess
 
-The gate is the ordered command list in **`.minions/minions.toml`**'s `gate` array. Read it from there, and
-**halt naming the file** if it is absent or its array is empty. Never infer a gate from a target you found: an
-inferred gate exits 0 over nothing and releases a branch nobody checked.
+The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
+`make -n gate` and paste its output: it shows what will run. **Halt, naming the root `Makefile`,** when there is
+no `Makefile` at the root, when `make -n gate` exits non-zero (there is no `gate` target), or when it prints no
+command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`. Never infer a gate,
+never run a command you found instead: an inferred gate exits 0 over nothing and releases a branch nobody
+checked.
 
 One constant may legitimately be absent, and its absence is a **stated skip, not a halt**: a **version file**
 (many repos keep none). Say in your report that it was `none` and why, rather than passing over it silently.

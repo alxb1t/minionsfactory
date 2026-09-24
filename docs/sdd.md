@@ -5,7 +5,8 @@ rather than restate it. It names **stations** — grill, cut, build, check, conv
 artifacts** each produces, and deliberately not *who* runs one: a human pasting a prompt, a skill, an automated
 runner all work, and the choice is tooling, which changes faster than the method. Nothing here assumes an
 installed package — the whole footprint travels as four things in the repository being built:
-**`openspec/specs/`**, **`openspec/changes/`**, **`.minions/minions.toml`**, and a repo **`CLAUDE.md`**.
+**`openspec/specs/`**, **`openspec/changes/`**, a root **`Makefile`** with a `gate` target, and a repo
+**`CLAUDE.md`**.
 
 ---
 
@@ -16,7 +17,7 @@ installed package — the whole footprint travels as four things in the reposito
 1. **Spec-driven changes.** Work is defined before it is built, in the repository, as a written change with
    machine-checkable acceptance. The behavioural spec is a living tree the changes fold into, not a document
    rotting beside the code.
-2. **A strict quality gate.** One declared command list. A unit of work is done when every step is green — not
+2. **A strict quality gate.** One declared gate, `make gate`. A unit of work is done when every step is green — not
    when it looks done, not when someone says it is.
 3. **All state on disk.** Where the work stands is reconstructed from the repository — the change's `tasks.md`,
    the git log, the findings files — never from an agent's memory of what it just did. Resume is free, and any
@@ -72,9 +73,9 @@ Three bindings, each one machine-checkable, so history reads back to intent from
 
 ## The gate — declared on disk, run, never summarized
 
-The gate is an ordered command list **declared on disk**, in `.minions/minions.toml`'s `gate` array. That declaration
-is the source of truth; a `Makefile` target, a README section and CI mirror it command-for-command, not each its own.
-Because it is data, the method is language-agnostic. A typical list leads with a **locked dependency sync** —
+The gate is **`make gate`** — the `gate` target of the root `Makefile`, **declared on disk**. Its recipe is the one
+list of the gate's commands; CI runs `make gate`, and prose names `make gate` and never copies its commands. Because
+it is a recipe, the method is language-agnostic. A typical recipe leads with a **locked dependency sync** —
 asserting the lockfile is current, failing rather than re-resolving, so the gate certifies what the lock pins — then
 the axes: format, lint, strict types, tests, and the spec-binding check last.
 
@@ -231,31 +232,32 @@ that repository, nothing from its `.env` or `.env.example`. That binds what a ru
 report's format.
 
 **Wiring.** A git repository resolving to at least one commit, since every station scopes itself against one. A **gate
-command list declared on disk** at `.minions/minions.toml`, tracked, with a non-empty `gate` array — that path and no
-other, so a root-level copy is invisible. A root `CLAUDE.md` with no unfilled placeholder, describing the contract the
-repo runs: where progress lives, and a gate account matching what the array runs, flags included.
+declared on disk**: a root `Makefile`, tracked, whose `gate` target runs at least one command — `make -n gate` shows
+it. A root `CLAUDE.md` with no unfilled placeholder, describing the contract the repo runs: where progress lives, and
+the gate named as `make gate`, its commands not copied.
 
 **Layout.** `openspec/specs/` holding at least one `<capability>/spec.md`; `openspec/changes/` holding an `archive/`;
 every active change carrying its four artifacts, a `## Progress` checklist and a parseable `version:` — a repo with
 *no* active change passes, nothing to measure. Two **required** items: every scenario carries `Key:` and `Layers:`
 bullets, and every test a binding marker or declared structural exemption, **with both marker names registered in the
 test runner's manifest** — an unregistered marker is silently ignored and binds nothing. And the spec-binding check is
-the **last** gate entry, so a broken binding turns the gate red — **advisory**: a repo with no checker to invoke
-cannot close it however willing its owner is, and a criterion nobody can satisfy would withhold readiness from all.
+the **last** command in the gate recipe, so a broken binding turns the gate red — **advisory**: a repo with no checker
+to invoke cannot close it however willing its owner is, and a criterion nobody can satisfy would withhold readiness
+from all.
 
-**Gate quality.** The array covers format, lint, strict types and tests, and covers them *genuinely*: a formatter in
+**Gate quality.** The recipe covers format, lint, strict types and tests, and covers them *genuinely*: a formatter in
 rewrite mode is not the format check, a command that reports findings without failing covers no axis, a linter is not
-a type checker. Three **required** items follow. Every place prose declares the gate **as commands** matches the array
-command-for-command, flags included — though a block illustrating some *other* repository's config declares nothing
-about this one. A single human-facing entry point (a `Makefile` target or equivalent) mirrors the array, so the gate a
-person types and the one a station runs cannot drift. And every waiver in the tool configuration the gate reads is
-declared and defensible: relaxing a docstring rule over a test tree earns it; switching a check off repo-wide,
-excluding the package the gate exists to check, or downgrading an error so the command exits `0` does not.
+a type checker. Three **required** items follow. Prose names `make gate` and never copies its commands — though a block
+illustrating some *other* repository's config declares nothing about this one. CI runs `make gate` as well, so the
+gate a person types, the one CI runs and the one a station runs are one recipe and cannot drift. And every waiver in
+the tool configuration the gate reads is declared and defensible: relaxing a docstring rule over a test tree earns
+it; switching a check off repo-wide, excluding the package the gate exists to check, or downgrading an error so the
+command exits `0` does not.
 
 **A worked toolchain profile — `python-uv`.** Detected mechanically before measuring: a tracked `pyproject.toml`
 **and** a uv signal (`uv.lock` tracked, or a `[tool.uv]` table) — both halves, so a repo on another Python toolchain
 degrades to the universal list rather than failing a profile that does not fit it. Then: `pyproject.toml` declares
-`[project]` with a `name` and a `requires-python`; `uv.lock` is at the root and **tracked**; the array is the uv form
+`[project]` with a `name` and a `requires-python`; `uv.lock` is at the root and **tracked**; the recipe is the uv form
 — `uv sync --locked` · `ruff format --check` · `ruff check` · `ty check` · `pytest`, each through `uv run` where the
 tool needs the project environment. The rest are **required**: `.python-version` pins an interpreter
 consistent with `requires-python`; ruff's lint `select` includes at least `E`, `F` and `I`; lint, type and test

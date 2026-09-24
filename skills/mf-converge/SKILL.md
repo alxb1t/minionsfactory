@@ -27,10 +27,12 @@ The release version comes from the change's own `proposal.md` `version:` frontma
 
 ## Where the constants come from — disk, never a guess
 
-The gate is the ordered command list in **`.minions/minions.toml`**'s `gate` array. Read it from there. If the
-file is absent, or the array is empty, **halt naming the file**. Never ask for a gate, never infer one from a
-`Makefile` target you found, never substitute a command that looks like it tests things: an inferred gate is the
-one wrong guess that is *invisible* — a discovered command exits 0 and the loop converges on nothing.
+The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
+`make -n gate` and paste its output: it shows what will run. **Halt, naming the root `Makefile`,** when there is
+no `Makefile` at the root, when `make -n gate` exits non-zero (there is no `gate` target), or when it prints no
+command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`. Never ask for a gate,
+never substitute a command that looks like it tests things: an inferred gate is the one wrong guess that is
+*invisible* — a discovered command exits 0 and the loop converges on nothing.
 
 ## Step 1 — Preconditions (five; each one halts, naming what is missing)
 
@@ -40,8 +42,9 @@ one wrong guess that is *invisible* — a discovered command exits 0 and the loo
    interrupted, and a verdict about a change that does not exist yet is worse than no verdict. Halt naming the
    first unticked phase — `mf-build` owns it.
 3. **The derived range is non-empty** — see Step 2. Halt if `base` equals `HEAD`.
-4. **`.minions/minions.toml` is present with a non-empty `gate` array.** Halt naming the file.
-5. **The gate is green before round 1** — run it yourself, every command in order. This is the precondition
+4. **The root `Makefile` has a `gate` target that runs a command** — `make -n gate`, as *Where the constants
+   come from* states. Halt naming the root `Makefile`.
+5. **The gate is green before round 1** — run `make gate` yourself. This is the precondition
    usually skipped, and skipping it is how a red gate at round 1 gets attributed to a station's findings instead
    of to the build: the fix pass then chases the wrong thing. Red → halt; `mf-build` owns it.
 
@@ -51,8 +54,9 @@ one wrong guess that is *invisible* — a discovered command exits 0 and the loo
    (usually `main`). Derive it — never accept one as an argument, never pick a commit by eye.
 2. **Halt if `base` equals `HEAD`.** An empty range is the worst failure available here, because every station
    returns clean over nothing and the loop converges on a change it never read.
-3. **Write the patch** to `.minions/findings/<change-id>_diff.patch`, holding `<base>..HEAD`. It sits beside the
-   findings files, under the gitignored `.minions/`, and is never committed.
+3. **Write the patch** — run `mkdir -p .minions/findings` first, then write
+   `.minions/findings/<change-id>_diff.patch`, holding `<base>..HEAD`. It sits beside the findings files, under
+   the gitignored `.minions/`, and is never committed.
 4. **Print, so the numbers exist before any station speaks:** `base` · `head` · the **commit count** in the
    range · the **files changed** count. You will compare a station's reported scope against these in Step 5 —
    these are **round 1's** numbers, and Step 6's re-freeze prints its own for every round after it.

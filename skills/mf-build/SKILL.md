@@ -29,9 +29,11 @@ Echo the change id and the phase you are about to build before you build anythin
 2. **`CLAUDE.md`** at the repo root — the gate, the conventions and seams, the guardrails.
 3. **Where the work stands** — the `## Progress` list in `tasks.md` plus `git log`, never memory. Resume is
    free: re-read both at the start of every pass.
-4. **The gate** — the ordered command list in `.minions/minions.toml`'s `gate` array. That declaration is the
-   source of truth; a `Makefile` target mirrors it. If the file is absent or its `gate` array is empty,
-   **halt naming the file** — never infer a gate, never ask for one, never substitute a command you found.
+4. **The gate** — `make gate`, run from the repository root. Before the first gate run in a session, run
+   `make -n gate` and paste its output: it shows what will run. **Halt, naming the root `Makefile`,** when
+   there is no `Makefile` at the root, when `make -n gate` exits non-zero (there is no `gate` target), or when
+   it prints no command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`.
+   Never infer a gate, never ask for one, never run a command you found instead.
 
 If the tree is dirty when you start, a previous pass at this phase was interrupted. Read what is there against
 the phase's acceptance and **continue** it rather than restarting; say so in your report.
@@ -50,7 +52,7 @@ its own.
 2. **Run each sub-task's stated verification — run it, never summarize it.** Paste the command's real output
    into your report. A verification you describe is a claim about the check; only the command that exited is the
    check. This is the same rule the gate is under, applied to the per-task acceptance.
-3. **Run the full gate** — every command in the `gate` array, in order. It must exit 0. **Never weaken the gate
+3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate
    to pass:** deleting or skipping a test, a blanket suppression, a loosened config — each is a plan problem, and
    the move is to halt (see *Stop-conditions*).
 4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — what the phase changed and why, in

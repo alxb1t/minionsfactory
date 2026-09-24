@@ -10,7 +10,7 @@ context: |
   in its Part II, what must be settled before a change is cut. Read it before authoring
   any artifact.
 
-  What is true of this repository in particular — the six gate commands, the seams the
+  What is true of this repository in particular — the gate (`make gate`), the seams the
   work is tested at, the guardrails, the layout, and how a change is cut here — is in
   `CLAUDE.md`. Read it too.
 

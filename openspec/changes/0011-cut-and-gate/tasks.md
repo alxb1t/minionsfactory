@@ -7,7 +7,7 @@ contract, and `mf-cut-change` is written. Each phase is one commit. The why of e
 ## Progress
 
 - [x] 1 — `mf-release` drops its separate binding step
-- [ ] 2 — The skills run `make gate`
+- [x] 2 — The skills run `make gate`
 - [ ] 3 — `mf-build` gets its input contract
 - [ ] 4 — `mf-cut-change`, the cut station
 
@@ -36,26 +36,26 @@ First, so no later commit ships a skill that runs a binding command read from an
 The gate rule is [D1](design.md#d1); the copies of the gate are [D2](design.md#d2); the toml stays for the
 runner only, per [D3](design.md#d3).
 
-- [ ] 2.1 Test first: create `tests/test_skills.py` with the gate scan and its bite test, both bound to
+- [x] 2.1 Test first: create `tests/test_skills.py` with the gate scan and its bite test, both bound to
   `sdd:skills-gate:skills-run-make-gate` ([Seams](design.md#seams--what-the-tests-hold)).
   Verify: `uv run pytest tests/test_skills.py -q` fails, naming `minions.toml` in three skills.
-- [ ] 2.2 `skills/mf-build/SKILL.md`: Step 1 item 4 and Step 2 item 3 follow D1. Verify:
+- [x] 2.2 `skills/mf-build/SKILL.md`: Step 1 item 4 and Step 2 item 3 follow D1. Verify:
   `grep -c 'minions.toml' skills/mf-build/SKILL.md` prints `0`; `grep -c 'make -n gate' skills/mf-build/SKILL.md` prints `1` or more.
-- [ ] 2.3 `skills/mf-converge/SKILL.md`: *Where the constants come from* and preconditions 4–5 follow D1; Step 2
+- [x] 2.3 `skills/mf-converge/SKILL.md`: *Where the constants come from* and preconditions 4–5 follow D1; Step 2
   item 3 runs `mkdir -p .minions/findings` first (`R6`). Verify: 2.2's two greps on this file, and
   `grep -c 'mkdir -p .minions/findings' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 2.4 `skills/mf-release/SKILL.md`: *Where the constants come from* follows D1.
+- [x] 2.4 `skills/mf-release/SKILL.md`: *Where the constants come from* follows D1.
   Verify: 2.2's two greps on this file.
-- [ ] 2.5 `.github/workflows/ci.yml`: the six `run:` steps become one, `run: make gate`. Verify:
+- [x] 2.5 `.github/workflows/ci.yml`: the six `run:` steps become one, `run: make gate`. Verify:
   `grep -c 'run: make gate' .github/workflows/ci.yml` prints `1`; `grep -c 'run: uv ' .github/workflows/ci.yml` prints `0`.
-- [ ] 2.6 `Makefile`: a comment above `gate:`. `.minions/minions.toml`: the new comment, array untouched. Verify:
+- [x] 2.6 `Makefile`: a comment above `gate:`. `.minions/minions.toml`: the new comment, array untouched. Verify:
   `grep -c -i deprecated .minions/minions.toml` prints `1` or more; `git diff main -- .minions/minions.toml | grep -c '^[-+]  "'` prints `0`.
-- [ ] 2.7 `CLAUDE.md`, `README.md`, `openspec/config.yaml`: D2's rows. Verify:
+- [x] 2.7 `CLAUDE.md`, `README.md`, `openspec/config.yaml`: D2's rows. Verify:
   `grep -n 'minions.toml' CLAUDE.md README.md | grep -v -i -e deprecated -e runner` prints nothing;
   `grep -c -e 'six commands' -e 'six gate commands' CLAUDE.md openspec/config.yaml` prints `0` for both files.
-- [ ] 2.8 `docs/sdd.md`, `docs/architecture.md`: D2's rows. Verify: `grep -c -i -e 'minions.toml' -e 'the array' docs/sdd.md`
+- [x] 2.8 `docs/sdd.md`, `docs/architecture.md`: D2's rows. Verify: `grep -c -i -e 'minions.toml' -e 'the array' docs/sdd.md`
   prints `0`; `grep -n 'minions.toml' docs/architecture.md | grep -v -i -e deprecated -e runner` prints nothing.
-- [ ] 2.9 The gate scan passes. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 2.9 The gate scan passes. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 3 — `mf-build` gets its input contract
 

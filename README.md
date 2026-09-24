@@ -37,7 +37,8 @@ The **target repo** it drives must provide:
 
 - an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
   `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta, and
-- a **`.minions/minions.toml`** — the ordered gate command list, e.g.:
+- a **`.minions/minions.toml`** — the runner's ordered gate command list (deprecated: the skills run
+  `make gate`, and the runner will too), e.g.:
 
   ```toml
   gate = [
@@ -49,7 +50,7 @@ The **target repo** it drives must provide:
   ]
   ```
 
-  (git-ignore the generated `.minions/` artifacts but keep the config: `.minions/*` + `!.minions/minions.toml`.)
+  (git-ignore the generated artifacts with `.minions/*`, and keep the runner's config: `!.minions/minions.toml`.)
 
 That is the whole contract — **nothing outside the repo is declared, resolved or written.** Everything a run
 produces lands under the gitignored `.minions/`: each role's findings at
@@ -63,23 +64,11 @@ exits `0` on completion / `1` on a halt. Every refusal is a diagnostic and a non
 
 ## The quality gate (this repo's own)
 
-MinionsFactory dogfoods the discipline it enforces. Its own gate:
+MinionsFactory dogfoods the discipline it enforces. Its own gate is **`make gate`**: lock sync · format · lint
+(`D` docstrings + `ANN` annotations) · strict type-check · tests · the spec-binding checker. The `Makefile`
+recipe is the one list of its commands, so this page names the target and does not copy them.
 
-```bash
-uv sync --locked
-uv run ruff format --check .
-uv run ruff check .
-uv run ty check
-uv run pytest -q
-uv run python -m orchestrator specs check --strict
-```
-
-Lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests · the spec-binding
-checker. The list above is `.minions/minions.toml`'s `gate` array **verbatim**, and `make gate` runs the same six
-in the same order — the orchestrator runs the array, so a paraphrase here would be a gate the repo does not
-actually run.
-
-CI (`.github/workflows/ci.yml`) mirrors it on every push.
+CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
 
 ## The execution-line skills
 
@@ -93,6 +82,8 @@ human-invoked line — the one this repository's own releases are cut with — b
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
 | [`mf-backlog-export`](skills/mf-backlog-export/SKILL.md) | carry the release's deferred work out and empty the file |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
+
+A target repo needs a root `Makefile` with a `gate` target: the skills run `make gate` and halt without one.
 
 Install them into your personal skills directory as symlinks (the `Makefile` records why a symlink):
 

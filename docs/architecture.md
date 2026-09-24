@@ -27,9 +27,9 @@ The rules that explain why the code is shaped the way it is:
    `claude` CLI — harness-agnostic and unit-testable.
 5. **Advance is detected, not trusted.** A phase advances only when a new commit landed **and** the change's
    progress checkbox moved; a role's self-report is captured for observation but never trusted for the verdict.
-6. **The framework's own green gate is the definition of done** — the six-step command list declared at
-   `.minions/minions.toml`, run in order, dogfooded on itself. That array is the gate; prose that enumerates
-   it is a mirror, never the source.
+6. **The framework's own green gate is the definition of done** — `make gate`, the root `Makefile`'s recipe,
+   dogfooded on itself. The skills and CI run it; the runner reads a deprecated copy in `.minions/minions.toml`
+   until it moves to `make gate`.
 7. **Observability is a projection of on-disk state, not `print`.** Typed events go to an append-only log + a
    snapshot; the sink defaults to a no-op, so the driver's logic never depends on whether anyone is listening.
 8. **Fakes are first-class parts of each seam and ship in the package.** No unit test spawns `claude` or runs a
@@ -78,7 +78,7 @@ graph TD
     findings --> state
 
     provider -. spawns .-> claude["claude -p (external CLI)"]
-    gate -. runs .-> targetgate["target's gate (.minions/minions.toml)"]
+    gate -. runs .-> targetgate["target's gate (.minions/minions.toml, deprecated)"]
     state -. reads .-> disk["the in-repo change (tasks.md) + git head"]
     status -. writes .-> minions[".minions/ (events.jsonl + status.json)"]
     findings -. reads .-> ff["findings files (.minions/findings/)"]

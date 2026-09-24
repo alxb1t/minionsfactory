@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mf-release` drops its separate spec-binding step** (change `0011-cut-and-gate`, phase 1). The full gate
   before the commit already runs a repo's binding check, so Step 3 now archives and stages, and Step 4 commits
   once. After staging, nothing may be left unstaged — the commit holds exactly the gated tree (`R8`, `R16`).
+- **The skills run `make gate`** (change `0011-cut-and-gate`, phase 2). `mf-build`, `mf-converge` and
+  `mf-release` stop reading `.minions/minions.toml`, print `make -n gate` first, and halt on a missing or empty
+  `gate` target. The `Makefile` recipe is now the one list: CI runs it, and the docs name it instead of copying
+  it. The toml stays for the parked runner, marked deprecated. **BREAKING** for a target repo with no root
+  `gate` target. `tests/test_skills.py` holds the rule.
 
 ## [0.10.0] - 2026-08-31
 

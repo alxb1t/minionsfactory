@@ -15,20 +15,5 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Sync (locked)
-        run: uv sync --locked
-
-      - name: ruff format
-        run: uv run ruff format --check .
-
-      - name: ruff lint
-        run: uv run ruff check .
-
-      - name: ty
-        run: uv run ty check
-
-      - name: pytest
-        run: uv run pytest -q
-
-      - name: specs check
-        run: uv run python -m orchestrator specs check --strict
+      - name: Gate
+        run: make gate
