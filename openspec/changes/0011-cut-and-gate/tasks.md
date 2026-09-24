@@ -26,10 +26,14 @@ First, so no later commit ships a skill that runs a binding command read from an
   the fold and the move by name, commit nothing (`R8`). Verify: `grep -c '^## Step 3 — Archive — staged, not committed' skills/mf-release/SKILL.md` prints `1`.
 - [x] 1.5 Step 4, item 3: delete the closing sentence that points at Step 3's verification.
   Verify: `grep -c 'as Step 3 does' skills/mf-release/SKILL.md` prints `0`.
-- [x] 1.6 Step 4, item 4: after staging by name, `git status --porcelain` must print nothing, else halt (`R16`).
-  Verify: `sed -n '/^4\. \*\*Commit\*\*/,/^5\. /p' skills/mf-release/SKILL.md | grep -c 'status --porcelain'` prints `1`.
+- [x] 1.6 Step 4, item 4: after staging by name, `git diff --quiet` must exit 0 and
+  `git ls-files --others --exclude-standard` must print nothing, else halt (`R16`); after the commit,
+  `git status --porcelain` prints nothing. Verify: with `sed -n '/^4\. \*\*Commit\*\*/,/^5\. /p' skills/mf-release/SKILL.md`
+  piped to each, `grep -c 'git diff --quiet'`, `grep -c 'ls-files --others --exclude-standard'` and
+  `grep -c 'After it, .git status --porcelain.'` each print `1`.
 - [x] 1.7 *Never*: delete the post-fold binding line. Verify: `grep -c -i binding skills/mf-release/SKILL.md`
-  prints `0` — no line of the skill names a binding check.
+  prints `1`, and `grep -i binding skills/mf-release/SKILL.md | grep -c 'declared deviation'` prints `1` — no
+  step of the skill runs a binding check; the one line naming it is Step 3's declared deviation from `docs/sdd.md`.
 
 ## 2 — The skills run `make gate`
 

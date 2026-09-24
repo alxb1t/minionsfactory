@@ -147,17 +147,27 @@ It says four things, in this order:
 | *Where the constants come from* | two constants may be absent: a version file and a spec-binding command read from the `gate` array | one constant may be absent: a version file |
 | Step 1, item 7 | the tree is clean **and** the spec binding is green before the fold | the tree is clean (`git status --porcelain` prints nothing) |
 | Step 2 | three operations | three operations, plus one line: a rename arrives as REMOVED (old title) + ADDED (new title) — the fold has no rename operation |
-| Step 3 | *Verify after the fold, then archive — one commit* | *Archive — staged, not committed*: move the change to `openspec/changes/archive/<change-id>/`, stage the fold and the move by name, commit nothing. Step 4 makes the one commit (`R8`) |
+| Step 3 | *Verify after the fold, then archive — one commit* | *Archive — staged, not committed*: move the change to `openspec/changes/archive/<change-id>/`, stage the fold and the move by name, commit nothing. Step 4 makes the one commit (`R8`). Then a paragraph declaring the deviation from `docs/sdd.md` (below) |
 | Step 4, item 3 | ends "Verify, *then* act, exactly as Step 3 does around the fold." | that sentence goes |
-| Step 4, item 4 | stage by name, commit | stage by name, then `git status --porcelain` must print nothing, else halt: the commit must hold exactly the tree item 3 gated (`R16`) |
+| Step 4, item 4 | stage by name, commit | stage by name, then `git diff --quiet` must exit 0 and `git ls-files --others --exclude-standard` must print nothing, else halt: the commit must hold exactly the tree item 3 gated (`R16`). After the commit, `git status --porcelain` prints nothing |
 | *Never* | "Never archive a change whose post-fold binding check is red" | line removed |
 
-After it, no line of `skills/mf-release/SKILL.md` names a binding check. `R17` closes with `R8`: its fix was
+After it, no step of `skills/mf-release/SKILL.md` runs a binding check; the one line that names one is Step 3's
+declared deviation from `docs/sdd.md`. `R17` closes with `R8`: its fix was
 "resolve `R8` and let it stand", and the archived `0010` design stays as history.
 
 This skill now differs from the runner's *Release fold* requirement in `openspec/specs/sdd/spec.md`, which
 still verifies after folding. That requirement specs `orchestrator/release.py`, which does not change.
 `CLAUDE.md` already says it: neither line is the other's spec.
+
+It also differs from `docs/sdd.md`'s *The release fold*, which checks the binding before the fold and again
+before archiving. The skill declares that in Step 3, as it declares its simplify deviation: precondition 1's
+gate and Step 4.3's gate run that check before the fold and after the archive in any repo whose gate includes
+it, so no separate step is needed. `docs/sdd.md` keeps its text, since this change edits only its gate prose.
+
+Step 4, item 4 checks the staged tree with `git diff --quiet` and `git ls-files --others --exclude-standard`,
+not `git status --porcelain`: after staging, `git status --porcelain` prints the staged entries, so a rule that
+it print nothing there would halt every release. It prints nothing only after the commit.
 
 ### D6 — `mf-build` Step 1
 

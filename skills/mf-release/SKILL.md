@@ -101,6 +101,11 @@ Move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/`,
 move **by name** — each capability file Step 2 touched, the old change path and the new archive path. **Commit
 nothing here.** Step 4 makes the one commit, after its full gate has judged this tree.
 
+**A declared deviation from `docs/sdd.md`'s *The release fold*, which checks the spec binding before the fold and
+again before archiving:** this station runs no separate step for it. Precondition 1's gate runs before the fold
+and Step 4.3's gate after the archive, so in any repository whose gate includes that check, those two runs are
+the method's two — and a repository whose gate lacks it gives a separate step nothing to run.
+
 **The fold and the archive land in the same commit.** Once archived, a delta's scenario keys resolve only from
 the living specs the fold wrote; split across two commits, one of them holds tests whose markers point at
 nothing.
