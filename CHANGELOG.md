@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-25
+
 ### Changed
 
 - **Every finding is a card** (change `0014-backlog-cards`, phase 1): a plain title, then labelled fields. The
