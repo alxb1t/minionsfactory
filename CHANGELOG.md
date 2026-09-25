@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-25
+
 ### Changed
 
 - **`mf-release` accepts a skipped converge** (change `0012-converge-optional`, phase 1). With neither findings
