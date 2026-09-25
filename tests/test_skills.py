@@ -14,8 +14,8 @@ _REPO = Path(__file__).resolve().parent.parent
 _GATE_RUNNERS = ("mf-build", "mf-converge", "mf-release")
 
 # The shared lists: `mf-build` owns each, `mf-cut-change` carries the same ids, and a
-# scan holds the two id sets equal. An id is the bold first cell of a table row in the
-# named `## ` section, up to the next `## ` heading.
+# scan holds their labels equal and each id run unbroken. An id is the bold first cell
+# of a table row in the named `## ` section, up to the next `## ` heading.
 # Why: 0011-cut-and-gate design D5, 0013-how-the-builder-writes design D3.
 _SHARED_OWNERS = ("mf-build", "mf-cut-change")
 
@@ -71,43 +71,80 @@ def test_the_gate_scan_reports_a_named_toml_and_a_missing_dry_run(
     ]
 
 
-def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
-    """Return the `letter` ids in `path`'s `heading` section, in order."""
-    row = re.compile(rf"^\| \*\*{letter}(\d+)\*\* \|")
-    ids: list[int] = []
+def _section_labels(path: Path, heading: str) -> list[str]:
+    """Return the bold first cells of the table rows in `path`'s `heading` section."""
+    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
+    labels: list[str] = []
     inside = False
     for line in path.read_text().splitlines():
         if line.startswith("## "):
             inside = line == heading
         elif inside and (match := row.match(line)):
-            ids.append(int(match.group(1)))
-    return ids
+            labels.append(match.group(1))
+    return labels
 
 
-def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
-    """Return one line per breach of the shared `heading` list in `base`'s skills."""
+def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
+    """Return the `letter` ids in `path`'s `heading` section, in order.
+
+    e.g. labels "I1", "I2", "Note" → [1, 2]
+    """
+    return [
+        int(match.group(1))
+        for label in _section_labels(path, heading)
+        if (match := re.fullmatch(rf"{letter}(\d+)", label))
+    ]
+
+
+def _shared_label_problems(
+    base: Path, owners: tuple[str, str], heading: str
+) -> list[str]:
+    """Return one line per breach of the `heading` labels `owners` share in `base`."""
     problems: list[str] = []
-    sets: dict[str, set[int]] = {}
-    for name in _SHARED_OWNERS:
+    sets: dict[str, set[str]] = {}
+    for name in owners:
         path = base / "skills" / name / "SKILL.md"
         if not path.is_file():
             problems.append(f"skills/{name}/SKILL.md: does not exist")
             continue
-        ids = _section_ids(path, heading, letter)
-        if not ids:
-            problems.append(f"skills/{name}/SKILL.md: no ids in `{heading}`")
-        elif sorted(ids) != list(range(1, max(ids) + 1)):
+        labels = _section_labels(path, heading)
+        if not labels:
+            problems.append(f"skills/{name}/SKILL.md: no labels in `{heading}`")
+        sets[name] = set(labels)
+    first, second = (sets.get(name) for name in owners)
+    if first and second and first != second:
+        problems.append(
+            f"labels differ: only in {owners[0]} {sorted(first - second)}, "
+            f"only in {owners[1]} {sorted(second - first)}"
+        )
+    return problems
+
+
+def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
+    """Return one line per breach of the shared `heading` list in `base`'s skills."""
+    problems = _shared_label_problems(base, _SHARED_OWNERS, heading)
+    for name in _SHARED_OWNERS:
+        path = base / "skills" / name / "SKILL.md"
+        ids = _section_ids(path, heading, letter) if path.is_file() else []
+        if ids and sorted(ids) != list(range(1, max(ids) + 1)):
             problems.append(
                 f"skills/{name}/SKILL.md: ids do not run {letter}1…{letter}{max(ids)}"
             )
-        sets[name] = set(ids)
-    build, cut = (sets.get(name) for name in _SHARED_OWNERS)
-    if build is not None and cut is not None and build != cut:
-        problems.append(
-            f"id sets differ: only in mf-build {sorted(build - cut)}, "
-            f"only in mf-cut-change {sorted(cut - build)}"
-        )
     return problems
+
+
+def _table_text(heading: str, *labels: str) -> str:
+    """Return a skill text whose `heading` table holds one row per label."""
+    rows = "".join(f"| **{label}** | — |\n" for label in labels)
+    return f"{heading}\n\n| label | holds |\n|---|---|\n{rows}"
+
+
+def _plant(base: Path, texts: dict[str, str]) -> Path:
+    """Write each named skill's text under `base`, and return `base`."""
+    for name, text in texts.items():
+        (base / "skills" / name).mkdir(parents=True)
+        (base / "skills" / name / "SKILL.md").write_text(text)
+    return base
 
 
 def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
@@ -116,12 +153,10 @@ def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
     The build holds ids 1–3 and the cut 1 and 3, so the cut has a gap and the two sets
     differ by one id. A row past the section's end must not count.
     """
-    for name, numbers in {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)}.items():
-        rows = "".join(f"| **{letter}{n}** | must | — |\n" for n in numbers)
-        text = f"{heading}\n\n| id | a | b |\n|---|---|---|\n{rows}\n"
-        text += f"## Never\n\n| **{letter}9** | outside | — |\n"
-        (base / "skills" / name).mkdir(parents=True)
-        (base / "skills" / name / "SKILL.md").write_text(text)
+    outside = f"\n## Never\n\n| **{letter}9** | outside |\n"
+    build = _table_text(heading, f"{letter}1", f"{letter}2", f"{letter}3")
+    cut = _table_text(heading, f"{letter}1", f"{letter}3")
+    _plant(base, {"mf-build": build + outside, "mf-cut-change": cut + outside})
     return _shared_id_problems(base, heading, letter)
 
 
@@ -133,8 +168,8 @@ def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
 @pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
     assert _planted_problems(tmp_path, "## Input contract", "I") == [
+        "labels differ: only in mf-build ['I2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
-        "id sets differ: only in mf-build [2], only in mf-cut-change []",
     ]
 
 
@@ -146,8 +181,48 @@ def test_the_cut_and_the_build_carry_the_same_prose_rule_ids() -> None:
 @pytest.mark.spec("sdd:prose-rules:ids-agree")
 def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
     assert _planted_problems(tmp_path, "## Prose rules", "P") == [
+        "labels differ: only in mf-build ['P2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run P1…P3",
-        "id sets differ: only in mf-build [2], only in mf-cut-change []",
+    ]
+
+
+# The card: `mf-converge` owns its fields and `mf-backlog-export` carries the same
+# labels, so the card converge carries is the card the export keeps whole. A label is
+# the bold first cell of a table row. Why: 0014-backlog-cards design D1, D7.
+_CARD_CARRIERS = ("mf-converge", "mf-backlog-export")
+_CARD_HEADING = "## The card"
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_converge_and_the_export_carry_the_same_card_fields() -> None:
+    assert _shared_label_problems(_REPO, _CARD_CARRIERS, _CARD_HEADING) == []
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_the_card_scan_reports_a_differing_label_and_a_missing_section(
+    tmp_path: Path,
+) -> None:
+    # The export's row past `## Never` must not count as a card field.
+    differ = _plant(
+        tmp_path / "differ",
+        {
+            "mf-converge": _table_text(_CARD_HEADING, "Title", "Fix", "Status"),
+            "mf-backlog-export": _table_text(_CARD_HEADING, "Title", "Status"),
+        },
+    )
+    missing = _plant(
+        tmp_path / "missing",
+        {
+            "mf-converge": _table_text(_CARD_HEADING, "Title"),
+            "mf-backlog-export": "## Never\n\n| **Title** | — |\n",
+        },
+    )
+
+    assert _shared_label_problems(differ, _CARD_CARRIERS, _CARD_HEADING) == [
+        "labels differ: only in mf-converge ['Fix'], only in mf-backlog-export []",
+    ]
+    assert _shared_label_problems(missing, _CARD_CARRIERS, _CARD_HEADING) == [
+        "skills/mf-backlog-export/SKILL.md: no labels in `## The card`",
     ]
 
 
