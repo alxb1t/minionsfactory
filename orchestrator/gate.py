@@ -2,7 +2,6 @@
 
 import shlex
 import subprocess
-import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,21 +41,41 @@ def run_command(command: str, repo: Path) -> StepResult:
     )
 
 
-def read_gate_commands(repo: Path) -> list[str]:
-    """Read the ordered gate command list from the target's .minions/minions.toml."""
-    config_path = repo / ".minions" / "minions.toml"
-    if not config_path.exists():
+GATE_COMMAND = "make gate"
+DRY_RUN_COMMAND = "make -n gate"
+# Lines make prints when the target exists but has no recipe to run.
+_NOTHING_TO_RUN = ("is up to date", "Nothing to be done")
+
+
+def resolve_gate(repo: Path, runner: CommandRunner) -> list[str]:
+    """Return the gate as `["make gate"]` once `make -n gate` shows it runs a command.
+
+    Raises `FileNotFoundError` naming the `Makefile` rather than run an empty,
+    falsely-green gate.
+    """
+    makefile = repo / "Makefile"
+    if not makefile.exists():
         raise FileNotFoundError(
-            f"no gate config at {config_path} — "
-            "the target must ship .minions/minions.toml"
+            f"no gate: {makefile} is missing — "
+            "the target must ship a root Makefile with a gate target"
         )
-    with config_path.open("rb") as config_file:
-        config = tomllib.load(config_file)
-    return config["gate"]
+    dry_run = runner(DRY_RUN_COMMAND, repo)
+    if dry_run.exit_code != 0:
+        raise FileNotFoundError(
+            f"no gate: `{DRY_RUN_COMMAND}` exited {dry_run.exit_code} — "
+            f"{makefile} has no gate target\n{dry_run.output}"
+        )
+    lines = [line for line in dry_run.output.splitlines() if line.strip()]
+    if all(any(marker in line for marker in _NOTHING_TO_RUN) for line in lines):
+        raise FileNotFoundError(
+            f"no gate: `{DRY_RUN_COMMAND}` printed no command — "
+            f"the gate target in {makefile} runs nothing"
+        )
+    return [GATE_COMMAND]
 
 
 class SubprocessGate:
-    """Real Gate: run the target repo's gate commands in order.
+    """Real Gate: run the target repo's `make gate`, checked first with `make -n gate`.
 
     Stops at the first failure.
     """
@@ -66,8 +85,8 @@ class SubprocessGate:
         self._runner = runner
 
     def run_gate(self, repo: Path) -> GateResult:
-        """Run each gate command from the repo's minions.toml; stop at the first red."""
-        commands = read_gate_commands(repo)
+        """Run each resolved gate command in order; stop at the first red."""
+        commands = resolve_gate(repo, self._runner)
         steps: list[StepResult] = []
         for command in commands:
             step = self._runner(command, repo)

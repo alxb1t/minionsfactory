@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The runner runs `make gate`** (change `0015-runner-make-gate`, phase 1), like the skills and CI. It checks
+  `make -n gate` first and raises an error naming the `Makefile` when there is no gate to run. It no longer reads
+  `.minions/minions.toml`, so the repository keeps one list of gate commands.
+
 ## [0.14.0] - 2026-09-25
 
 ### Changed

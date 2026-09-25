@@ -6,6 +6,18 @@
 **Migration**: declare the gate as a `gate` target in the target's root `Makefile`, and delete
 `.minions/minions.toml`.
 
+#### Scenario: The ordered command list parses
+- **Key:** `gate:command-list:parses-ordered-list`
+- **Layers:** unit
+- **WHEN** the target ships a `.minions/minions.toml` with a `gate` array
+- **THEN** the commands parse out in order
+
+#### Scenario: A missing config errors clearly
+- **Key:** `gate:command-list:missing-config-errors`
+- **Layers:** unit
+- **WHEN** the target has no `.minions/minions.toml`
+- **THEN** a `FileNotFoundError` naming `minions.toml` is raised
+
 ## ADDED Requirements
 
 ### Requirement: Run the target's `make gate`

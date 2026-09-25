@@ -2,7 +2,7 @@
 module: orchestrator/gate.py
 summary: Run the target repo's own quality gate and report a typed pass/fail verdict.
 entry_point: Gate
-public_api: [Gate, GateResult, StepResult, CommandRunner, read_gate_commands, run_command, SubprocessGate, FakeGate]
+public_api: [Gate, GateResult, StepResult, CommandRunner, resolve_gate, run_command, SubprocessGate, FakeGate]
 depends_on: []
 ---
 
@@ -13,22 +13,27 @@ definition of done.
 
 ## What it does
 
-Reads the target's ordered gate command list from its `.minions/minions.toml`, runs each command in order, and **stops
-at the first failure**, returning a typed [`GateResult`](#gateresult). Like [`provider`](provider.md), it is a
+Resolves the target's gate to `make gate` — after `make -n gate` shows the target's root `Makefile` has a `gate`
+target that runs a command — runs it, and **stops at the first failure**, returning a typed
+[`GateResult`](#gateresult). Like [`provider`](provider.md), it is a
 seam ([`Gate`](#gate) Protocol) with a real adapter ([`SubprocessGate`](#subprocessgate)) and a scripted double
 ([`FakeGate`](#fakegate)).
 
 ## Boundaries
 
 The gate does not *decide* what to do with a red result — it only reports pass/fail plus each step. The driver
-([`decide`](driver.md#decide)) turns a red gate into a halt. The command list is **read from the target**, not
-hardcoded, so a non-Python target needs no orchestrator change — only a different `.minions/minions.toml`.
+([`decide`](driver.md#decide)) turns a red gate into a halt. The gate is **read from the target**, not hardcoded:
+it is whatever the target's `make gate` runs, so a non-Python target needs no orchestrator change — only its own
+`gate` target.
 
 ## Data flow
 
 ```mermaid
 flowchart TD
-    rg["read_gate_commands(repo) — from .minions/minions.toml"] --> loop["for each command, in order"]
+    mk{"root Makefile?"} -- no --> err(["FileNotFoundError naming Makefile"])
+    mk -- yes --> dry{"make -n gate exits 0 and prints a command?"}
+    dry -- no --> err
+    dry -- yes --> loop["for each command in [make gate]"]
     loop --> run["runner(command, repo) → StepResult"]
     run --> red{"exit_code != 0?"}
     red -- yes --> fail(["GateResult(passed=False) — stop"])
@@ -48,6 +53,7 @@ if not result.passed:
 ## Edge cases & invariants
 
 - **Fail-fast**: `steps` is truncated at the first non-zero command — later commands never run.
+- The dry run is a check, not a step: it is not in `steps`, so a run records one step, `make gate`.
 - `run_command` uses `check=False` **on purpose** (opposite of the provider's `check=True`): a red gate is an
   *expected signal* to capture, not an exception to raise.
 - Commands run via `shlex.split` + `subprocess.run` with **no shell**.
@@ -82,16 +88,19 @@ The gate's aggregate verdict.
 
 - **Consumed by** — [`decide`](driver.md#decide) (halts on `passed=False`) and [`converge`](converge.md#converge) (halts on a red gate after a fix); the driver emits one `gate-step` event per step.
 
-### `read_gate_commands`
+### `resolve_gate`
 
 ```python
-def read_gate_commands(repo: Path) -> list[str]
+def resolve_gate(repo: Path, runner: CommandRunner) -> list[str]
 ```
 
-Read the ordered gate command list from `repo/.minions/minions.toml` (`tomllib`, the `gate` key).
+Return `["make gate"]` once `make -n gate`, run through `runner`, shows the target's gate runs a command.
 
-- **Why** — language-neutrality: a JS target ships a different list, no orchestrator change. Co-located with the generated `.minions/` run artifacts (one framework dir per target).
-- **Raises** — `FileNotFoundError` with a clear message when the config is absent — a fail-loud upgrade over a bare traceback deep in a run.
+- **Why** — the skills and CI run `make gate`; the runner runs the same gate the same way. The dry run is the
+  skills' check, and it goes through the injected `runner` so tests fake `make` without spawning it.
+- **Raises** — `FileNotFoundError` naming the `Makefile` when it is missing, when `make -n gate` exits non-zero,
+  or when it prints no command (nothing, or only `is up to date` / `Nothing to be done`) — rather than run an
+  empty, falsely-green gate.
 - **Source** — [`gate.py`](../../orchestrator/gate.py) · **Tests** — [`test_gate.py`](../../tests/test_gate.py)
 
 ### `run_command`
@@ -134,7 +143,7 @@ class SubprocessGate:
     def run_gate(self, repo: Path) -> GateResult
 ```
 
-The real gate: reads the commands, runs each via the injected `runner`, stops at the first non-zero step.
+The real gate: resolves the commands with [`resolve_gate`](#resolve_gate), runs each via the injected `runner`, stops at the first non-zero step.
 
 - **Gotchas** — `runner` defaults to the real [`run_command`](#run_command); tests inject a scripted [`CommandRunner`](#commandrunner) to exercise the fail-fast logic without real tools.
 - **Source** — [`gate.py`](../../orchestrator/gate.py) · **Tests** — [`test_gate.py`](../../tests/test_gate.py)
