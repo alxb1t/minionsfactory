@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mf-build` gets the truth rules `W1`…`W6` and the comment rules `C1`…`C12`** (change
   `0013-how-the-builder-writes`, phase 2). Claims are checked against code bodies, and a retirement lists every
   hit in its commit body. Comments say why, carry no history, and cite rather than copy a long reason.
+- **`mf-cut-change` gets the planning rules `A4`…`A6`** (change `0013-how-the-builder-writes`, phase 3). The
+  irreversible act is a change's last phase, unbuilt work names a trigger rather than a version, and a minor
+  version delivers one feature while a patch delivers none.
 
 ## [0.12.0] - 2026-09-25
 

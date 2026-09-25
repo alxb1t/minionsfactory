@@ -177,6 +177,9 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 | **A1** | **Same headings every time** | proposal: frontmatter · title · one line · reading map · Why · What Changes · Capabilities · Impact · Not in this change. design: title · one line + verdict · Context · Goals / Non-Goals · Decisions · *extra sections* · Dependencies · Risks / Trade-offs · *Migration Plan, if any* · Verdict. tasks: title · one line · `## Progress` · `## N — Title` |
 | **A2** | **Say what is out** | proposal ends with `## Not in this change` |
 | **A3** | **A what-changes line per requirement** | proposal lists each requirement the delta touches, one line each — a MODIFIED block hides its own diff |
+| **A4** | **Keep the old thing declared until the new one is proven** — the irreversible act is the change's last phase | a delete, a removal, a migration that cannot be undone |
+| **A5** | **Unbuilt work names its trigger, never a version** | "when the runner resumes", not "in v0.15" |
+| **A6** | **A minor version delivers one feature; a patch delivers none.** The repo's `CLAUDE.md` states what a patch may hold; a patch cut in a repo that states nothing is put to the human | why v0.12 and v0.13 are two versions |
 
 ## Never
 

@@ -7,7 +7,7 @@ planning rules in `mf-cut-change`. The text of every rule is in [design.md](desi
 
 - [x] 1 — The shared prose rules
 - [x] 2 — `mf-build`'s truth and comment rules
-- [ ] 3 — `mf-cut-change`'s planning rules
+- [x] 3 — `mf-cut-change`'s planning rules
 
 ## 1 — The shared prose rules
 
@@ -46,5 +46,5 @@ All edits are in `skills/mf-build/SKILL.md`: `W` is [D1](design.md#d1--the-w-tab
 
 ## 3 — `mf-cut-change`'s planning rules
 
-- [ ] 3.1 `skills/mf-cut-change/SKILL.md`: add `A4`…`A6` to `## Rules for the artifacts`, per
+- [x] 3.1 `skills/mf-cut-change/SKILL.md`: add `A4`…`A6` to `## Rules for the artifacts`, per
   [D7](design.md#d7--the-a-table-as-mf-cut-change-carries-it). Verify: `grep -c '^| \*\*A[0-9]*\*\* |' skills/mf-cut-change/SKILL.md` prints `6`.
