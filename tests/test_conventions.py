@@ -27,15 +27,15 @@ _RETIRED = (
     "_plan_version",
 )
 
-# The ONE root set, shared by both needle sets below and asserted verbatim in each scan
-# test, so narrowing *the tuple* is a visible edit and not a silent one. The literal
-# does not catch a root that disappears from disk — `rglob` on a missing path yields
-# nothing rather than raising — so what closes that half is the rule that a deletion
-# lands in the same commit as the guard edit it forces, leaving no commit shipping a
-# scan narrower than the tuple it asserts (0008-surface-collapse design §4). The two
-# sets were once scanned over separate roots, because a retired *plan* needle was live
-# check text inside the planning-skill surface; that surface is deleted, so one root set
-# now crosses both needle sets green.
+# The ONE root set, shared by every needle set below and asserted verbatim in
+# `_assert_named_nowhere`, so narrowing *the tuple* is a visible edit and not a silent
+# one. The literal does not catch a root that disappears from disk — `rglob` on a
+# missing path yields nothing rather than raising — so what closes that half is the rule
+# that a deletion lands in the same commit as the guard edit it forces, leaving no
+# commit shipping a scan narrower than the tuple it asserts (0008-surface-collapse
+# design §4). The two sets were once scanned over separate roots, because a retired
+# *plan* needle was live check text inside the planning-skill surface; that surface is
+# deleted, so one root set now crosses every needle set green.
 #
 # Deliberately EXCLUDED, each for its own reason (0005-change-cutover design §5):
 #   - `openspec/specs/` — the specs describe the retirement and must be able to name it;
@@ -98,8 +98,8 @@ def _hits(base: Path, roots: tuple[str, ...], needle: str) -> list[str]:
     return found
 
 
-@pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
-def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> None:
+def _assert_named_nowhere(needles: tuple[str, ...]) -> None:
+    """Assert the root set verbatim, then that no needle is named under it."""
     assert _SCANNED == (
         "orchestrator",
         "prompts",
@@ -113,47 +113,47 @@ def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> No
         "pyproject.toml",
     )
 
-    assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED} == {
-        needle: [] for needle in _RETIRED
+    assert {needle: _hits(_REPO, _SCANNED, needle) for needle in needles} == {
+        needle: [] for needle in needles
     }
+
+
+# One planted file per scanned root, in `_SCANNED` order.
+_PLANTS = (
+    "orchestrator/plant.py",
+    "prompts/plant.md",
+    "skills/mf-build/SKILL.md",
+    "docs/modules/plant.md",
+    "README.md",
+    "CLAUDE.md",
+    ".env.example",
+    ".github/workflows/ci.yml",
+    "Makefile",
+    "pyproject.toml",
+)
+
+
+def _assert_every_plant_bites(base: Path, needles: tuple[str, ...]) -> None:
+    """Plant each needle in every scanned root in turn and assert every plant is hit."""
+    # A guard whose needle does not bite in every root is decoration.
+    for plant in _PLANTS:
+        (base / plant).parent.mkdir(parents=True, exist_ok=True)
+    for needle in needles:
+        for plant in _PLANTS:
+            (base / plant).write_text(f"the {needle}\n")
+        assert _hits(base, _SCANNED, needle) == [f"{plant}:1" for plant in _PLANTS]
+
+
+@pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
+def test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs() -> None:
+    _assert_named_nowhere(_RETIRED)
 
 
 @pytest.mark.spec("sdd:vault-layout:no-plan-path-references")
 def test_the_guard_fails_when_any_retired_needle_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    # The guard is only worth having if every needle bites: plant each one in every
-    # scanned root in turn and confirm every plant is reported.
-    (tmp_path / "orchestrator").mkdir()
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
-    (tmp_path / "docs" / "modules").mkdir(parents=True)
-    (tmp_path / ".github" / "workflows").mkdir(parents=True)
-
-    for needle in _RETIRED:
-        (tmp_path / "orchestrator" / "state.py").write_text(f'D = "{needle}"\n')
-        (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
-        (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
-        (tmp_path / "docs" / "modules" / "state.md").write_text(f"the {needle} thing\n")
-        (tmp_path / "README.md").write_text(f"a vault with {needle}\n")
-        (tmp_path / "CLAUDE.md").write_text(f"the {needle} model is retired\n")
-        (tmp_path / ".env.example").write_text(f"{needle}=\n")
-        (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
-        (tmp_path / "Makefile").write_text(f"\t@echo {needle}\n")
-        (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
-
-        assert _hits(tmp_path, _SCANNED, needle) == [
-            "orchestrator/state.py:1",
-            "prompts/coder.md:1",
-            "skills/mf-build/SKILL.md:1",
-            "docs/modules/state.md:1",
-            "README.md:1",
-            "CLAUDE.md:1",
-            ".env.example:1",
-            ".github/workflows/ci.yml:1",
-            "Makefile:1",
-            "pyproject.toml:1",
-        ]
+    _assert_every_plant_bites(tmp_path, _RETIRED)
 
 
 # The retired vault-write model. v0.7 moved findings, the HALT report and the
@@ -186,22 +186,7 @@ _RETIRED_VAULT = (
 def test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs() -> (
     None
 ):
-    assert _SCANNED == (
-        "orchestrator",
-        "prompts",
-        "skills",
-        "docs",
-        "README.md",
-        "CLAUDE.md",
-        ".env.example",
-        ".github",
-        "Makefile",
-        "pyproject.toml",
-    )
-
-    assert {needle: _hits(_REPO, _SCANNED, needle) for needle in _RETIRED_VAULT} == {
-        needle: [] for needle in _RETIRED_VAULT
-    }
+    _assert_named_nowhere(_RETIRED_VAULT)
 
 
 @pytest.mark.spec("sdd:vault-layout:no-retired-vault-vocabulary")
@@ -229,97 +214,25 @@ def test_the_scan_carves_out_no_directory_inside_its_scanned_roots() -> None:
 def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    # Same bar as the plan needles: each one must bite, in every root of the shared set,
-    # or the scan is decoration.
-    (tmp_path / "orchestrator").mkdir()
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
-    (tmp_path / "docs" / "modules").mkdir(parents=True)
-    (tmp_path / ".github" / "workflows").mkdir(parents=True)
-
-    for needle in _RETIRED_VAULT:
-        (tmp_path / "orchestrator" / "findings.py").write_text(f'D = "{needle}"\n')
-        (tmp_path / "prompts" / "coder.md").write_text(f"write to the {needle}\n")
-        (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
-        (tmp_path / "docs" / "modules" / "findings.md").write_text(f"the {needle}\n")
-        (tmp_path / "README.md").write_text(f"a report under {needle}\n")
-        (tmp_path / "CLAUDE.md").write_text(f"the vault is {needle}\n")
-        (tmp_path / ".env.example").write_text(f"{needle}=\n")
-        (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
-        (tmp_path / "Makefile").write_text(f"\t@echo {needle}\n")
-        (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
-
-        assert _hits(tmp_path, _SCANNED, needle) == [
-            "orchestrator/findings.py:1",
-            "prompts/coder.md:1",
-            "skills/mf-build/SKILL.md:1",
-            "docs/modules/findings.md:1",
-            "README.md:1",
-            "CLAUDE.md:1",
-            ".env.example:1",
-            ".github/workflows/ci.yml:1",
-            "Makefile:1",
-            "pyproject.toml:1",
-        ]
+    _assert_every_plant_bites(tmp_path, _RETIRED_VAULT)
 
 
 # The retired gate config. The runner runs `make gate` like the skills and CI, so the
 # file is deleted and its name retired (0015-runner-make-gate design D5). Its own
 # needle, apart from the sets above: a different retirement, a different regression.
-_RETIRED_GATE_CONFIG = "minions.toml"
+_RETIRED_GATE_CONFIG = ("minions.toml",)
 
 
 @pytest.mark.spec("sdd:retired-gate-config:named-nowhere")
 def test_the_retired_gate_config_is_named_nowhere_in_code_prompts_or_docs() -> None:
-    assert _SCANNED == (
-        "orchestrator",
-        "prompts",
-        "skills",
-        "docs",
-        "README.md",
-        "CLAUDE.md",
-        ".env.example",
-        ".github",
-        "Makefile",
-        "pyproject.toml",
-    )
-
-    assert _hits(_REPO, _SCANNED, _RETIRED_GATE_CONFIG) == []
+    _assert_named_nowhere(_RETIRED_GATE_CONFIG)
 
 
 @pytest.mark.spec("sdd:retired-gate-config:named-nowhere")
 def test_the_guard_fails_when_the_retired_gate_config_is_reintroduced(
     tmp_path: Path,
 ) -> None:
-    needle = _RETIRED_GATE_CONFIG
-    (tmp_path / "orchestrator").mkdir()
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
-    (tmp_path / "docs" / "modules").mkdir(parents=True)
-    (tmp_path / ".github" / "workflows").mkdir(parents=True)
-    (tmp_path / "orchestrator" / "gate.py").write_text(f'D = "{needle}"\n')
-    (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
-    (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
-    (tmp_path / "docs" / "modules" / "gate.md").write_text(f"the {needle}\n")
-    (tmp_path / "README.md").write_text(f"ship a {needle}\n")
-    (tmp_path / "CLAUDE.md").write_text(f"the runner reads {needle}\n")
-    (tmp_path / ".env.example").write_text(f"GATE={needle}\n")
-    (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
-    (tmp_path / "Makefile").write_text(f"# mirrored in {needle}\n")
-    (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
-
-    assert _hits(tmp_path, _SCANNED, needle) == [
-        "orchestrator/gate.py:1",
-        "prompts/coder.md:1",
-        "skills/mf-build/SKILL.md:1",
-        "docs/modules/gate.md:1",
-        "README.md:1",
-        "CLAUDE.md:1",
-        ".env.example:1",
-        ".github/workflows/ci.yml:1",
-        "Makefile:1",
-        "pyproject.toml:1",
-    ]
+    _assert_every_plant_bites(tmp_path, _RETIRED_GATE_CONFIG)
 
 
 @pytest.mark.spec_exempt("structural — the method doc is wired into the docs map")

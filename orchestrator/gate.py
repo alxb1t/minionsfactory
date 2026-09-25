@@ -41,8 +41,8 @@ def run_command(command: str, repo: Path) -> StepResult:
     )
 
 
-GATE_COMMAND = "make gate"
-DRY_RUN_COMMAND = "make -n gate"
+_GATE_COMMAND = "make gate"
+_DRY_RUN_COMMAND = "make -n gate"
 # Lines make prints when the target exists but has no recipe to run.
 _NOTHING_TO_RUN = ("is up to date", "Nothing to be done")
 
@@ -59,19 +59,19 @@ def resolve_gate(repo: Path, runner: CommandRunner) -> list[str]:
             f"no gate: {makefile} is missing — "
             "the target must ship a root Makefile with a gate target"
         )
-    dry_run = runner(DRY_RUN_COMMAND, repo)
+    dry_run = runner(_DRY_RUN_COMMAND, repo)
     if dry_run.exit_code != 0:
         raise FileNotFoundError(
-            f"no gate: `{DRY_RUN_COMMAND}` exited {dry_run.exit_code} — "
+            f"no gate: `{_DRY_RUN_COMMAND}` exited {dry_run.exit_code} — "
             f"{makefile} has no gate target\n{dry_run.output}"
         )
     lines = [line for line in dry_run.output.splitlines() if line.strip()]
     if all(any(marker in line for marker in _NOTHING_TO_RUN) for line in lines):
         raise FileNotFoundError(
-            f"no gate: `{DRY_RUN_COMMAND}` printed no command — "
+            f"no gate: `{_DRY_RUN_COMMAND}` printed no command — "
             f"the gate target in {makefile} runs nothing"
         )
-    return [GATE_COMMAND]
+    return [_GATE_COMMAND]
 
 
 class SubprocessGate:
