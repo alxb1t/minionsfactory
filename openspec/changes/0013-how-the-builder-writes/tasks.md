@@ -5,7 +5,7 @@ planning rules in `mf-cut-change`. The text of every rule is in [design.md](desi
 
 ## Progress
 
-- [ ] 1 — The shared prose rules
+- [x] 1 — The shared prose rules
 - [ ] 2 — `mf-build`'s truth and comment rules
 - [ ] 3 — `mf-cut-change`'s planning rules
 
@@ -14,21 +14,21 @@ planning rules in `mf-cut-change`. The text of every rule is in [design.md](desi
 `P` first, because `W4`, `C4` and `C10` cite it ([D9](design.md#d9)). The split is
 [D3](design.md#d3--the-split-of-the-16-rows); the counts text is [D4](design.md#d4--the-text-that-changes-with-the-counts-rule).
 
-- [ ] 1.1 **HALT CHECK** — `mf-cut-change`'s style table still holds the rows D3 maps. Verify:
+- [x] 1.1 **HALT CHECK** — `mf-cut-change`'s style table still holds the rows D3 maps. Verify:
   `sed -n '/^## How the artifacts read/,/^## Never/p' skills/mf-cut-change/SKILL.md | grep -c '^| [0-9]* |'` prints `16`.
-- [ ] 1.2 Test first: in `tests/test_skills.py`, the section reader takes a heading and an id letter; add the prose
+- [x] 1.2 Test first: in `tests/test_skills.py`, the section reader takes a heading and an id letter; add the prose
   scan and its twin, bound to `sdd:prose-rules:ids-agree`. Verify: `uv run pytest tests/test_skills.py -q` fails, naming `## Prose rules`.
-- [ ] 1.3 `skills/mf-build/SKILL.md`: add `## Prose rules` after *Stop-conditions* — D3's `P` table, then D6's scope
+- [x] 1.3 `skills/mf-build/SKILL.md`: add `## Prose rules` after *Stop-conditions* — D3's `P` table, then D6's scope
   paragraph. Verify: `grep -c '^| \*\*P[0-9]*\*\* |' skills/mf-build/SKILL.md` prints `13`.
-- [ ] 1.4 `skills/mf-cut-change/SKILL.md`: `## How the artifacts read` becomes `## Prose rules` (the same `P` table, then
+- [x] 1.4 `skills/mf-cut-change/SKILL.md`: `## How the artifacts read` becomes `## Prose rules` (the same `P` table, then
   the example task) and `## Rules for the artifacts` (`A1`…`A3`). Verify: `grep -c -e '^| \*\*P[0-9]*\*\* |' -e '^| \*\*A[0-9]*\*\* |' skills/mf-cut-change/SKILL.md` prints `16`.
-- [ ] 1.5 `I6`, in both skills, and the example task's *after* line, per D4. Verify:
+- [x] 1.5 `I6`, in both skills, and the example task's *after* line, per D4. Verify:
   `grep -c -e 'any count shows the command' -e 'Seed the seven' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints `0` for both.
-- [ ] 1.6 `mf-cut-change` Step 6's link and Step 8's check list, per [D7](design.md#d7). Verify:
+- [x] 1.6 `mf-cut-change` Step 6's link and Step 8's check list, per [D7](design.md#d7). Verify:
   `grep -c -e 'How the artifacts read' -e 'style rules 10, 13, 14' skills/mf-cut-change/SKILL.md` prints `0`.
-- [ ] 1.7 `mf-build` Step 2, item 4: the CHANGELOG entry follows `P` ([D6](design.md#d6--where-mf-build-states-the-scope)).
+- [x] 1.7 `mf-build` Step 2, item 4: the CHANGELOG entry follows `P` ([D6](design.md#d6--where-mf-build-states-the-scope)).
   Verify: `sed -n '/^## Step 2/,/^## Step 3/p' skills/mf-build/SKILL.md | grep -c 'following `P`'` prints `1`.
-- [ ] 1.8 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 1.8 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 2 — `mf-build`'s truth and comment rules
 

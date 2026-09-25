@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`mf-build` owns the prose rules, `P1`…`P13`** (change `0013-how-the-builder-writes`, phase 1). They apply to
+  the docs and CHANGELOG entries it writes; `mf-cut-change` carries the same ids, and a scan test holds them
+  equal. A count in prose becomes the names of the things it counts (`P12`).
+
 ## [0.12.0] - 2026-09-25
 
 ### Changed

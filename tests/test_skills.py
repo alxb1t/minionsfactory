@@ -13,12 +13,11 @@ _REPO = Path(__file__).resolve().parent.parent
 # held to the same pair.
 _GATE_RUNNERS = ("mf-build", "mf-converge", "mf-release")
 
-# The input contract: `mf-build` owns it, `mf-cut-change` carries the same ids, and
-# this scan holds the two id sets equal (0011-cut-and-gate design D5). An id is the
-# bold first cell of a table row in the `## Input contract` section, up to the next
-# `## ` heading.
-_CONTRACT_OWNERS = ("mf-build", "mf-cut-change")
-_CONTRACT_ROW = re.compile(r"^\| \*\*I(\d+)\*\* \|")
+# The shared lists: `mf-build` owns each, `mf-cut-change` carries the same ids, and a
+# scan holds the two id sets equal. An id is the bold first cell of a table row in the
+# named `## ` section, up to the next `## ` heading.
+# Why: 0011-cut-and-gate design D5, 0013-how-the-builder-writes design D3.
+_SHARED_OWNERS = ("mf-build", "mf-cut-change")
 
 
 def _gate_problems(base: Path) -> list[str]:
@@ -72,34 +71,37 @@ def test_the_gate_scan_reports_a_named_toml_and_a_missing_dry_run(
     ]
 
 
-def _contract_ids(path: Path) -> list[int]:
-    """Return the ids in `path`'s `## Input contract` section, in order."""
+def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
+    """Return the `letter` ids in `path`'s `heading` section, in order."""
+    row = re.compile(rf"^\| \*\*{letter}(\d+)\*\* \|")
     ids: list[int] = []
     inside = False
     for line in path.read_text().splitlines():
         if line.startswith("## "):
-            inside = line == "## Input contract"
-        elif inside and (match := _CONTRACT_ROW.match(line)):
+            inside = line == heading
+        elif inside and (match := row.match(line)):
             ids.append(int(match.group(1)))
     return ids
 
 
-def _contract_problems(base: Path) -> list[str]:
-    """Return one line per breach of the shared input contract in `base`'s skills."""
+def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
+    """Return one line per breach of the shared `heading` list in `base`'s skills."""
     problems: list[str] = []
     sets: dict[str, set[int]] = {}
-    for name in _CONTRACT_OWNERS:
+    for name in _SHARED_OWNERS:
         path = base / "skills" / name / "SKILL.md"
         if not path.is_file():
             problems.append(f"skills/{name}/SKILL.md: does not exist")
             continue
-        ids = _contract_ids(path)
+        ids = _section_ids(path, heading, letter)
         if not ids:
-            problems.append(f"skills/{name}/SKILL.md: no input contract ids")
+            problems.append(f"skills/{name}/SKILL.md: no ids in `{heading}`")
         elif sorted(ids) != list(range(1, max(ids) + 1)):
-            problems.append(f"skills/{name}/SKILL.md: ids do not run I1…I{max(ids)}")
+            problems.append(
+                f"skills/{name}/SKILL.md: ids do not run {letter}1…{letter}{max(ids)}"
+            )
         sets[name] = set(ids)
-    build, cut = (sets.get(name) for name in _CONTRACT_OWNERS)
+    build, cut = (sets.get(name) for name in _SHARED_OWNERS)
     if build is not None and cut is not None and build != cut:
         problems.append(
             f"id sets differ: only in mf-build {sorted(build - cut)}, "
@@ -108,27 +110,58 @@ def _contract_problems(base: Path) -> list[str]:
     return problems
 
 
+def _plant_shared_list(
+    base: Path, heading: str, letter: str, ids: dict[str, tuple[int, ...]]
+) -> None:
+    """Write each skill's `heading` section with `ids`, plus one row past its end."""
+    for name, numbers in ids.items():
+        rows = "".join(f"| **{letter}{n}** | must | — |\n" for n in numbers)
+        text = f"{heading}\n\n| id | a | b |\n|---|---|---|\n{rows}\n"
+        text += f"## Never\n\n| **{letter}9** | outside | — |\n"
+        (base / "skills" / name).mkdir(parents=True)
+        (base / "skills" / name / "SKILL.md").write_text(text)
+
+
 @pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
-    assert _contract_problems(_REPO) == []
+    assert _shared_id_problems(_REPO, "## Input contract", "I") == []
 
 
 @pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
     # Plant I1–I3 in the build and I1, I3 in the cut: the cut has a gap, and the two
     # sets differ by one id. A row past the section's end must not count.
-    def write(name: str, ids: tuple[int, ...]) -> None:
-        rows = "".join(f"| **I{n}** | must | — |\n" for n in ids)
-        text = f"## Input contract\n\n| id | a | b |\n|---|---|---|\n{rows}\n"
-        text += "## Never\n\n| **I9** | outside | — |\n"
-        (tmp_path / "skills" / name).mkdir(parents=True)
-        (tmp_path / "skills" / name / "SKILL.md").write_text(text)
+    _plant_shared_list(
+        tmp_path,
+        "## Input contract",
+        "I",
+        {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)},
+    )
 
-    write("mf-build", (1, 2, 3))
-    write("mf-cut-change", (1, 3))
-
-    assert _contract_problems(tmp_path) == [
+    assert _shared_id_problems(tmp_path, "## Input contract", "I") == [
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
+        "id sets differ: only in mf-build [2], only in mf-cut-change []",
+    ]
+
+
+@pytest.mark.spec("sdd:prose-rules:ids-agree")
+def test_the_cut_and_the_build_carry_the_same_prose_rule_ids() -> None:
+    assert _shared_id_problems(_REPO, "## Prose rules", "P") == []
+
+
+@pytest.mark.spec("sdd:prose-rules:ids-agree")
+def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
+    # Plant P1–P3 in the build and P1, P3 in the cut: the cut has a gap, and the two
+    # sets differ by one id. A row past the section's end must not count.
+    _plant_shared_list(
+        tmp_path,
+        "## Prose rules",
+        "P",
+        {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)},
+    )
+
+    assert _shared_id_problems(tmp_path, "## Prose rules", "P") == [
+        "skills/mf-cut-change/SKILL.md: ids do not run P1…P3",
         "id sets differ: only in mf-build [2], only in mf-cut-change []",
     ]
 

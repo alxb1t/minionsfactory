@@ -32,7 +32,7 @@ the same ids. Step 1 checks the four marked **yes** itself; the rest surface thr
 | **I3** | leave `make gate` green on the cut commit | — |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
-| **I6** | give every task one reading: it names its files, offers no "or", and any count shows the command that produced it | — (stop-condition 3) |
+| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | — (stop-condition 5) |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
@@ -100,7 +100,7 @@ phase and its `N.M` boxes, and commit — staging the person's evidence files by
    to pass:** deleting or skipping a test, a blanket suppression, a loosened config — each is a plan problem, and
    the move is to halt (see *Stop-conditions*).
 4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
-   changed and why, in plain words.
+   changed and why, following `P`.
 5. **Tick the phase's box** in the `## Progress` list in `tasks.md` (`- [ ] N` → `- [x] N`). A phase is finished
    by a commit **and** a ticked box; either alone is not an advance.
 6. **One commit for that phase.** Stage the paths you changed **by name** — never `git add -A`, because
@@ -155,6 +155,30 @@ were whole is not.
    at the cut: add it as listed. Any other: state the justification and stop for approval. Dependencies are the
    supply-chain surface and are human-gated.
 5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut.
+
+## Prose rules
+
+This skill owns this list. `mf-cut-change` carries the same ids; `tests/test_skills.py` fails if they differ.
+
+| id | rule | example / why |
+|---|---|---|
+| **P1** | **Terse** | cut every word that carries nothing |
+| **P2** | **Short sentences** | one idea each |
+| **P3** | **Simple English** | "use", not "leverage" |
+| **P4** | **Examples** | a rule with an example is read one way |
+| **P5** | **Links** | link related files by relative path: `[design](design.md)` |
+| **P6** | **ASCII diagrams** | for any flow, tree or state |
+| **P7** | **Answer first** | each file and section opens with 1–2 lines saying what it is for or what it decides |
+| **P8** | **Choices in tables** | `id · decision · because · rejected` |
+| **P9** | **Stable ids, cited as links** | `per [D3](design.md#d3)` — agents grep `D3`, people click it |
+| **P10** | **One word per thing** | define a term once, in bold; never swap in a synonym |
+| **P11** | **Concrete names** | files, commands, symbols in backticks; a text change as before → after |
+| **P12** | **No counts — name the things** | "the review and security files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
+| **P13** | **Size limits** | a paragraph fits in 3 sentences, a task in 3 lines; anything longer is a decision or a doc section, linked |
+
+`P` covers the markdown docs you create or rewrite — `README.md`, `docs/`, `CLAUDE.md` — and your CHANGELOG
+entries. `C` covers comments and docstrings. Both apply only to the text a phase writes or changes, and the
+comments next to it — never a whole file unasked; a task that says "rewrite X" rewrites X.
 
 ## What you must NOT do
 
