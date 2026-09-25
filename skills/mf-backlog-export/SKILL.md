@@ -106,7 +106,8 @@ Then report: every item by id, its class, and where it went.
 ## The card
 
 Each item is a **card** a converge station wrote: one top-level list line holding its id and a plain title, then
-one nested bullet per field. `mf-converge` owns the card and its wording wins; this section carries the same
+one nested bullet per field, never a heading — `mf-release` blocks on any list line, so a card written as headings
+would let a release ship with deferred work. `mf-converge` owns the card and its wording wins; this section carries the same
 fields, and `tests/test_skills.py` holds their labels equal.
 
 | field | holds |
@@ -125,9 +126,6 @@ fields, and `tests/test_skills.py` holds their labels equal.
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
 and name things rather than count them: "the review and security files", not "the two files". The station
 wrote the card to these limits; you carry it as written.
-
-A card stays a list item, its fields nested bullets rather than headings: `mf-release` blocks on any list line,
-so a card written as a heading would let a release ship with deferred work.
 
 ```
 - **R5 — A crashed converge can be released as "skipped"**

@@ -149,8 +149,8 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
 
 **Then carry the non-blocking findings — every round, before you branch.** Append every non-blocking finding in
 either file (review nits, security `medium`/`low`) to `.minions/<version>_backlog.md` as its card, whole and
-verbatim — every field, in order. Carry each id once; one already on the list is not re-appended. Any list line there holds the release until it is fixed and
-removed, or exported by the human.
+verbatim — every field, in order. Carry each id once; one already on the list is not re-appended. Any list line
+there holds the release until it is fixed and removed, or exported by the human.
 
 This is **yours, on every round, whatever the verdicts** — including the round that converges. It is the one
 piece of the loop that must not hang off the fix station: a round that comes back both-clean dispatches no fix
@@ -220,7 +220,8 @@ Then **stop**.
 ## The card
 
 Every finding is a **card**: one top-level list line holding its id and a plain title, then one nested bullet per
-field. This skill owns the card; `mf-backlog-export` carries the same fields, and `tests/test_skills.py` holds
+field, never a heading — `mf-release` blocks on any list line, so a card written as headings would let a release
+ship with deferred work. This skill owns the card; `mf-backlog-export` carries the same fields, and `tests/test_skills.py` holds
 their labels equal.
 
 | field | holds |
@@ -238,9 +239,6 @@ their labels equal.
 
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
 and name things rather than count them: "the review and security files", not "the two files".
-
-A card stays a list item, its fields nested bullets rather than headings: `mf-release` blocks on any list line,
-so a card written as a heading would let a release ship with deferred work.
 
 ```
 - **R5 — A crashed converge can be released as "skipped"**
