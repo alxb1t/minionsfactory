@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-25
+
 ### Changed
 
 - **The runner runs `make gate`** (change `0015-runner-make-gate`, phase 1), like the skills and CI. It checks
