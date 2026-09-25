@@ -16,7 +16,7 @@ The design rests on four invariants:
 
 ## Status
 
-**v0.14.0 is the current release; the v0.15 line has not opened.** The loop is closed end to end: the
+**v0.15.0 is the current release; the v0.16 line has not opened.** The loop is closed end to end: the
 per-phase build spine (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖
 security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
 unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
@@ -37,20 +37,17 @@ The **target repo** it drives must provide:
 
 - an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
   `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta, and
-- a **`.minions/minions.toml`** — the runner's ordered gate command list (deprecated: the skills run
-  `make gate`, and the runner will too), e.g.:
+- a root **`Makefile`** with a **`gate`** target — the runner checks it with `make -n gate`, then runs
+  `make gate`, e.g.:
 
-  ```toml
-  gate = [
-    "uv sync --locked",
-    "uv run ruff format --check .",
-    "uv run ruff check .",
-    "uv run ty check",
-    "uv run pytest",
-  ]
+  ```make
+  gate:
+  	uv sync --locked
+  	uv run ruff check .
+  	uv run pytest
   ```
 
-  (git-ignore the generated artifacts with `.minions/*`, and keep the runner's config: `!.minions/minions.toml`.)
+  (git-ignore the generated artifacts with `.minions/`.)
 
 That is the whole contract — **nothing outside the repo is declared, resolved or written.** Everything a run
 produces lands under the gitignored `.minions/`: each role's findings at

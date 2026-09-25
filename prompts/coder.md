@@ -92,7 +92,7 @@ the orchestrator recognizes a halt.
    verification rather than fake it.
 5. **`tasks.md` is ambiguous, contradicts reality, or needs a decision it doesn't cover** — halt and report the
    specific question (there is no human to answer mid-flight in an orchestrated run).
-6. **The run's inputs are missing** — the change directory or the gate config (`.minions/minions.toml`) is
+6. **The run's inputs are missing** — the change directory or the root `Makefile`'s `gate` target is
    absent.
 
 ## What you must NOT do
