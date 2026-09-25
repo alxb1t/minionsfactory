@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Every finding is a card** (change `0014-backlog-cards`, phase 1): a plain title, then labelled fields. The
+  stations write cards, `mf-converge` carries deferred ones verbatim and `mf-backlog-export` keeps them whole, so
+  the exported backlog is readable. A scan test holds both skills' card fields equal.
+
 ## [0.13.0] - 2026-09-25
 
 ### Changed

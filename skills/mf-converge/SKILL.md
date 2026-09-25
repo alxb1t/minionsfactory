@@ -74,7 +74,8 @@ own findings file. Give each one:
 
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
-- its own findings path `.minions/findings/<change-id>_<role>.md`, and nothing else to write.
+- its own findings path `.minions/findings/<change-id>_<role>.md`, and nothing else to write,
+- the card, from [`## The card`](#the-card) — every finding it writes is a card.
 
 **How a station scopes itself.** It scopes its review engine to the range. **Only if what it reviewed came back
 empty or clearly wrong** does it fall back to reading the patch file and reviewing that — and it **states in its
@@ -106,6 +107,10 @@ open_blocking: <int>
 verdict: clean | changes-requested
 ---
 ```
+
+**The body is a list of cards**, one per finding, in the shape [`## The card`](#the-card) fixes. The
+`open → fixed → verified` status below is each card's **Status** field; the fix and verify passes change that
+field and leave the card's other fields as the station wrote them.
 
 **Two severity vocabularies; which applies is the station's.** Security grades `critical | high | medium | low`
 and **blocks on `critical` + `high`**. Review grades `blocking | nit` and **blocks on `blocking`**. Either way
@@ -143,9 +148,8 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 
 **Then carry the non-blocking findings — every round, before you branch.** Append every non-blocking finding in
-either file — review nits, security `medium`/`low` — to `.minions/<version>_backlog.md` as a list line, whole:
-id · severity · source role · repository-relative `path:line` · the defect · the suggested fix. Carry each id
-once; one already on the list is not re-appended. Any list line there holds the release until it is fixed and
+either file (review nits, security `medium`/`low`) to `.minions/<version>_backlog.md` as its card, whole and
+verbatim — every field, in order. Carry each id once; one already on the list is not re-appended. Any list line there holds the release until it is fixed and
 removed, or exported by the human.
 
 This is **yours, on every round, whatever the verdicts** — including the round that converges. It is the one
@@ -168,7 +172,7 @@ Dispatch **one** subagent to clear every **open blocking** finding across both f
 
 - fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
   loosened config, no deleted test. That is exactly what the review station checks for;
-- flips each addressed finding's status `open → fixed` and adds a one-line resolution note;
+- sets each addressed card's **Status** to `fixed`, with a one-line note;
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
@@ -212,6 +216,44 @@ Report five things:
 5. **What you did not do** — archive, fold, tag, merge, push. All of those are `mf-release`'s or the human's.
 
 Then **stop**.
+
+## The card
+
+Every finding is a **card**: one top-level list line holding its id and a plain title, then one nested bullet per
+field. This skill owns the card; `mf-backlog-export` carries the same fields, and `tests/test_skills.py` holds
+their labels equal.
+
+| field | holds |
+|---|---|
+| **Title** | the top line — `- **<id> — <what goes wrong, in plain words>**` |
+| **Why it's a problem** | the harm, in one or two sentences |
+| **When you'd hit it** | a concrete scenario: what you run, and what happens |
+| **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
+| **Priority** | `<severity> · <role>` — and why that severity |
+| **Fix** | the suggested fix, then its size: one line, a test, or a design change |
+| **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
+| **Still true?** | a command, or the section to read, that shows the defect is still there |
+| **Related** | the ids to fix together, or `none` |
+| **Status** | `open`, `fixed`, `verified` or `wontfix`, with the one-line note the fix or verify pass adds |
+
+**Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
+and name things rather than count them: "the review and security files", not "the two files".
+
+A card stays a list item, its fields nested bullets rather than headings: `mf-release` blocks on any list line,
+so a card written as a heading would let a release ship with deferred work.
+
+```
+- **R5 — A crashed converge can be released as "skipped"**
+  - **Why it's a problem:** release reads "no findings files" as "converge never ran".
+  - **When you'd hit it:** converge freezes the diff, then crashes before a station writes.
+  - **What it affects:** `mf-release` Step 1, precondition 4 (`skills/mf-release/SKILL.md:65`).
+  - **Priority:** medium · security — a converge that failed ships as if skipped.
+  - **Fix:** also read the frozen diff file as "converge ran" · size: one line and a test.
+  - **Trigger:** the first release that records a skipped converge.
+  - **Still true?** `grep -n 'findings files' skills/mf-release/SKILL.md`
+  - **Related:** R4 — fix together.
+  - **Status:** open
+```
 
 ## Never
 

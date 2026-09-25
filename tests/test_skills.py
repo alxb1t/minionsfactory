@@ -151,6 +151,79 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     ]
 
 
+# The card: `mf-converge` owns its fields and `mf-backlog-export` carries the same
+# labels, so the card converge carries is the card the export keeps whole. A label is
+# the bold first cell of a table row. Why: 0014-backlog-cards design D1, D7.
+_CARD_CARRIERS = ("mf-converge", "mf-backlog-export")
+_CARD_HEADING = "## The card"
+
+
+def _section_labels(path: Path, heading: str) -> list[str]:
+    """Return the bold first cells of the table rows in `path`'s `heading` section."""
+    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
+    labels: list[str] = []
+    inside = False
+    for line in path.read_text().splitlines():
+        if line.startswith("## "):
+            inside = line == heading
+        elif inside and (match := row.match(line)):
+            labels.append(match.group(1))
+    return labels
+
+
+def _card_problems(base: Path) -> list[str]:
+    """Return one line per breach of the shared card fields in `base`'s skills."""
+    problems: list[str] = []
+    sets: dict[str, set[str]] = {}
+    for name in _CARD_CARRIERS:
+        path = base / "skills" / name / "SKILL.md"
+        labels = _section_labels(path, _CARD_HEADING) if path.is_file() else []
+        if not labels:
+            problems.append(f"skills/{name}/SKILL.md: no labels in `{_CARD_HEADING}`")
+        sets[name] = set(labels)
+    converge, export = (sets[name] for name in _CARD_CARRIERS)
+    if converge and export and converge != export:
+        problems.append(
+            f"label sets differ: only in mf-converge {sorted(converge - export)}, "
+            f"only in mf-backlog-export {sorted(export - converge)}"
+        )
+    return problems
+
+
+def _card_text(*labels: str) -> str:
+    """Return a skill text whose `## The card` table holds `labels`."""
+    rows = "".join(f"| **{label}** | — |\n" for label in labels)
+    return f"{_CARD_HEADING}\n\n| field | holds |\n|---|---|\n{rows}"
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_converge_and_the_export_carry_the_same_card_fields() -> None:
+    assert _card_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_the_card_scan_reports_a_differing_label_and_a_missing_section(
+    tmp_path: Path,
+) -> None:
+    # A pair differing by one label, and an export with no card section: each is
+    # reported. The export's row past `## Never` must not count as a card field.
+    plants = {
+        "differ": (_card_text("Title", "Fix", "Status"), _card_text("Title", "Status")),
+        "missing": (_card_text("Title"), "## Never\n\n| **Title** | — |\n"),
+    }
+    for case, texts in plants.items():
+        for name, text in zip(_CARD_CARRIERS, texts, strict=True):
+            (tmp_path / case / "skills" / name).mkdir(parents=True)
+            (tmp_path / case / "skills" / name / "SKILL.md").write_text(text)
+
+    assert _card_problems(tmp_path / "differ") == [
+        "label sets differ: only in mf-converge ['Fix'], only in mf-backlog-export []",
+    ]
+    assert _card_problems(tmp_path / "missing") == [
+        "skills/mf-backlog-export/SKILL.md: no labels in `## The card`",
+    ]
+
+
 # Converge is optional (0012-converge-optional design D1, D5): the release states a
 # skipped converge in one literal line, and the rule that a missing findings file is
 # not clean leaves the release but stays in converge, which judges its own stations
