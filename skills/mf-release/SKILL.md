@@ -69,7 +69,7 @@ prevent. An absent file is never an invitation to search — precondition 4 says
    here, by name and deliberately** — it runs inside `mf-build`, fixing in place, and **produces no findings file
    by design**, its edits verified by the review station that read a diff containing them. That is a declared
    deviation from `docs/sdd.md`'s three-read-only-station *Check*. Naming the exclusion is what keeps the absence
-   of a simplify file from being read as anything at all: only the review and security files decide.
+   of a simplify file out of that decision.
 5. **No deferred work is left** — `.minions/<version>_backlog.md` holds **no list line at all, whatever its
    checkbox state**. An item leaves that file by being fixed and removed, or exported by the human; ticking it
    clears nothing. A **missing** file passes — nothing was deferred. Any remaining list line → halt.
@@ -135,9 +135,8 @@ nothing.
    **halt**: the commit must hold exactly the tree item 3 gated. After it, `git status --porcelain` prints
    nothing. End the message with the trailer block, `Co-Authored-By:` and `Change: <change-id>`
    **contiguous** — git parses the trailer block as the last paragraph, so a blank line between them silently
-   breaks it. **When converge was skipped** (precondition 4), the body carries the line
-   `converge: skipped — no findings files` as its own paragraph, before the trailer block — the commit is the
-   durable record of the skip:
+   breaks it. **When converge was skipped** (precondition 4), the body carries the skip line as its own
+   paragraph, before the trailer block — the commit is the durable record of the skip:
 
        chore(release): <version>.0
 

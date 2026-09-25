@@ -143,10 +143,8 @@ _MISSING_FILE_RULE = "A missing findings file is not clean"
 
 def _converge_optional_problems(base: Path) -> list[str]:
     """Return one line per breach of the converge-optional rule in `base`'s skills."""
-    release = base / "skills" / "mf-release" / "SKILL.md"
-    converge = base / "skills" / "mf-converge" / "SKILL.md"
-    release_text = release.read_text() if release.is_file() else ""
-    converge_text = converge.read_text() if converge.is_file() else ""
+    release_text = (base / "skills" / "mf-release" / "SKILL.md").read_text()
+    converge_text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
     problems: list[str] = []
     if _SKIP_LINE not in release_text:
         problems.append(f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`")
