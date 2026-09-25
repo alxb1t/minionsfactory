@@ -68,7 +68,8 @@ and never record an overturn the human did not make.
 
 In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.md`. Before each, run
 `openspec instructions <artifact> --change <change-id>` and follow its structure. Write to the
-[input contract](#input-contract) and to [How the artifacts read](#how-the-artifacts-read).
+[input contract](#input-contract), the [prose rules](#prose-rules) and the
+[rules for the artifacts](#rules-for-the-artifacts).
 
 - `proposal.md` opens with `version: <version>` frontmatter. The CLI neither emits nor checks it.
 - A change with no behaviour change declares it: `skip_specs: true` in the change's `.openspec.yaml`, plus
@@ -89,7 +90,7 @@ Build a table: each of `I1`…`I15`, met or not, with its evidence. Then:
   error only because it reads a file the change creates is expected.
 - A check that already passes is flagged to the human: true before the build, it may prove nothing. Except a
   `**HALT CHECK**` — it checks a premise, and should pass.
-- Check style rules 10, 13, 14 and 15.
+- Check `P9`, `P12`, `P13` and `A2`.
 - `make gate` is green.
 
 An item cannot be met → put it to the human, and wait. This self-check is a declared exception to *no station
@@ -124,7 +125,7 @@ in a fresh session. Then stop.
 | **I3** | leave `make gate` green on the cut commit | running `make gate` in Step 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | running each read-only check in Step 8 |
-| **I6** | give every task one reading: it names its files, offers no "or", and any count shows the command that produced it | reading each task |
+| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | reading the phase order |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | comparing each MODIFIED title with `openspec/specs/` |
@@ -135,28 +136,25 @@ in a fresh session. Then stop.
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`), and give it at least one `Verify:` naming the evidence that closes it | running its checks: none may pass yet, or `mf-build` would close the phase unworked |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 
-## How the artifacts read
+## Prose rules
 
-Every artifact follows these rules. The self-check covers 10, 13, 14 and 15.
+`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ.
 
-| # | rule | example / why |
+| id | rule | example / why |
 |---|---|---|
-| 1 | **Terse** | cut every word that carries nothing |
-| 2 | **Short sentences** | one idea each |
-| 3 | **Simple English** | "use", not "leverage" |
-| 4 | **Examples** | a rule with an example is read one way |
-| 5 | **Links** | between the artifacts, and to files, by relative path |
-| 6 | **ASCII diagrams** | for any flow, tree or state |
-| 7 | **Answer first** | each file and section opens with 1–2 lines saying what it decides |
-| 8 | **Same headings every time** | proposal: frontmatter · title · one line · reading map · Why · What Changes · Capabilities · Impact · Not in this change. design: title · one line + verdict · Context · Goals / Non-Goals · Decisions · *extra sections* · Dependencies · Risks / Trade-offs · *Migration Plan, if any* · Verdict. tasks: title · one line · `## Progress` · `## N — Title` |
-| 9 | **Choices in tables** | `id · decision · because · rejected` |
-| 10 | **Stable ids, cited as links** | `per [D3](design.md#d3)` — agents grep `D3`, people click it |
-| 11 | **One word per thing** | define a term once, in bold; never swap in a synonym |
-| 12 | **Concrete names** | files, commands, symbols in backticks; text changes as before → after |
-| 13 | **Say what is out** | proposal ends with `## Not in this change` |
-| 14 | **Counts show their command** | "57 (`grep -c … file`)" |
-| 15 | **Size limits** | a task fits in 3 lines, a paragraph in 3 sentences; anything longer is a decision the task links to |
-| 16 | **A what-changes line per requirement** | proposal lists each requirement the delta touches, one line each — a MODIFIED block hides its own diff |
+| **P1** | **Terse** | cut every word that carries nothing |
+| **P2** | **Short sentences** | one idea each |
+| **P3** | **Simple English** | "use", not "leverage" |
+| **P4** | **Examples** | a rule with an example is read one way |
+| **P5** | **Links** | link related files by relative path: `[design](design.md)` |
+| **P6** | **ASCII diagrams** | for any flow, tree or state |
+| **P7** | **Answer first** | each file and section opens with 1–2 lines saying what it is for or what it decides |
+| **P8** | **Choices in tables** | `id · decision · because · rejected` |
+| **P9** | **Stable ids, cited as links** | `per [D3](design.md#d3)` — agents grep `D3`, people click it |
+| **P10** | **One word per thing** | define a term once, in bold; never swap in a synonym |
+| **P11** | **Concrete names** | files, commands, symbols in backticks; a text change as before → after |
+| **P12** | **No counts — name the things** | "the review and security files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
+| **P13** | **Size limits** | a paragraph fits in 3 sentences, a task in 3 lines; anything longer is a decision or a doc section, linked |
 
 A task, before → after:
 
@@ -164,9 +162,22 @@ A task, before → after:
 before:  2.4 Seed the criteria appropriately, making sure the values are consistent with
          what the matcher expects, or delete the stale ones if they are no longer needed.
 
-after:   2.4 Seed the seven criteria in `seeds/criteria.toml`, listed in [D6](design.md#d6).
+after:   2.4 Seed the criteria listed in [D6](design.md#d6) into `seeds/criteria.toml`.
          Verify: `grep -c '^\[\[criterion\]\]' seeds/criteria.toml` prints `7`.
 ```
+
+## Rules for the artifacts
+
+Rules for a change's artifacts only; `mf-build` does not carry them.
+
+| id | rule | example / why |
+|---|---|---|
+| **A1** | **Same headings every time** | proposal: frontmatter · title · one line · reading map · Why · What Changes · Capabilities · Impact · Not in this change. design: title · one line + verdict · Context · Goals / Non-Goals · Decisions · *extra sections* · Dependencies · Risks / Trade-offs · *Migration Plan, if any* · Verdict. tasks: title · one line · `## Progress` · `## N — Title` |
+| **A2** | **Say what is out** | proposal ends with `## Not in this change` |
+| **A3** | **A what-changes line per requirement** | proposal lists each requirement the delta touches, one line each — a MODIFIED block hides its own diff |
+| **A4** | **Keep the old thing declared until the new one is proven** — the irreversible act is the change's last phase | a delete, a removal, a migration that cannot be undone |
+| **A5** | **Unbuilt work names its trigger, never a version** | "when the runner resumes", not "in v0.15" |
+| **A6** | **A minor version delivers one feature; a patch delivers none.** The repo's `CLAUDE.md` states what a patch may hold; a patch cut in a repo that states nothing is put to the human | why v0.12 and v0.13 are two versions |
 
 ## Never
 
