@@ -131,3 +131,50 @@ def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> N
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
         "id sets differ: only in mf-build [2], only in mf-cut-change []",
     ]
+
+
+# Converge is optional (0012-converge-optional design D1, D5): the release states a
+# skipped converge in one literal line, and the rule that a missing findings file is
+# not clean leaves the release but stays in converge, which judges its own stations
+# by it.
+_SKIP_LINE = "converge: skipped — no findings files"
+_MISSING_FILE_RULE = "A missing findings file is not clean"
+
+
+def _converge_optional_problems(base: Path) -> list[str]:
+    """Return one line per breach of the converge-optional rule in `base`'s skills."""
+    release_text = (base / "skills" / "mf-release" / "SKILL.md").read_text()
+    converge_text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
+    problems: list[str] = []
+    if _SKIP_LINE not in release_text:
+        problems.append(f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`")
+    if _MISSING_FILE_RULE in release_text:
+        problems.append(f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`")
+    if _MISSING_FILE_RULE not in converge_text:
+        problems.append(
+            f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`"
+        )
+    return problems
+
+
+@pytest.mark.spec("sdd:converge-optional:skip-is-stated")
+def test_the_release_states_a_skipped_converge_and_converge_keeps_the_rule() -> None:
+    assert _converge_optional_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-optional:skip-is-stated")
+def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -> None:
+    # Plant a release with no skip line that still carries the rule, and a converge
+    # without it: all three breaches are reported.
+    for name in ("mf-release", "mf-converge"):
+        (tmp_path / "skills" / name).mkdir(parents=True)
+    (tmp_path / "skills" / "mf-release" / "SKILL.md").write_text(
+        f"{_MISSING_FILE_RULE}, so an absent file halts.\n"
+    )
+    (tmp_path / "skills" / "mf-converge" / "SKILL.md").write_text("Converge.\n")
+
+    assert _converge_optional_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`",
+        f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`",
+        f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`",
+    ]

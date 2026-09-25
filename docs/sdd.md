@@ -134,7 +134,8 @@ checks that it looks like a commit id). Five more are written for the human: `ty
 `reviewed`. The parse enforces **shape only** — it is the boundary where a station's declared verdict enters the
 machinery, not a corroboration of it. **Convergence turns on `verdict` alone**; `open_blocking` is parsed and
 consulted by no decision. And **a missing file is not clean** — an absent file counts as unconverged, so a
-station that never ran cannot let the loop or the release pass falsely.
+station that never ran cannot let the loop pass falsely. The release reads absence differently: no findings file
+at all means the check was skipped, which the release states; one file without the other is still a halt.
 
 **Two severity vocabularies; which applies is the station's.** Security grades `critical | high | medium | low`
 and **blocks on `critical` + `high`**. Review and simplify grade `blocking | nit` and **block on `blocking`** —
@@ -164,8 +165,9 @@ already satisfied satisfies nothing, and is itself reportable.
 
 The release station **verifies, then finalizes, then stops** — it never merges, pushes, edits feature code, or lowers
 a bar to ship. Every precondition holds or it halts naming what is missing and who owns it: the gate is green
-(**re-run**, not inherited); review and security are `verdict: clean` with every blocking finding `verified`, not
-merely `fixed`; the deferred-work file holds **no list item at all**, whatever its checkbox state (a *missing* file
+(**re-run**, not inherited); if the check stations ran, review and security are `verdict: clean` with every
+blocking finding `verified`, not merely `fixed` — and if neither ran, the release states that the check was
+skipped; the deferred-work file holds **no list item at all**, whatever its checkbox state (a *missing* file
 passes — nothing was deferred); the version line is aligned (the tag does not already exist, `## [Unreleased]` has
 real entries); the tree is clean; and the spec binding is green **before** the fold.
 
