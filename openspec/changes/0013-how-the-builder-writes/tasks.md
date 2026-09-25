@@ -6,7 +6,7 @@ planning rules in `mf-cut-change`. The text of every rule is in [design.md](desi
 ## Progress
 
 - [x] 1 — The shared prose rules
-- [ ] 2 — `mf-build`'s truth and comment rules
+- [x] 2 — `mf-build`'s truth and comment rules
 - [ ] 3 — `mf-cut-change`'s planning rules
 
 ## 1 — The shared prose rules
@@ -35,13 +35,13 @@ planning rules in `mf-cut-change`. The text of every rule is in [design.md](desi
 All edits are in `skills/mf-build/SKILL.md`: `W` is [D1](design.md#d1--the-w-table-as-mf-build-carries-it), `C` is
 [D5](design.md#d5--the-c-table-as-mf-build-carries-it), the commit-body list is [D2](design.md#d2--the-retirement-list-in-the-commit-body).
 
-- [ ] 2.1 Add `## Rules for what you write` before `## Prose rules`: D1's `W` table and its closing line.
+- [x] 2.1 Add `## Rules for what you write` before `## Prose rules`: D1's `W` table and its closing line.
   Verify: `grep -c '^| \*\*W[0-9]*\*\* |' skills/mf-build/SKILL.md` prints `6`.
-- [ ] 2.2 Add `## Rules for code comments` after `## Prose rules`: D5's `C` table, then its before → after example.
+- [x] 2.2 Add `## Rules for code comments` after `## Prose rules`: D5's `C` table, then its before → after example.
   Verify: `grep -c '^| \*\*C[0-9]*\*\* |' skills/mf-build/SKILL.md` prints `12`.
-- [ ] 2.3 Step 2: item 1 ends "Write to `W`, `P` and `C` below."; item 6 names `W2`'s list in D2's shape. Verify:
+- [x] 2.3 Step 2: item 1 ends "Write to `W`, `P` and `C` below."; item 6 names `W2`'s list in D2's shape. Verify:
   `sed -n '/^## Step 2/,/^## Step 3/p' skills/mf-build/SKILL.md | grep -c -e 'Write to `W`, `P` and `C`' -e 'retired:'` prints `2`.
-- [ ] 2.4 The rule sections sit between *Stop-conditions* and *What you must NOT do*, in the order `W`, `P`, `C`.
+- [x] 2.4 The rule sections sit between *Stop-conditions* and *What you must NOT do*, in the order `W`, `P`, `C`.
   Verify: `grep '^## ' skills/mf-build/SKILL.md | tail -5` prints those five headings in that order.
 
 ## 3 — `mf-cut-change`'s planning rules

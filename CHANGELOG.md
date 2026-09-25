@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mf-build` owns the prose rules, `P1`…`P13`** (change `0013-how-the-builder-writes`, phase 1). They apply to
   the docs and CHANGELOG entries it writes; `mf-cut-change` carries the same ids, and a scan test holds them
   equal. A count in prose becomes the names of the things it counts (`P12`).
+- **`mf-build` gets the truth rules `W1`…`W6` and the comment rules `C1`…`C12`** (change
+  `0013-how-the-builder-writes`, phase 2). Claims are checked against code bodies, and a retirement lists every
+  hit in its commit body. Comments say why, carry no history, and cite rather than copy a long reason.
 
 ## [0.12.0] - 2026-09-25
 
