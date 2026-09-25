@@ -110,16 +110,19 @@ def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
     return problems
 
 
-def _plant_shared_list(
-    base: Path, heading: str, letter: str, ids: dict[str, tuple[int, ...]]
-) -> None:
-    """Write each skill's `heading` section with `ids`, plus one row past its end."""
-    for name, numbers in ids.items():
+def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
+    """Return what the scan reports for a planted build and cut that disagree.
+
+    The build holds ids 1–3 and the cut 1 and 3, so the cut has a gap and the two sets
+    differ by one id. A row past the section's end must not count.
+    """
+    for name, numbers in {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)}.items():
         rows = "".join(f"| **{letter}{n}** | must | — |\n" for n in numbers)
         text = f"{heading}\n\n| id | a | b |\n|---|---|---|\n{rows}\n"
         text += f"## Never\n\n| **{letter}9** | outside | — |\n"
         (base / "skills" / name).mkdir(parents=True)
         (base / "skills" / name / "SKILL.md").write_text(text)
+    return _shared_id_problems(base, heading, letter)
 
 
 @pytest.mark.spec("sdd:input-contract:ids-agree")
@@ -129,16 +132,7 @@ def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
 
 @pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
-    # Plant I1–I3 in the build and I1, I3 in the cut: the cut has a gap, and the two
-    # sets differ by one id. A row past the section's end must not count.
-    _plant_shared_list(
-        tmp_path,
-        "## Input contract",
-        "I",
-        {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)},
-    )
-
-    assert _shared_id_problems(tmp_path, "## Input contract", "I") == [
+    assert _planted_problems(tmp_path, "## Input contract", "I") == [
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
         "id sets differ: only in mf-build [2], only in mf-cut-change []",
     ]
@@ -151,16 +145,7 @@ def test_the_cut_and_the_build_carry_the_same_prose_rule_ids() -> None:
 
 @pytest.mark.spec("sdd:prose-rules:ids-agree")
 def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
-    # Plant P1–P3 in the build and P1, P3 in the cut: the cut has a gap, and the two
-    # sets differ by one id. A row past the section's end must not count.
-    _plant_shared_list(
-        tmp_path,
-        "## Prose rules",
-        "P",
-        {"mf-build": (1, 2, 3), "mf-cut-change": (1, 3)},
-    )
-
-    assert _shared_id_problems(tmp_path, "## Prose rules", "P") == [
+    assert _planted_problems(tmp_path, "## Prose rules", "P") == [
         "skills/mf-cut-change/SKILL.md: ids do not run P1…P3",
         "id sets differ: only in mf-build [2], only in mf-cut-change []",
     ]

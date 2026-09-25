@@ -138,9 +138,7 @@ in a fresh session. Then stop.
 
 ## Prose rules
 
-`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ. Every
-artifact follows these rules, and the ones in [Rules for the artifacts](#rules-for-the-artifacts). The
-self-check covers `P9`, `P12`, `P13` and `A2`.
+`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ.
 
 | id | rule | example / why |
 |---|---|---|
