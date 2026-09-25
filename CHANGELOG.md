@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`mf-release` accepts a skipped converge** (change `0012-converge-optional`, phase 1). With neither findings
+  file present it releases and states `converge: skipped — no findings files` in the report and the release
+  commit; if either exists, both must be clean. The missing-file rule stays in `mf-converge` and `docs/sdd.md`'s
+  loop, and a scan test holds it.
+
 ## [0.11.0] - 2026-09-24
 
 ### Changed

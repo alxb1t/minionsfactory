@@ -1,6 +1,6 @@
 ---
 name: mf-release
-description: Finalize a converged change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag locally, then stop without merging or pushing. Use when converge has returned clean verdicts and the branch is ready to become a release.
+description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag locally, then stop without merging or pushing. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
 ---
 
 # mf-release — verify, fold, archive, tag, stop
@@ -11,8 +11,9 @@ description: Finalize a converged change — verify every release precondition, 
 > part of your job, not a formality.
 
 The boundary between this station and `mf-converge` is a failure it prevents: **the loop that declared
-convergence does not also archive and tag on it.** You re-read the verdicts from disk yourself and re-run the
-gate yourself; you inherit nothing.
+convergence does not also archive and tag on it.** When converge ran, you re-read its verdicts from disk
+yourself; when it did not, this station is the only check after the build, and says so. Either way you re-run
+the gate yourself; you inherit nothing.
 
 ## Parameter — the change id, required
 
@@ -51,23 +52,24 @@ than guessing a shape or globbing the directory:
 
 Never glob `.minions/findings/*` and take what you find: that directory keeps the *previous* change's files, and
 a stale `verdict: clean` describing different work is the exact failure the required change id exists to
-prevent. A file absent at its stated path is a halt (precondition 4), not an invitation to search.
+prevent. An absent file is never an invitation to search — precondition 4 says what absence means.
 
 1. **The gate is green, re-run in this session.** Not inherited from `mf-converge`'s report, not read from a
    log. A green gate is a command that exited 0, observed by the side that needs the assurance. Red → halt;
    the build owns it.
-2. **Review is clean** — `.minions/findings/<change-id>_review.md` exists, `verdict: clean`, and **every**
-   blocking finding is `verified`, not merely `fixed`. `fixed` is the producer's claim; only the checker's
-   `verified` resolves it. A non-clean verdict, or one unverified blocker, → halt.
-3. **Security is clean** — `.minions/findings/<change-id>_security.md` exists, `verdict: clean`, and every
-   `critical` and `high` finding is `verified`. Else → halt.
-4. **A missing findings file is not clean, and simplify is declared out by name.** An absent file counts as
-   unconverged: a station that never ran cannot let this pass falsely, so a missing review or security file is a
-   halt. **Simplify is the one station excluded here, by name and deliberately** — it runs inside `mf-build`,
-   fixing in place, and **produces no findings file by design**, its edits verified by the review station that
-   read a diff containing them. That is a declared deviation from `docs/sdd.md`'s three-read-only-station
-   *Check*. Naming the exclusion is what keeps *a missing findings file is not clean* from eroding into *a
-   missing file is fine*.
+2. If converge ran (precondition 4): **review is clean** — `.minions/findings/<change-id>_review.md` exists,
+   `verdict: clean`, and **every** blocking finding is `verified`, not merely `fixed`. `fixed` is the producer's
+   claim; only the checker's `verified` resolves it. A non-clean verdict, or one unverified blocker, → halt.
+3. If converge ran (precondition 4): **security is clean** — `.minions/findings/<change-id>_security.md`
+   exists, `verdict: clean`, and every `critical` and `high` finding is `verified`. Else → halt.
+4. **Converge ran, or was skipped — the two files decide, and simplify is declared out by name.** Neither
+   findings file exists → converge was **skipped**: preconditions 2 and 3 pass, and you state the skip as the
+   line `converge: skipped — no findings files`. Either exists → converge **ran**: 2 and 3 apply in full, and one
+   file without the other is a halt — a converge that ran leaves both. **Simplify is the one station excluded
+   here, by name and deliberately** — it runs inside `mf-build`, fixing in place, and **produces no findings file
+   by design**, its edits verified by the review station that read a diff containing them. That is a declared
+   deviation from `docs/sdd.md`'s three-read-only-station *Check*. Naming the exclusion is what keeps the absence
+   of a simplify file from being read as anything at all: only the review and security files decide.
 5. **No deferred work is left** — `.minions/<version>_backlog.md` holds **no list line at all, whatever its
    checkbox state**. An item leaves that file by being fixed and removed, or exported by the human; ticking it
    clears nothing. A **missing** file passes — nothing was deferred. Any remaining list line → halt.
@@ -133,7 +135,16 @@ nothing.
    **halt**: the commit must hold exactly the tree item 3 gated. After it, `git status --porcelain` prints
    nothing. End the message with the trailer block, `Co-Authored-By:` and `Change: <change-id>`
    **contiguous** — git parses the trailer block as the last paragraph, so a blank line between them silently
-   breaks it.
+   breaks it. **When converge was skipped** (precondition 4), the body carries the line
+   `converge: skipped — no findings files` as its own paragraph, before the trailer block — the commit is the
+   durable record of the skip:
+
+       chore(release): <version>.0
+
+       converge: skipped — no findings files
+
+       Co-Authored-By: <the attribution line this session uses>
+       Change: <change-id>
 5. **Tag** — annotated, on the release commit, **local only**:
    `git tag -a <version>.0 -m "<version>.0"`. The tag, the release commit and the changelog entry **are** the
    release record; write no separate narrative anywhere.
@@ -147,6 +158,7 @@ and tagging changed no file it reads. Do not re-run it here to feel surer, and n
 Report, and stop:
 
 1. **Each of the seven preconditions and how it was verified** — the command run, or the file and field read.
+   For precondition 4, say *converge ran*, or state `converge: skipped — no findings files`.
 2. **What the fold changed** — which requirements were added, replaced or removed, in which capabilities — **or
    that it was a no-op, and why** (a change that declares no delta).
 3. **The release commit and the tag**, by id and name, with the exit code of the Step 4.3 gate that authorized
