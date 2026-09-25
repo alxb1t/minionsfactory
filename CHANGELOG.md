@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-25
+
 ### Changed
 
 - **`mf-build` owns the prose rules, `P1`…`P13`** (change `0013-how-the-builder-writes`, phase 1). They apply to
