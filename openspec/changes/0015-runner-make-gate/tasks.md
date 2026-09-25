@@ -6,7 +6,7 @@ task is in [design.md](design.md).
 ## Progress
 
 - [x] 1 — The runner runs `make gate`
-- [ ] 2 — The toml and its name retire
+- [x] 2 — The toml and its name retire
 
 ## 1 — The runner runs `make gate`
 
@@ -27,16 +27,16 @@ The runner changes while the toml still exists, so the new gate is proven before
 
 Every file is listed in [D5](design.md#d5--where-the-name-leaves), with what it says after.
 
-- [ ] 2.1 Test first: in `tests/test_conventions.py`, add `minions.toml` as a retired needle with its own scan and
+- [x] 2.1 Test first: in `tests/test_conventions.py`, add `minions.toml` as a retired needle with its own scan and
   twin over `_SCANNED`, bound to `sdd:retired-gate-config:named-nowhere`. Verify: `uv run pytest tests/test_conventions.py -q` fails.
-- [ ] 2.2 Delete `.minions/minions.toml`; `.gitignore` becomes `.minions/`, with its comment updated.
+- [x] 2.2 Delete `.minions/minions.toml`; `.gitignore` becomes `.minions/`, with its comment updated.
   Verify: `test ! -e .minions/minions.toml` exits 0; `grep -c 'minions.toml' .gitignore` prints `0`.
-- [ ] 2.3 `Makefile`, `CLAUDE.md`, `README.md`: the D5 rows. Verify:
+- [x] 2.3 `Makefile`, `CLAUDE.md`, `README.md`: the D5 rows. Verify:
   `grep -c 'minions.toml' Makefile CLAUDE.md README.md` prints `0` for each file.
-- [ ] 2.4 `docs/architecture.md`, `docs/modules/main.md`, `prompts/coder.md`: the D5 rows. Verify:
+- [x] 2.4 `docs/architecture.md`, `docs/modules/main.md`, `prompts/coder.md`: the D5 rows. Verify:
   `grep -c 'minions.toml' docs/architecture.md docs/modules/main.md prompts/coder.md` prints `0` for each file.
-- [ ] 2.5 `tests/test_conventions.py`: the tracked-but-unscanned comment drops the name; it stays only as the quoted
+- [x] 2.5 `tests/test_conventions.py`: the tracked-but-unscanned comment drops the name; it stays only as the quoted
   needle. Verify: `grep -c 'minions.toml' tests/test_conventions.py` prints `1`, and `grep -c '"minions.toml"' tests/test_conventions.py` prints `1`.
-- [ ] 2.6 No live mention remains. Verify:
+- [x] 2.6 No live mention remains. Verify:
   `git grep -l 'minions.toml' -- . ':!openspec' ':!CHANGELOG.md' ':!tests'` prints nothing.
-- [ ] 2.7 The scans pass. Verify: `uv run pytest tests/test_conventions.py -q` exits 0.
+- [x] 2.7 The scans pass. Verify: `uv run pytest tests/test_conventions.py -q` exits 0.

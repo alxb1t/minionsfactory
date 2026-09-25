@@ -3,10 +3,9 @@
 
 # Run artifacts written into the target repo — `events.jsonl`, the findings files, the
 # HALT report and the deferred-work file. They are per-run output, not source, and a
-# `git add -A` would otherwise sweep them into history. The gate command list is config
-# and stays tracked.
-.minions/*
-!.minions/minions.toml
+# `git add -A` would otherwise sweep them into history. The gate is the root
+# `Makefile`'s `gate` target, so nothing under `.minions/` is tracked.
+.minions/
 
 # Python
 __pycache__/

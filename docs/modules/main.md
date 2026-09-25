@@ -75,7 +75,7 @@ $ python -m orchestrator run --repo /path/to/target
 - A higher-order gotcha: each seam is passed the *built closure* (`fanout=_make_fanout(...)`), not the factory.
 - `.minions/` is the target's per-run artifact dir and the **only** place a run writes outside the tracked
   tree it builds: `findings/`, `HALT.md`, `<version>_backlog.md`, `diff.patch`, `events.jsonl`, `status.json`
-  (git-ignore it in the target, keeping `minions.toml`).
+  (git-ignore all of `.minions/` in the target).
 
 ## Reference
 

@@ -4,9 +4,8 @@ fix:
 	uv run ruff format .
 	uv run ruff check --fix .
 
-# The gate — this repo's ONLY list of gate commands. The mf-* skills and CI run
-# `make gate`; docs name it and never copy its commands. `.minions/minions.toml`
-# mirrors this recipe for the parked runner only, and is deprecated.
+# The gate — this repo's ONLY list of gate commands. The mf-* skills, CI and the
+# parked runner run `make gate`; docs name it and never copy its commands.
 gate:
 	uv sync --locked
 	uv run ruff format --check .

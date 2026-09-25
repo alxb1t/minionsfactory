@@ -55,8 +55,8 @@ else. In brief, the load-bearing seams are:
 - a **`Provider` Protocol** — a real `ClaudeCodeProvider` (`claude -p`, `--output-format json`) + a
   `FakeProvider`; the driver depends on the **seam**, never the CLI directly (harness-agnostic + unit-testable).
 - **the orchestrator runs the gate itself** via a `run_gate(repo)` seam (real subprocess + `FakeGate`); the gate
-  is **read from the target repo**, not hardcoded, so a non-Python target needs no code change. The skills run
-  `make gate`; the parked runner still reads the deprecated `.minions/minions.toml` copy of the recipe.
+  is **read from the target repo**, not hardcoded, so a non-Python target needs no code change. The skills and
+  the parked runner run `make gate`.
 - **the change is read from disk** — the coder resolves `openspec/changes/<change-id>/` in-tree; findings + spec
   state are likewise read from disk, never trusted from a role's claim.
 - **the driver is deterministic control flow** — no LLM; **advance is *detected*** on disk, never trusted from a
@@ -80,8 +80,7 @@ else. In brief, the load-bearing seams are:
   `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can never turn CI
   red; it can only hand a future author different authoring instructions. The binding authority is this
   repository's own spec-binding check, and it *is* in the gate.
-- **`.minions/`** — run artefacts, **gitignored**; `minions.toml`, the runner's deprecated copy of the gate, is
-  the one tracked file in it.
+- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked.
 - **Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the
   target repo**. Product intent — the research and the narrative record the human keeps — lives *upstream* of the
   code in a private Obsidian vault, and **no role the orchestrator spawns reaches into it**; planning itself runs

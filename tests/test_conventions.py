@@ -51,9 +51,9 @@ _RETIRED = (
 # a scanned root under v0.7 and left the tuple in v0.8 only because that version deleted
 # the directory — re-creating it without re-adding it would re-open a gap already closed
 # once, and a shipped skill is a role prompt. That is the gap this widening closes, not
-# the whole tree: `.gitignore`, `.minions/minions.toml`, `.python-version`, `uv.lock`
-# and the four files of the ACTIVE `openspec/changes/<id>/` are tracked, non-historical,
-# and neither scanned nor declared above. The active change is the load-bearing one,
+# the whole tree: `.gitignore`, `.python-version`, `uv.lock` and the four files of the
+# ACTIVE `openspec/changes/<id>/` are tracked, non-historical, and neither scanned nor
+# declared above. The active change is the load-bearing one,
 # and it cannot simply be added — a change's own delta must be able to name the
 # vocabulary it retires, the same reason `openspec/specs/` is excluded, so scanning it
 # turns this guard red today.
@@ -261,6 +261,65 @@ def test_the_guard_fails_when_any_retired_vault_needle_is_reintroduced(
             "Makefile:1",
             "pyproject.toml:1",
         ]
+
+
+# The retired gate config. The runner runs `make gate` like the skills and CI, so the
+# file is deleted and its name retired (0015-runner-make-gate design D5). Its own
+# needle, apart from the sets above: a different retirement, a different regression.
+_RETIRED_GATE_CONFIG = "minions.toml"
+
+
+@pytest.mark.spec("sdd:retired-gate-config:named-nowhere")
+def test_the_retired_gate_config_is_named_nowhere_in_code_prompts_or_docs() -> None:
+    assert _SCANNED == (
+        "orchestrator",
+        "prompts",
+        "skills",
+        "docs",
+        "README.md",
+        "CLAUDE.md",
+        ".env.example",
+        ".github",
+        "Makefile",
+        "pyproject.toml",
+    )
+
+    assert _hits(_REPO, _SCANNED, _RETIRED_GATE_CONFIG) == []
+
+
+@pytest.mark.spec("sdd:retired-gate-config:named-nowhere")
+def test_the_guard_fails_when_the_retired_gate_config_is_reintroduced(
+    tmp_path: Path,
+) -> None:
+    needle = _RETIRED_GATE_CONFIG
+    (tmp_path / "orchestrator").mkdir()
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "skills" / "mf-build").mkdir(parents=True)
+    (tmp_path / "docs" / "modules").mkdir(parents=True)
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / "orchestrator" / "gate.py").write_text(f'D = "{needle}"\n')
+    (tmp_path / "prompts" / "coder.md").write_text(f"read the {needle}\n")
+    (tmp_path / "skills" / "mf-build" / "SKILL.md").write_text(f"the {needle}\n")
+    (tmp_path / "docs" / "modules" / "gate.md").write_text(f"the {needle}\n")
+    (tmp_path / "README.md").write_text(f"ship a {needle}\n")
+    (tmp_path / "CLAUDE.md").write_text(f"the runner reads {needle}\n")
+    (tmp_path / ".env.example").write_text(f"GATE={needle}\n")
+    (tmp_path / ".github" / "workflows" / "ci.yml").write_text(f"run: {needle}\n")
+    (tmp_path / "Makefile").write_text(f"# mirrored in {needle}\n")
+    (tmp_path / "pyproject.toml").write_text(f'name = "{needle}"\n')
+
+    assert _hits(tmp_path, _SCANNED, needle) == [
+        "orchestrator/gate.py:1",
+        "prompts/coder.md:1",
+        "skills/mf-build/SKILL.md:1",
+        "docs/modules/gate.md:1",
+        "README.md:1",
+        "CLAUDE.md:1",
+        ".env.example:1",
+        ".github/workflows/ci.yml:1",
+        "Makefile:1",
+        "pyproject.toml:1",
+    ]
 
 
 @pytest.mark.spec_exempt("structural — the method doc is wired into the docs map")
