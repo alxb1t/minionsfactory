@@ -71,17 +71,26 @@ def test_the_gate_scan_reports_a_named_toml_and_a_missing_dry_run(
     ]
 
 
+def _section_lines(text: str, heading: str) -> list[tuple[int, str]]:
+    """Return the numbered lines of `text`'s `heading` section, up to the next `## `."""
+    lines: list[tuple[int, str]] = []
+    inside = False
+    for number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("## "):
+            inside = line == heading
+        elif inside:
+            lines.append((number, line))
+    return lines
+
+
 def _section_labels(path: Path, heading: str) -> list[str]:
     """Return the bold first cells of the table rows in `path`'s `heading` section."""
     row = re.compile(r"^\| \*\*(.+?)\*\* \|")
-    labels: list[str] = []
-    inside = False
-    for line in path.read_text().splitlines():
-        if line.startswith("## "):
-            inside = line == heading
-        elif inside and (match := row.match(line)):
-            labels.append(match.group(1))
-    return labels
+    return [
+        match.group(1)
+        for _, line in _section_lines(path.read_text(), heading)
+        if (match := row.match(line))
+    ]
 
 
 def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
@@ -234,16 +243,42 @@ def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
 
 
 def _needle_problems(
-    base: Path, name: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+    base: Path,
+    name: str,
+    present: tuple[str, ...] = (),
+    absent: tuple[str, ...] = (),
+    section: str = "",
 ) -> list[str]:
     """Return one line per `present` needle a skill lacks and `absent` needle it names.
 
     e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
     """
-    where = f"skills/{name}/SKILL.md"
+    return _file_needle_problems(
+        base, f"skills/{name}/SKILL.md", present, absent, section
+    )
+
+
+def _file_needle_problems(
+    base: Path,
+    where: str,
+    present: tuple[str, ...] = (),
+    absent: tuple[str, ...] = (),
+    section: str = "",
+) -> list[str]:
+    """Return one line per `present` needle `where` lacks and `absent` one it names.
+
+    A `section` heading narrows both to that `## ` section.
+    """
     text = (base / where).read_text()
-    problems = [f"{where}: does not name `{n}`" for n in present if n not in text]
-    for number, line in enumerate(text.splitlines(), start=1):
+    lines = (
+        _section_lines(text, section)
+        if section
+        else list(enumerate(text.splitlines(), start=1))
+    )
+    body = "\n".join(line for _, line in lines)
+    label = f"{where} `{section}`" if section else where
+    problems = [f"{label}: does not name `{n}`" for n in present if n not in body]
+    for number, line in lines:
         problems += [f"{where}:{number}: names `{n}`" for n in absent if n in line]
     return problems
 
@@ -360,4 +395,163 @@ def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -
         f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`",
         f"skills/mf-release/SKILL.md:1: names `{_MISSING_FILE_RULE}`",
         f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`",
+    ]
+
+
+# The release ships only a head a round judged, and converge's catch-up round is how a
+# late commit gets judged. Why: 0017-converge-audit-fixes design D1, D2.
+_HEAD_CHECK = "HEAD equals the head:"
+_CATCH_UP = "catch-up round"
+
+
+def _reviewed_head_problems(base: Path) -> list[str]:
+    """Return one line per breach of the reviewed-head rule in `base`'s skills."""
+    return _needle_problems(
+        base, "mf-release", present=(_HEAD_CHECK,)
+    ) + _needle_problems(base, "mf-converge", present=(_CATCH_UP,))
+
+
+@pytest.mark.spec("sdd:converge-audit:reviewed-head")
+def test_the_release_checks_the_judged_head_and_converge_catches_up() -> None:
+    assert _reviewed_head_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:reviewed-head")
+def test_the_reviewed_head_scan_reports_both_breaches(tmp_path: Path) -> None:
+    # A release that reads only the verdicts, and a converge with no catch-up round:
+    # both breaches are reported.
+    _plant(
+        tmp_path,
+        {
+            "mf-release": "Read each findings file's `verdict:`.\n",
+            "mf-converge": "Loop to a cap of three rounds.\n",
+        },
+    )
+
+    assert _reviewed_head_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{_HEAD_CHECK}`",
+        f"skills/mf-converge/SKILL.md: does not name `{_CATCH_UP}`",
+    ]
+
+
+# Review grades a drift tier, and the anchored harms always block, in the skill and in
+# the method page. Why: 0017-converge-audit-fixes design D3, D4.
+_REVIEW_TIERS = "blocking | drift | nit"
+_ANCHORS = ("data loss", "spend", "exposure", "silent wrong output")
+_METHOD_PAGE = "docs/sdd.md"
+
+
+def _anchors_and_drift_problems(base: Path) -> list[str]:
+    """Return one line per breach of the anchors-and-drift rule in `base`."""
+    return _needle_problems(
+        base, "mf-converge", present=(_REVIEW_TIERS, *_ANCHORS)
+    ) + _file_needle_problems(base, _METHOD_PAGE, present=(_REVIEW_TIERS,))
+
+
+@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
+def test_converge_and_the_method_page_name_the_anchors_and_the_drift_tier() -> None:
+    assert _anchors_and_drift_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
+def test_the_anchors_and_drift_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A converge and a method page that grade review `blocking | nit` and name no
+    # anchor: every needle is reported.
+    _plant(tmp_path, {"mf-converge": "Review grades `blocking | nit`.\n"})
+    (tmp_path / "docs").mkdir()
+    (tmp_path / _METHOD_PAGE).write_text("Review grades `blocking | nit`.\n")
+
+    assert _anchors_and_drift_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_REVIEW_TIERS}`",
+        *(f"skills/mf-converge/SKILL.md: does not name `{a}`" for a in _ANCHORS),
+        f"{_METHOD_PAGE}: does not name `{_REVIEW_TIERS}`",
+    ]
+
+
+# A finding that repeats a backlog card names it and goes up one level.
+# Why: 0017-converge-audit-fixes design D5.
+_REPEAT_NEEDLES = ("repeat of", "up one level")
+
+
+def _repeats_problems(base: Path) -> list[str]:
+    """Return one line per breach of the repeats-escalate rule in `base`'s converge."""
+    return _needle_problems(base, "mf-converge", present=_REPEAT_NEEDLES)
+
+
+@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
+def test_converge_names_the_repeat_rule() -> None:
+    assert _repeats_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
+def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
+    # A converge whose stations never read the backlog: both needles are reported.
+    _plant(tmp_path, {"mf-converge": "Each station writes its findings file.\n"})
+
+    assert _repeats_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{n}`" for n in _REPEAT_NEEDLES
+    ]
+
+
+# Review's stale-claim pass is named where the station runs it and where the conductor
+# checks its Summary. Why: 0017-converge-audit-fixes design D7.
+_STALE_CLAIM = "stale-claim pass"
+
+
+def _stale_claim_problems(base: Path) -> list[str]:
+    """Return a line when `base`'s converge names the pass fewer than twice."""
+    where = "skills/mf-converge/SKILL.md"
+    count = (base / where).read_text().count(_STALE_CLAIM)
+    return [] if count >= 2 else [f"{where}: names `{_STALE_CLAIM}` {count} time(s)"]
+
+
+@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
+def test_converge_names_the_stale_claim_pass_where_it_runs_and_is_checked() -> None:
+    assert _stale_claim_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
+def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
+    # A converge that tells review to run the pass but never checks it ran.
+    _plant(tmp_path, {"mf-converge": f"Review runs a {_STALE_CLAIM}.\n"})
+
+    assert _stale_claim_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: names `{_STALE_CLAIM}` 1 time(s)"
+    ]
+
+
+# A fix sized `a test` carries its red run, and the verify step checks the test hits the
+# card's scenario. Why: 0017-converge-audit-fixes design D8.
+_RED_RUN = "failing run from before the fix"
+_SCENARIO_FIELD = "When you'd hit it"
+_VERIFY_STEP = "## Step 7 — Verify, and the cap"
+
+
+def _red_run_problems(base: Path) -> list[str]:
+    """Return one line per breach of the red-before-green rule in `base`'s converge."""
+    return _needle_problems(
+        base, "mf-converge", present=(_RED_RUN,)
+    ) + _needle_problems(
+        base, "mf-converge", present=(_SCENARIO_FIELD,), section=_VERIFY_STEP
+    )
+
+
+@pytest.mark.spec("sdd:converge-audit:red-before-green")
+def test_converge_names_the_red_run_and_the_verify_check() -> None:
+    assert _red_run_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:red-before-green")
+def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
+    # The scenario field named only in the card, outside Step 7, does not count.
+    text = (
+        f"{_VERIFY_STEP}\n\nPromote or reopen each card.\n\n"
+        f"## The card\n\n| **{_SCENARIO_FIELD}** | a scenario |\n"
+    )
+    _plant(tmp_path, {"mf-converge": text})
+
+    assert _red_run_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_RED_RUN}`",
+        f"skills/mf-converge/SKILL.md `{_VERIFY_STEP}`: does not name "
+        f"`{_SCENARIO_FIELD}`",
     ]
