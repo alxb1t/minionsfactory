@@ -138,14 +138,19 @@ station that never ran cannot let the loop pass falsely. The release reads absen
 at all means the check was skipped, which the release states; one file without the other is still a halt.
 
 **Two severity vocabularies; which applies is the station's.** Security grades `critical | high | medium | low`
-and **blocks on `critical` + `high`**. Review and simplify grade `blocking | nit` and **block on `blocking`** —
-simplify's blocking tier deliberately narrow: overlapping or dual paths, and misleading API surface, only.
-Everything else it finds is a nit, because an aggressive cut risks a regression and the loop must not churn on
-"could be tidier". Either way `open_blocking` counts *that station's* blocking tier, and a station declaring
-`verdict: clean` is obliged to leave it at zero — a **station obligation, not a machine check**: nothing
-cross-checks the counter against the body. A non-blocking finding never stalls the loop. Once the loop is clean,
-the small ones are fixed in one more round; the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one
-gitignored file for every change, one heading per change — and never hold a release. The parked runner diverges
+and **blocks on `critical` + `high`**. Review grades `blocking | drift | nit` and **blocks on `blocking`**.
+**Drift** is docs, comments, README or CHANGELOG text the code contradicts, and never blocks; a spec scenario the
+code contradicts stays `blocking`, because the spec is a contract. Simplify grades `blocking | nit` — its blocking
+tier deliberately narrow: overlapping or dual paths, and misleading API surface, only. Everything else it finds
+is a nit, because an aggressive cut risks a regression and the loop must not churn on "could be tidier".
+**Anchored harms always block:** data loss or an irreversible delete, spend, exposure of personal data or
+secrets, and silent wrong output are `blocking` in review and at least `high` in security. The parked runner's
+review diverges here: it keeps `blocking` and `nit` alone until it resumes. Either way `open_blocking` counts
+*that station's* blocking tier, and a station declaring `verdict: clean` is obliged to leave it at zero — a
+**station obligation, not a machine check**: nothing cross-checks the counter against the body. A non-blocking
+finding never stalls the loop. Once the loop is clean, the small ones and the drift are fixed in one more round;
+the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one gitignored file for every change, one heading
+per change — and never hold a release. The parked runner diverges
 here: it carries deferred work into `.minions/<version>_backlog.md` and blocks its release on it.
 
 **Status is `open → fixed → verified`, and the producer/checker asymmetry is the whole point.** A finding is born

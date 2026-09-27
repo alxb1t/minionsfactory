@@ -240,7 +240,13 @@ def _needle_problems(
 
     e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
     """
-    where = f"skills/{name}/SKILL.md"
+    return _file_needle_problems(base, f"skills/{name}/SKILL.md", present, absent)
+
+
+def _file_needle_problems(
+    base: Path, where: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+) -> list[str]:
+    """Return one line per `present` needle `where` lacks and `absent` one it names."""
     text = (base / where).read_text()
     problems = [f"{where}: does not name `{n}`" for n in present if n not in text]
     for number, line in enumerate(text.splitlines(), start=1):
@@ -396,4 +402,63 @@ def test_the_reviewed_head_scan_reports_both_breaches(tmp_path: Path) -> None:
     assert _reviewed_head_problems(tmp_path) == [
         f"skills/mf-release/SKILL.md: does not name `{_HEAD_CHECK}`",
         f"skills/mf-converge/SKILL.md: does not name `{_CATCH_UP}`",
+    ]
+
+
+# Review grades a drift tier, and the anchored harms always block, in the skill and in
+# the method page. Why: 0017-converge-audit-fixes design D3, D4.
+_REVIEW_TIERS = "blocking | drift | nit"
+_ANCHORS = ("data loss", "spend", "exposure", "silent wrong output")
+_METHOD_PAGE = "docs/sdd.md"
+
+
+def _anchors_and_drift_problems(base: Path) -> list[str]:
+    """Return one line per breach of the anchors-and-drift rule in `base`."""
+    return _needle_problems(
+        base, "mf-converge", present=(_REVIEW_TIERS, *_ANCHORS)
+    ) + _file_needle_problems(base, _METHOD_PAGE, present=(_REVIEW_TIERS,))
+
+
+@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
+def test_converge_and_the_method_page_name_the_anchors_and_the_drift_tier() -> None:
+    assert _anchors_and_drift_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
+def test_the_anchors_and_drift_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A converge and a method page that grade review `blocking | nit` and name no
+    # anchor: every needle is reported.
+    _plant(tmp_path, {"mf-converge": "Review grades `blocking | nit`.\n"})
+    (tmp_path / "docs").mkdir()
+    (tmp_path / _METHOD_PAGE).write_text("Review grades `blocking | nit`.\n")
+
+    assert _anchors_and_drift_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_REVIEW_TIERS}`",
+        *(f"skills/mf-converge/SKILL.md: does not name `{a}`" for a in _ANCHORS),
+        f"{_METHOD_PAGE}: does not name `{_REVIEW_TIERS}`",
+    ]
+
+
+# A finding that repeats a backlog card names it and goes up one level.
+# Why: 0017-converge-audit-fixes design D5.
+_REPEAT_NEEDLES = ("repeat of", "up one level")
+
+
+def _repeats_problems(base: Path) -> list[str]:
+    """Return one line per breach of the repeats-escalate rule in `base`'s converge."""
+    return _needle_problems(base, "mf-converge", present=_REPEAT_NEEDLES)
+
+
+@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
+def test_converge_names_the_repeat_rule() -> None:
+    assert _repeats_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
+def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
+    # A converge whose stations never read the backlog: both needles are reported.
+    _plant(tmp_path, {"mf-converge": "Each station writes its findings file.\n"})
+
+    assert _repeats_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{n}`" for n in _REPEAT_NEEDLES
     ]

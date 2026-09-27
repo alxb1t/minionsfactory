@@ -101,7 +101,12 @@ own findings file. Give each one:
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
 - its own findings path `.minions/findings/<change-id>_<role>.md`, and nothing else to write,
-- the card, from [`## The card`](#the-card) — every finding it writes is a card.
+- the card, from [`## The card`](#the-card) — every finding it writes is a card;
+- `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
+
+**A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the backlog. The
+station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
+`nit` or `drift` to `blocking`. The station judges the match; you judge nothing.
 
 **How a station scopes itself.** It scopes its review engine to the range. **Only if what it reviewed came back
 empty or clearly wrong** does it fall back to reading the patch file and reviewing that — and it **states in its
@@ -139,9 +144,15 @@ verdict: clean | changes-requested
 field and leave the card's other fields as the station wrote them.
 
 **Two severity vocabularies; which applies is the station's.** Security grades `critical | high | medium | low`
-and **blocks on `critical` + `high`**. Review grades `blocking | nit` and **blocks on `blocking`**. Either way
+and **blocks on `critical` + `high`**. Review grades `blocking | drift | nit` and **blocks on `blocking`**.
+**Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block. A spec scenario
+the code contradicts is not drift — it stays `blocking`, because the spec is a contract. Either way
 `open_blocking` counts *that station's* blocking tier, and a station writing `verdict: clean` is obliged to
 leave it at zero — a station obligation, not a machine check.
+
+**Anchors always block.** An **anchor** is a harm class: data loss or an irreversible delete, spend, exposure of
+personal data or secrets, silent wrong output. An anchored finding is `blocking` in review and at least `high` in
+security, so the loop fixes it rather than deferring it. Outside the anchors, the grade is the station's.
 
 **Status is `open → fixed → verified`, and the asymmetry is the whole point.** A finding is born `open`. The
 **fix pass — the producer — writes `fixed`**, which is a claim, not a resolution. **Only the checker promotes to
@@ -173,7 +184,8 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
   once they are superseded: a verify round is scoped to the fix, so a station correctly reporting one file over a
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 
-**The non-blocking cards stay in the findings files until Step 9** — review nits, security `medium`/`low`. The
+**The non-blocking cards stay in the findings files until Step 9** — review `drift` and nits, security
+`medium`/`low`. The
 findings files live for the whole session, so nothing is lost by waiting, and writing each round would write
 cards that pickup then fixes.
 
@@ -223,14 +235,15 @@ opinion — a loop that cannot converge in three rounds is a plan problem, and t
 
 ## Step 8 — Pickup
 
-Fix this run's small cards while their context is fresh. **A small card** is a non-blocking card whose **Fix**
-size is `one line`, `a test`, or `one line and a test`. The pick is mechanical: the size is on the card, and no
-human confirms it.
+Fix this run's small cards and its drift while their context is fresh. **A small card** is a non-blocking card
+whose **Fix** size is `one line`, `a test`, or `one line and a test`. The pick is mechanical: the size and the
+tier are on the card, and no human confirms it.
 
 1. **Run pickup once, and only while a round remains.** Pickup already ran, or the last judged round is at the
    cap of three → Step 9.
-2. **Pick every `open` small card** in either findings file. Match the size literally; a size outside
-   [the closed set](#the-card) is not picked. None picked → Step 9.
+2. **Pick every `open` small card, and every `drift` card still `open` whatever its size,** in either findings
+   file. Match the size literally; a non-`drift` card sized outside [the closed set](#the-card) is not picked.
+   None picked → Step 9.
 3. **Print the picked ids** before you dispatch anything.
 4. **Send them to the Step 6 fix station by id**, then verify in a normal Step 7 round. A card first found in
    that verify round is not picked: there is one pickup per run.
@@ -247,7 +260,10 @@ Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
 4. **Write each card under `## <change-id>`**, creating the heading if missing. Its title takes a qualified id
    — `- **R5 — …**` becomes `- **0016·R5 — …**`, the change's number before the id. Every other field is copied
    verbatim, in order.
-5. **Skip an id already in the backlog.** Never edit or delete a card that is there.
+5. **Skip an id already in the backlog.** Never edit a card that is there, and delete one only as item 6 says.
+6. **Clear a fixed repeat's old card.** For every `verified` card whose **Related** names `repeat of <id>`, run
+   the old card's **Still true?** check. It shows the defect gone → delete that card, its list line and nested
+   bullets, and a change heading left empty; name it in the report with the check's output.
 
 ## Step 10 — Report, then stop
 
@@ -256,8 +272,9 @@ Report five things:
 1. **The verdicts, quoted from disk** — each station's `verdict`, `round`, `head` and `open_blocking`, read from
    the file rather than from what the station said.
 2. **Every blocking finding's end state** — by id: `verified`, `wontfix` accepted, or still `open`.
-3. **The backlog** — the picked ids and their end state; the cards written, by qualified id; the moot cards,
-   with each **Still true?** output; and the backlog's total card count, so a vanished file shows as a drop.
+3. **The backlog** — the picked ids and their end state; the cards written, by qualified id; the moot cards and
+   the cleared repeats' old cards, with each **Still true?** output; and the backlog's total card count, so a
+   vanished file shows as a drop.
 4. **The gate's exit code**, re-run by you at the end.
 5. **What you did not do** — archive, fold, tag, merge, push. All of those are `mf-release`'s or the human's.
 
@@ -275,11 +292,11 @@ This skill owns the card, and no other skill carries it: `tests/test_skills.py` 
 | **Why it's a problem** | the harm, in one or two sentences |
 | **When you'd hit it** | a concrete scenario: what you run, and what happens |
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
-| **Priority** | `<severity> · <role>` — and why that severity |
+| **Priority** | `<severity> · <role>` — and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
-| **Related** | the ids to fix together, or `none` |
+| **Related** | the ids to fix together, `repeat of <id>` for a repeat, or `none` |
 | **Status** | `open`, `fixed`, `verified` or `wontfix`, with the one-line note the fix or verify pass adds |
 
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
@@ -303,8 +320,10 @@ and name things rather than count them: "the review and security files", not "th
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
   reviews yourself, and do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
-- **Never pick a card sized `a design change`, or an older backlog card.** Pickup takes this run's small cards only.
-- **Never delete a card from the backlog.** A paydown change's release does that.
+- **Never pick a non-`drift` card sized `a design change`, or an older backlog card.** Pickup takes this run's
+  small cards and `drift` cards only.
+- **Never delete a backlog card, except a fixed repeat's** — Step 9 item 6, when its **Still true?** shows the
+  defect gone. Any other deletion is a paydown change's release.
 - **Never weaken the gate**, and never accept a fix that passes only because a check was loosened.
 - **Never archive, fold, tag, merge or push.** The loop that declared convergence does not also act on it.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file — least of

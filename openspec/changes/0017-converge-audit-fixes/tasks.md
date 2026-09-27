@@ -6,7 +6,7 @@
 ## Progress
 
 - [x] 1 — No unreviewed commit ships
-- [ ] 2 — Anchors, drift and repeats
+- [x] 2 — Anchors, drift and repeats
 - [ ] 3 — The stale-claim pass and the red run
 
 ## 1 — No unreviewed commit ships
@@ -28,20 +28,20 @@ The release check and the catch-up round that answers it land together ([D1](des
 
 The card's vocabulary, which phase 3's stale-claim pass writes into ([D3](design.md#d3)–[D6](design.md#d6)).
 
-- [ ] 2.1 Test first: in `tests/test_skills.py`, add the anchors-and-drift scan and the repeats scan, each with its
+- [x] 2.1 Test first: in `tests/test_skills.py`, add the anchors-and-drift scan and the repeats scan, each with its
   twin, bound to `sdd:converge-audit:anchors-and-drift` and `sdd:converge-audit:repeats-escalate`. Verify:
   `uv run pytest tests/test_skills.py -q` fails, naming `skills/mf-converge/SKILL.md`.
-- [ ] 2.2 `skills/mf-converge/SKILL.md` Step 4 and the **Priority** row: the D3 and D4 rows. Verify:
+- [x] 2.2 `skills/mf-converge/SKILL.md` Step 4 and the **Priority** row: the D3 and D4 rows. Verify:
   `grep -c 'blocking | drift | nit' skills/mf-converge/SKILL.md` prints `1` or more.
-- [ ] 2.3 `skills/mf-converge/SKILL.md` Step 5, Step 8 and `## Never`: the D4 rows. Verify:
+- [x] 2.3 `skills/mf-converge/SKILL.md` Step 5, Step 8 and `## Never`: the D4 rows. Verify:
   `grep -c 'every `drift` card' skills/mf-converge/SKILL.md` prints `1` or more.
-- [ ] 2.4 `skills/mf-converge/SKILL.md` Step 3: the D5 station input and repeat rule. Verify:
+- [x] 2.4 `skills/mf-converge/SKILL.md` Step 3: the D5 station input and repeat rule. Verify:
   `grep -c 'repeat of' skills/mf-converge/SKILL.md` prints `1` or more.
-- [ ] 2.5 `skills/mf-converge/SKILL.md` Step 9 and `## Never`: the D6 rows. Verify:
+- [x] 2.5 `skills/mf-converge/SKILL.md` Step 9 and `## Never`: the D6 rows. Verify:
   `grep -c 'Never delete a card from the backlog.\*\*' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 2.6 `docs/sdd.md` *The findings contract*: the `docs/sdd.md` row, with the D9 sentence. Verify:
+- [x] 2.6 `docs/sdd.md` *The findings contract*: the `docs/sdd.md` row, with the D9 sentence. Verify:
   `grep -c 'blocking | drift | nit' docs/sdd.md` prints `1`.
-- [ ] 2.7 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 2.7 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 3 — The stale-claim pass and the red run
 

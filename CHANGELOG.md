@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   equals the `head:` of both findings files, and `mf-converge` gains a catch-up round that judges the late commits,
   counted against the cap.
 
+- **Anchored harms block, drift gets its own tier, repeats escalate** (change `0017-converge-audit-fixes`, phase 2).
+  Review grades `blocking | drift | nit` and pickup takes every `drift` card. Data loss, spend, exposure and silent
+  wrong output always block. A backlog repeat goes up one level, and its fix clears the old card.
+
 ## [0.16.0] - 2026-09-27
 
 ### Changed
