@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Converge keeps deferred work in one repository backlog** (change `0016-backlog-in-repo`, phase 1). Once clean,
+  it fixes this run's `one line` and `a test` cards in one more round, then writes the rest to
+  `.minions/backlog.md` under the change's heading, so small fixes land while their context is fresh.
+
 ## [0.15.0] - 2026-09-25
 
 ### Changed

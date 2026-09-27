@@ -226,6 +226,47 @@ def test_the_card_scan_reports_a_differing_label_and_a_missing_section(
     ]
 
 
+# Deferred work stays in one repository backlog, and pickup matches the card's Fix
+# size by its literal values. Why: 0016-backlog-in-repo design D1, D2, D4.
+_BACKLOG = ".minions/backlog.md"
+_PER_VERSION_BACKLOG = "_backlog.md"
+_PICKUP_SIZES = ("one line", "a test")
+
+
+def _converge_backlog_problems(base: Path) -> list[str]:
+    """Return one line per breach of the one-backlog rule in `base`'s converge skill."""
+    text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
+    problems: list[str] = []
+    for needle in (_BACKLOG, *_PICKUP_SIZES):
+        if needle not in text:
+            problems.append(f"skills/mf-converge/SKILL.md: does not name `{needle}`")
+    for number, line in enumerate(text.splitlines(), start=1):
+        if _PER_VERSION_BACKLOG in line:
+            problems.append(
+                f"skills/mf-converge/SKILL.md:{number}: names `{_PER_VERSION_BACKLOG}`"
+            )
+    return problems
+
+
+@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
+def test_converge_names_the_one_backlog_and_the_pickup_sizes() -> None:
+    assert _converge_backlog_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
+def test_the_converge_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A converge that writes the per-version file and names no pickup size is the
+    # skill before this change: every needle is reported.
+    _plant(tmp_path, {"mf-converge": "Carry to `.minions/<version>_backlog.md`.\n"})
+
+    assert _converge_backlog_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_BACKLOG}`",
+        "skills/mf-converge/SKILL.md: does not name `one line`",
+        "skills/mf-converge/SKILL.md: does not name `a test`",
+        f"skills/mf-converge/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
+    ]
+
+
 # Converge is optional (0012-converge-optional design D1, D5): the release states a
 # skipped converge in one literal line, and the rule that a missing findings file is
 # not clean leaves the release but stays in converge, which judges its own stations

@@ -5,7 +5,7 @@ is deleted. The why of each task is in [design.md](design.md).
 
 ## Progress
 
-- [ ] 1 — Converge picks up and writes the backlog
+- [x] 1 — Converge picks up and writes the backlog
 - [ ] 2 — The release stops reading the backlog
 - [ ] 3 — The export retires
 
@@ -14,19 +14,19 @@ is deleted. The why of each task is in [design.md](design.md).
 The writer lands while the release still reads only the per-version file, so no release can block on the new
 file ([D7](design.md#d7)). The text is in [D2–D3](design.md#d2d3--mf-converge-before--after).
 
-- [ ] 1.1 **HALT CHECK** — the release reads only the per-version file. Verify:
+- [x] 1.1 **HALT CHECK** — the release reads only the per-version file. Verify:
   `grep -c '\.minions/backlog\.md' skills/mf-release/SKILL.md` prints `0`, and
   `grep -c '<version>_backlog.md' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 1.2 Test first: in `tests/test_skills.py`, add the converge backlog scan and its twin, bound to
+- [x] 1.2 Test first: in `tests/test_skills.py`, add the converge backlog scan and its twin, bound to
   `sdd:repo-backlog:converge-writes-one-file` ([Seams](design.md#seams--what-the-tests-hold)).
   Verify: `uv run pytest tests/test_skills.py -q` fails, naming `skills/mf-converge/SKILL.md`.
-- [ ] 1.3 `skills/mf-converge/SKILL.md`: the `## Parameter`, Step 5, Step 6 and Step 7 rows of D2–D3.
+- [x] 1.3 `skills/mf-converge/SKILL.md`: the `## Parameter`, Step 5, Step 6 and Step 7 rows of D2–D3.
   Verify: `grep -c '_backlog.md' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 1.4 `skills/mf-converge/SKILL.md`: add Step 8 — Pickup and Step 9 — Write the backlog; the report becomes
+- [x] 1.4 `skills/mf-converge/SKILL.md`: add Step 8 — Pickup and Step 9 — Write the backlog; the report becomes
   Step 10. Verify: `grep -c -e '^## Step 8 — Pickup' -e '^## Step 9 — Write the backlog' -e '^## Step 10 — Report' skills/mf-converge/SKILL.md` prints `3`.
-- [ ] 1.5 `skills/mf-converge/SKILL.md`: the **Fix** row takes the closed size set of [D4](design.md#d4), and
+- [x] 1.5 `skills/mf-converge/SKILL.md`: the **Fix** row takes the closed size set of [D4](design.md#d4), and
   `## Never` gets the lines in the `## Never` row of D2–D3. Verify: ``grep -c '^| \*\*Fix\*\* |.*`one line and a test`' skills/mf-converge/SKILL.md`` prints `1`.
-- [ ] 1.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 1.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 2 — The release stops reading the backlog
 
