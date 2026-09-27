@@ -555,3 +555,48 @@ def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
         f"skills/mf-converge/SKILL.md `{_VERIFY_STEP}`: does not name "
         f"`{_SCENARIO_FIELD}`",
     ]
+
+
+# The conductor keeps a status log: its path, its order and its fixed events.
+# Why: 0018-converge-status-log design D1, D3, D4.
+_STATUS_LOG = "_status_log.md"
+_NEWEST_ON_TOP = "newest on top"
+_EVENTS = tuple(
+    f"`{event}`"
+    for event in (
+        "start",
+        "freeze",
+        "fan-out",
+        "verdicts",
+        "fix",
+        "verify",
+        "pickup",
+        "catch-up",
+        "backlog",
+        "halt",
+        "done",
+    )
+)
+
+
+def _status_log_problems(base: Path) -> list[str]:
+    """Return one line per breach of the status-log rule in `base`'s converge."""
+    return _needle_problems(
+        base, "mf-converge", present=(_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
+    )
+
+
+@pytest.mark.spec("sdd:converge-status:log")
+def test_converge_names_the_status_log_its_order_and_its_events() -> None:
+    assert _status_log_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-status:log")
+def test_the_status_log_scan_reports_every_needle(tmp_path: Path) -> None:
+    # A converge that keeps no log, and names its events only unquoted in prose.
+    _plant(tmp_path, {"mf-converge": "Start, freeze, fix, verify, then done.\n"})
+
+    assert _status_log_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{n}`"
+        for n in (_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
+    ]

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Converge keeps a status log** (change `0018-converge-status-log`, phase 1). The conductor writes one line per
+  event to `.minions/findings/<change-id>_status_log.md`, newest on top, and ends every run on `halt` or `done`,
+  so a person can see where a running loop is and a dead run shows.
+
 ## [0.17.0] - 2026-09-27
 
 ### Changed
