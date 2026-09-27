@@ -34,6 +34,54 @@ command — an empty recipe, or only a line saying `is up to date` or `Nothing t
 never substitute a command that looks like it tests things: an inferred gate is the one wrong guess that is
 *invisible* — a discovered command exits 0 and the loop converges on nothing.
 
+## The status log
+
+**The status log** shows a person where the loop is: one file, newest on top. It is
+`.minions/findings/<change-id>_status_log.md`, beside the findings files, and it is **not** one: no station
+writes it, `mf-release` never reads it, and the rule against editing a findings file does not cover it. Only
+you write it, logging each dispatch, each return and each decision.
+
+- **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from
+  `date '+%H:%M:%S'`, run through Bash; never write it by hand. A stale time is how a dead run shows.
+- **A run** is one invocation. Open it as soon as you have the change id: run `mkdir -p .minions/findings`,
+  create the file with a `# <change-id> — converge status` title if it is missing, and insert
+  `## Run N — <date '+%Y-%m-%d %H:%M'>` directly under the title, above the previous run. A catch-up round
+  opens its own run, its heading ending `· catch-up`.
+- **Newest on top.** Insert each event directly under the latest `## Run` heading. Only insert; a line once
+  written stays as it is.
+- **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop. A run whose top
+  line is neither is still going or dead, and its time says which.
+
+The events, and no others:
+
+| event | written in | detail holds |
+|---|---|---|
+| `start` | Step 1, once the preconditions pass | base, head, commit count, files changed |
+| `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
+| `fan-out` | Step 3, Step 7 | the roles dispatched and the range they judge |
+| `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking` |
+| `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
+| `verify` | Step 7 | the round and the range |
+| `pickup` | Step 8 | the picked ids, or `none` |
+| `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
+| `backlog` | Step 9 | the cards written, moot and cleared, by id |
+| `halt` | wherever this skill halts | the reason, as reported |
+| `done` | Step 10 | rounds used, cards to the backlog |
+
+```
+# 0018-converge-status-log — converge status
+
+## Run 2 — 2026-09-28 10:04
+10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
+10:09:02 · round 1 · verdicts — review clean · security clean
+10:04:20 · round 1 · fan-out — review and security dispatched
+10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
+
+## Run 1 — 2026-09-27 14:02
+14:31:00 · round 3 · halt — cap reached, R3 open
+…
+```
+
 ## Catch-up round
 
 A **catch-up round** judges commits that landed after the last round. `mf-release` halts until `HEAD` equals
@@ -51,6 +99,8 @@ Check this before Step 1. It applies when both findings files exist, both say `v
                ▼
   freeze <head>..HEAD ─▶ Step 7 verify ─▶ Step 9 backlog ─▶ Step 10 report   (no pickup)
 ```
+
+Open this run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Test the ancestry** — `git merge-base --is-ancestor <judged head> HEAD`. Non-zero → halt as drawn.
 2. **Test the cap** — the files' `round:` is the last judged round, and the catch-up round counts against the
@@ -74,6 +124,8 @@ Check this before Step 1. It applies when both findings files exist, both say `v
    usually skipped, and skipping it is how a red gate at round 1 gets attributed to a station's findings instead
    of to the build: the fix pass then chases the wrong thing. Red → halt; `mf-build` owns it.
 
+Once all five pass, write `start` to the status log.
+
 ## Step 2 — Freeze the diff
 
 1. **Derive the base**: `git merge-base <default-branch> HEAD`, where the default branch is the repository's own
@@ -86,6 +138,7 @@ Check this before Step 1. It applies when both findings files exist, both say `v
 4. **Print, so the numbers exist before any station speaks:** `base` · `head` · the **commit count** in the
    range · the **files changed** count. You will compare a station's reported scope against these in Step 5 —
    these are **round 1's** numbers, and Step 6's re-freeze prints its own for every round after it.
+5. **Write `freeze` to the status log.**
 
 ## Step 3 — Fan out (two fresh read-only subagents, in parallel)
 
@@ -103,6 +156,8 @@ own findings file. Give each one:
 - its own findings path `.minions/findings/<change-id>_<role>.md`, and nothing else to write,
 - the card, from [`## The card`](#the-card) — every finding it writes is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
+
+At dispatch, write `fan-out` to the status log.
 
 **A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the backlog. The
 station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
@@ -175,7 +230,8 @@ declares a check already satisfied satisfies nothing, and is itself reportable.
 ## Step 5 — Read the verdicts (your own reads, from disk)
 
 Read each findings file yourself, from disk. **Never take a verdict from a station's report** — the report is a
-claim about the file; the file is the contract. These rules are fail-closed, and all are yours to enforce:
+claim about the file; the file is the contract. After each read, write `verdicts` to the status log. These
+rules are fail-closed, and all are yours to enforce:
 
 - **A missing findings file is not clean.** An absent file counts as unconverged. A station that never ran, or
   crashed before writing, cannot let the loop pass falsely — halt naming the missing path.
@@ -203,7 +259,8 @@ The fix pass is a station **inside** `mf-converge`, not a separate skill and not
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
 Dispatch **one** subagent to clear every **open blocking** finding across both files — or, in the pickup round,
-exactly the cards Step 8 names — to a **green gate**. It:
+exactly the cards Step 8 names — to a **green gate**. Write `fix` to the status log at dispatch, and again when it
+commits. It:
 
 - fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
   loosened config, no deleted test. That is exactly what the review station checks for;
@@ -226,10 +283,12 @@ each findings file's `head:` field plus the append-only `## Resolution log`, and
 **Then print the re-frozen range's numbers exactly as Step 2 does** — `base` · `head` · commit count · files
 changed. These supersede the previous round's, and they are the ones Step 5's scope comparison uses next round.
 Each round is judged against its own freeze, so every round has its own numbers before any station speaks.
+Write `freeze` to the status log.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself. Then dispatch the **same two roles** as **fresh** subagents at `round ≥ 2`, each
+Re-run the gate yourself, and write `verify` to the status log. Then dispatch the
+**same two roles** as **fresh** subagents at `round ≥ 2` — writing `fan-out` to the status log — each
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
@@ -256,7 +315,7 @@ tier are on the card, and no human confirms it.
 2. **Pick every `open` small card, and every `drift` card still `open` whatever its size,** in either findings
    file. Match the size literally; a non-`drift` card sized outside [the closed set](#the-card) is not picked.
    None picked → Step 9.
-3. **Print the picked ids** before you dispatch anything.
+3. **Print the picked ids** before you dispatch anything, and write `pickup` to the status log.
 4. **Send them to the Step 6 fix station by id**, then verify in a normal Step 7 round. A card first found in
    that verify round is not picked: there is one pickup per run.
 
@@ -276,6 +335,7 @@ Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
 6. **Clear a fixed repeat's old card.** For every `verified` card whose **Related** names `repeat of <id>`, run
    the old card's **Still true?** check. It shows the defect gone → delete that card, its list line and nested
    bullets, and a change heading left empty; name it in the report with the check's output.
+7. **Write `backlog` to the status log.**
 
 ## Step 10 — Report, then stop
 
@@ -290,7 +350,7 @@ Report five things:
 4. **The gate's exit code**, re-run by you at the end.
 5. **What you did not do** — archive, fold, tag, merge, push. All of those are `mf-release`'s or the human's.
 
-Then **stop**.
+Write `done` to the status log, then **stop**.
 
 ## The card
 
@@ -332,6 +392,7 @@ and name things rather than count them: "the review and security files", not "th
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
   reviews yourself, and do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
+- **Never edit or delete a status-log line.** Insert new lines only: the log is the record of what the loop did.
 - **Never pick a non-`drift` card sized `a design change`, or an older backlog card.** Pickup takes this run's
   small cards and `drift` cards only.
 - **Never delete a backlog card, except a fixed repeat's** — Step 9 item 6, when its **Still true?** shows the
