@@ -63,8 +63,8 @@ prevent. An absent file is never an invitation to search — precondition 4 says
 3. If converge ran (precondition 4): **security is clean** — `.minions/findings/<change-id>_security.md`
    exists, `verdict: clean`, and every `critical` and `high` finding is `verified`. Else → halt.
 4. **Converge ran, or was skipped — the two files decide, and simplify is declared out by name.** Neither
-   findings file exists → converge was **skipped**: preconditions 2 and 3 pass, and you state the skip as the
-   line `converge: skipped — no findings files`. Either exists → converge **ran**: 2 and 3 apply in full, and one
+   findings file exists → converge was **skipped**: preconditions 2, 3 and 7 pass, and you state the skip as the
+   line `converge: skipped — no findings files`. Either exists → converge **ran**: 2, 3 and 7 apply in full, and one
    file without the other is a halt — a converge that ran leaves both. **Simplify is the one station excluded
    here, by name and deliberately** — it runs inside `mf-build`, fixing in place, and **produces no findings file
    by design**, its edits verified by the review station that read a diff containing them. That is a declared
@@ -73,6 +73,10 @@ prevent. An absent file is never an invitation to search — precondition 4 says
 5. **The version line is aligned** — the tag `<version>.0` does **not** already exist (`git tag -l`), and
    `CHANGELOG.md`'s `## [Unreleased]` holds **real entries** rather than an empty heading. Else → halt.
 6. **The tree is clean** — `git status --porcelain` prints nothing. Else → halt.
+7. If converge ran (precondition 4): **HEAD equals the head: of both findings files** — `git rev-parse HEAD`
+   matches each file's `head:`, the last commit a round judged. A commit after it shipped unreviewed. Else →
+   halt: *run `/mf-converge` — it runs a catch-up round over `<head>..HEAD`*. Checked here, before the fold, so
+   the release's own commit is never the one compared.
 
 ## Step 2 — Fold the delta into the living specs
 

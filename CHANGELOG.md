@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **No unreviewed commit ships** (change `0017-converge-audit-fixes`, phase 1). `mf-release` halts unless `HEAD`
+  equals the `head:` of both findings files, and `mf-converge` gains a catch-up round that judges the late commits,
+  counted against the cap.
+
 ## [0.16.0] - 2026-09-27
 
 ### Changed

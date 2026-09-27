@@ -361,3 +361,39 @@ def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -
         f"skills/mf-release/SKILL.md:1: names `{_MISSING_FILE_RULE}`",
         f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`",
     ]
+
+
+# The release ships only a head a round judged, and converge's catch-up round is how a
+# late commit gets judged. Why: 0017-converge-audit-fixes design D1, D2.
+_HEAD_CHECK = "HEAD equals the head:"
+_CATCH_UP = "catch-up round"
+
+
+def _reviewed_head_problems(base: Path) -> list[str]:
+    """Return one line per breach of the reviewed-head rule in `base`'s skills."""
+    return _needle_problems(
+        base, "mf-release", present=(_HEAD_CHECK,)
+    ) + _needle_problems(base, "mf-converge", present=(_CATCH_UP,))
+
+
+@pytest.mark.spec("sdd:converge-audit:reviewed-head")
+def test_the_release_checks_the_judged_head_and_converge_catches_up() -> None:
+    assert _reviewed_head_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:reviewed-head")
+def test_the_reviewed_head_scan_reports_both_breaches(tmp_path: Path) -> None:
+    # A release that reads only the verdicts, and a converge with no catch-up round:
+    # both breaches are reported.
+    _plant(
+        tmp_path,
+        {
+            "mf-release": "Read each findings file's `verdict:`.\n",
+            "mf-converge": "Loop to a cap of three rounds.\n",
+        },
+    )
+
+    assert _reviewed_head_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{_HEAD_CHECK}`",
+        f"skills/mf-converge/SKILL.md: does not name `{_CATCH_UP}`",
+    ]

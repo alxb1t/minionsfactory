@@ -34,6 +34,32 @@ command — an empty recipe, or only a line saying `is up to date` or `Nothing t
 never substitute a command that looks like it tests things: an inferred gate is the one wrong guess that is
 *invisible* — a discovered command exits 0 and the loop converges on nothing.
 
+## Catch-up round
+
+A **catch-up round** judges commits that landed after the last round. `mf-release` halts until `HEAD` equals
+the `head:` of both findings files — **the judged head** — and this round is how it gets there.
+
+Check this before Step 1. It applies when both findings files exist, both say `verdict: clean`, and their
+`head:` is not `HEAD`:
+
+```
+  judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
+               │ yes
+               ▼
+  round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
+               │ yes
+               ▼
+  freeze <head>..HEAD ─▶ Step 7 verify ─▶ Step 9 backlog ─▶ Step 10 report   (no pickup)
+```
+
+1. **Test the ancestry** — `git merge-base --is-ancestor <judged head> HEAD`. Non-zero → halt as drawn.
+2. **Test the cap** — the files' `round:` is the last judged round, and the catch-up round counts against the
+   cap of three. At the cap → halt as drawn.
+3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does: overwrite
+   the patch and print its numbers.
+4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8: there is no pickup. Otherwise Step 7's own
+   rules apply, under the same cap.
+
 ## Step 1 — Preconditions (five; each one halts, naming what is missing)
 
 1. **The tree is clean** — `git status --porcelain` is empty. Uncommitted work is not in the frozen range, so a

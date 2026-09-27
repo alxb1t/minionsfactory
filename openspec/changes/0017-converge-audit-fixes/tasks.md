@@ -5,7 +5,7 @@
 
 ## Progress
 
-- [ ] 1 — No unreviewed commit ships
+- [x] 1 — No unreviewed commit ships
 - [ ] 2 — Anchors, drift and repeats
 - [ ] 3 — The stale-claim pass and the red run
 
@@ -13,16 +13,16 @@
 
 The release check and the catch-up round that answers it land together ([D1](design.md#d1), [D2](design.md#d2)).
 
-- [ ] 1.1 **HALT CHECK** — `mf-release` compares no head today. Verify:
+- [x] 1.1 **HALT CHECK** — `mf-release` compares no head today. Verify:
   `grep -c 'HEAD equals the head:' skills/mf-release/SKILL.md` prints `0`.
-- [ ] 1.2 Test first: in `tests/test_skills.py`, add the reviewed-head scan and its twin, bound to
+- [x] 1.2 Test first: in `tests/test_skills.py`, add the reviewed-head scan and its twin, bound to
   `sdd:converge-audit:reviewed-head`. Verify: `uv run pytest tests/test_skills.py -q` fails, naming
   `skills/mf-release/SKILL.md`.
-- [ ] 1.3 `skills/mf-release/SKILL.md` Step 1: add the D1 precondition. Verify:
+- [x] 1.3 `skills/mf-release/SKILL.md` Step 1: add the D1 precondition. Verify:
   `grep -c 'HEAD equals the head:' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 1.4 `skills/mf-converge/SKILL.md`: add `## Catch-up round` before Step 1, per the D1–D2 diagram. Verify:
+- [x] 1.4 `skills/mf-converge/SKILL.md`: add `## Catch-up round` before Step 1, per the D1–D2 diagram. Verify:
   `grep -c '^## Catch-up round' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 1.5 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 1.5 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 2 — Anchors, drift and repeats
 
