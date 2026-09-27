@@ -235,6 +235,23 @@ def test_the_guard_fails_when_the_retired_gate_config_is_reintroduced(
     _assert_every_plant_bites(tmp_path, _RETIRED_GATE_CONFIG)
 
 
+# The retired backlog export. Deferred work stays in `.minions/backlog.md`, so the skill
+# that carried it out of the repository is deleted (0016-backlog-in-repo design D7).
+_RETIRED_EXPORT = ("mf-backlog-export",)
+
+
+@pytest.mark.spec("sdd:retired-export:named-nowhere")
+def test_the_retired_backlog_export_is_named_nowhere_in_code_prompts_or_docs() -> None:
+    _assert_named_nowhere(_RETIRED_EXPORT)
+
+
+@pytest.mark.spec("sdd:retired-export:named-nowhere")
+def test_the_guard_fails_when_the_retired_backlog_export_is_reintroduced(
+    tmp_path: Path,
+) -> None:
+    _assert_every_plant_bites(tmp_path, _RETIRED_EXPORT)
+
+
 @pytest.mark.spec_exempt("structural — the method doc is wired into the docs map")
 def test_the_method_doc_exists_and_the_docs_map_links_it() -> None:
     # Two independent halves, so removing either one fails: the page exists, and the

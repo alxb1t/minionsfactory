@@ -186,43 +186,52 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     ]
 
 
-# The card: `mf-converge` owns its fields and `mf-backlog-export` carries the same
-# labels, so the card converge carries is the card the export keeps whole. A label is
-# the bold first cell of a table row. Why: 0014-backlog-cards design D1, D7.
-_CARD_CARRIERS = ("mf-converge", "mf-backlog-export")
+# The card: `mf-converge` owns it, and no other skill carries a copy that could drift.
+# A label is the bold first cell of a table row. The key is kept from the parity scan
+# this replaces. Why: 0016-backlog-in-repo design D8.
+_CARD_OWNER = "mf-converge"
 _CARD_HEADING = "## The card"
 
 
-@pytest.mark.spec("sdd:backlog-cards:fields-agree")
-def test_converge_and_the_export_carry_the_same_card_fields() -> None:
-    assert _shared_label_problems(_REPO, _CARD_CARRIERS, _CARD_HEADING) == []
+def _card_owner_problems(base: Path) -> list[str]:
+    """Return one line per breach of the one-card-owner rule in `base`'s skills."""
+    owner = base / "skills" / _CARD_OWNER / "SKILL.md"
+    problems: list[str] = []
+    if not owner.is_file():
+        problems.append(f"skills/{_CARD_OWNER}/SKILL.md: does not exist")
+    elif not _section_labels(owner, _CARD_HEADING):
+        problems.append(
+            f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`"
+        )
+    for path in sorted((base / "skills").glob("*/SKILL.md")):
+        if path != owner and _CARD_HEADING in path.read_text().splitlines():
+            problems.append(
+                f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
+            )
+    return problems
 
 
 @pytest.mark.spec("sdd:backlog-cards:fields-agree")
-def test_the_card_scan_reports_a_differing_label_and_a_missing_section(
+def test_only_converge_carries_the_card() -> None:
+    assert _card_owner_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     tmp_path: Path,
 ) -> None:
-    # The export's row past `## Never` must not count as a card field.
-    differ = _plant(
-        tmp_path / "differ",
+    # The owner's row past `## Never` must not count as a card field.
+    _plant(
+        tmp_path,
         {
-            "mf-converge": _table_text(_CARD_HEADING, "Title", "Fix", "Status"),
-            "mf-backlog-export": _table_text(_CARD_HEADING, "Title", "Status"),
-        },
-    )
-    missing = _plant(
-        tmp_path / "missing",
-        {
-            "mf-converge": _table_text(_CARD_HEADING, "Title"),
-            "mf-backlog-export": "## Never\n\n| **Title** | — |\n",
+            _CARD_OWNER: f"{_CARD_HEADING}\n\n## Never\n\n| **Title** | — |\n",
+            "mf-other": _table_text(_CARD_HEADING, "Title"),
         },
     )
 
-    assert _shared_label_problems(differ, _CARD_CARRIERS, _CARD_HEADING) == [
-        "labels differ: only in mf-converge ['Fix'], only in mf-backlog-export []",
-    ]
-    assert _shared_label_problems(missing, _CARD_CARRIERS, _CARD_HEADING) == [
-        "skills/mf-backlog-export/SKILL.md: no labels in `## The card`",
+    assert _card_owner_problems(tmp_path) == [
+        f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`",
+        f"skills/mf-other/SKILL.md: carries `{_CARD_HEADING}`",
     ]
 
 

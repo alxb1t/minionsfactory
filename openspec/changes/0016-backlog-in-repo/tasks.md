@@ -7,7 +7,7 @@ is deleted. The why of each task is in [design.md](design.md).
 
 - [x] 1 — Converge picks up and writes the backlog
 - [x] 2 — The release stops reading the backlog
-- [ ] 3 — The export retires
+- [x] 3 — The export retires
 
 ## 1 — Converge picks up and writes the backlog
 
@@ -53,18 +53,18 @@ The text is in [D5–D6](design.md#d5d6--mf-release-and-mf-cut-change-before--af
 The irreversible act, last ([D7](design.md#d7)). Every file is in
 [D7 — where the export's name leaves](design.md#d7--where-the-exports-name-leaves).
 
-- [ ] 3.1 **HALT CHECK** — only the expected files name the export. Verify:
+- [x] 3.1 **HALT CHECK** — only the expected files name the export. Verify:
   `git grep -l 'mf-backlog-export' -- . ':!openspec' ':!CHANGELOG.md'` prints exactly `README.md`,
   `skills/mf-backlog-export/SKILL.md`, `skills/mf-converge/SKILL.md` and `tests/test_skills.py`.
-- [ ] 3.2 Test first: in `tests/test_conventions.py`, add `mf-backlog-export` as a retired needle with its scan and
+- [x] 3.2 Test first: in `tests/test_conventions.py`, add `mf-backlog-export` as a retired needle with its scan and
   twin over `_SCANNED`, bound to `sdd:retired-export:named-nowhere`. In `tests/test_skills.py`, replace
   `_CARD_CARRIERS` and the parity scan with the card-owner scan and twin, keeping the key
   `sdd:backlog-cards:fields-agree` ([D8](design.md#d8)). Verify: `uv run pytest tests/test_skills.py tests/test_conventions.py -q` fails.
-- [ ] 3.3 Delete `skills/mf-backlog-export/`. Verify: `test ! -e skills/mf-backlog-export` exits 0.
-- [ ] 3.4 `skills/mf-converge/SKILL.md` `## The card`: the intro says no other skill carries the card.
+- [x] 3.3 Delete `skills/mf-backlog-export/`. Verify: `test ! -e skills/mf-backlog-export` exits 0.
+- [x] 3.4 `skills/mf-converge/SKILL.md` `## The card`: the intro says no other skill carries the card.
   Verify: `grep -c 'mf-backlog-export' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 3.5 `README.md`, `CLAUDE.md`, `.gitignore`: their D7 rows. Verify: `grep -c 'mf-backlog-export' README.md`
+- [x] 3.5 `README.md`, `CLAUDE.md`, `.gitignore`: their D7 rows. Verify: `grep -c 'mf-backlog-export' README.md`
   prints `0`, `grep -c 'converge, backlog' CLAUDE.md` prints `0`, and `grep -c 'backlog.md' .gitignore` prints `1` or more.
-- [ ] 3.6 No live mention remains. Verify:
+- [x] 3.6 No live mention remains. Verify:
   `git grep -l 'mf-backlog-export' -- . ':!openspec' ':!CHANGELOG.md' ':!tests'` prints nothing.
-- [ ] 3.7 The scans pass. Verify: `uv run pytest tests/test_skills.py tests/test_conventions.py -q` exits 0.
+- [x] 3.7 The scans pass. Verify: `uv run pytest tests/test_skills.py tests/test_conventions.py -q` exits 0.

@@ -72,15 +72,16 @@ else. In brief, the load-bearing seams are:
 - **`orchestrator/`** — the driver, the seams, the CLI. **`prompts/`** — the six role prompts. **`tests/`** — the
   suite. **`docs/`** — the orchestrator's own map, plus `sdd.md`, the one page there that is about the *method*
   rather than about this codebase.
-- **`skills/`** — the five `mf-*` execution-line skills, one `SKILL.md` each: cut, build, converge, backlog
-  export, release. Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
+- **`skills/`** — the `mf-*` execution-line skills, one `SKILL.md` each: cut, build, converge, release.
+  Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
   is inside the retired-vocabulary scan for that reason.
 - **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`). The OpenSpec CLI is
   **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on
   `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can never turn CI
   red; it can only hand a future author different authoring instructions. The binding authority is this
   repository's own spec-binding check, and it *is* in the gate.
-- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked.
+- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
+  `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the
   target repo**. Product intent — the research and the narrative record the human keeps — lives *upstream* of the
   code in a private Obsidian vault, and **no role the orchestrator spawns reaches into it**; planning itself runs

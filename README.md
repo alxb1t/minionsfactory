@@ -69,7 +69,7 @@ CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
 
 ## The execution-line skills
 
-Five hand-invoked skills under [`skills/`](skills/) drive a change from cut to released. They are the
+The hand-invoked skills under [`skills/`](skills/) drive a change from cut to released. They are the
 human-invoked line — the one this repository's own releases are cut with — beside the automated line under
 `orchestrator/`. Each skill is the authority on what it does; this list is a map, not a summary:
 
@@ -78,8 +78,10 @@ human-invoked line — the one this repository's own releases are cut with — b
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
-| [`mf-backlog-export`](skills/mf-backlog-export/SKILL.md) | carry the release's deferred work out and empty the file |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
+
+Deferred work stays in the repository: `mf-converge` writes it to the gitignored `.minions/backlog.md`, one
+heading per change, and the release never blocks on it.
 
 A target repo needs a root `Makefile` with a `gate` target: the skills run `make gate` and halt without one.
 

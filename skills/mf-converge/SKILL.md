@@ -241,8 +241,8 @@ Then **stop**.
 ## The card
 
 Every finding is a **card**: one top-level list line holding its id and a plain title, then one nested bullet per
-field, never a heading — the backlog's headings are its changes, so a card written as a heading reads as one. This skill owns the card; `mf-backlog-export` carries the same fields, and `tests/test_skills.py` holds
-their labels equal.
+field, never a heading — the backlog's headings are its changes, so a card written as a heading reads as one.
+This skill owns the card, and no other skill carries it: `tests/test_skills.py` fails if one does.
 
 | field | holds |
 |---|---|
