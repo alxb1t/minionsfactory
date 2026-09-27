@@ -145,8 +145,7 @@ Everything else it finds is a nit, because an aggressive cut risks a regression 
 `verdict: clean` is obliged to leave it at zero — a **station obligation, not a machine check**: nothing
 cross-checks the counter against the body. A non-blocking finding never stalls the loop. Once the loop is clean,
 the small ones are fixed in one more round; the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one
-gitignored file for every change, one heading per change — and never hold a release. A **paydown change** lists
-the ids it closes under `backlog:` in its proposal, and its release deletes them. The parked runner diverges
+gitignored file for every change, one heading per change — and never hold a release. The parked runner diverges
 here: it carries deferred work into `.minions/<version>_backlog.md` and blocks its release on it.
 
 **Status is `open → fixed → verified`, and the producer/checker asymmetry is the whole point.** A finding is born

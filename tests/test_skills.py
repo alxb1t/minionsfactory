@@ -96,10 +96,9 @@ def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
     ]
 
 
-def _shared_label_problems(
-    base: Path, owners: tuple[str, str], heading: str
-) -> list[str]:
-    """Return one line per breach of the `heading` labels `owners` share in `base`."""
+def _shared_label_problems(base: Path, heading: str) -> list[str]:
+    """Return one line per breach of the `heading` labels the shared owners carry."""
+    owners = _SHARED_OWNERS
     problems: list[str] = []
     sets: dict[str, set[str]] = {}
     for name in owners:
@@ -122,7 +121,7 @@ def _shared_label_problems(
 
 def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
     """Return one line per breach of the shared `heading` list in `base`'s skills."""
-    problems = _shared_label_problems(base, _SHARED_OWNERS, heading)
+    problems = _shared_label_problems(base, heading)
     for name in _SHARED_OWNERS:
         path = base / "skills" / name / "SKILL.md"
         ids = _section_ids(path, heading, letter) if path.is_file() else []
@@ -187,8 +186,7 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
 
 
 # The card: `mf-converge` owns it, and no other skill carries a copy that could drift.
-# A label is the bold first cell of a table row. The key is kept from the parity scan
-# this replaces. Why: 0016-backlog-in-repo design D8.
+# A label is the bold first cell of a table row. Why: 0016-backlog-in-repo design D8.
 _CARD_OWNER = "mf-converge"
 _CARD_HEADING = "## The card"
 
@@ -235,26 +233,36 @@ def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     ]
 
 
+def _needle_problems(
+    base: Path, name: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+) -> list[str]:
+    """Return one line per `present` needle a skill lacks and `absent` needle it names.
+
+    e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
+    """
+    where = f"skills/{name}/SKILL.md"
+    text = (base / where).read_text()
+    problems = [f"{where}: does not name `{n}`" for n in present if n not in text]
+    for number, line in enumerate(text.splitlines(), start=1):
+        problems += [f"{where}:{number}: names `{n}`" for n in absent if n in line]
+    return problems
+
+
 # Deferred work stays in one repository backlog, and pickup matches the card's Fix
 # size by its literal values. Why: 0016-backlog-in-repo design D1, D2, D4.
 _BACKLOG = ".minions/backlog.md"
 _PER_VERSION_BACKLOG = "_backlog.md"
-_PICKUP_SIZES = ("one line", "a test")
+_PICKUP_SIZES = ("`one line`", "`a test`")
 
 
 def _converge_backlog_problems(base: Path) -> list[str]:
     """Return one line per breach of the one-backlog rule in `base`'s converge skill."""
-    text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
-    problems: list[str] = []
-    for needle in (_BACKLOG, *_PICKUP_SIZES):
-        if needle not in text:
-            problems.append(f"skills/mf-converge/SKILL.md: does not name `{needle}`")
-    for number, line in enumerate(text.splitlines(), start=1):
-        if _PER_VERSION_BACKLOG in line:
-            problems.append(
-                f"skills/mf-converge/SKILL.md:{number}: names `{_PER_VERSION_BACKLOG}`"
-            )
-    return problems
+    return _needle_problems(
+        base,
+        "mf-converge",
+        present=(_BACKLOG, *_PICKUP_SIZES),
+        absent=(_PER_VERSION_BACKLOG,),
+    )
 
 
 @pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
@@ -264,14 +272,15 @@ def test_converge_names_the_one_backlog_and_the_pickup_sizes() -> None:
 
 @pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
 def test_the_converge_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
-    # A converge that writes the per-version file and names no pickup size is the
-    # skill before this change: every needle is reported.
-    _plant(tmp_path, {"mf-converge": "Carry to `.minions/<version>_backlog.md`.\n"})
+    # A converge that writes the per-version file and names the sizes only in prose is
+    # the skill before this change: every needle is reported.
+    text = "Carry to `.minions/<version>_backlog.md`.\nFix: one line, a test.\n"
+    _plant(tmp_path, {"mf-converge": text})
 
     assert _converge_backlog_problems(tmp_path) == [
         f"skills/mf-converge/SKILL.md: does not name `{_BACKLOG}`",
-        "skills/mf-converge/SKILL.md: does not name `one line`",
-        "skills/mf-converge/SKILL.md: does not name `a test`",
+        "skills/mf-converge/SKILL.md: does not name ``one line``",
+        "skills/mf-converge/SKILL.md: does not name ``a test``",
         f"skills/mf-converge/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
     ]
 
@@ -283,22 +292,12 @@ _PAYDOWN_KEY = "backlog:"
 
 def _release_backlog_problems(base: Path) -> list[str]:
     """Return one line per breach of the backlog rule in `base`'s release and cut."""
-    release = base / "skills" / "mf-release" / "SKILL.md"
-    cut = base / "skills" / "mf-cut-change" / "SKILL.md"
-    release_text = release.read_text()
-    problems = [
-        f"skills/mf-release/SKILL.md:{number}: names `{_PER_VERSION_BACKLOG}`"
-        for number, line in enumerate(release_text.splitlines(), start=1)
-        if _PER_VERSION_BACKLOG in line
-    ]
-    if _BACKLOG not in release_text:
-        problems.append(f"skills/mf-release/SKILL.md: does not name `{_BACKLOG}`")
-    for path in (release, cut):
-        if _PAYDOWN_KEY not in path.read_text():
-            problems.append(
-                f"skills/{path.parent.name}/SKILL.md: does not name `{_PAYDOWN_KEY}`"
-            )
-    return problems
+    return _needle_problems(
+        base,
+        "mf-release",
+        present=(_BACKLOG, _PAYDOWN_KEY),
+        absent=(_PER_VERSION_BACKLOG,),
+    ) + _needle_problems(base, "mf-cut-change", present=(_PAYDOWN_KEY,))
 
 
 @pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
@@ -319,9 +318,9 @@ def test_the_release_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
     )
 
     assert _release_backlog_problems(tmp_path) == [
-        f"skills/mf-release/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
         f"skills/mf-release/SKILL.md: does not name `{_BACKLOG}`",
         f"skills/mf-release/SKILL.md: does not name `{_PAYDOWN_KEY}`",
+        f"skills/mf-release/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
         f"skills/mf-cut-change/SKILL.md: does not name `{_PAYDOWN_KEY}`",
     ]
 
@@ -336,18 +335,9 @@ _MISSING_FILE_RULE = "A missing findings file is not clean"
 
 def _converge_optional_problems(base: Path) -> list[str]:
     """Return one line per breach of the converge-optional rule in `base`'s skills."""
-    release_text = (base / "skills" / "mf-release" / "SKILL.md").read_text()
-    converge_text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
-    problems: list[str] = []
-    if _SKIP_LINE not in release_text:
-        problems.append(f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`")
-    if _MISSING_FILE_RULE in release_text:
-        problems.append(f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`")
-    if _MISSING_FILE_RULE not in converge_text:
-        problems.append(
-            f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`"
-        )
-    return problems
+    return _needle_problems(
+        base, "mf-release", present=(_SKIP_LINE,), absent=(_MISSING_FILE_RULE,)
+    ) + _needle_problems(base, "mf-converge", present=(_MISSING_FILE_RULE,))
 
 
 @pytest.mark.spec("sdd:converge-optional:skip-is-stated")
@@ -368,6 +358,6 @@ def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -
 
     assert _converge_optional_problems(tmp_path) == [
         f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`",
-        f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`",
+        f"skills/mf-release/SKILL.md:1: names `{_MISSING_FILE_RULE}`",
         f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`",
     ]

@@ -151,8 +151,7 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
 findings files live for the whole session, so nothing is lost by waiting, and writing each round would write
 cards that pickup then fixes.
 
-If both verdicts are `clean` and both counts check out, the loop is converged: go to Step 8, or to Step 9 when
-pickup already ran.
+If both verdicts are `clean` and both counts check out, the loop is converged: go to Step 8.
 
 ## Step 6 — The fix station (one subagent, inside this loop)
 
@@ -189,7 +188,7 @@ re-reading **its own findings file** plus the scoped fix diff, promoting or reop
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
 
-Both `clean` → converged: go to Step 8, or to Step 9 when pickup already ran. Otherwise loop back to Step 6.
+Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
 **The cap is three rounds, and the pickup round counts.** On exhaustion, **halt**: leave every findings file
 **exactly as it stands**, write nothing to the backlog — the findings files hold every card — and report which
@@ -202,8 +201,8 @@ Fix this run's small cards while their context is fresh. **A small card** is a n
 size is `one line`, `a test`, or `one line and a test`. The pick is mechanical: the size is on the card, and no
 human confirms it.
 
-1. **Run pickup once, and only while a round remains.** The last judged round must be below the cap of three.
-   At the cap, go to Step 9.
+1. **Run pickup once, and only while a round remains.** Pickup already ran, or the last judged round is at the
+   cap of three → Step 9.
 2. **Pick every `open` small card** in either findings file. Match the size literally; a size outside
    [the closed set](#the-card) is not picked. None picked → Step 9.
 3. **Print the picked ids** before you dispatch anything.
@@ -212,7 +211,7 @@ human confirms it.
 
 ## Step 9 — Write the backlog
 
-Write the deferred work to `.minions/backlog.md`, once, after the loop is clean. On a halt nothing is written.
+Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
 
 1. **Take every non-blocking card** in either findings file whose **Status** is not `verified`.
 2. **Run its Still true? check.** A card the check shows gone is **moot**: do not write it; name it in the
@@ -278,7 +277,7 @@ and name things rather than count them: "the review and security files", not "th
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
   reviews yourself, and do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
-- **Never pick a `a design change` card or an older backlog card.** Pickup takes this run's small cards only.
+- **Never pick a card sized `a design change`, or an older backlog card.** Pickup takes this run's small cards only.
 - **Never delete a card from the backlog.** A paydown change's release does that.
 - **Never weaken the gate**, and never accept a fix that passes only because a check was loosened.
 - **Never archive, fold, tag, merge or push.** The loop that declared convergence does not also act on it.
