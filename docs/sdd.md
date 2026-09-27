@@ -144,14 +144,14 @@ code contradicts stays `blocking`, because the spec is a contract. Simplify grad
 tier deliberately narrow: overlapping or dual paths, and misleading API surface, only. Everything else it finds
 is a nit, because an aggressive cut risks a regression and the loop must not churn on "could be tidier".
 **Anchored harms always block:** data loss or an irreversible delete, spend, exposure of personal data or
-secrets, and silent wrong output are `blocking` in review and at least `high` in security. The parked runner's
-review diverges here: it keeps `blocking` and `nit` alone until it resumes. Either way `open_blocking` counts
-*that station's* blocking tier, and a station declaring `verdict: clean` is obliged to leave it at zero — a
-**station obligation, not a machine check**: nothing cross-checks the counter against the body. A non-blocking
-finding never stalls the loop. Once the loop is clean, the small ones and the drift are fixed in one more round;
-the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one gitignored file for every change, one heading
-per change — and never hold a release. The parked runner diverges
-here: it carries deferred work into `.minions/<version>_backlog.md` and blocks its release on it.
+secrets, and silent wrong output are `blocking` in review and at least `high` in security. Either way
+`open_blocking` counts *that station's* blocking tier, and a station declaring `verdict: clean` is obliged to
+leave it at zero — a **station obligation, not a machine check**: nothing cross-checks the counter against the
+body. A non-blocking finding never stalls the loop. Once the loop is clean, the small ones and the drift are
+fixed in one more round; the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one gitignored file for
+every change, one heading per change — and never hold a release. The parked runner diverges here: its review
+keeps `blocking` and `nit` alone, and it carries deferred work into `.minions/<version>_backlog.md` and blocks
+its release on it.
 
 **Status is `open → fixed → verified`, and the producer/checker asymmetry is the whole point.** A finding is born
 `open`. **The fixer — the producer — writes `fixed`** and touches nothing else: per-finding status and note only,

@@ -71,17 +71,26 @@ def test_the_gate_scan_reports_a_named_toml_and_a_missing_dry_run(
     ]
 
 
+def _section_lines(text: str, heading: str) -> list[tuple[int, str]]:
+    """Return the numbered lines of `text`'s `heading` section, up to the next `## `."""
+    lines: list[tuple[int, str]] = []
+    inside = False
+    for number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("## "):
+            inside = line == heading
+        elif inside:
+            lines.append((number, line))
+    return lines
+
+
 def _section_labels(path: Path, heading: str) -> list[str]:
     """Return the bold first cells of the table rows in `path`'s `heading` section."""
     row = re.compile(r"^\| \*\*(.+?)\*\* \|")
-    labels: list[str] = []
-    inside = False
-    for line in path.read_text().splitlines():
-        if line.startswith("## "):
-            inside = line == heading
-        elif inside and (match := row.match(line)):
-            labels.append(match.group(1))
-    return labels
+    return [
+        match.group(1)
+        for _, line in _section_lines(path.read_text(), heading)
+        if (match := row.match(line))
+    ]
 
 
 def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
@@ -234,22 +243,42 @@ def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
 
 
 def _needle_problems(
-    base: Path, name: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+    base: Path,
+    name: str,
+    present: tuple[str, ...] = (),
+    absent: tuple[str, ...] = (),
+    section: str = "",
 ) -> list[str]:
     """Return one line per `present` needle a skill lacks and `absent` needle it names.
 
     e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
     """
-    return _file_needle_problems(base, f"skills/{name}/SKILL.md", present, absent)
+    return _file_needle_problems(
+        base, f"skills/{name}/SKILL.md", present, absent, section
+    )
 
 
 def _file_needle_problems(
-    base: Path, where: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+    base: Path,
+    where: str,
+    present: tuple[str, ...] = (),
+    absent: tuple[str, ...] = (),
+    section: str = "",
 ) -> list[str]:
-    """Return one line per `present` needle `where` lacks and `absent` one it names."""
+    """Return one line per `present` needle `where` lacks and `absent` one it names.
+
+    A `section` heading narrows both to that `## ` section.
+    """
     text = (base / where).read_text()
-    problems = [f"{where}: does not name `{n}`" for n in present if n not in text]
-    for number, line in enumerate(text.splitlines(), start=1):
+    lines = (
+        _section_lines(text, section)
+        if section
+        else list(enumerate(text.splitlines(), start=1))
+    )
+    body = "\n".join(line for _, line in lines)
+    label = f"{where} `{section}`" if section else where
+    problems = [f"{label}: does not name `{n}`" for n in present if n not in body]
+    for number, line in lines:
         problems += [f"{where}:{number}: names `{n}`" for n in absent if n in line]
     return problems
 
@@ -471,11 +500,9 @@ _STALE_CLAIM = "stale-claim pass"
 
 def _stale_claim_problems(base: Path) -> list[str]:
     """Return a line when `base`'s converge names the pass fewer than twice."""
-    text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
-    count = text.count(_STALE_CLAIM)
-    if count >= 2:
-        return []
-    return [f"skills/mf-converge/SKILL.md: names `{_STALE_CLAIM}` {count} time(s)"]
+    where = "skills/mf-converge/SKILL.md"
+    count = (base / where).read_text().count(_STALE_CLAIM)
+    return [] if count >= 2 else [f"{where}: names `{_STALE_CLAIM}` {count} time(s)"]
 
 
 @pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
@@ -497,29 +524,16 @@ def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
 # card's scenario. Why: 0017-converge-audit-fixes design D8.
 _RED_RUN = "failing run from before the fix"
 _SCENARIO_FIELD = "When you'd hit it"
-_VERIFY_STEP = "## Step 7 —"
-
-
-def _section_text(text: str, prefix: str) -> str:
-    """Return the lines of the `## ` section whose heading starts with `prefix`."""
-    lines: list[str] = []
-    inside = False
-    for line in text.splitlines():
-        if line.startswith("## "):
-            inside = line.startswith(prefix)
-        elif inside:
-            lines.append(line)
-    return "\n".join(lines)
+_VERIFY_STEP = "## Step 7 — Verify, and the cap"
 
 
 def _red_run_problems(base: Path) -> list[str]:
     """Return one line per breach of the red-before-green rule in `base`'s converge."""
-    where = "skills/mf-converge/SKILL.md"
-    text = (base / where).read_text()
-    problems = _needle_problems(base, "mf-converge", present=(_RED_RUN,))
-    if _SCENARIO_FIELD not in _section_text(text, _VERIFY_STEP):
-        problems.append(f"{where}: `{_VERIFY_STEP}` does not name `{_SCENARIO_FIELD}`")
-    return problems
+    return _needle_problems(
+        base, "mf-converge", present=(_RED_RUN,)
+    ) + _needle_problems(
+        base, "mf-converge", present=(_SCENARIO_FIELD,), section=_VERIFY_STEP
+    )
 
 
 @pytest.mark.spec("sdd:converge-audit:red-before-green")
@@ -531,13 +545,13 @@ def test_converge_names_the_red_run_and_the_verify_check() -> None:
 def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
     # The scenario field named only in the card, outside Step 7, does not count.
     text = (
-        "## Step 7 — Verify, and the cap\n\nPromote or reopen each card.\n\n"
+        f"{_VERIFY_STEP}\n\nPromote or reopen each card.\n\n"
         f"## The card\n\n| **{_SCENARIO_FIELD}** | a scenario |\n"
     )
     _plant(tmp_path, {"mf-converge": text})
 
     assert _red_run_problems(tmp_path) == [
         f"skills/mf-converge/SKILL.md: does not name `{_RED_RUN}`",
-        f"skills/mf-converge/SKILL.md: `{_VERIFY_STEP}` does not name "
+        f"skills/mf-converge/SKILL.md `{_VERIFY_STEP}`: does not name "
         f"`{_SCENARIO_FIELD}`",
     ]
