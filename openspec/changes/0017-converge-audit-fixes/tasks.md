@@ -7,7 +7,7 @@
 
 - [x] 1 — No unreviewed commit ships
 - [x] 2 — Anchors, drift and repeats
-- [ ] 3 — The stale-claim pass and the red run
+- [x] 3 — The stale-claim pass and the red run
 
 ## 1 — No unreviewed commit ships
 
@@ -47,11 +47,11 @@ The card's vocabulary, which phase 3's stale-claim pass writes into ([D3](design
 
 The stations' new duties ([D7](design.md#d7), [D8](design.md#d8)).
 
-- [ ] 3.1 Test first: in `tests/test_skills.py`, add the stale-claim scan and the red-run scan, each with its twin,
+- [x] 3.1 Test first: in `tests/test_skills.py`, add the stale-claim scan and the red-run scan, each with its twin,
   bound to `sdd:converge-audit:stale-claim-pass` and `sdd:converge-audit:red-before-green`. Verify:
   `uv run pytest tests/test_skills.py -q` fails, naming `skills/mf-converge/SKILL.md`.
-- [ ] 3.2 `skills/mf-converge/SKILL.md` Step 3 and Step 5: the D7 rows. Verify:
+- [x] 3.2 `skills/mf-converge/SKILL.md` Step 3 and Step 5: the D7 rows. Verify:
   `grep -c 'stale-claim pass' skills/mf-converge/SKILL.md` prints `2` or more.
-- [ ] 3.3 `skills/mf-converge/SKILL.md` Step 6 and Step 7: the D8 rows. Verify:
+- [x] 3.3 `skills/mf-converge/SKILL.md` Step 6 and Step 7: the D8 rows. Verify:
   `grep -c 'failing run from before the fix' skills/mf-converge/SKILL.md` prints `1` or more.
-- [ ] 3.4 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 3.4 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.

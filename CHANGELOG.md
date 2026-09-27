@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Review grades `blocking | drift | nit` and pickup takes every `drift` card. Data loss, spend, exposure and silent
   wrong output always block. A backlog repeat goes up one level, and its fix clears the old card.
 
+- **Review searches for stale claims; a fix proves red before green** (change `0017-converge-audit-fixes`, phase
+  3). Review greps the tree for what the diff renamed or recounted and cards each false mention as `drift`. A fix
+  sized `a test` pastes its failing run, and the verify pass reopens the card without it.
+
 ## [0.16.0] - 2026-09-27
 
 ### Changed

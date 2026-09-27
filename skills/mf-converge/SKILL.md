@@ -108,6 +108,10 @@ own findings file. Give each one:
 station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
 `nit` or `drift` to `blocking`. The station judges the match; you judge nothing.
 
+**Review runs a stale-claim pass after its engine.** For every path, symbol, verb, route or count the diff
+renames, deletes or changes, it runs `git grep` over the tree outside the diff and cards each mention the change
+made false as `drift`. Its Summary says the pass ran and names what it searched for.
+
 **How a station scopes itself.** It scopes its review engine to the range. **Only if what it reviewed came back
 empty or clearly wrong** does it fall back to reading the patch file and reviewing that — and it **states in its
 Summary which it did**, and the file count and commit count it actually resolved. The patch is fallback material,
@@ -171,7 +175,7 @@ declares a check already satisfied satisfies nothing, and is itself reportable.
 ## Step 5 — Read the verdicts (your own reads, from disk)
 
 Read each findings file yourself, from disk. **Never take a verdict from a station's report** — the report is a
-claim about the file; the file is the contract. Two rules are fail-closed, and both are yours to enforce:
+claim about the file; the file is the contract. These rules are fail-closed, and all are yours to enforce:
 
 - **A missing findings file is not clean.** An absent file counts as unconverged. A station that never ran, or
   crashed before writing, cannot let the loop pass falsely — halt naming the missing path.
@@ -183,6 +187,8 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
   materially less than **that** range as a scope failure, not as a clean branch. Never against round 1's numbers
   once they are superseded: a verify round is scoped to the fix, so a station correctly reporting one file over a
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
+- **A review without its stale-claim pass is not clean.** The review file's Summary must say the pass ran. It
+  does not → treat it as a scope failure and halt on it: drift outside the diff went unsearched.
 
 **The non-blocking cards stay in the findings files until Step 9** — review `drift` and nits, security
 `medium`/`low`. The
@@ -202,6 +208,8 @@ exactly the cards Step 8 names — to a **green gate**. It:
 - fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
   loosened config, no deleted test. That is exactly what the review station checks for;
 - sets each addressed card's **Status** to `fixed`, with a one-line note;
+- **proves red before green** — for a card whose **Fix** size includes `a test`, it pastes the new test's
+  failing run from before the fix into the **Status** note. A fix to docs alone is exempt;
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
@@ -225,6 +233,10 @@ Re-run the gate yourself. Then dispatch the **same two roles** as **fresh** suba
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
+
+A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or when
+the new test does not exercise the card's **When you'd hit it** scenario. The station cannot re-run the test on
+the parent; it checks that the run is there and fits the scenario.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 

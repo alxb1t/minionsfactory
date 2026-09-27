@@ -462,3 +462,82 @@ def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
     assert _repeats_problems(tmp_path) == [
         f"skills/mf-converge/SKILL.md: does not name `{n}`" for n in _REPEAT_NEEDLES
     ]
+
+
+# Review's stale-claim pass is named where the station runs it and where the conductor
+# checks its Summary. Why: 0017-converge-audit-fixes design D7.
+_STALE_CLAIM = "stale-claim pass"
+
+
+def _stale_claim_problems(base: Path) -> list[str]:
+    """Return a line when `base`'s converge names the pass fewer than twice."""
+    text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
+    count = text.count(_STALE_CLAIM)
+    if count >= 2:
+        return []
+    return [f"skills/mf-converge/SKILL.md: names `{_STALE_CLAIM}` {count} time(s)"]
+
+
+@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
+def test_converge_names_the_stale_claim_pass_where_it_runs_and_is_checked() -> None:
+    assert _stale_claim_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
+def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
+    # A converge that tells review to run the pass but never checks it ran.
+    _plant(tmp_path, {"mf-converge": f"Review runs a {_STALE_CLAIM}.\n"})
+
+    assert _stale_claim_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: names `{_STALE_CLAIM}` 1 time(s)"
+    ]
+
+
+# A fix sized `a test` carries its red run, and the verify step checks the test hits the
+# card's scenario. Why: 0017-converge-audit-fixes design D8.
+_RED_RUN = "failing run from before the fix"
+_SCENARIO_FIELD = "When you'd hit it"
+_VERIFY_STEP = "## Step 7 —"
+
+
+def _section_text(text: str, prefix: str) -> str:
+    """Return the lines of the `## ` section whose heading starts with `prefix`."""
+    lines: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line.startswith(prefix)
+        elif inside:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def _red_run_problems(base: Path) -> list[str]:
+    """Return one line per breach of the red-before-green rule in `base`'s converge."""
+    where = "skills/mf-converge/SKILL.md"
+    text = (base / where).read_text()
+    problems = _needle_problems(base, "mf-converge", present=(_RED_RUN,))
+    if _SCENARIO_FIELD not in _section_text(text, _VERIFY_STEP):
+        problems.append(f"{where}: `{_VERIFY_STEP}` does not name `{_SCENARIO_FIELD}`")
+    return problems
+
+
+@pytest.mark.spec("sdd:converge-audit:red-before-green")
+def test_converge_names_the_red_run_and_the_verify_check() -> None:
+    assert _red_run_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:converge-audit:red-before-green")
+def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
+    # The scenario field named only in the card, outside Step 7, does not count.
+    text = (
+        "## Step 7 — Verify, and the cap\n\nPromote or reopen each card.\n\n"
+        f"## The card\n\n| **{_SCENARIO_FIELD}** | a scenario |\n"
+    )
+    _plant(tmp_path, {"mf-converge": text})
+
+    assert _red_run_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_RED_RUN}`",
+        f"skills/mf-converge/SKILL.md: `{_VERIFY_STEP}` does not name "
+        f"`{_SCENARIO_FIELD}`",
+    ]
