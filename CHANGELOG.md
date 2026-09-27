@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-27
+
 ### Changed
 
 - **Converge keeps deferred work in one repository backlog** (change `0016-backlog-in-repo`, phase 1). Once clean,
