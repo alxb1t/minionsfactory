@@ -561,6 +561,7 @@ def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
 # Why: 0018-converge-status-log design D1, D3, D4.
 _STATUS_LOG = "_status_log.md"
 _NEWEST_ON_TOP = "newest on top"
+_STATUS_LOG_SECTION = "## The status log"
 _EVENTS = tuple(
     f"`{event}`"
     for event in (
@@ -582,7 +583,10 @@ _EVENTS = tuple(
 def _status_log_problems(base: Path) -> list[str]:
     """Return one line per breach of the status-log rule in `base`'s converge."""
     return _needle_problems(
-        base, "mf-converge", present=(_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
+        base,
+        "mf-converge",
+        present=(_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS),
+        section=_STATUS_LOG_SECTION,
     )
 
 
@@ -593,10 +597,11 @@ def test_converge_names_the_status_log_its_order_and_its_events() -> None:
 
 @pytest.mark.spec("sdd:converge-status:log")
 def test_the_status_log_scan_reports_every_needle(tmp_path: Path) -> None:
-    # A converge that keeps no log, and names its events only unquoted in prose.
-    _plant(tmp_path, {"mf-converge": "Start, freeze, fix, verify, then done.\n"})
+    # The log's needles named outside its section do not count.
+    text = f"Write `{_STATUS_LOG}` {_NEWEST_ON_TOP}: {' '.join(_EVENTS)}.\n"
+    _plant(tmp_path, {"mf-converge": text + f"\n{_STATUS_LOG_SECTION}\n\nA log.\n"})
 
     assert _status_log_problems(tmp_path) == [
-        f"skills/mf-converge/SKILL.md: does not name `{n}`"
+        f"skills/mf-converge/SKILL.md `{_STATUS_LOG_SECTION}`: does not name `{n}`"
         for n in (_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
     ]
