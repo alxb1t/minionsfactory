@@ -143,9 +143,10 @@ simplify's blocking tier deliberately narrow: overlapping or dual paths, and mis
 Everything else it finds is a nit, because an aggressive cut risks a regression and the loop must not churn on
 "could be tidier". Either way `open_blocking` counts *that station's* blocking tier, and a station declaring
 `verdict: clean` is obliged to leave it at zero — a **station obligation, not a machine check**: nothing
-cross-checks the counter against the body. A non-blocking finding never stalls the loop; it is carried into the
-release's deferred-work file, `<repo>/.minions/<version>_backlog.md`, where **any** remaining list line holds the
-release until it is fixed and removed, or exported by the human — ticking an item does not clear it.
+cross-checks the counter against the body. A non-blocking finding never stalls the loop. Once the loop is clean,
+the small ones are fixed in one more round; the rest go to **the backlog**, `<repo>/.minions/backlog.md` — one
+gitignored file for every change, one heading per change — and never hold a release. The parked runner diverges
+here: it carries deferred work into `.minions/<version>_backlog.md` and blocks its release on it.
 
 **Status is `open → fixed → verified`, and the producer/checker asymmetry is the whole point.** A finding is born
 `open`. **The fixer — the producer — writes `fixed`** and touches nothing else: per-finding status and note only,
@@ -167,9 +168,9 @@ The release station **verifies, then finalizes, then stops** — it never merges
 a bar to ship. Every precondition holds or it halts naming what is missing and who owns it: the gate is green
 (**re-run**, not inherited); if the check stations ran, review and security are `verdict: clean` with every
 blocking finding `verified`, not merely `fixed` — and if neither ran, the release states that the check was
-skipped; the deferred-work file holds **no list item at all**, whatever its checkbox state (a *missing* file
-passes — nothing was deferred); the version line is aligned (the tag does not already exist, `## [Unreleased]` has
-real entries); the tree is clean; and the spec binding is green **before** the fold.
+skipped; the version line is aligned (the tag does not already exist, `## [Unreleased]` has real entries); the
+tree is clean; and the spec binding is green **before** the fold. The backlog is not a precondition: it holds open
+cards by design, so blocking on it would block every release.
 
 Then the **fold**, which is what makes the living spec live: the delta is applied into `openspec/specs/` — an
 `## ADDED` block appends its requirement, a `## MODIFIED` block **replaces the whole existing requirement matched
@@ -181,7 +182,8 @@ Then **verify the binding again, and only then archive** the change to `openspec
 order is load-bearing: the binding check ignores the archive, so the instant a change is archived its delta's
 keys stop resolving and every marker bound to them dangles. **Fold and archive land in the same commit**, or the
 next gate is red. The release record is then the repository's own — the release commit, the `CHANGELOG.md` entry
-and the annotated tag. There is no separate narrative to write, anywhere.
+and the annotated tag. There is no separate narrative to write, anywhere. Last, a paydown change's release
+deletes the cards its `backlog:` lists from the backlog.
 
 ---
 

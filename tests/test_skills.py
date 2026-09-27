@@ -96,10 +96,9 @@ def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
     ]
 
 
-def _shared_label_problems(
-    base: Path, owners: tuple[str, str], heading: str
-) -> list[str]:
-    """Return one line per breach of the `heading` labels `owners` share in `base`."""
+def _shared_label_problems(base: Path, heading: str) -> list[str]:
+    """Return one line per breach of the `heading` labels the shared owners carry."""
+    owners = _SHARED_OWNERS
     problems: list[str] = []
     sets: dict[str, set[str]] = {}
     for name in owners:
@@ -122,7 +121,7 @@ def _shared_label_problems(
 
 def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
     """Return one line per breach of the shared `heading` list in `base`'s skills."""
-    problems = _shared_label_problems(base, _SHARED_OWNERS, heading)
+    problems = _shared_label_problems(base, heading)
     for name in _SHARED_OWNERS:
         path = base / "skills" / name / "SKILL.md"
         ids = _section_ids(path, heading, letter) if path.is_file() else []
@@ -186,43 +185,143 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     ]
 
 
-# The card: `mf-converge` owns its fields and `mf-backlog-export` carries the same
-# labels, so the card converge carries is the card the export keeps whole. A label is
-# the bold first cell of a table row. Why: 0014-backlog-cards design D1, D7.
-_CARD_CARRIERS = ("mf-converge", "mf-backlog-export")
+# The card: `mf-converge` owns it, and no other skill carries a copy that could drift.
+# A label is the bold first cell of a table row. Why: 0016-backlog-in-repo design D8.
+_CARD_OWNER = "mf-converge"
 _CARD_HEADING = "## The card"
 
 
-@pytest.mark.spec("sdd:backlog-cards:fields-agree")
-def test_converge_and_the_export_carry_the_same_card_fields() -> None:
-    assert _shared_label_problems(_REPO, _CARD_CARRIERS, _CARD_HEADING) == []
+def _card_owner_problems(base: Path) -> list[str]:
+    """Return one line per breach of the one-card-owner rule in `base`'s skills."""
+    owner = base / "skills" / _CARD_OWNER / "SKILL.md"
+    problems: list[str] = []
+    if not owner.is_file():
+        problems.append(f"skills/{_CARD_OWNER}/SKILL.md: does not exist")
+    elif not _section_labels(owner, _CARD_HEADING):
+        problems.append(
+            f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`"
+        )
+    for path in sorted((base / "skills").glob("*/SKILL.md")):
+        if path != owner and _CARD_HEADING in path.read_text().splitlines():
+            problems.append(
+                f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
+            )
+    return problems
 
 
 @pytest.mark.spec("sdd:backlog-cards:fields-agree")
-def test_the_card_scan_reports_a_differing_label_and_a_missing_section(
+def test_only_converge_carries_the_card() -> None:
+    assert _card_owner_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:backlog-cards:fields-agree")
+def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     tmp_path: Path,
 ) -> None:
-    # The export's row past `## Never` must not count as a card field.
-    differ = _plant(
-        tmp_path / "differ",
+    # The owner's row past `## Never` must not count as a card field.
+    _plant(
+        tmp_path,
         {
-            "mf-converge": _table_text(_CARD_HEADING, "Title", "Fix", "Status"),
-            "mf-backlog-export": _table_text(_CARD_HEADING, "Title", "Status"),
-        },
-    )
-    missing = _plant(
-        tmp_path / "missing",
-        {
-            "mf-converge": _table_text(_CARD_HEADING, "Title"),
-            "mf-backlog-export": "## Never\n\n| **Title** | — |\n",
+            _CARD_OWNER: f"{_CARD_HEADING}\n\n## Never\n\n| **Title** | — |\n",
+            "mf-other": _table_text(_CARD_HEADING, "Title"),
         },
     )
 
-    assert _shared_label_problems(differ, _CARD_CARRIERS, _CARD_HEADING) == [
-        "labels differ: only in mf-converge ['Fix'], only in mf-backlog-export []",
+    assert _card_owner_problems(tmp_path) == [
+        f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`",
+        f"skills/mf-other/SKILL.md: carries `{_CARD_HEADING}`",
     ]
-    assert _shared_label_problems(missing, _CARD_CARRIERS, _CARD_HEADING) == [
-        "skills/mf-backlog-export/SKILL.md: no labels in `## The card`",
+
+
+def _needle_problems(
+    base: Path, name: str, present: tuple[str, ...] = (), absent: tuple[str, ...] = ()
+) -> list[str]:
+    """Return one line per `present` needle a skill lacks and `absent` needle it names.
+
+    e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
+    """
+    where = f"skills/{name}/SKILL.md"
+    text = (base / where).read_text()
+    problems = [f"{where}: does not name `{n}`" for n in present if n not in text]
+    for number, line in enumerate(text.splitlines(), start=1):
+        problems += [f"{where}:{number}: names `{n}`" for n in absent if n in line]
+    return problems
+
+
+# Deferred work stays in one repository backlog, and pickup matches the card's Fix
+# size by its literal values. Why: 0016-backlog-in-repo design D1, D2, D4.
+_BACKLOG = ".minions/backlog.md"
+_PER_VERSION_BACKLOG = "_backlog.md"
+_PICKUP_SIZES = ("`one line`", "`a test`")
+
+
+def _converge_backlog_problems(base: Path) -> list[str]:
+    """Return one line per breach of the one-backlog rule in `base`'s converge skill."""
+    return _needle_problems(
+        base,
+        "mf-converge",
+        present=(_BACKLOG, *_PICKUP_SIZES),
+        absent=(_PER_VERSION_BACKLOG,),
+    )
+
+
+@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
+def test_converge_names_the_one_backlog_and_the_pickup_sizes() -> None:
+    assert _converge_backlog_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
+def test_the_converge_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A converge that writes the per-version file and names the sizes only in prose is
+    # the skill before this change: every needle is reported.
+    text = "Carry to `.minions/<version>_backlog.md`.\nFix: one line, a test.\n"
+    _plant(tmp_path, {"mf-converge": text})
+
+    assert _converge_backlog_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: does not name `{_BACKLOG}`",
+        "skills/mf-converge/SKILL.md: does not name ``one line``",
+        "skills/mf-converge/SKILL.md: does not name ``a test``",
+        f"skills/mf-converge/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
+    ]
+
+
+# The release holds nothing on the backlog; a paydown change's `backlog:` key is written
+# by the cut and read by the release. Why: 0016-backlog-in-repo design D5, D6.
+_PAYDOWN_KEY = "backlog:"
+
+
+def _release_backlog_problems(base: Path) -> list[str]:
+    """Return one line per breach of the backlog rule in `base`'s release and cut."""
+    return _needle_problems(
+        base,
+        "mf-release",
+        present=(_BACKLOG, _PAYDOWN_KEY),
+        absent=(_PER_VERSION_BACKLOG,),
+    ) + _needle_problems(base, "mf-cut-change", present=(_PAYDOWN_KEY,))
+
+
+@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
+def test_the_release_reads_no_per_version_backlog_and_shares_the_key() -> None:
+    assert _release_backlog_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
+def test_the_release_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A release that still blocks on the per-version file, and a cut and release that
+    # never name the paydown key: every breach is reported.
+    _plant(
+        tmp_path,
+        {
+            "mf-release": "Halt on a line in `.minions/<version>_backlog.md`.\n",
+            "mf-cut-change": "Write `proposal.md`.\n",
+        },
+    )
+
+    assert _release_backlog_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{_BACKLOG}`",
+        f"skills/mf-release/SKILL.md: does not name `{_PAYDOWN_KEY}`",
+        f"skills/mf-release/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
+        f"skills/mf-cut-change/SKILL.md: does not name `{_PAYDOWN_KEY}`",
     ]
 
 
@@ -236,18 +335,9 @@ _MISSING_FILE_RULE = "A missing findings file is not clean"
 
 def _converge_optional_problems(base: Path) -> list[str]:
     """Return one line per breach of the converge-optional rule in `base`'s skills."""
-    release_text = (base / "skills" / "mf-release" / "SKILL.md").read_text()
-    converge_text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
-    problems: list[str] = []
-    if _SKIP_LINE not in release_text:
-        problems.append(f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`")
-    if _MISSING_FILE_RULE in release_text:
-        problems.append(f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`")
-    if _MISSING_FILE_RULE not in converge_text:
-        problems.append(
-            f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`"
-        )
-    return problems
+    return _needle_problems(
+        base, "mf-release", present=(_SKIP_LINE,), absent=(_MISSING_FILE_RULE,)
+    ) + _needle_problems(base, "mf-converge", present=(_MISSING_FILE_RULE,))
 
 
 @pytest.mark.spec("sdd:converge-optional:skip-is-stated")
@@ -268,6 +358,6 @@ def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -
 
     assert _converge_optional_problems(tmp_path) == [
         f"skills/mf-release/SKILL.md: does not name `{_SKIP_LINE}`",
-        f"skills/mf-release/SKILL.md: names `{_MISSING_FILE_RULE}`",
+        f"skills/mf-release/SKILL.md:1: names `{_MISSING_FILE_RULE}`",
         f"skills/mf-converge/SKILL.md: does not name `{_MISSING_FILE_RULE}`",
     ]

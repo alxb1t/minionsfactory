@@ -72,6 +72,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 [rules for the artifacts](#rules-for-the-artifacts).
 
 - `proposal.md` opens with `version: <version>` frontmatter. The CLI neither emits nor checks it.
+- A paydown change — one cut to close cards from `.minions/backlog.md` — also lists their qualified ids in that
+  frontmatter: `backlog: [0012·S1, 0012·R4]`. Check each with `grep` in `.minions/backlog.md`; an id not found
+  goes to the human. The cut leaves the backlog alone: `mf-release` deletes the cards.
 - A change with no behaviour change declares it: `skip_specs: true` in the change's `.openspec.yaml`, plus
   `specs/.gitkeep`. The two go together; a spec file beside `skip_specs` fails validation.
 - `design.md` always has `## Dependencies`, saying `None.` when empty.

@@ -22,8 +22,8 @@ Never infer it — not from the highest-numbered directory under `openspec/chang
 active change". The id keys the findings paths, so a wrong id makes the loop read a **different** change's
 verdicts and converge on them anyway.
 
-The release version comes from the change's own `proposal.md` `version:` frontmatter; the deferred-work file is
-`.minions/<version>_backlog.md`.
+The release version comes from the change's own `proposal.md` `version:` frontmatter. **The backlog** is
+`.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
 
 ## Where the constants come from — disk, never a guess
 
@@ -147,28 +147,19 @@ claim about the file; the file is the contract. Two rules are fail-closed, and b
   once they are superseded: a verify round is scoped to the fix, so a station correctly reporting one file over a
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 
-**Then carry the non-blocking findings — every round, before you branch.** Append every non-blocking finding in
-either file (review nits, security `medium`/`low`) to `.minions/<version>_backlog.md` as its card, whole and
-verbatim — every field, in order. Carry each id once; one already on the list is not re-appended. Any list line
-there holds the release until it is fixed and removed, or exported by the human.
+**The non-blocking cards stay in the findings files until Step 9** — review nits, security `medium`/`low`. The
+findings files live for the whole session, so nothing is lost by waiting, and writing each round would write
+cards that pickup then fixes.
 
-This is **yours, on every round, whatever the verdicts** — including the round that converges. It is the one
-piece of the loop that must not hang off the fix station: a round that comes back both-clean dispatches no fix
-station, so the deferred work would be carried nowhere, and the findings files are gitignored run output that
-`mf-backlog-export` says outright will be gone. `mf-release`'s deferred-work precondition passes on a **missing**
-file, so nothing downstream would notice — the release would ship reporting success with its deferred work
-destroyed. Write the file even when the round is clean; write no file only when there is genuinely no
-non-blocking finding to carry.
-
-If both verdicts are `clean` and both counts check out, the loop is converged — carry as above, then go to
-Step 8.
+If both verdicts are `clean` and both counts check out, the loop is converged: go to Step 8.
 
 ## Step 6 — The fix station (one subagent, inside this loop)
 
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode on `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch **one** subagent to clear every **open blocking** finding across both files, to a **green gate**. It:
+Dispatch **one** subagent to clear every **open blocking** finding across both files — or, in the pickup round,
+exactly the cards Step 8 names — to a **green gate**. It:
 
 - fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
   loosened config, no deleted test. That is exactly what the review station checks for;
@@ -176,8 +167,7 @@ Dispatch **one** subagent to clear every **open blocking** finding across both f
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
-- does **not** carry the non-blocking findings — you did that in Step 5, on this round, before dispatching it;
-  a second writer would duplicate ids into `.minions/<version>_backlog.md`;
+- does **not** write the backlog. Only you do, in Step 9: a second writer would duplicate ids;
 - **commits** the code fix staged **by name** (never `git add -A`), Conventional-Commits, with the trailer block
   at the end of the message — `Co-Authored-By:` and `Change: <change-id>` **contiguous**, since a blank line
   between them silently breaks the block.
@@ -198,20 +188,50 @@ re-reading **its own findings file** plus the scoped fix diff, promoting or reop
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
 
-Both `clean` → converged, go to Step 8. Otherwise loop back to Step 6.
+Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
-**The cap is three rounds.** On exhaustion, **halt**: leave every findings file **exactly as it stands**, and
-report which blocking findings are still `open`, **by id**. No auto-escalation, no widened fix pass, no third
+**The cap is three rounds, and the pickup round counts.** On exhaustion, **halt**: leave every findings file
+**exactly as it stands**, write nothing to the backlog — the findings files hold every card — and report which
+blocking findings are still `open`, **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third
 opinion — a loop that cannot converge in three rounds is a plan problem, and the halt *is* the finding.
 
-## Step 8 — Report, then stop
+## Step 8 — Pickup
+
+Fix this run's small cards while their context is fresh. **A small card** is a non-blocking card whose **Fix**
+size is `one line`, `a test`, or `one line and a test`. The pick is mechanical: the size is on the card, and no
+human confirms it.
+
+1. **Run pickup once, and only while a round remains.** Pickup already ran, or the last judged round is at the
+   cap of three → Step 9.
+2. **Pick every `open` small card** in either findings file. Match the size literally; a size outside
+   [the closed set](#the-card) is not picked. None picked → Step 9.
+3. **Print the picked ids** before you dispatch anything.
+4. **Send them to the Step 6 fix station by id**, then verify in a normal Step 7 round. A card first found in
+   that verify round is not picked: there is one pickup per run.
+
+## Step 9 — Write the backlog
+
+Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
+
+1. **Take every non-blocking card** in either findings file whose **Status** is not `verified`.
+2. **Run its Still true? check.** A card the check shows gone is **moot**: do not write it; name it in the
+   report with the check's output.
+3. **Create the file if it is missing** — a `# Backlog` title, then one line: *Deferred work from converge, one
+   heading per change; a paydown change lists the ids it closes under `backlog:`.*
+4. **Write each card under `## <change-id>`**, creating the heading if missing. Its title takes a qualified id
+   — `- **R5 — …**` becomes `- **0016·R5 — …**`, the change's number before the id. Every other field is copied
+   verbatim, in order.
+5. **Skip an id already in the backlog.** Never edit or delete a card that is there.
+
+## Step 10 — Report, then stop
 
 Report five things:
 
 1. **The verdicts, quoted from disk** — each station's `verdict`, `round`, `head` and `open_blocking`, read from
    the file rather than from what the station said.
 2. **Every blocking finding's end state** — by id: `verified`, `wontfix` accepted, or still `open`.
-3. **The nits carried** into `.minions/<version>_backlog.md`, by id.
+3. **The backlog** — the picked ids and their end state; the cards written, by qualified id; the moot cards,
+   with each **Still true?** output; and the backlog's total card count, so a vanished file shows as a drop.
 4. **The gate's exit code**, re-run by you at the end.
 5. **What you did not do** — archive, fold, tag, merge, push. All of those are `mf-release`'s or the human's.
 
@@ -220,9 +240,8 @@ Then **stop**.
 ## The card
 
 Every finding is a **card**: one top-level list line holding its id and a plain title, then one nested bullet per
-field, never a heading — `mf-release` blocks on any list line, so a card written as headings would let a release
-ship with deferred work. This skill owns the card; `mf-backlog-export` carries the same fields, and `tests/test_skills.py` holds
-their labels equal.
+field, never a heading — the backlog's headings are its changes, so a card written as a heading reads as one.
+This skill owns the card, and no other skill carries it: `tests/test_skills.py` fails if one does.
 
 | field | holds |
 |---|---|
@@ -231,7 +250,7 @@ their labels equal.
 | **When you'd hit it** | a concrete scenario: what you run, and what happens |
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
 | **Priority** | `<severity> · <role>` — and why that severity |
-| **Fix** | the suggested fix, then its size: one line, a test, or a design change |
+| **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
 | **Related** | the ids to fix together, or `none` |
@@ -258,6 +277,8 @@ and name things rather than count them: "the review and security files", not "th
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
   reviews yourself, and do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
+- **Never pick a card sized `a design change`, or an older backlog card.** Pickup takes this run's small cards only.
+- **Never delete a card from the backlog.** A paydown change's release does that.
 - **Never weaken the gate**, and never accept a fix that passes only because a check was loosened.
 - **Never archive, fold, tag, merge or push.** The loop that declared convergence does not also act on it.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file — least of
