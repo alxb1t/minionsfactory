@@ -6,7 +6,7 @@ is deleted. The why of each task is in [design.md](design.md).
 ## Progress
 
 - [x] 1 — Converge picks up and writes the backlog
-- [ ] 2 — The release stops reading the backlog
+- [x] 2 — The release stops reading the backlog
 - [ ] 3 — The export retires
 
 ## 1 — Converge picks up and writes the backlog
@@ -33,20 +33,20 @@ file ([D7](design.md#d7)). The text is in [D2–D3](design.md#d2d3--mf-converge-
 The text is in [D5–D6](design.md#d5d6--mf-release-and-mf-cut-change-before--after). The runner is not touched
 ([D9](design.md#d9)).
 
-- [ ] 2.1 Test first: in `tests/test_skills.py`, add the release backlog scan and its twin, bound to
+- [x] 2.1 Test first: in `tests/test_skills.py`, add the release backlog scan and its twin, bound to
   `sdd:repo-backlog:release-does-not-read`. Verify: `uv run pytest tests/test_skills.py -q` fails, naming
   `skills/mf-release/SKILL.md`.
-- [ ] 2.2 `skills/mf-release/SKILL.md`: delete precondition 5, renumber, and drop every count of preconditions, per
+- [x] 2.2 `skills/mf-release/SKILL.md`: delete precondition 5, renumber, and drop every count of preconditions, per
   the D5 rows. Verify: `grep -c -e '_backlog.md' -e 'seven' skills/mf-release/SKILL.md` prints `0`.
-- [ ] 2.3 `skills/mf-release/SKILL.md`: add Step 4.6 — *Clear the paid-down cards* — and its Step 5 report item, per
+- [x] 2.3 `skills/mf-release/SKILL.md`: add Step 4.6 — *Clear the paid-down cards* — and its Step 5 report item, per
   [D6](design.md#d6). Verify: `grep -c 'Clear the paid-down cards' skills/mf-release/SKILL.md` prints `1` or more,
   and `grep -c 'backlog: none' skills/mf-release/SKILL.md` prints `1` or more.
-- [ ] 2.4 `skills/mf-cut-change/SKILL.md` Step 6: add the paydown bullet from the D6 row.
+- [x] 2.4 `skills/mf-cut-change/SKILL.md` Step 6: add the paydown bullet from the D6 row.
   Verify: `grep -c 'backlog: \[' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 2.5 `docs/sdd.md`: *The findings contract* and *The release fold* take the `docs/sdd.md` row of
+- [x] 2.5 `docs/sdd.md`: *The findings contract* and *The release fold* take the `docs/sdd.md` row of
   [D7](design.md#d7--where-the-exports-name-leaves), with one sentence on the runner's divergence.
   Verify: `grep -c 'exported by the human' docs/sdd.md` prints `0`, and `grep -c '\.minions/backlog\.md' docs/sdd.md` prints `1` or more.
-- [ ] 2.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 2.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 3 — The export retires
 

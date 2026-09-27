@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Converge keeps deferred work in one repository backlog** (change `0016-backlog-in-repo`, phase 1). Once clean,
   it fixes this run's `one line` and `a test` cards in one more round, then writes the rest to
   `.minions/backlog.md` under the change's heading, so small fixes land while their context is fresh.
+- **The release no longer blocks on deferred work** (change `0016-backlog-in-repo`, phase 2). The backlog always
+  holds open cards, so `mf-release` drops that precondition. A paydown change lists the card ids it closes under
+  `backlog:`, written by `mf-cut-change`, and its release deletes those cards.
 
 ## [0.15.0] - 2026-09-25
 

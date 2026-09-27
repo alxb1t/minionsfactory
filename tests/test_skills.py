@@ -267,6 +267,56 @@ def test_the_converge_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
     ]
 
 
+# The release holds nothing on the backlog; a paydown change's `backlog:` key is written
+# by the cut and read by the release. Why: 0016-backlog-in-repo design D5, D6.
+_PAYDOWN_KEY = "backlog:"
+
+
+def _release_backlog_problems(base: Path) -> list[str]:
+    """Return one line per breach of the backlog rule in `base`'s release and cut."""
+    release = base / "skills" / "mf-release" / "SKILL.md"
+    cut = base / "skills" / "mf-cut-change" / "SKILL.md"
+    release_text = release.read_text()
+    problems = [
+        f"skills/mf-release/SKILL.md:{number}: names `{_PER_VERSION_BACKLOG}`"
+        for number, line in enumerate(release_text.splitlines(), start=1)
+        if _PER_VERSION_BACKLOG in line
+    ]
+    if _BACKLOG not in release_text:
+        problems.append(f"skills/mf-release/SKILL.md: does not name `{_BACKLOG}`")
+    for path in (release, cut):
+        if _PAYDOWN_KEY not in path.read_text():
+            problems.append(
+                f"skills/{path.parent.name}/SKILL.md: does not name `{_PAYDOWN_KEY}`"
+            )
+    return problems
+
+
+@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
+def test_the_release_reads_no_per_version_backlog_and_shares_the_key() -> None:
+    assert _release_backlog_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
+def test_the_release_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A release that still blocks on the per-version file, and a cut and release that
+    # never name the paydown key: every breach is reported.
+    _plant(
+        tmp_path,
+        {
+            "mf-release": "Halt on a line in `.minions/<version>_backlog.md`.\n",
+            "mf-cut-change": "Write `proposal.md`.\n",
+        },
+    )
+
+    assert _release_backlog_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md:1: names `{_PER_VERSION_BACKLOG}`",
+        f"skills/mf-release/SKILL.md: does not name `{_BACKLOG}`",
+        f"skills/mf-release/SKILL.md: does not name `{_PAYDOWN_KEY}`",
+        f"skills/mf-cut-change/SKILL.md: does not name `{_PAYDOWN_KEY}`",
+    ]
+
+
 # Converge is optional (0012-converge-optional design D1, D5): the release states a
 # skipped converge in one literal line, and the rule that a missing findings file is
 # not clean leaves the release but stays in converge, which judges its own stations
