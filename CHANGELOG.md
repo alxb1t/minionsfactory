@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-27
+
 ### Added
 
 - **Converge keeps a status log** (change `0018-converge-status-log`, phase 1). The conductor writes one line per
