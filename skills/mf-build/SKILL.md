@@ -10,13 +10,19 @@ description: Build the active in-repo change phase by phase — one phase at a t
 > conducts the end-of-change loop and `mf-release` finalizes. Read the repo's `CLAUDE.md` as shared context —
 > it is what is *true* of the repository, not a script — and read the change itself, which is authoritative.
 
-## Parameter — the change id, required
+## Parameter — the change id
 
-`change-id` is an **explicit, required parameter**. Without it, **halt** and ask for it.
+A given `change-id` is used as given. Without one, infer it — strictly:
 
-Never infer it: not from the highest-numbered directory under `openspec/changes/`, not from "there is only one
-active change so it must be that". The id keys both the phase state you read and the `Change:` trailer you
-write, so a wrong id builds one change's phases and files them under another's name.
+1. The candidates are the active changes: the directories
+   `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists. None → **halt**: `no active change`.
+   Several → **halt**, listing them.
+2. The one candidate's branch is `v<its proposal version>_<its slug>` — e.g. `0019-inferred-change-id` at
+   `v0.19` → `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
+
+Inference is strict because the id keys both the phase state you read and the `Change:` trailer you write, so a
+wrong id builds one change's phases and files them under another's name.
 
 Echo the change id and the phase you are about to build before you build anything.
 

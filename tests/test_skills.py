@@ -605,3 +605,42 @@ def test_the_status_log_scan_reports_every_needle(tmp_path: Path) -> None:
         f"skills/mf-converge/SKILL.md `{_STATUS_LOG_SECTION}`: does not name `{n}`"
         for n in (_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
     ]
+
+
+# Build, converge and release infer the one active change, strictly, and echo it.
+# Why: 0019-inferred-change-id design D1, D2, D3, D4.
+_INFERRERS = ("mf-build", "mf-converge", "mf-release")
+_PARAMETER = "## Parameter — the change id"
+_INFERENCE = ("git ls-files openspec/changes/", "no active change", "(inferred:")
+_FORBIDS_INFERENCE = "Never infer it"
+
+
+def _inferred_id_problems(base: Path) -> list[str]:
+    """Return one line per breach of the inference rule in `base`'s inferring skills.
+
+    The rule's needles count in the `## Parameter` section; the old ban, anywhere.
+    """
+    problems: list[str] = []
+    for name in _INFERRERS:
+        problems += _needle_problems(base, name, present=_INFERENCE, section=_PARAMETER)
+        problems += _needle_problems(base, name, absent=(_FORBIDS_INFERENCE,))
+    return problems
+
+
+@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
+def test_build_converge_and_release_infer_the_one_active_change() -> None:
+    assert _inferred_id_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
+def test_the_inferred_id_scan_reports_every_breach(tmp_path: Path) -> None:
+    # The rule's needles named outside the section do not count.
+    text = f"{' '.join(_INFERENCE)}\n\n{_PARAMETER}\n\n{_FORBIDS_INFERENCE}.\n"
+    _plant(tmp_path, dict.fromkeys(_INFERRERS, text))
+
+    expected: list[str] = []
+    for name in _INFERRERS:
+        where = f"skills/{name}/SKILL.md"
+        expected += [f"{where} `{_PARAMETER}`: does not name `{n}`" for n in _INFERENCE]
+        expected.append(f"{where}:5: names `{_FORBIDS_INFERENCE}`")
+    assert _inferred_id_problems(tmp_path) == expected
