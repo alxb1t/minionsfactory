@@ -19,8 +19,9 @@ the gate yourself; you inherit nothing.
 
 A given `change-id` is used as given. Without one, infer it — strictly:
 
-1. The candidates are the active changes: the directories `git ls-files openspec/changes/` lists, without
-   `archive/`. None → **halt**: `no active change`. Several → **halt**, listing them.
+1. The candidates are the active changes: the directories
+   `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists. None → **halt**: `no active change`.
+   Several → **halt**, listing them.
 2. The one candidate's branch is `v<its proposal version>_<its slug>` — e.g. `0019-inferred-change-id` at
    `v0.19` → `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
@@ -56,8 +57,8 @@ than guessing a shape or globbing the directory:
 - security: `.minions/findings/<change-id>_security.md`
 
 Never glob `.minions/findings/*` and take what you find: that directory keeps the *previous* change's files, and
-a stale `verdict: clean` describing different work is the exact failure the strict change id exists to
-prevent. An absent file is never an invitation to search — precondition 4 says what absence means.
+a stale `verdict: clean` describing different work is the exact failure keying every path by the change id
+exists to prevent. An absent file is never an invitation to search — precondition 4 says what absence means.
 
 1. **The gate is green, re-run in this session.** Not inherited from `mf-converge`'s report, not read from a
    log. A green gate is a command that exited 0, observed by the side that needs the assurance. Red → halt;

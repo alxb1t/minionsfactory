@@ -14,8 +14,9 @@ description: Build the active in-repo change phase by phase — one phase at a t
 
 A given `change-id` is used as given. Without one, infer it — strictly:
 
-1. The candidates are the active changes: the directories `git ls-files openspec/changes/` lists, without
-   `archive/`. None → **halt**: `no active change`. Several → **halt**, listing them.
+1. The candidates are the active changes: the directories
+   `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists. None → **halt**: `no active change`.
+   Several → **halt**, listing them.
 2. The one candidate's branch is `v<its proposal version>_<its slug>` — e.g. `0019-inferred-change-id` at
    `v0.19` → `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
