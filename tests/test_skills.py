@@ -605,3 +605,40 @@ def test_the_status_log_scan_reports_every_needle(tmp_path: Path) -> None:
         f"skills/mf-converge/SKILL.md `{_STATUS_LOG_SECTION}`: does not name `{n}`"
         for n in (_STATUS_LOG, _NEWEST_ON_TOP, *_EVENTS)
     ]
+
+
+# Build, converge and release infer the one active change, strictly, and echo it.
+# Why: 0019-inferred-change-id design D1, D2, D3, D4.
+_INFERRERS = ("mf-build", "mf-converge", "mf-release")
+_INFERENCE = ("git ls-files openspec/changes/", "no active change", "(inferred:")
+_FORBIDS_INFERENCE = "Never infer it"
+
+
+def _inferred_id_problems(base: Path) -> list[str]:
+    """Return one line per breach of the inference rule in `base`'s inferring skills."""
+    return [
+        problem
+        for name in _INFERRERS
+        for problem in _needle_problems(
+            base, name, present=_INFERENCE, absent=(_FORBIDS_INFERENCE,)
+        )
+    ]
+
+
+@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
+def test_build_converge_and_release_infer_the_one_active_change() -> None:
+    assert _inferred_id_problems(_REPO) == []
+
+
+@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
+def test_the_inferred_id_scan_reports_every_breach(tmp_path: Path) -> None:
+    _plant(tmp_path, dict.fromkeys(_INFERRERS, f"{_FORBIDS_INFERENCE}.\n"))
+
+    assert _inferred_id_problems(tmp_path) == [
+        problem
+        for name in _INFERRERS
+        for problem in (
+            *(f"skills/{name}/SKILL.md: does not name `{n}`" for n in _INFERENCE),
+            f"skills/{name}/SKILL.md:1: names `{_FORBIDS_INFERENCE}`",
+        )
+    ]

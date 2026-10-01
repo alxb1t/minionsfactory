@@ -14,13 +14,19 @@ The reason the boundary is drawn here is a failure it prevents: **three opinions
 run inside the conductor's own context verifies nothing — it shares the context that produced the work, and it
 cannot be re-run by a fresh reader. The stations are subagents, or there is no check.
 
-## Parameter — the change id, required
+## Parameter — the change id
 
-`change-id` is an **explicit, required parameter**. Without it, **halt** and ask for it.
+A given `change-id` is used as given. Without one, infer it — strictly:
 
-Never infer it — not from the highest-numbered directory under `openspec/changes/`, not from "there is only one
-active change". The id keys the findings paths, so a wrong id makes the loop read a **different** change's
-verdicts and converge on them anyway.
+1. The candidates are the active changes: the directories `git ls-files openspec/changes/` lists, without
+   `archive/`. None → **halt**: `no active change`. Several → **halt**, listing them.
+2. The one candidate's branch is `v<its proposal version>_<its slug>` — e.g. `0019-inferred-change-id` at
+   `v0.19` → `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed. The same
+   echo opens the detail of the status log's `start` event.
+
+Inference is strict because the id keys the findings paths, so a wrong id makes the loop read a **different**
+change's verdicts and converge on them anyway.
 
 The release version comes from the change's own `proposal.md` `version:` frontmatter. **The backlog** is
 `.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
@@ -56,7 +62,7 @@ The events, and no others:
 
 | event | written in | detail holds |
 |---|---|---|
-| `start` | Step 1, once the preconditions pass | base, head, commit count, files changed |
+| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched and the range they judge |
 | `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking` |

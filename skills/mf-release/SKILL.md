@@ -15,13 +15,18 @@ convergence does not also archive and tag on it.** When converge ran, you re-rea
 yourself; when it did not, this station is the only check after the build, and says so. Either way you re-run
 the gate yourself; you inherit nothing.
 
-## Parameter — the change id, required
+## Parameter — the change id
 
-`change-id` is an **explicit, required parameter**. Without it, **halt** and ask for it.
+A given `change-id` is used as given. Without one, infer it — strictly:
 
-Never infer it — not from the highest-numbered directory under `openspec/changes/`, not from "there is only one
-active change". The id keys the findings paths and the commit trailer; a wrong id releases against another
-change's verdicts.
+1. The candidates are the active changes: the directories `git ls-files openspec/changes/` lists, without
+   `archive/`. None → **halt**: `no active change`. Several → **halt**, listing them.
+2. The one candidate's branch is `v<its proposal version>_<its slug>` — e.g. `0019-inferred-change-id` at
+   `v0.19` → `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
+
+Inference is strict because the id keys the findings paths and the commit trailer; a wrong id releases against
+another change's verdicts.
 
 The release version is the `version:` frontmatter in the change's own `proposal.md` — read it, never invent it,
 never derive it from a filename. Below, `<version>` is that value (`vX.Y`) and the tag is `<version>.0`.
@@ -51,7 +56,7 @@ than guessing a shape or globbing the directory:
 - security: `.minions/findings/<change-id>_security.md`
 
 Never glob `.minions/findings/*` and take what you find: that directory keeps the *previous* change's files, and
-a stale `verdict: clean` describing different work is the exact failure the required change id exists to
+a stale `verdict: clean` describing different work is the exact failure the strict change id exists to
 prevent. An absent file is never an invitation to search — precondition 4 says what absence means.
 
 1. **The gate is green, re-run in this session.** Not inherited from `mf-converge`'s report, not read from a

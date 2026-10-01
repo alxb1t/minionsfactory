@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Build, converge and release infer the one active change** (change `0019-inferred-change-id`, phase 1). With no
+  `change-id`, each takes the one tracked change under `openspec/changes/`, checks it against the branch the cut
+  made, and echoes it; none, several or a branch mismatch halts. The operator no longer types the id after a cut.
+
 ## [0.18.0] - 2026-09-27
 
 ### Added
