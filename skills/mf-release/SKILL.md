@@ -73,9 +73,8 @@ exists to prevent. An absent file is never an invitation to search — precondit
    line `converge: skipped — no findings files`. Either exists → converge **ran**: 2, 3 and 7 apply in full, and one
    file without the other is a halt — a converge that ran leaves both. **Simplify is the one station excluded
    here, by name and deliberately** — it runs inside `mf-build`, fixing in place, and **produces no findings file
-   by design**, its edits verified by the review station that read a diff containing them. That is a declared
-   deviation from `docs/sdd.md`'s three-read-only-station *Check*. Naming the exclusion is what keeps the absence
-   of a simplify file out of that decision.
+   by design**, its edits verified by the review station that read a diff containing them. Naming the exclusion
+   is what keeps the absence of a simplify file out of that decision.
 5. **The version line is aligned** — the tag `<version>.0` does **not** already exist (`git tag -l`), and
    `CHANGELOG.md`'s `## [Unreleased]` holds **real entries** rather than an empty heading. Else → halt.
 6. **The tree is clean** — `git status --porcelain` prints nothing. Else → halt.
@@ -110,10 +109,9 @@ Move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/`,
 move **by name** — each capability file Step 2 touched, the old change path and the new archive path. **Commit
 nothing here.** Step 4 makes the one commit, after its full gate has judged this tree.
 
-**A declared deviation from `docs/sdd.md`'s *The release fold*, which checks the spec binding before the fold and
-again before archiving:** this station runs no separate step for it. Precondition 1's gate runs before the fold
-and Step 4.3's gate after the archive, so in any repository whose gate includes that check, those two runs are
-the method's two — and a repository whose gate lacks it gives a separate step nothing to run.
+**This station runs no separate spec-binding step.** Precondition 1's gate runs before the fold and Step 4.3's
+gate after the archive, so in any repository whose gate includes a binding check, those runs cover it — and a
+repository whose gate lacks one gives a separate step nothing to run.
 
 **The fold and the archive land in the same commit.** Once archived, a delta's scenario keys resolve only from
 the living specs the fold wrote; split across two commits, one of them holds tests whose markers point at

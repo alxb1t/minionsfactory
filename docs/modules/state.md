@@ -240,8 +240,7 @@ diagnostic and exit `1` — never a bare traceback mid-run.
 > **Not every pre-spend failure is one of these.** `read_head` shells out to `git rev-parse HEAD` with
 > `check=True`, so a target that is not a git repository — or is one with no commit yet — surfaces a raw
 > `CalledProcessError` rather than a diagnostic. That contradicts `cli`'s *no unhandled exception class SHALL be
-> reachable from a misconfigured target*, it predates this version, and it is recorded in the vault backlog
-> against **v0.10** rather than fixed here.
+> reachable from a misconfigured target*, it predates this version, and it is not fixed here.
 
 - **Gotchas** — keeps its name although its subject is now a change; renaming it would touch every raise site
   and every `except` clause for no behavioural payoff.

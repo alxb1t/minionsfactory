@@ -139,12 +139,10 @@ After the last phase, and only then:
    them by weakening it.
 3. Commit its edits as **their own trailered commit**, staged by name, separate from any phase commit.
 
-**This is a declared deviation from `docs/sdd.md`'s three-read-only-station *Check*.** There, simplify is a
-blind read-only station that reports and edits nothing but its own findings file; here it fixes in place inside
-the builder. It is safe because of the ordering: simplify runs **first**, so the review and security stations
-`mf-converge` fans out afterwards read a diff that **includes** these edits — review verifies simplify's work,
-and no station verifies its own. Running simplify last, after convergence, would land unreviewed edits after the
-final station had spoken.
+**Simplify fixes in place, inside the build.** It is safe because of the ordering: simplify runs **first**, so
+the review and security stations `mf-converge` fans out afterwards read a diff that **includes** these edits —
+review verifies simplify's work, and no station verifies its own. Running simplify last, after convergence,
+would land unreviewed edits after the final station had spoken.
 
 Two consequences follow, and both are deliberate: there is **no simplify findings file at all**, and
 `mf-release` therefore declares simplify out **by name** rather than tolerating an absent file — so that *a

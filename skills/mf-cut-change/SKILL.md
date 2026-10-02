@@ -181,6 +181,7 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 | **A4** | **Keep the old thing declared until the new one is proven** — the irreversible act is the change's last phase | a delete, a removal, a migration that cannot be undone |
 | **A5** | **Unbuilt work names its trigger, never a version** | "when the runner resumes", not "in v0.15" |
 | **A6** | **A minor version delivers one feature; a patch delivers none.** The repo's `CLAUDE.md` states what a patch may hold; a patch cut in a repo that states nothing is put to the human | why v0.12 and v0.13 are two versions |
+| **A7** | **A decision in force is edited where it lives** | when the repo has `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task. The page says what holds; `design.md` says how it came about |
 
 ## Never
 

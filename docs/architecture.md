@@ -1,5 +1,9 @@
 # Architecture
 
+> **Deprecated.** This page and `modules/` describe the deterministic runner in `orchestrator/` and `prompts/`.
+> MinionsFactory's line is the `mf-*` skills ([D3](decisions.md#d3--one-line-of-stations-conducted-by-a-person-or-by-an-llm)). The
+> runner is deleted by the change that retires it.
+
 ## What it is
 
 MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
@@ -89,6 +93,4 @@ The key structural fact: **the driver depends on seams**, not on the CLIs behind
 Same driver code, no `if testing:` branches — this is what makes the whole loop unit-testable without ever
 spawning Claude or running a real gate.
 
-Per-module detail (signatures, edge cases, data flow) lives in [`modules/`](modules/). The deep design
-rationale (why structural typing over an ABC, the read-only permission regime, and other settled trade-offs)
-lives in the vault's `decisions.md`, linked from the module docs that touch it.
+Per-module detail (signatures, edge cases, data flow) lives in [`modules/`](modules/).

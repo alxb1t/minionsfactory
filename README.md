@@ -1,77 +1,24 @@
 # MinionsFactory
 
-A **CLI + orchestrator for autonomous Python feature development with Claude Code.** Pointed at a target
-repo, it drives an **in-repo change** to completion: a coder builds the change's `tasks.md` phase by
-phase, the **orchestrator runs the target's quality gate itself** and, on green, the phase advances and
-commits; otherwise the run **halts** with a readable reason.
+**Disciplined feature development with Claude Code, shipped as skills.** Each station of the line is an `mf-*`
+skill, and a person conducts them. The skills carry these practices: **grill** an idea until its decisions are
+settled, write it as a **spec-driven change** with checkable acceptance, and close it with a **check loop** of
+fresh readers before it is released.
 
-The design rests on four invariants:
+## The line
 
-- **No LLM in the orchestration layer** — the driver is deterministic, unit-tested Python control flow.
-- **The orchestrator runs the objective checks itself** (gate + git state), so the agent it drives can't
-  game them.
-- **All state lives on disk** — a run resumes from the change's `tasks.md` progress + git, never from memory.
-- **Roles are fresh instances behind a provider seam** — harness-agnostic; Claude Code (`claude -p`) is the
-  default adapter.
+One change goes from an idea to a local tag.
 
-## Status
+```
+   grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
+     │         │                 │            │                    │
+ `grilling`  mf-cut-change    mf-build     mf-converge          mf-release    the skills
+                                           review ‖ security
 
-**v0.19.0 is the current release; the v0.20 line has not opened.** The loop is closed end to end: the
-per-phase build spine (spawn coder → gate → advance/commit or halt → resume), the end-of-plan review ‖
-security ‖ simplify fan-out, the converge loop, and local release preparation — with all control flow
-unit-tested behind a fake provider + fake gate. The **in-repo change** is the model the driver runs on, and
-everything a run declares, resolves or writes lands inside the target repository. The installed CLI, extra
-provider adapters, and the UI are still ahead. Beside that automated line sit the **execution-line skills** —
-see below.
-
-Designed for **personal, local use** under a Claude Code subscription (headless `claude -p`).
-
-## Usage (run-from-source)
-
-```bash
-uv sync
-python -m orchestrator run --repo /path/to/target-repo
+   conducted by a person today · by an LLM conductor held by scripts: designed, not built
 ```
 
-The **target repo** it drives must provide:
-
-- an **`openspec/changes/<id>/`** change — `proposal.md` (with leading `version: vX.Y` frontmatter),
-  `design.md`, `tasks.md` (a `## Progress` checklist — the driver's phase pointer) and a `specs/` delta, and
-- a root **`Makefile`** with a **`gate`** target — the runner checks it with `make -n gate`, then runs
-  `make gate`, e.g.:
-
-  ```make
-  gate:
-  	uv sync --locked
-  	uv run ruff check .
-  	uv run pytest
-  ```
-
-  (git-ignore the generated artifacts with `.minions/`.)
-
-That is the whole contract — **nothing outside the repo is declared, resolved or written.** Everything a run
-produces lands under the gitignored `.minions/`: each role's findings at
-`.minions/findings/<change-id>_<role>.md`, the coder's halt report at `.minions/HALT.md`, deferred work at
-`.minions/<version>_backlog.md` (any list line there blocks the release; a missing file means nothing was
-deferred), and the run's `events.jsonl` + `status.json`.
-
-The orchestrator runs a zero-token **preflight** first — the active change is well-formed and declares its
-version — then resolves the active change in the target repo, drives its phases one fresh coder at a time, and
-exits `0` on completion / `1` on a halt. Every refusal is a diagnostic and a non-zero exit, never a traceback.
-
-## The quality gate (this repo's own)
-
-MinionsFactory dogfoods the discipline it enforces. Its own gate is **`make gate`**: lock sync · format · lint
-(`D` docstrings + `ANN` annotations) · strict type-check · tests · the spec-binding checker. The `Makefile`
-recipe is the one list of its commands, so this page names the target and does not copy them.
-
-CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
-
-## The execution-line skills
-
-The hand-invoked skills under [`skills/`](skills/) drive a change from cut to released. They are the
-human-invoked line — the one this repository's own releases are cut with — beside the automated line under
-`orchestrator/`. Each skill is the authority on what it does; this list is a map, not a summary:
+Each skill is the authority on what it does; this table is a map, not a summary.
 
 | skill | what it is for |
 | --- | --- |
@@ -80,31 +27,43 @@ human-invoked line — the one this repository's own releases are cut with — b
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
 
-Deferred work stays in the repository: `mf-converge` writes it to the gitignored `.minions/backlog.md`, one
-heading per change, and the release never blocks on it.
+## Install
 
-A target repo needs a root `Makefile` with a `gate` target: the skills run `make gate` and halt without one.
-
-Install them into your personal skills directory as symlinks (the `Makefile` records why a symlink):
+The skills install into your personal skills directory as symlinks (the `Makefile` records why a symlink).
 
 ```bash
 make install-skills      # symlink skills/mf-* into your personal skills directory
 make uninstall-skills    # remove exactly those symlinks
 ```
 
-## The method
+## What a target repo needs
 
-The discipline behind the loop is stated once, on its own page, so tools can reference it rather than restate
-it: [`docs/sdd.md`](docs/sdd.md). Three practices carry it. **Spec-driven changes** — work is defined before it
-is built, in the repository, as a written change with machine-checkable acceptance, folding into a living
-behavioural spec rather than a document rotting beside the code. **A strict quality gate** — one declared
-command list; a unit of work is done when every step is green, not when it looks done. **All state on disk** —
-where the work stands is reconstructed from the repository, never from an agent's memory of what it just did,
-so resume is free and any stage can be re-run by a fresh reader who was not there.
+A layout on disk, and nothing else: the skills install nothing into it
+([D18](docs/decisions.md#d18--the-contract-with-a-target-repo-is-a-layout-on-disk)).
+
+```
+<target>/
+├── openspec/specs/      the living spec
+├── openspec/changes/    the active change, and the archive
+├── Makefile             with a `gate` target
+├── CLAUDE.md            what is true of this repo
+└── .minions/            run output, gitignored
+```
+
+## This repo's gate
+
+**`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests · the
+spec-binding check. The `Makefile` recipe is the one list of its commands, so this page names the target and does
+not copy them. CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
 
 ## Docs
 
-Developer docs live in [`docs/`](docs/): start at the [docs README](docs/README.md), then
-[architecture](docs/architecture.md) (invariants + the one dependency graph) and the per-module
-reference under [`docs/modules/`](docs/modules/) (one file per source module — signatures, data flow,
-edge cases). See [`CHANGELOG.md`](CHANGELOG.md) for what's shipped.
+Start at the [docs map](docs/README.md). It links [the principles](docs/principles.md), [the
+decisions](docs/decisions.md) and [the autonomous design](docs/autonomous.md). What shipped, per version, is in
+[`CHANGELOG.md`](CHANGELOG.md).
+
+## The deterministic runner — deprecated
+
+`orchestrator/` and `prompts/` hold a deterministic runner for the same line. It is not extended, and is deleted by
+the change that retires it. One part stays live until then: `python -m orchestrator specs check` is
+the spec-binding check this repo's gate runs. Its design is in [architecture](docs/architecture.md).

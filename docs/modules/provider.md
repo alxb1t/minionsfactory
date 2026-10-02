@@ -111,7 +111,7 @@ The profile for a **read-only** role (review / security / simplify): denies `Bas
 only to the role's own findings file — `<repo>/.minions/findings/<change-id>_<role>.md`, resolved by
 [`findings_path`](findings.md#findings_path).
 
-- **Why** — a read-only role must not touch the repo's **tracked** tree; the one thing it may write is its verdict, and that lands in the target's gitignored `.minions/` rather than anywhere outside the repo. (Rationale — bare-tool denies enforce, scoped `Bash` sub-patterns leak: the vault's `decisions.md` → read-only permission profile / Q1.)
+- **Why** — a read-only role must not touch the repo's **tracked** tree; the one thing it may write is its verdict, and that lands in the target's gitignored `.minions/` rather than anywhere outside the repo. Bare-tool denies enforce; scoped `Bash` sub-patterns leak.
 - **Gotchas** — expressed as *allow-only-`Write(findings)`*, not a bare-`Write` deny: deny-precedence would override a scoped allow. `Bash` denied is *why* the role cannot `git diff` itself → the orchestrator supplies the diff ([`diff`](diff.md)).
 - **Returns** — [`Profile`](#profile)
 - **Called by** — [`run_fanout`](fanout.md#run_fanout), once per role.
@@ -129,7 +129,7 @@ class Provider(Protocol):
 The seam the driver depends on. Any class with a matching `run_role` **is** a `Provider` — structural typing,
 no inheritance.
 
-- **Why structural, not an ABC** — an adapter for another harness (opencode, Codex) needs to import nothing of ours. (Rationale: the vault's `decisions.md` → provider seam / structural typing.)
+- **Why structural, not an ABC** — an adapter for another harness (opencode, Codex) needs to import nothing of ours.
 - **Enforced by** — `ty`, statically, wherever a value flows into a `Provider`-typed slot; there is no runtime `isinstance`.
 - **Implemented by** — [`ClaudeCodeProvider`](#claudecodeprovider) (real), [`FakeProvider`](#fakeprovider) (test double).
 

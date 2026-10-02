@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- **The principles page** (change `0020-architecture-and-decisions`, phase 1). `docs/principles.md` states the
+  rules every station follows, each with why and what holds it; `tests/test_principles.py` fails when it names a
+  test that does not exist.
+- **The decisions page** (change `0020-architecture-and-decisions`, phase 2). `docs/decisions.md` holds `D1`…`D35`,
+  the choices in force, each with its reason, so the record lives in the repository.
+- **The autonomous design** (change `0020-architecture-and-decisions`, phase 3). `docs/autonomous.md` holds the
+  autonomous line's components, layout, version life and open questions, marked designed, not built.
+
+### Changed
+
+- **The front door leads with the skills** (change `0020-architecture-and-decisions`, phase 4). `README.md`,
+  `CLAUDE.md`, `docs/README.md` and `openspec/config.yaml` describe the `mf-*` skills and point at the new pages;
+  the runner is named deprecated, and no doc points at a record outside the repository.
+- **`A7` in `mf-cut-change`** (change `0020-architecture-and-decisions`, phase 5). When a repo has
+  `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task, so the page
+  does not go stale.
+
+### Removed
+
+- **`docs/sdd.md`** (change `0020-architecture-and-decisions`, phase 6). Its rules live in the principles and
+  decisions pages, and the skills state their own rules instead of a deviation from it.
+
 ## [0.19.0] - 2026-10-01
 
 ### Changed
