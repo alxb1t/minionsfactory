@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **The model suggestion** (change `0021-model-suggestion`, phase 1). After its commit, `mf-cut-change` suggests in
-  chat a model and an effort for the build, the check loop and the release, so the operator need not pick from memory.
+  chat a model and an effort for the build, the check loop and the release, so the human need not pick from memory.
 
 ## [0.20.0] - 2026-10-02
 
