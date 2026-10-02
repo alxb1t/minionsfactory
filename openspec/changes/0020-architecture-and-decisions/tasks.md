@@ -7,7 +7,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 
 - [x] 1 — The principles
 - [x] 2 — The decisions
-- [ ] 3 — The autonomous page
+- [x] 3 — The autonomous page
 - [ ] 4 — The front door
 - [ ] 5 — A7
 - [ ] 6 — The method page retires
@@ -34,7 +34,7 @@ The page and the check that holds it ([E2](design.md#e2), [E4](design.md#e4)).
 
 ## 3 — The autonomous page
 
-- [ ] 3.1 Write `docs/autonomous.md` from [pages/autonomous.md](pages/autonomous.md), per [E2](design.md#e2) and
+- [x] 3.1 Write `docs/autonomous.md` from [pages/autonomous.md](pages/autonomous.md), per [E2](design.md#e2) and
   [E5](design.md#e5). Verify: `grep -c '^## ' docs/autonomous.md` prints `6`.
 
 ## 4 — The front door

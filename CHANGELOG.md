@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test that does not exist.
 - **The decisions page** (change `0020-architecture-and-decisions`, phase 2). `docs/decisions.md` holds `D1`…`D35`,
   the choices in force, each with its reason, so the record lives in the repository.
+- **The autonomous design** (change `0020-architecture-and-decisions`, phase 3). `docs/autonomous.md` holds the
+  autonomous line's components, layout, version life and open questions, marked designed, not built.
 
 ## [0.19.0] - 2026-10-01
 
