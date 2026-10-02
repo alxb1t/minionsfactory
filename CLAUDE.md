@@ -1,30 +1,21 @@
 # minions_factory — shared context for Claude Code
 
-MinionsFactory is a **CLI + orchestrator for autonomous Python feature development with Claude Code**. Pointed
-at a target repo, it drives an **in-repo change** to completion, spawning a **fresh, single-role Claude Code
-instance** per role and **advancing or halting** on machine-checkable disk state. The project **dogfoods what it
-automates** — it is built the way it builds.
+MinionsFactory is **disciplined feature development with Claude Code, shipped as skills**: each station of the
+line is an `mf-*` skill, and a person conducts them. The project is built the way it builds. The map of the
+record is [`docs/README.md`](docs/README.md).
 
-**The method it automates is stated once, in [`docs/sdd.md`](docs/sdd.md)** — the change contract and the
-`Change:` trailer, the traceability bindings and the version line, the gate rules, the loop, the findings
-contract and the release fold; and, in its Part II, what must be settled before a change is cut and the
-readiness checklist for a repository. That page is authoritative for *how the work is done*, and this file does
-not restate it. What follows is what is true of **this repository in particular**: its gate, its seams,
-its guardrails, its layout. A change is cut with the `mf-cut-change` skill.
+## The record
 
-Hard constraints that shape the code here: **no LLM sits in the orchestration layer** (the driver is
-deterministic, unit-testable control flow); **the orchestrator runs the objective checks itself** (the gate + git
-state — so the agent it drives can't game them); and **roles are fresh instances behind a provider seam**
-(harness-agnostic — Claude Code is the default adapter, with no dependency on a harness's internals).
+The rules every station follows, imported here so they are in context when a line is written:
 
-**Two lines run here, and the duplication is declared rather than resolved.** `orchestrator/` + `prompts/`
-implement the **automated** line — a deterministic fan-out → converge → release, unit-tested behind the
-provider and gate seams. `skills/mf-*` is the **human-invoked** line, and it is the one this repository's own
-releases are actually cut with today. One review axis therefore has two rubrics — `prompts/reviewer.md` for the
-automated line, the adopted community review engine for the skills — and that cost is accepted deliberately:
-collapsing them would mean rewriting the role prompts to dispatch skills a headless read-only role may not be
-able to run, which is unprovable here. Neither line is the other's spec; where they disagree, the change that
-touches one says so.
+@docs/principles.md
+
+- **The decisions in force** are in [`docs/decisions.md`](docs/decisions.md), each with its reason. A change that
+  adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its `design.md` keeps the
+  history.
+- **Docs are written to `mf-build`'s prose rules** `P1`…`P13`: terse, answer first, things named rather than
+  counted.
+- **A change is cut** with the `mf-cut-change` skill.
 
 > **This file is shared, role-independent context — what is *true* about this repo. It is not a script.**
 > What you should *do* comes from the **prompt/task you were given** (author a change, build a phase, review the
@@ -40,53 +31,32 @@ lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests �
 recipe is this repo's only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`,
 and no prose here copies them.
 
-External effects are faked in tests behind this repo's two seams — the **provider** (`claude -p`) behind the
-`Provider` Protocol (`FakeProvider`) and the **gate subprocess** behind the gate seam (`FakeGate`); real
-`claude -p` is exercised only in an end-to-end dogfood run.
-
----
-
-## Engineering conventions
-
-The change's **`design.md`** is authoritative, with this file behind it — read it. It *is* the decision record:
-the reasoning that settled a change, and the measurement behind each decision, are written there and nowhere
-else. In brief, the load-bearing seams are:
-
-- a **`Provider` Protocol** — a real `ClaudeCodeProvider` (`claude -p`, `--output-format json`) + a
-  `FakeProvider`; the driver depends on the **seam**, never the CLI directly (harness-agnostic + unit-testable).
-- **the orchestrator runs the gate itself** via a `run_gate(repo)` seam (real subprocess + `FakeGate`); the gate
-  is **read from the target repo**, not hardcoded, so a non-Python target needs no code change. The skills and
-  the parked runner run `make gate`.
-- **the change is read from disk** — the coder resolves `openspec/changes/<change-id>/` in-tree; findings + spec
-  state are likewise read from disk, never trusted from a role's claim.
-- **the driver is deterministic control flow** — no LLM; **advance is *detected*** on disk, never trusted from a
-  role's report (what counts as an advance is the method's, `docs/sdd.md`); a halt writes a disk contract the
-  next run resumes from.
-- roles are defined by a **prompt + a disk I/O contract** — each role prompt (`prompts/`) is the first-class
-  authority for what that instance does.
-
 ---
 
 ## Layout — where things live here
 
-- **`orchestrator/`** — the driver, the seams, the CLI. **`prompts/`** — the six role prompts. **`tests/`** — the
-  suite. **`docs/`** — the orchestrator's own map, plus `sdd.md`, the one page there that is about the *method*
-  rather than about this codebase.
-- **`skills/`** — the `mf-*` execution-line skills, one `SKILL.md` each: cut, build, converge, release.
-  Tracked here and installed by symlink (`make install-skills`); a shipped skill is a role prompt, and
-  is inside the retired-vocabulary scan for that reason.
-- **`openspec/`** — the living specs and the changes (shape and contract: `docs/sdd.md`). The OpenSpec CLI is
-  **operator tooling, recorded and not pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on
-  `PATH`. It is deliberately **not** in the gate — nothing in CI runs it, so a moving version can never turn CI
-  red; it can only hand a future author different authoring instructions. The binding authority is this
-  repository's own spec-binding check, and it *is* in the gate.
+- **`skills/`** — the `mf-*` skills, one `SKILL.md` each: cut, build, converge, release. Tracked here and
+  installed by symlink (`make install-skills`); a shipped skill is a role prompt, and is inside the
+  retired-vocabulary scan for that reason.
+- **`docs/`** — the map, the principles, the decisions, the autonomous design; and the deprecated runner's pages.
+- **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
+  pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`. It is deliberately **not** in
+  the gate — nothing in CI runs it, so a moving version can never turn CI red; it can only hand a future author
+  different authoring instructions.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
-- **Everything a run reads or writes is inside the repository.** The orchestrator resolves **no path outside the
-  target repo**. Product intent — the research and the narrative record the human keeps — lives *upstream* of the
-  code in a private Obsidian vault, and **no role the orchestrator spawns reaches into it**; planning itself runs
-  here, in the repository, and lands in the change's four artifacts. `.env` is gitignored local scaffolding
-  declaring nothing the orchestrator needs, and the committed `CLAUDE.md` / `.env.example` stay path-free.
+- **`tests/`** — the suite.
+- **Everything a station reads or writes is inside the repository.** `.env` is gitignored local scaffolding, and
+  the committed `CLAUDE.md` / `.env.example` stay path-free.
+
+---
+
+## The deprecated runner
+
+`orchestrator/` and `prompts/` hold a deterministic runner for the same line, with its tests. External effects
+are faked behind its seams: the **provider** (`claude -p`) behind the `Provider` Protocol (`FakeProvider`), and
+the **gate subprocess** behind the gate seam (`FakeGate`). One part stays live: `orchestrator/specs.py` is the
+spec-binding check the gate runs. The runner is not extended, and is deleted by the change that retires it.
 
 ---
 
@@ -102,8 +72,3 @@ else. In brief, the load-bearing seams are:
   path-free.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.
-- **No LLM in the orchestration layer; the orchestrator owns the objective checks.** The driver stays
-  deterministic and testable; the gate + git state are run by the orchestrator (not the agent it drives) so they
-  can't be gamed.
-- **State lives on disk.** Reconstruct "where are we" from the active change's `tasks.md` + git — never from
-  memory.

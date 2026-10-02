@@ -1,20 +1,18 @@
 schema: spec-driven
 
-# A pointer, never a restatement. The two pages below are authoritative and are
-# maintained where they live; anything copied here would be a fourth copy of the
-# method that drifts the moment either page moves.
+# A pointer, never a restatement. The pages below are authoritative and are
+# maintained where they live; anything copied here is a second copy that drifts
+# the moment a page moves.
 context: |
-  This repository's method is stated once, in `docs/sdd.md` — the change contract and
-  the four artifacts, the `Change:` trailer, the traceability bindings and the version
-  line, the gate rules, the build loop, the findings contract and the release fold; and,
-  in its Part II, what must be settled before a change is cut. Read it before authoring
-  any artifact.
+  This repository's rules are in `docs/principles.md`, and its decisions in force in
+  `docs/decisions.md`. Read both before authoring any artifact. A change that adds or
+  overturns a decision in force edits `docs/decisions.md` in one of its phases.
 
-  What is true of this repository in particular — the gate (`make gate`), the seams the
-  work is tested at, the guardrails and the layout — is in `CLAUDE.md`. Read it too. A
-  change is cut with the `mf-cut-change` skill.
+  What is true of this repository in particular — the gate (`make gate`), the layout,
+  the guardrails — is in `CLAUDE.md`. Read it too. A change is cut with the
+  `mf-cut-change` skill, which carries the contract a change must meet.
 
-  Neither page is restated in this file. Where an instruction below and either page
+  None of these pages is restated in this file. Where an instruction below and a page
   disagree, the page wins and this file is the thing to fix.
 
 rules:

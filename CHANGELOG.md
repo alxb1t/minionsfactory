@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The autonomous design** (change `0020-architecture-and-decisions`, phase 3). `docs/autonomous.md` holds the
   autonomous line's components, layout, version life and open questions, marked designed, not built.
 
+### Changed
+
+- **The front door leads with the skills** (change `0020-architecture-and-decisions`, phase 4). `README.md`,
+  `CLAUDE.md`, `docs/README.md` and `openspec/config.yaml` describe the `mf-*` skills and point at the new pages;
+  the runner is named deprecated, and no doc points at a record outside the repository.
+
 ## [0.19.0] - 2026-10-01
 
 ### Changed

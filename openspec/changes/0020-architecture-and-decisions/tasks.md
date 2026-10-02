@@ -8,7 +8,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 - [x] 1 — The principles
 - [x] 2 — The decisions
 - [x] 3 — The autonomous page
-- [ ] 4 — The front door
+- [x] 4 — The front door
 - [ ] 5 — A7
 - [ ] 6 — The method page retires
 
@@ -41,21 +41,21 @@ The page and the check that holds it ([E2](design.md#e2), [E4](design.md#e4)).
 
 What each file holds is in [design.md](design.md#what-each-file-of-the-front-door-holds).
 
-- [ ] 4.1 Rewrite `docs/README.md` as [its section](design.md#docsreadmemd) says, keeping the `sdd.md` row.
+- [x] 4.1 Rewrite `docs/README.md` as [its section](design.md#docsreadmemd) says, keeping the `sdd.md` row.
   Verify: `grep -c 'Obsidian' docs/README.md` prints `0`.
-- [ ] 4.2 `docs/architecture.md`: add the banner under the title and delete the sentence at lines 92-94
+- [x] 4.2 `docs/architecture.md`: add the banner under the title and delete the sentence at lines 92-94
   ([E6](design.md#e6)). Verify: `grep -c 'Deprecated' docs/architecture.md` prints `1`.
-- [ ] 4.3 `docs/modules/provider.md` and `docs/modules/state.md`: the before → after of
+- [x] 4.3 `docs/modules/provider.md` and `docs/modules/state.md`: the before → after of
   [the pointers](design.md#docsarchitecturemd-and-the-pointers). Verify:
   `grep -c 'vault' docs/architecture.md docs/modules/provider.md docs/modules/state.md` prints `:0` for each file.
-- [ ] 4.4 Rewrite `README.md` as [its section](design.md#readmemd) says. Verify:
+- [x] 4.4 Rewrite `README.md` as [its section](design.md#readmemd) says. Verify:
   `grep -c -E 'sdd\.md|No LLM in the orchestration layer' README.md` prints `0`.
-- [ ] 4.5 Rewrite `CLAUDE.md` as [its section](design.md#claudemd) says ([E7](design.md#e7)). Verify:
+- [x] 4.5 Rewrite `CLAUDE.md` as [its section](design.md#claudemd) says ([E7](design.md#e7)). Verify:
   `grep -c '^@docs/principles.md$' CLAUDE.md` prints `1`, and `grep -c -E 'sdd\.md|No LLM|Obsidian' CLAUDE.md`
   prints `0`.
-- [ ] 4.6 `README.md`, `CLAUDE.md` and `docs/README.md` follow the prose rules ([E12](design.md#e12)), and
+- [x] 4.6 `README.md`, `CLAUDE.md` and `docs/README.md` follow the prose rules ([E12](design.md#e12)), and
   `CLAUDE.md` names them. Verify: `grep -c 'P13' CLAUDE.md` prints `1`.
-- [ ] 4.7 `openspec/config.yaml`: the `context:` block of [its section](design.md#openspecconfigyaml). Verify:
+- [x] 4.7 `openspec/config.yaml`: the `context:` block of [its section](design.md#openspecconfigyaml). Verify:
   `grep -c 'sdd\.md' openspec/config.yaml` prints `0`.
 
 ## 5 — A7
