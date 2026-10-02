@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The front door leads with the skills** (change `0020-architecture-and-decisions`, phase 4). `README.md`,
   `CLAUDE.md`, `docs/README.md` and `openspec/config.yaml` describe the `mf-*` skills and point at the new pages;
   the runner is named deprecated, and no doc points at a record outside the repository.
+- **`A7` in `mf-cut-change`** (change `0020-architecture-and-decisions`, phase 5). When a repo has
+  `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task, so the page
+  does not go stale.
 
 ## [0.19.0] - 2026-10-01
 

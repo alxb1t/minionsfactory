@@ -9,7 +9,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 - [x] 2 — The decisions
 - [x] 3 — The autonomous page
 - [x] 4 — The front door
-- [ ] 5 — A7
+- [x] 5 — A7
 - [ ] 6 — The method page retires
 
 ## 1 — The principles
@@ -60,7 +60,7 @@ What each file holds is in [design.md](design.md#what-each-file-of-the-front-doo
 
 ## 5 — A7
 
-- [ ] 5.1 `skills/mf-cut-change/SKILL.md`: add the [`A7`](design.md#a7) row after `A6` ([E8](design.md#e8)).
+- [x] 5.1 `skills/mf-cut-change/SKILL.md`: add the [`A7`](design.md#a7) row after `A6` ([E8](design.md#e8)).
   Verify: `grep -c '^| \*\*A7\*\* |' skills/mf-cut-change/SKILL.md` prints `1`.
 
 ## 6 — The method page retires
