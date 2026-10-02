@@ -114,8 +114,8 @@ Stage `openspec/changes/<change-id>/` by name — never `git add -A`. The messag
 
 ## Step 11 — Report
 
-Report the branch, the commit id, and `git status --porcelain` printing nothing. Next: `/mf-build <change-id>`,
-in a fresh session. Then stop.
+Report the branch, the commit id, and `git status --porcelain` printing nothing. Then suggest models, as
+[Suggesting models](#suggesting-models) says. Next: `/mf-build <change-id>`, in a fresh session. Then stop.
 
 ## Input contract
 
@@ -183,6 +183,34 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 | **A6** | **A minor version delivers one feature; a patch delivers none.** The repo's `CLAUDE.md` states what a patch may hold; a patch cut in a repo that states nothing is put to the human | why v0.12 and v0.13 are two versions |
 | **A7** | **A decision in force is edited where it lives** | when the repo has `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task. The page says what holds; `design.md` says how it came about |
 
+## Suggesting models
+
+After the commit, suggest in chat a model and an effort for the build, the check loop and the release. One
+suggestion per station, for the whole change. Choose from the models the human uses: a menu in their `CLAUDE.md`
+bounds the choice; with none, use the models this session offers.
+
+| the change holds | build with |
+|---|---|
+| mechanical edits; a checklist to follow | the mid tier · medium |
+| settled text to place; small tests | the mid tier · high |
+| prose written fresh; moderate logic | the strongest tier · medium |
+| new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
+
+The highest row any phase matches decides.
+
+- **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
+  path, a dependency, or an anchored harm means run it, in the build's model. Say which you found.
+- **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
+
+```
+Suggested models
+  build     <model · effort>                        <the reason, from the phases>
+  converge  <model · effort | skip, read by hand>   <the reason>
+  release   <model · effort>                        <the reason>
+```
+
+A suggestion, never an instruction: the human chooses.
+
 ## Never
 
 - Never build, or edit anything outside `openspec/changes/<change-id>/`.
@@ -192,3 +220,4 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 - Never overturn a settled decision alone.
 - Never write the brief's path, or any absolute path, into the change.
 - Never invent scope the source did not settle.
+- Never write the model suggestion into the change, or into any file.
