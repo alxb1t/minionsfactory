@@ -6,7 +6,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 ## Progress
 
 - [x] 1 — The principles
-- [ ] 2 — The decisions
+- [x] 2 — The decisions
 - [ ] 3 — The autonomous page
 - [ ] 4 — The front door
 - [ ] 5 — A7
@@ -27,9 +27,9 @@ The page and the check that holds it ([E2](design.md#e2), [E4](design.md#e4)).
 
 ## 2 — The decisions
 
-- [ ] 2.1 Write `docs/decisions.md` from [pages/decisions.md](pages/decisions.md), per [E2](design.md#e2).
+- [x] 2.1 Write `docs/decisions.md` from [pages/decisions.md](pages/decisions.md), per [E2](design.md#e2).
   Verify: `grep -c '^### D[0-9]* · ' docs/decisions.md` prints `35`.
-- [ ] 2.2 The page holds no history ([E3](design.md#e3)). Verify: `grep -c -E 'v0\.[0-9]|Made by' docs/decisions.md`
+- [x] 2.2 The page holds no history ([E3](design.md#e3)). Verify: `grep -c -E 'v0\.[0-9]|Made by' docs/decisions.md`
   prints `0`.
 
 ## 3 — The autonomous page

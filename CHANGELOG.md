@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The principles page** (change `0020-architecture-and-decisions`, phase 1). `docs/principles.md` states the
   rules every station follows, each with why and what holds it; `tests/test_principles.py` fails when it names a
   test that does not exist.
+- **The decisions page** (change `0020-architecture-and-decisions`, phase 2). `docs/decisions.md` holds `D1`…`D35`,
+  the choices in force, each with its reason, so the record lives in the repository.
 
 ## [0.19.0] - 2026-10-01
 
