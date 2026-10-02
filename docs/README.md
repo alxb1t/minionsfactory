@@ -21,7 +21,6 @@ What holds, what was chosen, and what is designed.
 | [principles.md](principles.md) | the rules every station follows, each with why and what holds it |
 | [decisions.md](decisions.md) | the choices in force, each with its reason |
 | [autonomous.md](autonomous.md) | the autonomous line's design: designed, not built |
-| [sdd.md](sdd.md) | the method page |
 
 ## Deprecated
 

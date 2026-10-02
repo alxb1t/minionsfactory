@@ -434,37 +434,31 @@ def test_the_reviewed_head_scan_reports_both_breaches(tmp_path: Path) -> None:
     ]
 
 
-# Review grades a drift tier, and the anchored harms always block, in the skill and in
-# the method page. Why: 0017-converge-audit-fixes design D3, D4.
+# Review grades a drift tier, and the anchored harms always block.
+# Why: 0017-converge-audit-fixes design D3, D4.
 _REVIEW_TIERS = "blocking | drift | nit"
 _ANCHORS = ("data loss", "spend", "exposure", "silent wrong output")
-_METHOD_PAGE = "docs/sdd.md"
 
 
 def _anchors_and_drift_problems(base: Path) -> list[str]:
     """Return one line per breach of the anchors-and-drift rule in `base`."""
-    return _needle_problems(
-        base, "mf-converge", present=(_REVIEW_TIERS, *_ANCHORS)
-    ) + _file_needle_problems(base, _METHOD_PAGE, present=(_REVIEW_TIERS,))
+    return _needle_problems(base, "mf-converge", present=(_REVIEW_TIERS, *_ANCHORS))
 
 
 @pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
-def test_converge_and_the_method_page_name_the_anchors_and_the_drift_tier() -> None:
+def test_converge_names_the_anchors_and_the_drift_tier() -> None:
     assert _anchors_and_drift_problems(_REPO) == []
 
 
 @pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
 def test_the_anchors_and_drift_scan_reports_every_breach(tmp_path: Path) -> None:
-    # A converge and a method page that grade review `blocking | nit` and name no
-    # anchor: every needle is reported.
+    # A converge that grades review `blocking | nit` and names no anchor: every
+    # needle is reported.
     _plant(tmp_path, {"mf-converge": "Review grades `blocking | nit`.\n"})
-    (tmp_path / "docs").mkdir()
-    (tmp_path / _METHOD_PAGE).write_text("Review grades `blocking | nit`.\n")
 
     assert _anchors_and_drift_problems(tmp_path) == [
         f"skills/mf-converge/SKILL.md: does not name `{_REVIEW_TIERS}`",
         *(f"skills/mf-converge/SKILL.md: does not name `{a}`" for a in _ANCHORS),
-        f"{_METHOD_PAGE}: does not name `{_REVIEW_TIERS}`",
     ]
 
 

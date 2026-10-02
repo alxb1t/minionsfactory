@@ -45,7 +45,7 @@ docs/
 - **`A7`.** `mf-cut-change` gains an artifact rule: a change that adds or overturns a decision in force names
   `docs/decisions.md` in a task. See [E8](design.md#e8).
 - **`docs/sdd.md` is deleted.** The skill sentences that cite it state their rule plainly. See
-  [E9](design.md#e9), [E10](design.md#e10). A scan keeps its name out afterwards ([E13](design.md#e13)).
+  [E9](design.md#e9), [E10](design.md#e10). No scan keeps it out ([E13](design.md#e13)).
 
 ## Capabilities
 

@@ -250,13 +250,3 @@ def test_the_guard_fails_when_the_retired_backlog_export_is_reintroduced(
     tmp_path: Path,
 ) -> None:
     _assert_every_plant_bites(tmp_path, _RETIRED_EXPORT)
-
-
-@pytest.mark.spec_exempt("structural — the method doc is wired into the docs map")
-def test_the_method_doc_exists_and_the_docs_map_links_it() -> None:
-    # Two independent halves, so removing either one fails: the page exists, and the
-    # docs map names it. A page nothing links to is as good as absent to a reader who
-    # starts where the map tells them to.
-    assert (_REPO / "docs" / "sdd.md").is_file()
-
-    assert "sdd.md" in (_REPO / "docs" / "README.md").read_text()

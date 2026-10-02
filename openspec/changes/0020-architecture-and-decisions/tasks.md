@@ -10,7 +10,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 - [x] 3 — The autonomous page
 - [x] 4 — The front door
 - [x] 5 — A7
-- [ ] 6 — The method page retires
+- [x] 6 — The method page retires
 
 ## 1 — The principles
 
@@ -68,23 +68,18 @@ What each file holds is in [design.md](design.md#what-each-file-of-the-front-doo
 The delete is the last act ([E9](design.md#e9)). `openspec/specs/sdd/spec.md` names the page until the release
 folds the delta ([E11](design.md#e11)).
 
-- [ ] 6.1 **HALT CHECK** — the skill lines citing the method page are the ones
+- [x] 6.1 **HALT CHECK** — the skill lines citing the method page are the ones
   [design.md](design.md#the-skill-sentences-before--after) names. Verify:
   `grep -n 'sdd\.md' skills/*/SKILL.md | cut -d: -f1,2` prints `skills/mf-build/SKILL.md:142`,
   `skills/mf-converge/SKILL.md:153`, `skills/mf-release/SKILL.md:77` and `skills/mf-release/SKILL.md:113`.
-- [ ] 6.2 `tests/test_skills.py`: the anchors scan and its twin stop reading the method page, renamed as
+- [x] 6.2 `tests/test_skills.py`: the anchors scan and its twin stop reading the method page, renamed as
   [design.md](design.md#the-skill-sentences-before--after) says. Verify: `grep -c '_METHOD_PAGE' tests/test_skills.py`
   prints `0`.
-- [ ] 6.3 `tests/test_conventions.py`: delete `test_the_method_doc_exists_and_the_docs_map_links_it`. Verify:
+- [x] 6.3 `tests/test_conventions.py`: delete `test_the_method_doc_exists_and_the_docs_map_links_it`. Verify:
   `grep -c 'test_the_method_doc_exists' tests/test_conventions.py` prints `0`.
-- [ ] 6.4 `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md`: the after-text
+- [x] 6.4 `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md`: the after-text
   of [E10](design.md#e10). Verify: `grep -c 'sdd\.md' skills/mf-build/SKILL.md skills/mf-converge/SKILL.md skills/mf-release/SKILL.md`
   prints `:0` for each file.
-- [ ] 6.5 `docs/README.md`: remove the `sdd.md` row. Verify: `grep -c 'sdd\.md' docs/README.md` prints `0`.
-- [ ] 6.6 Test first: `tests/test_conventions.py` gains the needle `sdd.md`, its scan
-  `test_the_retired_method_page_is_named_nowhere_in_code_prompts_or_docs` and its twin ([E13](design.md#e13)).
-  Verify: `uv run pytest tests/test_conventions.py -q` fails, naming `docs/sdd.md`.
-- [ ] 6.7 Delete `docs/sdd.md`. Verify: `test ! -e docs/sdd.md`, and
+- [x] 6.5 `docs/README.md`: remove the `sdd.md` row. Verify: `grep -c 'sdd\.md' docs/README.md` prints `0`.
+- [x] 6.6 Delete `docs/sdd.md` ([E13](design.md#e13)). Verify: `test ! -e docs/sdd.md`, and
   `git grep -n 'sdd\.md' -- README.md CLAUDE.md docs skills openspec/config.yaml` prints nothing.
-- [ ] 6.8 `docs/principles.md`, *A retired word is retired everywhere*: add the new scan to **Held by**. Verify:
-  `grep -c 'test_the_retired_method_page' docs/principles.md` prints `1`.

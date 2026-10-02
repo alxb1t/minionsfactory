@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task, so the page
   does not go stale.
 
+### Removed
+
+- **`docs/sdd.md`** (change `0020-architecture-and-decisions`, phase 6). Its rules live in the principles and
+  decisions pages, and the skills state their own rules instead of a deviation from it.
+
 ## [0.19.0] - 2026-10-01
 
 ### Changed
