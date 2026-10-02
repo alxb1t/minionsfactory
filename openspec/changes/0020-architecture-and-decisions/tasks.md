@@ -5,7 +5,7 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 
 ## Progress
 
-- [ ] 1 — The principles
+- [x] 1 — The principles
 - [ ] 2 — The decisions
 - [ ] 3 — The autonomous page
 - [ ] 4 — The front door
@@ -16,14 +16,14 @@ is rewritten; `mf-cut-change` gains `A7`; the method page is deleted last.
 
 The page and the check that holds it ([E2](design.md#e2), [E4](design.md#e4)).
 
-- [ ] 1.1 **HALT CHECK** — every test [pages/principles.md](pages/principles.md) names exists. Verify:
+- [x] 1.1 **HALT CHECK** — every test [pages/principles.md](pages/principles.md) names exists. Verify:
   `grep -o 'tests/[a-z_]*\.py::[a-z_0-9]*' openspec/changes/0020-architecture-and-decisions/pages/principles.md | sort -u | while IFS= read -r t; do grep -q "^def ${t##*::}(" "${t%%::*}" || echo "missing $t"; done`
   prints nothing.
-- [ ] 1.2 Test first: `tests/test_principles.py`, as [the check](design.md#the-check) describes it. Verify:
+- [x] 1.2 Test first: `tests/test_principles.py`, as [the check](design.md#the-check) describes it. Verify:
   `uv run pytest tests/test_principles.py -q` fails, naming `docs/principles.md`.
-- [ ] 1.3 Write `docs/principles.md` from [pages/principles.md](pages/principles.md), per [E2](design.md#e2).
+- [x] 1.3 Write `docs/principles.md` from [pages/principles.md](pages/principles.md), per [E2](design.md#e2).
   Verify: `grep -c '^### ' docs/principles.md` prints `13`.
-- [ ] 1.4 The check passes. Verify: `uv run pytest tests/test_principles.py -q` exits 0.
+- [x] 1.4 The check passes. Verify: `uv run pytest tests/test_principles.py -q` exits 0.
 
 ## 2 — The decisions
 

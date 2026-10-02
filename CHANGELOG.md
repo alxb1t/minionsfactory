@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The principles page** (change `0020-architecture-and-decisions`, phase 1). `docs/principles.md` states the
+  rules every station follows, each with why and what holds it; `tests/test_principles.py` fails when it names a
+  test that does not exist.
+
 ## [0.19.0] - 2026-10-01
 
 ### Changed
