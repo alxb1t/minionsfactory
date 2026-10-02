@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-02
+
 ### Added
 
 - **The principles page** (change `0020-architecture-and-decisions`, phase 1). `docs/principles.md` states the
