@@ -24,11 +24,8 @@ What holds, what was chosen, and what is designed.
 
 ## Deprecated
 
-The deterministic runner in `orchestrator/` and `prompts/`, kept until the change that retires it.
-
-| page | holds |
-|---|---|
-| [architecture.md](architecture.md) and [modules/](modules/) | the runner's pages |
+The deterministic runner in `orchestrator/` and `prompts/`, kept until the change that retires it. Its pages are
+[architecture.md](architecture.md) and [modules/](modules/).
 
 ## Where the rest lives
 

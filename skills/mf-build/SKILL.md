@@ -141,8 +141,8 @@ After the last phase, and only then:
 
 **Simplify fixes in place, inside the build.** It is safe because of the ordering: simplify runs **first**, so
 the review and security stations `mf-converge` fans out afterwards read a diff that **includes** these edits —
-review verifies simplify's work, and no station verifies its own. Running simplify last, after convergence, would land unreviewed edits after the
-final station had spoken.
+review verifies simplify's work, and no station verifies its own. Running simplify last, after convergence,
+would land unreviewed edits after the final station had spoken.
 
 Two consequences follow, and both are deliberate: there is **no simplify findings file at all**, and
 `mf-release` therefore declares simplify out **by name** rather than tolerating an absent file — so that *a

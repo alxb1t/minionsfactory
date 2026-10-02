@@ -46,8 +46,7 @@ and no prose here copies them.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **`tests/`** — the suite.
-- **Everything a station reads or writes is inside the repository.** `.env` is gitignored local scaffolding, and
-  the committed `CLAUDE.md` / `.env.example` stay path-free.
+- **Everything a station reads or writes is inside the repository.**
 
 ---
 

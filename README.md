@@ -1,7 +1,7 @@
 # MinionsFactory
 
 **Disciplined feature development with Claude Code, shipped as skills.** Each station of the line is an `mf-*`
-skill, and a person conducts them. The skills carry three practices: **grill** an idea until its decisions are
+skill, and a person conducts them. The skills carry these practices: **grill** an idea until its decisions are
 settled, write it as a **spec-driven change** with checkable acceptance, and close it with a **check loop** of
 fresh readers before it is released.
 
@@ -64,6 +64,6 @@ decisions](docs/decisions.md) and [the autonomous design](docs/autonomous.md). W
 
 ## The deterministic runner — deprecated
 
-`orchestrator/` and `prompts/` hold a deterministic runner for the same line. It is deprecated: not extended, and
-deleted by the change that retires it. One part stays live until then: `python -m orchestrator specs check` is
+`orchestrator/` and `prompts/` hold a deterministic runner for the same line. It is not extended, and is deleted by
+the change that retires it. One part stays live until then: `python -m orchestrator specs check` is
 the spec-binding check this repo's gate runs. Its design is in [architecture](docs/architecture.md).

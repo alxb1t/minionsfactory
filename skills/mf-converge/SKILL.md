@@ -148,9 +148,8 @@ Once all five pass, write `start` to the status log.
 
 ## Step 3 — Fan out (two fresh read-only subagents, in parallel)
 
-**Two** stations, not three: **review** and **security**. Simplify already ran inside `mf-build`, fixing in
-place, and its edits are inside this range — so review verifies simplify's work rather than simplify verifying
-its own. The consequence is carried deliberately: **there is no simplify findings file at all**, and
+The stations are **review** and **security**. Simplify already ran inside `mf-build`, fixing in place, and its
+edits are inside this range — so review verifies simplify's work rather than simplify verifying its own. The consequence is carried deliberately: **there is no simplify findings file at all**, and
 `mf-release` declares simplify out *by name* rather than tolerating an absent file.
 
 Dispatch both **in parallel**, each a **fresh** subagent with no memory of the build, read-only apart from its

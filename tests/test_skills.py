@@ -251,24 +251,10 @@ def _needle_problems(
 ) -> list[str]:
     """Return one line per `present` needle a skill lacks and `absent` needle it names.
 
+    A `section` heading narrows both to that `## ` section.
     e.g. absent `x` on line 3 of mf-release → "skills/mf-release/SKILL.md:3: names `x`"
     """
-    return _file_needle_problems(
-        base, f"skills/{name}/SKILL.md", present, absent, section
-    )
-
-
-def _file_needle_problems(
-    base: Path,
-    where: str,
-    present: tuple[str, ...] = (),
-    absent: tuple[str, ...] = (),
-    section: str = "",
-) -> list[str]:
-    """Return one line per `present` needle `where` lacks and `absent` one it names.
-
-    A `section` heading narrows both to that `## ` section.
-    """
+    where = f"skills/{name}/SKILL.md"
     text = (base / where).read_text()
     lines = (
         _section_lines(text, section)
