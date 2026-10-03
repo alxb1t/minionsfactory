@@ -135,7 +135,9 @@ Open this run marked `· catch-up`, and write `catch-up` to the status log.
    `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
    `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
    `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
-   halt. `<base>` is Step 2's merge-base. A branch does not certify its own weakened gate.
+   halt. `<base>` is Step 2's merge-base. When a cut task names the recipe, show the two dry runs' diff in the
+   report and the status log, and halt on a command line the base's dry run prints and the branch's does not,
+   unless that task names it. A branch does not certify its own weakened gate.
 
 Once all pass, write `start` to the status log.
 
@@ -158,8 +160,8 @@ Once all pass, write `start` to the status log.
 The stations are **review** and **security**. Simplify already ran inside `mf-build`, fixing in place, and its
 edits are inside this range — so review verifies simplify's work rather than simplify verifying its own. The
 consequence is carried deliberately: **there is no simplify findings file at all**, and `mf-release` names
-simplify as excluded, because only the review and security files decide whether converge ran — so a simplify
-file's absence is never read as either.
+simplify as excluded, because only the diff patch and the review and security files decide whether converge
+ran — so a simplify file's absence is never read as either.
 
 Dispatch both **in parallel**, each a **fresh** subagent with no memory of the build, read-only apart from its
 own findings file. Give each one:

@@ -164,11 +164,11 @@ be clean.**
 
 ### D16 · Deferred work is a card in the repo's backlog
 
-**Once the loop is clean, converge fixes this run's small cards and its drift in one more round.
-A card is a finding of the check loop, or of the hand read that stands in for it; work with no finding behind it is
-planning, and lives outside the repo. Everything else becomes a card — why, when, what, priority, fix and size,
-trigger, still true? — in the gitignored `.minions/backlog.md`. The backlog never blocks a release; a paydown
-change lists the cards it closes and its release deletes them.**
+**Once the loop is clean, converge fixes this run's small cards and its drift in one more round. Everything else
+becomes a card — why, when, what, priority, fix and size, trigger, still true? — in the gitignored
+`.minions/backlog.md`. A card is a finding of the check loop, or of the hand read that stands in for it; work with no
+finding behind it is planning, and lives outside the repo. The backlog never blocks a release; a paydown change
+lists the cards it closes and its release deletes them.**
 
 - **Why:** small fixes are cheapest while the context is fresh. A backlog that blocks would block every release, and
   one kept outside the repo cannot cite `path:line`.

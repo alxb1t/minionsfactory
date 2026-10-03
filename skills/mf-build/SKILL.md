@@ -152,8 +152,8 @@ review verifies simplify's work, and no station verifies its own. Running simpli
 would land unreviewed edits after the final station had spoken.
 
 Both consequences are deliberate: there is **no simplify findings file at all**, and `mf-release` names
-simplify as excluded, because only the review and security files decide whether converge ran — so a simplify
-file's absence is never read as either.
+simplify as excluded, because only the diff patch and the review and security files decide whether converge
+ran — so a simplify file's absence is never read as either.
 
 ## Step 4 — Report, then stop
 

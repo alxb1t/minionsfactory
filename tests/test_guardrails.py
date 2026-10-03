@@ -9,10 +9,10 @@ _REPO = Path(__file__).resolve().parent.parent
 # Each needle is built from parts so this file never matches itself.
 # Why: 0023-backlog-paydown design B6.
 _SHAPES = {
-    "home path": re.compile("/(" + "Users" + "|" + "home" + r")/[A-Za-z][^/\s]*/"),
+    "home path": re.compile("/(" + "Users" + "|" + "home" + r")/[A-Za-z][\w.-]*"),
     "Anthropic key": re.compile("sk" + "-ant-"),
-    "GitHub token": re.compile("gh" + "p_|github" + "_pat_"),
-    "AWS key id": re.compile("AK" + "IA" + "[0-9A-Z]{16}"),
+    "GitHub token": re.compile("gh" + "[pousr]_|github" + "_pat_"),
+    "AWS key id": re.compile("A" + "[KS]IA" + "[0-9A-Z]{16}"),
     "private key": re.compile("-----" + "BEGIN [A-Z ]*" + "PRIVATE KEY" + "-----"),
 }
 
@@ -49,20 +49,21 @@ def test_no_tracked_file_holds_a_home_path_or_a_key() -> None:
 def test_the_guardrail_scan_reports_a_planted_path_and_key(tmp_path: Path) -> None:
     # A staged file is listed before any commit; an untracked one is not.
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    planted = "\n".join(
-        (
-            "Read me.",
-            "See /" + "Users/someone/notes.",
-            "Key: " + "sk" + "-ant-x",
-            "Token: " + "gh" + "p_x",
-            "Id: " + "AK" + "IA" + "A" * 16,
-            "-----" + "BEGIN RSA " + "PRIVATE KEY" + "-----",
-        )
+    planted = (
+        ("See /" + "Users/someone/notes.", "home path"),
+        ("Home: `/" + "home/someone`.", "home path"),
+        ("Key: " + "sk" + "-ant-x", "Anthropic key"),
+        *(("Token: " + "gh" + p + "_x", "GitHub token") for p in "pousr"),
+        ("Token: " + "github" + "_pat_x", "GitHub token"),
+        *(("Id: " + p + "IA" + "A" * 16, "AWS key id") for p in ("AK", "AS")),
+        ("-----" + "BEGIN RSA " + "PRIVATE KEY" + "-----", "private key"),
     )
-    (tmp_path / "notes.md").write_text(planted)
-    (tmp_path / "loose.md").write_text(planted)
+    text = "\n".join(("Read me.", *(line for line, _ in planted)))
+    (tmp_path / "notes.md").write_text(text)
+    (tmp_path / "loose.md").write_text(text)
     subprocess.run(["git", "add", "notes.md"], cwd=tmp_path, check=True)
 
     assert _hits(tmp_path) == [
-        f"notes.md:{number}: {kind}" for number, kind in enumerate(_SHAPES, start=2)
+        f"notes.md:{number}: {kind}"
+        for number, (_, kind) in enumerate(planted, start=2)
     ]

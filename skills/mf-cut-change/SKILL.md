@@ -108,6 +108,7 @@ verifies its own work*: the human's read in Step 9 and `mf-build`'s Step 1 are t
 Show the human: what the change does, its phases, its decision ids, the self-check table, and the file list.
 Then **wait for their OK**. On edits, go back to Step 7.
 When `## Dependencies` is not `None.`, show it word for word, and get the human's OK for each package.
+Show every `Verify:` word for word too, and get the human's OK for the commands the build will run.
 
 ## Step 10 — Commit
 

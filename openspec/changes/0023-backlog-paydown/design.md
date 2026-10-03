@@ -88,7 +88,8 @@ Every card in `backlog:`, and what happens to it.
   commit: mark it `at commit`. `I3` is checked on the tree about to be committed. `` (`0011·R4`). Replace the
   read-only bullet with [the grammar](#the-read-only-grammar) (`0011·S2`).
 - **Step 9** — append: `` When `## Dependencies` is not `None.`, show it word for word, and get the human's OK for each
-  package. `` (`0011·S1`)
+  package. `` (`0011·S1`), then `` Show every `Verify:` word for word too, and get the human's OK for the commands the
+  build will run. `` (converge pickup `S3`)
 
 ### The read-only grammar
 
@@ -137,8 +138,9 @@ listed only what to refuse.
 - **Step 2, item 3** — rewrap so `**Never weaken the gate to pass:**` sits on one line (`0013·N3`).
 - **Step 3, the last paragraph** — `` and `mf-release` therefore declares simplify out **by name** rather than
   tolerating an absent file — so that *a missing findings file is not clean* never erodes into *a missing file is
-  fine*. `` → `` and `mf-release` names simplify as excluded, because only the review and security files decide
-  whether converge ran — so a simplify file's absence is never read as either. `` (`0012·R1`)
+  fine*. `` → `` and `mf-release` names simplify as excluded, because only the diff patch and the review and
+  security files decide whether converge ran — so a simplify file's absence is never read as either. ``
+  (`0012·R1`; converge pickup `R2` names the diff patch)
 - **Stop-condition 4** — (`0011·S1`)
 
   ```markdown
@@ -267,7 +269,7 @@ checkout`.
 
 | test | holds |
 |---|---|
-| `test_no_tracked_file_holds_a_home_path_or_a_key` | no file `git ls-files` lists holds `/Users/<name>/`, `/home/<name>/`, or a key shape: the Anthropic key prefix (`sk` + `-ant-`), a GitHub token (`gh` + `p_`, `github` + `_pat_`), an AWS key id (`AK` + `IA` and 16 capitals), a PEM private-key header |
+| `test_no_tracked_file_holds_a_home_path_or_a_key` | no file `git ls-files` lists holds `/Users/<name>` or `/home/<name>`, with or without a trailing `/`, or a key shape: the Anthropic key prefix (`sk` + `-ant-`), a GitHub token (`gh` + `p_`, `o_`, `u_`, `s_` or `r_`, and `github` + `_pat_`), an AWS key id (`AK` + `IA` or `AS` + `IA` and 16 capitals), a PEM private-key header |
 | `test_the_guardrail_scan_reports_a_planted_path_and_key` | in a `git init` under `tmp_path`, a staged file holding a planted path and a planted key is reported, path and line |
 
 **`docs/principles.md`:**
@@ -292,8 +294,9 @@ checkout`.
 - **D14** — the rule's last sentence → `The diff patch or either findings file means converge ran, and then both
   files must exist and be clean.` **Accepts** → `a checkout that lost .minions/ reads as skipped, and the skip line is
   its only record. Reopen when an unattended run releases from a fresh checkout.`
-- **D16** — after the rule's first sentence add: `A card is a finding of the check loop, or of the hand read that
-  stands in for it; work with no finding behind it is planning, and lives outside the repo.`
+- **D16** — after `` …in the gitignored `.minions/backlog.md`. `` add (converge pickup `R6`): `A card is a finding
+  of the check loop, or of the hand read that stands in for it; work with no finding behind it is planning, and lives
+  outside the repo.`
 
 **`CLAUDE.md`, Guardrails, the secret bullet** — append: `` `tests/test_guardrails.py` fails on a home path or a key
 shape in any tracked file. ``
@@ -358,10 +361,11 @@ commit; more than one means design.md was deleted and added again: halt.`
 
 **`skills/mf-release/SKILL.md`:**
 
-- **Precondition 8** — the precondition 6 text above, numbered 8, with `release` for `certify` and `<base>` as
-  `git merge-base <default-branch> HEAD`.
+- **Precondition 8** — the precondition 6 text above, numbered 8, with `release` for `certify`, `<base>` as
+  `git merge-base <default-branch> HEAD`, and the diff shown in the report alone.
 - **Step 4, item 3** (review `R5`) — `the fold, the archive move and the changelog cut staged but uncommitted` →
-  `the fold and the archive move staged and the changelog cut in the working tree, all uncommitted`.
+  `the fold and the archive move staged and the changelog cut and any version bump in the working tree, all
+  uncommitted` (converge pickup `R5` adds the version bump).
 
 **The tests:**
 
@@ -369,7 +373,7 @@ commit; more than one means design.md was deleted and added again: halt.`
   twin) becomes `test_the_cut_runs_no_check` with a twin: `mf-cut-change`'s Step 8 names `run none of them`.
   `_RECIPE_HALT` becomes `changes the gate's dry run and no task at the cut names the gate recipe`.
 - `tests/test_guardrails.py` — the twin plants one line per shape, each built from parts, and expects one hit each
-  (review `R9`).
+  (review `R9`); converge pickup `R3`, `R4` and `S4` add a line per home form and per key prefix.
 
 **Residual, accepted:** a file the `Makefile` includes is read from HEAD by both dry runs, so a change to it alone
 does not show.
