@@ -11,6 +11,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 - [x] 4 — The release and its scans
 - [x] 5 — The install
 - [x] 6 — The guardrails and the docs
+- [ ] 7 — The converge findings
 
 ## 1 — The cut
 
@@ -138,3 +139,28 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 - [x] 6.5 `CLAUDE.md`: the guardrail line. Verify: `grep -c 'test_guardrails.py' CLAUDE.md` prints `1`.
 - [x] 6.6 No doc names a backlog card. Verify:
   `git grep -n -E '[0-9]{4}·[A-Z]|someday·' -- docs CLAUDE.md README.md` prints nothing.
+
+## 7 — The converge findings
+
+The cards converge left open at round 3, as [Phase 7](design.md#phase-7--the-converge-findings) says
+([B13](design.md#b13)…[B17](design.md#b17)).
+
+- [ ] 7.1 **HALT CHECK** — the text the phase replaces is there. Verify:
+  `grep -c -e 'A check is read-only when it starts with' -e 'running each read-only check' skills/mf-cut-change/SKILL.md`
+  prints `2`, and `grep -c 'changes the gate recipe and no task names the Makefile' skills/mf-converge/SKILL.md skills/mf-release/SKILL.md`
+  prints `1` for each file.
+- [ ] 7.2 Test first: `test_the_cut_runs_no_check` and its twin in place of the grammar scan, the new
+  `_RECIPE_HALT`, and the guardrail twin's planted shapes. Verify: `uv run pytest tests/test_skills.py -q` fails,
+  naming `skills/mf-cut-change/SKILL.md`.
+- [ ] 7.3 `skills/mf-cut-change/SKILL.md`: Step 8 and the `I5` and `I14` rows. Verify:
+  `grep -c -e 'A check is read-only' -e 'running each read-only check' skills/mf-cut-change/SKILL.md` prints `0`,
+  and `grep -c 'run none of them' skills/mf-cut-change/SKILL.md` prints `1`.
+- [ ] 7.4 `skills/mf-build/SKILL.md`: stop-condition 4's one-commit line. Verify:
+  `grep -c 'deleted and added again' skills/mf-build/SKILL.md` prints `1`.
+- [ ] 7.5 `skills/mf-converge/SKILL.md`: precondition 6, the fix station's bullet, Step 7's line, the card example.
+  Verify: `grep -c -e "changes the gate's dry run and no task at the cut names the gate recipe" -e "judges the previous freeze's patch" -e 'The upload reads a file of any size' -e 'does \*\*not\*\* delete, move' skills/mf-converge/SKILL.md`
+  prints `4`, and `grep -c 'A crashed converge' skills/mf-converge/SKILL.md` prints `0`.
+- [ ] 7.6 `skills/mf-release/SKILL.md`: precondition 8 and Step 4, item 3. Verify:
+  `grep -c "changes the gate's dry run and no task at the cut names the gate recipe" skills/mf-release/SKILL.md`
+  prints `1`, and `grep -c 'staged but uncommitted' skills/mf-release/SKILL.md` prints `0`.
+- [ ] 7.7 The scans pass. Verify: `uv run pytest tests/test_skills.py tests/test_guardrails.py -q` exits 0.

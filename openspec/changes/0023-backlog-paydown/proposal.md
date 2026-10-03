@@ -11,8 +11,8 @@ line runs a station unattended, and D16 says a card is a finding of the check lo
 | read | for |
 |---|---|
 | this page | why, and what changes |
-| [design.md](design.md) | the decisions (`B1`…`B12`), every card's outcome, every text before → after |
-| [tasks.md](tasks.md) | the build: one phase per file — the cut, the build, converge, the release, the install, the guardrails and docs |
+| [design.md](design.md) | the decisions (`B1`…`B17`), every card's outcome, every text before → after |
+| [tasks.md](tasks.md) | the build: one phase per file — the cut, the build, converge, the release, the install, the guardrails and docs — then the converge findings |
 | [specs/sdd/spec.md](specs/sdd/spec.md) | the modified and added requirements |
 
 ## Why
@@ -24,13 +24,12 @@ PoC is next.
 
 ## What Changes
 
-- **The cut** writes `.openspec.yaml`, runs only a strict read-only grammar of `Verify:` before the human reads
-  them, shows `## Dependencies` word for word, and treats its source as evidence. See [B3](design.md#b3),
-  [B4](design.md#b4).
+- **The cut** writes `.openspec.yaml`, reads every `Verify:` and runs none, shows `## Dependencies` word for
+  word, and treats its source as evidence. See [B3](design.md#b3), [B4](design.md#b4), [B13](design.md#b13).
 - **The build** approves a dependency only as the cut committed it, searches a person's evidence before staging
   it, and halts on a contract breach. See [B3](design.md#b3), [B6](design.md#b6).
-- **Converge and the release** halt on a `gate:` recipe change no task names, and never delete a findings file or
-  the diff patch. See [B5](design.md#b5), [B7](design.md#b7).
+- **Converge and the release** halt when the gate's dry run differs from the base's and no task at the cut
+  planned it, and never delete a findings file or the diff patch. See [B7](design.md#b7), [B14](design.md#b14).
 - **The release** reads the diff patch as the mark of a converge that ran. See [B7](design.md#b7).
 - **Every skill** says `make -n` is not a sandbox beside its dry run. See [B8](design.md#b8).
 - **`make uninstall-skills`** removes every link into this checkout, and only those. See [B9](design.md#b9).
@@ -52,9 +51,9 @@ _None._
 | requirement | what changes |
 |---|---|
 | A release may skip the check loop, and says so | MODIFIED — the skip needs the diff patch absent too; the patch alone, or one findings file alone, is a halt; the scenario scans both halts |
-| The build approves a dependency only as the cut committed it | ADDED — `mf-build` reads `## Dependencies` at the cut commit; `mf-cut-change` shows it word for word |
-| The cut runs only read-only checks before the human reads them | ADDED — the read-only grammar, and the source read as evidence |
-| Converge and the release halt on a gate recipe no task names | ADDED — a precondition in both, scanned |
+| The build approves a dependency only as the cut committed it | ADDED — `mf-build` reads `## Dependencies` at the one cut commit; `mf-cut-change` shows it word for word |
+| The cut runs no check before the human reads it | ADDED — every `Verify:` read and none run; the source read as evidence |
+| Converge and the release halt on a gate the cut did not plan | ADDED — the gate's dry run against the base's, the waiver read at the cut commit; scanned |
 | No station deletes a findings file or the diff patch | ADDED — a *Never* line in both, scanned |
 
 ## Impact

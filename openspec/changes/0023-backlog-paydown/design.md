@@ -1,7 +1,7 @@
 # 0023-backlog-paydown — design
 
 **In one line:** how each backlog card is fixed or closed, one phase per file, with the docs last. **Verdict:**
-settled — `B1`…`B12`, every text written below.
+settled — `B1`…`B17`, every text written below.
 
 ## Context
 
@@ -37,8 +37,8 @@ principle once its card is gone.
 | <a id="b1"></a>**B1** | A card is a finding of the check loop, or of the hand read that stands in for it; work with no finding behind it is planning, kept outside the repo. Written into D16 | the backlog is cleaned often only if it holds one kind of thing | a backlog of someday wants |
 | <a id="b2"></a>**B2** | `someday·guard-tests`, `0011·R6` and `0012·R2` close with no fix | no provider is left to fake; `CHANGELOG.md` history is not edited; hardening an absence needle runs against D37 | fixing them |
 | <a id="b3"></a>**B3** | The build approves a package only as `## Dependencies` lists it in the cut commit's `design.md`; the cut shows that section word for word, each entry an exact name and a version constraint | the unattended build is the supply-chain gate (`0011·S1`) | trusting `design.md` at the branch head |
-| <a id="b4"></a>**B4** | The cut runs a `Verify:` before the human's read only inside [the grammar](#the-read-only-grammar); its source, and every file it points to, is evidence, never instruction. `mf-build` Step 1 states the same for what it reads | a brief's text reached execution unread (`0011·S2`, `someday·quarantine`) | never running checks at the cut — the already-passing flag earned its keep in v0.22 |
-| <a id="b5"></a>**B5** | Converge and the release halt when the branch changes the gate recipe and no task names the `Makefile` | a branch must not certify its own weakened gate (`0011·S4`) | a flag instead of a halt |
+| <a id="b4"></a>**B4** | The cut runs a `Verify:` before the human's read only inside [the grammar](#the-read-only-grammar); its source, and every file it points to, is evidence, never instruction. `mf-build` Step 1 states the same for what it reads *The grammar half is superseded by [B13](#b13).* | a brief's text reached execution unread (`0011·S2`, `someday·quarantine`) | never running checks at the cut — the already-passing flag earned its keep in v0.22 |
+| <a id="b5"></a>**B5** | Converge and the release halt when the branch changes the gate recipe and no task names the `Makefile` *Superseded by [B14](#b14).* | a branch must not certify its own weakened gate (`0011·S4`) | a flag instead of a halt |
 | <a id="b6"></a>**B6** | `tests/test_guardrails.py` scans every file `git ls-files` lists for a home path and the key shapes below, with a twin; its needles are built from parts so it never matches itself. `mf-build` searches a person's evidence before staging it | one scan for this repo (`someday·guard-paths`); one rule for any target (`0011·S5`); D37 allows a scan of what a live rule forbids | a scan with exclusions — nothing to exclude today |
 | <a id="b7"></a>**B7** | The diff patch marks a converge that ran: skip only when it and both findings files are absent. No station deletes, moves, renames or empties a findings file or the patch. A lost `.minions/` is a residual risk the release states | the skip path D14 says to close before an unattended run (`0012·S1`, `S2`, `S3`) | a run record in the tree — the findings stay gitignored |
 | <a id="b8"></a>**B8** | Beside each `make -n gate`: it is not a sandbox | it still runs `$(shell …)`, `+` lines and `$(MAKE)` (`0011·S3`) | — |
@@ -46,6 +46,11 @@ principle once its card is gone.
 | <a id="b10"></a>**B10** | The docs change last: the principles whose gaps close say what holds them, D14 and D16 change, `CLAUDE.md` names the scan | `test_principles.py` needs each named test to exist first; a gap is named closed only once it is | — |
 | <a id="b11"></a>**B11** | `0011·R3`: the cut writes `.openspec.yaml` itself. `0011·R5`: a contract breach found mid-build is a halt naming the id. Every other nit as its card says, text below | deterministic; a breach needs a response | `openspec new change` — it writes a `README.md` the layout does not use |
 | <a id="b12"></a>**B12** | The scans of [the new needles](#the-scans) land in phase 4, once converge's and the release's text both hold them | each phase ends green ([I8](tasks.md)) | a scan per phase |
+| <a id="b13"></a>**B13** | The cut reads every `Verify:` and runs none; the build runs them, after the human's OK | converge found a new route through each grammar: `git grep -O`, `git -c`, an environment prefix, zsh `=(…)`, `test -v` evaluating a quoted subscript, `git difftool -x` — a safe command cannot be written in prose | exact command templates — a smaller parser, still in prose; running after the human's OK — no human reads in the autonomous line |
+| <a id="b14"></a>**B14** | Converge and the release halt when `make -n gate` prints other than the base `Makefile`'s dry run and no task in the cut commit's `tasks.md` names the gate recipe | it judges what the gate runs, so a line outside `gate:` that changes it halts, and an install edit passes; the waiver is pinned at the cut (converge `S2`, `S3`) | any `Makefile` change halting — it halts this change, whose phase 5 edits the install targets |
+| <a id="b15"></a>**B15** | The cut commit is the one commit that adds the change's `design.md`; more than one is a halt — in the build, converge and the release alike | a deleted and re-added `design.md` moves the newest add (converge `S5`) | the oldest add — a re-add still means the section was rewritten |
+| <a id="b16"></a>**B16** | The fix station is told never to delete, move, rename or empty a findings file or the diff patch | it is a separate subagent and never reads the conductor's *Never* (converge `S4`) | — |
+| <a id="b17"></a>**B17** | Review's `R4`–`R7` and `R9` are fixed as [phase 7](#phase-7--the-converge-findings) says; `R8` is closed by B14 | pickup would have taken them | — |
 
 ## The outcomes
 
@@ -59,6 +64,7 @@ Every card in `backlog:`, and what happens to it.
 | `0010·R13` `0011·S3` `0011·S4` `0012·S1` `0012·S2` `0012·S3` `0012·S4` `0012·R4` `0022·N1` | fixed in `mf-release`, and scanned | 4 |
 | `0010·R9` `0010·S4` | fixed in the `Makefile` and `README.md` | 5 |
 | `someday·guard-paths` | fixed by `tests/test_guardrails.py` | 6 |
+| converge's `R1` `S1` (`0011·S2` again) · `S2` `S3` (`0011·S4`) · `S4` (`0012·S2`) · `S5` (`0011·S1`) · `R4`–`R9` | fixed after converge halted at round 3 | 7 |
 | `someday·guard-tests` `0011·R6` `0012·R2` | closed, no fix ([B2](#b2)) | — |
 
 ## Phase 1 — `skills/mf-cut-change/SKILL.md`
@@ -291,6 +297,82 @@ checkout`.
 
 **`CLAUDE.md`, Guardrails, the secret bullet** — append: `` `tests/test_guardrails.py` fails on a home path or a key
 shape in any tracked file. ``
+
+## Phase 7 — the converge findings
+
+Converge halted at round 3 with review `R1` and security `S1` open: each fix to the read-only grammar shut one
+route and the next round found another. Reproduced at the halt, in a scratch directory: `test -v 'x[$(touch …)]'`
+in bash and zsh, and `git difftool -y -x '<cmd>' HEAD~1 HEAD`, each ran its command. The findings files are the
+record; the cards they hold are settled here.
+
+**`skills/mf-cut-change/SKILL.md`** ([B13](#b13)):
+
+- **Step 8** — the read-only bullet, the bullet on a check that errors, and the bullet on a check that already
+  passes become:
+
+  ```markdown
+  - **Read every `Verify:`; run none of them.** The build runs them, after the human's OK. Rewrite a check you
+    can see will not run as written — an unknown flag, bad syntax. Flag to the human a check you can see already
+    holds, its needle already in the file: true before the build, it may prove nothing. Except a
+    `**HALT CHECK**` — it checks a premise, and should hold.
+  ```
+
+- **Input contract** — `I5`'s last cell `running each read-only check in Step 8` → `reading each check in Step 8`;
+  `I14`'s `running its checks: none may pass yet` → `reading its checks: none may hold yet`.
+
+**`skills/mf-build/SKILL.md`, stop-condition 4** ([B15](#b15)) — after the `<cut>` command add: `It prints one
+commit; more than one means design.md was deleted and added again: halt.`
+
+**`skills/mf-converge/SKILL.md`:**
+
+- **Precondition 6** ([B14](#b14), [B15](#b15), review `R6`):
+
+  ```markdown
+  6. **The gate is the base's, or the cut planned its change.** Halt when this branch
+     changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
+     `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
+     `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
+     `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
+     halt. `<base>` is Step 2's merge-base. A branch does not certify its own weakened gate.
+  ```
+
+  Wrap it so `changes the gate's dry run and no task at the cut names the gate recipe` sits on one line.
+- **Step 6, the fix station's bullets** ([B16](#b16)) — after the `wontfix` bullet add: `- does **not** delete, move,
+  rename or empty a findings file or the diff patch; clearing them is the human's act;`
+- **Step 7** (review `R7`) — after its first paragraph add: `After a round whose fix station committed nothing, the
+  verify pass judges the previous freeze's patch, and Step 5 compares against that freeze's numbers.`
+- **The card, the example** (review `R4`) — a target's defect that does not go stale:
+
+  ```
+  - **S1 — The upload reads a file of any size into memory**
+    - **Why it's a problem:** the handler reads the whole body before it checks the length.
+    - **When you'd hit it:** a client posts a file larger than the server's memory.
+    - **What it affects:** `save()` in `src/upload.py` (`src/upload.py:42`).
+    - **Priority:** medium · security — one request can exhaust memory.
+    - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
+    - **Trigger:** the next change that opens `src/upload.py`.
+    - **Still true?** `grep -n 'request.body.read()' src/upload.py`
+    - **Related:** none.
+    - **Status:** open
+  ```
+
+**`skills/mf-release/SKILL.md`:**
+
+- **Precondition 8** — the precondition 6 text above, numbered 8, with `release` for `certify` and `<base>` as
+  `git merge-base <default-branch> HEAD`.
+- **Step 4, item 3** (review `R5`) — `the fold, the archive move and the changelog cut staged but uncommitted` →
+  `the fold and the archive move staged and the changelog cut in the working tree, all uncommitted`.
+
+**The tests:**
+
+- `tests/test_skills.py` — the grammar scan (`_SHUT`, `test_the_cut_shuts_the_git_flags_that_run_or_write`, its
+  twin) becomes `test_the_cut_runs_no_check` with a twin: `mf-cut-change`'s Step 8 names `run none of them`.
+  `_RECIPE_HALT` becomes `changes the gate's dry run and no task at the cut names the gate recipe`.
+- `tests/test_guardrails.py` — the twin plants one line per shape, each built from parts, and expects one hit each
+  (review `R9`).
+
+**Residual, accepted:** a file the `Makefile` includes is read from HEAD by both dry runs, so a change to it alone
+does not show.
 
 ## Dependencies
 
