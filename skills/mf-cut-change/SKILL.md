@@ -179,7 +179,7 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 | **A2** | **Say what is out** | proposal ends with `## Not in this change` |
 | **A3** | **A what-changes line per requirement** | proposal lists each requirement the delta touches, one line each — a MODIFIED block hides its own diff |
 | **A4** | **Keep the old thing declared until the new one is proven** — the irreversible act is the change's last phase | a delete, a removal, a migration that cannot be undone |
-| **A5** | **Unbuilt work names its trigger, never a version** | "when the runner resumes", not "in v0.15" |
+| **A5** | **Unbuilt work names its trigger, never a version** | "when a target repo has no remote", not "in v0.15" |
 | **A6** | **A minor version delivers one feature; a patch delivers none.** The repo's `CLAUDE.md` states what a patch may hold; a patch cut in a repo that states nothing is put to the human | why v0.12 and v0.13 are two versions |
 | **A7** | **A decision in force is edited where it lives** | when the repo has `docs/decisions.md`, a change that adds or overturns a decision in force names that page in a task. The page says what holds; `design.md` says how it came about |
 
@@ -199,7 +199,8 @@ bounds the choice; with none, use the models this session offers.
 The highest row any phase matches decides.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
-  path, a dependency, or an anchored harm means run it, in the build's model. Say which you found.
+  path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
+  output — means run it, in the build's model. Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```

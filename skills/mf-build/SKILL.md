@@ -123,9 +123,9 @@ phase and its `N.M` boxes, and commit — staging the person's evidence files by
    A phase that retires something carries `W2`'s list in its commit body, one line per hit, as its own
    paragraph before the trailer block:
 
-       retired: read_change_state → load_change
-         orchestrator/state.py — fixed
-         docs/modules/state.md — fixed
+       retired: docs/sdd.md → docs/principles.md
+         skills/mf-build/SKILL.md — fixed
+         CLAUDE.md — fixed
          openspec/specs/sdd/spec.md — kept: a spec names the old term until the fold
 
 Only then take the next unticked phase, from Step 2 again, until every box is ticked.
@@ -217,7 +217,7 @@ comments next to it — never a whole file unasked; a task that says "rewrite X"
 | **C5** | **No history** — no "used to", "was changed in v0.8", "previously"; history is git and CHANGELOG | isekai: *"the comment above `PINNED` states the rule, never its history"* |
 | **C6** | **Cite where the reason lives; do not copy it** — a reason past 3 lines goes to a doc or `design.md`, and the comment links | `# why: 0011 design D1` |
 | **C7** | **3 lines at most**; longer is a doc, and `C6` applies | a comment is read beside the code, not instead of a doc |
-| **C8** | **A workaround names when it can go** — a trigger, never a version; no bare `TODO` | `# remove when the runner runs make gate` |
+| **C8** | **A workaround names when it can go** — a trigger, never a version; no bare `TODO` | `# remove when the OpenSpec CLI checks version:` |
 | **C9** | **Show the shape when it is not obvious** — one input → output line in the docstring | `e.g. "0011-cut-and-gate" → 11` |
 | **C10** | **One word per thing** — the term the docs and specs use (`P10`) | *change*, never also *plan* |
 | **C11** | **No diagrams or tables in comments** — they belong in docs; link to them | keeps `C7` true |

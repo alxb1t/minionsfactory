@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tests carry no `spec` markers: review judges whether a test proves a scenario (D36).
 - **The absence tests** (change `0022-runner-retires`, phase 2). `tests/test_conventions.py` is deleted: no test
   scans for retired names, and a retirement is checked once by its own change (D37).
+- **The runner's mentions** (change `0022-runner-retires`, phase 3). `CLAUDE.md`, both READMEs, the `Makefile`,
+  `.gitignore`, `openspec/config.yaml` and the `mf-build` and `mf-cut-change` examples stop naming the runner.
+  `mf-cut-change` now names the anchored harms in its converge suggestion.
 
 ## [0.21.0] - 2026-10-02
 

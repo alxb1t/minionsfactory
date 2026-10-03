@@ -7,7 +7,7 @@ deleted last ([R11](design.md#r11)).
 
 - [x] 1 — The binding stops
 - [x] 2 — The absence tests go
-- [ ] 3 — The text follows
+- [x] 3 — The text follows
 - [ ] 4 — The runner goes
 
 ## 1 — The binding stops
@@ -54,23 +54,23 @@ No test asserts an absence ([R4](design.md#r4), D37).
 
 No live text names the runner ([R8](design.md#r8), [R10](design.md#r10)).
 
-- [ ] 3.1 `CLAUDE.md` `:41`, `:51-59` and `:70-71`: the phase 3 edits of [its section](design.md#claudemd). Verify:
+- [x] 3.1 `CLAUDE.md` `:41`, `:51-59` and `:70-71`: the phase 3 edits of [its section](design.md#claudemd). Verify:
   `grep -c -E 'orchestrator|runner|env\.example' CLAUDE.md` prints `0`.
-- [ ] 3.2 `README.md` `:64-69`: delete the runner's section. Verify: `grep -c -E 'orchestrator|runner' README.md`
+- [x] 3.2 `README.md` `:64-69`: delete the runner's section. Verify: `grep -c -E 'orchestrator|runner' README.md`
   prints `0`.
-- [ ] 3.3 `docs/README.md` `:25-29`: delete the `## Deprecated` section. Verify:
+- [x] 3.3 `docs/README.md` `:25-29`: delete the `## Deprecated` section. Verify:
   `grep -c -E 'orchestrator|Deprecated|modules/' docs/README.md` prints `0`.
-- [ ] 3.4 `Makefile` `:7-8`: the comment, as [its section](design.md#makefile) says. Verify:
+- [x] 3.4 `Makefile` `:7-8`: the comment, as [its section](design.md#makefile) says. Verify:
   `grep -c 'runner' Makefile` prints `0`.
-- [ ] 3.5 `openspec/config.yaml`: the proposal, design and tasks rules of [its section](design.md#openspecconfigyaml), closing `0020·N3`.
+- [x] 3.5 `openspec/config.yaml`: the proposal, design and tasks rules of [its section](design.md#openspecconfigyaml), closing `0020·N3`.
   Verify: `grep -c -E 'seams \(|state\.py|reader requires|progress parser' openspec/config.yaml` prints `0`.
-- [ ] 3.6 `skills/mf-build/SKILL.md`: the `W2` example at `:126-129` and `C8`'s example at `:220`, as
+- [x] 3.6 `skills/mf-build/SKILL.md`: the `W2` example at `:126-129` and `C8`'s example at `:220`, as
   [its section](design.md#skillsmf-buildskillmd) says. Verify: `grep -c -E 'orchestrator|the runner' skills/mf-build/SKILL.md`
   prints `0`.
-- [ ] 3.7 `skills/mf-cut-change/SKILL.md`: `A5`'s example at `:182`, and the harms in the **Converge** bullet at
+- [x] 3.7 `skills/mf-cut-change/SKILL.md`: `A5`'s example at `:182`, and the harms in the **Converge** bullet at
   `:201-202`, closing `0021·N1`. Verify: `grep -c 'the runner' skills/mf-cut-change/SKILL.md` prints `0`, and
   `grep -c 'data loss' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 3.8 No live doc, skill or config names the runner. Verify:
+- [x] 3.8 No live doc, skill or config names the runner. Verify:
   `git grep -n -E 'orchestrator|prompts/|docs/modules|architecture\.md' -- CLAUDE.md README.md docs/README.md docs/principles.md docs/decisions.md docs/autonomous.md skills Makefile openspec/config.yaml .github`
   prints nothing.
 
