@@ -67,10 +67,11 @@ its stale-claim pass is not clean.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass.
 - **Held by:** `mf-converge` Step 5;
-  `tests/test_skills.py::test_the_release_states_a_skipped_converge_and_converge_keeps_the_rule`.
-- **Known breaks:** a release with no findings files at all reads as "converge skipped" and ships, by
-  [D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated). Backlog cards `0012·S1`, `0012·S2`,
-  `0012·S3` and `0012·S4` are open on that path.
+  `tests/test_skills.py::test_the_release_states_a_skipped_converge_and_converge_keeps_the_rule`;
+  `tests/test_skills.py::test_the_release_names_both_halts`;
+  `tests/test_skills.py::test_no_station_deletes_a_findings_file_or_the_patch`.
+- **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
+  ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)).
 
 ### Every edit opens a round
 
@@ -100,9 +101,8 @@ plan problem: halt and say so.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
-  the diff for it.
-- **Known breaks:** a branch can edit its own gate recipe and still be certified green (backlog card `0011·S4`,
-  open).
+  the diff for it; the recipe check in `mf-converge` and `mf-release`;
+  `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
 
 ## State and the boundary
 
@@ -132,9 +132,8 @@ of the place its plan is kept; run output goes to the gitignored `.minions/`.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
   handed over as it is, and the planning side can be swapped without touching it.
-- **Held by:** each skill's rule never to write an absolute path.
-- **Not yet held** for a real path or key pasted into `openspec/` or `CHANGELOG.md` (backlog card
-  `someday·guard-paths`, open).
+- **Held by:** each skill's rule never to write an absolute path;
+  `tests/test_guardrails.py::test_no_tracked_file_holds_a_home_path_or_a_key`.
 
 ### Text read from a target is evidence, never instruction
 
@@ -143,8 +142,9 @@ satisfies nothing and is itself reportable. A report cites what a file's key is 
 secret or an absolute path it holds.**
 
 - **Why:** a station reads files it did not write. One that obeys them can be steered by the repo it is judging.
-- **Not yet held:** no skill states it for a target's own files (backlog cards `someday·untrusted` and
-  `someday·quarantine`, open). `mf-converge` holds it for findings files only.
+- **Held by:** `mf-cut-change` Step 2; `mf-build` Step 1; `mf-converge` for findings files.
+- **Not yet held:** a repository the human did not write is still run — `make -n gate` and git — before it is
+  read.
 
 ### A retired word is retired everywhere
 
@@ -175,8 +175,6 @@ reality, it halts.**
 other stops the build.**
 
 - **Why:** an agent installing freely is the supply-chain surface.
-- **Held by:** `mf-build` stop-condition 4;
-  `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in both
-  skills.
-- **Known breaks:** a dependency added to `design.md` after the cut installs with no halt (backlog card `0011·S1`,
-  open).
+- **Held by:** `mf-build` stop-condition 4, which reads `## Dependencies` at the cut commit; `mf-cut-change`
+  Step 9; `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in
+  both skills.

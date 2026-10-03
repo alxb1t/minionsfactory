@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A guardrail scan for home paths and keys** (change `0023-backlog-paydown`, phase 6). `tests/test_guardrails.py`
+  fails on a home path or a key shape in any tracked file. The principles name what now holds each closed gap, and
+  D14 and D16 change: a card is a finding of the check loop.
+
 ### Changed
 
 - **The cut runs only read-only checks** (change `0023-backlog-paydown`, phase 1). `mf-cut-change` runs a `Verify:`

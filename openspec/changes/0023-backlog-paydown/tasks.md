@@ -10,7 +10,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 - [x] 3 — Converge
 - [x] 4 — The release and its scans
 - [x] 5 — The install
-- [ ] 6 — The guardrails and the docs
+- [x] 6 — The guardrails and the docs
 
 ## 1 — The cut
 
@@ -123,18 +123,18 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 `tests/test_guardrails.py`, `docs/principles.md`, `docs/decisions.md` and `CLAUDE.md`, as
 [Phase 6](design.md#phase-6--the-guardrails-and-the-docs) says ([B6](design.md#b6), [B10](design.md#b10)).
 
-- [ ] 6.1 **HALT CHECK** — the principles name the cards this change closes. Verify:
+- [x] 6.1 **HALT CHECK** — the principles name the cards this change closes. Verify:
   `grep -c -e '0011·S1' -e '0011·S4' -e 'someday·guard-paths' -e 'someday·untrusted' -e '0012·S4' docs/principles.md`
   prints `5`.
-- [ ] 6.2 Test first: `tests/test_guardrails.py`, the scan and its planted twin. Verify:
+- [x] 6.2 Test first: `tests/test_guardrails.py`, the scan and its planted twin. Verify:
   `uv run pytest tests/test_guardrails.py -q` exits 0, and the twin fails when the scan returns no hits.
-- [ ] 6.3 `docs/principles.md`: the **Held by**, **Known breaks** and **Not yet held** lines of the principles
+- [x] 6.3 `docs/principles.md`: the **Held by**, **Known breaks** and **Not yet held** lines of the principles
   [Phase 6](design.md#phase-6--the-guardrails-and-the-docs) names. Verify:
   `grep -c -E '[0-9]{4}·[A-Z]|someday·' docs/principles.md` prints `0`, and
   `grep -c 'test_guardrails.py::' docs/principles.md` prints `1`.
-- [ ] 6.4 `docs/decisions.md`: D14 and D16 (`A7`). Verify:
+- [x] 6.4 `docs/decisions.md`: D14 and D16 (`A7`). Verify:
   `grep -c 'Reopen before any unattended run' docs/decisions.md` prints `0`, and
   `grep -c 'a finding of the check loop' docs/decisions.md` prints `1`.
-- [ ] 6.5 `CLAUDE.md`: the guardrail line. Verify: `grep -c 'test_guardrails.py' CLAUDE.md` prints `1`.
-- [ ] 6.6 No doc names a backlog card. Verify:
+- [x] 6.5 `CLAUDE.md`: the guardrail line. Verify: `grep -c 'test_guardrails.py' CLAUDE.md` prints `1`.
+- [x] 6.6 No doc names a backlog card. Verify:
   `git grep -n -E '[0-9]{4}·[A-Z]|someday·' -- docs CLAUDE.md README.md` prints nothing.

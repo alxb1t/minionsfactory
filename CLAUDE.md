@@ -58,6 +58,6 @@ and no prose here copies them.
   history. Paths a fixture or a worked example
   *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
   one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` stays
-  path-free.
+  path-free. `tests/test_guardrails.py` fails on a home path or a key shape in any tracked file.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.
