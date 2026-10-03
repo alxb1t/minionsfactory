@@ -10,10 +10,8 @@ _REPO = Path(__file__).resolve().parent.parent
 # Why: 0023-backlog-paydown design B6.
 _SHAPES = {
     "home path": re.compile("/(" + "Users" + "|" + "home" + r")/[A-Za-z][^/\s]*/"),
-    "Anthropic key": re.compile(re.escape("sk" + "-ant-")),
-    "GitHub token": re.compile(
-        re.escape("gh" + "p_") + "|" + re.escape("github" + "_pat_")
-    ),
+    "Anthropic key": re.compile("sk" + "-ant-"),
+    "GitHub token": re.compile("gh" + "p_|github" + "_pat_"),
     "AWS key id": re.compile("AK" + "IA" + "[0-9A-Z]{16}"),
     "private key": re.compile("-----" + "BEGIN [A-Z ]*" + "PRIVATE KEY" + "-----"),
 }
@@ -32,7 +30,9 @@ def _hits(root: Path) -> list[str]:
         path = root / name
         if not path.is_file():
             continue
-        text = path.read_bytes().decode(errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if not any(shape.search(text) for shape in _SHAPES.values()):
+            continue
         for number, line in enumerate(text.splitlines(), start=1):
             hits += [
                 f"{name}:{number}: {kind}"
