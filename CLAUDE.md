@@ -36,8 +36,7 @@ and no prose here copies them.
 ## Layout — where things live here
 
 - **`skills/`** — the `mf-*` skills, one `SKILL.md` each: cut, build, converge, release. Tracked here and
-  installed by symlink (`make install-skills`); a shipped skill is a role prompt, and is inside the
-  retired-vocabulary scan for that reason.
+  installed by symlink (`make install-skills`).
 - **`docs/`** — the map, the principles, the decisions, the autonomous design; and the deprecated runner's pages.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
   pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`. It is deliberately **not** in

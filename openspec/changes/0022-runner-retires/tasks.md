@@ -6,7 +6,7 @@ deleted last ([R11](design.md#r11)).
 ## Progress
 
 - [x] 1 — The binding stops
-- [ ] 2 — The absence tests go
+- [x] 2 — The absence tests go
 - [ ] 3 — The text follows
 - [ ] 4 — The runner goes
 
@@ -34,18 +34,18 @@ The gate stops checking the binding; the checker itself goes in phase 4 ([R1](de
 
 No test asserts an absence ([R4](design.md#r4), D37).
 
-- [ ] 2.1 **HALT CHECK** — `tests/test_conventions.py` is named only where this phase edits. Verify:
+- [x] 2.1 **HALT CHECK** — `tests/test_conventions.py` is named only where this phase edits. Verify:
   `git grep -l test_conventions -- . ':!openspec' ':!CHANGELOG.md'` prints `docs/principles.md` and
   `skills/mf-build/SKILL.md`, and nothing else.
-- [ ] 2.2 Delete `tests/test_conventions.py`. Verify: `test ! -e tests/test_conventions.py` exits 0.
-- [ ] 2.3 `docs/principles.md`: the **Held by** of *The repo reaches nothing outside itself*, and *A retired word is
+- [x] 2.2 Delete `tests/test_conventions.py`. Verify: `test ! -e tests/test_conventions.py` exits 0.
+- [x] 2.3 `docs/principles.md`: the **Held by** of *The repo reaches nothing outside itself*, and *A retired word is
   retired everywhere* whole, as [the principles](design.md#the-principles) says. Verify:
   `grep -c 'test_conventions' docs/principles.md` prints `0`, and `grep -c 'No standing scan' docs/principles.md`
   prints `1`.
-- [ ] 2.4 `docs/decisions.md`: add D37 after D36, and make the diagram's line `Repo conventions D19…D23, D36, D37`.
+- [x] 2.4 `docs/decisions.md`: add D37 after D36, and make the diagram's line `Repo conventions D19…D23, D36, D37`.
   Verify: `grep -c '^### D37 · ' docs/decisions.md` prints `1`, and `grep -c 'D19…D23, D36, D37' docs/decisions.md`
   prints `1`.
-- [ ] 2.5 `CLAUDE.md` `:38-40` and `skills/mf-build/SKILL.md` `:226`: the phase 2 edits of
+- [x] 2.5 `CLAUDE.md` `:38-40` and `skills/mf-build/SKILL.md` `:226`: the phase 2 edits of
   [the front door](design.md#claudemd) and [the skills](design.md#skillsmf-buildskillmd). Verify:
   `grep -c 'retired-vocabulary' CLAUDE.md` prints `0`, and `grep -c 'test_conventions' skills/mf-build/SKILL.md`
   prints `0`.

@@ -223,7 +223,7 @@ comments next to it — never a whole file unasked; a task that says "rewrite X"
 | **C11** | **No diagrams or tables in comments** — they belong in docs; link to them | keeps `C7` true |
 | **C12** | **The `W` rules apply** — no counts, no *only* without a test, and a comment the change makes false is fixed in the same change | stated once in `W` |
 
-A comment, before → after, from this repo's `tests/test_conventions.py`:
+A comment, before → after:
 
 ```
 before:  # v0.8 widened it to nine: `.github/`, `Makefile` and `pyproject.toml` were outside

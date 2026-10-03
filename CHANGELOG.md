@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The spec binding** (change `0022-runner-retires`, phase 1). `make gate` no longer runs `specs check`, and the
   tests carry no `spec` markers: review judges whether a test proves a scenario (D36).
+- **The absence tests** (change `0022-runner-retires`, phase 2). `tests/test_conventions.py` is deleted: no test
+  scans for retired names, and a retirement is checked once by its own change (D37).
 
 ## [0.21.0] - 2026-10-02
 

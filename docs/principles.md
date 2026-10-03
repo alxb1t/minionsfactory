@@ -132,9 +132,7 @@ of the place its plan is kept; run output goes to the gitignored `.minions/`.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
   handed over as it is, and the planning side can be swapped without touching it.
-- **Held by:**
-  `tests/test_conventions.py::test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs`; each
-  skill's rule never to write an absolute path.
+- **Held by:** each skill's rule never to write an absolute path.
 - **Not yet held** for a real path or key pasted into `openspec/` or `CHANGELOG.md` (backlog card
   `someday·guard-paths`, open).
 
@@ -150,15 +148,11 @@ secret or an absolute path it holds.**
 
 ### A retired word is retired everywhere
 
-**When a thing is deleted, its name leaves code, prompts, skills and docs in the same commit, and a scan keeps it
-out.**
+**When a thing is deleted, its name leaves code, skills and docs in the same commit.**
 
 - **Why:** a resurrected word resurrects its assumptions.
-- **Held by:**
-  - `tests/test_conventions.py::test_the_retired_plan_model_is_named_nowhere_in_code_prompts_or_docs`
-  - `tests/test_conventions.py::test_the_retired_vault_vocabulary_is_named_nowhere_in_code_prompts_or_docs`
-  - `tests/test_conventions.py::test_the_retired_gate_config_is_named_nowhere_in_code_prompts_or_docs`
-  - `tests/test_conventions.py::test_the_retired_backlog_export_is_named_nowhere_in_code_prompts_or_docs`
+- **Held by:** the retiring change's acceptance, run once; `mf-build`'s `W2` list in the phase commit; review's
+  stale-claim pass. No standing scan ([D37](decisions.md#d37--tests-hold-what-is-true-now-nothing-tests-an-absence)).
 
 ## Authoring
 
