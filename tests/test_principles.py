@@ -4,8 +4,6 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-
 _REPO = Path(__file__).resolve().parent.parent
 
 _NAMED_TEST = re.compile(r"`(tests/[A-Za-z0-9_/]+\.py)::([A-Za-z0-9_]+)`")
@@ -34,14 +32,12 @@ def missing_tests(text: str, root: Path) -> list[str]:
     return missing
 
 
-@pytest.mark.spec_exempt("structural — the principles page names only tests that exist")
 def test_every_test_a_principle_names_exists() -> None:
     text = (_REPO / "docs" / "principles.md").read_text()
 
     assert missing_tests(text, _REPO) == []
 
 
-@pytest.mark.spec_exempt("structural — the principles check bites")
 def test_the_check_catches_a_named_test_that_does_not_exist(tmp_path: Path) -> None:
     (tmp_path / "tests").mkdir()
     # A `def` inside a string defines nothing; a text match would count it.

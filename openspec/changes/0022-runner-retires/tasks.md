@@ -5,7 +5,7 @@ deleted last ([R11](design.md#r11)).
 
 ## Progress
 
-- [ ] 1 — The binding stops
+- [x] 1 — The binding stops
 - [ ] 2 — The absence tests go
 - [ ] 3 — The text follows
 - [ ] 4 — The runner goes
@@ -14,19 +14,19 @@ deleted last ([R11](design.md#r11)).
 
 The gate stops checking the binding; the checker itself goes in phase 4 ([R1](design.md#r1)).
 
-- [ ] 1.1 **HALT CHECK** — the binding runs only as the gate's last command. Verify: `make -n gate | tail -n 1`
+- [x] 1.1 **HALT CHECK** — the binding runs only as the gate's last command. Verify: `make -n gate | tail -n 1`
   prints `uv run python -m orchestrator specs check --strict`, and `grep -rc 'specs check' .github` prints
   `.github/workflows/ci.yml:0`.
-- [ ] 1.2 `Makefile`: delete the gate's `specs check` line at `:15`. Verify: `grep -c 'specs check' Makefile`
+- [x] 1.2 `Makefile`: delete the gate's `specs check` line at `:15`. Verify: `grep -c 'specs check' Makefile`
   prints `0`.
-- [ ] 1.3 `tests/test_skills.py` and `tests/test_principles.py`: delete every `@pytest.mark.spec(...)` and
+- [x] 1.3 `tests/test_skills.py` and `tests/test_principles.py`: delete every `@pytest.mark.spec(...)` and
   `@pytest.mark.spec_exempt(...)` decorator line ([the tests](design.md#the-tests-and-pyprojecttoml)). Verify:
   `grep -c 'pytest.mark.spec' tests/test_skills.py tests/test_principles.py` prints `tests/test_skills.py:0` and
   `tests/test_principles.py:0`.
-- [ ] 1.4 `CLAUDE.md` `:30` and `:57-58`, `README.md` `:55-56` and `:68-69`: the phase 1 edits of
+- [x] 1.4 `CLAUDE.md` `:30` and `:57-58`, `README.md` `:55-56` and `:68-69`: the phase 1 edits of
   [the front door](design.md#the-front-door). Verify: `grep -c -E 'spec binding|spec-binding' CLAUDE.md README.md`
   prints `CLAUDE.md:0` and `README.md:0`.
-- [ ] 1.5 `docs/decisions.md`: add D36 after D23, and make the diagram's line `Repo conventions D19…D23, D36`, as
+- [x] 1.5 `docs/decisions.md`: add D36 after D23, and make the diagram's line `Repo conventions D19…D23, D36`, as
   [the decisions](design.md#the-decisions) says ([R5](design.md#r5)). Verify: `grep -c '^### D36 · ' docs/decisions.md`
   prints `1`, and `grep -c 'D19…D23, D36' docs/decisions.md` prints `1`.
 

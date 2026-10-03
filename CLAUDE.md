@@ -27,7 +27,7 @@ The rules every station follows, imported here so they are in context when a lin
 ## The quality gate — `make gate`
 
 The gate is **`make gate`**, run at the repository root. It checks, in order: the lock is in sync · format ·
-lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests · the spec binding. The `Makefile`
+lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests. The `Makefile`
 recipe is this repo's only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`,
 and no prose here copies them.
 
@@ -54,8 +54,8 @@ and no prose here copies them.
 
 `orchestrator/` and `prompts/` hold a deterministic runner for the same line, with its tests. External effects
 are faked behind its seams: the **provider** (`claude -p`) behind the `Provider` Protocol (`FakeProvider`), and
-the **gate subprocess** behind the gate seam (`FakeGate`). One part stays live: `orchestrator/specs.py` is the
-spec-binding check the gate runs. The runner is not extended, and is deleted by the change that retires it.
+the **gate subprocess** behind the gate seam (`FakeGate`). The runner is not extended, and is deleted by the change
+that retires it.
 
 ---
 

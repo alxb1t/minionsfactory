@@ -52,9 +52,8 @@ A layout on disk, and nothing else: the skills install nothing into it
 
 ## This repo's gate
 
-**`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests · the
-spec-binding check. The `Makefile` recipe is the one list of its commands, so this page names the target and does
-not copy them. CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
+**`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests. The
+`Makefile` recipe is the one list of its commands, so this page names the target and does not copy them. CI (`.github/workflows/ci.yml`) runs `make gate` on every push.
 
 ## Docs
 
@@ -65,5 +64,4 @@ decisions](docs/decisions.md) and [the autonomous design](docs/autonomous.md). W
 ## The deterministic runner — deprecated
 
 `orchestrator/` and `prompts/` hold a deterministic runner for the same line. It is not extended, and is deleted by
-the change that retires it. One part stays live until then: `python -m orchestrator specs check` is
-the spec-binding check this repo's gate runs. Its design is in [architecture](docs/architecture.md).
+the change that retires it. Its design is in [architecture](docs/architecture.md).

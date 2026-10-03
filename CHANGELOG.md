@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The spec binding** (change `0022-runner-retires`, phase 1). `make gate` no longer runs `specs check`, and the
+  tests carry no `spec` markers: review judges whether a test proves a scenario (D36).
+
 ## [0.21.0] - 2026-10-02
 
 ### Added

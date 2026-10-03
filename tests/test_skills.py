@@ -3,8 +3,6 @@
 import re
 from pathlib import Path
 
-import pytest
-
 _REPO = Path(__file__).resolve().parent.parent
 
 # The three skills that must run the gate. Each states the gate rule in its own words —
@@ -41,12 +39,10 @@ def _gate_problems(base: Path) -> list[str]:
     return problems
 
 
-@pytest.mark.spec("sdd:skills-gate:skills-run-make-gate")
 def test_the_skills_run_make_gate_and_none_names_the_toml() -> None:
     assert _gate_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:skills-gate:skills-run-make-gate")
 def test_the_gate_scan_reports_a_named_toml_and_a_missing_dry_run(
     tmp_path: Path,
 ) -> None:
@@ -168,12 +164,10 @@ def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
     return _shared_id_problems(base, heading, letter)
 
 
-@pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
     assert _shared_id_problems(_REPO, "## Input contract", "I") == []
 
 
-@pytest.mark.spec("sdd:input-contract:ids-agree")
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
     assert _planted_problems(tmp_path, "## Input contract", "I") == [
         "labels differ: only in mf-build ['I2'], only in mf-cut-change []",
@@ -181,12 +175,10 @@ def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> N
     ]
 
 
-@pytest.mark.spec("sdd:prose-rules:ids-agree")
 def test_the_cut_and_the_build_carry_the_same_prose_rule_ids() -> None:
     assert _shared_id_problems(_REPO, "## Prose rules", "P") == []
 
 
-@pytest.mark.spec("sdd:prose-rules:ids-agree")
 def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
     assert _planted_problems(tmp_path, "## Prose rules", "P") == [
         "labels differ: only in mf-build ['P2'], only in mf-cut-change []",
@@ -218,12 +210,10 @@ def _card_owner_problems(base: Path) -> list[str]:
     return problems
 
 
-@pytest.mark.spec("sdd:backlog-cards:fields-agree")
 def test_only_converge_carries_the_card() -> None:
     assert _card_owner_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:backlog-cards:fields-agree")
 def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     tmp_path: Path,
 ) -> None:
@@ -286,12 +276,10 @@ def _converge_backlog_problems(base: Path) -> list[str]:
     )
 
 
-@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
 def test_converge_names_the_one_backlog_and_the_pickup_sizes() -> None:
     assert _converge_backlog_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:repo-backlog:converge-writes-one-file")
 def test_the_converge_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
     # A converge that writes the per-version file and names the sizes only in prose is
     # the skill before this change: every needle is reported.
@@ -321,12 +309,10 @@ def _release_backlog_problems(base: Path) -> list[str]:
     ) + _needle_problems(base, "mf-cut-change", present=(_PAYDOWN_KEY,))
 
 
-@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
 def test_the_release_reads_no_per_version_backlog_and_shares_the_key() -> None:
     assert _release_backlog_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:repo-backlog:release-does-not-read")
 def test_the_release_backlog_scan_reports_every_breach(tmp_path: Path) -> None:
     # A release that still blocks on the per-version file, and a cut and release that
     # never name the paydown key: every breach is reported.
@@ -361,12 +347,10 @@ def _converge_optional_problems(base: Path) -> list[str]:
     ) + _needle_problems(base, "mf-converge", present=(_MISSING_FILE_RULE,))
 
 
-@pytest.mark.spec("sdd:converge-optional:skip-is-stated")
 def test_the_release_states_a_skipped_converge_and_converge_keeps_the_rule() -> None:
     assert _converge_optional_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-optional:skip-is-stated")
 def test_the_converge_optional_scan_reports_all_three_breaches(tmp_path: Path) -> None:
     # Plant a release with no skip line that still carries the rule, and a converge
     # without it: all three breaches are reported.
@@ -397,12 +381,10 @@ def _reviewed_head_problems(base: Path) -> list[str]:
     ) + _needle_problems(base, "mf-converge", present=(_CATCH_UP,))
 
 
-@pytest.mark.spec("sdd:converge-audit:reviewed-head")
 def test_the_release_checks_the_judged_head_and_converge_catches_up() -> None:
     assert _reviewed_head_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-audit:reviewed-head")
 def test_the_reviewed_head_scan_reports_both_breaches(tmp_path: Path) -> None:
     # A release that reads only the verdicts, and a converge with no catch-up round:
     # both breaches are reported.
@@ -431,12 +413,10 @@ def _anchors_and_drift_problems(base: Path) -> list[str]:
     return _needle_problems(base, "mf-converge", present=(_REVIEW_TIERS, *_ANCHORS))
 
 
-@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
 def test_converge_names_the_anchors_and_the_drift_tier() -> None:
     assert _anchors_and_drift_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-audit:anchors-and-drift")
 def test_the_anchors_and_drift_scan_reports_every_breach(tmp_path: Path) -> None:
     # A converge that grades review `blocking | nit` and names no anchor: every
     # needle is reported.
@@ -458,12 +438,10 @@ def _repeats_problems(base: Path) -> list[str]:
     return _needle_problems(base, "mf-converge", present=_REPEAT_NEEDLES)
 
 
-@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
 def test_converge_names_the_repeat_rule() -> None:
     assert _repeats_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-audit:repeats-escalate")
 def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
     # A converge whose stations never read the backlog: both needles are reported.
     _plant(tmp_path, {"mf-converge": "Each station writes its findings file.\n"})
@@ -485,12 +463,10 @@ def _stale_claim_problems(base: Path) -> list[str]:
     return [] if count >= 2 else [f"{where}: names `{_STALE_CLAIM}` {count} time(s)"]
 
 
-@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
 def test_converge_names_the_stale_claim_pass_where_it_runs_and_is_checked() -> None:
     assert _stale_claim_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-audit:stale-claim-pass")
 def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
     # A converge that tells review to run the pass but never checks it ran.
     _plant(tmp_path, {"mf-converge": f"Review runs a {_STALE_CLAIM}.\n"})
@@ -516,12 +492,10 @@ def _red_run_problems(base: Path) -> list[str]:
     )
 
 
-@pytest.mark.spec("sdd:converge-audit:red-before-green")
 def test_converge_names_the_red_run_and_the_verify_check() -> None:
     assert _red_run_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-audit:red-before-green")
 def test_the_red_run_scan_reports_both_breaches(tmp_path: Path) -> None:
     # The scenario field named only in the card, outside Step 7, does not count.
     text = (
@@ -570,12 +544,10 @@ def _status_log_problems(base: Path) -> list[str]:
     )
 
 
-@pytest.mark.spec("sdd:converge-status:log")
 def test_converge_names_the_status_log_its_order_and_its_events() -> None:
     assert _status_log_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:converge-status:log")
 def test_the_status_log_scan_reports_every_needle(tmp_path: Path) -> None:
     # The log's needles named outside its section do not count.
     text = f"Write `{_STATUS_LOG}` {_NEWEST_ON_TOP}: {' '.join(_EVENTS)}.\n"
@@ -607,12 +579,10 @@ def _inferred_id_problems(base: Path) -> list[str]:
     return problems
 
 
-@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
 def test_build_converge_and_release_infer_the_one_active_change() -> None:
     assert _inferred_id_problems(_REPO) == []
 
 
-@pytest.mark.spec("sdd:inferred-change-id:one-active-change")
 def test_the_inferred_id_scan_reports_every_breach(tmp_path: Path) -> None:
     # The rule's needles named outside the section do not count.
     text = f"{' '.join(_INFERENCE)}\n\n{_PARAMETER}\n\n{_FORBIDS_INFERENCE}.\n"
