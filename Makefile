@@ -4,15 +4,14 @@ fix:
 	uv run ruff format .
 	uv run ruff check --fix .
 
-# The gate — this repo's ONLY list of gate commands. The mf-* skills, CI and the
-# parked runner run `make gate`; docs name it and never copy its commands.
+# The gate — this repo's ONLY list of gate commands. The mf-* skills and CI run
+# `make gate`; docs name it and never copy its commands.
 gate:
 	uv sync --locked
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run ty check
 	uv run pytest -q
-	uv run python -m orchestrator specs check --strict
 
 # Symlink the mf- execution-line skills into the operator's personal skills
 # directory — `SKILLS_DIR`, which defaults to `~/.claude/skills` and is the ONE place

@@ -11,7 +11,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10                        D11…D17
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23 · The autonomous line D24…D35
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37 · The autonomous line D24…D35
 ```
 
 ## The shape
@@ -203,7 +203,8 @@ What the skills need from a repository they work on.
 
 ## Repo conventions
 
-How versions, ids and commits are written, and what happens to what is replaced.
+How versions, ids and commits are written, what happens to what is replaced, and what a spec and a test are held
+to.
 
 ### D19 · One version line
 
@@ -254,6 +255,24 @@ in CI uses an API key.**
 held is moved to a live file. Git keeps the old text; `openspec/changes/archive/` is the only archive.**
 
 - **Why:** a second place for the truth drifts, and a stale page is read as current.
+
+### D36 · Specs are bound by review, not by a checker
+
+**A scenario says what proves it in prose; review judges whether a test proves it. No marker ties a test to a
+scenario, and the gate does not check the binding.**
+
+- **Why:** a binding checker is per-language code no target repo can run, and it made every spec carry keys only it
+  read.
+- **Gave up:** the gate failing on a requirement with no test.
+
+### D37 · Tests hold what is true now; nothing tests an absence
+
+**A test asserts a behaviour or a rule the repo holds today. A retired name leaves the tree in the commit that
+retires it, checked once by that change's acceptance. A scan may name what a live rule forbids; it never lists
+retired names.**
+
+- **Why:** a scan for retired words grows with every retirement, and tests a history rather than the system.
+- **Gave up:** a reintroduced name turning the gate red. Review's stale-claim pass looks for it instead.
 
 ## The autonomous line
 

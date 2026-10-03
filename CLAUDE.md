@@ -27,7 +27,7 @@ The rules every station follows, imported here so they are in context when a lin
 ## The quality gate — `make gate`
 
 The gate is **`make gate`**, run at the repository root. It checks, in order: the lock is in sync · format ·
-lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests · the spec binding. The `Makefile`
+lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests. The `Makefile`
 recipe is this repo's only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`,
 and no prose here copies them.
 
@@ -36,9 +36,8 @@ and no prose here copies them.
 ## Layout — where things live here
 
 - **`skills/`** — the `mf-*` skills, one `SKILL.md` each: cut, build, converge, release. Tracked here and
-  installed by symlink (`make install-skills`); a shipped skill is a role prompt, and is inside the
-  retired-vocabulary scan for that reason.
-- **`docs/`** — the map, the principles, the decisions, the autonomous design; and the deprecated runner's pages.
+  installed by symlink (`make install-skills`).
+- **`docs/`** — the map, the principles, the decisions, the autonomous design.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
   pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`. It is deliberately **not** in
   the gate — nothing in CI runs it, so a moving version can never turn CI red; it can only hand a future author
@@ -50,15 +49,6 @@ and no prose here copies them.
 
 ---
 
-## The deprecated runner
-
-`orchestrator/` and `prompts/` hold a deterministic runner for the same line, with its tests. External effects
-are faked behind its seams: the **provider** (`claude -p`) behind the `Provider` Protocol (`FakeProvider`), and
-the **gate subprocess** behind the gate seam (`FakeGate`). One part stays live: `orchestrator/specs.py` is the
-spec-binding check the gate runs. The runner is not extended, and is deleted by the change that retires it.
-
----
-
 ## Guardrails (invariants — hold for every role)
 
 - **Never commit a secret, or a *real* absolute path from the machine the run is on** — `.env` itself, an API
@@ -67,7 +57,7 @@ spec-binding check the gate runs. The runner is not extended, and is deleted by 
   *tracked* `openspec/` tree, and those tools echo absolute paths, so a real path is one careless paste away from
   history. Paths a fixture or a worked example
   *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
-  one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` / `.env.example` stay
+  one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` stays
   path-free.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.

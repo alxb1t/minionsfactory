@@ -1,10 +1,4 @@
-# Capability: sdd
-
-## Purpose
-
-The rules the `mf-*` skills hold, each proved by a scan over the skill text.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: The skills run the repository's `make gate`
 
@@ -182,3 +176,59 @@ that change's `proposal.md` `version:` and its id, else halt naming both. The sk
 - **AND** each names `no active change`
 - **AND** each names `(inferred:`
 - **AND** none names `Never infer it`
+
+## REMOVED Requirements
+
+### Requirement: Enforced binding
+
+**Reason**: the spec↔test binding is deleted; specs are bound by review, not by a checker (D36).
+
+**Migration**: none. A scenario's test is named in the change's `tasks.md` and judged by review.
+
+### Requirement: Reviewer conformance
+
+**Reason**: the runner's reviewer role is deleted; `mf-converge` review judges whether a delta is implemented and tested.
+
+**Migration**: none. Run `mf-converge`.
+
+### Requirement: Release fold
+
+**Reason**: the runner's release station is deleted; `mf-release` folds the delta.
+
+**Migration**: none. Run `mf-release`.
+
+### Requirement: Change structure
+
+**Reason**: the runner's change reader is deleted; `mf-build`'s input contract `I1`…`I15`, written by `mf-cut-change`, states a change's shape.
+
+**Migration**: none. Cut with `mf-cut-change`.
+
+### Requirement: Repository is the source of truth for change progress
+
+**Reason**: the runner's driver and its retired-vocabulary scans are deleted; `mf-build` reads progress from `tasks.md`, and no test asserts an absence (D37).
+
+**Migration**: none.
+
+### Requirement: Full backfill traceability
+
+**Reason**: the spec↔test binding is deleted, and the `spec` and `spec_exempt` markers with it (D36).
+
+**Migration**: none. Tests carry no marker.
+
+### Requirement: Commit-to-change traceability
+
+**Reason**: the runner's release gate, the one check of the trailer, is deleted; D21 keeps the trailer as a convention `mf-build` writes.
+
+**Migration**: none. Commits keep the `Change:` trailer.
+
+### Requirement: The retired gate config is named nowhere
+
+**Reason**: no test asserts an absence (D37); a retired name leaves the tree in the commit that retires it.
+
+**Migration**: none.
+
+### Requirement: The backlog export is named nowhere
+
+**Reason**: no test asserts an absence (D37); a retired name leaves the tree in the commit that retires it.
+
+**Migration**: none.

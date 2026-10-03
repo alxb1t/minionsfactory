@@ -22,11 +22,6 @@ What holds, what was chosen, and what is designed.
 | [decisions.md](decisions.md) | the choices in force, each with its reason |
 | [autonomous.md](autonomous.md) | the autonomous line's design: designed, not built |
 
-## Deprecated
-
-The deterministic runner in `orchestrator/` and `prompts/`, kept until the change that retires it. Its pages are
-[architecture.md](architecture.md) and [modules/](modules/).
-
 ## Where the rest lives
 
 | where | holds |
