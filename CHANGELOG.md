@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The cut runs only read-only checks** (change `0023-backlog-paydown`, phase 1). `mf-cut-change` runs a `Verify:`
   before the human's read only inside a strict grammar, reads its source as evidence, writes `.openspec.yaml`
   itself, and shows `## Dependencies` word for word.
+- **The build approves a dependency only as the cut committed it** (change `0023-backlog-paydown`, phase 2).
+  `mf-build` reads `## Dependencies` at the cut commit, searches a person's evidence before staging it, reads what
+  it reads as evidence, and halts on a contract breach found mid-build.
 
 ## [0.22.0] - 2026-10-03
 

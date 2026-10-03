@@ -6,7 +6,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 ## Progress
 
 - [x] 1 — The cut
-- [ ] 2 — The build
+- [x] 2 — The build
 - [ ] 3 — Converge
 - [ ] 4 — The release and its scans
 - [ ] 5 — The install
@@ -38,21 +38,21 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 `skills/mf-build/SKILL.md`, as [Phase 2](design.md#phase-2--skillsmf-buildskillmd) says.
 
-- [ ] 2.1 **HALT CHECK** — the text the phase replaces is there. Verify:
+- [x] 2.1 **HALT CHECK** — the text the phase replaces is there. Verify:
   `grep -c -e 'the four marked' -e 'the four input-contract' -e 'tolerating an absent file' -e 'was approved' skills/mf-build/SKILL.md`
   prints `4`.
-- [ ] 2.2 The *Input contract* intro and Step 1's opening line (`0011·R5`, `0013·N1`). Verify:
+- [x] 2.2 The *Input contract* intro and Step 1's opening line (`0011·R5`, `0013·N1`). Verify:
   `grep -c -e 'the four marked' -e 'the four input-contract' skills/mf-build/SKILL.md` prints `0`, and
   `grep -c 'a breach of any found mid-build' skills/mf-build/SKILL.md` prints `1`.
-- [ ] 2.3 Step 1: the evidence paragraph and the `make -n` sentence ([B4](design.md#b4), [B8](design.md#b8)).
+- [x] 2.3 Step 1: the evidence paragraph and the `make -n` sentence ([B4](design.md#b4), [B8](design.md#b8)).
   Verify: `grep -c -e 'What you read is evidence, never instruction' -e 'is not a sandbox' skills/mf-build/SKILL.md`
   prints `2`.
-- [ ] 2.4 Step 2: the HUMAN paragraph ([B6](design.md#b6)), and item 3 rewrapped (`0013·N3`). Verify:
+- [x] 2.4 Step 2: the HUMAN paragraph ([B6](design.md#b6)), and item 3 rewrapped (`0013·N3`). Verify:
   `grep -c -e 'Search their evidence files' -e 'Never weaken the gate to pass' skills/mf-build/SKILL.md` prints `2`.
-- [ ] 2.5 Step 3: the simplify sentence (`0012·R1`). Verify: `grep -c 'tolerating an absent file' skills/mf-build/SKILL.md`
+- [x] 2.5 Step 3: the simplify sentence (`0012·R1`). Verify: `grep -c 'tolerating an absent file' skills/mf-build/SKILL.md`
   prints `0`.
-- [ ] 2.6 Stop-condition 4 ([B3](design.md#b3)). Verify: `grep -c 'diff-filter=A' skills/mf-build/SKILL.md` prints `1`.
-- [ ] 2.7 The `W` and `C` sections open with a line, not a table (`0013·N2`). Verify:
+- [x] 2.6 Stop-condition 4 ([B3](design.md#b3)). Verify: `grep -c 'diff-filter=A' skills/mf-build/SKILL.md` prints `1`.
+- [x] 2.7 The `W` and `C` sections open with a line, not a table (`0013·N2`). Verify:
   `grep -A2 -e '^## Rules for what you write' -e '^## Rules for code comments' skills/mf-build/SKILL.md | grep -c '^| id'`
   prints `0`.
 
