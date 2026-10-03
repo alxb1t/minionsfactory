@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The build approves a dependency only as the cut committed it** (change `0023-backlog-paydown`, phase 2).
   `mf-build` reads `## Dependencies` at the cut commit, searches a person's evidence before staging it, reads what
   it reads as evidence, and halts on a contract breach found mid-build.
+- **Converge halts on a gate recipe no task names** (change `0023-backlog-paydown`, phase 3). `mf-converge` never
+  deletes a findings file or the diff patch, handles a fix that committed nothing, and states that
+  `/security-review` reviews the branch, not the range.
 
 ## [0.22.0] - 2026-10-03
 

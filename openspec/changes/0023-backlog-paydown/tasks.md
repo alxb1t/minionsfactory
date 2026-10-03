@@ -7,7 +7,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 - [x] 1 — The cut
 - [x] 2 — The build
-- [ ] 3 — Converge
+- [x] 3 — Converge
 - [ ] 4 — The release and its scans
 - [ ] 5 — The install
 - [ ] 6 — The guardrails and the docs
@@ -60,27 +60,27 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 `skills/mf-converge/SKILL.md`, as [Phase 3](design.md#phase-3--skillsmf-convergeskillmd) says.
 
-- [ ] 3.1 **HALT CHECK** — the text the phase replaces is there. Verify:
+- [x] 3.1 **HALT CHECK** — the text the phase replaces is there. Verify:
   `grep -c -e 'five; each one halts' -e 'It scopes its review engine to the range' -e 'exactly as Step 2 does' -e 'Pickup already ran, or the last' -e 'R5 — A crashed converge' skills/mf-converge/SKILL.md`
   prints `5`.
-- [ ] 3.2 *Where the constants come from*: the `make -n` sentence. Verify:
+- [x] 3.2 *Where the constants come from*: the `make -n` sentence. Verify:
   `grep -c 'is not a sandbox' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 3.3 *The status log*: one run heading for a catch-up run (`0018·N1`). Verify:
+- [x] 3.3 *The status log*: one run heading for a catch-up run (`0018·N1`). Verify:
   `grep -c 'A catch-up round opens its own run' skills/mf-converge/SKILL.md` prints `0`, and
   `grep -c 'checked for a catch-up round' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 3.4 Step 1: the heading, `Once all pass`, and precondition 6 ([B5](design.md#b5)). Verify:
+- [x] 3.4 Step 1: the heading, `Once all pass`, and precondition 6 ([B5](design.md#b5)). Verify:
   `grep -c 'changes the gate recipe and no task names the Makefile' skills/mf-converge/SKILL.md` prints `1`, and
   `grep -c 'five; each one halts' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 3.5 Step 3: the opening paragraph, rewrapped (`0012·R1`, `0020·N2`). Verify:
+- [x] 3.5 Step 3: the opening paragraph, rewrapped (`0012·R1`, `0020·N2`). Verify:
   `grep -c 'tolerating an absent file' skills/mf-converge/SKILL.md` prints `0`, and
   `awk 'length>190 {print FNR}' skills/mf-converge/SKILL.md` prints `3`.
-- [ ] 3.6 Step 3: the dispatch list (`0014·N2`) and *How a station scopes itself* (`0010·R7`). Verify:
+- [x] 3.6 Step 3: the dispatch list (`0014·N2`) and *How a station scopes itself* (`0010·R7`). Verify:
   `grep -c -e 'and nothing else to write,' -e 'It scopes its review engine to the range' skills/mf-converge/SKILL.md`
   prints `0`, and `grep -c 'its expected path, not a fallback' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 3.7 Step 6: the nothing-committed branch (`0010·R14`) and the re-freeze numbers (`0010·R15`). Verify:
+- [x] 3.7 Step 6: the nothing-committed branch (`0010·R14`) and the re-freeze numbers (`0010·R15`). Verify:
   `grep -c -e 'If the fix station committed nothing' -e 'stays the merge-base' skills/mf-converge/SKILL.md` prints
   `2`, and `grep -c 'exactly as Step 2 does' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 3.8 Step 8, item 1 (`0017·N1`); the card example's id (`0014·N1`); the *Never* line ([B7](design.md#b7)).
+- [x] 3.8 Step 8, item 1 (`0017·N1`); the card example's id (`0014·N1`); the *Never* line ([B7](design.md#b7)).
   Verify: `grep -c -e 'this run is a catch-up round' -e 'S1 — A crashed converge' -e 'Never delete, move, rename or empty a findings file or the diff patch' skills/mf-converge/SKILL.md`
   prints `3`.
 
