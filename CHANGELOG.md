@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-03
+
 ### Added
 
 - **A guardrail scan for home paths and keys** (change `0023-backlog-paydown`, phase 6). `tests/test_guardrails.py`
