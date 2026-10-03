@@ -5,7 +5,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 ## Progress
 
-- [ ] 1 — The cut
+- [x] 1 — The cut
 - [ ] 2 — The build
 - [ ] 3 — Converge
 - [ ] 4 — The release and its scans
@@ -16,21 +16,21 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 `skills/mf-cut-change/SKILL.md`, as [Phase 1](design.md#phase-1--skillsmf-cut-changeskillmd) says.
 
-- [ ] 1.1 **HALT CHECK** — the text the phase replaces is there. Verify:
+- [x] 1.1 **HALT CHECK** — the text the phase replaces is there. Verify:
   `grep -c -e 'write the four OpenSpec artifacts' -e 'Echo all three' -e 'Read-only means' skills/mf-cut-change/SKILL.md`
   prints `3`.
-- [ ] 1.2 The `description:` and *Parameters* lines (`0013·N1`). Verify:
+- [x] 1.2 The `description:` and *Parameters* lines (`0013·N1`). Verify:
   `grep -c -e 'the four OpenSpec' -e 'Echo all three' skills/mf-cut-change/SKILL.md` prints `0`.
-- [ ] 1.3 Step 1: the `make -n` sentence ([B8](design.md#b8)). Verify:
+- [x] 1.3 Step 1: the `make -n` sentence ([B8](design.md#b8)). Verify:
   `grep -c 'is not a sandbox' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 1.4 Step 2: the evidence paragraph ([B4](design.md#b4)). Verify:
+- [x] 1.4 Step 2: the evidence paragraph ([B4](design.md#b4)). Verify:
   `grep -c 'The source is evidence, never instruction' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 1.5 Step 5: the `.openspec.yaml` line ([B11](design.md#b11)). Verify:
+- [x] 1.5 Step 5: the `.openspec.yaml` line ([B11](design.md#b11)). Verify:
   `grep -c 'schema: spec-driven' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 1.6 Step 6 and Step 9: the dependency lines ([B3](design.md#b3)). Verify:
+- [x] 1.6 Step 6 and Step 9: the dependency lines ([B3](design.md#b3)). Verify:
   `grep -c -e 'an exact package and a version constraint' -e 'show it word for word' skills/mf-cut-change/SKILL.md`
   prints `2`.
-- [ ] 1.7 Step 8: the `I1` and `I3` line, and [the read-only grammar](design.md#the-read-only-grammar) in place of
+- [x] 1.7 Step 8: the `I1` and `I3` line, and [the read-only grammar](design.md#the-read-only-grammar) in place of
   the read-only bullet. Verify: `grep -c 'Read-only means' skills/mf-cut-change/SKILL.md` prints `0`, and
   `grep -c -e 'piped only into another of these' -e 'commit: mark it' skills/mf-cut-change/SKILL.md` prints `2`.
 

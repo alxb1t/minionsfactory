@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The cut runs only read-only checks** (change `0023-backlog-paydown`, phase 1). `mf-cut-change` runs a `Verify:`
+  before the human's read only inside a strict grammar, reads its source as evidence, writes `.openspec.yaml`
+  itself, and shows `## Dependencies` word for word.
+
 ## [0.22.0] - 2026-10-03
 
 ### Removed
