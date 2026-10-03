@@ -139,12 +139,13 @@ frozen diff, so review judges them. Simplify is a producer, not a checker: it ho
 ### D14 · Converge is optional, and a skip is stated
 
 **A change may be released without the check loop. The release then writes `converge: skipped` into its report and
-the release commit. If either findings file exists, both must be clean.**
+the release commit. The diff patch or either findings file means converge ran, and then both files must exist and
+be clean.**
 
 - **Why:** a prose-only change read by hand does not earn the engine passes, and a silent skip would look like a
   pass.
-- **Accepts:** a converge that crashed after its freeze, or whose files were deleted, reads as skipped (backlog
-  cards `0012·S1`, `0012·S2` and `0012·S3`, open). Reopen before any unattended run releases with converge off.
+- **Accepts:** a checkout that lost `.minions/` reads as skipped, and the skip line is its only record. Reopen
+  when an unattended run releases from a fresh checkout.
 
 ### D15 · Anchored harms block; drift never does
 
@@ -165,8 +166,9 @@ the release commit. If either findings file exists, both must be clean.**
 
 **Once the loop is clean, converge fixes this run's small cards and its drift in one more round. Everything else
 becomes a card — why, when, what, priority, fix and size, trigger, still true? — in the gitignored
-`.minions/backlog.md`. The backlog never blocks a release; a paydown change lists the cards it closes and its
-release deletes them.**
+`.minions/backlog.md`. A card is a finding of the check loop, or of the hand read that stands in for it; work with no
+finding behind it is planning, and lives outside the repo. The backlog never blocks a release; a paydown change
+lists the cards it closes and its release deletes them.**
 
 - **Why:** small fixes are cheapest while the context is fresh. A backlog that blocks would block every release, and
   one kept outside the repo cannot cite `path:line`.

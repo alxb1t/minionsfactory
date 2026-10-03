@@ -594,3 +594,97 @@ def test_the_inferred_id_scan_reports_every_breach(tmp_path: Path) -> None:
         expected += [f"{where} `{_PARAMETER}`: does not name `{n}`" for n in _INFERENCE]
         expected.append(f"{where}:5: names `{_FORBIDS_INFERENCE}`")
     assert _inferred_id_problems(tmp_path) == expected
+
+
+# The diff patch marks a converge that ran, so the release halts on a lone patch as on
+# a lone findings file. Why: 0023-backlog-paydown design B7.
+_RELEASE_HALTS = (
+    "one file without the other is a halt",
+    "The diff patch without a findings file is a halt",
+)
+
+
+def _release_halts_problems(base: Path) -> list[str]:
+    """Return one line per halt `base`'s release does not name."""
+    return _needle_problems(base, "mf-release", present=_RELEASE_HALTS)
+
+
+def test_the_release_names_both_halts() -> None:
+    assert _release_halts_problems(_REPO) == []
+
+
+def test_the_release_halts_scan_reports_both_needles(tmp_path: Path) -> None:
+    # A release that reads only the findings files, and wraps the lone-file halt.
+    text = (
+        "Either findings file → converge ran, and one file without\nthe other halts.\n"
+    )
+    _plant(tmp_path, {"mf-release": text})
+
+    assert _release_halts_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{n}`" for n in _RELEASE_HALTS
+    ]
+
+
+# Converge and the release each hold a rule as one literal line.
+# Why: 0023-backlog-paydown design B7, B14.
+_CHECKERS = ("mf-converge", "mf-release")
+_RECIPE_HALT = "changes the gate's dry run and no task at the cut names the gate recipe"
+_NEVER_DELETE = "Never delete, move, rename or empty a findings file or the diff patch"
+
+
+def _both_name_problems(base: Path, needle: str) -> list[str]:
+    """Return one line per skill in `_CHECKERS` that does not name `needle`."""
+    return [p for n in _CHECKERS for p in _needle_problems(base, n, present=(needle,))]
+
+
+def _planted_both_name_problems(base: Path, needle: str) -> list[str]:
+    """Return what the scan reports for a converge and a release that lack `needle`."""
+    _plant(base, dict.fromkeys(_CHECKERS, "Freeze the diff, then read the verdicts.\n"))
+    return _both_name_problems(base, needle)
+
+
+def test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change() -> None:
+    assert _both_name_problems(_REPO, _RECIPE_HALT) == []
+
+
+def test_the_recipe_halt_scan_reports_both_skills(tmp_path: Path) -> None:
+    assert _planted_both_name_problems(tmp_path, _RECIPE_HALT) == [
+        f"skills/{n}/SKILL.md: does not name `{_RECIPE_HALT}`" for n in _CHECKERS
+    ]
+
+
+def test_no_station_deletes_a_findings_file_or_the_patch() -> None:
+    assert _both_name_problems(_REPO, _NEVER_DELETE) == []
+
+
+def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
+    assert _planted_both_name_problems(tmp_path, _NEVER_DELETE) == [
+        f"skills/{n}/SKILL.md: does not name `{_NEVER_DELETE}`" for n in _CHECKERS
+    ]
+
+
+# The cut reads every `Verify:` and runs none; the build runs them after the human's OK.
+# A safe command cannot be written in prose. Why: 0023-backlog-paydown design B13.
+_SELF_CHECK = "## Step 8 — Self-check"
+_RUNS_NONE = "run none of them"
+
+
+def _runs_no_check_problems(base: Path) -> list[str]:
+    """Return a line if `base`'s cut does not say in Step 8 that it runs no check."""
+    return _needle_problems(
+        base, "mf-cut-change", present=(_RUNS_NONE,), section=_SELF_CHECK
+    )
+
+
+def test_the_cut_runs_no_check() -> None:
+    assert _runs_no_check_problems(_REPO) == []
+
+
+def test_the_runs_no_check_scan_reports_a_cut_that_runs_them(tmp_path: Path) -> None:
+    # A cut that runs its checks in Step 8, and names the needle in another section.
+    text = f"{_SELF_CHECK}\n\nRun each read-only check.\n\n## Never\n\n{_RUNS_NONE}\n"
+    _plant(tmp_path, {"mf-cut-change": text})
+
+    assert _runs_no_check_problems(tmp_path) == [
+        f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{_RUNS_NONE}`"
+    ]

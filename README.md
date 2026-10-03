@@ -33,7 +33,7 @@ The skills install into your personal skills directory as symlinks (the `Makefil
 
 ```bash
 make install-skills      # symlink skills/mf-* into your personal skills directory
-make uninstall-skills    # remove exactly those symlinks
+make uninstall-skills    # remove the symlinks into this checkout
 ```
 
 ## What a target repo needs

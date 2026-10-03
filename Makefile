@@ -19,8 +19,8 @@ gate:
 # paths may appear). Override it to install elsewhere, or to exercise these targets
 # against a scratch destination. A symlink, not a copy: an edit in this tree is live in
 # the next session with no re-install, which is what a skill under iteration needs. The
-# ordering constraint runs the other way — if these skills are ever deleted, remove the
-# symlinks BEFORE deleting the directory they point at, or the install is left dangling.
+# ordering constraint runs the other way — if this checkout is ever deleted, remove the
+# symlinks BEFORE deleting it, or the install is left dangling.
 SKILLS_DIR ?= $(HOME)/.claude/skills
 
 # Two rules make this an install rather than a claim about one. The loop is joined with
@@ -45,16 +45,14 @@ install-skills:
 		ln -sfn "$(CURDIR)/$$d" "$$dest" && echo "linked $$dest -> $$d" || exit 1; \
 	done
 
-# Remove symlinks of these names from the skills directory — and only symlinks, so a
-# real directory of the same name in the operator's tree is never touched. `&&`-joined
-# for the same reason the install is: a failed `rm` must fail the target rather than be
-# reported as a removal.
+# Remove every `mf-*` symlink in the skills directory that points into this checkout's
+# `skills/` — a link to a skill since deleted included — and leave a link into another
+# checkout, and anything not a symlink, alone. `&&`-joined for the same reason the
+# install is: a failed `rm` must fail the target rather than be reported as a removal.
 uninstall-skills:
-	@for d in skills/mf-*; do \
-		[ -d "$$d" ] || continue; \
-		name=$$(basename "$$d"); \
-		dest="$(SKILLS_DIR)/$$name"; \
-		if [ -L "$$dest" ]; then \
-			rm "$$dest" && echo "removed $$dest" || exit 1; \
-		fi; \
+	@for dest in "$(SKILLS_DIR)"/mf-*; do \
+		[ -L "$$dest" ] || continue; \
+		case "$$(readlink "$$dest")" in \
+			"$(CURDIR)/skills/"*) rm "$$dest" && echo "removed $$dest" || exit 1 ;; \
+		esac; \
 	done

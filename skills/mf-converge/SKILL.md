@@ -34,11 +34,12 @@ The release version comes from the change's own `proposal.md` `version:` frontma
 ## Where the constants come from — disk, never a guess
 
 The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
-`make -n gate` and paste its output: it shows what will run. **Halt, naming the root `Makefile`,** when there is
-no `Makefile` at the root, when `make -n gate` exits non-zero (there is no `gate` target), or when it prints no
-command — an empty recipe, or only a line saying `is up to date` or `Nothing to be done`. Never ask for a gate,
-never substitute a command that looks like it tests things: an inferred gate is the one wrong guess that is
-*invisible* — a discovered command exits 0 and the loop converges on nothing.
+`make -n gate` and paste its output: it shows what will run. `make -n` is not a sandbox: it still runs
+`$(shell …)`, `+` lines and `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no `Makefile` at the
+root, when `make -n gate` exits non-zero (there is no `gate` target), or when it prints no command — an empty
+recipe, or only a line saying `is up to date` or `Nothing to be done`. Never ask for a gate, never substitute a
+command that looks like it tests things: an inferred gate is the one wrong guess that is *invisible* — a
+discovered command exits 0 and the loop converges on nothing.
 
 ## The status log
 
@@ -49,10 +50,10 @@ you write it, logging each dispatch, each return and each decision.
 
 - **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from
   `date '+%H:%M:%S'`, run through Bash; never write it by hand. A stale time is how a dead run shows.
-- **A run** is one invocation. Open it as soon as you have the change id: run `mkdir -p .minions/findings`,
-  create the file with a `# <change-id> — converge status` title if it is missing, and insert
-  `## Run N — <date '+%Y-%m-%d %H:%M'>` directly under the title, above the previous run. A catch-up round
-  opens its own run, its heading ending `· catch-up`.
+- **A run** is one invocation. Open it once you have the change id and have checked for a catch-up round, so
+  a catch-up run's one heading ends `· catch-up`: run `mkdir -p .minions/findings`, create the file with a
+  `# <change-id> — converge status` title if it is missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>`
+  directly under the title, above the previous run.
 - **Newest on top.** Insert each event directly under the latest `## Run` heading. Only insert; a line once
   written stays as it is.
 - **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop. A run whose top
@@ -116,7 +117,7 @@ Open this run marked `· catch-up`, and write `catch-up` to the status log.
 4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8: there is no pickup. Otherwise Step 7's own
    rules apply, under the same cap.
 
-## Step 1 — Preconditions (five; each one halts, naming what is missing)
+## Step 1 — Preconditions (each one halts, naming what is missing)
 
 1. **The tree is clean** — `git status --porcelain` is empty. Uncommitted work is not in the frozen range, so a
    station would review something other than what is on the branch. Halt.
@@ -129,8 +130,16 @@ Open this run marked `· catch-up`, and write `catch-up` to the status log.
 5. **The gate is green before round 1** — run `make gate` yourself. This is the precondition
    usually skipped, and skipping it is how a red gate at round 1 gets attributed to a station's findings instead
    of to the build: the fix pass then chases the wrong thing. Red → halt; `mf-build` owns it.
+6. **The gate is the base's, or the cut planned its change.** Halt when this branch
+   changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
+   `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
+   `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
+   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
+   halt. `<base>` is Step 2's merge-base. When a cut task names the recipe, show the two dry runs' diff in the
+   report and the status log, and halt on a command line the base's dry run prints and the branch's does not,
+   unless that task names it. A branch does not certify its own weakened gate.
 
-Once all five pass, write `start` to the status log.
+Once all pass, write `start` to the status log.
 
 ## Step 2 — Freeze the diff
 
@@ -149,17 +158,19 @@ Once all five pass, write `start` to the status log.
 ## Step 3 — Fan out (two fresh read-only subagents, in parallel)
 
 The stations are **review** and **security**. Simplify already ran inside `mf-build`, fixing in place, and its
-edits are inside this range — so review verifies simplify's work rather than simplify verifying its own. The consequence is carried deliberately: **there is no simplify findings file at all**, and
-`mf-release` declares simplify out *by name* rather than tolerating an absent file.
+edits are inside this range — so review verifies simplify's work rather than simplify verifying its own. The
+consequence is carried deliberately: **there is no simplify findings file at all**, and `mf-release` names
+simplify as excluded, because only the diff patch and the review and security files decide whether converge
+ran — so a simplify file's absence is never read as either.
 
 Dispatch both **in parallel**, each a **fresh** subagent with no memory of the build, read-only apart from its
 own findings file. Give each one:
 
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
-- its own findings path `.minions/findings/<change-id>_<role>.md`, and nothing else to write,
+- its own findings path `.minions/findings/<change-id>_<role>.md`,
 - the card, from [`## The card`](#the-card) — every finding it writes is a card;
-- `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
+- `.minions/backlog.md`, read-only, when it exists, and the repeat rule below — and nothing else to write.
 
 At dispatch, write `fan-out` to the status log.
 
@@ -171,11 +182,12 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 renames, deletes or changes, it runs `git grep` over the tree outside the diff and cards each mention the change
 made false as `drift`. Its Summary says the pass ran and names what it searched for.
 
-**How a station scopes itself.** It scopes its review engine to the range. **Only if what it reviewed came back
-empty or clearly wrong** does it fall back to reading the patch file and reviewing that — and it **states in its
-Summary which it did**, and the file count and commit count it actually resolved. The patch is fallback material,
-not the channel: a review driven only from a patch loses the file context the engine's own blame, history and
-comment passes depend on, degrading the very engine being adopted.
+**How a station scopes itself.** Review scopes its engine to the range. `/security-review` takes no target: it
+reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a
+station reviewed came back empty or clearly wrong** does it fall back to reading the patch file and reviewing
+that — and it **states in its Summary which it did**, and the file count and commit count it actually resolved.
+The patch is fallback material, not the channel: a review driven only from a patch loses the file context the
+engine's own blame, history and comment passes depend on, degrading the very engine being adopted.
 
 **Three engine overrides, no exceptions:**
 
@@ -274,19 +286,25 @@ commits. It:
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
+- does **not** delete, move, rename or empty a findings file or the diff patch; clearing them is the human's act;
 - does **not** write the backlog. Only you do, in Step 9: a second writer would duplicate ids;
 - **commits** the code fix staged **by name** (never `git add -A`), Conventional-Commits, with the trailer block
   at the end of the message — `Co-Authored-By:` and `Change: <change-id>` **contiguous**, since a blank line
   between them silently breaks the block.
+
+**If the fix station committed nothing** — every finding it took is `wontfix` — say so, write `fix` with
+`nothing committed` to the status log, skip the re-freeze, and send the verify pass to re-judge each `wontfix`
+justification against the unchanged head.
 
 Then **re-freeze the patch to the scoped range** `<previous head>..<new head>` — the head the last round judged
 to the head the fix produced — overwriting `.minions/findings/<change-id>_diff.patch`. The verify pass judges
 **the fix**, not the branch again. There are no per-round patch files: the per-round record already exists as
 each findings file's `head:` field plus the append-only `## Resolution log`, and a second record drifts.
 
-**Then print the re-frozen range's numbers exactly as Step 2 does** — `base` · `head` · commit count · files
-changed. These supersede the previous round's, and they are the ones Step 5's scope comparison uses next round.
-Each round is judged against its own freeze, so every round has its own numbers before any station speaks.
+**Then print the re-frozen range's numbers** — `<previous head>..<new head>` · commit count · files changed.
+`base` stays the merge-base Step 2 derived. These supersede the previous round's, and they are the ones Step 5's
+scope comparison uses next round. Each round is judged against its own freeze, so every round has its own
+numbers before any station speaks.
 Write `freeze` to the status log.
 
 ## Step 7 — Verify, and the cap
@@ -296,6 +314,9 @@ Re-run the gate yourself, and write `verify` to the status log. Then dispatch th
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
+
+After a round whose fix station committed nothing, the verify pass judges the previous freeze's patch, and Step 5
+compares against that freeze's numbers.
 
 A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or when
 the new test does not exercise the card's **When you'd hit it** scenario. The station cannot re-run the test on
@@ -314,8 +335,8 @@ Fix this run's small cards and its drift while their context is fresh. **A small
 whose **Fix** size is `one line`, `a test`, or `one line and a test`. The pick is mechanical: the size and the
 tier are on the card, and no human confirms it.
 
-1. **Run pickup once, and only while a round remains.** Pickup already ran, or the last judged round is at the
-   cap of three → Step 9.
+1. **Run pickup once, and only while a round remains.** Pickup already ran, this run is a catch-up round, or the
+   last judged round is at the cap of three → Step 9.
 2. **Pick every `open` small card, and every `drift` card still `open` whatever its size,** in either findings
    file. Match the size literally; a non-`drift` card sized outside [the closed set](#the-card) is not picked.
    None picked → Step 9.
@@ -379,15 +400,15 @@ This skill owns the card, and no other skill carries it: `tests/test_skills.py` 
 and name things rather than count them: "the review and security files", not "the two files".
 
 ```
-- **R5 — A crashed converge can be released as "skipped"**
-  - **Why it's a problem:** release reads "no findings files" as "converge never ran".
-  - **When you'd hit it:** converge freezes the diff, then crashes before a station writes.
-  - **What it affects:** `mf-release` Step 1, precondition 4 (`skills/mf-release/SKILL.md:65`).
-  - **Priority:** medium · security — a converge that failed ships as if skipped.
-  - **Fix:** also read the frozen diff file as "converge ran" · size: one line and a test.
-  - **Trigger:** the first release that records a skipped converge.
-  - **Still true?** `grep -n 'findings files' skills/mf-release/SKILL.md`
-  - **Related:** R4 — fix together.
+- **S1 — The upload reads a file of any size into memory**
+  - **Why it's a problem:** the handler reads the whole body before it checks the length.
+  - **When you'd hit it:** a client posts a file larger than the server's memory.
+  - **What it affects:** `save()` in `src/upload.py` (`src/upload.py:42`).
+  - **Priority:** medium · security — one request can exhaust memory.
+  - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
+  - **Trigger:** the next change that opens `src/upload.py`.
+  - **Still true?** `grep -n 'request.body.read()' src/upload.py`
+  - **Related:** none.
   - **Status:** open
 ```
 
@@ -396,6 +417,7 @@ and name things rather than count them: "the review and security files", not "th
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
   reviews yourself, and do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
+- **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert new lines only: the log is the record of what the loop did.
 - **Never pick a non-`drift` card sized `a design change`, or an older backlog card.** Pickup takes this run's
   small cards and `drift` cards only.
