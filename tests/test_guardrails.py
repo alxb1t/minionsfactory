@@ -49,9 +49,20 @@ def test_no_tracked_file_holds_a_home_path_or_a_key() -> None:
 def test_the_guardrail_scan_reports_a_planted_path_and_key(tmp_path: Path) -> None:
     # A staged file is listed before any commit; an untracked one is not.
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    planted = "Read me.\nSee /" + "Users/someone/notes.\nKey: " + "sk" + "-ant-x\n"
+    planted = "\n".join(
+        (
+            "Read me.",
+            "See /" + "Users/someone/notes.",
+            "Key: " + "sk" + "-ant-x",
+            "Token: " + "gh" + "p_x",
+            "Id: " + "AK" + "IA" + "A" * 16,
+            "-----" + "BEGIN RSA " + "PRIVATE KEY" + "-----",
+        )
+    )
     (tmp_path / "notes.md").write_text(planted)
     (tmp_path / "loose.md").write_text(planted)
     subprocess.run(["git", "add", "notes.md"], cwd=tmp_path, check=True)
 
-    assert _hits(tmp_path) == ["notes.md:2: home path", "notes.md:3: Anthropic key"]
+    assert _hits(tmp_path) == [
+        f"notes.md:{number}: {kind}" for number, kind in enumerate(_SHAPES, start=2)
+    ]

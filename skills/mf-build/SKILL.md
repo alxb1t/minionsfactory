@@ -172,9 +172,10 @@ were whole is not.
 3. **A task ambiguous enough that two readings give different work** — halt and state both readings.
 4. **A dependency that would need adding** — a package is approved only as `## Dependencies` lists it in the
    cut commit's `design.md`: `git show <cut>:openspec/changes/<change-id>/design.md`, where `<cut>` is
-   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md`. Add it as listed there. A
-   package it does not list, or a `## Dependencies` the branch changed since the cut: state the justification
-   and stop for approval. Dependencies are the supply-chain surface and are human-gated.
+   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md`. It prints one commit; more
+   than one means design.md was deleted and added again: halt. Add it as listed there. A package it does not
+   list, or a `## Dependencies` the branch changed since the cut: state the justification and stop for
+   approval. Dependencies are the supply-chain surface and are human-gated.
 5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut.
 
 ## Rules for what you write

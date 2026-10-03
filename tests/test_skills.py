@@ -626,9 +626,9 @@ def test_the_release_halts_scan_reports_both_needles(tmp_path: Path) -> None:
 
 
 # Converge and the release each hold a rule as one literal line.
-# Why: 0023-backlog-paydown design B5, B7.
+# Why: 0023-backlog-paydown design B7, B14.
 _CHECKERS = ("mf-converge", "mf-release")
-_RECIPE_HALT = "changes the gate recipe and no task names the Makefile"
+_RECIPE_HALT = "changes the gate's dry run and no task at the cut names the gate recipe"
 _NEVER_DELETE = "Never delete, move, rename or empty a findings file or the diff patch"
 
 
@@ -663,42 +663,28 @@ def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
     ]
 
 
-# The cut runs a `Verify:` before the human's read only inside the read-only grammar.
-# An assignment before the command (`GIT_EXTERNAL_DIFF=<cmd> git diff`) and a shell
-# expansion (zsh's `=(<cmd>)`) run a program the list never names, so the grammar says
-# what a check starts with and which characters it holds. Git runs a command for `-O`,
-# writes a file for `--output`, takes `-c` config before the subcommand, and accepts
-# grouped short flags and abbreviated long options, so the grammar shuts each by shape.
-# Why: 0023-backlog-paydown design B4.
+# The cut reads every `Verify:` and runs none; the build runs them after the human's OK.
+# A safe command cannot be written in prose. Why: 0023-backlog-paydown design B13.
 _SELF_CHECK = "## Step 8 — Self-check"
-_SHUT = (
-    "first word of the check and of each part after a `|`",
-    "no `NAME=value`, no `env`",
-    "Outside single quotes the check holds only letters, digits",
-    "on line numbers",
-    "its quoted words included",
-    "nothing between `git` and its subcommand",
-    "no short-option group holding `O`",
-    "no option starting `--op`, `--ou` or `--ex`",
-    "path outside the repository",
-)
+_RUNS_NONE = "run none of them"
 
 
-def _read_only_problems(base: Path) -> list[str]:
-    """Return one line per shape `base`'s cut does not shut in its Step 8."""
-    return _needle_problems(base, "mf-cut-change", present=_SHUT, section=_SELF_CHECK)
+def _runs_no_check_problems(base: Path) -> list[str]:
+    """Return a line if `base`'s cut does not say in Step 8 that it runs no check."""
+    return _needle_problems(
+        base, "mf-cut-change", present=(_RUNS_NONE,), section=_SELF_CHECK
+    )
 
 
-def test_the_cut_shuts_the_git_flags_that_run_or_write() -> None:
-    assert _read_only_problems(_REPO) == []
+def test_the_cut_runs_no_check() -> None:
+    assert _runs_no_check_problems(_REPO) == []
 
 
-def test_the_read_only_scan_reports_every_needle(tmp_path: Path) -> None:
-    # The grammar as first cut: three flags shut on `git diff` alone.
-    grammar = "`git grep`, `git diff` without `-c`, `--output` or `--ext-diff`.\n"
-    _plant(tmp_path, {"mf-cut-change": f"{_SELF_CHECK}\n\n{grammar}"})
+def test_the_runs_no_check_scan_reports_a_cut_that_runs_them(tmp_path: Path) -> None:
+    # A cut that runs its checks in Step 8, and names the needle in another section.
+    text = f"{_SELF_CHECK}\n\nRun each read-only check.\n\n## Never\n\n{_RUNS_NONE}\n"
+    _plant(tmp_path, {"mf-cut-change": text})
 
-    assert _read_only_problems(tmp_path) == [
-        f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{n}`"
-        for n in _SHUT
+    assert _runs_no_check_problems(tmp_path) == [
+        f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{_RUNS_NONE}`"
     ]

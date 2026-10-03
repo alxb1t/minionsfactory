@@ -93,20 +93,10 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 Build a table: each of `I1`…`I15`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
-- **Run every read-only `Verify:`.** A check is read-only when it starts with one of `grep`, `test`, `ls`, `wc`,
-  `cat`, `head`, `sed -n '<n>p'` or `sed -n '<n>,<m>p'` on line numbers with no other flag, or `git log`,
-  `git show`, `git ls-files`, `git grep`, `git diff` — alone, or piped only into another of these. That command is
-  the first word of the check and of each part after a `|`: no `NAME=value`, no `env`, nothing before it.
-  Outside single quotes the check holds only letters, digits, spaces, `|` and `-` `_` `.` `/` `,` `:` `%` `@` `+`
-  `=` `~`, and no argument is a path outside the repository: an assignment or a shell expansion runs a program
-  the list never names. A `git` check, its quoted words included, has nothing between `git` and its subcommand
-  (no `-c`, `-C`, `--git-dir`), no short-option group holding `O`, no option starting `--op`, `--ou` or `--ex`:
-  git takes grouped flags and abbreviations, so this shuts `-O`, `--open-files-in-pager`, `--output` and
-  `--ext-diff` whole. Any other check is read and not run.
-- A check that errors because of the command itself — an unknown flag, bad syntax — cannot run: rewrite it. An
-  error only because it reads a file the change creates is expected.
-- A check that already passes is flagged to the human: true before the build, it may prove nothing. Except a
-  `**HALT CHECK**` — it checks a premise, and should pass.
+- **Read every `Verify:`; run none of them.** The build runs them, after the human's OK. Rewrite a check you
+  can see will not run as written — an unknown flag, bad syntax. Flag to the human a check you can see already
+  holds, its needle already in the file: true before the build, it may prove nothing. Except a
+  `**HALT CHECK**` — it checks a premise, and should hold.
 - Check `P9`, `P12`, `P13` and `A2`.
 - `make gate` is green.
 
@@ -142,7 +132,7 @@ Report the branch, the commit id, and `git status --porcelain` printing nothing.
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
 | **I3** | leave `make gate` green on the cut commit | running `make gate` in Step 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
-| **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | running each read-only check in Step 8 |
+| **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | reading the phase order |
@@ -151,7 +141,7 @@ Report the branch, the commit id, and `git status --porcelain` printing nothing.
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `/simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | writing it from the `version` parameter; reading it |
-| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`), and give it at least one `Verify:` naming the evidence that closes it | running its checks: none may pass yet, or `mf-build` would close the phase unworked |
+| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`), and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 
 ## Prose rules

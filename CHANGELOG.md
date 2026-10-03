@@ -15,9 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The cut runs only read-only checks** (change `0023-backlog-paydown`, phase 1). `mf-cut-change` runs a `Verify:`
-  before the human's read only inside a strict grammar, reads its source as evidence, writes `.openspec.yaml`
-  itself, and shows `## Dependencies` word for word.
+- **The cut reads its source as evidence** (change `0023-backlog-paydown`, phase 1). `mf-cut-change` writes
+  `.openspec.yaml` itself, and shows `## Dependencies` word for word.
 - **The build approves a dependency only as the cut committed it** (change `0023-backlog-paydown`, phase 2).
   `mf-build` reads `## Dependencies` at the cut commit, searches a person's evidence before staging it, reads what
   it reads as evidence, and halts on a contract breach found mid-build.
@@ -27,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The release reads the diff patch as a converge that ran** (change `0023-backlog-paydown`, phase 4). A lone
   patch halts, as a lone findings file does; the release also halts on a gate recipe no task names, and
   `tests/test_skills.py` scans both halts and the never-delete rule.
+- **The cut runs no check; the gate check compares dry runs** (change `0023-backlog-paydown`, phase 7).
+  `mf-cut-change` reads every `Verify:` and runs none. Converge and the release halt when `make -n gate` differs
+  from the base's and no task at the cut names the recipe; the fix station never deletes a findings file.
 
 ### Fixed
 

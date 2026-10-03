@@ -130,10 +130,12 @@ Open this run marked `· catch-up`, and write `catch-up` to the status log.
 5. **The gate is green before round 1** — run `make gate` yourself. This is the precondition
    usually skipped, and skipping it is how a red gate at round 1 gets attributed to a station's findings instead
    of to the build: the fix pass then chases the wrong thing. Red → halt; `mf-build` owns it.
-6. **The gate recipe is the base's, or a task names it.** Halt when this branch
-   changes the gate recipe and no task names the Makefile: `git diff <base>..HEAD -- Makefile` touches the
-   `gate:` target's lines, and no task in `tasks.md` names `Makefile`. A branch does not certify its own
-   weakened gate.
+6. **The gate is the base's, or the cut planned its change.** Halt when this branch
+   changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
+   `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
+   `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
+   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
+   halt. `<base>` is Step 2's merge-base. A branch does not certify its own weakened gate.
 
 Once all pass, write `start` to the status log.
 
@@ -282,6 +284,7 @@ commits. It:
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
+- does **not** delete, move, rename or empty a findings file or the diff patch; clearing them is the human's act;
 - does **not** write the backlog. Only you do, in Step 9: a second writer would duplicate ids;
 - **commits** the code fix staged **by name** (never `git add -A`), Conventional-Commits, with the trailer block
   at the end of the message — `Co-Authored-By:` and `Change: <change-id>` **contiguous**, since a blank line
@@ -309,6 +312,9 @@ Re-run the gate yourself, and write `verify` to the status log. Then dispatch th
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
 counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
 the Step 5 rules.
+
+After a round whose fix station committed nothing, the verify pass judges the previous freeze's patch, and Step 5
+compares against that freeze's numbers.
 
 A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or when
 the new test does not exercise the card's **When you'd hit it** scenario. The station cannot re-run the test on
@@ -392,15 +398,15 @@ This skill owns the card, and no other skill carries it: `tests/test_skills.py` 
 and name things rather than count them: "the review and security files", not "the two files".
 
 ```
-- **S1 — A crashed converge can be released as "skipped"**
-  - **Why it's a problem:** release reads "no findings files" as "converge never ran".
-  - **When you'd hit it:** converge freezes the diff, then crashes before a station writes.
-  - **What it affects:** `mf-release` Step 1, precondition 4 (`skills/mf-release/SKILL.md:65`).
-  - **Priority:** medium · security — a converge that failed ships as if skipped.
-  - **Fix:** also read the frozen diff file as "converge ran" · size: one line and a test.
-  - **Trigger:** the first release that records a skipped converge.
-  - **Still true?** `grep -n 'findings files' skills/mf-release/SKILL.md`
-  - **Related:** R4 — fix together.
+- **S1 — The upload reads a file of any size into memory**
+  - **Why it's a problem:** the handler reads the whole body before it checks the length.
+  - **When you'd hit it:** a client posts a file larger than the server's memory.
+  - **What it affects:** `save()` in `src/upload.py` (`src/upload.py:42`).
+  - **Priority:** medium · security — one request can exhaust memory.
+  - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
+  - **Trigger:** the next change that opens `src/upload.py`.
+  - **Still true?** `grep -n 'request.body.read()' src/upload.py`
+  - **Related:** none.
   - **Status:** open
 ```
 

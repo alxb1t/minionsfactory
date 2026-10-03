@@ -85,10 +85,12 @@ exists to prevent. An absent file is never an invitation to search — precondit
    matches each file's `head:`, the last commit a round judged. A commit after it shipped unreviewed. Else →
    halt: *run `/mf-converge` — it runs a catch-up round over `<head>..HEAD`*. Checked here, before the fold, so
    the release's own commit is never the one compared.
-8. **The gate recipe is the base's, or a task names it.** Halt when this branch
-   changes the gate recipe and no task names the Makefile: `git diff <base>..HEAD -- Makefile` touches the
-   `gate:` target's lines, and no task in `tasks.md` names `Makefile`. A branch does not release its own
-   weakened gate. `<base>` is `git merge-base <default-branch> HEAD`.
+8. **The gate is the base's, or the cut planned its change.** Halt when this branch
+   changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
+   `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
+   `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
+   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
+   halt. `<base>` is `git merge-base <default-branch> HEAD`. A branch does not release its own weakened gate.
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -137,10 +139,11 @@ archived but not folded. In a repository whose gate binds specs to tests, it als
    the gate reads, so Step 1's green says nothing about the tree you just built; the working tree you are about
    to commit is what the gate must judge. **Red → halt: report it and stop, and do not repair it by weakening
    anything.** The order is the point. Nothing is committed and nothing is tagged yet, so a red gate leaves the
-   fold, the archive move and the changelog cut staged but uncommitted — report that, and name reverting them as
-   the human's: tag and commit *first* would leave a release commit and an annotated tag over a red tree,
-   and precondition 5 — the tag does not already exist — would then make every retry a guaranteed halt, a state
-   this station has no permission to leave (it may not edit feature code, and rolling back a tag is not its job).
+   fold and the archive move staged and the changelog cut in the working tree, all uncommitted — report that,
+   and name reverting them as the human's: tag and commit *first* would leave a release commit and an annotated
+   tag over a red tree, and precondition 5 — the tag does not already exist — would then make every retry a
+   guaranteed halt, a state this station has no permission to leave (it may not edit feature code, and rolling
+   back a tag is not its job).
 4. **Commit** — **one** release commit: `chore(release): <version>.0`. The fold, the archive move, the changelog
    cut and any version bump land **together**. Stage paths **by name**; never `git add -A`. Then
    `git diff --quiet` must exit 0 and `git ls-files --others --exclude-standard` must print nothing — else
