@@ -664,11 +664,19 @@ def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
 
 
 # The cut runs a `Verify:` before the human's read only inside the read-only grammar.
-# Git runs a command for `-O`, writes a file for `--output`, takes `-c` config before
-# the subcommand, and accepts grouped short flags and abbreviated long options, so the
-# grammar shuts each by shape. Why: 0023-backlog-paydown design B4.
+# An assignment before the command (`GIT_EXTERNAL_DIFF=<cmd> git diff`) and a shell
+# expansion (zsh's `=(<cmd>)`) run a program the list never names, so the grammar says
+# what a check starts with and which characters it holds. Git runs a command for `-O`,
+# writes a file for `--output`, takes `-c` config before the subcommand, and accepts
+# grouped short flags and abbreviated long options, so the grammar shuts each by shape.
+# Why: 0023-backlog-paydown design B4.
 _SELF_CHECK = "## Step 8 — Self-check"
-_GIT_SHUT = (
+_SHUT = (
+    "first word of the check and of each part after a `|`",
+    "no `NAME=value`, no `env`",
+    "Outside single quotes the check holds only letters, digits",
+    "on line numbers",
+    "its quoted words included",
     "nothing between `git` and its subcommand",
     "no short-option group holding `O`",
     "no option starting `--op`, `--ou` or `--ex`",
@@ -677,10 +685,8 @@ _GIT_SHUT = (
 
 
 def _read_only_problems(base: Path) -> list[str]:
-    """Return one line per git shape `base`'s cut does not shut in its Step 8."""
-    return _needle_problems(
-        base, "mf-cut-change", present=_GIT_SHUT, section=_SELF_CHECK
-    )
+    """Return one line per shape `base`'s cut does not shut in its Step 8."""
+    return _needle_problems(base, "mf-cut-change", present=_SHUT, section=_SELF_CHECK)
 
 
 def test_the_cut_shuts_the_git_flags_that_run_or_write() -> None:
@@ -694,5 +700,5 @@ def test_the_read_only_scan_reports_every_needle(tmp_path: Path) -> None:
 
     assert _read_only_problems(tmp_path) == [
         f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{n}`"
-        for n in _GIT_SHUT
+        for n in _SHUT
     ]

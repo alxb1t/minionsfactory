@@ -93,13 +93,16 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 Build a table: each of `I1`…`I15`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
-- **Run every read-only `Verify:`.** A check is read-only when it is one of `grep`, `test`, `ls`, `wc`, `cat`,
-  `head`, `sed -n '<address>p'` with no other flag, or `git log`, `git show`, `git ls-files`, `git grep`,
-  `git diff` — alone, or piped only into another of these — and holds no `;`, `&`, `>`, `<`, `$(`, backtick or
-  path outside the repository. A `git` check has nothing between `git` and its subcommand (no `-c`, `-C`,
-  `--git-dir`), no short-option group holding `O`, and no option starting `--op`, `--ou` or `--ex`: git takes
-  grouped flags and abbreviations, so this shuts `-O`, `--open-files-in-pager`, `--output` and `--ext-diff` whole.
-  Any other check is read and not run.
+- **Run every read-only `Verify:`.** A check is read-only when it starts with one of `grep`, `test`, `ls`, `wc`,
+  `cat`, `head`, `sed -n '<n>p'` or `sed -n '<n>,<m>p'` on line numbers with no other flag, or `git log`,
+  `git show`, `git ls-files`, `git grep`, `git diff` — alone, or piped only into another of these. That command is
+  the first word of the check and of each part after a `|`: no `NAME=value`, no `env`, nothing before it.
+  Outside single quotes the check holds only letters, digits, spaces, `|` and `-` `_` `.` `/` `,` `:` `%` `@` `+`
+  `=` `~`, and no argument is a path outside the repository: an assignment or a shell expansion runs a program
+  the list never names. A `git` check, its quoted words included, has nothing between `git` and its subcommand
+  (no `-c`, `-C`, `--git-dir`), no short-option group holding `O`, no option starting `--op`, `--ou` or `--ex`:
+  git takes grouped flags and abbreviations, so this shuts `-O`, `--open-files-in-pager`, `--output` and
+  `--ext-diff` whole. Any other check is read and not run.
 - A check that errors because of the command itself — an unknown flag, bad syntax — cannot run: rewrite it. An
   error only because it reads a file the change creates is expected.
 - A check that already passes is flagged to the human: true before the build, it may prove nothing. Except a
