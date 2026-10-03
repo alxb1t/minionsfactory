@@ -203,7 +203,8 @@ What the skills need from a repository they work on.
 
 ## Repo conventions
 
-How versions, ids and commits are written, and what happens to what is replaced.
+How versions, ids and commits are written, what happens to what is replaced, and what a spec and a test are held
+to.
 
 ### D19 · One version line
 

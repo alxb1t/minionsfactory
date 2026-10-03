@@ -1,7 +1,7 @@
 # Local config & secrets — NEVER commit
 .env
 
-# Run artifacts — the findings files and `backlog.md`. Run output, not source: `git add -A` would sweep it into history.
+# Run output, not source: `git add -A` would sweep it into history.
 .minions/
 
 # Python
