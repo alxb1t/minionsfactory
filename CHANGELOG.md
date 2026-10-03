@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Converge halts on a gate recipe no task names** (change `0023-backlog-paydown`, phase 3). `mf-converge` never
   deletes a findings file or the diff patch, handles a fix that committed nothing, and states that
   `/security-review` reviews the branch, not the range.
+- **The release reads the diff patch as a converge that ran** (change `0023-backlog-paydown`, phase 4). A lone
+  patch halts, as a lone findings file does; the release also halts on a gate recipe no task names, and
+  `tests/test_skills.py` scans both halts and the never-delete rule.
 
 ## [0.22.0] - 2026-10-03
 

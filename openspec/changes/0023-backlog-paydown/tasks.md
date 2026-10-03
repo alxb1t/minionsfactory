@@ -8,7 +8,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 - [x] 1 — The cut
 - [x] 2 — The build
 - [x] 3 — Converge
-- [ ] 4 — The release and its scans
+- [x] 4 — The release and its scans
 - [ ] 5 — The install
 - [ ] 6 — The guardrails and the docs
 
@@ -89,21 +89,21 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 `skills/mf-release/SKILL.md` and `tests/test_skills.py`, as
 [Phase 4](design.md#phase-4--skillsmf-releaseskillmd-and-the-scans) says.
 
-- [ ] 4.1 **HALT CHECK** — the text the phase replaces is there. Verify:
+- [x] 4.1 **HALT CHECK** — the text the phase replaces is there. Verify:
   `grep -c -e 're-runnable' -e 'markers point at' -e 'Converge ran, or was skipped' skills/mf-release/SKILL.md`
   prints `3`.
-- [ ] 4.2 Test first: [the scans](design.md#the-scans) and their twins in `tests/test_skills.py` ([B12](design.md#b12)).
+- [x] 4.2 Test first: [the scans](design.md#the-scans) and their twins in `tests/test_skills.py` ([B12](design.md#b12)).
   Verify: `uv run pytest tests/test_skills.py -q` fails, naming `skills/mf-release/SKILL.md`.
-- [ ] 4.3 *Where the constants come from*: the `make -n` sentence; Step 1: the patch path and precondition 4
+- [x] 4.3 *Where the constants come from*: the `make -n` sentence; Step 1: the patch path and precondition 4
   ([B7](design.md#b7)). Verify:
   `grep -c -e 'is not a sandbox' -e 'The diff patch without a findings file is a halt' -e 'one file without the other is a halt' -e 'the diff patch: ' skills/mf-release/SKILL.md`
   prints `4`.
-- [ ] 4.4 Precondition 8 ([B5](design.md#b5)) and the *Never* line ([B7](design.md#b7)). Verify:
+- [x] 4.4 Precondition 8 ([B5](design.md#b5)) and the *Never* line ([B7](design.md#b7)). Verify:
   `grep -c -e 'changes the gate recipe and no task names the Makefile' -e 'Never delete, move, rename or empty a findings file or the diff patch' skills/mf-release/SKILL.md`
   prints `2`.
-- [ ] 4.5 Step 3's fold paragraph (`0022·N1`) and Step 4, item 3 (`0010·R13`). Verify:
+- [x] 4.5 Step 3's fold paragraph (`0022·N1`) and Step 4, item 3 (`0010·R13`). Verify:
   `grep -c -e 'markers point at' -e 're-runnable' skills/mf-release/SKILL.md` prints `0`.
-- [ ] 4.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
+- [x] 4.6 The scans pass. Verify: `uv run pytest tests/test_skills.py -q` exits 0.
 
 ## 5 — The install
 
