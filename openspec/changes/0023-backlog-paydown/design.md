@@ -88,10 +88,15 @@ Every card in `backlog:`, and what happens to it.
 
 ```markdown
 - **Run every read-only `Verify:`.** A check is read-only when it is one of `grep`, `test`, `ls`, `wc`, `cat`,
-  `head`, `sed -n '<address>p'`, or `git log`, `git show`, `git ls-files`, `git grep`, `git diff` without `-c`,
-  `--output` or `--ext-diff` — alone, or piped only into another of these — and holds no `;`, `&`, `>`, `<`, `$(`
-  or backtick. Any other check is read and not run.
+  `head`, `sed -n '<address>p'` with no other flag, or `git log`, `git show`, `git ls-files`, `git grep`,
+  `git diff` — alone, or piped only into another of these — and holds no `;`, `&`, `>`, `<`, `$(`, backtick or
+  path outside the repository. A `git` check has nothing between `git` and its subcommand (no `-c`, `-C`,
+  `--git-dir`), no short-option group holding `O`, and no option starting `--op`, `--ou` or `--ex`: git takes
+  grouped flags and abbreviations, so this shuts `-O`, `--open-files-in-pager`, `--output` and `--ext-diff` whole.
+  Any other check is read and not run.
 ```
+
+Converge round 1 shut `git grep -O` and `git -c`: the cut's first grammar named three flags on `git diff` alone.
 
 ## Phase 2 — `skills/mf-build/SKILL.md`
 

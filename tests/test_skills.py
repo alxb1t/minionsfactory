@@ -661,3 +661,38 @@ def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
     assert _planted_both_name_problems(tmp_path, _NEVER_DELETE) == [
         f"skills/{n}/SKILL.md: does not name `{_NEVER_DELETE}`" for n in _CHECKERS
     ]
+
+
+# The cut runs a `Verify:` before the human's read only inside the read-only grammar.
+# Git runs a command for `-O`, writes a file for `--output`, takes `-c` config before
+# the subcommand, and accepts grouped short flags and abbreviated long options, so the
+# grammar shuts each by shape. Why: 0023-backlog-paydown design B4.
+_SELF_CHECK = "## Step 8 — Self-check"
+_GIT_SHUT = (
+    "nothing between `git` and its subcommand",
+    "no short-option group holding `O`",
+    "no option starting `--op`, `--ou` or `--ex`",
+    "path outside the repository",
+)
+
+
+def _read_only_problems(base: Path) -> list[str]:
+    """Return one line per git shape `base`'s cut does not shut in its Step 8."""
+    return _needle_problems(
+        base, "mf-cut-change", present=_GIT_SHUT, section=_SELF_CHECK
+    )
+
+
+def test_the_cut_shuts_the_git_flags_that_run_or_write() -> None:
+    assert _read_only_problems(_REPO) == []
+
+
+def test_the_read_only_scan_reports_every_needle(tmp_path: Path) -> None:
+    # The grammar as first cut: three flags shut on `git diff` alone.
+    grammar = "`git grep`, `git diff` without `-c`, `--output` or `--ext-diff`.\n"
+    _plant(tmp_path, {"mf-cut-change": f"{_SELF_CHECK}\n\n{grammar}"})
+
+    assert _read_only_problems(tmp_path) == [
+        f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{n}`"
+        for n in _GIT_SHUT
+    ]

@@ -94,9 +94,12 @@ Build a table: each of `I1`…`I15`, met or not, with its evidence. `I1` is met 
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
 - **Run every read-only `Verify:`.** A check is read-only when it is one of `grep`, `test`, `ls`, `wc`, `cat`,
-  `head`, `sed -n '<address>p'`, or `git log`, `git show`, `git ls-files`, `git grep`, `git diff` without `-c`,
-  `--output` or `--ext-diff` — alone, or piped only into another of these — and holds no `;`, `&`, `>`, `<`, `$(`
-  or backtick. Any other check is read and not run.
+  `head`, `sed -n '<address>p'` with no other flag, or `git log`, `git show`, `git ls-files`, `git grep`,
+  `git diff` — alone, or piped only into another of these — and holds no `;`, `&`, `>`, `<`, `$(`, backtick or
+  path outside the repository. A `git` check has nothing between `git` and its subcommand (no `-c`, `-C`,
+  `--git-dir`), no short-option group holding `O`, and no option starting `--op`, `--ou` or `--ex`: git takes
+  grouped flags and abbreviations, so this shuts `-O`, `--open-files-in-pager`, `--output` and `--ext-diff` whole.
+  Any other check is read and not run.
 - A check that errors because of the command itself — an unknown flag, bad syntax — cannot run: rewrite it. An
   error only because it reads a file the change creates is expected.
 - A check that already passes is flagged to the human: true before the build, it may prove nothing. Except a
@@ -133,7 +136,7 @@ Report the branch, the commit id, and `git status --porcelain` printing nothing.
 | id | the change must | the cutter meets and checks it by |
 |---|---|---|
 | **I1** | be committed, on its own branch `v<version>_<slug>` cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
-| **I2** | have all four artifacts and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
+| **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
 | **I3** | leave `make gate` green on the cut commit | running `make gate` in Step 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | running each read-only check in Step 8 |

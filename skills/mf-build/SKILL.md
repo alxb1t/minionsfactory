@@ -35,7 +35,7 @@ their row, and a breach of any found mid-build is a halt naming the id.
 | id | the change must | Step 1 checks it |
 |---|---|---|
 | **I1** | be committed, on its own branch `v<version>_<slug>` cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
-| **I2** | have all four artifacts and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
+| **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
 | **I3** | leave `make gate` green on the cut commit | — |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
@@ -151,9 +151,9 @@ the review and security stations `mf-converge` fans out afterwards read a diff t
 review verifies simplify's work, and no station verifies its own. Running simplify last, after convergence,
 would land unreviewed edits after the final station had spoken.
 
-Two consequences follow, and both are deliberate: there is **no simplify findings file at all**, and
-`mf-release` names simplify as excluded, because only the review and security files decide whether converge ran —
-so a simplify file's absence is never read as either.
+Both consequences are deliberate: there is **no simplify findings file at all**, and `mf-release` names
+simplify as excluded, because only the review and security files decide whether converge ran — so a simplify
+file's absence is never read as either.
 
 ## Step 4 — Report, then stop
 

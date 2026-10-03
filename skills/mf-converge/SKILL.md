@@ -297,8 +297,9 @@ to the head the fix produced — overwriting `.minions/findings/<change-id>_diff
 each findings file's `head:` field plus the append-only `## Resolution log`, and a second record drifts.
 
 **Then print the re-frozen range's numbers** — `<previous head>..<new head>` · commit count · files changed.
-`base` stays the merge-base Step 2 derived. These supersede the previous round's, and they are the ones Step 5's scope comparison uses next round.
-Each round is judged against its own freeze, so every round has its own numbers before any station speaks.
+`base` stays the merge-base Step 2 derived. These supersede the previous round's, and they are the ones Step 5's
+scope comparison uses next round. Each round is judged against its own freeze, so every round has its own
+numbers before any station speaks.
 Write `freeze` to the status log.
 
 ## Step 7 — Verify, and the cap
