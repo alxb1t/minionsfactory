@@ -8,7 +8,7 @@ deleted last ([R11](design.md#r11)).
 - [x] 1 — The binding stops
 - [x] 2 — The absence tests go
 - [x] 3 — The text follows
-- [ ] 4 — The runner goes
+- [x] 4 — The runner goes
 
 ## 1 — The binding stops
 
@@ -78,16 +78,16 @@ No live text names the runner ([R8](design.md#r8), [R10](design.md#r10)).
 
 The delete, last ([R11](design.md#r11), `A4`).
 
-- [ ] 4.1 **HALT CHECK** — outside the runner, only its tests and `.env.example` name it. Verify:
+- [x] 4.1 **HALT CHECK** — outside the runner, only its tests and `.env.example` name it. Verify:
   `git grep -l orchestrator -- . ':!orchestrator' ':!prompts' ':!docs/modules' ':!docs/architecture.md' ':!openspec' ':!CHANGELOG.md'`
   prints `.env.example` and [the runner's tests](design.md#the-runners-tests), and nothing else.
-- [ ] 4.2 Delete `orchestrator/`, `prompts/`, `docs/architecture.md`, `docs/modules/`, `.env.example` and
+- [x] 4.2 Delete `orchestrator/`, `prompts/`, `docs/architecture.md`, `docs/modules/`, `.env.example` and
   [the runner's tests](design.md#the-runners-tests) ([R12](design.md#r12)). Verify:
   `test ! -e orchestrator -a ! -e prompts -a ! -e docs/modules -a ! -e docs/architecture.md -a ! -e .env.example`
   exits 0, and `git ls-files tests` prints `tests/test_principles.py` and `tests/test_skills.py`.
-- [ ] 4.3 `pyproject.toml`: `dependencies = []`, and delete the `markers` entry; then `uv lock`
+- [x] 4.3 `pyproject.toml`: `dependencies = []`, and delete the `markers` entry; then `uv lock`
   ([R9](design.md#r9)). Verify: `grep -c pydantic pyproject.toml uv.lock` prints `pyproject.toml:0` and
   `uv.lock:0`, and `grep -c 'spec_exempt' pyproject.toml` prints `0`.
-- [ ] 4.4 Nothing outside the history and the specs names the runner or the binding. Verify:
+- [x] 4.4 Nothing outside the history and the specs names the runner or the binding. Verify:
   `git grep -n -E 'orchestrator|mark\.spec|spec_exempt|docs/modules|pydantic' -- . ':!CHANGELOG.md' ':!openspec'`
   prints nothing.

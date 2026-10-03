@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The runner's mentions** (change `0022-runner-retires`, phase 3). `CLAUDE.md`, both READMEs, the `Makefile`,
   `.gitignore`, `openspec/config.yaml` and the `mf-build` and `mf-cut-change` examples stop naming the runner.
   `mf-cut-change` now names the anchored harms in its converge suggestion.
+- **The deterministic runner** (change `0022-runner-retires`, phase 4). `orchestrator/`, `prompts/`, their tests
+  and pages, `.env.example` and `pydantic` are deleted. **BREAKING:** `python -m orchestrator` no longer exists.
 
 ## [0.21.0] - 2026-10-02
 
