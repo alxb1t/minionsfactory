@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   patch halts, as a lone findings file does; the release also halts on a gate recipe no task names, and
   `tests/test_skills.py` scans both halts and the never-delete rule.
 
+### Fixed
+
+- **`make uninstall-skills` removes the links into this checkout** (change `0023-backlog-paydown`, phase 5). It
+  loops over the skills directory, so a link to a deleted skill goes too, and a link into another checkout stays.
+
 ## [0.22.0] - 2026-10-03
 
 ### Removed

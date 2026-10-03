@@ -9,7 +9,7 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 - [x] 2 — The build
 - [x] 3 — Converge
 - [x] 4 — The release and its scans
-- [ ] 5 — The install
+- [x] 5 — The install
 - [ ] 6 — The guardrails and the docs
 
 ## 1 — The cut
@@ -109,12 +109,12 @@ guardrail scan and the docs ([design](design.md#the-outcomes)).
 
 `Makefile` and `README.md`, as [Phase 5](design.md#phase-5--makefile-and-readmemd) says ([B9](design.md#b9)).
 
-- [ ] 5.1 **HALT CHECK** — `README.md` makes the claim the phase makes true. Verify:
+- [x] 5.1 **HALT CHECK** — `README.md` makes the claim the phase makes true. Verify:
   `grep -c 'remove exactly those symlinks' README.md` prints `1`.
-- [ ] 5.2 `Makefile`: the `uninstall-skills` loop and its comment. Verify: `grep -c 'readlink' Makefile` prints `1`.
-- [ ] 5.3 `README.md`: the uninstall line. Verify: `grep -c 'remove the symlinks into this checkout' README.md`
+- [x] 5.2 `Makefile`: the `uninstall-skills` loop and its comment. Verify: `grep -c 'readlink' Makefile` prints `1`.
+- [x] 5.3 `README.md`: the uninstall line. Verify: `grep -c 'remove the symlinks into this checkout' README.md`
   prints `1`.
-- [ ] 5.4 The loop removes only links into this checkout. Verify: in a scratch directory holding a link
+- [x] 5.4 The loop removes only links into this checkout. Verify: in a scratch directory holding a link
   `mf-gone` into this checkout's `skills/`, a link `mf-other` to another directory and a directory `mf-dir`,
   `make uninstall-skills SKILLS_DIR=<scratch>` removes `mf-gone` alone.
 
