@@ -113,8 +113,8 @@ listed only what to refuse.
 ## Phase 2 — `skills/mf-build/SKILL.md`
 
 - **Input contract, its intro** — `Step 1 checks the four marked **yes** itself; the rest surface through the
-  stop-conditions.` → `Step 1 checks the items marked **yes** itself; the rest surface through the stop-condition in
-  their row, and a breach of any found mid-build is a halt naming the id.` (`0011·R5`, `0013·N1`)
+  stop-conditions.` → `Step 1 checks the items marked **yes** itself; some of the rest surface through the
+  stop-condition in their row, and a breach of any found mid-build is a halt naming the id.` (`0011·R5`, `0013·N1`)
 - **Step 1** — `check the four input-contract items marked yes` → `check the input-contract items marked yes`.
   After the lift list, add (`someday·quarantine`):
 

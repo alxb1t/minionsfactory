@@ -29,8 +29,8 @@ Echo the change id and the phase you are about to build before you build anythin
 ## Input contract
 
 What a change must meet before you build it. This skill owns the list; `mf-cut-change` writes to it and carries
-the same ids. Step 1 checks the items marked **yes** itself; the rest surface through the stop-condition in
-their row, and a breach of any found mid-build is a halt naming the id.
+the same ids. Step 1 checks the items marked **yes** itself; some of the rest surface through the stop-condition
+in their row, and a breach of any found mid-build is a halt naming the id.
 
 | id | the change must | Step 1 checks it |
 |---|---|---|
