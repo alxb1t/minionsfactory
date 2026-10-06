@@ -6,7 +6,7 @@ the front door. The text is in [design.md](design.md).
 ## Progress
 
 - [x] 1 — The skill
-- [ ] 2 — The layout scan
+- [x] 2 — The layout scan
 - [ ] 3 — The record
 
 ## 1 — The skill
@@ -40,7 +40,7 @@ sub-agent.
 
 ## 2 — The layout scan
 
-- [ ] 2.1 Add [the scan](design.md#the-scan) to `tests/test_skills.py`: `_layout_problems`,
+- [x] 2.1 Add [the scan](design.md#the-scan) to `tests/test_skills.py`: `_layout_problems`,
   `test_the_bootstrap_templates_cover_the_target_layout` and `test_the_layout_scan_reports_every_breach`
   ([B11](design.md#b11)). Verify: `uv run pytest tests/test_skills.py -q -k layout` exits 0 and reports
   `2 passed`.

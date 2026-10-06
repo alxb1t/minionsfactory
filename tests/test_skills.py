@@ -688,3 +688,102 @@ def test_the_runs_no_check_scan_reports_a_cut_that_runs_them(tmp_path: Path) -> 
     assert _runs_no_check_problems(tmp_path) == [
         f"skills/mf-cut-change/SKILL.md `{_SELF_CHECK}`: does not name `{_RUNS_NONE}`"
     ]
+
+
+# The bootstrap's templates cover D18's target layout, with `.minions/` as a
+# `.gitignore` line, and the gate template validates the specs.
+# Why: 0024-bootstrap design B11.
+_TEMPLATES = "skills/mf-bootstrap/templates"
+_LAYOUT_ENTRY = re.compile(r"^[├└]── (\S+)")
+_RUN_OUTPUT = ".minions/"
+_ALSO_WRITTEN = ("CHANGELOG.md", "README.md")
+_VALIDATE = "openspec validate --all --strict --no-interactive"
+
+
+def _layout_entries(base: Path) -> list[str]:
+    """Return the entries of D18's tree in `base`'s decisions, in order.
+
+    e.g. "├── openspec/specs/      the living spec" → "openspec/specs/"
+    """
+    entries: list[str] = []
+    inside = False
+    for line in (base / "docs" / "decisions.md").read_text().splitlines():
+        if line.startswith("### "):
+            inside = line.startswith("### D18 ")
+        elif inside and (match := _LAYOUT_ENTRY.match(line)):
+            entries.append(match.group(1))
+    return entries
+
+
+def _layout_problems(base: Path) -> list[str]:
+    """Return one line per breach of B11 by `base`'s bootstrap templates.
+
+    e.g. no `CLAUDE.md.tmpl` → "…/templates: no template for `CLAUDE.md`"
+    """
+    root = base / _TEMPLATES
+    targets = {
+        path.relative_to(root).as_posix().removesuffix(".tmpl"): path
+        for path in root.rglob("*.tmpl")
+    }
+    entries = _layout_entries(base)
+    problems = [] if entries else ["docs/decisions.md: no tree under `### D18`"]
+    for entry in entries:
+        if entry == _RUN_OUTPUT:
+            continue
+        if entry.endswith("/"):
+            if not any(t.startswith(entry) for t in targets):
+                problems.append(f"{_TEMPLATES}: no template under `{entry}`")
+        elif entry not in targets:
+            problems.append(f"{_TEMPLATES}: no template for `{entry}`")
+    problems += [
+        f"{_TEMPLATES}: no template for `{name}`"
+        for name in _ALSO_WRITTEN
+        if name not in targets
+    ]
+    ignore = targets.get(".gitignore")
+    if ignore is None or _RUN_OUTPUT not in ignore.read_text().splitlines():
+        problems.append(f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`")
+    makefile = targets.get("Makefile")
+    if makefile is None or _VALIDATE not in makefile.read_text():
+        problems.append(f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`")
+    return problems
+
+
+def test_the_bootstrap_templates_cover_the_target_layout() -> None:
+    assert _layout_problems(_REPO) == []
+
+
+def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
+    # A D18 tree, and a later decision's tree entry that must not count.
+    decisions = (
+        "### D18 · The layout\n\n"
+        "├── openspec/specs/      the living spec\n"
+        "├── openspec/changes/    the changes\n"
+        "├── Makefile             the gate\n"
+        "├── CLAUDE.md            what is true\n"
+        "└── .minions/            run output\n\n"
+        "### D19 · Another\n\n"
+        "└── docs/                outside D18\n"
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "decisions.md").write_text(decisions)
+    # Templates with no `openspec/changes/`, `CLAUDE.md` or `README.md`, a `.gitignore`
+    # that only mentions `.minions/` in a comment, and a gate that validates nothing.
+    root = tmp_path / _TEMPLATES
+    (root / "openspec" / "specs").mkdir(parents=True)
+    (root / "openspec" / "specs" / ".gitkeep.tmpl").write_text("")
+    (root / "Makefile.tmpl").write_text("gate:\n\ttrue\n")
+    (root / "CHANGELOG.md.tmpl").write_text("## [Unreleased]\n")
+    (root / ".gitignore.tmpl").write_text("# not .minions/\n*.pyc\n")
+
+    assert _layout_problems(tmp_path) == [
+        f"{_TEMPLATES}: no template under `openspec/changes/`",
+        f"{_TEMPLATES}: no template for `CLAUDE.md`",
+        f"{_TEMPLATES}: no template for `README.md`",
+        f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
+        f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",
+    ]
+
+    # A D18 with no tree is reported, not read as clean.
+    (tmp_path / "docs" / "decisions.md").write_text("### D18 · The layout\n")
+    assert _layout_problems(tmp_path)[0] == "docs/decisions.md: no tree under `### D18`"

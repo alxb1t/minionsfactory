@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `openspec/`, `CLAUDE.md`, `CHANGELOG.md`, `README.md` and `.gitignore` from templates, runs the gate and commits
   once, so the first `mf-cut-change` finds nothing to write by hand. Scratch runs proved it on an empty directory
   and a GitHub-style repo.
+- **A layout scan for the bootstrap templates** (change `0024-bootstrap`, phase 2). `tests/test_skills.py` fails
+  when a D18 entry has no template, `.gitignore` drops `.minions/`, or the gate template stops validating the
+  specs, so the templates cannot drift from D18 unnoticed.
 
 ## [0.23.0] - 2026-10-03
 
