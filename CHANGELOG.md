@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-06
+
 ### Added
 
 - **`mf-bootstrap`, a skill that sets up a new repo** (change `0024-bootstrap`, phase 1). It writes the gate,
