@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`mf-bootstrap`, a skill that sets up a new repo** (change `0024-bootstrap`, phase 1). It writes the gate,
+  `openspec/`, `CLAUDE.md`, `CHANGELOG.md`, `README.md` and `.gitignore` from templates, runs the gate and commits
+  once, so the first `mf-cut-change` finds nothing to write by hand. Scratch runs proved it on an empty directory
+  and a GitHub-style repo.
+
 ## [0.23.0] - 2026-10-03
 
 ### Added

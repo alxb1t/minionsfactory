@@ -1,0 +1,29 @@
+# <name> — shared context for Claude Code
+
+Work in progress: no code yet.
+
+> **This file is what is true of this repo. It is not a script.** What to do comes from the task you were given.
+
+## The quality gate — `make gate`
+
+The gate is **`make gate`**, run at the repository root. The `Makefile` recipe is the one list of its commands;
+prose names `make gate` and never copies them. Today it validates the specs. A new command lands through a change
+whose cut names the gate recipe in a task.
+
+## How a change is cut here
+
+Each version is one change, cut, built, checked and released with the MinionsFactory `mf-*` skills. The OpenSpec
+CLI is recorded, not pinned: `@fission-ai/openspec@<openspec-version>`, resolved on `PATH`.
+
+## Layout — where things live here
+
+- **`openspec/`** — the living specs in `specs/`; the changes in `changes/`, the shipped ones in `changes/archive/`.
+- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked.
+- **`CHANGELOG.md`** — Keep a Changelog: each phase appends under `## [Unreleased]`, the release cuts it.
+
+## Guardrails (hold for every role)
+
+- **Never commit a secret, or a real absolute path from the machine the run is on.**
+- **Dependencies are minimal and human-approved.** Argue for a new one, and wait for approval before installing it.
+- **Never weaken the gate to pass.** A deleted test, a blanket suppression, a loosened config: halt and say so.
+- **State lives on disk.** Rebuild where the work is from the active change's `tasks.md` and git.
