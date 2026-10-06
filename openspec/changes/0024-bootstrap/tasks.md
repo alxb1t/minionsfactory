@@ -7,7 +7,7 @@ the front door. The text is in [design.md](design.md).
 
 - [x] 1 — The skill
 - [x] 2 — The layout scan
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The skill
 
@@ -50,27 +50,27 @@ sub-agent.
 The decisions in force and the front door, word for word from [design.md](design.md#the-amended-decisions)
 ([B12](design.md#b12)). A wrapped line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 
-- [ ] 3.1 **HALT CHECK** — the text to amend reads as design quotes it. Verify:
+- [x] 3.1 **HALT CHECK** — the text to amend reads as design quotes it. Verify:
   `grep -c 'it installs nothing into the repo it works on' docs/decisions.md`,
   `grep -c 'They install nothing into it' docs/decisions.md`,
   `grep -c 'or CI runs it. The cut runs' docs/decisions.md` and
   `grep -c 'the skills install nothing into it' README.md` each print `1`.
-- [ ] 3.2 `docs/decisions.md`, D2. Verify:
+- [x] 3.2 `docs/decisions.md`, D2. Verify:
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'The stations install nothing into the repo they work on'` prints
   `1`, and `grep -c 'it installs nothing into the repo it works on' docs/decisions.md` prints `0`.
-- [ ] 3.3 `docs/decisions.md`, D8: the bold paragraph and the added bullet. Verify:
+- [x] 3.3 `docs/decisions.md`, D8: the bold paragraph and the added bullet. Verify:
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'writes validates the specs'` prints `1`, and
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'a new target has no CI to turn red'` prints `1`.
-- [ ] 3.4 `docs/decisions.md`, D18: the bold line and the added bullet. Verify:
+- [x] 3.4 `docs/decisions.md`, D18: the bold line and the added bullet. Verify:
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'writes it once into a new repo'` prints `1`,
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'the layout scan in'` prints `1`, and
   `grep -c 'They install nothing into it' docs/decisions.md` prints `0`.
-- [ ] 3.5 `docs/decisions.md`, D21. Verify:
+- [x] 3.5 `docs/decisions.md`, D21. Verify:
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'bootstrap commit, made before any change exists, is the one without it'`
   prints `1`.
-- [ ] 3.6 `README.md`: the skills table's first row, and *What a target repo needs*. Verify:
+- [x] 3.6 `README.md`: the skills table's first row, and *What a target repo needs*. Verify:
   `grep -c 'skills/mf-bootstrap/SKILL.md' README.md` prints `1`,
   `tr -s '\n ' ' ' < README.md | grep -c 'writes it into a new repo; the other skills install nothing'` prints `1`,
   and `grep -c 'the skills install nothing into it' README.md` prints `0`.
-- [ ] 3.7 `CLAUDE.md`, the `skills/` line. Verify: `grep -c 'bootstrap, cut, build, converge, release' CLAUDE.md`
+- [x] 3.7 `CLAUDE.md`, the `skills/` line. Verify: `grep -c 'bootstrap, cut, build, converge, release' CLAUDE.md`
   prints `1`.

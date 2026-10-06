@@ -22,6 +22,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 
 | skill | what it is for |
 | --- | --- |
+| [`mf-bootstrap`](skills/mf-bootstrap/SKILL.md) | write a new repo's starting files and commit them, once, before the first cut |
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
@@ -38,8 +39,9 @@ make uninstall-skills    # remove the symlinks into this checkout
 
 ## What a target repo needs
 
-A layout on disk, and nothing else: the skills install nothing into it
-([D18](docs/decisions.md#d18--the-contract-with-a-target-repo-is-a-layout-on-disk)).
+A layout on disk, and nothing else
+([D18](docs/decisions.md#d18--the-contract-with-a-target-repo-is-a-layout-on-disk)). `mf-bootstrap` writes
+it into a new repo; the other skills install nothing.
 
 ```
 <target>/

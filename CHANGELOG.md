@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when a D18 entry has no template, `.gitignore` drops `.minions/`, or the gate template stops validating the
   specs, so the templates cannot drift from D18 unnoticed.
 
+### Changed
+
+- **The decisions and the front door name the bootstrap** (change `0024-bootstrap`, phase 3). D2 and D18: the
+  stations install nothing, and `mf-bootstrap` writes once. D8: a target's gate may run the OpenSpec CLI. D21: the
+  bootstrap commit carries no `Change:` trailer. `README.md` and `CLAUDE.md` list the new skill.
+
 ## [0.23.0] - 2026-10-03
 
 ### Added

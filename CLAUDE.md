@@ -35,7 +35,7 @@ and no prose here copies them.
 
 ## Layout — where things live here
 
-- **`skills/`** — the `mf-*` skills, one `SKILL.md` each: cut, build, converge, release. Tracked here and
+- **`skills/`** — the `mf-*` skills, one `SKILL.md` each: bootstrap, cut, build, converge, release. Tracked here and
   installed by symlink (`make install-skills`).
 - **`docs/`** — the map, the principles, the decisions, the autonomous design.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
