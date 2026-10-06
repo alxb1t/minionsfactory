@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-06
+
+### Added
+
+- **`mf-bootstrap`, a skill that sets up a new repo** (change `0024-bootstrap`, phase 1). It writes the gate,
+  `openspec/`, `CLAUDE.md`, `CHANGELOG.md`, `README.md` and `.gitignore` from templates, runs the gate and commits
+  once, so the first `mf-cut-change` finds nothing to write by hand. Scratch runs proved it on an empty directory
+  and a GitHub-style repo.
+- **A layout scan for the bootstrap templates** (change `0024-bootstrap`, phase 2). `tests/test_skills.py` fails
+  when a D18 entry has no template, `.gitignore` drops `.minions/`, or the gate template stops validating the
+  specs, so the templates cannot drift from D18 unnoticed.
+
+### Changed
+
+- **The decisions and the front door name the bootstrap** (change `0024-bootstrap`, phase 3). D2 and D18: the
+  stations install nothing, and `mf-bootstrap` writes once. D8: a target's gate may run the OpenSpec CLI. D21: the
+  bootstrap commit carries no `Change:` trailer. `README.md` and `CLAUDE.md` list the new skill.
+
 ## [0.23.0] - 2026-10-03
 
 ### Added

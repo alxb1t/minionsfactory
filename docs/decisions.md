@@ -29,7 +29,8 @@ all about one thing.**
 ### D2 · The product is the practice and its skills
 
 **What MinionsFactory ships is a way of working — grill, cut, build, converge, release — as installable skills. It
-is not a framework, and it installs nothing into the repo it works on.**
+is not a framework. The stations install nothing into the repo they work on; `mf-bootstrap` writes a new
+repo's starting files, once.**
 
 - **Why:** a tool installed per repo is a copy of the contract in every target.
 
@@ -80,12 +81,13 @@ the same ids and checks them before a person reads the change. The person's OK p
 
 ### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of the gate
 
-**Its version is written in `CLAUDE.md`; nothing in `make gate` or CI runs it. The cut runs `openspec validate`; the
-gate does not.**
+**Its version is written in `CLAUDE.md`. This repo's `make gate` and CI never run it; the cut runs
+`openspec validate`. A target's gate may: the one `mf-bootstrap` writes validates the specs.**
 
 - **Why:** a moving CLI version can hand an author different instructions, but can never turn CI red.
 - **Accepts:** a spec that drifts from OpenSpec's format is caught only at the next cut. Reopen if a release folds a
   spec `validate` rejects.
+- **Why a target's gate may:** a new target has no CI to turn red, and its spec is all it has to check.
 
 ### D9 · Relax scope, never acceptance
 
@@ -190,7 +192,9 @@ What the skills need from a repository they work on.
 
 ### D18 · The contract with a target repo is a layout on disk
 
-**The skills need the layout below from a repo, and nothing else. They install nothing into it.**
+**The skills need the layout below from a repo, and nothing else. The stations install nothing into it;
+`mf-bootstrap` writes it once into a new repo, `.minions/` as a `.gitignore` line, with `CHANGELOG.md` and
+`README.md`.**
 
 ```
 <target>/
@@ -202,6 +206,8 @@ What the skills need from a repository they work on.
 ```
 
 - **Why:** what travels between repos is a layout a reader can find, not a tool.
+- **Held in step by:** the layout scan in `tests/test_skills.py`: every entry of the tree has a template in
+  `skills/mf-bootstrap/templates/`.
 
 ## Repo conventions
 
@@ -232,7 +238,8 @@ Example: `0011-cut-and-gate`, on the branch `<version>_cut_and_gate`.
 
 ### D21 · Every commit names its change
 
-**A commit ends with `Change: <change-id>`, in the trailer block, contiguous with `Co-Authored-By:`.**
+**A commit ends with `Change: <change-id>`, in the trailer block, contiguous with `Co-Authored-By:`. The
+bootstrap commit, made before any change exists, is the one without it.**
 
 ```
 Co-Authored-By: <the session's attribution line>
