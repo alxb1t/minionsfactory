@@ -727,7 +727,7 @@ def _layout_problems(base: Path) -> list[str]:
     }
     entries = _layout_entries(base)
     problems = [] if entries else ["docs/decisions.md: no tree under `### D18`"]
-    for entry in entries:
+    for entry in [*entries, *_ALSO_WRITTEN]:
         if entry == _RUN_OUTPUT:
             continue
         if entry.endswith("/"):
@@ -735,11 +735,6 @@ def _layout_problems(base: Path) -> list[str]:
                 problems.append(f"{_TEMPLATES}: no template under `{entry}`")
         elif entry not in targets:
             problems.append(f"{_TEMPLATES}: no template for `{entry}`")
-    problems += [
-        f"{_TEMPLATES}: no template for `{name}`"
-        for name in _ALSO_WRITTEN
-        if name not in targets
-    ]
     ignore = targets.get(".gitignore")
     if ignore is None or _RUN_OUTPUT not in ignore.read_text().splitlines():
         problems.append(f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`")
