@@ -782,3 +782,55 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     # A D18 with no tree is reported, not read as clean.
     (tmp_path / "docs" / "decisions.md").write_text("### D18 · The layout\n")
     assert _layout_problems(tmp_path)[0] == "docs/decisions.md: no tree under `### D18`"
+
+
+# Every station's report step carries the close-out line and names the next act.
+# Why: 0025-improvements design B1, B13.
+_REPORT_STEP = re.compile(r"^## Step \d+ — .*[Rr]eport")
+_CLOSE_OUT = (
+    "at most three sentences — what happened, the gate's exit code, "
+    "and anything the human must act on"
+)
+_NEXT = "Next:"
+
+
+def _close_out_problems(base: Path) -> list[str]:
+    """Return one line per `mf-*` skill in `base` whose report step lacks the close-out.
+
+    The report step is the first `## Step` heading naming a report.
+    """
+    problems: list[str] = []
+    for path in sorted((base / "skills").glob("mf-*/SKILL.md")):
+        name = path.parent.name
+        lines = path.read_text().splitlines()
+        heading = next((line for line in lines if _REPORT_STEP.match(line)), None)
+        if heading is None:
+            problems.append(f"skills/{name}/SKILL.md: no report step")
+            continue
+        problems += _needle_problems(
+            base, name, present=(_CLOSE_OUT, _NEXT), section=heading
+        )
+    return problems
+
+
+def test_every_skill_carries_the_close_out() -> None:
+    assert _close_out_problems(_REPO) == []
+
+
+def test_the_close_out_scan_reports_a_missing_step_and_a_stray_needle(
+    tmp_path: Path,
+) -> None:
+    # A build with no report step, and a converge whose needle sits past its section.
+    step = "## Step 10 — Report, then stop"
+    _plant(
+        tmp_path,
+        {
+            "mf-build": f"## Step 4 — Build\n\n{_CLOSE_OUT}\n{_NEXT} x\n",
+            "mf-converge": f"{step}\n\n{_NEXT} x\n\n## Never\n\n{_CLOSE_OUT}\n",
+        },
+    )
+
+    assert _close_out_problems(tmp_path) == [
+        "skills/mf-build/SKILL.md: no report step",
+        f"skills/mf-converge/SKILL.md `{step}`: does not name `{_CLOSE_OUT}`",
+    ]

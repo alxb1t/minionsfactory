@@ -120,8 +120,12 @@ Stage `openspec/changes/<change-id>/` by name — never `git add -A`. The messag
 
 ## Step 11 — Report
 
-Report the branch, the commit id, and `git status --porcelain` printing nothing. Then suggest models, as
-[Suggesting models](#suggesting-models) says. Next: `/mf-build <change-id>`, in a fresh session. Then stop.
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
+
+Your sentences: the branch, the commit id, and `git status --porcelain` printing nothing. Then suggest models, as
+[Suggesting models](#suggesting-models) says. The last line: `Next: /mf-build <change-id>, in a fresh session.`
+Then stop.
 
 ## Input contract
 

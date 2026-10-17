@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Every station closes in a few sentences, then `Next:`** (change `0025-improvements`, phase 1). Each `mf-*`
+  report step carries one close-out line, held by a scan, so a finished run reads in seconds and names what comes
+  next. The bootstrap's `.gitignore` append starts on a new line.
+
 ## [0.24.0] - 2026-10-06
 
 ### Added

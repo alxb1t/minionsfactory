@@ -103,10 +103,10 @@ commit.
 1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance,
    then implement to green. External effects are faked behind the repo's declared seams, so the suite stays
    offline and deterministic. Write to `W`, `P` and `C` below.
-2. **Run each sub-task's stated verification — run it, never summarize it.** Paste the command's real output
-   into your report. A verification you describe is a claim about the check; only the command that exited is the
-   check. This is the same rule the gate is under, applied to the per-task acceptance. Tick each `- [ ] N.M` →
-   `- [x] N.M` once its check has run and passed.
+2. **Run each sub-task's stated verification — run it, never summarize it.**
+   Show the command's real output as it runs. A verification you describe is a claim about the check; only the
+   command that exited is the check. This is the same rule the gate is under, applied to the per-task acceptance.
+   Tick each `- [ ] N.M` → `- [x] N.M` once its check has run and passed.
    A sub-task marked `**HALT CHECK**` whose check fails is a **halt**: the plan's premise broke. Never change
    code to make it pass.
 3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate to pass:** deleting or skipping
@@ -157,8 +157,12 @@ ran — so a simplify file's absence is never read as either.
 
 ## Step 4 — Report, then stop
 
-Report the phases built, the gate's exit code, the output of each verification the tasks stated, and that the
-simplify commit has landed. Then **stop** and hand back. `mf-converge` runs next, in a separate session.
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
+
+Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
+did not — and that the simplify commit has landed. The last line: `Next: /mf-converge, in a fresh session.` Then
+**stop** and hand back.
 
 ## Stop-conditions — halt rather than guess
 

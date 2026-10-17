@@ -6,7 +6,7 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 
 ## Progress
 
-- [ ] 1 — The close-outs
+- [x] 1 — The close-outs
 - [ ] 2 — The cut commits without waiting
 - [ ] 3 — The release merges and pushes
 - [ ] 4 — The HUMAN checklist
@@ -16,27 +16,27 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 [The close-out line](design.md#the-close-out-line) and [the report steps](design.md#the-report-steps) in
 `mf-bootstrap`, `mf-cut-change`, `mf-build`, `mf-converge` and `mf-release` ([B1](design.md#b1)–[B3](design.md#b3)), then the scan.
 
-- [ ] 1.1 **HALT CHECK** — the report steps read as design quotes them. Verify:
+- [x] 1.1 **HALT CHECK** — the report steps read as design quotes them. Verify:
   `grep -c '^Report five things:$' skills/mf-converge/SKILL.md` and
   `grep -c '^Report the phases built, the gate' skills/mf-build/SKILL.md` each print `1`.
-- [ ] 1.2 `skills/mf-bootstrap/SKILL.md`: Step 5, and the `.gitignore` row ([B14](design.md#b14), `0024·N2`).
+- [x] 1.2 `skills/mf-bootstrap/SKILL.md`: Step 5, and the `.gitignore` row ([B14](design.md#b14), `0024·N2`).
   Verify: `grep -c '^\*\*Close-out:\*\* at most three sentences' skills/mf-bootstrap/SKILL.md` and
   `grep -c 'starting on a new line' skills/mf-bootstrap/SKILL.md` each print `1`.
-- [ ] 1.3 `skills/mf-cut-change/SKILL.md`: Step 11. Verify:
+- [x] 1.3 `skills/mf-cut-change/SKILL.md`: Step 11. Verify:
   `grep -c '^\*\*Close-out:\*\* at most three sentences' skills/mf-cut-change/SKILL.md` and
   `grep -c 'Next: /mf-build <change-id>, in a fresh session.' skills/mf-cut-change/SKILL.md` each print `1`.
-- [ ] 1.4 `skills/mf-build/SKILL.md`: Step 4, and Step 2 item 2. Verify:
+- [x] 1.4 `skills/mf-build/SKILL.md`: Step 4, and Step 2 item 2. Verify:
   `grep -c '^\*\*Close-out:\*\* at most three sentences' skills/mf-build/SKILL.md`,
   `grep -c 'Show the command.s real output as it runs' skills/mf-build/SKILL.md` and
   `grep -c 'Next: /mf-converge, in a fresh session.' skills/mf-build/SKILL.md` each print `1`.
-- [ ] 1.5 `skills/mf-converge/SKILL.md`: Step 10. Verify:
+- [x] 1.5 `skills/mf-converge/SKILL.md`: Step 10. Verify:
   `grep -c '^\*\*Close-out:\*\* at most three sentences' skills/mf-converge/SKILL.md` and
   `grep -c 'Next: /mf-release, in a fresh session.' skills/mf-converge/SKILL.md` each print `1`, and
   `grep -c '^Report five things:$' skills/mf-converge/SKILL.md` prints `0`.
-- [ ] 1.6 `skills/mf-release/SKILL.md`: Step 5, the phase-1 text. Verify:
+- [x] 1.6 `skills/mf-release/SKILL.md`: Step 5, the phase-1 text. Verify:
   `grep -c '^\*\*Close-out:\*\* at most three sentences' skills/mf-release/SKILL.md` and
   `grep -c 'Next: merge and push' skills/mf-release/SKILL.md` each print `1`.
-- [ ] 1.7 `tests/test_skills.py`: `_close_out_problems`, its test and its planted twin, both named with
+- [x] 1.7 `tests/test_skills.py`: `_close_out_problems`, its test and its planted twin, both named with
   `close_out`, per [the scans](design.md#the-scans). Verify:
   `uv run pytest tests/test_skills.py -q -k close_out | tail -1 | grep -c '^2 passed'` prints `1`.
 

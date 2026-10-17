@@ -364,18 +364,14 @@ Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
 
 ## Step 10 — Report, then stop
 
-Report five things:
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-1. **The verdicts, quoted from disk** — each station's `verdict`, `round`, `head` and `open_blocking`, read from
-   the file rather than from what the station said.
-2. **Every blocking finding's end state** — by id: `verified`, `wontfix` accepted, or still `open`.
-3. **The backlog** — the picked ids and their end state; the cards written, by qualified id; the moot cards and
-   the cleared repeats' old cards, with each **Still true?** output; and the backlog's total card count, so a
-   vanished file shows as a drop.
-4. **The gate's exit code**, re-run by you at the end.
-5. **What you did not do** — archive, fold, tag, merge, push. All of those are `mf-release`'s or the human's.
+Your sentences: the verdicts and the round, read from disk; each blocking finding's end state, by id; the cards
+written, by qualified id, and the backlog's total card count, so a vanished file shows as a drop; the gate's exit
+code, re-run by you at the end. The rest is on disk: the findings files, the status log and `.minions/backlog.md`.
 
-Write `done` to the status log, then **stop**.
+Write `done` to the status log. The last line: `Next: /mf-release, in a fresh session.` Then **stop**.
 
 ## The card
 

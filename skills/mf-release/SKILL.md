@@ -176,28 +176,23 @@ The gate that authorizes this release ran at Step 4.3, on the exact tree the rel
 and tagging changed no file it reads. Do not re-run it here to feel surer, and never treat a green gate observed
 *after* the tag as the authorization: report the Step 4.3 exit code.
 
-Report, and stop:
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-1. **Each precondition and how it was verified** — the command run, or the file and field read.
-   For precondition 4, say *converge ran*, or state `converge: skipped — no findings files`.
-2. **What the fold changed** — which requirements were added, replaced or removed, in which capabilities — **or
-   that it was a no-op, and why** (a change that declares no delta).
-3. **The release commit and the tag**, by id and name, with the exit code of the Step 4.3 gate that authorized
-   them.
-4. **The paid-down cards** — the cards Step 4.6 cleared, by qualified id, and any id not found; or
-   `backlog: none`.
-5. **What you did not do: merge and push** — both are the human's. Print the hand-off:
+Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code; `converge ran`, or
+`converge: skipped — no findings files`; the paid-down cards, or `backlog: none`. A preamble flagged for a
+hand-edit (Step 2) is something the human must act on.
 
-       Release <version>.0 prepared on branch <branch> (release commit + local tag).
-       NOT merged, NOT pushed — over to you:
+The last lines — the merge and the push are the human's:
 
-         git checkout <default-branch>
-         git merge --no-ff <branch>
-         git push origin <default-branch>
-         git push origin <version>.0
+    Next: merge and push — release <version>.0 is on branch <branch>, NOT merged, NOT pushed:
+      git checkout <default-branch>
+      git merge --no-ff <branch>
+      git push origin <default-branch>
+      git push origin <version>.0
 
-       Squash caveat: a squash-merge leaves the local tag pointing at the branch commit —
-       re-tag the resulting commit on the default branch before pushing the tag.
+    Squash caveat: a squash-merge leaves the local tag pointing at the branch commit —
+    re-tag the resulting commit on the default branch before pushing the tag.
 
 Then **STOP**. Do not run the merge, the push, or a checkout of the default branch yourself.
 
