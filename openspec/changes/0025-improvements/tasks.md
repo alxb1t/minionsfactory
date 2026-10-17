@@ -7,7 +7,7 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 ## Progress
 
 - [x] 1 — The close-outs
-- [ ] 2 — The cut commits without waiting
+- [x] 2 — The cut commits without waiting
 - [ ] 3 — The release merges and pushes
 - [ ] 4 — The HUMAN checklist
 
@@ -44,21 +44,21 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 
 [The cut commits](design.md#the-cut-commits), word for word ([B4](design.md#b4)–[B6](design.md#b6)).
 
-- [ ] 2.1 **HALT CHECK** — the wait reads as design quotes it. Verify:
+- [x] 2.1 **HALT CHECK** — the wait reads as design quotes it. Verify:
   `grep -c 'Then \*\*wait for their OK\*\*' skills/mf-cut-change/SKILL.md` and
   `grep -c "The person's OK precedes the commit" docs/decisions.md` each print `1`.
-- [ ] 2.2 `skills/mf-cut-change/SKILL.md`: the description, the role line, Step 8, Step 9 and *Never*. Verify:
+- [x] 2.2 `skills/mf-cut-change/SKILL.md`: the description, the role line, Step 8, Step 9 and *Never*. Verify:
   `grep -c '^## Step 9 — Show, then commit$' skills/mf-cut-change/SKILL.md` prints `1`,
   `grep -c 'wait for their OK' skills/mf-cut-change/SKILL.md` prints `0`, and
   `tr -s '\n ' ' ' < skills/mf-cut-change/SKILL.md | grep -o 'once the human starts it' | wc -l | tr -d ' '`
   prints `2`.
-- [ ] 2.3 `docs/decisions.md`: D7's bold paragraph, D38 after D10, and the map's Planning ids. Verify:
+- [x] 2.3 `docs/decisions.md`: D7's bold paragraph, D38 after D10, and the map's Planning ids. Verify:
   `grep -c '^### D38 · The cut commits without waiting$' docs/decisions.md` and
   `grep -c 'D5…D10, D38' docs/decisions.md` each print `1`, and
   `grep -c "The person's OK precedes the commit" docs/decisions.md` prints `0`.
-- [ ] 2.4 `docs/principles.md`: the accepted exception. Verify:
+- [x] 2.4 `docs/principles.md`: the accepted exception. Verify:
   `tr -s '\n ' ' ' < docs/principles.md | grep -c "The person's read of the committed change and"` prints `1`.
-- [ ] 2.5 `tests/test_skills.py`: `_cut_commits_problems`, its test and its planted twin, both named with
+- [x] 2.5 `tests/test_skills.py`: `_cut_commits_problems`, its test and its planted twin, both named with
   `cut_commits`, and the comment above `_SELF_CHECK`. Verify: `uv run pytest tests/test_skills.py -q -k cut_commits | tail -1 | grep -c '^2 passed'`
   and `grep -c 'the build runs them once the human starts it' tests/test_skills.py` each print `1`.
 

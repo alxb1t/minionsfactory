@@ -663,7 +663,8 @@ def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
     ]
 
 
-# The cut reads every `Verify:` and runs none; the build runs them after the human's OK.
+# The cut reads every `Verify:` and runs none;
+# the build runs them once the human starts it.
 # A safe command cannot be written in prose. Why: 0023-backlog-paydown design B13.
 _SELF_CHECK = "## Step 8 — Self-check"
 _RUNS_NONE = "run none of them"
@@ -833,4 +834,35 @@ def test_the_close_out_scan_reports_a_missing_step_and_a_stray_needle(
     assert _close_out_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: no report step",
         f"skills/mf-converge/SKILL.md `{step}`: does not name `{_CLOSE_OUT}`",
+    ]
+
+
+# The cut commits without waiting; a dependency still waits for the human's OK.
+# Why: 0025-improvements design B4, B5, B13.
+_SHOW_STEP = "## Step 9 — Show, then commit"
+_CUT_COMMITS = ("commit without waiting", "## Dependencies")
+
+
+def _cut_commits_problems(base: Path) -> list[str]:
+    """Return one line per needle `base`'s cut does not name in its show step."""
+    return _needle_problems(
+        base, "mf-cut-change", present=_CUT_COMMITS, section=_SHOW_STEP
+    )
+
+
+def test_the_cut_commits_without_waiting() -> None:
+    assert _cut_commits_problems(_REPO) == []
+
+
+def test_the_cut_commits_scan_reports_a_cut_that_waits(tmp_path: Path) -> None:
+    # A show step that waits for an OK, with both needles past its section.
+    text = (
+        f"{_SHOW_STEP}\n\nShow the change, then wait for their OK.\n\n"
+        f"## Never\n\n{' '.join(_CUT_COMMITS)}\n"
+    )
+    _plant(tmp_path, {"mf-cut-change": text})
+
+    assert _cut_commits_problems(tmp_path) == [
+        f"skills/mf-cut-change/SKILL.md `{_SHOW_STEP}`: does not name `{n}`"
+        for n in _CUT_COMMITS
     ]

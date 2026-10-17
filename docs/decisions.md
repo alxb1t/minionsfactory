@@ -9,7 +9,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10                        D11…D17
+       D5…D10, D38                   D11…D17
 
   The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37 · The autonomous line D24…D35
 ```
@@ -74,7 +74,7 @@ holds what is in force; a change that overturns an entry edits it, and its `desi
 ### D7 · The cut writes to the build's input contract
 
 **`mf-build` owns the list of what a change must meet (`I1…`) and the prose rules (`P1…`); `mf-cut-change` carries
-the same ids and checks them before a person reads the change. The person's OK precedes the commit.**
+the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)).**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut.
 - **Held in step by:** the id scans in `tests/test_skills.py`.
@@ -102,6 +102,16 @@ a test could express.**
 a deleted capability leaves no marker directory behind.**
 
 - **Why:** an invented requirement corrupts the spec tree; a tombstone nothing checks blocks validation.
+
+### D38 · The cut commits without waiting
+
+**`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
+that is not `None.`, and a self-check item the cut cannot meet, still wait for the person's OK. Starting
+`/mf-build` is the OK for the `Verify:` commands.**
+
+- **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
+  every time.
+- **Accepts:** an edit after the read is a further commit on the branch, before the build.
 
 ## The check loop and the release
 

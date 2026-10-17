@@ -1,13 +1,13 @@
 ---
 name: mf-cut-change
-description: Cut a new in-repo change from a settled grilling — create its version branch, write the OpenSpec artifacts to mf-build's input contract, check them, show the human, and commit on their OK. Use when the decisions for the next change are settled, in the conversation or a brief file, and its change directory does not exist yet.
+description: Cut a new in-repo change from a settled grilling — create its version branch, write the OpenSpec artifacts to mf-build's input contract, check them, commit, and show the human. Use when the decisions for the next change are settled, in the conversation or a brief file, and its change directory does not exist yet.
 ---
 
 # mf-cut-change — write a change `mf-build` can run without guessing
 
 > **Your role is CUT.** You write one change — `openspec/changes/<change-id>/` — from decisions a person has
-> already settled, and you commit it only after they read it. You do **not** build, review, converge or
-> release it. Read the repo's `CLAUDE.md` as shared context; the source you are given is what you write from.
+> already settled, and you commit it once its self-check passes. You do **not** build, review, converge
+> or release it. Read the repo's `CLAUDE.md` as shared context; the source you are given is what you write from.
 
 ```
   grilling ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
@@ -93,22 +93,28 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 Build a table: each of `I1`…`I15`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
-- **Read every `Verify:`; run none of them.** The build runs them, after the human's OK. Rewrite a check you
-  can see will not run as written — an unknown flag, bad syntax. Flag to the human a check you can see already
+- **Read every `Verify:`; run none of them.** The build runs them, once the human starts it. Rewrite a check
+  you can see will not run as written — an unknown flag, bad syntax. Flag to the human a check you can see already
   holds, its needle already in the file: true before the build, it may prove nothing. Except a
   `**HALT CHECK**` — it checks a premise, and should hold.
 - Check `P9`, `P12`, `P13` and `A2`.
 - `make gate` is green.
 
 An item cannot be met → put it to the human, and wait. This self-check is a declared exception to *no station
-verifies its own work*: the human's read in Step 9 and `mf-build`'s Step 1 are the independent checks.
+verifies its own work*: the human's read of the committed change and `mf-build`'s Step 1 are the independent
+checks.
 
-## Step 9 — Show
+## Step 9 — Show, then commit
 
-Show the human: what the change does, its phases, its decision ids, the self-check table, and the file list.
-Then **wait for their OK**. On edits, go back to Step 7.
-When `## Dependencies` is not `None.`, show it word for word, and get the human's OK for each package.
-Show every `Verify:` word for word too, and get the human's OK for the commands the build will run.
+Show the human what the change does, its phases, its decision ids, the self-check table, the file list, and every
+`Verify:` word for word: the build runs them once the human starts it. Then go to Step 10 and
+commit without waiting.
+
+These wait for the human's OK before Step 10. A `## Dependencies` that is not `None.`: show it word for word,
+and get an OK for each package. A self-check item the cut cannot meet (Step 8). On edits, go back to Step 7.
+
+An edit the human asks for after the commit is a further commit on the branch,
+`docs(<change-id>): amend the change directory`, with the same trailer block.
 
 ## Step 10 — Commit
 
@@ -226,7 +232,7 @@ A suggestion, never an instruction: the human chooses.
 
 - Never build, or edit anything outside `openspec/changes/<change-id>/`.
 - Never run `/simplify`, review, converge or release.
-- Never commit before the human's OK.
+- Never commit a `## Dependencies` that is not `None.` before the human's OK.
 - Never push, or merge.
 - Never overturn a settled decision alone.
 - Never write the brief's path, or any absolute path, into the change.
