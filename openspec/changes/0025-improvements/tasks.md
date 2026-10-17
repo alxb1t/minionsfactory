@@ -9,7 +9,7 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 - [x] 1 — The close-outs
 - [x] 2 — The cut commits without waiting
 - [x] 3 — The release merges and pushes
-- [ ] 4 — The HUMAN checklist
+- [x] 4 — The HUMAN checklist
 
 ## 1 — The close-outs
 
@@ -91,15 +91,15 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 
 [The HUMAN checklist](design.md#the-human-checklist), word for word ([B11](design.md#b11), [B12](design.md#b12)).
 
-- [ ] 4.1 **HALT CHECK** — the HUMAN paragraph reads as design quotes it. Verify:
+- [x] 4.1 **HALT CHECK** — the HUMAN paragraph reads as design quotes it. Verify:
   `grep -c 'print its sub-tasks as the person' skills/mf-build/SKILL.md` prints `1`.
-- [ ] 4.2 `I14` in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`. Verify:
+- [x] 4.2 `I14` in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`. Verify:
   `grep -c 'exact commands with real values' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints
   `skills/mf-build/SKILL.md:1` and `skills/mf-cut-change/SKILL.md:1`, and
   `uv run pytest tests/test_skills.py -q -k contract | tail -1 | grep -c '^2 passed'` prints `1`.
-- [ ] 4.3 `skills/mf-build/SKILL.md`: the HUMAN paragraph in Step 2. Verify:
+- [x] 4.3 `skills/mf-build/SKILL.md`: the HUMAN paragraph in Step 2. Verify:
   `grep -c '<N> — <Title> · HUMAN' skills/mf-build/SKILL.md` and `grep -c '^Next: /mf-build$' skills/mf-build/SKILL.md`
   each print `1`, and `grep -c 'print its sub-tasks as the person' skills/mf-build/SKILL.md` prints `0`.
-- [ ] 4.4 `tests/test_skills.py`: `_human_checklist_problems`, its test and its planted twin, named with
+- [x] 4.4 `tests/test_skills.py`: `_human_checklist_problems`, its test and its planted twin, named with
   `human_checklist`. Verify:
   `uv run pytest tests/test_skills.py -q -k human_checklist | tail -1 | grep -c '^2 passed'` prints `1`.

@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The release merges and pushes on a yes** (change `0025-improvements`, phase 3). `mf-release` asks once, then
   merges `--no-ff` and pushes the default branch and the tag; it halts when the default branch moved, and never
   forces. D17 and `README.md` match; D8's title names this repo's gate.
+- **A HUMAN phase hands over a checklist of commands** (change `0025-improvements`, phase 4). `I14` asks for exact
+  commands with real values, and `mf-build` halts on an unworked HUMAN phase with a copy-run-tick checklist of
+  `sh` blocks ending `Next: /mf-build`.
 
 ## [0.24.0] - 2026-10-06
 

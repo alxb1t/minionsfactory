@@ -895,3 +895,47 @@ def test_the_merge_scan_reports_every_needle(tmp_path: Path) -> None:
     assert _merge_problems(tmp_path) == [
         f"skills/mf-release/SKILL.md: does not name `{n}`" for n in _MERGE
     ]
+
+
+# A HUMAN phase carries exact commands, and the build halts on it with a checklist.
+# Why: 0025-improvements design B11, B12, B13.
+_CONTRACT = "## Input contract"
+_HUMAN_COMMANDS = "exact commands with real values"
+_RITUAL = "## Step 2 — The per-phase ritual"
+_HUMAN_CHECKLIST = ("the person's checklist", "```sh", "Next: /mf-build")
+
+
+def _human_checklist_problems(base: Path) -> list[str]:
+    """Return one line per breach of the HUMAN-checklist rule in `base`'s skills."""
+    problems: list[str] = []
+    for name in _SHARED_OWNERS:
+        problems += _needle_problems(
+            base, name, present=(_HUMAN_COMMANDS,), section=_CONTRACT
+        )
+    return problems + _needle_problems(
+        base, "mf-build", present=_HUMAN_CHECKLIST, section=_RITUAL
+    )
+
+
+def test_a_human_phase_hands_over_a_human_checklist() -> None:
+    assert _human_checklist_problems(_REPO) == []
+
+
+def test_the_human_checklist_scan_reports_every_breach(tmp_path: Path) -> None:
+    # Today's I14 in both skills, and a ritual whose needles sit past its section.
+    contract = _table_text(_CONTRACT, "I14").replace(
+        "| — |", "| mark a phase a person must do with `**HUMAN` |"
+    )
+    ritual = (
+        f"{_RITUAL}\n\nHalt, and print the sub-tasks.\n\n"
+        f"## Never\n\n{' '.join(_HUMAN_CHECKLIST)}\n"
+    )
+    _plant(tmp_path, {"mf-build": contract + ritual, "mf-cut-change": contract})
+
+    assert _human_checklist_problems(tmp_path) == [
+        f"skills/{n}/SKILL.md `{_CONTRACT}`: does not name `{_HUMAN_COMMANDS}`"
+        for n in _SHARED_OWNERS
+    ] + [
+        f"skills/mf-build/SKILL.md `{_RITUAL}`: does not name `{n}`"
+        for n in _HUMAN_CHECKLIST
+    ]
