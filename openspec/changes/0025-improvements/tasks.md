@@ -8,7 +8,7 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 
 - [x] 1 — The close-outs
 - [x] 2 — The cut commits without waiting
-- [ ] 3 — The release merges and pushes
+- [x] 3 — The release merges and pushes
 - [ ] 4 — The HUMAN checklist
 
 ## 1 — The close-outs
@@ -67,22 +67,22 @@ HUMAN checklist. The text is in [design.md](design.md). A wrapped line is checke
 [The release merges and pushes](design.md#the-release-merges-and-pushes), word for word
 ([B7](design.md#b7)–[B10](design.md#b10), [B14](design.md#b14)).
 
-- [ ] 3.1 **HALT CHECK** — the release and D17 read as design quotes them. Verify:
+- [x] 3.1 **HALT CHECK** — the release and D17 read as design quotes them. Verify:
   `grep -c 'Never merge, never push, never check out the default branch' skills/mf-release/SKILL.md` and
   `grep -c '^### D17 · The release verifies, folds, archives, tags, and stops$' docs/decisions.md` each print `1`.
-- [ ] 3.2 `skills/mf-release/SKILL.md`: the description, the title, the role block, the new Step 5, Step 6 and
+- [x] 3.2 `skills/mf-release/SKILL.md`: the description, the title, the role block, the new Step 5, Step 6 and
   *Never*. Verify: `grep -c "^## Step 5 — Merge and push, on the person's yes$" skills/mf-release/SKILL.md`,
   `grep -c '^## Step 6 — Close: report, and stop$' skills/mf-release/SKILL.md` and
   `grep -c 'Next: grill the next version.' skills/mf-release/SKILL.md` each print `1`, and
   `grep -c 'Squash caveat' skills/mf-release/SKILL.md` prints `0`.
-- [ ] 3.3 `docs/decisions.md`: D17 whole, and D8's title (`0024·N1`). Verify:
+- [x] 3.3 `docs/decisions.md`: D17 whole, and D8's title (`0024·N1`). Verify:
   `grep -c "^### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes$" docs/decisions.md`
   and `grep -c "stays out of this repo's gate$" docs/decisions.md` each print `1`, and
   `grep -c 'stays out of the gate$' docs/decisions.md` prints `0`.
-- [ ] 3.4 `README.md`: lines 10 and 29. Verify:
+- [x] 3.4 `README.md`: lines 10 and 29. Verify:
   `grep -c 'One change goes from an idea to a tag on the default branch.' README.md` and
   `grep -c 'then, on a yes, merge and push' README.md` each print `1`.
-- [ ] 3.5 `tests/test_skills.py`: `_merge_problems`, its test `test_the_release_merges_and_pushes_on_a_yes` and
+- [x] 3.5 `tests/test_skills.py`: `_merge_problems`, its test `test_the_release_merges_and_pushes_on_a_yes` and
   its planted twin `test_the_merge_scan_reports_every_needle`. Verify:
   `uv run pytest tests/test_skills.py -q -k 'merges_and_pushes or merge_scan' | tail -1 | grep -c '^2 passed'`
   prints `1`.

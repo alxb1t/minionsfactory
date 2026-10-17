@@ -79,7 +79,7 @@ the same ids and checks them before it commits the change ([D38](#d38--the-cut-c
 - **Why:** a change the build cannot run is cheapest to catch at the cut.
 - **Held in step by:** the id scans in `tests/test_skills.py`.
 
-### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of the gate
+### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of this repo's gate
 
 **Its version is written in `CLAUDE.md`. This repo's `make gate` and CI never run it; the cut runs
 `openspec validate`. A target's gate may: the one `mf-bootstrap` writes validates the specs.**
@@ -187,14 +187,17 @@ lists the cards it closes and its release deletes them.**
 - **Accepts:** the backlog is gitignored, so it lives on one machine. Reopen when a second person or a cloud run
   needs to read it.
 
-### D17 · The release verifies, folds, archives, tags, and stops
+### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes
 
-**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog and tags
-— locally. It never merges, never pushes, never edits feature code. Fold and archive land in one commit.**
+**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog and tags.
+Then it asks once; on yes it merges into the default branch with `--no-ff` and pushes the default branch and the
+tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
+commit.**
 
-- **Why:** merging and publishing are a person's acts. A fold without its archive leaves the spec tree and the
-  change disagreeing.
-- **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit.
+- **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
+  leaves the spec tree and the change disagreeing.
+- **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
+  separate merge skill: one more invocation · a merge without asking.
 
 ## The target repo
 

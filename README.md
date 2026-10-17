@@ -7,7 +7,7 @@ fresh readers before it is released.
 
 ## The line
 
-One change goes from an idea to a local tag.
+One change goes from an idea to a tag on the default branch.
 
 ```
    grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
@@ -26,7 +26,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
-| [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then stop |
+| [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 
 ## Install
 

@@ -866,3 +866,32 @@ def test_the_cut_commits_scan_reports_a_cut_that_waits(tmp_path: Path) -> None:
         f"skills/mf-cut-change/SKILL.md `{_SHOW_STEP}`: does not name `{n}`"
         for n in _CUT_COMMITS
     ]
+
+
+# The release asks once, then merges and pushes behind its guards.
+# Why: 0025-improvements design B7, B8, B13.
+_MERGE = (
+    "Merge <branch> into <default-branch> and push?",
+    "git merge-base --is-ancestor <default-branch> HEAD",
+    "git merge --no-ff",
+    "git diff --quiet <branch> <default-branch>",
+    "never `--force`",
+)
+
+
+def _merge_problems(base: Path) -> list[str]:
+    """Return one line per merge needle `base`'s release does not name."""
+    return _needle_problems(base, "mf-release", present=_MERGE)
+
+
+def test_the_release_merges_and_pushes_on_a_yes() -> None:
+    assert _merge_problems(_REPO) == []
+
+
+def test_the_merge_scan_reports_every_needle(tmp_path: Path) -> None:
+    # A release that hands the merge and the push to the human.
+    _plant(tmp_path, {"mf-release": "Tag, then print the hand-off and stop.\n"})
+
+    assert _merge_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{n}`" for n in _MERGE
+    ]

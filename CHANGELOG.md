@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The cut commits without waiting** (change `0025-improvements`, phase 2). `mf-cut-change` shows the change and
   commits; only a dependency or an unmet self-check item waits for an OK, and starting `/mf-build` approves the
   `Verify:` commands. D38 records it; D7 and the principle's accepted exception match.
+- **The release merges and pushes on a yes** (change `0025-improvements`, phase 3). `mf-release` asks once, then
+  merges `--no-ff` and pushes the default branch and the tag; it halts when the default branch moved, and never
+  forces. D17 and `README.md` match; D8's title names this repo's gate.
 
 ## [0.24.0] - 2026-10-06
 
