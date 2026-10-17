@@ -26,7 +26,7 @@ without the `.tmpl` suffix: `templates/openspec/config.yaml.tmpl` → `openspec/
 |---|---|
 | `Makefile` · `CLAUDE.md` · `CHANGELOG.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
 | `README.md` | skip it; the file stays as it is |
-| `.gitignore` | append the template's lines when no line reads `.minions/`; else leave it |
+| `.gitignore` | append the template's lines, starting on a new line, when no line reads `.minions/`; else leave it |
 
 The placeholders below are filled, and nothing else in a template changes:
 
@@ -69,13 +69,14 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 
 ## Step 5 — Report
 
-- The paths written, skipped and appended.
-- The commit id, and `git status --porcelain` printing nothing.
-- When `git remote get-url origin` fails: no `origin` remote, so `/security-review` will not load and
-  `mf-converge`'s security station cannot run until one is added.
-- Next: `/mf-cut-change` with the first version's `change-id` and `version`.
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Then stop.
+Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
+nothing; and, when `git remote get-url origin` fails, that there is no `origin` remote, so `/security-review` will
+not load and `mf-converge`'s security station cannot run until one is added.
+
+The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
 
 ## Never
 

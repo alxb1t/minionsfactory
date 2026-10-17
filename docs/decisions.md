@@ -9,7 +9,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10                        D11…D17
+       D5…D10, D38                   D11…D17
 
   The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37 · The autonomous line D24…D35
 ```
@@ -74,12 +74,12 @@ holds what is in force; a change that overturns an entry edits it, and its `desi
 ### D7 · The cut writes to the build's input contract
 
 **`mf-build` owns the list of what a change must meet (`I1…`) and the prose rules (`P1…`); `mf-cut-change` carries
-the same ids and checks them before a person reads the change. The person's OK precedes the commit.**
+the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)).**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut.
 - **Held in step by:** the id scans in `tests/test_skills.py`.
 
-### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of the gate
+### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of this repo's gate
 
 **Its version is written in `CLAUDE.md`. This repo's `make gate` and CI never run it; the cut runs
 `openspec validate`. A target's gate may: the one `mf-bootstrap` writes validates the specs.**
@@ -102,6 +102,16 @@ a test could express.**
 a deleted capability leaves no marker directory behind.**
 
 - **Why:** an invented requirement corrupts the spec tree; a tombstone nothing checks blocks validation.
+
+### D38 · The cut commits without waiting
+
+**`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
+that is not `None.`, and a self-check item the cut cannot meet, still wait for the person's OK. Starting
+`/mf-build` is the OK for the `Verify:` commands.**
+
+- **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
+  every time.
+- **Accepts:** an edit after the read is a further commit on the branch, before the build.
 
 ## The check loop and the release
 
@@ -177,14 +187,17 @@ lists the cards it closes and its release deletes them.**
 - **Accepts:** the backlog is gitignored, so it lives on one machine. Reopen when a second person or a cloud run
   needs to read it.
 
-### D17 · The release verifies, folds, archives, tags, and stops
+### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes
 
-**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog and tags
-— locally. It never merges, never pushes, never edits feature code. Fold and archive land in one commit.**
+**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog and tags.
+Then it asks once; on yes it merges into the default branch with `--no-ff` and pushes the default branch and the
+tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
+commit.**
 
-- **Why:** merging and publishing are a person's acts. A fold without its archive leaves the spec tree and the
-  change disagreeing.
-- **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit.
+- **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
+  leaves the spec tree and the change disagreeing.
+- **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
+  separate merge skill: one more invocation · a merge without asking.
 
 ## The target repo
 

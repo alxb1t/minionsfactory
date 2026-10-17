@@ -1,14 +1,13 @@
 ---
 name: mf-release
-description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag locally, then stop without merging or pushing. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
+description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag, then on the person's yes merge into the default branch and push. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
 ---
 
-# mf-release — verify, fold, archive, tag, stop
+# mf-release — verify, fold, archive, tag, then merge and push on a yes
 
-> **You verify and finalize, then STOP.** You do **not** merge, you do **not** push, and you never edit feature
-> code or lower a bar to ship. If any precondition fails, **halt** naming exactly what is missing and who owns
-> it. The merge and the push are the human's — high-consequence and irreversible — and naming them as such is
-> part of your job, not a formality.
+> **You verify and finalize, then ask.** You never edit feature code or lower a bar to ship. If any precondition
+> fails, **halt** naming exactly what is missing and who owns it. The merge and the push are high-consequence:
+> you run them only on the person's yes, asked once in Step 5.
 
 The boundary between this station and `mf-converge` is a failure it prevents: **the loop that declared
 convergence does not also archive and tag on it.** When converge ran, you re-read its verdicts from disk
@@ -170,41 +169,49 @@ archived but not folded. In a repository whose gate binds specs to tests, it als
    list line and its nested bullets — and remove a change heading left empty. An id not found is reported, not a
    halt. Nothing to commit: the backlog is gitignored.
 
-## Step 5 — Close: report, and stop
+## Step 5 — Merge and push, on the person's yes
+
+Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6.
+
+On yes, in order. A failure is a **halt**: report the error and the commands still to run.
+
+1. **The default branch has not moved:** `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else
+   halt: the gate judged this branch on its base, and a merge would ship a tree nobody checked.
+2. **Merge:** `git switch <default-branch>`, then `git merge --no-ff <branch>` with the message
+   `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and `Change: <change-id>`,
+   contiguous.
+3. **The merged tree is the tagged tree:** `git diff --quiet <branch> <default-branch>` exits 0.
+4. **No `origin`:** when `git remote get-url origin` fails, push nothing; say so in your sentences.
+5. **Push:** `git push origin <default-branch>`, then `git push origin <version>.0`. A rejected push halts; the
+   default branch stays merged locally. Never pull, never `--force`, never push the version branch.
+
+## Step 6 — Close: report, and stop
 
 The gate that authorizes this release ran at Step 4.3, on the exact tree the release commit holds — committing
 and tagging changed no file it reads. Do not re-run it here to feel surer, and never treat a green gate observed
 *after* the tag as the authorization: report the Step 4.3 exit code.
 
-Report, and stop:
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-1. **Each precondition and how it was verified** — the command run, or the file and field read.
-   For precondition 4, say *converge ran*, or state `converge: skipped — no findings files`.
-2. **What the fold changed** — which requirements were added, replaced or removed, in which capabilities — **or
-   that it was a no-op, and why** (a change that declares no delta).
-3. **The release commit and the tag**, by id and name, with the exit code of the Step 4.3 gate that authorized
-   them.
-4. **The paid-down cards** — the cards Step 4.6 cleared, by qualified id, and any id not found; or
-   `backlog: none`.
-5. **What you did not do: merge and push** — both are the human's. Print the hand-off:
+Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code; `converge ran`, or
+`converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; and the merge and the push, or
+that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is something the human must act on.
 
-       Release <version>.0 prepared on branch <branch> (release commit + local tag).
-       NOT merged, NOT pushed — over to you:
+The last line, after a merge: `Next: grill the next version.` With no merge:
 
-         git checkout <default-branch>
-         git merge --no-ff <branch>
-         git push origin <default-branch>
-         git push origin <version>.0
+    Next: merge and push — release <version>.0 is on branch <branch>:
+      git switch <default-branch>
+      git merge --no-ff <branch>
+      git push origin <default-branch>
+      git push origin <version>.0
 
-       Squash caveat: a squash-merge leaves the local tag pointing at the branch commit —
-       re-tag the resulting commit on the default branch before pushing the tag.
-
-Then **STOP**. Do not run the merge, the push, or a checkout of the default branch yourself.
+Then **stop**.
 
 ## Never
 
-- **Never merge, never push, never check out the default branch and modify it.** Preparing locally is your
-  ceiling; the human ships.
+- **Never merge or push without the person's yes in this session**, never `--force`, never pull, and never push
+  the version branch. A halt in Step 5 leaves the rest to the human.
 - **Never edit feature code or tests.** A failed precondition goes back to the build or the converge loop — you
   are a gate, not a fix.
 - **Never release over a failed precondition.** Every precondition in Step 1 holds, or you halt. No exceptions, no

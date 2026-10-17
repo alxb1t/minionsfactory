@@ -47,7 +47,7 @@ in their row, and a breach of any found mid-build is a halt naming the id.
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `/simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
-| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`), and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
+| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 
 ## Step 1 — Lift the context
@@ -94,19 +94,33 @@ you look at the next one. Never batch phases: the ordering exists so each phase 
 its own.
 
 **A HUMAN phase is done by a person, not by you.** Its `## Progress` line contains `**HUMAN`. Do none of its
-tasks; run its `Verify:` checks. If any fails, **halt**: print its sub-tasks as the person's checklist, and the
-checks that will close it. If all pass, the person has done it. Search their evidence files for the operator's
-home path, the repository's root and key shapes, and halt on a hit. Stage them by name, never a gitignored path
-and never `git add -f`; then run the gate, write the CHANGELOG entry, tick the phase and its `N.M` boxes, and
-commit.
+tasks; run its `Verify:` checks. If any fails, **halt** with the person's checklist and nothing else — the one
+halt not reported in full:
+
+````
+<N> — <Title> · HUMAN
+cd <the repository root>
+- [ ] <N.M, one line>
+  ```sh
+  <the sub-task's commands, as the cut wrote them>
+  ```
+- [ ] <N.M with no command: the file and the exact text>
+Closes when: <each failing Verify:, word for word>
+Next: /mf-build
+````
+
+The repository root is printed in chat only. A secret appears by its env-var name, never a value. If all pass, the
+person has done it. Search their evidence files for the operator's home path, the repository's root and key
+shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then run the gate,
+write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
 
 1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance,
    then implement to green. External effects are faked behind the repo's declared seams, so the suite stays
    offline and deterministic. Write to `W`, `P` and `C` below.
-2. **Run each sub-task's stated verification — run it, never summarize it.** Paste the command's real output
-   into your report. A verification you describe is a claim about the check; only the command that exited is the
-   check. This is the same rule the gate is under, applied to the per-task acceptance. Tick each `- [ ] N.M` →
-   `- [x] N.M` once its check has run and passed.
+2. **Run each sub-task's stated verification — run it, never summarize it.**
+   Show the command's real output as it runs. A verification you describe is a claim about the check; only the
+   command that exited is the check. This is the same rule the gate is under, applied to the per-task acceptance.
+   Tick each `- [ ] N.M` → `- [x] N.M` once its check has run and passed.
    A sub-task marked `**HALT CHECK**` whose check fails is a **halt**: the plan's premise broke. Never change
    code to make it pass.
 3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate to pass:** deleting or skipping
@@ -157,8 +171,12 @@ ran — so a simplify file's absence is never read as either.
 
 ## Step 4 — Report, then stop
 
-Report the phases built, the gate's exit code, the output of each verification the tasks stated, and that the
-simplify commit has landed. Then **stop** and hand back. `mf-converge` runs next, in a separate session.
+**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+— then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
+
+Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
+did not — and that the simplify commit has landed. The last line: `Next: /mf-converge, in a fresh session.` Then
+**stop** and hand back.
 
 ## Stop-conditions — halt rather than guess
 

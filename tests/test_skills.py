@@ -16,6 +16,7 @@ _GATE_RUNNERS = ("mf-build", "mf-converge", "mf-release")
 # of a table row in the named `## ` section, up to the next `## ` heading.
 # Why: 0011-cut-and-gate design D5, 0013-how-the-builder-writes design D3.
 _SHARED_OWNERS = ("mf-build", "mf-cut-change")
+_CONTRACT = "## Input contract"
 
 
 def _gate_problems(base: Path) -> list[str]:
@@ -165,11 +166,11 @@ def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
 
 
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
-    assert _shared_id_problems(_REPO, "## Input contract", "I") == []
+    assert _shared_id_problems(_REPO, _CONTRACT, "I") == []
 
 
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
-    assert _planted_problems(tmp_path, "## Input contract", "I") == [
+    assert _planted_problems(tmp_path, _CONTRACT, "I") == [
         "labels differ: only in mf-build ['I2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
     ]
@@ -663,7 +664,8 @@ def test_the_never_delete_scan_reports_both_skills(tmp_path: Path) -> None:
     ]
 
 
-# The cut reads every `Verify:` and runs none; the build runs them after the human's OK.
+# The cut reads every `Verify:` and runs none;
+# the build runs them once the human starts it.
 # A safe command cannot be written in prose. Why: 0023-backlog-paydown design B13.
 _SELF_CHECK = "## Step 8 — Self-check"
 _RUNS_NONE = "run none of them"
@@ -782,3 +784,157 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     # A D18 with no tree is reported, not read as clean.
     (tmp_path / "docs" / "decisions.md").write_text("### D18 · The layout\n")
     assert _layout_problems(tmp_path)[0] == "docs/decisions.md: no tree under `### D18`"
+
+
+# Every station's report step carries the close-out line and names the next act.
+# Why: 0025-improvements design B1, B13.
+_REPORT_STEP = re.compile(r"^## Step \d+ — .*[Rr]eport")
+_CLOSE_OUT = (
+    "at most three sentences — what happened, the gate's exit code, "
+    "and anything the human must act on"
+)
+_NEXT = "Next:"
+
+
+def _close_out_problems(base: Path) -> list[str]:
+    """Return one line per `mf-*` skill in `base` whose report step lacks the close-out.
+
+    The report step is the first `## Step` heading naming a report.
+    """
+    problems: list[str] = []
+    for path in sorted((base / "skills").glob("mf-*/SKILL.md")):
+        name = path.parent.name
+        lines = path.read_text().splitlines()
+        heading = next((line for line in lines if _REPORT_STEP.match(line)), None)
+        if heading is None:
+            problems.append(f"skills/{name}/SKILL.md: no report step")
+            continue
+        problems += _needle_problems(
+            base, name, present=(_CLOSE_OUT, _NEXT), section=heading
+        )
+    return problems
+
+
+def test_every_skill_carries_the_close_out() -> None:
+    assert _close_out_problems(_REPO) == []
+
+
+def test_the_close_out_scan_reports_a_missing_step_and_a_stray_needle(
+    tmp_path: Path,
+) -> None:
+    # A build with no report step, and a converge whose needle sits past its section.
+    step = "## Step 10 — Report, then stop"
+    _plant(
+        tmp_path,
+        {
+            "mf-build": f"## Step 4 — Build\n\n{_CLOSE_OUT}\n{_NEXT} x\n",
+            "mf-converge": f"{step}\n\n{_NEXT} x\n\n## Never\n\n{_CLOSE_OUT}\n",
+        },
+    )
+
+    assert _close_out_problems(tmp_path) == [
+        "skills/mf-build/SKILL.md: no report step",
+        f"skills/mf-converge/SKILL.md `{step}`: does not name `{_CLOSE_OUT}`",
+    ]
+
+
+# The cut commits without waiting; a dependency still waits for the human's OK.
+# Why: 0025-improvements design B4, B5, B13.
+_SHOW_STEP = "## Step 9 — Show, then commit"
+_CUT_COMMITS = ("commit without waiting", "## Dependencies")
+
+
+def _cut_commits_problems(base: Path) -> list[str]:
+    """Return one line per needle `base`'s cut does not name in its show step."""
+    return _needle_problems(
+        base, "mf-cut-change", present=_CUT_COMMITS, section=_SHOW_STEP
+    )
+
+
+def test_the_cut_commits_without_waiting() -> None:
+    assert _cut_commits_problems(_REPO) == []
+
+
+def test_the_cut_commits_scan_reports_a_cut_that_waits(tmp_path: Path) -> None:
+    # A show step that waits for an OK, with both needles past its section.
+    text = (
+        f"{_SHOW_STEP}\n\nShow the change, then wait for their OK.\n\n"
+        f"## Never\n\n{' '.join(_CUT_COMMITS)}\n"
+    )
+    _plant(tmp_path, {"mf-cut-change": text})
+
+    assert _cut_commits_problems(tmp_path) == [
+        f"skills/mf-cut-change/SKILL.md `{_SHOW_STEP}`: does not name `{n}`"
+        for n in _CUT_COMMITS
+    ]
+
+
+# The release asks once, then merges and pushes behind its guards.
+# Why: 0025-improvements design B7, B8, B13.
+_MERGE = (
+    "Merge <branch> into <default-branch> and push?",
+    "git merge-base --is-ancestor <default-branch> HEAD",
+    "git merge --no-ff",
+    "git diff --quiet <branch> <default-branch>",
+    "never `--force`",
+)
+
+
+def _merge_problems(base: Path) -> list[str]:
+    """Return one line per merge needle `base`'s release does not name."""
+    return _needle_problems(base, "mf-release", present=_MERGE)
+
+
+def test_the_release_merges_and_pushes_on_a_yes() -> None:
+    assert _merge_problems(_REPO) == []
+
+
+def test_the_merge_scan_reports_every_needle(tmp_path: Path) -> None:
+    # A release that hands the merge and the push to the human.
+    _plant(tmp_path, {"mf-release": "Tag, then print the hand-off and stop.\n"})
+
+    assert _merge_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{n}`" for n in _MERGE
+    ]
+
+
+# A HUMAN phase carries exact commands, and the build halts on it with a checklist.
+# Why: 0025-improvements design B11, B12, B13.
+_HUMAN_COMMANDS = "exact commands with real values"
+_RITUAL = "## Step 2 — The per-phase ritual"
+_HUMAN_CHECKLIST = ("the person's checklist", "```sh", "Next: /mf-build")
+
+
+def _human_checklist_problems(base: Path) -> list[str]:
+    """Return one line per breach of the HUMAN-checklist rule in `base`'s skills."""
+    return [
+        p
+        for n in _SHARED_OWNERS
+        for p in _needle_problems(
+            base, n, present=(_HUMAN_COMMANDS,), section=_CONTRACT
+        )
+    ] + _needle_problems(base, "mf-build", present=_HUMAN_CHECKLIST, section=_RITUAL)
+
+
+def test_a_human_phase_hands_over_a_human_checklist() -> None:
+    assert _human_checklist_problems(_REPO) == []
+
+
+def test_the_human_checklist_scan_reports_every_breach(tmp_path: Path) -> None:
+    # Today's I14 in both skills, and a ritual whose needles sit past its section.
+    contract = (
+        f"{_CONTRACT}\n\n| **I14** | mark a phase a person must do with `**HUMAN` |\n"
+    )
+    ritual = (
+        f"{_RITUAL}\n\nHalt, and print the sub-tasks.\n\n"
+        f"## Never\n\n{' '.join(_HUMAN_CHECKLIST)}\n"
+    )
+    _plant(tmp_path, {"mf-build": contract + ritual, "mf-cut-change": contract})
+
+    assert _human_checklist_problems(tmp_path) == [
+        f"skills/{n}/SKILL.md `{_CONTRACT}`: does not name `{_HUMAN_COMMANDS}`"
+        for n in _SHARED_OWNERS
+    ] + [
+        f"skills/mf-build/SKILL.md `{_RITUAL}`: does not name `{n}`"
+        for n in _HUMAN_CHECKLIST
+    ]
