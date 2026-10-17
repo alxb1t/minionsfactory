@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-17
+
 ### Changed
 
 - **Every station closes in a few sentences, then `Next:`** (change `0025-improvements`, phase 1). Each `mf-*`
