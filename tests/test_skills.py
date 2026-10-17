@@ -16,6 +16,7 @@ _GATE_RUNNERS = ("mf-build", "mf-converge", "mf-release")
 # of a table row in the named `## ` section, up to the next `## ` heading.
 # Why: 0011-cut-and-gate design D5, 0013-how-the-builder-writes design D3.
 _SHARED_OWNERS = ("mf-build", "mf-cut-change")
+_CONTRACT = "## Input contract"
 
 
 def _gate_problems(base: Path) -> list[str]:
@@ -165,11 +166,11 @@ def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
 
 
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
-    assert _shared_id_problems(_REPO, "## Input contract", "I") == []
+    assert _shared_id_problems(_REPO, _CONTRACT, "I") == []
 
 
 def test_the_contract_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None:
-    assert _planted_problems(tmp_path, "## Input contract", "I") == [
+    assert _planted_problems(tmp_path, _CONTRACT, "I") == [
         "labels differ: only in mf-build ['I2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run I1…I3",
     ]
@@ -899,7 +900,6 @@ def test_the_merge_scan_reports_every_needle(tmp_path: Path) -> None:
 
 # A HUMAN phase carries exact commands, and the build halts on it with a checklist.
 # Why: 0025-improvements design B11, B12, B13.
-_CONTRACT = "## Input contract"
 _HUMAN_COMMANDS = "exact commands with real values"
 _RITUAL = "## Step 2 — The per-phase ritual"
 _HUMAN_CHECKLIST = ("the person's checklist", "```sh", "Next: /mf-build")
@@ -907,14 +907,13 @@ _HUMAN_CHECKLIST = ("the person's checklist", "```sh", "Next: /mf-build")
 
 def _human_checklist_problems(base: Path) -> list[str]:
     """Return one line per breach of the HUMAN-checklist rule in `base`'s skills."""
-    problems: list[str] = []
-    for name in _SHARED_OWNERS:
-        problems += _needle_problems(
-            base, name, present=(_HUMAN_COMMANDS,), section=_CONTRACT
+    return [
+        p
+        for n in _SHARED_OWNERS
+        for p in _needle_problems(
+            base, n, present=(_HUMAN_COMMANDS,), section=_CONTRACT
         )
-    return problems + _needle_problems(
-        base, "mf-build", present=_HUMAN_CHECKLIST, section=_RITUAL
-    )
+    ] + _needle_problems(base, "mf-build", present=_HUMAN_CHECKLIST, section=_RITUAL)
 
 
 def test_a_human_phase_hands_over_a_human_checklist() -> None:
@@ -923,8 +922,8 @@ def test_a_human_phase_hands_over_a_human_checklist() -> None:
 
 def test_the_human_checklist_scan_reports_every_breach(tmp_path: Path) -> None:
     # Today's I14 in both skills, and a ritual whose needles sit past its section.
-    contract = _table_text(_CONTRACT, "I14").replace(
-        "| — |", "| mark a phase a person must do with `**HUMAN` |"
+    contract = (
+        f"{_CONTRACT}\n\n| **I14** | mark a phase a person must do with `**HUMAN` |\n"
     )
     ritual = (
         f"{_RITUAL}\n\nHalt, and print the sub-tasks.\n\n"
