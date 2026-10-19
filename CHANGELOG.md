@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Consolidation per the design's table is not weakening** (change `0026-test-cost`, phase 2). `I16` and `A8` put
   each deleted or merged test in `design.md`'s `## Tests` table; the build follows the table, and the fix station
   never deletes or merges a test. The principle *Never weaken the gate to pass* names it.
+- **Review judges test cost and traced coverage** (change `0026-test-cost`, phase 3). Every round, review cards a
+  costly new test as a `nit` for pickup and traces each removed test's proofs against the `## Tests` table; the
+  conductor halts on a Summary that does not say both passes ran.
 
 ## [0.25.0] - 2026-10-17
 

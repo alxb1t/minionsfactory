@@ -558,6 +558,39 @@ def test_the_consolidation_scan_reports_both_needles_outside_their_sections(
     ]
 
 
+# Review's test-cost and coverage-trace passes are each named where the station runs
+# them and where the conductor checks its Summary. Why: 0026-test-cost design B7, B8.
+_REVIEW_PASSES = ("test-cost pass", "coverage-trace pass")
+
+
+def _review_pass_problems(base: Path) -> list[str]:
+    """Return a line per review pass `base`'s converge names fewer than twice."""
+    where = "skills/mf-converge/SKILL.md"
+    text = (base / where).read_text()
+    return [
+        f"{where}: names `{name}` {text.count(name)} time(s)"
+        for name in _REVIEW_PASSES
+        if text.count(name) < 2
+    ]
+
+
+def test_converge_names_the_review_passes_where_they_run_and_are_checked() -> None:
+    assert _review_pass_problems(_REPO) == []
+
+
+def test_the_review_pass_scan_reports_a_single_mention_of_each(tmp_path: Path) -> None:
+    # A converge that tells review to run each pass but never checks it ran.
+    _plant(
+        tmp_path,
+        {"mf-converge": "".join(f"Review runs a {n}.\n" for n in _REVIEW_PASSES)},
+    )
+
+    assert _review_pass_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: names `{name}` 1 time(s)"
+        for name in _REVIEW_PASSES
+    ]
+
+
 # A fix sized `a test` carries its red run, and the verify step checks the test hits the
 # card's scenario. Why: 0017-converge-audit-fixes design D8.
 _RED_RUN = "failing run from before the fix"

@@ -169,6 +169,8 @@ own findings file. Give each one:
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
 - its own findings path `.minions/findings/<change-id>_<role>.md`,
+- for review, the change's `openspec/changes/<change-id>/design.md`, whose `## Tests` section the coverage-trace
+  pass reads;
 - the card, from [`## The card`](#the-card) — every finding it writes is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below — and nothing else to write.
 
@@ -181,6 +183,17 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 **Review runs a stale-claim pass after its engine.** For every path, symbol, verb, route or count the diff
 renames, deletes or changes, it runs `git grep` over the tree outside the diff and cards each mention the change
 made false as `drift`. Its Summary says the pass ran and names what it searched for.
+
+**Review runs a test-cost pass after its engine.** For every test the diff adds, it applies the
+[rules for tests](#rules-for-tests): an end-to-end test that a lower layer already proves (`T1`), that re-opens a
+state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`), is a card graded
+`nit`, its **Fix** sized `a test`, so Step 8's pickup fixes it. Its Summary says the pass ran.
+
+**Review runs a coverage-trace pass when the freeze removes a test** — a deleted test file, or a test case gone
+from one. It traces every removed assertion and scenario id to the test that runs it now, against `design.md`'s
+`## Tests` table. A proof carried by nothing, a scenario moved onto a test of another code path, client behaviour on
+one engine (`T4`), or a merged step leaning on an earlier one (`T3`), is `blocking`. Its Summary says the pass ran,
+or that the freeze removed no test.
 
 **How a station scopes itself.** Review scopes its engine to the range. `/security-review` takes no target: it
 reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a
@@ -261,6 +274,8 @@ rules are fail-closed, and all are yours to enforce:
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 - **A review without its stale-claim pass is not clean.** The review file's Summary must say the pass ran. It
   does not → treat it as a scope failure and halt on it: drift outside the diff went unsearched.
+- **A review without its test-cost pass or its coverage-trace pass is not clean.** The review file's Summary must
+  say each ran, or that the freeze removed no test. It does not → a scope failure: halt on it.
 
 **The non-blocking cards stay in the findings files until Step 9** — review `drift` and nits, security
 `medium`/`low`. The
@@ -317,8 +332,9 @@ Write `freeze` to the status log.
 Re-run the gate yourself, and write `verify` to the status log. Then dispatch the
 **same two roles** as **fresh** subagents at `round ≥ 2` — writing `fan-out` to the status log — each
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
-counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
-the Step 5 rules.
+counters, appending to its `## Resolution log`, and declaring a verdict. Review runs its test-cost pass and its
+coverage-trace pass over this round's freeze, so a fix's new test is judged like the build's. Read the verdicts
+from disk again under the Step 5 rules.
 
 After a round whose fix station committed nothing, the verify pass judges the previous freeze's patch, and Step 5
 compares against that freeze's numbers.

@@ -8,7 +8,7 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 
 - [x] 1 — The rules for tests
 - [x] 2 — Consolidation
-- [ ] 3 — The review passes
+- [x] 3 — The review passes
 - [ ] 4 — The clock
 - [ ] 5 — The record
 
@@ -75,20 +75,20 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 [The review passes](design.md#the-review-passes), word for word ([B7](design.md#b7)–[B9](design.md#b9)), then the
 scan.
 
-- [ ] 3.1 **HALT CHECK** — the stale-claim pass reads as design quotes it. Verify:
+- [x] 3.1 **HALT CHECK** — the stale-claim pass reads as design quotes it. Verify:
   `grep -c '^\*\*Review runs a stale-claim pass after its engine.\*\*' skills/mf-converge/SKILL.md` and
   `grep -c '^- \*\*A review without its stale-claim pass is not clean.\*\*' skills/mf-converge/SKILL.md` each print
   `1`.
-- [ ] 3.2 `skills/mf-converge/SKILL.md`: Step 3's passes and its dispatch bullet. Verify:
+- [x] 3.2 `skills/mf-converge/SKILL.md`: Step 3's passes and its dispatch bullet. Verify:
   `grep -c '^\*\*Review runs a test-cost pass after its engine.\*\*' skills/mf-converge/SKILL.md`,
   `grep -c '^\*\*Review runs a coverage-trace pass when the freeze removes a test\*\*' skills/mf-converge/SKILL.md`
   and `tr -s '\n ' ' ' < skills/mf-converge/SKILL.md | grep -c 'whose `## Tests` section the coverage-trace pass reads'`
   each print `1`.
-- [ ] 3.3 `skills/mf-converge/SKILL.md`: Step 5's bullet and Step 7's sentence. Verify:
+- [x] 3.3 `skills/mf-converge/SKILL.md`: Step 5's bullet and Step 7's sentence. Verify:
   `grep -c '^- \*\*A review without its test-cost pass or its coverage-trace pass is not clean.\*\*' skills/mf-converge/SKILL.md`
   and `tr -s '\n ' ' ' < skills/mf-converge/SKILL.md | grep -c 'so a fix.s new test is judged like the build.s.'`
   each print `1`.
-- [ ] 3.4 `tests/test_skills.py`: `_review_pass_problems`, its test and its planted twin, both named with
+- [x] 3.4 `tests/test_skills.py`: `_review_pass_problems`, its test and its planted twin, both named with
   `review_pass`. Verify:
   `uv run pytest tests/test_skills.py -q -k review_pass | tail -1 | grep -c '^2 passed'` prints `1`.
 
