@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-19
+
+Gate: local 0m0s · CI 0m12s (CI at d5162e4) · 0.25.0: none
+
 ### Changed
 
 - **The build places each test by its cost** (change `0026-test-cost`, phase 1). `mf-build` owns `T1`…`T6` — lowest
