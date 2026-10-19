@@ -63,6 +63,9 @@ exists to prevent. An absent file is never an invitation to search — precondit
 1. **The gate is green, re-run in this session.** Not inherited from `mf-converge`'s report, not read from a
    log. A green gate is a command that exited 0, observed by the side that needs the assurance. Red → halt;
    the build owns it.
+
+   **Time this run** for Step 4.1's `Gate:` line, in one shell command:
+   `s=$(date +%s); make gate; e=$?; echo "gate: $(( $(date +%s) - s ))s, exit $e"`.
 2. If converge ran (precondition 4): **review is clean** — `.minions/findings/<change-id>_review.md` exists,
    `verdict: clean`, and **every** blocking finding is `verified`, not merely `fixed`. `fixed` is the producer's
    claim; only the checker's `verified` resolves it. A non-clean verdict, or one unverified blocker, → halt.
@@ -130,7 +133,18 @@ archived but not folded. In a repository whose gate binds specs to tests, it als
 
 1. **`CHANGELOG.md`** — rename the `## [Unreleased]` heading to `## [<version without the leading v>.0] - <today>`,
    and seed a fresh **empty** `## [Unreleased]` above it.
-   **Write no new changelog prose here.** The entries were written by the phases that earned them; a release
+
+   Under the renamed heading, before its entries, write **the `Gate:` line** — the one line a release adds:
+
+       Gate: local <precondition 1's time> · CI <time> (<workflow> at <short sha>) · <previous version>: <its times>
+
+   e.g. `Gate: local 0m41s · CI 0m12s (CI at d5162e4) · 0.25.0: none`. Times are `XmYs`. **CI** is
+   `gh run list --branch <default-branch> --status success --limit 50 --json workflowName,headSha,startedAt,updatedAt`:
+   the latest run of each workflow, timed `updatedAt − startedAt`, and the longest of them. It is the default branch
+   before this release, named by its commit. `gh` failing, no `origin`, or no run → `CI none`. **The previous** is
+   the `Gate:` line under the previous release heading, its times copied; no line there → `<previous version>: none`.
+
+   **Write no other changelog prose here.** The entries were written by the phases that earned them; a release
    that adds prose is describing work from outside the work, and what it adds has no phase behind it.
 2. **Version file**, if the repository keeps one — bump it to the same number. If it keeps none, record `none`
    and move on. Then check whether the repository states its current version in **prose** anywhere it is read
@@ -194,9 +208,9 @@ and tagging changed no file it reads. Do not re-run it here to feel surer, and n
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code; `converge ran`, or
-`converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; and the merge and the push, or
-that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is something the human must act on.
+Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
+`converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; and the merge
+and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is something the human must act on.
 
 The last line, after a merge: `Next: grill the next version.` With no merge:
 

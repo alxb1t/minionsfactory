@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-19
+
+Gate: local 0m0s · CI 0m12s (CI at d5162e4) · 0.25.0: none
+
+### Changed
+
+- **The build places each test by its cost** (change `0026-test-cost`, phase 1). `mf-build` owns `T1`…`T6` — lowest
+  layer, extend before adding, engines only where they differ — and the cut and converge carry them, held by a
+  scan over all three skills, so a target's suite stops growing a browser test per acceptance.
+- **Consolidation per the design's table is not weakening** (change `0026-test-cost`, phase 2). `I16` and `A8` put
+  each deleted or merged test in `design.md`'s `## Tests` table; the build follows the table, and the fix station
+  never deletes or merges a test. The principle *Never weaken the gate to pass* names it.
+- **Review judges test cost and traced coverage** (change `0026-test-cost`, phase 3). Every round, review cards a
+  costly new test as a `nit` for pickup and traces each removed test's proofs against the `## Tests` table; the
+  conductor halts on a Summary that does not say both passes ran.
+- **The release records the gate's time** (change `0026-test-cost`, phase 4). `mf-release` times precondition 1's
+  gate and writes one `Gate:` line — local, CI's longest last green run by `gh`, and the previous release's — so the
+  clock is seen at every release. The principle, D17 and `CLAUDE.md` name the read-only CI read.
+- **D39 records the rules for tests, and a new repo starts under them** (change `0026-test-cost`, phase 5). The
+  bootstrap's `CLAUDE.md` template gains `## Tests`, and its guardrail names the `## Tests` table.
+
 ## [0.25.0] - 2026-10-17
 
 ### Changed

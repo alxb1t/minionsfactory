@@ -102,9 +102,13 @@ def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
     ]
 
 
-def _shared_label_problems(base: Path, heading: str) -> list[str]:
-    """Return one line per breach of the `heading` labels the shared owners carry."""
-    owners = _SHARED_OWNERS
+def _shared_label_problems(
+    base: Path, heading: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
+    """Return one line per breach of the `heading` labels the `owners` carry.
+
+    The first of `owners` owns the list; each carrier is compared with it.
+    """
     problems: list[str] = []
     sets: dict[str, set[str]] = {}
     for name in owners:
@@ -116,19 +120,23 @@ def _shared_label_problems(base: Path, heading: str) -> list[str]:
         if not labels:
             problems.append(f"skills/{name}/SKILL.md: no labels in `{heading}`")
         sets[name] = set(labels)
-    first, second = (sets.get(name) for name in owners)
-    if first and second and first != second:
-        problems.append(
-            f"labels differ: only in {owners[0]} {sorted(first - second)}, "
-            f"only in {owners[1]} {sorted(second - first)}"
-        )
+    first = sets.get(owners[0])
+    for name in owners[1:]:
+        carried = sets.get(name)
+        if first and carried and first != carried:
+            problems.append(
+                f"labels differ: only in {owners[0]} {sorted(first - carried)}, "
+                f"only in {name} {sorted(carried - first)}"
+            )
     return problems
 
 
-def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
+def _shared_id_problems(
+    base: Path, heading: str, letter: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
     """Return one line per breach of the shared `heading` list in `base`'s skills."""
-    problems = _shared_label_problems(base, heading)
-    for name in _SHARED_OWNERS:
+    problems = _shared_label_problems(base, heading, owners)
+    for name in owners:
         path = base / "skills" / name / "SKILL.md"
         ids = _section_ids(path, heading, letter) if path.is_file() else []
         if ids and sorted(ids) != list(range(1, max(ids) + 1)):
@@ -152,17 +160,23 @@ def _plant(base: Path, texts: dict[str, str]) -> Path:
     return base
 
 
-def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
-    """Return what the scan reports for a planted build and cut that disagree.
+def _planted_problems(
+    base: Path, heading: str, letter: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
+    """Return what the scan reports for planted owners that disagree.
 
-    The build holds ids 1–3 and the cut 1 and 3, so the cut has a gap and the two sets
-    differ by one id. A row past the section's end must not count.
+    The owner holds ids 1–3, the first carrier 1 and 3, and any later carrier 1–2, so
+    the first carrier has a gap and each carrier differs by one id. A row past the
+    section's end must not count.
     """
     outside = f"\n## Never\n\n| **{letter}9** | outside |\n"
-    build = _table_text(heading, f"{letter}1", f"{letter}2", f"{letter}3")
-    cut = _table_text(heading, f"{letter}1", f"{letter}3")
-    _plant(base, {"mf-build": build + outside, "mf-cut-change": cut + outside})
-    return _shared_id_problems(base, heading, letter)
+    ids = [(1, 2, 3), (1, 3)] + [(1, 2)] * (len(owners) - 2)
+    texts = {
+        name: _table_text(heading, *(f"{letter}{n}" for n in held)) + outside
+        for name, held in zip(owners, ids, strict=True)
+    }
+    _plant(base, texts)
+    return _shared_id_problems(base, heading, letter, owners)
 
 
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
@@ -184,6 +198,27 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     assert _planted_problems(tmp_path, "## Prose rules", "P") == [
         "labels differ: only in mf-build ['P2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run P1…P3",
+    ]
+
+
+# The rules for tests: `mf-build` owns them, and the cut and converge carry the same
+# ids, since the fix station runs in a target repo and cannot be told to read the build.
+# Why: 0026-test-cost design B2.
+_TEST_RULE_CARRIERS = ("mf-build", "mf-cut-change", "mf-converge")
+_TEST_RULES = "## Rules for tests"
+
+
+def test_the_build_the_cut_and_converge_carry_the_same_test_rule_ids() -> None:
+    assert _shared_id_problems(_REPO, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == []
+
+
+def test_the_test_rule_scan_reports_each_differing_carrier_and_a_gap(
+    tmp_path: Path,
+) -> None:
+    assert _planted_problems(tmp_path, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == [
+        "labels differ: only in mf-build ['T2'], only in mf-cut-change []",
+        "labels differ: only in mf-build ['T3'], only in mf-converge []",
+        "skills/mf-cut-change/SKILL.md: ids do not run T1…T3",
     ]
 
 
@@ -457,11 +492,17 @@ def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
 _STALE_CLAIM = "stale-claim pass"
 
 
+def _named_twice_problems(base: Path, needles: tuple[str, ...]) -> list[str]:
+    """Return a line per needle `base`'s converge names fewer than twice."""
+    where = "skills/mf-converge/SKILL.md"
+    text = (base / where).read_text()
+    counts = {needle: text.count(needle) for needle in needles}
+    return [f"{where}: names `{n}` {c} time(s)" for n, c in counts.items() if c < 2]
+
+
 def _stale_claim_problems(base: Path) -> list[str]:
     """Return a line when `base`'s converge names the pass fewer than twice."""
-    where = "skills/mf-converge/SKILL.md"
-    count = (base / where).read_text().count(_STALE_CLAIM)
-    return [] if count >= 2 else [f"{where}: names `{_STALE_CLAIM}` {count} time(s)"]
+    return _named_twice_problems(base, (_STALE_CLAIM,))
 
 
 def test_converge_names_the_stale_claim_pass_where_it_runs_and_is_checked() -> None:
@@ -474,6 +515,124 @@ def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
 
     assert _stale_claim_problems(tmp_path) == [
         f"skills/mf-converge/SKILL.md: names `{_STALE_CLAIM}` 1 time(s)"
+    ]
+
+
+# A deletion the design's `## Tests` table names is consolidation, not weakening, and
+# the fix station never deletes or merges a test. Why: 0026-test-cost design B4, B6.
+_TESTS_TABLE = "`## Tests` table"
+_BUILD_RITUAL = "## Step 2 — The per-phase ritual"
+_NEVER_DELETES = "never deletes or merges a test"
+_FIX_STATION = "## Step 6 — The fix station (one subagent, inside this loop)"
+
+
+def _consolidation_problems(base: Path) -> list[str]:
+    """Return one line per consolidation needle missing from its skill's section."""
+    return _needle_problems(
+        base, "mf-build", present=(_TESTS_TABLE,), section=_BUILD_RITUAL
+    ) + _needle_problems(
+        base, "mf-converge", present=(_NEVER_DELETES,), section=_FIX_STATION
+    )
+
+
+def test_the_build_and_the_fix_station_name_consolidation() -> None:
+    assert _consolidation_problems(_REPO) == []
+
+
+def test_the_consolidation_scan_reports_both_needles_outside_their_sections(
+    tmp_path: Path,
+) -> None:
+    # Each needle named, but in a section other than the one the rule lives in.
+    _plant(
+        tmp_path,
+        {
+            "mf-build": f"{_BUILD_RITUAL}\n\nCommit.\n\n## Never\n\n{_TESTS_TABLE}\n",
+            "mf-converge": f"{_FIX_STATION}\n\nFix.\n\n## Never\n\n{_NEVER_DELETES}\n",
+        },
+    )
+
+    assert _consolidation_problems(tmp_path) == [
+        f"skills/mf-build/SKILL.md `{_BUILD_RITUAL}`: does not name `{_TESTS_TABLE}`",
+        f"skills/mf-converge/SKILL.md `{_FIX_STATION}`: does not name "
+        f"`{_NEVER_DELETES}`",
+    ]
+
+
+# Review's test-cost and coverage-trace passes are each named where the station runs
+# them and where the conductor checks its Summary. Why: 0026-test-cost design B7, B8.
+_REVIEW_PASSES = ("test-cost pass", "coverage-trace pass")
+
+
+def _review_pass_problems(base: Path) -> list[str]:
+    """Return a line per review pass `base`'s converge names fewer than twice."""
+    return _named_twice_problems(base, _REVIEW_PASSES)
+
+
+def test_converge_names_the_review_passes_where_they_run_and_are_checked() -> None:
+    assert _review_pass_problems(_REPO) == []
+
+
+def test_the_review_pass_scan_reports_a_single_mention_of_each(tmp_path: Path) -> None:
+    # A converge that tells review to run each pass but never checks it ran.
+    _plant(
+        tmp_path,
+        {"mf-converge": "".join(f"Review runs a {n}.\n" for n in _REVIEW_PASSES)},
+    )
+
+    assert _review_pass_problems(tmp_path) == [
+        f"skills/mf-converge/SKILL.md: names `{name}` 1 time(s)"
+        for name in _REVIEW_PASSES
+    ]
+
+
+# The release times precondition 1's gate and reads CI's last green run for its `Gate:`
+# line. Why: 0026-test-cost design B10.
+_GATE_CLOCK = ("Gate: local", "gh run list")
+
+
+def _gate_clock_problems(base: Path) -> list[str]:
+    """Return one line per gate-clock needle `base`'s release does not name."""
+    return _needle_problems(base, "mf-release", present=_GATE_CLOCK)
+
+
+def test_the_release_names_the_gate_clock() -> None:
+    assert _gate_clock_problems(_REPO) == []
+
+
+def test_the_gate_clock_scan_reports_both_needles(tmp_path: Path) -> None:
+    _plant(tmp_path, {"mf-release": "Cut the changelog.\n"})
+
+    assert _gate_clock_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{needle}`"
+        for needle in _GATE_CLOCK
+    ]
+
+
+# A new repo starts under the rules for tests: the bootstrap's `CLAUDE.md` states them.
+# Why: 0026-test-cost design B13.
+_CLAUDE_TEMPLATE = "skills/mf-bootstrap/templates/CLAUDE.md.tmpl"
+_TEMPLATE_TESTS = "## Tests"
+
+
+def _template_tests_problems(base: Path) -> list[str]:
+    """Return a line when `base`'s bootstrap `CLAUDE.md` template has no `## Tests`."""
+    lines = (base / _CLAUDE_TEMPLATE).read_text().splitlines()
+    if _TEMPLATE_TESTS in lines:
+        return []
+    return [f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
+
+
+def test_the_bootstrap_holds_its_template_tests_section() -> None:
+    assert _template_tests_problems(_REPO) == []
+
+
+def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None:
+    # A heading one level down is not the section.
+    (tmp_path / _CLAUDE_TEMPLATE).parent.mkdir(parents=True)
+    (tmp_path / _CLAUDE_TEMPLATE).write_text("# <name>\n\n### Tests\n")
+
+    assert _template_tests_problems(tmp_path) == [
+        f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"
     ]
 
 

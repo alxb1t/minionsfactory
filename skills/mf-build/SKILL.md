@@ -49,6 +49,7 @@ in their row, and a breach of any found mid-build is a halt naming the id.
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
+| **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids | — (stop-condition 5) |
 
 ## Step 1 — Lift the context
 
@@ -114,9 +115,10 @@ person has done it. Search their evidence files for the operator's home path, th
 shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then run the gate,
 write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
 
-1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance,
-   then implement to green. External effects are faked behind the repo's declared seams, so the suite stays
-   offline and deterministic. Write to `W`, `P` and `C` below.
+1. **Do the phase's tasks.** Test-first where there is logic: write the failing test for the phase's acceptance —
+   at the layer `T1` names, as a step in an existing test where `T2` finds one — then implement to green. External
+   effects are faked behind the repo's declared seams, so the suite stays offline and deterministic. Write to `W`,
+   `T`, `P` and `C` below.
 2. **Run each sub-task's stated verification — run it, never summarize it.**
    Show the command's real output as it runs. A verification you describe is a claim about the check; only the
    command that exited is the check. This is the same rule the gate is under, applied to the per-task acceptance.
@@ -125,7 +127,8 @@ write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
    code to make it pass.
 3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate to pass:** deleting or skipping
    a test, a blanket suppression, a loosened config — each is a plan problem, and the move is to halt (see
-   *Stop-conditions*).
+   *Stop-conditions*). A test deleted or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not
+   weakening; one outside the table is.
 4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
    changed and why, following `P`.
 5. **Tick the phase's box** in the `## Progress` list in `tasks.md` (`- [ ] N` → `- [x] N`). A phase is finished
@@ -148,6 +151,9 @@ write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
          skills/mf-build/SKILL.md — fixed
          CLAUDE.md — fixed
          openspec/specs/sdd/spec.md — kept: a spec names the old term until the fold
+
+   A phase that adds an end-to-end test carries `T2`'s reason in its commit body, one line per test, as its own
+   paragraph before the trailer block: `new e2e: <test> — <why no existing test reaches the state>`.
 
 Only then take the next unticked phase, from Step 2 again, until every box is ticked.
 
@@ -194,7 +200,8 @@ were whole is not.
    than one means design.md was deleted and added again: halt. Add it as listed there. A package it does not
    list, or a `## Dependencies` the branch changed since the cut: state the justification and stop for
    approval. Dependencies are the supply-chain surface and are human-gated.
-5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut.
+5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut. A
+   deletion the `## Tests` table names is the plan, not a weakening.
 
 ## Rules for what you write
 
@@ -207,8 +214,22 @@ renaming a thing other text refers to: a module, a file, a term, a rule.
 | **W2** | **A retirement searches the whole tree** — code, tests, docs, specs, `README.md`, `CLAUDE.md` — and lists every hit as fixed or kept, with the reason, in the phase's commit body (Step 2, item 6) |
 | **W3** | **No *only*, *never* or *nothing else* without a named test** that fails when the claim stops being true |
 | **W4** | **No counts in prose or comments** — name the things. The full rule and its one exception are `P12` |
-| **W5** | **A test that holds a guard ships with a twin** showing the test fails when the guard is gone |
+| **W5** | **A test that holds a guard ships with a twin** showing the test fails when the guard is gone, placed per `T6` |
 | **W6** | **The change that makes the docs false corrects them**, in the same change |
+
+## Rules for tests
+
+This skill owns this list. `mf-cut-change` and `mf-converge` carry the same ids; `tests/test_skills.py` fails if
+they differ. A test is paid for on every gate run, on every engine it runs on: the cheapest proof adds no run.
+
+| id | rule | example / why |
+|---|---|---|
+| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has | a price rule is a unit test; the price on the page is one step in a page test |
+| **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
+| **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
+| **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids | a deletion outside the table weakens the gate |
+| **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
 
 ## Prose rules
 

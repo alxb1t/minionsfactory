@@ -10,6 +10,17 @@ The gate is **`make gate`**, run at the repository root. The `Makefile` recipe i
 prose names `make gate` and never copies them. Today it validates the specs. A new command lands through a change
 whose cut names the gate recipe in a task.
 
+## Tests
+
+A test is placed by its cost: every gate run pays for it again.
+
+- **The lowest layer that can fail for it** — unit, then integration, then end-to-end only for what a browser
+  alone shows.
+- **A step in an existing test before a new one** — one that already reaches the page, record or fixture.
+- **Engines only where they differ** — client behaviour on each engine; server-rendered output on one.
+- **Deleted or merged only as a change's `## Tests` table names it** — each removed test mapped to the test that
+  carries its proofs.
+
 ## How a change is cut here
 
 Each version is one change, cut, built, checked and released with the MinionsFactory `mf-*` skills. The OpenSpec
@@ -26,4 +37,5 @@ CLI is recorded, not pinned: `@fission-ai/openspec@<openspec-version>`, resolved
 - **Never commit a secret, or a real absolute path from the machine the run is on.**
 - **Dependencies are minimal and human-approved.** Argue for a new one, and wait for approval before installing it.
 - **Never weaken the gate to pass.** A deleted test, a blanket suppression, a loosened config: halt and say so.
+  A test deleted or merged as the change's `## Tests` table names it is not a weakening.
 - **State lives on disk.** Rebuild where the work is from the active change's `tasks.md` and git.

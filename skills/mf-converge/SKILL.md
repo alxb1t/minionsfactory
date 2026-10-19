@@ -169,6 +169,8 @@ own findings file. Give each one:
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
 - its own findings path `.minions/findings/<change-id>_<role>.md`,
+- for review, the change's `openspec/changes/<change-id>/design.md`, whose `## Tests` section the coverage-trace
+  pass reads;
 - the card, from [`## The card`](#the-card) — every finding it writes is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below — and nothing else to write.
 
@@ -181,6 +183,17 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 **Review runs a stale-claim pass after its engine.** For every path, symbol, verb, route or count the diff
 renames, deletes or changes, it runs `git grep` over the tree outside the diff and cards each mention the change
 made false as `drift`. Its Summary says the pass ran and names what it searched for.
+
+**Review runs a test-cost pass after its engine.** For every test the diff adds, it applies the
+[rules for tests](#rules-for-tests): an end-to-end test that a lower layer already proves (`T1`), that re-opens a
+state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`), is a card graded
+`nit`, its **Fix** sized `a test`, so Step 8's pickup fixes it. Its Summary says the pass ran.
+
+**Review runs a coverage-trace pass when the freeze removes a test** — a deleted test file, or a test case gone
+from one. It traces every removed assertion and scenario id to the test that runs it now, against `design.md`'s
+`## Tests` table. A proof carried by nothing, a scenario moved onto a test of another code path, client behaviour on
+one engine (`T4`), or a merged step leaning on an earlier one (`T3`), is `blocking`. Its Summary says the pass ran,
+or that the freeze removed no test.
 
 **How a station scopes itself.** Review scopes its engine to the range. `/security-review` takes no target: it
 reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a
@@ -261,6 +274,8 @@ rules are fail-closed, and all are yours to enforce:
   one-file fix range is converging, and judging it against the whole branch's counts halts a loop that is working.
 - **A review without its stale-claim pass is not clean.** The review file's Summary must say the pass ran. It
   does not → treat it as a scope failure and halt on it: drift outside the diff went unsearched.
+- **A review without its test-cost pass or its coverage-trace pass is not clean.** The review file's Summary must
+  say each ran, or that the freeze removed no test. It does not → a scope failure: halt on it.
 
 **The non-blocking cards stay in the findings files until Step 9** — review `drift` and nits, security
 `medium`/`low`. The
@@ -278,11 +293,16 @@ Dispatch **one** subagent to clear every **open blocking** finding across both f
 exactly the cards Step 8 names — to a **green gate**. Write `fix` to the status log at dispatch, and again when it
 commits. It:
 
-- fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
-  loosened config, no deleted test. That is exactly what the review station checks for;
+- fixes test-first where there is logic, writing each test to the [rules for tests](#rules-for-tests): a
+  finding's regression test at the lowest layer that reproduces it (`T1`), as a step in an existing test where one
+  reaches the state (`T2`);
+- **never weakens the gate** — no new blanket suppression, no loosened config — and it
+  **never deletes or merges a test**: consolidation is planned at the cut (`T5`), never in a fix. That is exactly
+  what the review station checks for;
 - sets each addressed card's **Status** to `fixed`, with a one-line note;
-- **proves red before green** — for a card whose **Fix** size includes `a test`, it pastes the new test's
-  failing run from before the fix into the **Status** note. A fix to docs alone is exempt;
+- **proves red before green** — for a card whose **Fix** size includes `a test`, it pastes the new or extended
+  test's failing run from before the fix into the **Status** note; an extended test's run is the existing test with
+  the new step added. A fix to docs alone is exempt;
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
@@ -312,8 +332,9 @@ Write `freeze` to the status log.
 Re-run the gate yourself, and write `verify` to the status log. Then dispatch the
 **same two roles** as **fresh** subagents at `round ≥ 2` — writing `fan-out` to the status log — each
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
-counters, appending to its `## Resolution log`, and declaring a verdict. Read the verdicts from disk again under
-the Step 5 rules.
+counters, appending to its `## Resolution log`, and declaring a verdict. Review runs its test-cost pass and its
+coverage-trace pass over this round's freeze, so a fix's new test is judged like the build's. Read the verdicts
+from disk again under the Step 5 rules.
 
 After a round whose fix station committed nothing, the verify pass judges the previous freeze's patch, and Step 5
 compares against that freeze's numbers.
@@ -408,6 +429,20 @@ and name things rather than count them: "the review and security files", not "th
   - **Status:** open
 ```
 
+## Rules for tests
+
+`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ. The fix
+station writes tests to them, and review's test-cost pass judges by them.
+
+| id | rule | example / why |
+|---|---|---|
+| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has | a price rule is a unit test; the price on the page is one step in a page test |
+| **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
+| **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
+| **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids | a deletion outside the table weakens the gate |
+| **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
+
 ## Never
 
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
@@ -419,7 +454,8 @@ and name things rather than count them: "the review and security files", not "th
   small cards and `drift` cards only.
 - **Never delete a backlog card, except a fixed repeat's** — Step 9 item 6, when its **Still true?** shows the
   defect gone. Any other deletion is a paydown change's release.
-- **Never weaken the gate**, and never accept a fix that passes only because a check was loosened.
+- **Never weaken the gate**, and never accept a fix that passes only because a check was loosened. A test
+  deleted or merged as `design.md`'s `## Tests` table names it is not a weakening.
 - **Never archive, fold, tag, merge or push.** The loop that declared convergence does not also act on it.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file — least of
   all one transcribed out of a `.minions/` artefact into tracked prose. Cite repository-relative paths.
