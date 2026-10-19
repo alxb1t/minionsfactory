@@ -189,10 +189,10 @@ lists the cards it closes and its release deletes them.**
 
 ### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes
 
-**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog and tags.
-Then it asks once; on yes it merges into the default branch with `--no-ff` and pushes the default branch and the
-tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
-commit.**
+**It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog with
+one `Gate:` line of the gate's times, and tags. Then it asks once; on yes it merges into the default branch with
+`--no-ff` and pushes the default branch and the tag. It never forces, never pushes the version branch, never
+edits feature code. Fold and archive land in one commit.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
   leaves the spec tree and the change disagreeing.

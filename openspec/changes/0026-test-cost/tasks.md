@@ -9,7 +9,7 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 - [x] 1 — The rules for tests
 - [x] 2 — Consolidation
 - [x] 3 — The review passes
-- [ ] 4 — The clock
+- [x] 4 — The clock
 - [ ] 5 — The record
 
 ## 1 — The rules for tests
@@ -97,20 +97,20 @@ scan.
 [The clock](design.md#the-clock), word for word ([B10](design.md#b10), [B11](design.md#b11),
 [B12](design.md#b12)), then the scan.
 
-- [ ] 4.1 **HALT CHECK** — the release and the principle read as design quotes them. Verify:
+- [x] 4.1 **HALT CHECK** — the release and the principle read as design quotes them. Verify:
   `grep -c 'Write no new changelog prose here.' skills/mf-release/SKILL.md` and
   `tr -s '\n ' ' ' < docs/principles.md | grep -c 'Everything a station reads or writes is inside the repository it works on.'`
   each print `1`.
-- [ ] 4.2 `skills/mf-release/SKILL.md`: precondition 1, Step 4.1 and Step 6's sentences. Verify:
+- [x] 4.2 `skills/mf-release/SKILL.md`: precondition 1, Step 4.1 and Step 6's sentences. Verify:
   `grep -c 'Gate: local' skills/mf-release/SKILL.md` prints `2`, and
   `grep -c 'Write no other changelog prose here.' skills/mf-release/SKILL.md`,
   `grep -cF 's=$(date +%s); make gate' skills/mf-release/SKILL.md`,
   `grep -c 'gh run list --branch <default-branch> --status success' skills/mf-release/SKILL.md` and
   `tr -s '\n ' ' ' < skills/mf-release/SKILL.md | grep -c 'exit code, and the `Gate:` line;'` each print `1`.
-- [ ] 4.3 `docs/principles.md`: *The repo reaches nothing outside itself*; `docs/decisions.md`: D17. Verify:
+- [x] 4.3 `docs/principles.md`: *The repo reaches nothing outside itself*; `docs/decisions.md`: D17. Verify:
   `tr -s '\n ' ' ' < docs/principles.md | grep -c 'reads the remote.s CI runs, read-only'` and
   `tr -s '\n ' ' ' < docs/decisions.md | grep -c 'cuts the changelog with one `Gate:` line'` each print `1`.
-- [ ] 4.4 `tests/test_skills.py`: `_gate_clock_problems`, its test and its planted twin, both named with
+- [x] 4.4 `tests/test_skills.py`: `_gate_clock_problems`, its test and its planted twin, both named with
   `gate_clock`. Verify:
   `uv run pytest tests/test_skills.py -q -k gate_clock | tail -1 | grep -c '^2 passed'` prints `1`.
 

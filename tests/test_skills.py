@@ -591,6 +591,29 @@ def test_the_review_pass_scan_reports_a_single_mention_of_each(tmp_path: Path) -
     ]
 
 
+# The release times precondition 1's gate and reads CI's last green run for its `Gate:`
+# line. Why: 0026-test-cost design B10.
+_GATE_CLOCK = ("Gate: local", "gh run list")
+
+
+def _gate_clock_problems(base: Path) -> list[str]:
+    """Return one line per gate-clock needle `base`'s release does not name."""
+    return _needle_problems(base, "mf-release", present=_GATE_CLOCK)
+
+
+def test_the_release_names_the_gate_clock() -> None:
+    assert _gate_clock_problems(_REPO) == []
+
+
+def test_the_gate_clock_scan_reports_both_needles(tmp_path: Path) -> None:
+    _plant(tmp_path, {"mf-release": "Cut the changelog.\n"})
+
+    assert _gate_clock_problems(tmp_path) == [
+        f"skills/mf-release/SKILL.md: does not name `{needle}`"
+        for needle in _GATE_CLOCK
+    ]
+
+
 # A fix sized `a test` carries its red run, and the verify step checks the test hits the
 # card's scenario. Why: 0017-converge-audit-fixes design D8.
 _RED_RUN = "failing run from before the fix"

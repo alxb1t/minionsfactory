@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Review judges test cost and traced coverage** (change `0026-test-cost`, phase 3). Every round, review cards a
   costly new test as a `nit` for pickup and traces each removed test's proofs against the `## Tests` table; the
   conductor halts on a Summary that does not say both passes ran.
+- **The release records the gate's time** (change `0026-test-cost`, phase 4). `mf-release` times precondition 1's
+  gate and writes one `Gate:` line — local, CI's longest last green run by `gh`, and the previous release's — so the
+  clock is seen at every release. The principle, D17 and `CLAUDE.md` name the read-only CI read.
 
 ## [0.25.0] - 2026-10-17
 

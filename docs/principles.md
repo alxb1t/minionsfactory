@@ -128,11 +128,13 @@ is done on a commit and a ticked box together; a round number lives in the findi
 
 ### The repo reaches nothing outside itself
 
-**Everything a station reads or writes is inside the repository it works on. The repo names no path, token or tool
-of the place its plan is kept; run output goes to the gitignored `.minions/`.**
+**Everything a station writes is inside the repository it works on, and so is everything it reads, save one:
+`mf-release` reads the remote's CI runs, read-only, for its `Gate:` line. The repo names no path, token or tool of
+the place its plan is kept; run output goes to the gitignored `.minions/`.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
   handed over as it is, and the planning side can be swapped without touching it.
+- **Accepts:** without `gh` or a remote, the line says `CI none`.
 - **Held by:** each skill's rule never to write an absolute path;
   `tests/test_guardrails.py::test_no_tracked_file_holds_a_home_path_or_a_key`.
 
