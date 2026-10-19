@@ -160,17 +160,23 @@ def _plant(base: Path, texts: dict[str, str]) -> Path:
     return base
 
 
-def _planted_problems(base: Path, heading: str, letter: str) -> list[str]:
-    """Return what the scan reports for a planted build and cut that disagree.
+def _planted_problems(
+    base: Path, heading: str, letter: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
+    """Return what the scan reports for planted owners that disagree.
 
-    The build holds ids 1–3 and the cut 1 and 3, so the cut has a gap and the two sets
-    differ by one id. A row past the section's end must not count.
+    The owner holds ids 1–3, the first carrier 1 and 3, and any later carrier 1–2, so
+    the first carrier has a gap and each carrier differs by one id. A row past the
+    section's end must not count.
     """
     outside = f"\n## Never\n\n| **{letter}9** | outside |\n"
-    build = _table_text(heading, f"{letter}1", f"{letter}2", f"{letter}3")
-    cut = _table_text(heading, f"{letter}1", f"{letter}3")
-    _plant(base, {"mf-build": build + outside, "mf-cut-change": cut + outside})
-    return _shared_id_problems(base, heading, letter)
+    ids = [(1, 2, 3), (1, 3)] + [(1, 2)] * (len(owners) - 2)
+    texts = {
+        name: _table_text(heading, *(f"{letter}{n}" for n in held)) + outside
+        for name, held in zip(owners, ids, strict=True)
+    }
+    _plant(base, texts)
+    return _shared_id_problems(base, heading, letter, owners)
 
 
 def test_the_cut_and_the_build_carry_the_same_contract_ids() -> None:
@@ -209,19 +215,7 @@ def test_the_build_the_cut_and_converge_carry_the_same_test_rule_ids() -> None:
 def test_the_test_rule_scan_reports_each_differing_carrier_and_a_gap(
     tmp_path: Path,
 ) -> None:
-    # The cut lacks T2 and so has a gap; converge lacks T3 with no gap. A row past the
-    # section's end must not count.
-    outside = "\n## Never\n\n| **T9** | outside |\n"
-    _plant(
-        tmp_path,
-        {
-            "mf-build": _table_text(_TEST_RULES, "T1", "T2", "T3") + outside,
-            "mf-cut-change": _table_text(_TEST_RULES, "T1", "T3") + outside,
-            "mf-converge": _table_text(_TEST_RULES, "T1", "T2") + outside,
-        },
-    )
-
-    assert _shared_id_problems(tmp_path, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == [
+    assert _planted_problems(tmp_path, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == [
         "labels differ: only in mf-build ['T2'], only in mf-cut-change []",
         "labels differ: only in mf-build ['T3'], only in mf-converge []",
         "skills/mf-cut-change/SKILL.md: ids do not run T1…T3",
@@ -498,11 +492,17 @@ def test_the_repeats_scan_reports_both_needles(tmp_path: Path) -> None:
 _STALE_CLAIM = "stale-claim pass"
 
 
+def _named_twice_problems(base: Path, needles: tuple[str, ...]) -> list[str]:
+    """Return a line per needle `base`'s converge names fewer than twice."""
+    where = "skills/mf-converge/SKILL.md"
+    text = (base / where).read_text()
+    counts = {needle: text.count(needle) for needle in needles}
+    return [f"{where}: names `{n}` {c} time(s)" for n, c in counts.items() if c < 2]
+
+
 def _stale_claim_problems(base: Path) -> list[str]:
     """Return a line when `base`'s converge names the pass fewer than twice."""
-    where = "skills/mf-converge/SKILL.md"
-    count = (base / where).read_text().count(_STALE_CLAIM)
-    return [] if count >= 2 else [f"{where}: names `{_STALE_CLAIM}` {count} time(s)"]
+    return _named_twice_problems(base, (_STALE_CLAIM,))
 
 
 def test_converge_names_the_stale_claim_pass_where_it_runs_and_is_checked() -> None:
@@ -565,13 +565,7 @@ _REVIEW_PASSES = ("test-cost pass", "coverage-trace pass")
 
 def _review_pass_problems(base: Path) -> list[str]:
     """Return a line per review pass `base`'s converge names fewer than twice."""
-    where = "skills/mf-converge/SKILL.md"
-    text = (base / where).read_text()
-    return [
-        f"{where}: names `{name}` {text.count(name)} time(s)"
-        for name in _REVIEW_PASSES
-        if text.count(name) < 2
-    ]
+    return _named_twice_problems(base, _REVIEW_PASSES)
 
 
 def test_converge_names_the_review_passes_where_they_run_and_are_checked() -> None:
