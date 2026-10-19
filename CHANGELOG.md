@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The release records the gate's time** (change `0026-test-cost`, phase 4). `mf-release` times precondition 1's
   gate and writes one `Gate:` line — local, CI's longest last green run by `gh`, and the previous release's — so the
   clock is seen at every release. The principle, D17 and `CLAUDE.md` name the read-only CI read.
+- **D39 records the rules for tests, and a new repo starts under them** (change `0026-test-cost`, phase 5). The
+  bootstrap's `CLAUDE.md` template gains `## Tests`, and its guardrail names the `## Tests` table.
 
 ## [0.25.0] - 2026-10-17
 

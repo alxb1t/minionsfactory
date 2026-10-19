@@ -11,7 +11,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37 · The autonomous line D24…D35
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39 · The autonomous line D24…D35
 ```
 
 ## The shape
@@ -295,6 +295,17 @@ retired names.**
 
 - **Why:** a scan for retired words grows with every retirement, and tests a history rather than the system.
 - **Gave up:** a reintroduced name turning the gate red. Review's stale-claim pass looks for it instead.
+
+### D39 · A test is placed by its cost
+
+**A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
+engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
+`## Tests` table names it. Review judges each new test's cost and traces each removed one's proofs.**
+
+- **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
+  most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
+- **Rejected:** a coverage review as a third checker: a third findings file and release precondition for a pass
+  only some changes need · a time estimate at the cut: setup dominates, so runs × an average misleads.
 
 ## The autonomous line
 

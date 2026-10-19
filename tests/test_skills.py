@@ -614,6 +614,34 @@ def test_the_gate_clock_scan_reports_both_needles(tmp_path: Path) -> None:
     ]
 
 
+# A new repo starts under the rules for tests: the bootstrap's `CLAUDE.md` states them.
+# Why: 0026-test-cost design B13.
+_CLAUDE_TEMPLATE = "skills/mf-bootstrap/templates/CLAUDE.md.tmpl"
+_TEMPLATE_TESTS = "## Tests"
+
+
+def _template_tests_problems(base: Path) -> list[str]:
+    """Return a line when `base`'s bootstrap `CLAUDE.md` template has no `## Tests`."""
+    lines = (base / _CLAUDE_TEMPLATE).read_text().splitlines()
+    if _TEMPLATE_TESTS in lines:
+        return []
+    return [f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
+
+
+def test_the_bootstrap_holds_its_template_tests_section() -> None:
+    assert _template_tests_problems(_REPO) == []
+
+
+def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None:
+    # A heading one level down is not the section.
+    (tmp_path / _CLAUDE_TEMPLATE).parent.mkdir(parents=True)
+    (tmp_path / _CLAUDE_TEMPLATE).write_text("# <name>\n\n### Tests\n")
+
+    assert _template_tests_problems(tmp_path) == [
+        f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"
+    ]
+
+
 # A fix sized `a test` carries its red run, and the verify step checks the test hits the
 # card's scenario. Why: 0017-converge-audit-fixes design D8.
 _RED_RUN = "failing run from before the fix"

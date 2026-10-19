@@ -10,7 +10,7 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 - [x] 2 — Consolidation
 - [x] 3 — The review passes
 - [x] 4 — The clock
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The rules for tests
 
@@ -118,13 +118,13 @@ scan.
 
 [The record](design.md#the-record), word for word ([B12](design.md#b12), [B13](design.md#b13)), then the scan.
 
-- [ ] 5.1 `docs/decisions.md`: D39 after D37, and the map. Verify:
+- [x] 5.1 `docs/decisions.md`: D39 after D37, and the map. Verify:
   `grep -c '^### D39 · A test is placed by its cost$' docs/decisions.md` and
   `grep -c 'D36, D37, D39' docs/decisions.md` each print `1`.
-- [ ] 5.2 `skills/mf-bootstrap/templates/CLAUDE.md.tmpl`: `## Tests`, and the guardrail. Verify:
+- [x] 5.2 `skills/mf-bootstrap/templates/CLAUDE.md.tmpl`: `## Tests`, and the guardrail. Verify:
   `grep -c '^## Tests$' skills/mf-bootstrap/templates/CLAUDE.md.tmpl` and
   `tr -s '\n ' ' ' < skills/mf-bootstrap/templates/CLAUDE.md.tmpl | grep -c 'names it is not a weakening.'` each
   print `1`.
-- [ ] 5.3 `tests/test_skills.py`: `_template_tests_problems`, its test and its planted twin, both named with
+- [x] 5.3 `tests/test_skills.py`: `_template_tests_problems`, its test and its planted twin, both named with
   `template_tests`. Verify:
   `uv run pytest tests/test_skills.py -q -k template_tests | tail -1 | grep -c '^2 passed'` prints `1`.
