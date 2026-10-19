@@ -7,7 +7,7 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 ## Progress
 
 - [x] 1 — The rules for tests
-- [ ] 2 — Consolidation
+- [x] 2 — Consolidation
 - [ ] 3 — The review passes
 - [ ] 4 — The clock
 - [ ] 5 — The record
@@ -44,29 +44,29 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 [the build](design.md#the-build), word for word ([B4](design.md#b4)–[B6](design.md#b6),
 [B11](design.md#b11)), then the scan.
 
-- [ ] 2.1 **HALT CHECK** — the fix station and stop-condition 5 read as design quotes them. Verify:
+- [x] 2.1 **HALT CHECK** — the fix station and stop-condition 5 read as design quotes them. Verify:
   `grep -c 'loosened config, no deleted test. That is exactly what the review station checks for;' skills/mf-converge/SKILL.md`
   and `grep -c '^5. \*\*A gate that only goes green by weakening it\*\*' skills/mf-build/SKILL.md` each print `1`.
-- [ ] 2.2 `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`: `I16`; the cut's diagram and Step 8.
+- [x] 2.2 `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`: `I16`; the cut's diagram and Step 8.
   Verify: `grep -c '^| \*\*I16\*\* |' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints
   `skills/mf-build/SKILL.md:1` and `skills/mf-cut-change/SKILL.md:1`, and
   `grep -c 'I1 … I16' skills/mf-cut-change/SKILL.md` and `grep -c 'I1`…`I16' skills/mf-cut-change/SKILL.md` each
   print `1`.
-- [ ] 2.3 `skills/mf-build/SKILL.md`: Step 2 item 3 and stop-condition 5. Verify:
+- [x] 2.3 `skills/mf-build/SKILL.md`: Step 2 item 3 and stop-condition 5. Verify:
   `tr -s '\n ' ' ' < skills/mf-build/SKILL.md | grep -c '(`I16`, `T5`) is not weakening; one outside the table is.'`
   and `tr -s '\n ' ' ' < skills/mf-build/SKILL.md | grep -c 'is the plan, not a weakening.'` each print `1`.
-- [ ] 2.4 `skills/mf-cut-change/SKILL.md`: `A8` after `A7`, and Step 6. Verify:
+- [x] 2.4 `skills/mf-cut-change/SKILL.md`: `A8` after `A7`, and Step 6. Verify:
   `grep -c '^| \*\*A8\*\* |' skills/mf-cut-change/SKILL.md` and
   `grep -c 'always has `## Tests` (`A8`)' skills/mf-cut-change/SKILL.md` each print `1`.
-- [ ] 2.5 `skills/mf-converge/SKILL.md`: Step 6's fix-station bullets and *Never*. Verify:
+- [x] 2.5 `skills/mf-converge/SKILL.md`: Step 6's fix-station bullets and *Never*. Verify:
   `grep -c 'never deletes or merges a test' skills/mf-converge/SKILL.md` prints `1`,
   `grep -c 'no deleted test' skills/mf-converge/SKILL.md` prints `0`, and
   `tr -s '\n ' ' ' < skills/mf-converge/SKILL.md | grep -c 'pastes the new or extended test.s failing run from before the fix'`
   and `tr -s '\n ' ' ' < skills/mf-converge/SKILL.md | grep -c 'names it is not a weakening.'` each print `1`.
-- [ ] 2.6 `docs/principles.md`: *Never weaken the gate to pass*, its bold paragraph and *Held by*. Verify:
+- [x] 2.6 `docs/principles.md`: *Never weaken the gate to pass*, its bold paragraph and *Held by*. Verify:
   `tr -s '\n ' ' ' < docs/principles.md | grep -c 'is consolidation, not weakening.'` and
   `tr -s '\n ' ' ' < docs/principles.md | grep -c 'review.s coverage-trace pass, for consolidation;'` each print `1`.
-- [ ] 2.7 `tests/test_skills.py`: `_consolidation_problems`, its test and its planted twin, both named with
+- [x] 2.7 `tests/test_skills.py`: `_consolidation_problems`, its test and its planted twin, both named with
   `consolidation`. Verify:
   `uv run pytest tests/test_skills.py -q -k consolidation | tail -1 | grep -c '^2 passed'` prints `1`.
 

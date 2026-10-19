@@ -518,6 +518,46 @@ def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
     ]
 
 
+# A deletion the design's `## Tests` table names is consolidation, not weakening, and
+# the fix station never deletes or merges a test. Why: 0026-test-cost design B4, B6.
+_TESTS_TABLE = "`## Tests` table"
+_BUILD_RITUAL = "## Step 2 — The per-phase ritual"
+_NEVER_DELETES = "never deletes or merges a test"
+_FIX_STATION = "## Step 6 — The fix station (one subagent, inside this loop)"
+
+
+def _consolidation_problems(base: Path) -> list[str]:
+    """Return one line per consolidation needle missing from its skill's section."""
+    return _needle_problems(
+        base, "mf-build", present=(_TESTS_TABLE,), section=_BUILD_RITUAL
+    ) + _needle_problems(
+        base, "mf-converge", present=(_NEVER_DELETES,), section=_FIX_STATION
+    )
+
+
+def test_the_build_and_the_fix_station_name_consolidation() -> None:
+    assert _consolidation_problems(_REPO) == []
+
+
+def test_the_consolidation_scan_reports_both_needles_outside_their_sections(
+    tmp_path: Path,
+) -> None:
+    # Each needle named, but in a section other than the one the rule lives in.
+    _plant(
+        tmp_path,
+        {
+            "mf-build": f"{_BUILD_RITUAL}\n\nCommit.\n\n## Never\n\n{_TESTS_TABLE}\n",
+            "mf-converge": f"{_FIX_STATION}\n\nFix.\n\n## Never\n\n{_NEVER_DELETES}\n",
+        },
+    )
+
+    assert _consolidation_problems(tmp_path) == [
+        f"skills/mf-build/SKILL.md `{_BUILD_RITUAL}`: does not name `{_TESTS_TABLE}`",
+        f"skills/mf-converge/SKILL.md `{_FIX_STATION}`: does not name "
+        f"`{_NEVER_DELETES}`",
+    ]
+
+
 # A fix sized `a test` carries its red run, and the verify step checks the test hits the
 # card's scenario. Why: 0017-converge-audit-fixes design D8.
 _RED_RUN = "failing run from before the fix"

@@ -97,12 +97,13 @@ itself; the release re-runs it and inherits nothing.**
 ### Never weaken the gate to pass
 
 **No deleted or skipped test, no blanket suppression, no loosened config. A gate that can only pass weakened is a
-plan problem: halt and say so.**
+plan problem: halt and say so. A test deleted or merged as the change's `## Tests` table names it, its proofs
+carried by a named remaining test, is consolidation, not weakening.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
-  the diff for it; the recipe check in `mf-converge` and `mf-release`;
-  `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
+  the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; the recipe check in
+  `mf-converge` and `mf-release`; `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
 
 ## State and the boundary
 

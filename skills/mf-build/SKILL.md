@@ -49,6 +49,7 @@ in their row, and a breach of any found mid-build is a halt naming the id.
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
+| **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids | — (stop-condition 5) |
 
 ## Step 1 — Lift the context
 
@@ -126,7 +127,8 @@ write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
    code to make it pass.
 3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken the gate to pass:** deleting or skipping
    a test, a blanket suppression, a loosened config — each is a plan problem, and the move is to halt (see
-   *Stop-conditions*).
+   *Stop-conditions*). A test deleted or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not
+   weakening; one outside the table is.
 4. **Append that phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
    changed and why, following `P`.
 5. **Tick the phase's box** in the `## Progress` list in `tasks.md` (`- [ ] N` → `- [x] N`). A phase is finished
@@ -198,7 +200,8 @@ were whole is not.
    than one means design.md was deleted and added again: halt. Add it as listed there. A package it does not
    list, or a `## Dependencies` the branch changed since the cut: state the justification and stop for
    approval. Dependencies are the supply-chain surface and are human-gated.
-5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut.
+5. **A gate that only goes green by weakening it** — halt. That is a plan problem, not a coding shortcut. A
+   deletion the `## Tests` table names is the plan, not a weakening.
 
 ## Rules for what you write
 

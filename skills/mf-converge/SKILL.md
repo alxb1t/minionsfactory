@@ -278,11 +278,16 @@ Dispatch **one** subagent to clear every **open blocking** finding across both f
 exactly the cards Step 8 names — to a **green gate**. Write `fix` to the status log at dispatch, and again when it
 commits. It:
 
-- fixes test-first where there is logic, and **never weakens the gate** — no new blanket suppression, no
-  loosened config, no deleted test. That is exactly what the review station checks for;
+- fixes test-first where there is logic, writing each test to the [rules for tests](#rules-for-tests): a
+  finding's regression test at the lowest layer that reproduces it (`T1`), as a step in an existing test where one
+  reaches the state (`T2`);
+- **never weakens the gate** — no new blanket suppression, no loosened config — and it
+  **never deletes or merges a test**: consolidation is planned at the cut (`T5`), never in a fix. That is exactly
+  what the review station checks for;
 - sets each addressed card's **Status** to `fixed`, with a one-line note;
-- **proves red before green** — for a card whose **Fix** size includes `a test`, it pastes the new test's
-  failing run from before the fix into the **Status** note. A fix to docs alone is exempt;
+- **proves red before green** — for a card whose **Fix** size includes `a test`, it pastes the new or extended
+  test's failing run from before the fix into the **Status** note; an extended test's run is the existing test with
+  the new step added. A fix to docs alone is exempt;
 - **touches no frontmatter counter** — not `round`, not `head`, not `open_blocking` — and **never writes
   `verdict: clean`**. Those belong to the verify pass. `fixed` is a claim; only the checker converges;
 - marks a finding it believes wrong as `wontfix` **with a justification**, never silently;
@@ -433,7 +438,8 @@ station writes tests to them, and review's test-cost pass judges by them.
   small cards and `drift` cards only.
 - **Never delete a backlog card, except a fixed repeat's** — Step 9 item 6, when its **Still true?** shows the
   defect gone. Any other deletion is a paydown change's release.
-- **Never weaken the gate**, and never accept a fix that passes only because a check was loosened.
+- **Never weaken the gate**, and never accept a fix that passes only because a check was loosened. A test
+  deleted or merged as `design.md`'s `## Tests` table names it is not a weakening.
 - **Never archive, fold, tag, merge or push.** The loop that declared convergence does not also act on it.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file — least of
   all one transcribed out of a `.minions/` artefact into tracked prose. Cite repository-relative paths.
