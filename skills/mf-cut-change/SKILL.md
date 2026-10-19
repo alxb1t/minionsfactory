@@ -185,6 +185,20 @@ after:   2.4 Seed the criteria listed in [D6](design.md#d6) into `seeds/criteria
          Verify: `grep -c '^\[\[criterion\]\]' seeds/criteria.toml` prints `7`.
 ```
 
+## Rules for tests
+
+`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ. The cut plans
+to them in `design.md`'s `## Tests` section (`A8`).
+
+| id | rule | example / why |
+|---|---|---|
+| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has | a price rule is a unit test; the price on the page is one step in a page test |
+| **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
+| **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
+| **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids | a deletion outside the table weakens the gate |
+| **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
+
 ## Rules for the artifacts
 
 Rules for a change's artifacts only; `mf-build` does not carry them.

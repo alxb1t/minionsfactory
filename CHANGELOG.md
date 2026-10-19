@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The build places each test by its cost** (change `0026-test-cost`, phase 1). `mf-build` owns `T1`…`T6` — lowest
+  layer, extend before adding, engines only where they differ — and the cut and converge carry them, held by a
+  scan over all three skills, so a target's suite stops growing a browser test per acceptance.
+
 ## [0.25.0] - 2026-10-17
 
 ### Changed

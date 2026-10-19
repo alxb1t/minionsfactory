@@ -408,6 +408,20 @@ and name things rather than count them: "the review and security files", not "th
   - **Status:** open
 ```
 
+## Rules for tests
+
+`mf-build` owns this list. The ids here are the same set; `tests/test_skills.py` fails if they differ. The fix
+station writes tests to them, and review's test-cost pass judges by them.
+
+| id | rule | example / why |
+|---|---|---|
+| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has | a price rule is a unit test; the price on the page is one step in a page test |
+| **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
+| **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
+| **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids | a deletion outside the table weakens the gate |
+| **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
+
 ## Never
 
 - **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the

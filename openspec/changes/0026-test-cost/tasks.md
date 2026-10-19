@@ -6,7 +6,7 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 
 ## Progress
 
-- [ ] 1 — The rules for tests
+- [x] 1 — The rules for tests
 - [ ] 2 — Consolidation
 - [ ] 3 — The review passes
 - [ ] 4 — The clock
@@ -17,22 +17,22 @@ line is checked joined: `tr -s '\n ' ' ' < <file>` turns the file into one line.
 [The rules for tests](design.md#the-rules-for-tests) and [the build](design.md#the-build), word for word
 ([B1](design.md#b1)–[B3](design.md#b3)), then the shared-id scan.
 
-- [ ] 1.1 **HALT CHECK** — the build reads as design quotes it. Verify:
+- [x] 1.1 **HALT CHECK** — the build reads as design quotes it. Verify:
   `grep -c 'Test-first where there is logic: write the failing test for the phase.s acceptance,$' skills/mf-build/SKILL.md`
   and `grep -c 'showing the test fails when the guard is gone |$' skills/mf-build/SKILL.md` each print `1`.
-- [ ] 1.2 `skills/mf-build/SKILL.md`: `## Rules for tests` between `## Rules for what you write` and `## Prose rules`.
+- [x] 1.2 `skills/mf-build/SKILL.md`: `## Rules for tests` between `## Rules for what you write` and `## Prose rules`.
   Verify: `grep -c '^## Rules for tests$' skills/mf-build/SKILL.md` prints `1`, and
   `grep -c '^| \*\*T[1-6]\*\* |' skills/mf-build/SKILL.md` prints `6`.
-- [ ] 1.3 `skills/mf-build/SKILL.md`: Step 2 item 1, the item 6 paragraph, and `W5`. Verify:
+- [x] 1.3 `skills/mf-build/SKILL.md`: Step 2 item 1, the item 6 paragraph, and `W5`. Verify:
   `tr -s '\n ' ' ' < skills/mf-build/SKILL.md | grep -c 'as a step in an existing test where `T2` finds one'`,
   `tr -s '\n ' ' ' < skills/mf-build/SKILL.md | grep -c 'Write to `W`, `T`, `P` and `C` below.'`,
   `grep -c 'new e2e: <test>' skills/mf-build/SKILL.md` and `grep -c 'placed per `T6` |$' skills/mf-build/SKILL.md`
   each print `1`.
-- [ ] 1.4 `skills/mf-cut-change/SKILL.md` and `skills/mf-converge/SKILL.md`: `## Rules for tests` where
+- [x] 1.4 `skills/mf-cut-change/SKILL.md` and `skills/mf-converge/SKILL.md`: `## Rules for tests` where
   [the rules for tests](design.md#the-rules-for-tests) places each, with its opening. Verify:
   `grep -c '^| \*\*T[1-6]\*\* |' skills/mf-cut-change/SKILL.md skills/mf-converge/SKILL.md` prints
   `skills/mf-cut-change/SKILL.md:6` and `skills/mf-converge/SKILL.md:6`.
-- [ ] 1.5 `tests/test_skills.py`: the `owners` parameter on `_shared_label_problems` and `_shared_id_problems`, and
+- [x] 1.5 `tests/test_skills.py`: the `owners` parameter on `_shared_label_problems` and `_shared_id_problems`, and
   the test-rule scan, its test and its planted twin, both named with `test_rule`, per
   [the scans](design.md#the-scans). Verify:
   `uv run pytest tests/test_skills.py -q -k test_rule | tail -1 | grep -c '^2 passed'` and

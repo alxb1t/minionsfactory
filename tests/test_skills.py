@@ -102,9 +102,13 @@ def _section_ids(path: Path, heading: str, letter: str) -> list[int]:
     ]
 
 
-def _shared_label_problems(base: Path, heading: str) -> list[str]:
-    """Return one line per breach of the `heading` labels the shared owners carry."""
-    owners = _SHARED_OWNERS
+def _shared_label_problems(
+    base: Path, heading: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
+    """Return one line per breach of the `heading` labels the `owners` carry.
+
+    The first of `owners` owns the list; each carrier is compared with it.
+    """
     problems: list[str] = []
     sets: dict[str, set[str]] = {}
     for name in owners:
@@ -116,19 +120,23 @@ def _shared_label_problems(base: Path, heading: str) -> list[str]:
         if not labels:
             problems.append(f"skills/{name}/SKILL.md: no labels in `{heading}`")
         sets[name] = set(labels)
-    first, second = (sets.get(name) for name in owners)
-    if first and second and first != second:
-        problems.append(
-            f"labels differ: only in {owners[0]} {sorted(first - second)}, "
-            f"only in {owners[1]} {sorted(second - first)}"
-        )
+    first = sets.get(owners[0])
+    for name in owners[1:]:
+        carried = sets.get(name)
+        if first and carried and first != carried:
+            problems.append(
+                f"labels differ: only in {owners[0]} {sorted(first - carried)}, "
+                f"only in {name} {sorted(carried - first)}"
+            )
     return problems
 
 
-def _shared_id_problems(base: Path, heading: str, letter: str) -> list[str]:
+def _shared_id_problems(
+    base: Path, heading: str, letter: str, owners: tuple[str, ...] = _SHARED_OWNERS
+) -> list[str]:
     """Return one line per breach of the shared `heading` list in `base`'s skills."""
-    problems = _shared_label_problems(base, heading)
-    for name in _SHARED_OWNERS:
+    problems = _shared_label_problems(base, heading, owners)
+    for name in owners:
         path = base / "skills" / name / "SKILL.md"
         ids = _section_ids(path, heading, letter) if path.is_file() else []
         if ids and sorted(ids) != list(range(1, max(ids) + 1)):
@@ -184,6 +192,39 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     assert _planted_problems(tmp_path, "## Prose rules", "P") == [
         "labels differ: only in mf-build ['P2'], only in mf-cut-change []",
         "skills/mf-cut-change/SKILL.md: ids do not run P1…P3",
+    ]
+
+
+# The rules for tests: `mf-build` owns them, and the cut and converge carry the same
+# ids, since the fix station runs in a target repo and cannot be told to read the build.
+# Why: 0026-test-cost design B2.
+_TEST_RULE_CARRIERS = ("mf-build", "mf-cut-change", "mf-converge")
+_TEST_RULES = "## Rules for tests"
+
+
+def test_the_build_the_cut_and_converge_carry_the_same_test_rule_ids() -> None:
+    assert _shared_id_problems(_REPO, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == []
+
+
+def test_the_test_rule_scan_reports_each_differing_carrier_and_a_gap(
+    tmp_path: Path,
+) -> None:
+    # The cut lacks T2 and so has a gap; converge lacks T3 with no gap. A row past the
+    # section's end must not count.
+    outside = "\n## Never\n\n| **T9** | outside |\n"
+    _plant(
+        tmp_path,
+        {
+            "mf-build": _table_text(_TEST_RULES, "T1", "T2", "T3") + outside,
+            "mf-cut-change": _table_text(_TEST_RULES, "T1", "T3") + outside,
+            "mf-converge": _table_text(_TEST_RULES, "T1", "T2") + outside,
+        },
+    )
+
+    assert _shared_id_problems(tmp_path, _TEST_RULES, "T", _TEST_RULE_CARRIERS) == [
+        "labels differ: only in mf-build ['T2'], only in mf-cut-change []",
+        "labels differ: only in mf-build ['T3'], only in mf-converge []",
+        "skills/mf-cut-change/SKILL.md: ids do not run T1…T3",
     ]
 
 
