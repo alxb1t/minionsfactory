@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-22
+
+Gate: local 0m1s · CI none · 0.26.0: local 0m0s · CI 0m12s (CI at d5162e4)
+
+- Prove the generic Codex roles with a live fixture and fresh verification; record native dispatch preservation
+  and the retirement inventory (change `0027-migrate-to-agents`, phase 3). Preserve failed-attempt evidence.
+
+- Route passes by executor: preserve Claude Code engines and bundle generic roles with fresh-worker dispatch
+  (change `0027-migrate-to-agents`, phase 2). Guard resource integrity; keep model suggestions portable.
+
+- Use `AGENTS.md` for target context and bootstrap templates; install skills into the shared directory by default
+  (change `0027-migrate-to-agents`, phase 1). Preserve the gate and installer safeguards.
+
 ## [0.26.0] - 2026-10-19
 
 Gate: local 0m0s · CI 0m12s (CI at d5162e4) · 0.25.0: none

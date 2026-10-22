@@ -14,6 +14,9 @@ convergence does not also archive and tag on it.** When converge ran, you re-rea
 yourself; when it did not, this station is the only check after the build, and says so. Either way you re-run
 the gate yourself; you inherit nothing.
 
+Before work, explicitly read root `AGENTS.md` and the mandatory context it identifies.
+Missing root `AGENTS.md` → **halt**, naming it.
+
 ## Parameter — the change id
 
 A given `change-id` is used as given. Without one, infer it — strictly:
@@ -210,7 +213,8 @@ and tagging changed no file it reads. Do not re-run it here to feel surer, and n
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
 `converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; and the merge
-and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is something the human must act on.
+and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is something the human
+must act on.
 
 The last line, after a merge: `Next: grill the next version.` With no merge:
 

@@ -36,7 +36,7 @@ What keeps a verdict worth having.
 
 - **Why:** a station's report on itself is a claim. More opinions from the reader who wrote the code verify
   nothing.
-- **Held by:** `mf-converge` Step 3, which dispatches the checkers as subagents; review.
+- **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; review.
 - **Accepted exception:** `mf-cut-change` checks its own artifacts. The person's read of the committed change and
   `mf-build` Step 1 are the independent checks.
 
@@ -103,7 +103,8 @@ carried by a named remaining test, is consolidation, not weakening.**
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
   the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; the recipe check in
-  `mf-converge` and `mf-release`; `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
+  `mf-converge` and `mf-release`;
+  `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
 
 ## State and the boundary
 
@@ -128,9 +129,10 @@ is done on a commit and a ticked box together; a round number lives in the findi
 
 ### The repo reaches nothing outside itself
 
-**Everything a station writes is inside the repository it works on, and so is everything it reads, save one:
-`mf-release` reads the remote's CI runs, read-only, for its `Gate:` line. The repo names no path, token or tool of
-the place its plan is kept; run output goes to the gitignored `.minions/`.**
+**Project inputs and outputs stay inside the target repository, save `mf-release`'s read-only remote CI lookup
+for its `Gate:` line. Installed skills and bundled references are instruction-package material, not permission
+to read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or
+tool of the place its plan is kept.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
   handed over as it is, and the planning side can be swapped without touching it.

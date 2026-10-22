@@ -14,14 +14,14 @@ gate:
 	uv run pytest -q
 
 # Symlink the mf- execution-line skills into the operator's personal skills
-# directory — `SKILLS_DIR`, which defaults to `~/.claude/skills` and is the ONE place
+# directory — `SKILLS_DIR`, which defaults to `~/.agents/skills` and is the ONE place
 # that directory is named (no skill names it; see the change's design note on where
 # paths may appear). Override it to install elsewhere, or to exercise these targets
 # against a scratch destination. A symlink, not a copy: an edit in this tree is live in
 # the next session with no re-install, which is what a skill under iteration needs. The
 # ordering constraint runs the other way — if this checkout is ever deleted, remove the
 # symlinks BEFORE deleting it, or the install is left dangling.
-SKILLS_DIR ?= $(HOME)/.claude/skills
+SKILLS_DIR ?= $(HOME)/.agents/skills
 
 # Two rules make this an install rather than a claim about one. The loop is joined with
 # `&&`, not `;`: a `;`-joined loop reports the exit status of its trailing `echo`, so a

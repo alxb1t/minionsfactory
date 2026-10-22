@@ -1,14 +1,13 @@
-# minions_factory — shared context for Claude Code
+# minions_factory — shared context for coding agents
 
-MinionsFactory is **disciplined feature development with Claude Code, shipped as skills**: each station of the
+MinionsFactory is **disciplined feature development with coding agents, shipped as skills**: each station of the
 line is an `mf-*` skill, and a person conducts them. The project is built the way it builds. The map of the
 record is [`docs/README.md`](docs/README.md).
 
 ## The record
 
-The rules every station follows, imported here so they are in context when a line is written:
-
-@docs/principles.md
+Before work, explicitly read [the principles](docs/principles.md) and
+[the decisions in force](docs/decisions.md). These are mandatory shared context.
 
 - **The decisions in force** are in [`docs/decisions.md`](docs/decisions.md), each with its reason. A change that
   adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its `design.md` keeps the
@@ -45,8 +44,12 @@ and no prose here copies them.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **`tests/`** — the suite.
-- **Everything a station reads or writes is inside the repository**, save the release's read-only look at the
-  remote's CI runs for its `Gate:` line.
+- **Project inputs and outputs stay inside the repository**, save release's read-only CI lookup for `Gate:`.
+  Installed skills and their bundled references are instruction-package material, not authority to read
+  arbitrary outside files.
+- **Execution follows the host:** Claude Code uses native simplify/review/security; other or unidentified
+  executors load bundled generic roles. Checkers require fresh host subagents or fresh agent processes with
+  observable completion and findings on shared disk. Provider setup belongs to the operator.
 
 ---
 
@@ -58,7 +61,7 @@ and no prose here copies them.
   *tracked* `openspec/` tree, and those tools echo absolute paths, so a real path is one careless paste away from
   history. Paths a fixture or a worked example
   *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
-  one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` stays
+  one, carrying a real username, is. `.env` is gitignored; the committed `AGENTS.md` stays
   path-free. `tests/test_guardrails.py` fails on a home path or a key shape in any tracked file.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.

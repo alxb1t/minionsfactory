@@ -1,6 +1,6 @@
 # MinionsFactory
 
-**Disciplined feature development with Claude Code, shipped as skills.** Each station of the line is an `mf-*`
+**Disciplined feature development with coding agents, shipped as skills.** Each station of the line is an `mf-*`
 skill, and a person conducts them. The skills carry these practices: **grill** an idea until its decisions are
 settled, write it as a **spec-driven change** with checkable acceptance, and close it with a **check loop** of
 fresh readers before it is released.
@@ -37,6 +37,21 @@ make install-skills      # symlink skills/mf-* into your personal skills directo
 make uninstall-skills    # remove the symlinks into this checkout
 ```
 
+## Execution
+
+Claude Code uses native `/simplify`, `/code-review` and `/security-review`; a required missing command halts.
+Other and unidentified executors load the bundled generic roles. The host must support instruction loading and,
+for convergence, fresh subagents or fresh agent processes whose completion and findings the conductor can read.
+Generic workers may run sequentially over the same frozen head and need no remote review service.
+
+Use each host's syntax to load the `mf-*` instructions. The editor, provider and model do not identify the
+executor: Codex through Zed ACP, Zed's native agent and a Claude model through OpenRouter take the generic path.
+Authentication and provider configuration belong to the operator. Model suggestions use offered menus and
+supported controls; they do not change configuration.
+
+Compatibility evidence belongs in the change's [smoke record](openspec/changes/0027-migrate-to-agents/design.md#smoke-evidence).
+Hosts without live evidence are described by required capabilities, not labeled tested.
+
 ## What a target repo needs
 
 A layout on disk, and nothing else
@@ -48,7 +63,7 @@ it into a new repo; the other skills install nothing.
 ├── openspec/specs/      the living spec
 ├── openspec/changes/    the active change, and the archive
 ├── Makefile             with a `gate` target
-├── CLAUDE.md            what is true of this repo
+├── AGENTS.md            what is true of this repo
 └── .minions/            run output, gitignored
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: mf-bootstrap
-description: Bootstrap a new repo for the mf-* line — write the gate, openspec/, CLAUDE.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
+description: Bootstrap a new repo for the mf-* line — write the gate, openspec/, AGENTS.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
 ---
 
 # mf-bootstrap — a new repo the line can cut in
@@ -24,7 +24,7 @@ without the `.tmpl` suffix: `templates/openspec/config.yaml.tmpl` → `openspec/
 
 | target path | when it already exists |
 |---|---|
-| `Makefile` · `CLAUDE.md` · `CHANGELOG.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
+| `Makefile` · `AGENTS.md` · `CHANGELOG.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
 | `README.md` | skip it; the file stays as it is |
 | `.gitignore` | append the template's lines, starting on a new line, when no line reads `.minions/`; else leave it |
 
@@ -73,8 +73,9 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
-nothing; and, when `git remote get-url origin` fails, that there is no `origin` remote, so `/security-review` will
-not load and `mf-converge`'s security station cannot run until one is added.
+nothing; and, when `git remote get-url origin` fails, that native Claude Code `/security-review` cannot load
+without a remote. Generic security uses the explicit range and needs no remote; provider setup stays with the
+operator. Bootstrap does not add a remote.
 
 The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
 
