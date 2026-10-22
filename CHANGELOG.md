@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Prove the generic Codex roles with a live fixture and fresh verification; record native dispatch preservation
+  and the retirement inventory (change `0027-migrate-to-agents`, phase 3). Preserve failed-attempt evidence.
+
 - Route passes by executor: preserve Claude Code engines and bundle generic roles with fresh-worker dispatch
   (change `0027-migrate-to-agents`, phase 2). Guard resource integrity; keep model suggestions portable.
 

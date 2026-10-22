@@ -6,7 +6,7 @@ Build the settled [design](design.md); use its [transition handoff](design.md#tr
 
 - [x] 1 — Migrate target context and installation
 - [x] 2 — Add portable execution beside native Claude engines
-- [ ] 3 — Prove the generic path and audit native preservation
+- [x] 3 — Prove the generic path and audit native preservation
 
 ## 1 — Migrate target context and installation
 
@@ -36,9 +36,9 @@ Build the settled [design](design.md); use its [transition handoff](design.md#tr
 
 ## 3 — Prove the generic path and audit native preservation
 
-- [ ] 3.1 **HALT CHECK** Confirm the installed Codex CLI can start the new-session fixture exercise specified by [D7](design.md#d7); missing execution capability is a plan halt, not an installation task.
-  Verify: `codex exec --help` exits 0 and documents `--cd`, `--sandbox`, `--approve-for-me`, `--ephemeral`, `--json` and stdin prompt input.
-- [ ] 3.2 Create the disposable `.minions/0027-smoke/target/` fixture and run the [smoke protocol](design.md#smoke-protocol); append sanitized actual results to this change's `design.md` Smoke evidence.
+- [x] 3.1 **HALT CHECK** Confirm the Codex argument combination in [D7](design.md#d7) passes parsing with intentionally empty stdin; missing execution capability is a plan halt, not an installation task.
+  Verify: `python3 -c 'import subprocess; p = subprocess.run(["codex", "exec", "--approve-for-me", "--ephemeral", "--json", "-"], input="", text=True, capture_output=True, timeout=10); assert p.returncode == 1 and "No prompt provided via stdin." in p.stdout + p.stderr'` exits 0.
+- [x] 3.2 Create the disposable `.minions/0027-smoke/target/` fixture and run the [smoke protocol](design.md#smoke-protocol); append sanitized actual results to this change's `design.md` Smoke evidence.
   Verify: live Codex evidence shows label simplification, review's invoice finding, security's cross-user finding, failing regression tests, green fixes and new workers verifying both findings on disk.
-- [ ] 3.3 Record the [native dispatch review](design.md#native-dispatch-review) and [retirement inventory](design.md#d9) in this change's `design.md`, preserving the historical exceptions.
+- [x] 3.3 Record the [native dispatch review](design.md#native-dispatch-review) and [retirement inventory](design.md#d9) in this change's `design.md`, preserving the historical exceptions.
   Verify: design evidence names the preserved native dispatch, its restrictions and the kept/fixed retirement hits; no unrun host is labeled live-tested.

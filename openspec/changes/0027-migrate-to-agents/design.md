@@ -300,11 +300,14 @@ Never relax an assertion when a role flags the defect it was intended to expose.
 
 Start a new Codex session, not resume or fork, with the fixture as its workspace. Supply only the acceptance
 task, fixture paths and installed role resources; do not pass the production build transcript.
-The installed CLI supports this invocation shape, checked at the cut:
+Use the corrected invocation below; its permission flags were parser-checked after the halted attempt:
 
 ```sh
-codex exec -C .minions/0027-smoke/target --sandbox workspace-write --approve-for-me --ephemeral --json - < .minions/0027-smoke/runner-prompt.md > .minions/0027-smoke/codex-events.jsonl
+codex exec -C .minions/0027-smoke/target --approve-for-me --ephemeral --json - < .minions/0027-smoke/runner-prompt.md > .minions/0027-smoke/codex-events.jsonl
 ```
+
+`--approve-for-me` selects workspace-write sandboxing and automatic approval review. The installed CLI rejects
+an additional `--sandbox` option; omit it. This corrects invocation syntax without changing acceptance.
 
 Generate the gitignored `runner-prompt.md` at run time. It explicitly selects the generic resources built in
 phase 2, names the fixture repository and its change artifacts, and instructs this sequence:
@@ -348,6 +351,164 @@ explain the result; omit home paths, repository-root expansions, credentials and
 Record the native hand review separately; do not label Zed/OpenRouter, Pi or Claude Code live-tested by this run.
 
 Status at cut: not run. No worker finding, gate result or compatibility verdict is pre-certified here.
+
+### Build attempt — CLI argument conflict
+
+**Halted before the coordinator started.** Installed `codex-cli 0.163.0` prints every option required by the
+phase-3 help check, but rejects the protocol's invocation with exit `2`:
+
+```text
+error: the argument '--sandbox <SANDBOX_MODE>' cannot be used with '--approve-for-me'
+```
+
+The [stderr](../../../.minions/0027-smoke/failed-attempt/codex-stderr.log) records the failure; the
+[event transcript](../../../.minions/0027-smoke/failed-attempt/codex-events.jsonl) is empty. The generated
+[coordinator prompt](../../../.minions/0027-smoke/failed-attempt/runner-prompt.md) was supplied on stdin to a new `codex exec`,
+without resume or fork. No coordinator or independent worker started, so there is no observed model identity,
+finding, red/green fix sequence or fresh verification verdict.
+
+| evidence | actual result |
+|---|---|
+| Intended route | Generic Codex; not executed |
+| Installed resources | Shared skill symlinks resolve to the package at `46bf7b6` |
+| Fixture base | `950908b5603ff3e6ad03e6b18ec144978e81a943` on `main` |
+| Seeded fixture head | `473222fe5889e58cea14a099ecf23b2ab95327bc` on `v0.1_smoke` |
+| Prepared fixture | No remote; command-local smoke identity; initial `make gate` exited `0` |
+| Live invocation | Specified sandbox/approval options conflict; exit `2` before session startup |
+| Worker dispatch / findings | None; acceptance not established |
+| Native dispatch review | Not run; phase 3 halted before that task |
+
+The exact invocation premise must be corrected before resuming the exercise. CLI help states that
+`--approve-for-me` uses the workspace-write sandbox, but this build did not substitute an invocation for the
+settled protocol. Phase 3 and the final own-change simplify pass remain incomplete; no host earns a live-tested
+claim from this attempt.
+
+### Invocation correction — parser checked
+
+The prescribed command now uses `--approve-for-me` without `--sandbox workspace-write`; sandboxing and
+automatic approval review remain selected. The failed attempt above remains evidence of the original premise.
+
+A parser-only reproduction used empty stdin so no model session could start. Original arguments exited `2`
+with the conflict; corrected arguments exited `1` with `No prompt provided via stdin.`.
+Phase 3's HALT CHECK now checks the actual argument combination instead of inferring compatibility from help.
+
+The corrected live smoke has not been run by the plan amendment. Phase 3 and final simplify remain incomplete.
+
+### Operational launch attempt — preserved
+
+**No acceptance verdict came from this attempt.** The corrected CLI started a new coordinator, which simplified
+`label` but launched `make` through the system's Intel Python subprocess. Apple's `libxcrun` failed on the
+architecture mismatch before the target ran; the subsequent unapproved Git write was sandbox-denied.
+
+The [coordinator transcript](../../../.minions/0027-smoke/launch-attempt/codex-events.jsonl) and
+[fixture result](../../../.minions/0027-smoke/launch-attempt/fixture-artifacts/result.json) retain that failure.
+No checker ran and no commit landed. A new coordinator then inspected the pending simplify edit, ran the
+unchanged `make -n gate` and `make gate` directly through the native shell, and used automatic approval review
+for protected fixture Git mutations; no dependency, provider or gate change was needed.
+
+### Live Codex result — passed
+
+**The generic fixture exercise passed after fresh verification.** Read the actual
+[review findings](../../../.minions/0027-smoke/target/.minions/findings/0001-smoke_review.md) and
+[security findings](../../../.minions/0027-smoke/target/.minions/findings/0001-smoke_security.md), including their
+source evidence, Status notes, Summary and Resolution log. Both say `round: 2`, `verdict: clean` and
+`open_blocking: 0` at the fix head; `R1`, `R2`, `S1` and `S2` are `verified`.
+
+The [new-session transcript](../../../.minions/0027-smoke/codex-events.jsonl) records execution; the
+[coordinator result](../../../.minions/0027-smoke/target/.minions/acceptance-20261022-result.json) indexes dispatch,
+commits, scope and exits. Checker inputs were captured separately from the coordinator's acceptance key.
+
+| execution evidence | actual result |
+|---|---|
+| Executor / route | `codex-cli 0.163.0`; generic Codex; corrected `--approve-for-me --ephemeral --json` invocation |
+| Available model identity | Host identifies Codex as based on GPT-6; actual runtime model id is not exposed by the host subagent API; configured selection retained without overrides |
+| New coordinator | Thread `01a163ea-9b7b-7352-a86a-f09a3231a4d5`; no resume or fork; fixture workspace; no remote |
+| Fixture baseline | `950908b5603ff3e6ad03e6b18ec144978e81a943` on `main` |
+| Seeded change | `473222fe5889e58cea14a099ecf23b2ab95327bc` on `v0.1_smoke` |
+| Simplify commit / first judged head | `c92e39f0c29c6ef6acabd183bd3797e4390ef7cd`; identical label branches replaced by `return str(name).strip()` |
+| Fix commit / final judged head | `46bd84ace7b644984bba890e274724d643824ae4`; exact sum and owner filter restored; required regression tests added |
+| Initial freeze | Baseline to simplify head: 2 commits, 4 changed files |
+| Verification freeze | Simplify head to fix head: 1 commit, 2 changed files |
+| Final fixture state | Gate exit `0`; label and added regression tests pass; working tree clean; HEAD matches both findings files |
+
+Scope counts came from `git rev-list --count <base>..<head>` and `git diff --name-only <base>..<head>` in the
+coordinator transcript. Test results came from the unchanged fixture gate, not a text assertion.
+
+| installed resource at `46bf7b6` | Git blob |
+|---|---|
+| `skills/mf-build/references/generic-simplify.md` | `38b45156a23b6203e64d27a6df7e9951d8fb1ae3` |
+| `skills/mf-converge/references/generic-review.md` | `f22ee1ccb504d80c703a8c89fd44cfb084eafe3f` |
+| `skills/mf-converge/references/generic-security.md` | `675492782eb5b323945c85fa66f8a4bd75225b3d` |
+
+Resources were loaded through the installed shared skill symlinks. Resource revisions were resolved with
+`git rev-parse 46bf7b6:<resource-path>`.
+
+| worker dispatch | isolation and observed outcome |
+|---|---|
+| Round 1: `/root/review_r1`, `/root/security_r1` | Fresh parallel host subagents, `fork_turns: none`; both completed on the same freeze before fixer dispatch; review opened invoice `R1` and ownership `R2`, security opened ownership `S1` and invoice `S2` |
+| Fix: `/root/fixer` | Fresh subagent, `fork_turns: none`; added tests, captured red before source fixes, committed green; wrote `fixed` without changing findings frontmatter or declaring verification |
+| Round 2: `/root/review_r2`, `/root/security_r2` | New parallel subagents, `fork_turns: none`; own findings, scoped fix, role resource and red-run evidence; review also received the design Tests table; each checker promoted its cards to `verified` |
+
+The captured [initial review input](../../../.minions/0027-smoke/target/.minions/dispatch/acceptance-20261022-r1-review.txt)
+and [initial security input](../../../.minions/0027-smoke/target/.minions/dispatch/acceptance-20261022-r1-security.txt)
+contain explicit fixture/context/spec/resource inputs, not the seed key, fix snippets or producer conversation.
+The [verification review input](../../../.minions/0027-smoke/target/.minions/dispatch/acceptance-20261022-r2-review.txt)
+and [verification security input](../../../.minions/0027-smoke/target/.minions/dispatch/acceptance-20261022-r2-security.txt)
+start new roles. Dispatch requests and completion records are in the fixture's
+[transcripts directory](../../../.minions/0027-smoke/target/.minions/transcripts/).
+
+| observed check | exit and evidence |
+|---|---|
+| Simplify dry run and gate | `0`, `0`; committed simplify before the checker freeze |
+| `python3 -m unittest -v test_notes.NotesTests.test_invoice_total` before fixes | `1`; [red invoice log](../../../.minions/0027-smoke/target/.minions/transcripts/acceptance-20261022-red-invoice.log) shows `AssertionError: 351 != 350` and the empty-invoice failure |
+| `python3 -m unittest -v test_notes.NotesTests.test_notes_for` before fixes | `1`; [red notes log](../../../.minions/0027-smoke/target/.minions/transcripts/acceptance-20261022-red-notes.log) shows the extra `b`-owned note for user `a` and the no-owned-note failure |
+| Fixer and coordinator gates | `0`, `0`; assertions remain `[100, 250] -> 350` and mixed `a`/`b` notes -> the `a` note |
+| Final fixture gate | `0`; [final gate log](../../../.minions/0027-smoke/target/.minions/transcripts/acceptance-20261022-final-gate.log) runs the retained label tests and the added invoice/ownership tests |
+| Fresh verification | Each role independently resolved the scoped fix; review recorded stale-claim, test-cost and coverage-trace passes; both findings files record `fixed → verified` |
+
+This establishes the Codex generic fixture path with observed independent workers. It does not converge this
+production change or live-test Claude Code, Zed/OpenRouter or Pi. The failed attempts remain evidence and were
+not treated as clean runs.
+
+### Native dispatch hand review
+
+**Hand-read against `bba6569`; Claude engines were not run.** The
+[dispatch diff](../../../.minions/0027-smoke/native-dispatch.diff) preserves native `/simplify` in build Step 3
+and native `/code-review` and `/security-review` in converge Step 3. Build still gates simplify edits and commits
+them separately before independent checking.
+
+| native contract | observed preservation |
+|---|---|
+| Executor routing | Positively identified Claude Code selects native; a missing required command halts; generic switching needs explicit user choice |
+| Review scope | `/code-review` receives the range |
+| Security scope | `/security-review` takes no target and reads committed branch work on a clean tree; its remote limitation remains |
+| Patch fallback | Native scope falls back to the patch when empty or clearly wrong, reporting actual resolved scope |
+| Dispatch | Native review and security remain parallel fresh workers; verification starts fresh roles |
+| Restrictions | `--fix`, `--comment` and agent-launched `ultra` remain prohibited; each checker writes its own findings file |
+| Generic additions | Sequential dispatch and no-remote security belong to the generic branch; each role loads its package resource |
+| Verification input | Step 7 now explicitly passes the design's Tests table with review's findings and scoped fix range |
+
+This establishes dispatch preservation by inspection, not live Claude Code compatibility. Zed/OpenRouter and Pi
+have no live run evidence from this exercise.
+
+### Retirement inventory
+
+**Live references migrated; historical and migration evidence retained.** Ran
+`git grep -n -E 'CLAUDE\.md|\.claude/skills'` over tracked files and the same search at cut commit `1e483cc`.
+The [inventory](../../../.minions/0027-smoke/retirement-inventory.md) classifies each cut and current hit;
+phase `2bf0062` carries the cut-hit fixed/kept list in its commit body.
+
+| paths / hits | disposition |
+|---|---|
+| Root context and bootstrap context template | Fixed: renamed to `AGENTS.md` and `AGENTS.md.tmpl` |
+| `skills/mf-*/SKILL.md`, `tests/test_skills.py`, `README.md`, `docs/README.md`, `docs/decisions.md`, `openspec/config.yaml` | Fixed: live context, guard fixtures, layout and explicit reads migrated |
+| `Makefile` installation assignment and comment | Fixed: shared skill-directory default; override, safeguards and gate retained |
+| `CHANGELOG.md` and `openspec/changes/archive/` | Kept: truthful release history |
+| `openspec/changes/0027-migrate-to-agents/` | Kept: migration premises, transition exception, task record and delta |
+| `openspec/specs/sdd/spec.md` | Kept: the living old requirement until release folds this change's delta |
+
+The remaining tracked matches belong to those explicit kept categories; no live skill or installation reference
+requires the retired context or directory. This is the change's one-time inventory, not a standing blacklist.
 
 ## Transition execution
 
