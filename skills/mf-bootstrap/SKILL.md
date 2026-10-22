@@ -73,8 +73,9 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
-nothing; and, when `git remote get-url origin` fails, that there is no `origin` remote, so `/security-review` will
-not load and `mf-converge`'s security station cannot run until one is added.
+nothing; and, when `git remote get-url origin` fails, that native Claude Code `/security-review` cannot load
+without a remote. Generic security uses the explicit range and needs no remote; provider setup stays with the
+operator. Bootstrap does not add a remote.
 
 The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
 

@@ -1,18 +1,18 @@
 ---
 name: mf-converge
-description: Conduct the end-of-change check loop — freeze the diff, fan out review and security as fresh read-only subagents, read their verdicts from disk, dispatch one fix pass, re-verify, to a cap of three rounds. Use when every phase of a change is built and committed and the branch needs converging before release.
+description: Conduct the end-of-change check loop — freeze the diff, fan out review and security as fresh read-only workers, read their verdicts from disk, dispatch one fix pass, re-verify, to a cap of three rounds. Use when every phase of a change is built and committed and the branch needs converging before release.
 ---
 
 # mf-converge — conduct the end-of-change loop
 
 > **Your role is CONDUCTOR. You judge nothing yourself.** You freeze the diff, dispatch fresh read-only
-> subagents, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, you do
+> workers, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, you do
 > not decide that the code is fine, and you do not release: `mf-release` finalizes, in a separate session.
 > Read the repo's `AGENTS.md` as shared context and the change under `openspec/changes/<change-id>/`.
 
 The reason the boundary is drawn here is a failure it prevents: **three opinions from one reader**. A station
 run inside the conductor's own context verifies nothing — it shares the context that produced the work, and it
-cannot be re-run by a fresh reader. The stations are subagents, or there is no check.
+cannot be re-run by a fresh reader. The stations are fresh workers, or there is no check.
 
 Before work, explicitly read root `AGENTS.md` and the mandatory context it identifies.
 Missing root `AGENTS.md` → **halt**, naming it.
@@ -92,6 +92,28 @@ The events, and no others:
 …
 ```
 
+## Executor and worker selection — before checker dispatch
+
+Identify the executor from runtime evidence and report `engine: native (Claude Code)` or
+`engine: generic (<executor or unidentified>)`. A model, provider or editor name is not executor evidence.
+
+- **Claude Code positively identified:** require invocable `/code-review` and `/security-review`. Missing required
+  command → halt naming it; only an explicit user choice permits generic execution for that run. Keep native
+  parallel dispatch and native scoping/restrictions below. Native security's missing-remote limitation remains.
+- **Other or unidentified executor:** load [generic review](references/generic-review.md) and
+  [generic security](references/generic-security.md) in their respective workers. Resolve resources from the
+  installed skill package. Generic security receives the explicit range and needs no remote or native plugin.
+
+A **worker** is a new host subagent or a fresh agent process with explicit task inputs and shared files. It
+receives no build transcript: no resumed worker or fork inheriting the producer's conversation. Each checker and
+verification dispatch starts fresh; role identity persists in its findings file.
+
+Before dispatch, confirm the host can start independent workers, wait for completion and read their named
+outputs on shared disk. If that capability is unavailable, halt naming it; do not review inline or open an
+unobservable sibling thread. Generic execution prefers parallel workers and accepts sequential workers over the
+same frozen head. Both finish before any fixer starts. Claude Code retains parallel dispatch.
+MF skill names are instruction names; use the host's supported loading/invocation syntax.
+
 ## Catch-up round
 
 A **catch-up round** judges commits that landed after the last round. `mf-release` halts until `HEAD` equals
@@ -158,7 +180,7 @@ Once all pass, write `start` to the status log.
    these are **round 1's** numbers, and Step 6's re-freeze prints its own for every round after it.
 5. **Write `freeze` to the status log.**
 
-## Step 3 — Fan out (two fresh read-only subagents, in parallel)
+## Step 3 — Dispatch fresh read-only workers
 
 The stations are **review** and **security**. Simplify already ran inside `mf-build`, fixing in place, and its
 edits are inside this range — so review verifies simplify's work rather than simplify verifying its own. The
@@ -166,14 +188,18 @@ consequence is carried deliberately: **there is no simplify findings file at all
 simplify as excluded, because only the diff patch and the review and security files decide whether converge
 ran — so a simplify file's absence is never read as either.
 
-Dispatch both **in parallel**, each a **fresh** subagent with no memory of the build, read-only apart from its
-own findings file. Give each one:
+Dispatch review and security as **fresh** workers with no memory of the build, read-only apart from their own
+findings files. Claude Code dispatches **in parallel**; generic execution uses parallel or sequential dispatch
+as selected above, on the same frozen head, and waits for both before fixing. Give each one:
 
 - the range `<base>..HEAD` and the two commit ids,
 - the patch path `.minions/findings/<change-id>_diff.patch`,
 - its own findings path `.minions/findings/<change-id>_<role>.md`,
-- for review, the change's `openspec/changes/<change-id>/design.md`, whose `## Tests` section the coverage-trace
-  pass reads;
+- root `AGENTS.md` and its mandatory context; the change's proposal, design and tasks under
+  `openspec/changes/<change-id>/`; review reads the design's `## Tests` table;
+- its selected engine instructions: native `/code-review` or `/security-review` in Claude Code; on generic
+  execution, explicitly load [generic review](references/generic-review.md) or
+  [generic security](references/generic-security.md), respectively;
 - the card, from [`## The card`](#the-card) — every finding it writes is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below — and nothing else to write.
 
@@ -198,14 +224,18 @@ from one. It traces every removed assertion and scenario id to the test that run
 one engine (`T4`), or a merged step leaning on an earlier one (`T3`), is `blocking`. Its Summary says the pass ran,
 or that the freeze removed no test.
 
-**How a station scopes itself.** Review scopes its engine to the range. `/security-review` takes no target: it
+**Native scoping (Claude Code).** Invoke `/code-review` scoped to the range. Invoke `/security-review` with no target: it
 reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a
 station reviewed came back empty or clearly wrong** does it fall back to reading the patch file and reviewing
 that — and it **states in its Summary which it did**, and the file count and commit count it actually resolved.
 The patch is fallback material, not the channel: a review driven only from a patch loses the file context the
 engine's own blame, history and comment passes depend on, degrading the very engine being adopted.
 
-**Three engine overrides, no exceptions:**
+**Generic scoping.** Judge the explicit base/head range and patch with surrounding source, using the loaded
+role resource. Report actual resolved scope and halt when inputs cannot support a verdict. A missing remote
+is not a generic security prerequisite. The findings and scope rules below apply to either engine.
+
+**Engine overrides, no exceptions:**
 
 - **never `--fix`** — a read-only station edits nothing but its own findings file;
 - **never `--comment`** — findings land on disk, not on a pull request;
@@ -287,12 +317,12 @@ cards that pickup then fixes.
 
 If both verdicts are `clean` and both counts check out, the loop is converged: go to Step 8.
 
-## Step 6 — The fix station (one subagent, inside this loop)
+## Step 6 — The fix station (a fresh worker, inside this loop)
 
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode on `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch **one** subagent to clear every **open blocking** finding across both files — or, in the pickup round,
+Dispatch a **fresh worker** to clear every **open blocking** finding across both files — or, in the pickup round,
 exactly the cards Step 8 names — to a **green gate**. Write `fix` to the status log at dispatch, and again when it
 commits. It:
 
@@ -333,11 +363,13 @@ Write `freeze` to the status log.
 ## Step 7 — Verify, and the cap
 
 Re-run the gate yourself, and write `verify` to the status log. Then dispatch the
-**same two roles** as **fresh** subagents at `round ≥ 2` — writing `fan-out` to the status log — each
+**same two roles** as **fresh** workers at `round ≥ 2`, using the selected engines and Step 3's explicit
+inputs and dispatch rules — writing `fan-out` to the status log — each
 re-reading **its own findings file** plus the scoped fix diff, promoting or reopening each finding, rewriting its
 counters, appending to its `## Resolution log`, and declaring a verdict. Review runs its test-cost pass and its
 coverage-trace pass over this round's freeze, so a fix's new test is judged like the build's. Read the verdicts
-from disk again under the Step 5 rules.
+from disk again under the Step 5 rules. Explicitly pass `openspec/changes/<change-id>/design.md` and its
+`## Tests` table to review with its findings and fix range; the verify worker runs the stale-claim pass too.
 
 After a round whose fix station committed nothing, the verify pass judges the previous freeze's patch, and Step 5
 compares against that freeze's numbers.
@@ -448,8 +480,8 @@ station writes tests to them, and review's test-cost pass judges by them.
 
 ## Never
 
-- **Never review in your own context.** If subagents cannot be dispatched, **halt and say so** — do not do the
-  reviews yourself, and do not report a verdict you produced.
+- **Never review in your own context.** If fresh host subagents or fresh agent processes cannot be dispatched,
+  awaited and read from shared disk, **halt and say so**; do not report a verdict you produced.
 - **Never edit a findings file yourself.** The stations own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert new lines only: the log is the record of what the loop did.

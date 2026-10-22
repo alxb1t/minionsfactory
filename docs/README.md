@@ -1,6 +1,6 @@
 # MinionsFactory — docs
 
-The map of this repository's record. MinionsFactory is disciplined feature development with Claude Code, shipped
+The map of this repository's record. MinionsFactory is disciplined feature development with coding agents, shipped
 as the `mf-*` skills: each station of the line is a skill, and a person conducts them.
 
 ```
@@ -11,6 +11,9 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
 
    conducted by a person today · by an LLM conductor held by scripts: designed, not built
 ```
+
+Executors load the skills with their own syntax. Convergence needs fresh observable workers with shared-disk
+findings; generic workers can run sequentially. See [execution](../README.md#execution) for routing and evidence.
 
 ## The pages
 
@@ -26,7 +29,7 @@ What holds, what was chosen, and what is designed.
 
 | where | holds |
 |---|---|
-| [`skills/`](../skills/) | what each station does, one `SKILL.md` each |
+| [`skills/`](../skills/) | station instructions and bundled generic role references; Claude Code retains native engines |
 | [`openspec/specs/`](../openspec/specs/) | the living spec |
 | [`openspec/changes/`](../openspec/changes/) | the active change, and the archive |
 | [`CHANGELOG.md`](../CHANGELOG.md) | what shipped, per version |

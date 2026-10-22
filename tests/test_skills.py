@@ -523,7 +523,7 @@ def test_the_stale_claim_scan_reports_a_single_mention(tmp_path: Path) -> None:
 _TESTS_TABLE = "`## Tests` table"
 _BUILD_RITUAL = "## Step 2 — The per-phase ritual"
 _NEVER_DELETES = "never deletes or merges a test"
-_FIX_STATION = "## Step 6 — The fix station (one subagent, inside this loop)"
+_FIX_STATION = "## Step 6 — The fix station (a fresh worker, inside this loop)"
 
 
 def _consolidation_problems(base: Path) -> list[str]:
@@ -1096,4 +1096,62 @@ def test_the_human_checklist_scan_reports_every_breach(tmp_path: Path) -> None:
     ] + [
         f"skills/mf-build/SKILL.md `{_RITUAL}`: does not name `{n}`"
         for n in _HUMAN_CHECKLIST
+    ]
+
+
+def _resource_problems(base: Path) -> list[str]:
+    """Return missing, empty or escaping local skill-resource targets."""
+    problems: list[str] = []
+    for skill in sorted((base / "skills").glob("*/SKILL.md")):
+        package = skill.parent.resolve()
+        for target in re.findall(
+            r"\[[^\]]*\]\((references/[^)\s]+)\)", skill.read_text()
+        ):
+            resolved = (package / target).resolve()
+            prefix = f"{skill.relative_to(base)}: {target}"
+            if not resolved.is_relative_to(package):
+                problems.append(f"{prefix}: outside skill package")
+            elif not resolved.is_file():
+                problems.append(f"{prefix}: missing file")
+            elif not resolved.read_text().strip():
+                problems.append(f"{prefix}: empty file")
+    return problems
+
+
+def test_bundled_role_references_resolve() -> None:
+    assert _resource_problems(_REPO) == []
+
+
+def test_resource_scan_reports_missing_empty_and_escaping_targets(
+    tmp_path: Path,
+) -> None:
+    _plant(
+        tmp_path,
+        {
+            "mf-example": (
+                "[valid](references/valid.md)\n"
+                "[missing](references/missing.md)\n"
+                "[empty](references/empty.md)\n"
+                "[escape](references/../../outside.md)\n"
+                "[symlink](references/linked.md)\n"
+                "[design](design.md)\n"
+                "[external](https://example.invalid/reference.md)\n"
+            )
+        },
+    )
+    skill = tmp_path / "skills" / "mf-example"
+    references = skill / "references"
+    references.mkdir()
+    (references / "valid.md").write_text("Read the role.\n")
+    (references / "empty.md").write_text(" \n\t")
+    outside = tmp_path / "skills" / "outside.md"
+    outside.write_text("Readable, but outside the package.\n")
+    (references / "linked.md").symlink_to(outside)
+
+    assert _resource_problems(tmp_path) == [
+        "skills/mf-example/SKILL.md: references/missing.md: missing file",
+        "skills/mf-example/SKILL.md: references/empty.md: empty file",
+        "skills/mf-example/SKILL.md: references/../../outside.md: "
+        "outside skill package",
+        "skills/mf-example/SKILL.md: references/linked.md: outside skill package",
     ]

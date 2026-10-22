@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Route passes by executor: preserve Claude Code engines and bundle generic roles with fresh-worker dispatch
+  (change `0027-migrate-to-agents`, phase 2). Guard resource integrity; keep model suggestions portable.
+
 - Use `AGENTS.md` for target context and bootstrap templates; install skills into the shared directory by default
   (change `0027-migrate-to-agents`, phase 1). Preserve the gate and installer safeguards.
 

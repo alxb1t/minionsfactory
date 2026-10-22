@@ -9,9 +9,9 @@ An id is never reused or renumbered. A new decision takes the next number, in th
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38                   D11…D17
+       D5…D10, D38                   D11…D17, D40
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39 · The autonomous line D24…D35
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41 · The autonomous line D24…D35
 ```
 
 ## The shape
@@ -123,15 +123,16 @@ What happens between the last phase and the tag.
                                                             └── verify ◀── fix ◀─┘
 ```
 
-### D11 · The checkers are adopted engines
+### D11 · Engines follow the executor
 
-**Review, security and simplify are the community skills `/code-review`, `/security-review` and `/simplify`, run
-unmodified. MinionsFactory writes only the conducting: the freeze, the dispatch, the findings contract, the
-rounds.**
+**Claude Code invokes native `/code-review`, `/security-review` and `/simplify`, keeping their scope and
+restrictions. Other and unidentified executors load the bundled generic roles. The station reports the route
+from executor evidence; model, provider and editor names do not select it.**
 
-- **Why:** a review engine is someone else's maintained work; the conducting is what was missing.
-- **Accepts:** an engine's assumptions become ours. `/security-review` reads `origin/HEAD` and does not load in a
-  repo with no remote. Reopen when a target has no remote, or an engine changes its inputs.
+- **Why:** native engines stay useful while the instruction package travels between capable hosts.
+- **Accepts:** a missing required native command halts; switching that run to generic needs explicit user choice.
+  Native `/security-review` needs a remote; generic security judges the explicit range without one.
+- **Rejected:** silent native fallback, provider routing and a new review-plugin dependency.
 
 ### D12 · Review, security and simplify are kept apart
 
@@ -142,7 +143,8 @@ rounds.**
 ### D13 · Simplify runs inside the build and blocks nothing
 
 **The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
-frozen diff, so review judges them. Simplify is a producer, not a checker: it holds no verdict.**
+frozen diff, so review judges them. Claude Code uses native `/simplify`; other executors load the bundled
+generic simplify instructions. Simplify is a producer, not a checker: it holds no verdict.**
 
 - **Why:** run last, it would land unreviewed edits after the final check. Given a verdict, taste would spin the
   loop.
@@ -198,6 +200,16 @@ edits feature code. Fold and archive land in one commit.**
   leaves the spec tree and the change disagreeing.
 - **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
   separate merge skill: one more invocation · a merge without asking.
+
+### D40 · Workers are fresh and observable
+
+**A checker or verification worker is a new host subagent or fresh agent process receiving explicit task inputs,
+without the build transcript. The conductor dispatches, waits and reads findings from shared disk; role identity
+persists in that file. Claude Code keeps parallel dispatch; generic workers may run sequentially on one freeze.**
+
+- **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
+- **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
+  unobservable sibling threads. Missing worker capability halts.
 
 ## The target repo
 
@@ -262,14 +274,13 @@ Change: 0011-cut-and-gate
 - **Why:** from a commit you find the change; from a change, `git log --grep` finds every commit. A blank line
   inside the block silently breaks it.
 
-### D22 · Subscription for a person's local run, an API key for a server
+### D22 · Authentication and deployment terms belong to the operator
 
-**A run a person starts on their own machine uses their Claude Code subscription. Anything always-on, scheduled or
-in CI uses an API key.**
+**The operator selects and authenticates the host, model and provider, and checks their terms for the intended
+local, scheduled or server deployment. The skills configure no provider and install no host integration.**
 
-- **Why:** the terms draw the line between personal local use and a server, not between a human and a script.
-- **Accepts:** the autonomous line's cloud and nightly runs sit on the server side of that line. Reopen at the
-  change that schedules a run.
+- **Why:** subscription and API terms differ by provider and deployment; a portable skill cannot choose them.
+- **Accepts:** a missing execution or authentication capability halts instead of becoming an installation task.
 
 ### D23 · Superseded is deleted, harvested first
 
@@ -306,6 +317,15 @@ engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted o
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
 - **Rejected:** a coverage review as a third checker: a third findings file and release precondition for a pass
   only some changes need · a time estimate at the cut: setup dominates, so runs × an average misleads.
+
+### D41 · Model suggestions use offered capabilities
+
+**The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
+required capability; it suggests effort only when the host exposes that setting. Suggestions stay in chat and
+leave model selection and provider setup with the operator.**
+
+- **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
+- **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
 
 ## The autonomous line
 

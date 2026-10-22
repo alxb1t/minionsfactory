@@ -1,6 +1,6 @@
 # minions_factory — shared context for coding agents
 
-MinionsFactory is **disciplined feature development with Claude Code, shipped as skills**: each station of the
+MinionsFactory is **disciplined feature development with coding agents, shipped as skills**: each station of the
 line is an `mf-*` skill, and a person conducts them. The project is built the way it builds. The map of the
 record is [`docs/README.md`](docs/README.md).
 
@@ -44,8 +44,12 @@ and no prose here copies them.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **`tests/`** — the suite.
-- **Everything a station reads or writes is inside the repository**, save the release's read-only look at the
-  remote's CI runs for its `Gate:` line.
+- **Project inputs and outputs stay inside the repository**, save release's read-only CI lookup for `Gate:`.
+  Installed skills and their bundled references are instruction-package material, not authority to read
+  arbitrary outside files.
+- **Execution follows the host:** Claude Code uses native simplify/review/security; other or unidentified
+  executors load bundled generic roles. Checkers require fresh host subagents or fresh agent processes with
+  observable completion and findings on shared disk. Provider setup belongs to the operator.
 
 ---
 

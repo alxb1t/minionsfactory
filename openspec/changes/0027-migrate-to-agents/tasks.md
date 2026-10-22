@@ -5,7 +5,7 @@ Build the settled [design](design.md); use its [transition handoff](design.md#tr
 ## Progress
 
 - [x] 1 — Migrate target context and installation
-- [ ] 2 — Add portable execution beside native Claude engines
+- [x] 2 — Add portable execution beside native Claude engines
 - [ ] 3 — Prove the generic path and audit native preservation
 
 ## 1 — Migrate target context and installation
@@ -23,15 +23,15 @@ Build the settled [design](design.md); use its [transition handoff](design.md#tr
 
 ## 2 — Add portable execution beside native Claude engines
 
-- [ ] 2.1 Add build's executor selection and new `skills/mf-build/references/generic-simplify.md`; link it from `skills/mf-build/SKILL.md` per [D2](design.md#d2) and [D3](design.md#d3).
+- [x] 2.1 Add build's executor selection and new `skills/mf-build/references/generic-simplify.md`; link it from `skills/mf-build/SKILL.md` per [D2](design.md#d2) and [D3](design.md#d3).
   Verify: build explicitly loads that resource on generic execution, preserves native `/simplify` for Claude Code, and halts when its required native command is unavailable.
-- [ ] 2.2 Add converge's executor/worker branches and new `skills/mf-converge/references/generic-review.md` and `generic-security.md`; fix `0026·N1` per [D2](design.md#d2) through [D4](design.md#d4).
+- [x] 2.2 Add converge's executor/worker branches and new `skills/mf-converge/references/generic-review.md` and `generic-security.md`; fix `0026·N1` per [D2](design.md#d2) through [D4](design.md#d4).
   Verify: converge loads the generic resources, retains native review/security, accepts fresh processes and generic sequential workers, and passes `design.md` to review during Step 7.
-- [ ] 2.3 Add `_resource_problems`, `test_bundled_role_references_resolve` and `test_resource_scan_reports_missing_empty_and_escaping_targets` in `tests/test_skills.py` per [D8](design.md#d8).
+- [x] 2.3 Add `_resource_problems`, `test_bundled_role_references_resolve` and `test_resource_scan_reports_missing_empty_and_escaping_targets` in `tests/test_skills.py` per [D8](design.md#d8).
   Verify: `uv run pytest -q tests/test_skills.py::test_bundled_role_references_resolve tests/test_skills.py::test_resource_scan_reports_missing_empty_and_escaping_targets` exits 0.
-- [ ] 2.4 Update `skills/mf-cut-change/SKILL.md` model suggestions per [D6](design.md#d6), preserving the suggestion-only boundary.
+- [x] 2.4 Update `skills/mf-cut-change/SKILL.md` model suggestions per [D6](design.md#d6), preserving the suggestion-only boundary.
   Verify: the cutter uses an offered menu, describes capability when a menu is absent, omits unsupported effort controls and leaves model/provider selection unchanged.
-- [ ] 2.5 Update `AGENTS.md`, `README.md`, `docs/README.md`, `docs/principles.md`, `docs/decisions.md`, `skills/mf-bootstrap/SKILL.md` and `skills/mf-release/SKILL.md` per [D3](design.md#d3) through [D6](design.md#d6); fix `0026·N3`.
+- [x] 2.5 Update `AGENTS.md`, `README.md`, `docs/README.md`, `docs/principles.md`, `docs/decisions.md`, `skills/mf-bootstrap/SKILL.md` and `skills/mf-release/SKILL.md` per [D3](design.md#d3) through [D6](design.md#d6); fix `0026·N3`.
   Verify: live docs describe native/generic behavior and capabilities; D11/D13/D22 hold the agreed choices; the bootstrap no-remote warning is native-specific; the named long lines are wrapped.
 
 ## 3 — Prove the generic path and audit native preservation

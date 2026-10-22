@@ -220,9 +220,13 @@ Rules for a change's artifacts only; `mf-build` does not carry them.
 
 ## Suggesting models
 
-After the commit, suggest in chat a model and an effort for the build, the check loop and the release. One
-suggestion per station, for the whole change. Choose from the models the human uses: a menu in their `AGENTS.md`
-bounds the choice; with none, use the models this session offers.
+After the commit, suggest in chat a model for the build, the check loop and the release. Use the target's menu
+in `AGENTS.md` when declared and honor the models actually offered by the session. With no target menu, use the
+session's offered menu; with no menu, describe the capability needed rather than invent model names.
+
+Suggest effort from the table only when the host and chosen model expose that control and setting. Omit
+unsupported effort settings. Do not change the selected model, authenticate or configure a provider; those are
+the operator's choices. Suggestions stay in chat, never in tracked prose.
 
 | the change holds | build with |
 |---|---|
@@ -231,7 +235,7 @@ bounds the choice; with none, use the models this session offers.
 | prose written fresh; moderate logic | the strongest tier · medium |
 | new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
 
-The highest row any phase matches decides.
+The highest row any phase matches decides the capability needed; map it to offered models and supported controls.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
@@ -240,9 +244,10 @@ The highest row any phase matches decides.
 
 ```
 Suggested models
-  build     <model · effort>                        <the reason, from the phases>
-  converge  <model · effort | skip, read by hand>   <the reason>
-  release   <model · effort>                        <the reason>
+  build     <offered model or capability>   <reason from the phases>
+  converge  <offered model or capability | skip, read by hand>   <reason>
+  release   <offered model or capability>   <reason>
+  effort    <include a supported setting per station when available>
 ```
 
 A suggestion, never an instruction: the human chooses.
