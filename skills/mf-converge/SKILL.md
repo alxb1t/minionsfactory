@@ -8,11 +8,14 @@ description: Conduct the end-of-change check loop — freeze the diff, fan out r
 > **Your role is CONDUCTOR. You judge nothing yourself.** You freeze the diff, dispatch fresh read-only
 > subagents, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, you do
 > not decide that the code is fine, and you do not release: `mf-release` finalizes, in a separate session.
-> Read the repo's `CLAUDE.md` as shared context and the change under `openspec/changes/<change-id>/`.
+> Read the repo's `AGENTS.md` as shared context and the change under `openspec/changes/<change-id>/`.
 
 The reason the boundary is drawn here is a failure it prevents: **three opinions from one reader**. A station
 run inside the conductor's own context verifies nothing — it shares the context that produced the work, and it
 cannot be re-run by a fresh reader. The stations are subagents, or there is no check.
+
+Before work, explicitly read root `AGENTS.md` and the mandatory context it identifies.
+Missing root `AGENTS.md` → **halt**, naming it.
 
 ## Parameter — the change id
 

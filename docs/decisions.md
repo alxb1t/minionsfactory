@@ -81,7 +81,7 @@ the same ids and checks them before it commits the change ([D38](#d38--the-cut-c
 
 ### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of this repo's gate
 
-**Its version is written in `CLAUDE.md`. This repo's `make gate` and CI never run it; the cut runs
+**Its version is written in `AGENTS.md`. This repo's `make gate` and CI never run it; the cut runs
 `openspec validate`. A target's gate may: the one `mf-bootstrap` writes validates the specs.**
 
 - **Why:** a moving CLI version can hand an author different instructions, but can never turn CI red.
@@ -214,7 +214,7 @@ What the skills need from a repository they work on.
 ├── openspec/specs/      the living spec
 ├── openspec/changes/    the active change, and the archive
 ├── Makefile             with a `gate` target
-├── CLAUDE.md            what is true of this repo
+├── AGENTS.md            what is true of this repo
 └── .minions/            run output, gitignored
 ```
 

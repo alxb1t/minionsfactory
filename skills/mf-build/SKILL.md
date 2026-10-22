@@ -7,8 +7,11 @@ description: Build the active in-repo change phase by phase — one phase at a t
 
 > **Your role is BUILD.** You build the phases of one change, in order, to a green gate, and you commit each
 > phase on its own. You do **not** review your own work, and you do **not** converge or release: `mf-converge`
-> conducts the end-of-change loop and `mf-release` finalizes. Read the repo's `CLAUDE.md` as shared context —
+> conducts the end-of-change loop and `mf-release` finalizes. Read the repo's `AGENTS.md` as shared context —
 > it is what is *true* of the repository, not a script — and read the change itself, which is authoritative.
+
+Before work, explicitly read root `AGENTS.md` and the mandatory context it identifies.
+Missing root `AGENTS.md` → **halt**, naming it.
 
 ## Parameter — the change id
 
@@ -69,7 +72,7 @@ Then lift the context:
    (the whole file, and your phase's sub-tasks and their stated verifications in particular).
    **`design.md` is authoritative — do not re-derive it and do not re-litigate it.** Where the build disagrees
    with a decision it settled, that is a **halt**, not a quiet divergence.
-2. **`CLAUDE.md`** at the repo root — the gate, the conventions and seams, the guardrails.
+2. **`AGENTS.md`** at the repo root — the gate, the conventions and seams, the guardrails.
 3. **Where the work stands** — the `## Progress` list in `tasks.md` plus `git log`, never memory. Resume is
    free: re-read both at the start of every pass.
 4. **The gate** — `make gate`, run from the repository root. Before the first gate run in a session, run
@@ -149,7 +152,7 @@ write the CHANGELOG entry, tick the phase and its `N.M` boxes, and commit.
 
        retired: docs/sdd.md → docs/principles.md
          skills/mf-build/SKILL.md — fixed
-         CLAUDE.md — fixed
+         AGENTS.md — fixed
          openspec/specs/sdd/spec.md — kept: a spec names the old term until the fold
 
    A phase that adds an end-to-end test carries `T2`'s reason in its commit body, one line per test, as its own
@@ -211,7 +214,7 @@ renaming a thing other text refers to: a module, a file, a term, a rule.
 | id | rule |
 |---|---|
 | **W1** | **Check a claim against the code's body** — never its name, its signature, or another document's word for it |
-| **W2** | **A retirement searches the whole tree** — code, tests, docs, specs, `README.md`, `CLAUDE.md` — and lists every hit as fixed or kept, with the reason, in the phase's commit body (Step 2, item 6) |
+| **W2** | **A retirement searches the whole tree** — code, tests, docs, specs, `README.md`, `AGENTS.md` — and lists every hit as fixed or kept, with the reason, in the phase's commit body (Step 2, item 6) |
 | **W3** | **No *only*, *never* or *nothing else* without a named test** that fails when the claim stops being true |
 | **W4** | **No counts in prose or comments** — name the things. The full rule and its one exception are `P12` |
 | **W5** | **A test that holds a guard ships with a twin** showing the test fails when the guard is gone, placed per `T6` |
@@ -251,7 +254,7 @@ This skill owns this list. `mf-cut-change` carries the same ids; `tests/test_ski
 | **P12** | **No counts — name the things** | "the review and security files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
 | **P13** | **Size limits** | a paragraph fits in 3 sentences, a task in 3 lines; anything longer is a decision or a doc section, linked |
 
-`P` covers the markdown docs you create or rewrite — `README.md`, `docs/`, `CLAUDE.md` — and your CHANGELOG
+`P` covers the markdown docs you create or rewrite — `README.md`, `docs/`, `AGENTS.md` — and your CHANGELOG
 entries. `C` covers comments and docstrings. Both apply only to the text a phase writes or changes, and the
 comments next to it — never a whole file unasked; a task that says "rewrite X" rewrites X.
 

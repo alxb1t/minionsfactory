@@ -608,18 +608,18 @@ def test_the_gate_clock_scan_reports_both_needles(tmp_path: Path) -> None:
     ]
 
 
-# A new repo starts under the rules for tests: the bootstrap's `CLAUDE.md` states them.
+# A new repo starts under the rules for tests: the bootstrap's `AGENTS.md` states them.
 # Why: 0026-test-cost design B13.
-_CLAUDE_TEMPLATE = "skills/mf-bootstrap/templates/CLAUDE.md.tmpl"
+_AGENTS_TEMPLATE = "skills/mf-bootstrap/templates/AGENTS.md.tmpl"
 _TEMPLATE_TESTS = "## Tests"
 
 
 def _template_tests_problems(base: Path) -> list[str]:
-    """Return a line when `base`'s bootstrap `CLAUDE.md` template has no `## Tests`."""
-    lines = (base / _CLAUDE_TEMPLATE).read_text().splitlines()
+    """Return a line when `base`'s bootstrap `AGENTS.md` template has no `## Tests`."""
+    lines = (base / _AGENTS_TEMPLATE).read_text().splitlines()
     if _TEMPLATE_TESTS in lines:
         return []
-    return [f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
+    return [f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
 
 
 def test_the_bootstrap_holds_its_template_tests_section() -> None:
@@ -628,11 +628,11 @@ def test_the_bootstrap_holds_its_template_tests_section() -> None:
 
 def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None:
     # A heading one level down is not the section.
-    (tmp_path / _CLAUDE_TEMPLATE).parent.mkdir(parents=True)
-    (tmp_path / _CLAUDE_TEMPLATE).write_text("# <name>\n\n### Tests\n")
+    (tmp_path / _AGENTS_TEMPLATE).parent.mkdir(parents=True)
+    (tmp_path / _AGENTS_TEMPLATE).write_text("# <name>\n\n### Tests\n")
 
     assert _template_tests_problems(tmp_path) == [
-        f"{_CLAUDE_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"
+        f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"
     ]
 
 
@@ -879,7 +879,7 @@ def _layout_entries(base: Path) -> list[str]:
 def _layout_problems(base: Path) -> list[str]:
     """Return one line per breach of B11 by `base`'s bootstrap templates.
 
-    e.g. no `CLAUDE.md.tmpl` → "…/templates: no template for `CLAUDE.md`"
+    e.g. no `AGENTS.md.tmpl` → "…/templates: no template for `AGENTS.md`"
     """
     root = base / _TEMPLATES
     targets = {
@@ -916,14 +916,14 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
         "├── openspec/specs/      the living spec\n"
         "├── openspec/changes/    the changes\n"
         "├── Makefile             the gate\n"
-        "├── CLAUDE.md            what is true\n"
+        "├── AGENTS.md            what is true\n"
         "└── .minions/            run output\n\n"
         "### D19 · Another\n\n"
         "└── docs/                outside D18\n"
     )
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "decisions.md").write_text(decisions)
-    # Templates with no `openspec/changes/`, `CLAUDE.md` or `README.md`, a `.gitignore`
+    # Templates with no `openspec/changes/`, `AGENTS.md` or `README.md`, a `.gitignore`
     # that only mentions `.minions/` in a comment, and a gate that validates nothing.
     root = tmp_path / _TEMPLATES
     (root / "openspec" / "specs").mkdir(parents=True)
@@ -934,7 +934,7 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
 
     assert _layout_problems(tmp_path) == [
         f"{_TEMPLATES}: no template under `openspec/changes/`",
-        f"{_TEMPLATES}: no template for `CLAUDE.md`",
+        f"{_TEMPLATES}: no template for `AGENTS.md`",
         f"{_TEMPLATES}: no template for `README.md`",
         f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
         f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",

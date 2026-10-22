@@ -30,4 +30,4 @@ What holds, what was chosen, and what is designed.
 | [`openspec/specs/`](../openspec/specs/) | the living spec |
 | [`openspec/changes/`](../openspec/changes/) | the active change, and the archive |
 | [`CHANGELOG.md`](../CHANGELOG.md) | what shipped, per version |
-| [`CLAUDE.md`](../CLAUDE.md) | what is true of this repository: the gate, the layout, the guardrails |
+| [`AGENTS.md`](../AGENTS.md) | what is true of this repository: the gate, the layout, the guardrails |

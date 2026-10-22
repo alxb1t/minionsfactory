@@ -4,21 +4,21 @@ Build the settled [design](design.md); use its [transition handoff](design.md#tr
 
 ## Progress
 
-- [ ] 1 — Migrate target context and installation
+- [x] 1 — Migrate target context and installation
 - [ ] 2 — Add portable execution beside native Claude engines
 - [ ] 3 — Prove the generic path and audit native preservation
 
 ## 1 — Migrate target context and installation
 
-- [ ] 1.1 Rename root `CLAUDE.md` to `AGENTS.md` and `skills/mf-bootstrap/templates/CLAUDE.md.tmpl` to `AGENTS.md.tmpl`; make context reads explicit per [D1](design.md#d1).
+- [x] 1.1 Rename root `CLAUDE.md` to `AGENTS.md` and `skills/mf-bootstrap/templates/CLAUDE.md.tmpl` to `AGENTS.md.tmpl`; make context reads explicit per [D1](design.md#d1).
   Verify: `test -f AGENTS.md && test -f skills/mf-bootstrap/templates/AGENTS.md.tmpl` exits 0; root context explicitly directs reading `docs/principles.md` and `docs/decisions.md`.
-- [ ] 1.2 Update `_CLAUDE_TEMPLATE` and the template/layout fixtures in `tests/test_skills.py` per [D1](design.md#d1), retaining the tests named in [Tests](design.md#tests).
+- [x] 1.2 Update `_CLAUDE_TEMPLATE` and the template/layout fixtures in `tests/test_skills.py` per [D1](design.md#d1), retaining the tests named in [Tests](design.md#tests).
   Verify: `rg -q '^_AGENTS_TEMPLATE =' tests/test_skills.py && uv run pytest -q tests/test_skills.py -k 'template or layout'` exits 0.
-- [ ] 1.3 Update context reads in `skills/mf-bootstrap/SKILL.md`, `skills/mf-cut-change/SKILL.md`, `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md` and `openspec/config.yaml`; fix `0026·N2`.
+- [x] 1.3 Update context reads in `skills/mf-bootstrap/SKILL.md`, `skills/mf-cut-change/SKILL.md`, `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md` and `openspec/config.yaml`; fix `0026·N2`.
   Verify: cut, build, converge and release explicitly require root `AGENTS.md`; bootstrap's collision table names it; cut Step 6 says "Each dependency names an exact package and a version constraint".
-- [ ] 1.4 Update `README.md`, `docs/README.md` and D8/D18 in `docs/decisions.md` for the renamed context per [D1](design.md#d1) and [D9](design.md#d9).
+- [x] 1.4 Update `README.md`, `docs/README.md` and D8/D18 in `docs/decisions.md` for the renamed context per [D1](design.md#d1) and [D9](design.md#d9).
   Verify: the README and D18 target trees name `AGENTS.md`; the docs map links the new root file; historical records remain unchanged.
-- [ ] 1.5 Change the `SKILLS_DIR` default and its comment in `Makefile` per [D5](design.md#d5), retaining the existing installer safeguards.
+- [x] 1.5 Change the `SKILLS_DIR` default and its comment in `Makefile` per [D5](design.md#d5), retaining the existing installer safeguards.
   Verify: `Makefile` declares `SKILLS_DIR ?= $(HOME)/.agents/skills`; the override and install/uninstall recipes retain their existing behavior; the gate recipe equals `bba6569`.
 
 ## 2 — Add portable execution beside native Claude engines

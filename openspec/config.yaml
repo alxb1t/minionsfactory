@@ -9,7 +9,7 @@ context: |
   overturns a decision in force edits `docs/decisions.md` in one of its phases.
 
   What is true of this repository in particular — the gate (`make gate`), the layout,
-  the guardrails — is in `CLAUDE.md`. Read it too. A change is cut with the
+  the guardrails — is in `AGENTS.md`. Read it too. A change is cut with the
   `mf-cut-change` skill, which carries the contract a change must meet.
 
   None of these pages is restated in this file. Where an instruction below and a page

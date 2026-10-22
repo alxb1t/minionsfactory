@@ -14,6 +14,9 @@ convergence does not also archive and tag on it.** When converge ran, you re-rea
 yourself; when it did not, this station is the only check after the build, and says so. Either way you re-run
 the gate yourself; you inherit nothing.
 
+Before work, explicitly read root `AGENTS.md` and the mandatory context it identifies.
+Missing root `AGENTS.md` → **halt**, naming it.
+
 ## Parameter — the change id
 
 A given `change-id` is used as given. Without one, infer it — strictly:

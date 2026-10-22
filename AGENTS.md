@@ -1,4 +1,4 @@
-# minions_factory — shared context for Claude Code
+# minions_factory — shared context for coding agents
 
 MinionsFactory is **disciplined feature development with Claude Code, shipped as skills**: each station of the
 line is an `mf-*` skill, and a person conducts them. The project is built the way it builds. The map of the
@@ -6,9 +6,8 @@ record is [`docs/README.md`](docs/README.md).
 
 ## The record
 
-The rules every station follows, imported here so they are in context when a line is written:
-
-@docs/principles.md
+Before work, explicitly read [the principles](docs/principles.md) and
+[the decisions in force](docs/decisions.md). These are mandatory shared context.
 
 - **The decisions in force** are in [`docs/decisions.md`](docs/decisions.md), each with its reason. A change that
   adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its `design.md` keeps the
@@ -58,7 +57,7 @@ and no prose here copies them.
   *tracked* `openspec/` tree, and those tools echo absolute paths, so a real path is one careless paste away from
   history. Paths a fixture or a worked example
   *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
-  one, carrying a real username, is. `.env` is gitignored; the committed `CLAUDE.md` stays
+  one, carrying a real username, is. `.env` is gitignored; the committed `AGENTS.md` stays
   path-free. `tests/test_guardrails.py` fails on a home path or a key shape in any tracked file.
 - **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
   installing. Test/lint/type tools stay dev-only; keep the runtime lean.

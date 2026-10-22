@@ -48,7 +48,7 @@ it into a new repo; the other skills install nothing.
 ├── openspec/specs/      the living spec
 ├── openspec/changes/    the active change, and the archive
 ├── Makefile             with a `gate` target
-├── CLAUDE.md            what is true of this repo
+├── AGENTS.md            what is true of this repo
 └── .minions/            run output, gitignored
 ```
 
