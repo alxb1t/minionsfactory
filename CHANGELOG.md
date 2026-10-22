@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-22
+
+Gate: local 0m1s · CI none · 0.26.0: local 0m0s · CI 0m12s (CI at d5162e4)
+
 - Prove the generic Codex roles with a live fixture and fresh verification; record native dispatch preservation
   and the retirement inventory (change `0027-migrate-to-agents`, phase 3). Preserve failed-attempt evidence.
 
