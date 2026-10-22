@@ -6,6 +6,20 @@
 
 **Migration:** Rename the template to `skills/mf-bootstrap/templates/AGENTS.md.tmpl` and retain its test policy.
 
+## MODIFIED Requirements
+
+### Requirement: A test is deleted or merged only as the design's table names it
+
+`skills/mf-build/SKILL.md` SHALL treat a test deleted or merged as the change's `design.md` `## Tests` table names it
+as consolidation, not as weakening the gate, and SHALL halt on a deletion outside that table. The fix station in
+`skills/mf-converge/SKILL.md` SHALL never delete or merge a test.
+
+#### Scenario: The build names the table, and the fix station never deletes
+- **WHEN** `mf-build` and `mf-converge` are scanned
+- **THEN** `mf-build`'s `## Step 2 — The per-phase ritual` names `` `## Tests` table ``
+- **AND** `mf-converge`'s `## Step 6 — The fix station (a fresh worker, inside this loop)` names
+  `never deletes or merges a test`
+
 ## ADDED Requirements
 
 ### Requirement: The bootstrap's `AGENTS.md` states the rules for tests
