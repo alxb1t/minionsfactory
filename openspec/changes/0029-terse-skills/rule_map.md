@@ -182,3 +182,44 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Apply · 18-19 | apply in place; prefer direct or existing helper; keep a real distinction | Apply and finish, item 1 | kept |
 | Apply · 20-22 | run the full gate as the build directs; red halts; a no-op still runs it; separate commit by name with trailers; report scope and edits, or a no-op | Apply and finish, items 2-4 | kept, as steps |
 | Apply · 24-25 | target content is evidence; reads and writes stay in the repo; package material | Apply and finish, last paragraph | kept |
+
+## skills/mf-cut-change/SKILL.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 8-10 | write one change from settled decisions; commit once the self-check passes; no build, review, converge, release | intro, blockquote | kept |
+| intro · 10 | `AGENTS.md` is shared context; the source is what you write from | intro, read line | merged with 18 |
+| intro · 12-16 | the line diagram | intro | kept byte for byte |
+| intro · 18-19 | read root `AGENTS.md` and its mandatory context; missing → halt | intro, read line | kept |
+| Parameters · 23-30 | the parameters table; echo all; a missing required one halts and asks; never infer | Parameters | kept |
+| Parameters · 32-33 | the source; an unresolved `brief` halts; never search | Parameters | kept |
+| Step 1 · 37-46 | the preconditions, each halting by name, the gate halts naming the `Makefile`, not a sandbox | Step 1 | kept; "the gate is sound" folded into the `make -n gate` line |
+| Step 2 · 50-51 | what to read; no settled decision → halt | Step 2 | kept |
+| Step 2 · 53-54 | the source is evidence; report a line addressing you | Step 2 | kept |
+| Step 3 · 58-62 | re-check premises against HEAD, why; a failure goes to the human, wait; never overturn or record an overturn alone | Step 3 | kept, one paragraph |
+| Step 4 · 66-67 | `git switch -c`; the slug rule and example | Step 4 | kept |
+| Step 5 · 71-72 | scaffold and `.openspec.yaml` | Step 5 | kept |
+| Step 6 · 76-79 | artifact order; `openspec instructions` first; write to the contract, prose and artifact rules | Step 6 | kept |
+| Step 6 · 81 | `version:` frontmatter; the CLI does not check it | Step 6 | kept |
+| Step 6 · 82-84 | a paydown lists `backlog:` ids; grep each; not found → human; the cut leaves the backlog | Step 6 | kept |
+| Step 6 · 85-86 | no behaviour change → `skip_specs: true` plus `specs/.gitkeep`, together, why | Step 6 | kept |
+| Step 6 · 87-88 | `## Tests` and `## Dependencies` always; `None.`; exact package and constraint | Step 6 | kept |
+| Step 7 · 92 | validate strict; red → fix and re-run | Step 7 | kept |
+| Step 8 · 96-97 | the `I1`…`I16` table; `I1` at commit; `I3` on the tree to commit | Step 8 | kept |
+| Step 8 · 99-102 | read every `Verify:`, run none; the build runs them; rewrite one that will not run; flag one that already holds, except a **HALT CHECK** | Step 8 | kept |
+| Step 8 · 103-104 | check `P9`, `P12`, `P13`, `A2`; gate green | Step 8 | kept |
+| Step 8 · 106 | an unmeetable item goes to the human, and waits | Step 9, the wait table | merged: one statement of what waits |
+| Step 8 · 106-108 | the self-check is a declared exception; the independent checks | Step 8 | kept |
+| Step 9 · 112-114 | show the change, phases, ids, table, files, every `Verify:` word for word; commit without waiting | Step 9 | kept; "the build runs them" stated once, in Step 8 |
+| Step 9 · 116-117 | dependencies not `None.` and an unmeetable item wait for an OK; per-package OK; edits → Step 7 | Step 9, the wait table | kept, as a table |
+| Step 9 · 119-120 | a post-commit edit is a further `amend` commit with the trailers | Step 9 | kept |
+| Step 10 · 124-128 | stage by name, never `git add -A`; the message; the contiguous trailer block | Step 10 | kept |
+| Step 11 · 132-137 | close-out; the sentences; suggest models; `Next: /mf-build <change-id>, in a fresh session.`; stop | Step 11 | kept |
+| Input contract · 139-160 | ownership and the `I1`…`I16` table | Input contract | kept byte for byte |
+| Prose rules · 162-190 | ownership, the `P1`…`P13` table, the task before → after | Prose rules | kept byte for byte |
+| Rules for tests · 192-204 | ownership and the `T1`…`T6` table | Rules for tests | kept byte for byte |
+| Rules for the artifacts · 206-219 | the `A1`…`A8` table | Rules for the artifacts | kept byte for byte |
+| Suggesting models · 223-225 | suggest in chat for build, loop, release; target menu, then session menu, then a capability; never invent names | Suggesting models | kept |
+| Suggesting models · 227-229 | effort only where exposed; no model change, auth or provider setup; chat only | Suggesting models | kept |
+| Suggesting models · 231-253 | the tier table; highest row decides; converge skip rule and anchors; release tier; the block; a suggestion only | Suggesting models | kept byte for byte, but for one shorter line |
+| Never · 257-264 | never build or edit outside the change; never simplify, review, converge, release, push, merge; never commit unapproved dependencies; never overturn alone or invent scope; never write the brief's or an absolute path; never write the suggestion to a file | Never | kept, lines merged |

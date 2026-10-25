@@ -8,7 +8,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 - [x] 1 — Rewrite converge and its generic review and security
 - [x] 2 — Rewrite build and its generic simplify
-- [ ] 3 — Rewrite the cut
+- [x] 3 — Rewrite the cut
 - [ ] 4 — Rewrite the release
 - [ ] 5 — Rewrite the bootstrap
 - [ ] 6 — Rewrite the shared context
@@ -37,10 +37,10 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 3 — Rewrite the cut
 
-- [ ] 3.1 Rewrite `skills/mf-cut-change/SKILL.md`; add its section.
+- [x] 3.1 Rewrite `skills/mf-cut-change/SKILL.md`; add its section.
   Verify: `[ "$(wc -w < skills/mf-cut-change/SKILL.md)" -lt 3244 ]` exits 0, and
   `grep -c '^## skills/mf-cut-change/SKILL\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `1`.
-- [ ] 3.2 Keep the cut's headings and its `I`, `P` and `T` rows, per [D3](design.md#d3).
+- [x] 3.2 Keep the cut's headings and its `I`, `P` and `T` rows, per [D3](design.md#d3).
   Verify: `test "$(git show a926ca1:skills/mf-cut-change/SKILL.md | grep -E '^## |^\| \*\*[IPT][0-9]+\*\* \|')" = "$(grep -E '^## |^\| \*\*[IPT][0-9]+\*\* \|' skills/mf-cut-change/SKILL.md)"` exits 0.
 
 ## 4 — Rewrite the release

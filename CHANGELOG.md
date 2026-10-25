@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Rewrite `mf-cut-change` shorter: what waits for the human's OK is one table, and each of verification
+  ownership, dependency approval and commit timing is stated once (change `0029-terse-skills`, phase 3).
+
 - Rewrite `mf-build` and its generic simplify reference action-first: the start-of-run cases and the executors
   as tables, the ritual as a flow (change `0029-terse-skills`, phase 2). The id tables, the HUMAN checklist and
   every halt are kept.
