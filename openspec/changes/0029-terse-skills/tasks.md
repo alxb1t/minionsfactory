@@ -9,7 +9,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 - [x] 1 — Rewrite converge and its generic review and security
 - [x] 2 — Rewrite build and its generic simplify
 - [x] 3 — Rewrite the cut
-- [ ] 4 — Rewrite the release
+- [x] 4 — Rewrite the release
 - [ ] 5 — Rewrite the bootstrap
 - [ ] 6 — Rewrite the shared context
 - [ ] 7 — Measure the reading sets and build the reader prompts
@@ -45,10 +45,10 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 4 — Rewrite the release
 
-- [ ] 4.1 Rewrite `skills/mf-release/SKILL.md`; add its section.
+- [x] 4.1 Rewrite `skills/mf-release/SKILL.md`; add its section.
   Verify: `[ "$(wc -w < skills/mf-release/SKILL.md)" -lt 2788 ]` exits 0, and
   `grep -c '^## skills/mf-release/SKILL\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `1`.
-- [ ] 4.2 Keep the release's headings and precondition 8, per [D3](design.md#d3).
+- [x] 4.2 Keep the release's headings and precondition 8, per [D3](design.md#d3).
   Verify: `test "$(git show a926ca1:skills/mf-release/SKILL.md | grep '^## ')" = "$(grep '^## ' skills/mf-release/SKILL.md)"` exits 0, and
   `sh openspec/changes/0029-terse-skills/kept.sh skills/mf-release/SKILL.md 93 100` prints `kept`.
 

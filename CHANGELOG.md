@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Rewrite `mf-release` shorter: the converge-ran-or-skipped cases and the fold operations as tables, the release
+  as a flow (change `0029-terse-skills`, phase 4). Precondition 8 is kept word for word.
+
 - Rewrite `mf-cut-change` shorter: what waits for the human's OK is one table, and each of verification
   ownership, dependency approval and commit timing is stated once (change `0029-terse-skills`, phase 3).
 

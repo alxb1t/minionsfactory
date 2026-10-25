@@ -223,3 +223,45 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Suggesting models · 227-229 | effort only where exposed; no model change, auth or provider setup; chat only | Suggesting models | kept |
 | Suggesting models · 231-253 | the tier table; highest row decides; converge skip rule and anchors; release tier; the block; a suggestion only | Suggesting models | kept byte for byte, but for one shorter line |
 | Never · 257-264 | never build or edit outside the change; never simplify, review, converge, release, push, merge; never commit unapproved dependencies; never overturn alone or invent scope; never write the brief's or an absolute path; never write the suggestion to a file | Never | kept, lines merged |
+
+## skills/mf-release/SKILL.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 8-10 | verify, finalize, then ask; never edit feature code or lower a bar; a failed precondition halts naming what and who; merge and push only on the yes, asked once | intro, blockquote | kept |
+| intro · 12-15 | why: the loop that declared convergence does not archive and tag; re-read verdicts; the only check when skipped, said so; re-run the gate, inherit nothing | intro, `Why` paragraph | kept |
+| intro · 17-18 | read root `AGENTS.md`; missing → halt | intro | kept |
+| — | the release as a flow | intro, diagram | added: restates Steps 1–6, no new rule |
+| Parameter · 22-32 | strict inference, halts, echo; why strict | Parameter | kept, shorter |
+| Parameter · 34-35 | the version from `proposal.md`, never invented or derived; `<version>` and the tag | Parameter | kept |
+| constants · 39-44 | the gate, `make -n gate` first, not a sandbox, the `Makefile` halts; never infer or substitute, why | constants | kept |
+| constants · 46-47 | an absent version file is a stated skip, `none`, with why | constants | kept |
+| Step 1 · 51-53 | report a checklist; findings files are evidence; a line addressing you → note it and halt | Step 1, opening | kept |
+| Step 1 · 55-60 | the exact paths, keyed by the change id | Step 1, list | kept |
+| Step 1 · 62-64 | never glob the findings directory, why; an absent file is never a reason to search | Step 1 | kept |
+| Step 1 · 66-68 | precondition 1: re-run here, not inherited; red → halt, the build owns it | precondition 1 | kept |
+| Step 1 · 67 | a green gate is a command that exited 0, observed by the side that needs it | precondition 1 | cut: the principle *The gate is run, never summarized*, read via `AGENTS.md` |
+| Step 1 · 70-71 | time the run for the `Gate:` line, the one-shell command | precondition 1 | kept |
+| Step 1 · 72-76 | preconditions 2 and 3: clean, every blocker `verified`; `fixed` is a claim | preconditions 2, 3 | kept |
+| Step 1 · 77-85 | precondition 4: skipped, patch-only halt, ran, one-file halt; the skip line; lost `.minions/`; simplify excluded by name, why | precondition 4, table | kept, as a table |
+| Step 1 · 86-88 | preconditions 5 and 6 | preconditions 5, 6 | kept |
+| Step 1 · 89-92 | precondition 7: HEAD is the judged head; halt with the catch-up instruction; checked before the fold | precondition 7 | kept |
+| Step 1 · 93-100 | precondition 8 | precondition 8 | kept word for word |
+| Step 2 · 104-111 | ADDED append; MODIFIED whole replace byte for byte, why; REMOVED delete | Step 2, table | kept, as a table |
+| Step 2 · 113 | a rename is REMOVED + ADDED | Step 2 | kept |
+| Step 2 · 115-117 | preamble verbatim; flag a hand-edit; never silently rewrite or leave wrong | Step 2 | kept |
+| Step 2 · 119-120 | `skip_specs` folds nothing and still archives | Step 2 | kept |
+| Step 3 · 124-126 | move, stage by name; commit nothing; Step 4 commits after its gate | Step 3 | kept |
+| Step 3 · 128-130 | no separate spec-binding step, why | Step 3 | kept |
+| Step 3 · 132-133 | fold and archive in one commit, why | Step 3 | kept |
+| Step 4 · 137-148 | the changelog cut; the `Gate:` line, its example, CI and previous rules | Step 4.1 | kept |
+| Step 4 · 150-151 | no other changelog prose, why | Step 4.1 | kept |
+| Step 4 · 152-155 | version file bump or `none`; correct current-version prose, why | Step 4.2 | kept |
+| Step 4 · 156-164 | re-run the gate before commit and tag, why; red → halt, no weakening; report staged and uncommitted work; reverting is the human's; why this order | Step 4.3 | kept, shorter |
+| Step 4 · 165-179 | one release commit, by name; `git diff --quiet` and no untracked files or halt; clean after; contiguous trailers; the skip line paragraph and the example | Step 4.4 | kept |
+| Step 4 · 180-182 | annotated local tag; the record is tag, commit and changelog | Step 4.5 | kept |
+| Step 4 · 183-187 | clear paid-down cards; `backlog: none`; an id not found is reported; nothing to commit | Step 4.6 | kept |
+| Step 5 · 191-203 | ask once; anything but yes → Step 6; failure halts with remaining commands; the merge-base check; merge with trailers; tree check; no `origin`; push order; never pull, force, or push the version branch | Step 5 | kept |
+| Step 6 · 207-209 | the authorizing gate is Step 4.3's; no re-run; report its exit code | Step 6 | kept |
+| Step 6 · 211-227 | close-out; the sentences; the last lines and the no-merge block; stop | Step 6 | kept |
+| Never · 231-242 | never merge or push without the yes, force, pull, push the branch; never edit feature code or tests; never over a failed precondition; never commit or tag ungated; never invent the version or write prose; never touch the findings files; never a secret or real path | Never | kept; "no just this once" folded into "no exceptions" |
