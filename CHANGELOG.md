@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-25
+
+Gate: local 0m1s · CI 0m18s (CI at 0979957) · 0.27.0: local 0m1s · CI none
+
 - Delete D24–D35 and `docs/autonomous.md`, and every live reference to them (change `0028-prose-guards-retire`,
   phase 3). A line not built is no longer mandatory reading; its ids stay a gap.
 
