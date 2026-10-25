@@ -160,9 +160,15 @@ questions/<skill>.md + text at a926ca1 | HEAD ──sh build_prompts.sh──▶
 
 | executor | command |
 |---|---|
-| Codex 0.163 | `codex exec -m gpt-6.1-sol -s read-only --ephemeral --skip-git-repo-check -o <answers> - < <prompt>` |
+| Codex 0.163 | `codex exec -m gpt-6.1-sol -s read-only --ephemeral --skip-git-repo-check --json -o <answers> - < <prompt> > <events>` |
 | Claude Code 2.1 | `claude -p --model claude-opus-5-5 --tools "" --no-session-persistence --output-format text < <prompt> > <answers>` |
 | any other | meets the contract; its folder under `evidence/` and its rows in `verdicts.md` are added the same way |
+
+**Read-only is not tool-less.** Codex's read-only sandbox still lets it run shell commands that read, so a reader
+could open the repo's own skill and answer from it. Its event log is kept beside its answers, and a run with a
+`command_execution`, `file_change`, `mcp_tool_call`, `web_search` or `collab_tool_call` item fails phase 8.
+Claude Code runs with `--tools ""` and has nothing to call. Phase 7 checks the installed versions before any
+metered run; logging in stays with the operator (D22).
 
 **Judging.** `evidence/verdicts.md` has one row per executor × question:
 `| <executor> | <skill> | <n> | <old: match or off> | <new: match or off> | <verdict> |`, the verdict `match`,
@@ -248,8 +254,10 @@ None.
   reads them against the rule map.
 - **A reader's answer is judged by a person** → the expected answers are fixed here, before the rewrite; converge's
   review re-reads `verdicts.md` against them.
-- **An executor flag differs from its recipe** → the HUMAN phase uses the installed versions named above; another
-  version is recorded in the answers file's first line.
+- **An executor flag differs from its recipe** → phase 7's **HALT CHECK** stops the build before any metered run
+  when the installed versions differ from the recipes'.
+- **A reader opens a file instead of reading the prompt** → Codex's event log is checked for tool calls; Claude Code
+  has no tools.
 - **Metered runs cost money** → bounded by the question sets and two executors, run once per side.
 
 ## Migration Plan

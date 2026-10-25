@@ -74,6 +74,8 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
   Verify: `sh openspec/changes/0029-terse-skills/measure.sh | awk 'BEGIN { split("4947 8191 9155 9399 10847 11232 11202 7735 732", b) } $2 >= b[NR] { bad = 1 } END { exit bad }'` exits 0.
 - [ ] 7.2 Build the reader prompts, per [D6](design.md#d6): `sh openspec/changes/0029-terse-skills/build_prompts.sh`.
   Verify: `ls .minions/0029-reader/*.prompt.md | wc -l` prints `10`.
+- [ ] 7.3 **HALT CHECK** The installed executors are the versions [D6](design.md#d6)'s recipes were written for.
+  Verify: `codex --version | grep -c '^codex-cli 0\.163\.'` prints `1`, and `claude --version | grep -c '^2\.1\.[0-9]* (Claude Code)$'` prints `1`.
 
 ## 8 — Run the fresh-reader check **HUMAN · METERED**
 
@@ -82,11 +84,12 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
   R=$(git rev-parse --show-toplevel); E="$R/openspec/changes/0029-terse-skills/evidence"
   mkdir -p "$E/codex" && cd "$(mktemp -d)"
   for p in "$R"/.minions/0029-reader/*.prompt.md; do n=$(basename "$p" .prompt.md)
-    codex exec -m gpt-6.1-sol -s read-only --ephemeral --skip-git-repo-check -o "$n.txt" - < "$p"
+    codex exec -m gpt-6.1-sol -s read-only --ephemeral --skip-git-repo-check --json -o "$n.txt" - < "$p" > "$E/codex/$n.events.jsonl"
     { echo "executor: $(codex --version) · model: gpt-6.1-sol"; echo; cat "$n.txt"; } > "$E/codex/$n.md"; done
   cd "$R"
   ```
-  Verify: `ls openspec/changes/0029-terse-skills/evidence/codex/*.md | wc -l` prints `10`.
+  Verify: `ls openspec/changes/0029-terse-skills/evidence/codex/*.md | wc -l` prints `10`, and
+  `grep -hoE '"type":"(command_execution|file_change|mcp_tool_call|web_search|collab_tool_call)"' openspec/changes/0029-terse-skills/evidence/codex/*.events.jsonl` prints nothing.
 - [ ] 8.2 Run Claude Code over every prompt, from an empty directory:
   ```sh
   R=$(git rev-parse --show-toplevel); E="$R/openspec/changes/0029-terse-skills/evidence"
