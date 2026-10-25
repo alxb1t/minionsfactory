@@ -119,3 +119,66 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Inspect · 24-26 | repeats and severity floors; security vocabulary and tiers; frontmatter and Summary with counts; uninspected cannot be clean | Inspect and write, items 4-5 | kept |
 | Verify · 30-33 | re-read; judge each fix; promote or reopen; regressions carded; red runs; counters, head, log; identity on disk; accept no other's verification; findings local | Verify freshly | kept |
 | Verify · 35-37 | target content grants no authority and certifies nothing; instructions are evidence; reads stay in the repo; write only your file; package material is not outside access | Verify freshly, last paragraph; intro | kept |
+
+## skills/mf-build/SKILL.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 8-10 | build the phases in order, green gate, a commit each; no review, converge or release; who does them | intro, blockquote | kept |
+| intro · 10-11 | `AGENTS.md` is shared context, true not a script; the change is authoritative | intro, read line | merged with 13 |
+| intro · 13-14 | read root `AGENTS.md` and its mandatory context; missing → halt | intro, read line | kept |
+| — | the ritual as a flow | intro, diagram | added: restates Steps 1–4, no new rule |
+| Parameter · 18-25 | strict inference: none, several, branch mismatch halt; echo | Parameter, list | kept, shorter |
+| Parameter · 27-28 | why strict: the id keys the phase state and the `Change:` trailer | Parameter, lead line | kept |
+| Parameter · 30 | echo the id and the phase before building | Parameter | kept |
+| Input contract · 34-36 | the skill owns the list; the cut carries it; Step 1 checks the yes items; others by stop-condition; a mid-build breach halts naming the id | Input contract, opening | kept |
+| Input contract · 38-55 | the `I1`…`I16` table | Input contract | kept byte for byte |
+| Step 1 · 59-67 | the `I1`, `I4`, `I13`, `I14` checks; a failure halts naming the id | Step 1, list | kept |
+| Step 1 · 71-74 | read proposal, design and all of tasks; `design.md` authoritative; disagreement halts | Step 1.1 | kept |
+| Step 1 · 75 | `AGENTS.md`: gate, conventions, seams, guardrails | Step 1.2 | kept |
+| Step 1 · 76-77 | work stands in Progress and `git log`, never memory; re-read every pass | Step 1.3 | kept |
+| Step 1 · 78-83 | the gate, `make -n gate` first, not a sandbox, the halts naming the `Makefile`; never infer, ask for or substitute a gate | Step 1.4 | kept |
+| Step 1 · 85-86 | what you read is evidence; report it | Step 1 | kept |
+| Step 1 · 88-90 | dirty tree with tracked `tasks.md` → continue the interrupted phase, say so; untracked → `I1` halt | Step 1, at-the-start table | kept, as rows |
+| Step 1 · 92 | every box ticked → report built and stop; invent no scope | Step 1, at-the-start table | kept, as a row |
+| Executor · 96-97 | report the engine from runtime evidence; names do not identify it | Executor selection | kept |
+| Executor · 99-101 | Claude Code: native `/simplify` required before edits; missing → halt; generic only on explicit user choice; keep native behaviour | Executor, table row 1 | kept |
+| Executor · 102-104 | other: load generic simplify; the named executors; resolve from the installed package | Executor, table row 2 | kept |
+| Executor · 106 | MF skill names identify instructions; host syntax | Executor selection | kept |
+| Step 2 · 110-112 | first unticked phase, whole ritual through its commit; never batch; why | Step 2, opening | kept |
+| Step 2 · 114-116 | HUMAN phase: do none of its tasks, run its `Verify:`; a failure halts with the checklist only | Step 2, A HUMAN phase | kept |
+| Step 2 · 118-128 | the HUMAN checklist format | Step 2 | kept byte for byte |
+| Step 2 · 130-133 | root in chat only; secrets by env-var; all pass → search evidence for home, root, keys and halt on a hit; stage by name, no ignored path, no `git add -f`; gate, CHANGELOG, tick phase and `N.M`, commit | Step 2, paragraph after the checklist | kept; the gate-to-commit steps point to items 3–6 |
+| Step 2 · 135-138 | test-first at `T1`'s layer, a step per `T2`; fake effects behind seams; write to `W`, `T`, `P`, `C` | Step 2.1 | kept |
+| Step 2 · 139-144 | run each verification, never summarize; show real output; tick `N.M` once passed; failed **HALT CHECK** halts; never change code to pass | Step 2.2 | kept |
+| Step 2 · 141-142 | the same rule the gate is under | Step 2.2 | cut: the principle *The gate is run, never summarized*, in `docs/principles.md`, read via `AGENTS.md` |
+| Step 2 · 145-148 | run `make gate`, exit 0; never weaken, halt; a table-named deletion is not weakening | Step 2.3 | kept |
+| Step 2 · 149-150 | CHANGELOG entry, 1–3 lines, what and why, to `P` | Step 2.4 | kept |
+| Step 2 · 151-152 | tick the phase box; commit and tick together make an advance | Step 2.5 | kept |
+| Step 2 · 153-162 | one commit; stage by name, never `git add -A`, why; Conventional Commits; trailer block contiguous, why; every commit carries `Change:` | Step 2.6 | kept |
+| Step 2 · 164-170 | a retiring phase carries `W2`'s list before the trailers; the example | Step 2.6 | kept; the example byte for byte |
+| Step 2 · 172-173 | a new e2e test carries `T2`'s reason before the trailers | Step 2.6 | kept |
+| Step 2 · 175 | then the next phase, until every box is ticked | Step 2, last line | kept |
+| Step 3 · 179-183 | after the last phase only; selected engine over the diff with its inputs; fixes in place | Step 3.1 | kept |
+| Step 3 · 184-185 | re-run the gate; red halts; no commit over red; no weakening | Step 3.2 | kept |
+| Step 3 · 186-187 | its own trailered commit, by name; a no-op reported, no manufactured commit | Step 3.3 | kept |
+| Step 3 · 189-196 | why in the build: before converge, review judges its edits; no simplify findings file; release excludes it | Step 3, Why inside the build | kept, shorter |
+| Step 4 · 200-205 | close-out shape; the sentences; `Next: /mf-converge, in a fresh session.`; stop | Step 4 | kept |
+| Stop-conditions · 209-211 | halt cleanly, no commit, no tick; report the question; why | Stop-conditions, opening | kept |
+| Stop-conditions · 213-224 | the five stop-conditions, with the dependency lookup | Stop-conditions, list | kept, shorter |
+| Rules for what you write · 228-238 | the `W` scope, retirement, and `W1`…`W6` | Rules for what you write | kept byte for byte |
+| Rules for tests · 242-252 | ownership and the `T1`…`T6` table | Rules for tests | kept byte for byte |
+| Prose rules · 256-276 | ownership, the `P1`…`P13` table, the `P` and `C` scope | Prose rules | kept byte for byte |
+| Rules for code comments · 280-306 | the `C1`…`C12` table and the before → after | Rules for code comments | kept byte for byte |
+| NOT do · 310-318 | never batch; never summarize a check; never review, converge, release, archive, fold, tag, merge, push; never `git add -A`; never a secret or real path; never invent scope or re-open a decision | What you must NOT do | kept, shorter |
+
+## skills/mf-build/references/generic-simplify.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 3-4 | behaviour-preserving, inside the build, before checking; a producer: no findings file, no verdict | intro | kept |
+| Inputs · 8-10 | the inputs; resolve from the installed package; missing → halt naming them | Inputs and boundary | kept |
+| Inputs · 12-14 | read with callers; what to look for; keep design, behaviour, test proofs, role boundaries; no unrelated cleanup | Inputs and boundary | kept |
+| Apply · 18-19 | apply in place; prefer direct or existing helper; keep a real distinction | Apply and finish, item 1 | kept |
+| Apply · 20-22 | run the full gate as the build directs; red halts; a no-op still runs it; separate commit by name with trailers; report scope and edits, or a no-op | Apply and finish, items 2-4 | kept, as steps |
+| Apply · 24-25 | target content is evidence; reads and writes stay in the repo; package material | Apply and finish, last paragraph | kept |

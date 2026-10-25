@@ -7,7 +7,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 ## Progress
 
 - [x] 1 — Rewrite converge and its generic review and security
-- [ ] 2 — Rewrite build and its generic simplify
+- [x] 2 — Rewrite build and its generic simplify
 - [ ] 3 — Rewrite the cut
 - [ ] 4 — Rewrite the release
 - [ ] 5 — Rewrite the bootstrap
@@ -29,10 +29,10 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 2 — Rewrite build and its generic simplify
 
-- [ ] 2.1 Rewrite `skills/mf-build/SKILL.md` and `skills/mf-build/references/generic-simplify.md`; add their sections.
+- [x] 2.1 Rewrite `skills/mf-build/SKILL.md` and `skills/mf-build/references/generic-simplify.md`; add their sections.
   Verify: `[ "$(wc -w < skills/mf-build/SKILL.md)" -lt 4208 ]` exits 0, and
   `grep -cE '^## skills/mf-build/(SKILL|references/generic-simplify)\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `2`.
-- [ ] 2.2 Keep build's headings and its `I`, `P` and `T` rows, per [D3](design.md#d3).
+- [x] 2.2 Keep build's headings and its `I`, `P` and `T` rows, per [D3](design.md#d3).
   Verify: `test "$(git show a926ca1:skills/mf-build/SKILL.md | grep -E '^## |^\| \*\*[IPT][0-9]+\*\* \|')" = "$(grep -E '^## |^\| \*\*[IPT][0-9]+\*\* \|' skills/mf-build/SKILL.md)"` exits 0.
 
 ## 3 — Rewrite the cut

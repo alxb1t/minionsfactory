@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Rewrite `mf-build` and its generic simplify reference action-first: the start-of-run cases and the executors
+  as tables, the ritual as a flow (change `0029-terse-skills`, phase 2). The id tables, the HUMAN checklist and
+  every halt are kept.
+
 - Rewrite `mf-converge` and its generic review and security references action-first: each rule once, the review
   passes and severities as tables, the status as a state flow (change `0029-terse-skills`, phase 1). Behaviour,
   headings, events, the card and precondition 6 are kept; `rule_map.md` records where each rule went.
