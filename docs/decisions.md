@@ -11,7 +11,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41 · The autonomous line D24…D35
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42 · The autonomous line D24…D35
 ```
 
 ## The shape
@@ -311,7 +311,8 @@ retired names.**
 
 **A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
 engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
-`## Tests` table names it. Review judges each new test's cost and traces each removed one's proofs.**
+`## Tests` table names it, its proofs carried by a remaining test or retired by a named decision. Review judges
+each new test's cost and traces each removed one's proofs.**
 
 - **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
@@ -326,6 +327,16 @@ leave model selection and provider setup with the operator.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
+
+### D42 · Skill prose is held by review, not by phrase scans
+
+**A skill's rules are held by its own text, the spec and review. A test over skill text checks structure a
+reader cannot see by eye — the shared id tables agreeing, the card's one owner, bundled references resolving,
+the bootstrap templates — never that a sentence exists.**
+
+- **Why:** a phrase scan proves a sentence exists, not that a station obeys it, and it freezes the wording: no
+  sentence can be reworded without editing a test, so skill text only grows.
+- **Gave up:** the gate failing when a rule's sentence is deleted. Review reads the diff for it.
 
 ## The autonomous line
 

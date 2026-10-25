@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add D42, skill prose is held by review, not by phrase scans; `I16`, `T5` and the coverage-trace pass accept a
+  test retired by a named decision, and `W3` covers claims of fact about code (change `0028-prose-guards-retire`,
+  phase 1). A retirement now has somewhere to map.
+
 ## [0.27.0] - 2026-10-22
 
 Gate: local 0m1s · CI none · 0.26.0: local 0m0s · CI 0m12s (CI at d5162e4)
