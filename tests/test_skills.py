@@ -17,26 +17,20 @@ _SHARED_OWNERS = ("mf-build", "mf-cut-change")
 _CONTRACT = "## Input contract"
 
 
-def _section_lines(text: str, heading: str) -> list[tuple[int, str]]:
-    """Return the numbered lines of `text`'s `heading` section, up to the next `## `."""
-    lines: list[tuple[int, str]] = []
+def _section_labels(path: Path, heading: str) -> list[str]:
+    """Return the bold first cells of the table rows in `path`'s `heading` section.
+
+    The section runs up to the next `## ` heading.
+    """
+    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
+    labels: list[str] = []
     inside = False
-    for number, line in enumerate(text.splitlines(), start=1):
+    for line in path.read_text().splitlines():
         if line.startswith("## "):
             inside = line == heading
-        elif inside:
-            lines.append((number, line))
-    return lines
-
-
-def _section_labels(path: Path, heading: str) -> list[str]:
-    """Return the bold first cells of the table rows in `path`'s `heading` section."""
-    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
-    return [
-        match.group(1)
-        for _, line in _section_lines(path.read_text(), heading)
-        if (match := row.match(line))
-    ]
+        elif inside and (match := row.match(line)):
+            labels.append(match.group(1))
+    return labels
 
 
 def _section_ids(path: Path, heading: str, letter: str) -> list[int]:

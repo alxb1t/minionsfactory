@@ -222,8 +222,7 @@ state another test reaches (`T2`), or that runs on engines its outcome cannot de
 from one. It traces every removed assertion and scenario id to the test that runs it now, or to the decision in
 force that `design.md`'s `## Tests` table names as retiring it. A proof carried by neither, a scenario moved onto a
 test of another code path, client behaviour on one engine (`T4`), or a merged step leaning on an earlier one (`T3`),
-is `blocking`. Its Summary says the pass ran,
-or that the freeze removed no test.
+is `blocking`. Its Summary says the pass ran, or that the freeze removed no test.
 
 **Native scoping (Claude Code).** Invoke `/code-review` scoped to the range. Invoke `/security-review` with no target: it
 reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a

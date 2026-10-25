@@ -21,7 +21,8 @@ correctness, spec compliance, target standards and test proofs. Trace concrete t
 source evidence on each card. Report concrete defects rather than speculative improvements.
 
 Run the owning contract's stale-claim and test-cost passes. Trace each removed test to a carrying test or a
-retiring decision in the design's Tests table, or state that the freeze removed no test. Check backlog repeats and apply the anchored severity floors.
+retiring decision in the design's Tests table, or state that the freeze removed no test. Check backlog repeats
+and apply the anchored severity floors.
 Write the required frontmatter, cards and Summary with resolved file/commit counts and the passes performed.
 An empty or materially incomplete scope cannot earn clean; report scope failure under Step 5.
 
