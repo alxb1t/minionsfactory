@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Rewrite `AGENTS.md` shorter and tighten the principles and decisions: a rule another page already states is
+  pointed to, not copied (change `0029-terse-skills`, phase 6). Every principle and decision heading is kept.
+
 - Tighten `mf-bootstrap`: the never-overwrite and no-remote rules are stated once, in its *Never* list (change
   `0029-terse-skills`, phase 5).
 

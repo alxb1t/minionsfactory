@@ -284,3 +284,41 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 5 · 72-80 | close-out; the sentences; the no-remote note; generic needs none; provider setup is the operator's; the last line | Step 5 | kept |
 | Step 5 · 78 | bootstrap does not add a remote | *Never* | merged: stated once there |
 | Never · 84-89 | never overwrite; never write outside the target; never add a remote, push, or another branch; never commit over red; never a `Change:`, CHANGELOG entry or change; never a secret or real path | Never | kept byte for byte |
+
+## AGENTS.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 3-5 | what MinionsFactory is; the map of the record | intro | kept byte for byte |
+| The record · 19-22 | this file is shared context, not a script; the prompt says what to do and wins a conflict; infer no workflow | intro, blockquote | moved: answer first, before the sections |
+| The record · 9-10 | read the principles and decisions before work: mandatory | The record | kept |
+| The record · 12-14 | decisions in force live in `docs/decisions.md`; a change that adds or overturns one edits it; `design.md` keeps the history | The record | kept; "each with its reason" cut: the decisions page says it of itself |
+| The record · 15-17 | docs to `P1`…`P13`; a change is cut with `mf-cut-change` | The record | kept |
+| gate · 28-31 | `make gate` at the root; what it checks; the recipe is the only list; skills and CI run it | The quality gate | kept |
+| Layout · 37-39 | `skills/`, `docs/` | Layout | kept |
+| Layout · 40-43 | the OpenSpec CLI: operator tooling, recorded not pinned, the version, global; out of the gate, why | Layout | kept; the why cut: D8, read as mandatory context |
+| Layout · 44-46 | `.minions/` gitignored, the backlog; `tests/` | Layout | kept |
+| Layout · 47-49 | inputs and outputs stay inside the repo, save release's CI lookup; installed skills are package material | Layout | cut: the principle *The repo reaches nothing outside itself* states it, and the line points there |
+| Layout · 50-52 | execution follows the host; native or generic engines; fresh observable checkers; provider setup is the operator's | Layout | cut: D11, D40 and D22 state it, and the line points there |
+| Guardrails · 58-65 | never commit a secret or a real absolute path; what is and is not the target; why; `.env` and `AGENTS.md`; the guardrail test | Guardrails | kept, shorter |
+| Guardrails · 66-67 | dependencies minimal and human-gated; argue and wait; dev-only tools; lean runtime | Guardrails | kept |
+
+## docs/principles.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| every section | the words, both diagrams, every principle's rule, Why, Accepts, Known breaks, Not yet and Held by | the same section | kept; `###` headings byte for byte |
+| No station verifies its own work · Why | a report on itself is a claim | same | two sentences joined |
+| A checker is a fresh reader · Why | a remembering reader; a moving diff | same | two sentences joined |
+| Never weaken the gate · Held by | "the recipe check in `mf-converge` and `mf-release`" | same | named: `mf-converge` precondition 6 and `mf-release` precondition 8 |
+| State lives on disk · Why | resume is free; a view is a projection of files | same | two sentences joined |
+| Decisions are made before the cut · Why | judgement in authoring; an improvising build | same | two sentences joined |
+
+## docs/decisions.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| every section | the intro, the diagrams, every decision's rule, Why, Accepts, Rejected, Gave up and Held in step by | the same section | kept; `### Dn` headings and the D18 tree byte for byte |
+| D6 · 69-70 | this page holds what is in force; an overturn edits it; `design.md` keeps the history | intro | cut: the page's intro states it |
+| D13 · 146-147 | Claude Code uses native `/simplify`; others load the generic simplify | D13, links D11 | cut: D11 states it |
+| D18 · 220 | the stations install nothing into the target | D18, links D2 | merged: D2 states it |

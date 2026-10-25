@@ -66,8 +66,7 @@ artifact, its `validate --strict` is the check on a change. MinionsFactory adds 
 ### D6 · A change's artifacts are its record
 
 **`proposal.md`, `design.md`, `tasks.md` and the spec delta are the whole record of a change; no planning document
-is kept beside them. `design.md` carries the measurement behind each decision, not only the conclusion. This page
-holds what is in force; a change that overturns an entry edits it, and its `design.md` keeps the history.**
+is kept beside them. `design.md` carries the measurement behind each decision, not only the conclusion.**
 
 - **Why:** a second copy drifts, and a reason kept nowhere is re-derived by the next change.
 
@@ -143,8 +142,8 @@ from executor evidence; model, provider and editor names do not select it.**
 ### D13 · Simplify runs inside the build and blocks nothing
 
 **The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
-frozen diff, so review judges them. Claude Code uses native `/simplify`; other executors load the bundled
-generic simplify instructions. Simplify is a producer, not a checker: it holds no verdict.**
+frozen diff, so review judges them. Its engine follows [D11](#d11--engines-follow-the-executor). Simplify is a
+producer, not a checker: it holds no verdict.**
 
 - **Why:** run last, it would land unreviewed edits after the final check. Given a verdict, taste would spin the
   loop.
@@ -217,9 +216,9 @@ What the skills need from a repository they work on.
 
 ### D18 · The contract with a target repo is a layout on disk
 
-**The skills need the layout below from a repo, and nothing else. The stations install nothing into it;
-`mf-bootstrap` writes it once into a new repo, `.minions/` as a `.gitignore` line, with `CHANGELOG.md` and
-`README.md`.**
+**The skills need the layout below from a repo, and nothing else. `mf-bootstrap` writes it once into a new repo,
+`.minions/` as a `.gitignore` line, with `CHANGELOG.md` and `README.md`; the stations install nothing
+([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 
 ```
 <target>/

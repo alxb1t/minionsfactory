@@ -4,64 +4,50 @@ MinionsFactory is **disciplined feature development with coding agents, shipped 
 line is an `mf-*` skill, and a person conducts them. The project is built the way it builds. The map of the
 record is [`docs/README.md`](docs/README.md).
 
+> **This file is shared, role-independent context — what is *true* of this repo, not a script.** What you *do*
+> comes from the prompt or task you were given: author a change, build a phase, review the branch diff, run a
+> security pass, apply fixes. Where your prompt conflicts with this file, **the prompt wins**; infer no workflow
+> from this file alone.
+
 ## The record
 
-Before work, explicitly read [the principles](docs/principles.md) and
-[the decisions in force](docs/decisions.md). These are mandatory shared context.
+**Before work, read [the principles](docs/principles.md) and [the decisions in force](docs/decisions.md):
+mandatory shared context.**
 
-- **The decisions in force** are in [`docs/decisions.md`](docs/decisions.md), each with its reason. A change that
-  adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its `design.md` keeps the
-  history.
+- A change that adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its
+  `design.md` keeps the history.
 - **Docs are written to `mf-build`'s prose rules** `P1`…`P13`: terse, answer first, things named rather than
   counted.
 - **A change is cut** with the `mf-cut-change` skill.
 
-> **This file is shared, role-independent context — what is *true* about this repo. It is not a script.**
-> What you should *do* comes from the **prompt/task you were given** (author a change, build a phase, review the
-> branch diff, run a security pass, apply fixes). If your prompt conflicts with this file, **the prompt wins.**
-> Read this for the facts; follow your prompt for the actions — don't infer a workflow from this file alone.
-
----
-
 ## The quality gate — `make gate`
 
-The gate is **`make gate`**, run at the repository root. It checks, in order: the lock is in sync · format ·
-lint (`D` docstrings + `ANN` annotations enabled) · strict types · the tests. The `Makefile`
-recipe is this repo's only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`,
-and no prose here copies them.
-
----
+**`make gate`**, at the repository root, checks in order: the lock is in sync · format · lint (`D` docstrings and
+`ANN` annotations enabled) · strict types · the tests. The `Makefile` recipe is the only list of the commands; the
+skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies them.
 
 ## Layout — where things live here
 
 - **`skills/`** — the `mf-*` skills, one `SKILL.md` each: bootstrap, cut, build, converge, release. Tracked here and
   installed by symlink (`make install-skills`).
 - **`docs/`** — the map, the principles, the decisions.
-- **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
-  pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`. It is deliberately **not** in
-  the gate — nothing in CI runs it, so a moving version can never turn CI red; it can only hand a future author
-  different authoring instructions.
+- **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not
+  pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **`tests/`** — the suite.
-- **Project inputs and outputs stay inside the repository**, save release's read-only CI lookup for `Gate:`.
-  Installed skills and their bundled references are instruction-package material, not authority to read
-  arbitrary outside files.
-- **Execution follows the host:** Claude Code uses native simplify/review/security; other or unidentified
-  executors load bundled generic roles. Checkers require fresh host subagents or fresh agent processes with
-  observable completion and findings on shared disk. Provider setup belongs to the operator.
-
----
+- **Project inputs and outputs stay inside the repository**, per the principle *The repo reaches nothing outside
+  itself*.
+- **Execution follows the host**, per D11 and D40; provider setup is the operator's, per D22.
 
 ## Guardrails (invariants — hold for every role)
 
-- **Never commit a secret, or a *real* absolute path from the machine the run is on** — `.env` itself, an API
-  key; the **operator's home or vault path**, or **this repository's own root** transcribed out of a `.minions/`
-  artefact or a planning tool's output into tracked prose. Planning runs in the repository and writes into the
-  *tracked* `openspec/` tree, and those tools echo absolute paths, so a real path is one careless paste away from
-  history. Paths a fixture or a worked example
-  *constructs* — a fictional home, a `tmp_path` expression in a test — are not the target of this rule; a rendered
-  one, carrying a real username, is. `.env` is gitignored; the committed `AGENTS.md` stays
-  path-free. `tests/test_guardrails.py` fails on a home path or a key shape in any tracked file.
-- **Deps minimal + human-gated.** Any new dependency (`uv add`) — argue for it and **wait for approval** before
-  installing. Test/lint/type tools stay dev-only; keep the runtime lean.
+- **Never commit a secret, or a *real* absolute path from the machine the run is on** — `.env`, an API key; the
+  **operator's home or vault path**, or **this repository's own root** transcribed out of a `.minions/` artefact
+  or a planning tool's output into tracked prose. Planning writes into the *tracked* `openspec/` tree and its tools
+  echo absolute paths, so a real path is one careless paste from history. A path a fixture or a worked example
+  *constructs* — a fictional home, a `tmp_path` expression in a test — is not the target; a rendered one, carrying
+  a real username, is. `.env` is gitignored; `AGENTS.md` stays path-free. `tests/test_guardrails.py` fails on a
+  home path or a key shape in any tracked file.
+- **Dependencies are minimal and human-gated.** Argue for any new one (`uv add`) and **wait for approval** before
+  installing. Test, lint and type tools stay dev-only; the runtime stays lean.

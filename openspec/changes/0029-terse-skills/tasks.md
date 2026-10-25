@@ -11,7 +11,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 - [x] 3 — Rewrite the cut
 - [x] 4 — Rewrite the release
 - [x] 5 — Rewrite the bootstrap
-- [ ] 6 — Rewrite the shared context
+- [x] 6 — Rewrite the shared context
 - [ ] 7 — Measure the reading sets and build the reader prompts
 - [ ] 8 — Run the fresh-reader check **HUMAN · METERED**
 
@@ -61,10 +61,10 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 6 — Rewrite the shared context
 
-- [ ] 6.1 Rewrite `AGENTS.md`, `docs/principles.md` and `docs/decisions.md`; add their sections. Fix a link in `README.md` or `docs/README.md` only where its target moved.
+- [x] 6.1 Rewrite `AGENTS.md`, `docs/principles.md` and `docs/decisions.md`; add their sections. Fix a link in `README.md` or `docs/README.md` only where its target moved.
   Verify: `grep -cE '^## (AGENTS|docs/principles|docs/decisions)\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `3`, and
   `uv run pytest -q tests/test_principles.py tests/test_skills.py` exits 0.
-- [ ] 6.2 Keep every decision and principle heading, per [D3](design.md#d3).
+- [x] 6.2 Keep every decision and principle heading, per [D3](design.md#d3).
   Verify: `test "$(git show a926ca1:docs/decisions.md | grep '^### ')" = "$(grep '^### ' docs/decisions.md)"` exits 0, and
   `test "$(git show a926ca1:docs/principles.md | grep '^### ')" = "$(grep '^### ' docs/principles.md)"` exits 0.
 
