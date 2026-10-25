@@ -12,7 +12,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 - [x] 4 — Rewrite the release
 - [x] 5 — Rewrite the bootstrap
 - [x] 6 — Rewrite the shared context
-- [ ] 7 — Measure the reading sets and build the reader prompts
+- [x] 7 — Measure the reading sets and build the reader prompts
 - [ ] 8 — Run the fresh-reader check **HUMAN · METERED**
 
 ## 1 — Rewrite converge and its generic review and security
@@ -70,11 +70,11 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 7 — Measure the reading sets and build the reader prompts
 
-- [ ] 7.1 Run `sh openspec/changes/0029-terse-skills/measure.sh`; its output is the after table, in this phase's commit body beside [D5](design.md#d5)'s before table.
+- [x] 7.1 Run `sh openspec/changes/0029-terse-skills/measure.sh`; its output is the after table, in this phase's commit body beside [D5](design.md#d5)'s before table.
   Verify: `sh openspec/changes/0029-terse-skills/measure.sh | awk 'BEGIN { split("4947 8191 9155 9399 10847 11232 11202 7735 732", b) } $2 >= b[NR] { bad = 1 } END { exit bad }'` exits 0.
-- [ ] 7.2 Build the reader prompts, per [D6](design.md#d6): `sh openspec/changes/0029-terse-skills/build_prompts.sh`.
+- [x] 7.2 Build the reader prompts, per [D6](design.md#d6): `sh openspec/changes/0029-terse-skills/build_prompts.sh`.
   Verify: `ls .minions/0029-reader/*.prompt.md | wc -l` prints `10`.
-- [ ] 7.3 **HALT CHECK** The installed executors are the versions [D6](design.md#d6)'s recipes were written for.
+- [x] 7.3 **HALT CHECK** The installed executors are the versions [D6](design.md#d6)'s recipes were written for.
   Verify: `codex --version | grep -c '^codex-cli 0\.163\.'` prints `1`, and `claude --version | grep -c '^2\.1\.[0-9]* (Claude Code)$'` prints `1`.
 
 ## 8 — Run the fresh-reader check **HUMAN · METERED**
