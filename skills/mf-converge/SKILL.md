@@ -219,10 +219,10 @@ state another test reaches (`T2`), or that runs on engines its outcome cannot de
 `nit`, its **Fix** sized `a test`, so Step 8's pickup fixes it. Its Summary says the pass ran.
 
 **Review runs a coverage-trace pass when the freeze removes a test** — a deleted test file, or a test case gone
-from one. It traces every removed assertion and scenario id to the test that runs it now, against `design.md`'s
-`## Tests` table. A proof carried by nothing, a scenario moved onto a test of another code path, client behaviour on
-one engine (`T4`), or a merged step leaning on an earlier one (`T3`), is `blocking`. Its Summary says the pass ran,
-or that the freeze removed no test.
+from one. It traces every removed assertion and scenario id to the test that runs it now, or to the decision in
+force that `design.md`'s `## Tests` table names as retiring it. A proof carried by neither, a scenario moved onto a
+test of another code path, client behaviour on one engine (`T4`), or a merged step leaning on an earlier one (`T3`),
+is `blocking`. Its Summary says the pass ran, or that the freeze removed no test.
 
 **Native scoping (Claude Code).** Invoke `/code-review` scoped to the range. Invoke `/security-review` with no target: it
 reviews the committed branch work on a clean tree, and that is its expected path, not a fallback. **Only if what a
@@ -475,7 +475,7 @@ station writes tests to them, and review's test-cost pass judges by them.
 | **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
 | **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
 | **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
-| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids | a deletion outside the table weakens the gate |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids, or to the decision that retires it | a deletion outside the table weakens the gate |
 | **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
 
 ## Never

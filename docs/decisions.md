@@ -11,7 +11,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41 · The autonomous line D24…D35
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42
 ```
 
 ## The shape
@@ -311,7 +311,8 @@ retired names.**
 
 **A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
 engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
-`## Tests` table names it. Review judges each new test's cost and traces each removed one's proofs.**
+`## Tests` table names it, its proofs carried by a remaining test or retired by a named decision. Review judges
+each new test's cost and traces each removed one's proofs.**
 
 - **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
@@ -327,122 +328,12 @@ leave model selection and provider setup with the operator.**
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
 
-## The autonomous line
+### D42 · Skill prose is held by review, not by phrase scans
 
-**Designed, not built.** Each entry is the design in force; the change that builds one removes nothing here unless
-it overturns it. The design itself is [autonomous](autonomous.md).
+**A skill's rules are held by its own text, the spec and review. A test over skill text checks structure a
+reader cannot see by eye — the shared id tables agreeing, the card's one owner, bundled references resolving,
+the bootstrap templates — never that a sentence exists.**
 
-```
-  LLM conductor ──▶ a stage, in a fresh subagent ──▶ mfa_check.py: exit code = verdict ──▶ mfa_log.py
-        ▲                                                   │ exit ≠ 0 ──▶ halt
-        └──────────────── next stage ◀──────────────────────┘
-```
-
-### D24 · An LLM conducts; scripts decide whether it happened
-
-**The conductor is an LLM that picks what runs next. A deterministic script judges each stage from disk, its exit
-code the verdict, and another writes the run log. A non-zero exit halts the run, whatever the conductor thinks.**
-
-- **Why:** judgement is needed for a thin brief; "done" from a model is only a claim, and a log is not the model's
-  to forget.
-- **Rejected:** a deterministic driver · an LLM alone.
-- **Accepts:** judgement between one check and the next is unchecked. The `assumed` marks and a person's morning
-  read catch it.
-- **Accepts:** harness permissions are not a boundary: `Bash(git commit:*)` did not block `git commit -am`. Reopen
-  before an unattended run on a repo someone else wrote.
-
-### D25 · Each stage runs in a fresh subagent
-
-**The conductor dispatches each skill as a new subagent and judges it from disk, never from its report.**
-
-- **Why:** [no station verifies its own work](principles.md#no-station-verifies-its-own-work), applied to the
-  conductor; and its own context stays short across a night of versions.
-- **Rejected:** running the skills inline in the conductor.
-
-### D26 · The autonomous line leaves the `mf-*` skills untouched
-
-**Its skills live in `autonomous/skills/`, outside `skills/`: `make install-skills` and the scans do not see them.
-Building the autonomous line edits no `mf-*` skill.**
-
-- **Why:** the `mf-*` skills work; an experiment must not change them.
-- **Accepts:** a second set of stations while the experiment runs, which
-  [D3](#d3--one-line-of-stations-conducted-by-a-person-or-by-an-llm) forbids as an end state. Reopen when the autonomous line has run a
-  target end to end.
-
-### D27 · A branch and a worktree per version, outside the repo
-
-**The default branch is never touched. The main checkout holds the loop branch; each version gets its own branch and
-its own worktree in a sibling directory.**
-
-- **Why:** no branch switching; a crash leaves its files where they were; versions cannot see each other's
-  uncommitted work; nothing run in the repo sees a worktree.
-- **Rejected:** switching branches in one checkout · worktrees inside the repo.
-
-### D28 · A version branch writes no shared file
-
-**It writes its own change directory, the code, and fragments. The spec fold, the archive, `CHANGELOG.md`, the
-version bump, the release commit and the backlog are written at integration, one version at a time.**
-
-- **Why:** the only conflicts left between versions are real code conflicts.
-- **Rejected:** resolving changelog and spec conflicts at merge.
-
-### D29 · Integration merges in, then fast-forwards
-
-**The loop branch is merged into the version branch; if the base moved, a catch-up round and the gate run; the
-release runs; then the loop branch fast-forwards.**
-
-- **Why:** the judged head stays an ancestor, so the catch-up round judges exactly what the merge brought.
-- **Rejected:** rebase, which rewrites the commits converge judged.
-
-### D30 · Run state is derived, never stored
-
-**Where each version stands is computed from git, the worktrees and the change files. There is no state file.**
-
-- **Why:** [state lives on disk](principles.md#state-lives-on-disk), applied: a stored state is a second truth that
-  drifts when a subagent dies between its work and its write.
-- **Rejected:** `state.json`.
-
-### D31 · One state directory for a run
-
-**Every autonomous stage and both scripts take `state-dir`: the main checkout's `.minions/`, absolute. Findings, the
-run log and backlog fragments live there, not in a worktree.**
-
-- **Why:** a worktree is removed after integration; its evidence must not go with it.
-- **Rejected:** each worktree's own `.minions/`.
-
-### D32 · One run log, written only by a script
-
-**Every level of a run logs to one file through `mfa_log.py`: insert-only, newest on top, a fixed event list,
-`spawn` and `finish` in pairs carrying outcome, duration and tokens, a lock per insert. It is copied into the
-tracked run record once, at the end or at a halt.**
-
-- **Why:** the log is the only witness of a night run; its clock and its format are not the model's to forget.
-- **Rejected:** prose logging · a tracked log written as it runs, which dirties the tree and commits after the
-  judged head.
-
-### D33 · A run's input is in the target repo
-
-**`roadmap/roadmap.md` gives each version its change id and its `after:` list; `roadmap/briefs/` carries every human
-decision. A question the brief does not settle takes the recommendation, marked `assumed`.**
-
-- **Why:** a cloud session sees only the repo, and ids assigned by the roadmap cannot collide when versions run side
-  by side.
-- **Rejected:** ids as highest-plus-one · reading the plan from outside the repo.
-- **Accepts:** an `assumed` answer is a decision no person made. The morning read is its only check.
-
-### D34 · Stop at the first halt; resume from disk
-
-**A failed check ends the run. On resume, build keeps a dirty tree; every other stage stashes it, popped only by
-message, and restarts; converge restarts at round one.**
-
-- **Why:** a re-run is then always safe. The stash is shared across worktrees, so a bare pop can take another
-  version's.
-- **Rejected:** for now, retry and remedy by the conductor.
-
-### D35 · Sequential is parallel at width one
-
-**Branches, worktrees, fragments, roadmap-assigned ids and serial integration are the parallel path. A run today
-uses it with one version at a time; only the width changes later.**
-
-- **Why:** parallelism becomes a count, not a rewrite of every skill.
-- **Rejected:** a sequential design retrofitted later.
+- **Why:** a phrase scan proves a sentence exists, not that a station obeys it, and it freezes the wording: no
+  sentence can be reworded without editing a test, so skill text only grows.
+- **Gave up:** the gate failing when a rule's sentence is deleted. Review reads the diff for it.

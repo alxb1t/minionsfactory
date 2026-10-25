@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-25
+
+Gate: local 0m1s · CI 0m18s (CI at 0979957) · 0.27.0: local 0m1s · CI none
+
+- Delete D24–D35 and `docs/autonomous.md`, and every live reference to them (change `0028-prose-guards-retire`,
+  phase 3). A line not built is no longer mandatory reading; its ids stay a gap.
+
+- Retire the phrase scans from `tests/test_skills.py`, retired by D42; the structural checks stay (change
+  `0028-prose-guards-retire`, phase 2). The principles name the skill step that holds each rule, and the sdd
+  spec's Purpose says what a scan proves.
+
+- Add D42, skill prose is held by review, not by phrase scans; `I16`, `T5` and the coverage-trace pass accept a
+  test retired by a named decision, and `W3` covers claims of fact about code (change `0028-prose-guards-retire`,
+  phase 1). A retirement now has somewhere to map.
+
 ## [0.27.0] - 2026-10-22
 
 Gate: local 0m1s · CI none · 0.26.0: local 0m0s · CI 0m12s (CI at d5162e4)
