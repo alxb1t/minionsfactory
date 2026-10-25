@@ -6,7 +6,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## Progress
 
-- [ ] 1 — Rewrite converge and its generic review and security
+- [x] 1 — Rewrite converge and its generic review and security
 - [ ] 2 — Rewrite build and its generic simplify
 - [ ] 3 — Rewrite the cut
 - [ ] 4 — Rewrite the release
@@ -17,13 +17,13 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 1 — Rewrite converge and its generic review and security
 
-- [ ] 1.1 Rewrite `skills/mf-converge/SKILL.md`; create `openspec/changes/0029-terse-skills/rule_map.md` with its section.
+- [x] 1.1 Rewrite `skills/mf-converge/SKILL.md`; create `openspec/changes/0029-terse-skills/rule_map.md` with its section.
   Verify: `[ "$(wc -w < skills/mf-converge/SKILL.md)" -lt 5900 ]` exits 0, and
   `sh openspec/changes/0029-terse-skills/kept.sh skills/mf-converge/SKILL.md 158 165` prints `kept`.
-- [ ] 1.2 Keep converge's headings, status-log events and card fields, per [D3](design.md#d3).
+- [x] 1.2 Keep converge's headings, status-log events and card fields, per [D3](design.md#d3).
   Verify: `test "$(git show a926ca1:skills/mf-converge/SKILL.md | grep '^## ')" = "$(grep '^## ' skills/mf-converge/SKILL.md)"` exits 0, and
   ``for e in start freeze fan-out verdicts fix verify pickup catch-up backlog halt done; do grep -q "^| \`$e\` |" skills/mf-converge/SKILL.md || echo "$e"; done`` prints nothing.
-- [ ] 1.3 Rewrite `skills/mf-converge/references/generic-review.md` and `skills/mf-converge/references/generic-security.md`; add their sections.
+- [x] 1.3 Rewrite `skills/mf-converge/references/generic-review.md` and `skills/mf-converge/references/generic-security.md`; add their sections.
   Verify: `grep -cE '^## skills/mf-converge/(SKILL|references/generic-(review|security))\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `3`, and
   `uv run pytest -q tests/test_skills.py` exits 0.
 

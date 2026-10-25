@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Rewrite `mf-converge` and its generic review and security references action-first: each rule once, the review
+  passes and severities as tables, the status as a state flow (change `0029-terse-skills`, phase 1). Behaviour,
+  headings, events, the card and precondition 6 are kept; `rule_map.md` records where each rule went.
+
 ## [0.28.0] - 2026-10-25
 
 Gate: local 0m1s · CI 0m18s (CI at 0979957) · 0.27.0: local 0m1s · CI none
