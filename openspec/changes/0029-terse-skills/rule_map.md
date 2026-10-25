@@ -265,3 +265,22 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 6 · 207-209 | the authorizing gate is Step 4.3's; no re-run; report its exit code | Step 6 | kept |
 | Step 6 · 211-227 | close-out; the sentences; the last lines and the no-merge block; stop | Step 6 | kept |
 | Never · 231-242 | never merge or push without the yes, force, pull, push the branch; never edit feature code or tests; never over a failed precondition; never commit or tag ungated; never invent the version or write prose; never touch the findings files; never a secret or real path | Never | kept; "no just this once" folded into "no exceptions" |
+
+## skills/mf-bootstrap/SKILL.md
+
+| old (section · lines at a926ca1) | rule, exception, halt or output | new (section) | disposition |
+|---|---|---|---|
+| intro · 8-10 | write starting files from the templates, gate green, commit once; a repo with its own setup halts | intro, blockquote | kept |
+| intro · 9 | never overwrite, add a remote, or push | *Never* | merged: stated once there |
+| intro · 12-14 | the line diagram | intro | kept byte for byte |
+| Parameters · 18 | no parameters; target is the cwd, name its basename | Parameters | kept byte for byte |
+| The files · 22-23 | target path is the template path without `.tmpl`; example | The files | kept, shorter |
+| The files · 25-29 | the collision table: halt, skip `README.md`, append `.gitignore` | The files | kept byte for byte |
+| The files · 31-34 | only the placeholders change; the placeholders | The files | kept |
+| Step 1 · 38-47 | the preconditions, each halting by name; every collision named in one halt; adoption is out | Step 1 | kept; "without it the gate is red" folded into "the gate runs the OpenSpec CLI" |
+| Step 2 · 51-54 | `git init -b main`; write with placeholders and parents; keep every byte, tab; list the paths | Step 2 | kept |
+| Step 3 · 58-59 | `make -n gate` and `make gate`, pasted; red → halt, commit nothing, report paths | Step 3 | kept |
+| Step 4 · 63-68 | stage by name, no `git add -A`; skipped `README.md` not staged; the message and trailer; no `Change:`; clean after or halt | Step 4 | kept byte for byte |
+| Step 5 · 72-80 | close-out; the sentences; the no-remote note; generic needs none; provider setup is the operator's; the last line | Step 5 | kept |
+| Step 5 · 78 | bootstrap does not add a remote | *Never* | merged: stated once there |
+| Never · 84-89 | never overwrite; never write outside the target; never add a remote, push, or another branch; never commit over red; never a `Change:`, CHANGELOG entry or change; never a secret or real path | Never | kept byte for byte |

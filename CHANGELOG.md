@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Tighten `mf-bootstrap`: the never-overwrite and no-remote rules are stated once, in its *Never* list (change
+  `0029-terse-skills`, phase 5).
+
 - Rewrite `mf-release` shorter: the converge-ran-or-skipped cases and the fold operations as tables, the release
   as a flow (change `0029-terse-skills`, phase 4). Precondition 8 is kept word for word.
 

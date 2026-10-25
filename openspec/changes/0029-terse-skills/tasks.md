@@ -10,7 +10,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 - [x] 2 — Rewrite build and its generic simplify
 - [x] 3 — Rewrite the cut
 - [x] 4 — Rewrite the release
-- [ ] 5 — Rewrite the bootstrap
+- [x] 5 — Rewrite the bootstrap
 - [ ] 6 — Rewrite the shared context
 - [ ] 7 — Measure the reading sets and build the reader prompts
 - [ ] 8 — Run the fresh-reader check **HUMAN · METERED**
@@ -54,7 +54,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 5 — Rewrite the bootstrap
 
-- [ ] 5.1 Rewrite `skills/mf-bootstrap/SKILL.md`, keeping its headings; add its section.
+- [x] 5.1 Rewrite `skills/mf-bootstrap/SKILL.md`, keeping its headings; add its section.
   Verify: `[ "$(wc -w < skills/mf-bootstrap/SKILL.md)" -lt 732 ]` exits 0,
   `test "$(git show a926ca1:skills/mf-bootstrap/SKILL.md | grep '^## ')" = "$(grep '^## ' skills/mf-bootstrap/SKILL.md)"` exits 0, and
   `grep -c '^## skills/mf-bootstrap/SKILL\.md$' openspec/changes/0029-terse-skills/rule_map.md` prints `1`.
