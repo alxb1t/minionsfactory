@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — Make a retirement legal
 - [x] 2 — Retire the phrase scans
-- [ ] 3 — Delete the autonomous line from the repo
+- [x] 3 — Delete the autonomous line from the repo
 
 ## 1 — Make a retirement legal
 
@@ -43,10 +43,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Delete the autonomous line from the repo
 
-- [ ] 3.1 Delete `## The autonomous line` to the end of `docs/decisions.md`, and its entry in the overview line,
+- [x] 3.1 Delete `## The autonomous line` to the end of `docs/decisions.md`, and its entry in the overview line,
   per [D4](design.md#d4).
   Verify: `grep -cE '^### D(2[4-9]|3[0-5]) ' docs/decisions.md` prints `0`, and `grep -c 'autonomous' docs/decisions.md` prints `0`.
-- [ ] 3.2 Delete `docs/autonomous.md` with `git rm`.
+- [x] 3.2 Delete `docs/autonomous.md` with `git rm`.
   Verify: `test ! -e docs/autonomous.md` exits 0.
-- [ ] 3.3 Edit `AGENTS.md`, `README.md`, `docs/README.md` and `docs/principles.md`, per [D4](design.md#d4).
+- [x] 3.3 Edit `AGENTS.md`, `README.md`, `docs/README.md` and `docs/principles.md`, per [D4](design.md#d4).
   Verify: `git grep -n -i -E 'autonomous|D2[4-9]\b|D3[0-5]\b' -- AGENTS.md README.md docs` prints nothing.

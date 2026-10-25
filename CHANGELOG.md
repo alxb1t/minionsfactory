@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Delete D24–D35 and `docs/autonomous.md`, and every live reference to them (change `0028-prose-guards-retire`,
+  phase 3). A line not built is no longer mandatory reading; its ids stay a gap.
+
 - Retire the phrase scans from `tests/test_skills.py`, retired by D42; the structural checks stay (change
   `0028-prose-guards-retire`, phase 2). The principles name the skill step that holds each rule, and the sdd
   spec's Purpose says what a scan proves.

@@ -36,7 +36,7 @@ and no prose here copies them.
 
 - **`skills/`** — the `mf-*` skills, one `SKILL.md` each: bootstrap, cut, build, converge, release. Tracked here and
   installed by symlink (`make install-skills`).
-- **`docs/`** — the map, the principles, the decisions, the autonomous design.
+- **`docs/`** — the map, the principles, the decisions.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is **operator tooling, recorded and not
   pinned**: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`. It is deliberately **not** in
   the gate — nothing in CI runs it, so a moving version can never turn CI red; it can only hand a future author

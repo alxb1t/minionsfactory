@@ -75,6 +75,5 @@ it into a new repo; the other skills install nothing.
 
 ## Docs
 
-Start at the [docs map](docs/README.md). It links [the principles](docs/principles.md), [the
-decisions](docs/decisions.md) and [the autonomous design](docs/autonomous.md). What shipped, per version, is in
-[`CHANGELOG.md`](CHANGELOG.md).
+Start at the [docs map](docs/README.md). It links [the principles](docs/principles.md) and [the
+decisions](docs/decisions.md). What shipped, per version, is in [`CHANGELOG.md`](CHANGELOG.md).

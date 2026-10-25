@@ -17,13 +17,12 @@ findings; generic workers can run sequentially. See [execution](../README.md#exe
 
 ## The pages
 
-What holds, what was chosen, and what is designed.
+What holds, and what was chosen.
 
 | page | holds |
 |---|---|
 | [principles.md](principles.md) | the rules every station follows, each with why and what holds it |
 | [decisions.md](decisions.md) | the choices in force, each with its reason |
-| [autonomous.md](autonomous.md) | the autonomous line's design: designed, not built |
 
 ## Where the rest lives
 

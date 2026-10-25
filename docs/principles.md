@@ -165,8 +165,6 @@ reality, it halts.**
 - **Why:** judgement belongs in authoring, fidelity in execution. A build that improvises yields confident, wrong
   work.
 - **Held by:** `mf-cut-change` Steps 2 and 3; `mf-build` Step 1 and its stop-conditions.
-- **Known breaks:** the autonomous line answers its own grilling with the recommendations, marked `assumed`
-  ([D33](decisions.md#d33--a-runs-input-is-in-the-target-repo); designed, not built).
 
 ### A new dependency halts for a person
 
