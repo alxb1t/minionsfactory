@@ -2,7 +2,8 @@
 
 ## Purpose
 
-The rules the `mf-*` skills hold, each proved by a scan over the skill text.
+The rules the `mf-*` skills hold. A scan proves the structure a reader cannot check by eye; review holds
+the rest (D42).
 
 ## Requirements
 

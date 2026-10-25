@@ -47,9 +47,7 @@ read-only except for their own findings file.**
 
 - **Why:** a reader who remembers the build reads what was meant, not what was written. A diff that moves under
   the check has no verdict.
-- **Held by:** `mf-converge` Steps 2 and 3;
-  `tests/test_skills.py::test_the_release_checks_the_judged_head_and_converge_catches_up`, which holds that the
-  release ships only the judged head.
+- **Held by:** `mf-converge` Steps 2 and 3; `mf-release` precondition 7, which ships only the judged head.
 
 ### `fixed` is a claim; only the checker writes `verified`
 
@@ -57,8 +55,7 @@ read-only except for their own findings file.**
 `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
-- **Held by:** `mf-converge` Steps 6 and 7;
-  `tests/test_skills.py::test_converge_names_the_red_run_and_the_verify_check`, for a test fix's red run.
+- **Held by:** `mf-converge` Steps 6 and 7; Step 7 reopens a test fix with no red run.
 
 ### Nothing reads as clean by being absent
 
@@ -66,10 +63,8 @@ read-only except for their own findings file.**
 its stale-claim pass is not clean.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass.
-- **Held by:** `mf-converge` Step 5;
-  `tests/test_skills.py::test_the_release_states_a_skipped_converge_and_converge_keeps_the_rule`;
-  `tests/test_skills.py::test_the_release_names_both_halts`;
-  `tests/test_skills.py::test_no_station_deletes_a_findings_file_or_the_patch`.
+- **Held by:** `mf-converge` Step 5; `mf-release` precondition 4, which states a skip and halts on a lone patch
+  or findings file; the *Never* lists of `mf-converge` and `mf-release`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
   ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)).
 
@@ -91,8 +86,8 @@ What "done" means, and how it is observed.
 itself; the release re-runs it and inherits nothing.**
 
 - **Why:** "it passed" is a claim about the gate, not the gate.
-- **Held by:** `tests/test_skills.py::test_the_skills_run_make_gate_and_none_names_the_toml`, which holds that
-  build, converge and release each name `make gate` and the dry run before it.
+- **Held by:** `mf-build` Step 1, `mf-converge` and `mf-release`, each printing `make -n gate` before its first
+  `make gate`; `mf-release` precondition 1.
 
 ### Never weaken the gate to pass
 
@@ -103,8 +98,7 @@ carried by a named remaining test or retired by a named decision, is consolidati
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
   the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; the recipe check in
-  `mf-converge` and `mf-release`;
-  `tests/test_skills.py::test_converge_and_the_release_halt_on_an_unnamed_gate_recipe_change`.
+  `mf-converge` and `mf-release`.
 
 ## State and the boundary
 
@@ -124,8 +118,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
 
 - **Why:** a fresh session must find its place with no transcript. Resume is free, and any view of a run is a
   projection of files.
-- **Held by:** `mf-build` Step 1; `tests/test_skills.py::test_build_converge_and_release_infer_the_one_active_change`,
-  which holds that the active change is read from git.
+- **Held by:** `mf-build` Step 1; the *Parameter — the change id* section of `mf-build`, `mf-converge` and
+  `mf-release`, which reads the active change from git.
 
 ### The repo reaches nothing outside itself
 

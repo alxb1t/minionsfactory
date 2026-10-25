@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — Make a retirement legal
-- [ ] 2 — Retire the phrase scans
+- [x] 2 — Retire the phrase scans
 - [ ] 3 — Delete the autonomous line from the repo
 
 ## 1 — Make a retirement legal
@@ -30,14 +30,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — Retire the phrase scans
 
-- [ ] 2.1 Delete from `tests/test_skills.py` every test the [Tests](design.md#tests) table names, and each helper
+- [x] 2.1 Delete from `tests/test_skills.py` every test the [Tests](design.md#tests) table names, and each helper
   and constant only they use, per [D1](design.md#d1).
   Verify: `uv run pytest -q --collect-only | tail -1` prints `18 tests collected`; `uv run ruff check tests` exits 0.
-- [ ] 2.2 **HALT CHECK** The kept structural tests still pass, unchanged.
+- [x] 2.2 **HALT CHECK** The kept structural tests still pass, unchanged.
   Verify: `uv run pytest -q tests/test_skills.py -k 'contract_ids or prose_rule_ids or test_rule_ids or carries_the_card or template_tests_section or target_layout or role_references_resolve'` reports `7 passed`.
-- [ ] 2.3 Repoint the *Held by:* lines in `docs/principles.md`, per the table in [D2](design.md#d2).
+- [x] 2.3 Repoint the *Held by:* lines in `docs/principles.md`, per the table in [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_principles.py` exits 0, and `grep -c 'tests/test_skills.py::' docs/principles.md` prints `1`.
-- [ ] 2.4 Rewrite the Purpose line of `openspec/specs/sdd/spec.md`, per [D3](design.md#d3).
+- [x] 2.4 Rewrite the Purpose line of `openspec/specs/sdd/spec.md`, per [D3](design.md#d3).
   Verify: `grep -c 'each proved by a scan over the skill text' openspec/specs/sdd/spec.md` prints `0`, and
   `grep -c 'A scan proves the structure a reader cannot check by eye' openspec/specs/sdd/spec.md` prints `1`.
 
