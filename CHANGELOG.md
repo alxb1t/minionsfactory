@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-26
+
+Gate: local 0m1s · CI 0m11s (CI at a926ca1) · 0.28.0: local 0m1s · CI 0m18s (CI at 0979957)
+
+- Run the fresh-reader check on Codex and Claude Code: all 72 verdicts are `match` (change `0029-terse-skills`,
+  phase 8). Release precondition 4 now names where the skip line goes, after one reader missed it.
+
+- Measure every reading set after the rewrite and build the fresh-reader prompts (change `0029-terse-skills`,
+  phase 7). Each set is shorter than at v0.28.0; the before and after are in the phase's commit.
+
+- Rewrite `AGENTS.md` shorter and tighten the principles and decisions: a rule another page already states is
+  pointed to, not copied (change `0029-terse-skills`, phase 6). Every principle and decision heading is kept.
+
+- Tighten `mf-bootstrap`: the never-overwrite and no-remote rules are stated once, in its *Never* list (change
+  `0029-terse-skills`, phase 5).
+
+- Rewrite `mf-release` shorter: the converge-ran-or-skipped cases and the fold operations as tables, the release
+  as a flow (change `0029-terse-skills`, phase 4). Precondition 8 is kept word for word.
+
+- Rewrite `mf-cut-change` shorter: what waits for the human's OK is one table, and each of verification
+  ownership, dependency approval and commit timing is stated once (change `0029-terse-skills`, phase 3).
+
+- Rewrite `mf-build` and its generic simplify reference action-first: the start-of-run cases and the executors
+  as tables, the ritual as a flow (change `0029-terse-skills`, phase 2). The id tables, the HUMAN checklist and
+  every halt are kept.
+
+- Rewrite `mf-converge` and its generic review and security references action-first: each rule once, the review
+  passes and severities as tables, the status as a state flow (change `0029-terse-skills`, phase 1). Behaviour,
+  headings, events, the card and precondition 6 are kept; `rule_map.md` records where each rule went.
+
 ## [0.28.0] - 2026-10-25
 
 Gate: local 0m1s · CI 0m18s (CI at 0979957) · 0.27.0: local 0m1s · CI none

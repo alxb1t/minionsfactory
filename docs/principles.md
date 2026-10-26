@@ -34,7 +34,7 @@ What keeps a verdict worth having.
 
 **The builder does not review, the fixer does not converge, and a checker judges fixes it did not write.**
 
-- **Why:** a station's report on itself is a claim. More opinions from the reader who wrote the code verify
+- **Why:** a station's report on itself is a claim; more opinions from the reader who wrote the code verify
   nothing.
 - **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; review.
 - **Accepted exception:** `mf-cut-change` checks its own artifacts. The person's read of the committed change and
@@ -45,7 +45,7 @@ What keeps a verdict worth having.
 **Review and security run as new instances with no memory of the build, over one diff frozen before they start,
 read-only except for their own findings file.**
 
-- **Why:** a reader who remembers the build reads what was meant, not what was written. A diff that moves under
+- **Why:** a reader who remembers the build reads what was meant, not what was written; a diff that moves under
   the check has no verdict.
 - **Held by:** `mf-converge` Steps 2 and 3; `mf-release` precondition 7, which ships only the judged head.
 
@@ -97,8 +97,8 @@ carried by a named remaining test or retired by a named decision, is consolidati
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
-  the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; the recipe check in
-  `mf-converge` and `mf-release`.
+  the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; `mf-converge`
+  precondition 6 and `mf-release` precondition 8, for the recipe.
 
 ## State and the boundary
 
@@ -116,7 +116,7 @@ Where the truth is kept, and what a station may read and obey.
 **Where the work stands is read from `tasks.md`, git and the findings files, never from a session's memory. A phase
 is done on a commit and a ticked box together; a round number lives in the findings file's frontmatter.**
 
-- **Why:** a fresh session must find its place with no transcript. Resume is free, and any view of a run is a
+- **Why:** a fresh session must find its place with no transcript. Resume is free; any view of a run is a
   projection of files.
 - **Held by:** `mf-build` Step 1; the *Parameter — the change id* section of `mf-build`, `mf-converge` and
   `mf-release`, which reads the active change from git.
@@ -162,8 +162,8 @@ What is settled before the build starts.
 **A change is cut from decisions a person has settled. The build does not re-decide: where the change contradicts
 reality, it halts.**
 
-- **Why:** judgement belongs in authoring, fidelity in execution. A build that improvises yields confident, wrong
-  work.
+- **Why:** judgement belongs in authoring, fidelity in execution; a build that improvises yields confident,
+  wrong work.
 - **Held by:** `mf-cut-change` Steps 2 and 3; `mf-build` Step 1 and its stop-conditions.
 
 ### A new dependency halts for a person

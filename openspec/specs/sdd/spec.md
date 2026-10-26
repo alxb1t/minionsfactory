@@ -69,11 +69,12 @@ numbered from `P1` with no gap.
 
 ### Requirement: Converge keeps deferred work in one repository backlog
 
-`skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix to one file, `.minions/backlog.md`,
-under a heading for its change. After both verdicts are clean, and only while a round remains under the cap, it
-SHALL pick up this run's non-blocking cards whose fix is sized `one line` or `a test`, and every `drift` card, fix
-them, and verify them in a normal round. It SHALL NOT name a per-version backlog file. It SHALL delete a backlog card
-only when a verified repeat of it was fixed and the card's **Still true?** check shows the defect gone.
+`skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
+shows the defect, to one file, `.minions/backlog.md`, under a heading for its change. After both verdicts are
+clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
+round. It SHALL NOT name a per-version backlog file. It SHALL delete a backlog card only when a verified repeat of
+it was fixed and the card's **Still true?** check shows the defect gone.
 
 #### Scenario: Converge names the one backlog file and the pickup sizes
 - **WHEN** both verdicts are clean, a round remains under the cap, pickup has not run in this run, the run is not a

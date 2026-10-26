@@ -6,8 +6,7 @@ description: Bootstrap a new repo for the mf-* line — write the gate, openspec
 # mf-bootstrap — a new repo the line can cut in
 
 > **Your role is BOOTSTRAP.** You write a new repo's starting files from the templates beside this file, prove
-> the gate green, and commit once. You never overwrite a file, never add a remote, never push. A repo that
-> already has its own setup is not new: halt.
+> the gate green, and commit once. A repo with its own setup is not new: halt.
 
 ```
   new directory ──▶ mf-bootstrap ──▶ committed main ──▶ mf-cut-change ──▶ mf-build …
@@ -19,8 +18,8 @@ None. The **target** is the current directory; the **name** is its basename.
 
 ## The files
 
-The templates live in `templates/` beside this file. A template's **target path** is its path under `templates/`
-without the `.tmpl` suffix: `templates/openspec/config.yaml.tmpl` → `openspec/config.yaml`.
+A template's **target path** is its path under `templates/`, beside this file, without `.tmpl`:
+`templates/openspec/config.yaml.tmpl` → `openspec/config.yaml`.
 
 | target path | when it already exists |
 |---|---|
@@ -28,7 +27,7 @@ without the `.tmpl` suffix: `templates/openspec/config.yaml.tmpl` → `openspec/
 | `README.md` | skip it; the file stays as it is |
 | `.gitignore` | append the template's lines, starting on a new line, when no line reads `.minions/`; else leave it |
 
-The placeholders below are filled, and nothing else in a template changes:
+Only these placeholders are filled; nothing else in a template changes:
 
 - `<name>` → the target's basename, e.g. `lepalace_scheduler`;
 - `<openspec-version>` → what `openspec --version` prints, e.g. `1.11.0`.
@@ -37,26 +36,26 @@ The placeholders below are filled, and nothing else in a template changes:
 
 Every one holds, or **halt** naming the one that failed:
 
-- `openspec --version` runs. The gate runs the OpenSpec CLI; without it the gate is red.
+- `openspec --version` runs: the gate runs the OpenSpec CLI.
 - `git config user.name` and `git config user.email` each print a value.
 - The target sits inside no other repo: `git rev-parse --show-toplevel` fails, or prints the target (`pwd -P`).
 - When the target is a repo, `git status --porcelain` prints nothing, and `git branch --show-current` is the
   default branch: the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or `main`
   when that command fails.
 - No collision: no `openspec/` directory, and no target path the table marks *halt*, exists. Name every
-  collision in one halt. Adopting an existing repo is not this skill's job.
+  collision in one halt: adopting an existing repo is not this skill's job.
 
 ## Step 2 — Write
 
 1. Not a repo → `git init -b main`.
-2. Write each template to its target path, as the table says, with the placeholders filled. Create parent
-   directories. Keep every other byte: the `Makefile` recipe line starts with a tab.
-3. Keep a list of the paths written, skipped and appended.
+2. Write each template to its target path as the table says, placeholders filled, creating parent directories.
+   Keep every other byte: the `Makefile` recipe line starts with a tab.
+3. List the paths written, skipped and appended.
 
 ## Step 3 — The gate
 
-Run `make -n gate` and paste its output: it prints the `openspec validate` line. Then run `make gate` and paste
-its output. It exits 0, or **halt**: commit nothing, and report the paths written so the human can inspect them.
+Run `make -n gate`, then `make gate`, pasting each output; the dry run prints the `openspec validate` line.
+`make gate` exits 0, or **halt**: commit nothing, and report the paths written for the human to inspect.
 
 ## Step 4 — Commit
 
@@ -74,8 +73,7 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 
 Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
 nothing; and, when `git remote get-url origin` fails, that native Claude Code `/security-review` cannot load
-without a remote. Generic security uses the explicit range and needs no remote; provider setup stays with the
-operator. Bootstrap does not add a remote.
+without a remote — generic security needs none, and provider setup stays with the operator.
 
 The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
 

@@ -2,7 +2,8 @@
 
 The choices in force today, each with its reason. A decision states a choice that could have gone another way; a
 rule whose breach is a defect is a [principle](principles.md). An entry is written in the present tense and holds
-no history: when a change overturns one, it edits this page, and its own `design.md` keeps how that came about.
+no history: when a change adds or overturns one, it edits this page in one of its phases, and its own
+`design.md` keeps how that came about.
 
 An id is never reused or renumbered. A new decision takes the next number, in the group it belongs to.
 
@@ -66,8 +67,7 @@ artifact, its `validate --strict` is the check on a change. MinionsFactory adds 
 ### D6 · A change's artifacts are its record
 
 **`proposal.md`, `design.md`, `tasks.md` and the spec delta are the whole record of a change; no planning document
-is kept beside them. `design.md` carries the measurement behind each decision, not only the conclusion. This page
-holds what is in force; a change that overturns an entry edits it, and its `design.md` keeps the history.**
+is kept beside them. `design.md` carries the measurement behind each decision, not only the conclusion.**
 
 - **Why:** a second copy drifts, and a reason kept nowhere is re-derived by the next change.
 
@@ -143,8 +143,8 @@ from executor evidence; model, provider and editor names do not select it.**
 ### D13 · Simplify runs inside the build and blocks nothing
 
 **The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
-frozen diff, so review judges them. Claude Code uses native `/simplify`; other executors load the bundled
-generic simplify instructions. Simplify is a producer, not a checker: it holds no verdict.**
+frozen diff, so review judges them. Its engine follows [D11](#d11--engines-follow-the-executor). Simplify is a
+producer, not a checker: it holds no verdict.**
 
 - **Why:** run last, it would land unreviewed edits after the final check. Given a verdict, taste would spin the
   loop.
@@ -217,9 +217,9 @@ What the skills need from a repository they work on.
 
 ### D18 · The contract with a target repo is a layout on disk
 
-**The skills need the layout below from a repo, and nothing else. The stations install nothing into it;
-`mf-bootstrap` writes it once into a new repo, `.minions/` as a `.gitignore` line, with `CHANGELOG.md` and
-`README.md`.**
+**The skills need the layout below from a repo, and nothing else. `mf-bootstrap` writes it once into a new repo,
+`.minions/` as a `.gitignore` line, with `CHANGELOG.md` and `README.md`; the stations install nothing
+([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 
 ```
 <target>/
