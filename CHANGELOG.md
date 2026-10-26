@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-26
+
+Gate: local 0m1s · CI 0m11s (CI at a926ca1) · 0.28.0: local 0m1s · CI 0m18s (CI at 0979957)
+
 - Run the fresh-reader check on Codex and Claude Code: all 72 verdicts are `match` (change `0029-terse-skills`,
   phase 8). Release precondition 4 now names where the skip line goes, after one reader missed it.
 
