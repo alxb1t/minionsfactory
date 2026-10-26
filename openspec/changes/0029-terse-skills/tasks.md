@@ -13,7 +13,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 - [x] 5 — Rewrite the bootstrap
 - [x] 6 — Rewrite the shared context
 - [x] 7 — Measure the reading sets and build the reader prompts
-- [ ] 8 — Run the fresh-reader check **HUMAN · METERED**
+- [x] 8 — Run the fresh-reader check **HUMAN · METERED**
 
 ## 1 — Rewrite converge and its generic review and security
 
@@ -79,7 +79,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
 
 ## 8 — Run the fresh-reader check **HUMAN · METERED**
 
-- [ ] 8.1 Run Codex over every prompt, from an empty directory:
+- [x] 8.1 Run Codex over every prompt, from an empty directory:
   ```sh
   R=$(git rev-parse --show-toplevel); E="$R/openspec/changes/0029-terse-skills/evidence"
   mkdir -p "$E/codex" && cd "$(mktemp -d)"
@@ -90,7 +90,7 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
   ```
   Verify: `ls openspec/changes/0029-terse-skills/evidence/codex/*.md | wc -l` prints `10`, and
   `grep -hoE '"type":"(command_execution|file_change|mcp_tool_call|web_search|collab_tool_call)"' openspec/changes/0029-terse-skills/evidence/codex/*.events.jsonl` prints nothing.
-- [ ] 8.2 Run Claude Code over every prompt, from an empty directory:
+- [x] 8.2 Run Claude Code over every prompt, from an empty directory:
   ```sh
   R=$(git rev-parse --show-toplevel); E="$R/openspec/changes/0029-terse-skills/evidence"
   mkdir -p "$E/claude" && cd "$(mktemp -d)"
@@ -100,6 +100,6 @@ its file's section to `C/rule_map.md` as [D4](design.md#d4) shapes it.
   cd "$R"
   ```
   Verify: `ls openspec/changes/0029-terse-skills/evidence/claude/*.md | wc -l` prints `10`.
-- [ ] 8.3 Judge every answer against [D6](design.md#d6)'s expected answers in `openspec/changes/0029-terse-skills/evidence/verdicts.md`, under the header `| executor | skill | n | old | new | verdict |`, one row per executor × question.
+- [x] 8.3 Judge every answer against [D6](design.md#d6)'s expected answers in `openspec/changes/0029-terse-skills/evidence/verdicts.md`, under the header `| executor | skill | n | old | new | verdict |`, one row per executor × question.
   Verify: `grep -cE '^\| (codex|claude) \|' openspec/changes/0029-terse-skills/evidence/verdicts.md` prints `72`, and
   `grep -c '| off |$' openspec/changes/0029-terse-skills/evidence/verdicts.md` prints `0`.

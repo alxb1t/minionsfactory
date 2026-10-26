@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Run the fresh-reader check on Codex and Claude Code: all 72 verdicts are `match` (change `0029-terse-skills`,
+  phase 8). Release precondition 4 now names where the skip line goes, after one reader missed it.
+
 - Measure every reading set after the rewrite and build the fresh-reader prompts (change `0029-terse-skills`,
   phase 7). Each set is shorter than at v0.28.0; the before and after are in the phase's commit.
 

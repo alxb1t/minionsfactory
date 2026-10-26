@@ -1,0 +1,80 @@
+# Fresh-reader verdicts
+
+Each reader answer judged against [D6](../design.md#d6)'s expected answers. Pre-graded by a fresh agent and
+accepted by the person; the release rows are re-run and re-graded at `84a0940`, after precondition 4 named where
+the skip line goes. Grader notes stay in the gitignored `.minions/0029-reader/`.
+
+| executor | skill | n | old | new | verdict |
+|---|---|---|---|---|---|
+| codex | cut | 1 | match | match | match |
+| codex | cut | 2 | match | match | match |
+| codex | cut | 3 | match | match | match |
+| codex | cut | 4 | match | match | match |
+| codex | cut | 5 | match | match | match |
+| codex | cut | 6 | match | match | match |
+| codex | cut | 7 | match | match | match |
+| codex | cut | 8 | match | match | match |
+| codex | build | 1 | match | match | match |
+| codex | build | 2 | match | match | match |
+| codex | build | 3 | match | match | match |
+| codex | build | 4 | match | match | match |
+| codex | build | 5 | match | match | match |
+| codex | build | 6 | match | match | match |
+| codex | build | 7 | match | match | match |
+| codex | build | 8 | match | match | match |
+| codex | converge | 1 | match | match | match |
+| codex | converge | 2 | match | match | match |
+| codex | converge | 3 | match | match | match |
+| codex | converge | 4 | match | match | match |
+| codex | converge | 5 | match | match | match |
+| codex | converge | 6 | match | match | match |
+| codex | converge | 7 | match | match | match |
+| codex | converge | 8 | match | match | match |
+| codex | release | 1 | match | match | match |
+| codex | release | 2 | match | match | match |
+| codex | release | 3 | match | match | match |
+| codex | release | 4 | match | match | match |
+| codex | release | 5 | match | match | match |
+| codex | release | 6 | match | match | match |
+| codex | release | 7 | match | match | match |
+| codex | release | 8 | match | match | match |
+| codex | bootstrap | 1 | match | match | match |
+| codex | bootstrap | 2 | match | match | match |
+| codex | bootstrap | 3 | match | match | match |
+| codex | bootstrap | 4 | match | match | match |
+| claude | cut | 1 | match | match | match |
+| claude | cut | 2 | match | match | match |
+| claude | cut | 3 | match | match | match |
+| claude | cut | 4 | match | match | match |
+| claude | cut | 5 | match | match | match |
+| claude | cut | 6 | match | match | match |
+| claude | cut | 7 | match | match | match |
+| claude | cut | 8 | match | match | match |
+| claude | build | 1 | match | match | match |
+| claude | build | 2 | match | match | match |
+| claude | build | 3 | match | match | match |
+| claude | build | 4 | match | match | match |
+| claude | build | 5 | match | match | match |
+| claude | build | 6 | match | match | match |
+| claude | build | 7 | match | match | match |
+| claude | build | 8 | match | match | match |
+| claude | converge | 1 | match | match | match |
+| claude | converge | 2 | match | match | match |
+| claude | converge | 3 | match | match | match |
+| claude | converge | 4 | match | match | match |
+| claude | converge | 5 | match | match | match |
+| claude | converge | 6 | match | match | match |
+| claude | converge | 7 | match | match | match |
+| claude | converge | 8 | match | match | match |
+| claude | release | 1 | match | match | match |
+| claude | release | 2 | match | match | match |
+| claude | release | 3 | match | match | match |
+| claude | release | 4 | match | match | match |
+| claude | release | 5 | match | match | match |
+| claude | release | 6 | match | match | match |
+| claude | release | 7 | match | match | match |
+| claude | release | 8 | match | match | match |
+| claude | bootstrap | 1 | match | match | match |
+| claude | bootstrap | 2 | match | match | match |
+| claude | bootstrap | 3 | match | match | match |
+| claude | bootstrap | 4 | match | match | match |
