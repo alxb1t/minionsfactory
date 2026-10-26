@@ -78,7 +78,7 @@ precondition 4 says what absence means.
 
    | on disk | converge | then |
    |---|---|---|
-   | no findings file and no diff patch | **skipped** | preconditions 2, 3 and 7 pass; state the line `converge: skipped — no findings files` |
+   | no findings file and no diff patch | **skipped** | preconditions 2, 3 and 7 pass; state the line `converge: skipped — no findings files` in the report and the release commit (Step 4.4) |
    | the diff patch, no findings file | froze its diff and stopped | halt |
    | one findings file without the other | ran | halt |
    | both findings files | **ran** | preconditions 2, 3 and 7 apply in full |

@@ -244,6 +244,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 1 · 70-71 | time the run for the `Gate:` line, the one-shell command | precondition 1 | kept |
 | Step 1 · 72-76 | preconditions 2 and 3: clean, every blocker `verified`; `fixed` is a claim | preconditions 2, 3 | kept |
 | Step 1 · 77-85 | precondition 4: skipped, patch-only halt, ran, one-file halt; the skip line; lost `.minions/`; simplify excluded by name, why | precondition 4, table | kept, as a table |
+| Step 1 · 79 | where the skip line goes: the report and the release commit | precondition 4, table | added: a pointer to Step 4.4 and Step 6, which state it; a fresh reader missed it from precondition 4 alone |
 | Step 1 · 86-88 | preconditions 5 and 6 | preconditions 5, 6 | kept |
 | Step 1 · 89-92 | precondition 7: HEAD is the judged head; halt with the catch-up instruction; checked before the fold | precondition 7 | kept |
 | Step 1 · 93-100 | precondition 8 | precondition 8 | kept word for word |
