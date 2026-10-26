@@ -2,7 +2,8 @@
 
 The choices in force today, each with its reason. A decision states a choice that could have gone another way; a
 rule whose breach is a defect is a [principle](principles.md). An entry is written in the present tense and holds
-no history: when a change overturns one, it edits this page, and its own `design.md` keeps how that came about.
+no history: when a change adds or overturns one, it edits this page in one of its phases, and its own
+`design.md` keeps how that came about.
 
 An id is never reused or renumbered. A new decision takes the next number, in the group it belongs to.
 

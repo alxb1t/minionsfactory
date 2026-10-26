@@ -16,11 +16,14 @@ Before work, read root `AGENTS.md`, the mandatory context it names, and the chan
 `openspec/changes/<change-id>/`. Missing root `AGENTS.md` → **halt**, naming it.
 
 ```
-  catch-up? ─▶ 1 preconditions ─▶ 2 freeze ─▶ 3 dispatch ─▶ 5 read verdicts ── both clean ─▶ 8 pickup
-                                                  ▲                │ not clean                    │
-                                                  └─ 7 verify ◀── 6 fix                9 backlog ◀┘
-                                                     cap: three rounds                     │
-                                                                                10 report ◀┘
+  catch-up? ─▶ 1 preconditions ─▶ 2 freeze ─▶ 3 dispatch ─▶ 5 read verdicts
+                                                                │
+                       ┌───────────── not clean ────────────────┤ both clean
+                       ▼                                        ▼
+  5 ◀── 7 verify ◀── 6 fix ◀──────── cards picked ──────── 8 pickup
+        cap three                                               │ none picked, or pickup done
+                                                                ▼
+                                                     9 backlog ─▶ 10 report
 ```
 
 ## Parameter — the change id
@@ -51,7 +54,7 @@ Never ask for a gate, and never substitute a command that looks like it tests th
 ## The status log
 
 **The status log** is `.minions/findings/<change-id>_status_log.md`: where the loop is, for a person, newest on
-top. Only you write it — each dispatch, return and decision. It is not a findings file: no station writes it,
+top. Only you write it — each dispatch, return and decision. It is not a findings file:
 `mf-release` never reads it, and the rule against editing a findings file does not cover it.
 
 - **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from `date '+%H:%M:%S'`,
@@ -101,7 +104,7 @@ A model, provider or editor name is not executor evidence.
 
 | executor | engines |
 |---|---|
-| Claude Code, positively identified | invocable `/code-review` and `/security-review`. A missing one → halt naming it; only an explicit user choice runs generic for that run. Native parallel dispatch and Step 3's native scoping hold; native security still needs a remote |
+| Claude Code, positively identified | invocable `/code-review` and `/security-review`. A missing one → halt naming it; only an explicit user choice runs generic for that run. Step 3's native scoping holds; native security still needs a remote |
 | other or unidentified | each worker loads [generic review](references/generic-review.md) or [generic security](references/generic-security.md), resolved from the installed skill package. Generic security takes the explicit range and needs no remote or native plugin |
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
@@ -176,9 +179,8 @@ Once all pass, write `start` to the status log.
 
 ## Step 3 — Dispatch fresh read-only workers
 
-The stations are **review** and **security**. Simplify ran inside `mf-build` and its edits are in this range, so
-review judges them. Simplify writes no findings file, and `mf-release` names it excluded: only the diff patch
-and the review and security files say whether converge ran.
+The stations are **review** and **security**. Simplify ran inside `mf-build` and wrote no findings file; its
+edits are in this range, so review judges them.
 
 Dispatch both as fresh workers, per *Executor and worker selection*, read-only apart from their own findings
 files. Give each:
@@ -188,10 +190,9 @@ files. Give each:
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md` and its mandatory context, and the change's proposal, design and tasks under
   `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
-- its engine: native `/code-review` or `/security-review` in Claude Code; generic explicitly loads
-  [generic review](references/generic-review.md) or [generic security](references/generic-security.md);
+- its engine, per *Executor and worker selection*;
 - the card, from [`## The card`](#the-card) — every finding is a card;
-- `.minions/backlog.md`, read-only, when it exists, and the repeat rule below. Nothing else to write.
+- `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
 
 Write `fan-out` to the status log at dispatch.
 
@@ -214,10 +215,10 @@ Summary **states which it did**, with the file and commit counts it resolved. Th
 channel: a review from a patch alone loses the file context the engine's blame, history and comment passes need.
 
 **Generic scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
-resource. Report the scope actually resolved; halt when the inputs cannot support a verdict. A missing remote is
-not a generic security prerequisite.
+resource. Report the scope actually resolved; halt when the inputs cannot support a verdict. Step 4's findings
+and Step 5's scope rules apply to either engine.
 
-**Engine overrides, either engine, no exceptions:** never `--fix` — a station edits nothing but its own findings
+**Engine overrides, no exceptions:** never `--fix` — a station edits nothing but its own findings
 file · never `--comment` — findings land on disk, not on a pull request · never `ultra` — it is user-triggered
 and billed, and is not agent-launchable.
 
@@ -286,7 +287,7 @@ Write `verdicts` to the status log after each read. A file is **not clean** — 
 | is missing | a station that never ran, or crashed, cannot pass the loop |
 | resolved zero files, or materially fewer files or commits than **this round's freeze** | a scope failure, indistinguishable from a real clean |
 | is review's, and its Summary does not say the stale-claim pass ran | drift outside the diff went unsearched |
-| is review's, and its Summary does not say the test-cost pass ran, and the coverage-trace pass ran or the freeze removed no test | the test passes went unrun |
+| is review's, and its Summary does not say the test-cost pass ran, or does not say the coverage-trace pass ran or the freeze removed no test | the test passes went unrun |
 
 **This round's freeze** is Step 2's in round 1 and Step 6's re-freeze after it, never round 1's once
 superseded: a verify round over a one-file fix that reports one file is converging. A station that resolved zero
@@ -336,9 +337,8 @@ record drifts.
 
 Re-run the gate yourself, and write `verify` to the status log. Dispatch review and security again as **fresh**
 workers at `round ≥ 2`, with Step 3's engines, inputs and dispatch rules, and write `fan-out`. Also pass each its
-own findings file and the scoped fix diff, and pass review `openspec/changes/<change-id>/design.md` and its
-`## Tests` table. Each re-reads its file, promotes or reopens each finding, rewrites its counters, appends to its
-`## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a
+own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
+counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a
 fix's new test is judged like the build's. Read the verdicts from disk under Step 5.
 
 A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or the new

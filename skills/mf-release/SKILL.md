@@ -198,8 +198,8 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 ## Step 6 — Close: report, and stop
 
 The gate that authorizes this release ran at Step 4.3, on the exact tree the release commit holds: committing and
-tagging changed no file it reads. Do not re-run it here, and never treat a green gate *after* the tag as the
-authorization: report the Step 4.3 exit code.
+tagging changed no file it reads. Do not re-run it here; a green gate *after* the tag
+authorizes nothing.
 
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.

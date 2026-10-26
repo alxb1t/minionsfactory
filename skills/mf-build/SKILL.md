@@ -9,15 +9,15 @@ description: Build the active in-repo change phase by phase — one phase at a t
 > do **not** review, converge or release your own work: `mf-converge` conducts the end-of-change loop and
 > `mf-release` finalizes.
 
-Before work, read root `AGENTS.md` and the mandatory context it names: what is *true* of the repository, not a
-script. The change itself is authoritative. Missing root `AGENTS.md` → **halt**, naming it.
+Before work, read root `AGENTS.md` — the gate, the conventions and seams, the guardrails — and the mandatory
+context it names: what is *true* of the repository, not a script. The change itself is authoritative. Missing root `AGENTS.md` → **halt**, naming it.
 
 ```
-  Step 1 lift ─▶ Step 2, first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
-                        ▲                                                                        │
-                        └──────────────────────── next unticked phase ◀──────────────────────────┤
-                                                                                   all ticked    ▼
-                                           Step 4 report ◀── commit ◀── gate ◀── Step 3 simplify
+  1 lift
+  2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
+      └─ again, until every phase is ticked
+  3 simplify ─▶ gate ─▶ commit
+  4 report
 ```
 
 ## Parameter — the change id
@@ -74,10 +74,9 @@ Then read:
 1. **The change** — `openspec/changes/<change-id>/`: `proposal.md` (scope), `design.md`, and the whole
    `tasks.md`, your phase's sub-tasks and their `Verify:` lines above all. **`design.md` is authoritative**: do
    not re-derive or re-litigate it. Where the build disagrees with a decision it settled, **halt**.
-2. **`AGENTS.md`** — the gate, the conventions and seams, the guardrails.
-3. **Where the work stands** — the `## Progress` list and `git log`, never memory. Re-read both at the start of
+2. **Where the work stands** — the `## Progress` list and `git log`, never memory. Re-read both at the start of
    every pass; resume is free.
-4. **The gate** — `make gate`, from the repository root. Before the first gate run in a session, run
+3. **The gate** — `make gate`, from the repository root. Before the first gate run in a session, run
    `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
    `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no root `Makefile`, when `make -n gate` exits
    non-zero (no `gate` target), or when it prints no command — an empty recipe, or only `is up to date` or
@@ -100,7 +99,7 @@ Model, provider and editor names do not identify the executor.
 | executor | simplify engine |
 |---|---|
 | Claude Code, positively identified | native `/simplify`, invocable before production edits, with its own behaviour. Missing → halt naming it; generic for this run only if the user explicitly selects it |
-| other or unidentified — Codex, also through Zed ACP; Zed's native agent; a Claude model through OpenRouter | load [generic simplify](references/generic-simplify.md) before its pass, resolved from this installed skill package, not the target's cwd |
+| other or unidentified — Codex, also through Zed ACP; Zed's native agent; a Claude model through OpenRouter | load [generic simplify](references/generic-simplify.md) before its pass and follow it, resolved from this installed skill package, not the target's cwd |
 
 MF skill names identify instructions; load or invoke them with the host's syntax.
 
@@ -170,17 +169,16 @@ Then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 After the last phase, and only then:
 
-1. Run the selected engine over this change's diff — native **`/simplify`** in Claude Code, otherwise load
-   [generic simplify](references/generic-simplify.md) and follow it — given the base and head ids, the range,
-   the patch, the target context and the change's artifacts. Let it **apply its fixes in place**.
+1. Run the engine *Executor selection* chose — native **`/simplify`** or generic — over this change's diff,
+   given the base and head ids, the range, the patch, the target context and the change's artifacts. Let it **apply its fixes in place**.
 2. **Re-run the full gate. Red is a halt**: commit nothing over it, and never repair it by weakening the gate.
 3. Commit its edits as **their own trailered commit**, staged by name, apart from any phase commit. No edits →
    report the no-op honestly; manufacture no commit.
 
 **Why inside the build:** simplify runs **before** the review and security stations `mf-converge` fans out, so
 review reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
-unreviewed edits after the final station had spoken. So there is **no simplify findings file**, and `mf-release`
-names simplify excluded: only the diff patch and the review and security files decide whether converge ran.
+unreviewed edits after the final station had spoken. So simplify writes **no findings file**, and `mf-release`
+names it excluded (its precondition 4).
 
 ## Step 4 — Report, then stop
 

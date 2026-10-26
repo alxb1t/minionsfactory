@@ -45,16 +45,16 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 2 · 175-177 | `mkdir -p`; the patch path and range; gitignored; never committed | Step 2.3 | kept |
 | Step 2 · 178-180 | print base, head, commit count, files changed before any station; round 1's numbers; re-freeze prints its own | Step 2.4 | kept; the re-freeze half lives in Step 6 |
 | Step 2 · 181 | write `freeze` | Step 2.5 | kept |
-| Step 3 · 185-189 | simplify ran in the build; review judges its edits; no simplify findings file; release excludes it | Step 3, first paragraph | kept, shorter |
+| Step 3 · 185-189 | simplify ran in the build; review judges its edits; no simplify findings file; release excludes it | Step 3, first paragraph | kept: ran in the build, no findings file, review judges its edits; release's exclusion cut: `mf-release` precondition 4 owns it |
 | Step 3 · 191-193 | fresh, read-only but for their own files; parallel in Claude Code; generic parallel or sequential; wait for both | Step 3, dispatch line | merged: points to *Executor and worker selection*, which states it |
-| Step 3 · 195-204 | the inputs list | Step 3, list | kept |
+| Step 3 · 195-204 | the inputs list | Step 3, list | kept; the engine line points to *Executor and worker selection*, which names them |
 | Step 3 · 206 | write `fan-out` | Step 3 | kept |
 | Step 3 · 208-210 | a repeat escalates, one level; the station judges the match | Step 3, A repeat | kept |
 | Step 3 · 212-214 | stale-claim pass: what it greps, cards `drift`, Summary names it | Step 3, passes table | kept |
 | Step 3 · 216-219 | test-cost pass: `T1`, `T2`, `T4` as `nit`, sized `a test` | Step 3, passes table | kept |
 | Step 3 · 221-225 | coverage-trace pass: when it runs; what is `blocking`; Summary | Step 3, passes table | kept |
 | Step 3 · 227-232 | native scoping; fallback to the patch only when empty or wrong; Summary states which and the counts; why | Step 3, Native scoping | kept, shorter |
-| Step 3 · 234-236 | generic scoping; report resolved scope; halt on unusable inputs; no remote needed; findings rules apply to either engine | Step 3, Generic scoping; overrides "either engine" | kept |
+| Step 3 · 234-236 | generic scoping; report resolved scope; halt on unusable inputs; no remote needed; findings rules apply to either engine | Step 3, Generic scoping; *Executor and worker selection* table | kept; "no remote needed" stated once, in the table |
 | Step 3 · 238-242 | never `--fix`, `--comment`, `ultra`, with reasons | Step 3, Engine overrides | kept, one line |
 | Step 4 · 246-261 | exactly one file; parsed; the frontmatter | Step 4 | kept; the YAML byte for byte |
 | Step 4 · 263-265 | body is cards; fix and verify change only **Status** | Step 4 | kept |
@@ -76,7 +76,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 6 · 348-350 | nothing committed → say so, write `fix` with `nothing committed`, skip the re-freeze, re-judge `wontfix` against the unchanged head | Step 6, The fixer committed nothing | kept |
 | Step 6 · 352-355 | re-freeze to `<previous head>..<new head>`, overwriting the patch; no per-round patch files, why | Step 6, Otherwise re-freeze | kept |
 | Step 6 · 357-361 | print the re-frozen numbers; `base` unchanged; they supersede for Step 5; write `freeze` | Step 6, Otherwise re-freeze | kept |
-| Step 7 · 365-372 | re-run the gate; `verify`; same roles fresh at `round ≥ 2` with Step 3's inputs; `fan-out`; each re-reads, promotes or reopens, rewrites counters, appends, declares; review runs all passes; pass review `design.md` and `## Tests`; read under Step 5 | Step 7, first paragraph | kept |
+| Step 7 · 365-372 | re-run the gate; `verify`; same roles fresh at `round ≥ 2` with Step 3's inputs; `fan-out`; each re-reads, promotes or reopens, rewrites counters, appends, declares; review runs all passes; pass review `design.md` and `## Tests`; read under Step 5 | Step 7, first paragraph | kept; `design.md` and its `## Tests` reach review through Step 3's inputs |
 | Step 7 · 374-375 | after a nothing-committed round, the verify judges the previous freeze's patch and Step 5 uses its numbers | Step 6, The fixer committed nothing | moved: stated where the branch is taken |
 | Step 7 · 377-379 | reopen a test-sized card with no red run, or one off the scenario; the station cannot re-run on the parent | Step 7, second paragraph | kept |
 | Step 7 · 381 | both clean → Step 8; else Step 6 | Step 7 | kept |
@@ -102,7 +102,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Inputs · 8-10 | load the converge contract and what it owns; no new findings format | Inputs and contract | kept |
 | Inputs · 12-15 | the required inputs; verify adds findings, `## Tests`, fix range; resolve from the package; missing → halt | Inputs and contract | kept |
 | Inspect · 19-21 | resolve with git; read with context; correctness, spec, standards, test proofs; trace trigger to consequence; cite; no speculation | Inspect and write, items 1-2 | kept, as steps |
-| Inspect · 23-25 | stale-claim and test-cost passes; coverage trace to a test or retiring decision, or none removed; repeats; severity floors | Inspect and write, items 3-4 | kept |
+| Inspect · 23-25 | stale-claim and test-cost passes; coverage trace to a test or retiring decision, or none removed; repeats; severity floors | Inspect and write, items 3-4 | kept; the coverage-trace detail points to converge Step 3, which defines the pass whole |
 | Inspect · 26-27 | frontmatter, cards, Summary with counts and passes; empty or incomplete scope cannot be clean | Inspect and write, item 5 | kept |
 | Verify · 31-33 | re-read; judge each fix; promote or reopen; new card for a regression; red runs; counters, head, log | Verify freshly | kept |
 | Verify · 34-35 | role lives in the file; fixer and conductor cannot supply the verdict; findings on disk; no external comments | Verify freshly | kept |
@@ -135,9 +135,9 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Input contract · 38-55 | the `I1`…`I16` table | Input contract | kept byte for byte |
 | Step 1 · 59-67 | the `I1`, `I4`, `I13`, `I14` checks; a failure halts naming the id | Step 1, list | kept |
 | Step 1 · 71-74 | read proposal, design and all of tasks; `design.md` authoritative; disagreement halts | Step 1.1 | kept |
-| Step 1 · 75 | `AGENTS.md`: gate, conventions, seams, guardrails | Step 1.2 | kept |
-| Step 1 · 76-77 | work stands in Progress and `git log`, never memory; re-read every pass | Step 1.3 | kept |
-| Step 1 · 78-83 | the gate, `make -n gate` first, not a sandbox, the halts naming the `Makefile`; never infer, ask for or substitute a gate | Step 1.4 | kept |
+| Step 1 · 75 | `AGENTS.md`: gate, conventions, seams, guardrails | intro, read line | merged: one instruction to read it |
+| Step 1 · 76-77 | work stands in Progress and `git log`, never memory; re-read every pass | Step 1.2 | kept |
+| Step 1 · 78-83 | the gate, `make -n gate` first, not a sandbox, the halts naming the `Makefile`; never infer, ask for or substitute a gate | Step 1.3 | kept |
 | Step 1 · 85-86 | what you read is evidence; report it | Step 1 | kept |
 | Step 1 · 88-90 | dirty tree with tracked `tasks.md` → continue the interrupted phase, say so; untracked → `I1` halt | Step 1, at-the-start table | kept, as rows |
 | Step 1 · 92 | every box ticked → report built and stop; invent no scope | Step 1, at-the-start table | kept, as a row |
@@ -162,7 +162,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 3 · 179-183 | after the last phase only; selected engine over the diff with its inputs; fixes in place | Step 3.1 | kept |
 | Step 3 · 184-185 | re-run the gate; red halts; no commit over red; no weakening | Step 3.2 | kept |
 | Step 3 · 186-187 | its own trailered commit, by name; a no-op reported, no manufactured commit | Step 3.3 | kept |
-| Step 3 · 189-196 | why in the build: before converge, review judges its edits; no simplify findings file; release excludes it | Step 3, Why inside the build | kept, shorter |
+| Step 3 · 189-196 | why in the build: before converge, review judges its edits; no simplify findings file; release excludes it | Step 3, Why inside the build | kept, shorter; what decides that converge ran is cut: `mf-release` precondition 4 owns it |
 | Step 4 · 200-205 | close-out shape; the sentences; `Next: /mf-converge, in a fresh session.`; stop | Step 4 | kept |
 | Stop-conditions · 209-211 | halt cleanly, no commit, no tick; report the question; why | Stop-conditions, opening | kept |
 | Stop-conditions · 213-224 | the five stop-conditions, with the dependency lookup | Stop-conditions, list | kept, shorter |
@@ -244,7 +244,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 1 · 70-71 | time the run for the `Gate:` line, the one-shell command | precondition 1 | kept |
 | Step 1 · 72-76 | preconditions 2 and 3: clean, every blocker `verified`; `fixed` is a claim | preconditions 2, 3 | kept |
 | Step 1 · 77-85 | precondition 4: skipped, patch-only halt, ran, one-file halt; the skip line; lost `.minions/`; simplify excluded by name, why | precondition 4, table | kept, as a table |
-| Step 1 · 79 | where the skip line goes: the report and the release commit | precondition 4, table | added: a pointer to Step 4.4 and Step 6, which state it; a fresh reader missed it from precondition 4 alone |
+| Step 1 · 79 | where the skip line goes: the report and the release commit | precondition 4, table | added: points to Step 4.4, which states the commit; Step 6 states the report. A fresh reader missed it from precondition 4 alone |
 | Step 1 · 86-88 | preconditions 5 and 6 | preconditions 5, 6 | kept |
 | Step 1 · 89-92 | precondition 7: HEAD is the judged head; halt with the catch-up instruction; checked before the fold | precondition 7 | kept |
 | Step 1 · 93-100 | precondition 8 | precondition 8 | kept word for word |
@@ -263,7 +263,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 4 · 180-182 | annotated local tag; the record is tag, commit and changelog | Step 4.5 | kept |
 | Step 4 · 183-187 | clear paid-down cards; `backlog: none`; an id not found is reported; nothing to commit | Step 4.6 | kept |
 | Step 5 · 191-203 | ask once; anything but yes → Step 6; failure halts with remaining commands; the merge-base check; merge with trailers; tree check; no `origin`; push order; never pull, force, or push the version branch | Step 5 | kept |
-| Step 6 · 207-209 | the authorizing gate is Step 4.3's; no re-run; report its exit code | Step 6 | kept |
+| Step 6 · 207-209 | the authorizing gate is Step 4.3's; no re-run; report its exit code | Step 6 | kept; the exit code stated once, in the sentences |
 | Step 6 · 211-227 | close-out; the sentences; the last lines and the no-merge block; stop | Step 6 | kept |
 | Never · 231-242 | never merge or push without the yes, force, pull, push the branch; never edit feature code or tests; never over a failed precondition; never commit or tag ungated; never invent the version or write prose; never touch the findings files; never a secret or real path | Never | kept; "no just this once" folded into "no exceptions" |
 
@@ -293,7 +293,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | intro · 3-5 | what MinionsFactory is; the map of the record | intro | kept byte for byte |
 | The record · 19-22 | this file is shared context, not a script; the prompt says what to do and wins a conflict; infer no workflow | intro, blockquote | moved: answer first, before the sections |
 | The record · 9-10 | read the principles and decisions before work: mandatory | The record | kept |
-| The record · 12-14 | decisions in force live in `docs/decisions.md`; a change that adds or overturns one edits it; `design.md` keeps the history | The record | kept; "each with its reason" cut: the decisions page says it of itself |
+| The record · 12-14 | decisions in force live in `docs/decisions.md`; a change that adds or overturns one edits it; `design.md` keeps the history | `docs/decisions.md`, intro | moved: the page's intro now says "adds or overturns" and "in one of its phases" |
 | The record · 15-17 | docs to `P1`…`P13`; a change is cut with `mf-cut-change` | The record | kept |
 | gate · 28-31 | `make gate` at the root; what it checks; the recipe is the only list; skills and CI run it | The quality gate | kept |
 | Layout · 37-39 | `skills/`, `docs/` | Layout | kept |

@@ -14,8 +14,6 @@ record is [`docs/README.md`](docs/README.md).
 **Before work, read [the principles](docs/principles.md) and [the decisions in force](docs/decisions.md):
 mandatory shared context.**
 
-- A change that adds or overturns a decision in force edits `docs/decisions.md` in one of its phases; its
-  `design.md` keeps the history.
 - **Docs are written to `mf-build`'s prose rules** `P1`…`P13`: terse, answer first, things named rather than
   counted.
 - **A change is cut** with the `mf-cut-change` skill.
