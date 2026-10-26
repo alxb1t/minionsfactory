@@ -100,7 +100,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 |---|---|---|---|
 | intro · 3-4 | a fresh checker; writes only its findings file; edits and commits are the fixer's | intro | kept |
 | Inputs · 8-10 | load the converge contract and what it owns; no new findings format | Inputs and contract | kept |
-| Inputs · 12-15 | the required inputs; verify adds findings, `## Tests`, fix range; resolve from the package; missing → halt | Inputs and contract | kept |
+| Inputs · 12-15 | the required inputs; verify adds findings, `## Tests`, fix range; resolve from the package; missing → halt | Inputs and contract | kept; the `## Tests` table reaches review through the design among the inputs, and converge Steps 3 and 7 |
 | Inspect · 19-21 | resolve with git; read with context; correctness, spec, standards, test proofs; trace trigger to consequence; cite; no speculation | Inspect and write, items 1-2 | kept, as steps |
 | Inspect · 23-25 | stale-claim and test-cost passes; coverage trace to a test or retiring decision, or none removed; repeats; severity floors | Inspect and write, items 3-4 | kept; the coverage-trace detail points to converge Step 3, which defines the pass whole |
 | Inspect · 26-27 | frontmatter, cards, Summary with counts and passes; empty or incomplete scope cannot be clean | Inspect and write, item 5 | kept |
@@ -148,10 +148,10 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 2 · 110-112 | first unticked phase, whole ritual through its commit; never batch; why | Step 2, opening | kept |
 | Step 2 · 114-116 | HUMAN phase: do none of its tasks, run its `Verify:`; a failure halts with the checklist only | Step 2, A HUMAN phase | kept |
 | Step 2 · 118-128 | the HUMAN checklist format | Step 2 | kept byte for byte |
-| Step 2 · 130-133 | root in chat only; secrets by env-var; all pass → search evidence for home, root, keys and halt on a hit; stage by name, no ignored path, no `git add -f`; gate, CHANGELOG, tick phase and `N.M`, commit | Step 2, paragraph after the checklist | kept; the gate-to-commit steps point to items 3–6 |
+| Step 2 · 130-133 | root in chat only; secrets by env-var; all pass → search evidence for home, root, keys and halt on a hit; stage by name, no ignored path, no `git add -f`; gate, CHANGELOG, tick phase and `N.M`, commit | Step 2, paragraph after the checklist | kept; the gate-to-commit steps point to items 3–6, the `N.M` boxes ticked with the phase's box at item 5 |
 | Step 2 · 135-138 | test-first at `T1`'s layer, a step per `T2`; fake effects behind seams; write to `W`, `T`, `P`, `C` | Step 2.1 | kept |
 | Step 2 · 139-144 | run each verification, never summarize; show real output; tick `N.M` once passed; failed **HALT CHECK** halts; never change code to pass | Step 2.2 | kept |
-| Step 2 · 141-142 | the same rule the gate is under | Step 2.2 | cut: the principle *The gate is run, never summarized*, in `docs/principles.md`, read via `AGENTS.md` |
+| Step 2 · 141-142 | the same rule the gate is under | Step 2.2 | cut: a remark, not a rule; the rule it remarks on, run each check and never summarize it, stays in Step 2.2 |
 | Step 2 · 145-148 | run `make gate`, exit 0; never weaken, halt; a table-named deletion is not weakening | Step 2.3 | kept |
 | Step 2 · 149-150 | CHANGELOG entry, 1–3 lines, what and why, to `P` | Step 2.4 | kept |
 | Step 2 · 151-152 | tick the phase box; commit and tick together make an advance | Step 2.5 | kept |
@@ -240,7 +240,7 @@ Where every rule, exception, halt and output of the old text went, per [D4](desi
 | Step 1 · 55-60 | the exact paths, keyed by the change id | Step 1, list | kept |
 | Step 1 · 62-64 | never glob the findings directory, why; an absent file is never a reason to search | Step 1 | kept |
 | Step 1 · 66-68 | precondition 1: re-run here, not inherited; red → halt, the build owns it | precondition 1 | kept |
-| Step 1 · 67 | a green gate is a command that exited 0, observed by the side that needs it | precondition 1 | cut: the principle *The gate is run, never summarized*, read via `AGENTS.md` |
+| Step 1 · 67 | a green gate is a command that exited 0, observed by the side that needs it | precondition 1 | cut: a definition, not a rule; the rule, re-run here and never inherited, stays in precondition 1 and *Never* |
 | Step 1 · 70-71 | time the run for the `Gate:` line, the one-shell command | precondition 1 | kept |
 | Step 1 · 72-76 | preconditions 2 and 3: clean, every blocker `verified`; `fixed` is a claim | preconditions 2, 3 | kept |
 | Step 1 · 77-85 | precondition 4: skipped, patch-only halt, ran, one-file halt; the skip line; lost `.minions/`; simplify excluded by name, why | precondition 4, table | kept, as a table |

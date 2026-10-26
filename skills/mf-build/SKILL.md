@@ -126,8 +126,8 @@ Next: /mf-build
 
 Print the repository root in chat only; a secret appears by its env-var name, never a value. All pass → the
 person has done it: search their evidence files for the operator's home path, the repository's root and key
-shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; tick the phase's
-`N.M` boxes; then items 3–6.
+shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then items 3–6,
+ticking the `N.M` boxes with the phase's box at item 5.
 
 1. **Do the phase's tasks.** Test-first where there is logic: the failing test for the phase's acceptance at the
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
