@@ -7,7 +7,7 @@ the design's, word for word.
 
 - [x] 1 — Write the collector
 - [x] 2 — Write MF's catalogue and metric scripts
-- [ ] 3 — Add the stations' metrics steps
+- [x] 3 — Add the stations' metrics steps
 - [ ] 4 — Record the design and demonstrate it on MF
 
 ## 1 — Write the collector
@@ -30,11 +30,11 @@ the design's, word for word.
 
 ## 3 — Add the stations' metrics steps
 
-- [ ] 3.1 Add *Step 3.5 — Collect the metrics* to `skills/mf-build/SKILL.md` and extend its Step 4 sentences, per [D6](design.md#d6).
+- [x] 3.1 Add *Step 3.5 — Collect the metrics* to `skills/mf-build/SKILL.md` and extend its Step 4 sentences, per [D6](design.md#d6).
   Verify: `grep -c '^## Step 3.5 — Collect the metrics$' skills/mf-build/SKILL.md` prints `1`, and `grep -q 'metrics: none — no catalogue' skills/mf-build/SKILL.md` exits 0.
-- [ ] 3.2 Add item 2b to `skills/mf-release/SKILL.md` Step 4, and extend its item 4 and its Step 6 sentences, per [D6](design.md#d6).
+- [x] 3.2 Add item 2b to `skills/mf-release/SKILL.md` Step 4, and extend its item 4 and its Step 6 sentences, per [D6](design.md#d6).
   Verify: `grep -c '\*\*2b\. Metrics\.\*\*' skills/mf-release/SKILL.md` prints `1`, and `grep -c '\.\./mf-build/scripts/metrics\.py' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 3.3 Add `test_the_stations_run_the_bundled_metrics_script` and `test_the_metrics_script_scan_reports_a_missing_script` to `tests/test_skills.py`.
+- [x] 3.3 Add `test_the_stations_run_the_bundled_metrics_script` and `test_the_metrics_script_scan_reports_a_missing_script` to `tests/test_skills.py`.
   Verify: `uv run pytest -q tests/test_skills.py -k metrics_script` reports `2 passed`.
 
 ## 4 — Record the design and demonstrate it on MF

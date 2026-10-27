@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Collect the metrics at the stations: the build drafts them after simplify and names the page, and the release
+  commits `metrics/changes/<change-id>.json` (change `0030-change-impact`, phase 3). No catalogue, no metrics.
+
 - Adopt metrics in MF itself: `metrics/catalogue.toml` declares reading load, rule ids, tests, gate time, prose
   clarity, conformance and open backlog cards, measured by scripts under `scripts/metrics/` (change
   `0030-change-impact`, phase 2).
