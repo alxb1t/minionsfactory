@@ -6,7 +6,7 @@ the design's, word for word.
 ## Progress
 
 - [x] 1 — Write the collector
-- [ ] 2 — Write MF's catalogue and metric scripts
+- [x] 2 — Write MF's catalogue and metric scripts
 - [ ] 3 — Add the stations' metrics steps
 - [ ] 4 — Record the design and demonstrate it on MF
 
@@ -21,11 +21,11 @@ the design's, word for word.
 
 ## 2 — Write MF's catalogue and metric scripts
 
-- [ ] 2.1 Write `scripts/metrics/reading_set.py`, `rule_ids.py`, `tests_collected.py`, `prose.py`, `references.py`, `conformance.py` and `backlog.py` per [D7](design.md#d7), each with a PEP 723 header.
+- [x] 2.1 Write `scripts/metrics/reading_set.py`, `rule_ids.py`, `tests_collected.py`, `prose.py`, `references.py`, `conformance.py` and `backlog.py` per [D7](design.md#d7), each with a PEP 723 header.
   Verify: `ls scripts/metrics/*.py | wc -l` prints `7`.
-- [ ] 2.2 Write `metrics/catalogue.toml` with [D7](design.md#d7)'s entries, in its table's order.
+- [x] 2.2 Write `metrics/catalogue.toml` with [D7](design.md#d7)'s entries, in its table's order.
   Verify: `grep -c '^\[\[metric\]\]' metrics/catalogue.toml` prints `12`.
-- [ ] 2.3 Write `tests/test_metric_scripts.py` with the tests the [Tests](design.md#tests) table names for it.
+- [x] 2.3 Write `tests/test_metric_scripts.py` with the tests the [Tests](design.md#tests) table names for it.
   Verify: `uv run pytest -q tests/test_metric_scripts.py` reports `6 passed`.
 
 ## 3 — Add the stations' metrics steps

@@ -1,0 +1,117 @@
+# What MinionsFactory measures at every change: the bundled collector,
+# `skills/mf-build/scripts/metrics.py`, reads this file. Why: docs/decisions.md D43.
+
+[[metric]]
+id = "converge-reading-set"
+title = "Converge conductor's reading set"
+group = "instruction load"
+unit = "words"
+better = "lower"
+watch = 10500
+noise = 50
+script = "scripts/metrics/reading_set.py"
+args = ["converge"]
+
+[[metric]]
+id = "shared-context"
+title = "Shared context every station reads"
+group = "instruction load"
+unit = "words"
+better = "lower"
+noise = 50
+script = "scripts/metrics/reading_set.py"
+args = ["shared"]
+
+[[metric]]
+id = "rule-ids"
+title = "Rule ids in the skills' tables"
+group = "contract"
+unit = "ids"
+better = "lower"
+script = "scripts/metrics/rule_ids.py"
+args = []
+
+[[metric]]
+id = "tests-collected"
+title = "Tests collected"
+group = "proof"
+unit = "tests"
+better = "higher"
+script = "scripts/metrics/tests_collected.py"
+args = []
+
+[[metric]]
+id = "gate-seconds"
+title = "Gate time"
+group = "proof"
+unit = "seconds"
+better = "lower"
+noise = 5
+source = "station"
+
+[[metric]]
+id = "hedge-words"
+title = "Hedge words in the skills"
+group = "clarity"
+unit = "words"
+better = "lower"
+script = "scripts/metrics/prose.py"
+args = ["hedge"]
+
+[[metric]]
+id = "long-sentences"
+title = "Skill sentences over 30 words"
+group = "clarity"
+unit = "sentences"
+better = "lower"
+script = "scripts/metrics/prose.py"
+args = ["long"]
+
+[[metric]]
+id = "broken-references"
+title = "Broken links and decision ids in the docs"
+group = "clarity"
+unit = "references"
+better = "lower"
+watch = 0
+script = "scripts/metrics/references.py"
+args = []
+
+[[metric]]
+id = "commits-without-trailer"
+title = "Commits without this change's trailer"
+group = "conformance"
+unit = "commits"
+better = "lower"
+watch = 0
+script = "scripts/metrics/conformance.py"
+args = ["trailer"]
+
+[[metric]]
+id = "minions-files-tracked"
+title = "Files tracked under .minions/"
+group = "conformance"
+unit = "files"
+better = "lower"
+watch = 0
+script = "scripts/metrics/conformance.py"
+args = ["minions"]
+
+[[metric]]
+id = "amends"
+title = "Amends to the cut"
+group = "conformance"
+unit = "commits"
+better = "lower"
+script = "scripts/metrics/conformance.py"
+args = ["amends"]
+
+[[metric]]
+id = "open-backlog-cards"
+title = "Open backlog cards"
+group = "debt"
+unit = "cards"
+better = "lower"
+watch = 10
+script = "scripts/metrics/backlog.py"
+args = []

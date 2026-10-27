@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Adopt metrics in MF itself: `metrics/catalogue.toml` declares reading load, rule ids, tests, gate time, prose
+  clarity, conformance and open backlog cards, measured by scripts under `scripts/metrics/` (change
+  `0030-change-impact`, phase 2).
+
 - Add the bundled metrics collector, `skills/mf-build/scripts/metrics.py`: it runs a repo's declared metric scripts
   into one data file and renders a page of what moved since the previous release (change `0030-change-impact`,
   phase 1). Standard library only, run with `uv run --script`.
