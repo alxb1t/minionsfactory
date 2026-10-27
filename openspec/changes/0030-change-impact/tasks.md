@@ -5,18 +5,18 @@ the design's, word for word.
 
 ## Progress
 
-- [ ] 1 — Write the collector
+- [x] 1 — Write the collector
 - [ ] 2 — Write MF's catalogue and metric scripts
 - [ ] 3 — Add the stations' metrics steps
 - [ ] 4 — Record the design and demonstrate it on MF
 
 ## 1 — Write the collector
 
-- [ ] 1.1 **HALT CHECK** `uv` provides a Python at `>=3.12` with `tomllib`, the premise of [D2](design.md#d2).
+- [x] 1.1 **HALT CHECK** `uv` provides a Python at `>=3.12` with `tomllib`, the premise of [D2](design.md#d2).
   Verify: `uv run --no-project --python '>=3.12' python -c 'import tomllib'` exits 0.
-- [ ] 1.2 Write `skills/mf-build/scripts/metrics.py` per [D2](design.md#d2) through [D5](design.md#d5): `collect` and `page`, the exit codes, the `metric_argv` seam, its PEP 723 header pinning `>=3.12`.
+- [x] 1.2 Write `skills/mf-build/scripts/metrics.py` per [D2](design.md#d2) through [D5](design.md#d5): `collect` and `page`, the exit codes, the `metric_argv` seam, its PEP 723 header pinning `>=3.12`.
   Verify: `uv run --script skills/mf-build/scripts/metrics.py --help` exits 0.
-- [ ] 1.3 Write `tests/test_metrics.py` with the tests the [Tests](design.md#tests) table names for it.
+- [x] 1.3 Write `tests/test_metrics.py` with the tests the [Tests](design.md#tests) table names for it.
   Verify: `uv run pytest -q tests/test_metrics.py` reports `9 passed`.
 
 ## 2 — Write MF's catalogue and metric scripts

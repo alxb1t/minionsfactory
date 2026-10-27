@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add the bundled metrics collector, `skills/mf-build/scripts/metrics.py`: it runs a repo's declared metric scripts
+  into one data file and renders a page of what moved since the previous release (change `0030-change-impact`,
+  phase 1). Standard library only, run with `uv run --script`.
+
 ## [0.29.0] - 2026-10-26
 
 Gate: local 0m1s · CI 0m11s (CI at a926ca1) · 0.28.0: local 0m1s · CI 0m18s (CI at 0979957)
