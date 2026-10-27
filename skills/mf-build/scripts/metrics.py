@@ -138,7 +138,7 @@ def _unavailable(why: str) -> Value:
 
 def run_metric(root: Path, metric: Metric, env: dict[str, str]) -> Value:
     """Return the number a metric script prints last, or `unavailable` and why."""
-    argv = metric_argv(metric["script"], list(metric.get("args", [])))
+    argv = metric_argv(metric["script"], metric.get("args", []))
     try:
         done = subprocess.run(
             argv,
@@ -221,11 +221,15 @@ def mf_version(package: Path) -> str:
         )
     except OSError:
         return "unknown"
-    return (
-        done.stdout.strip()
-        if done.returncode == 0 and done.stdout.strip()
-        else "unknown"
-    )
+    return (done.returncode == 0 and done.stdout.strip()) or "unknown"
+
+
+def _write(root: Path, out: Path, text: str) -> None:
+    """Write `text` to `out` under `root`, making its folder, and say so."""
+    target = root / out
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    print(f"metrics: wrote {out}")
 
 
 def collect(
@@ -248,8 +252,10 @@ def collect(
             raise CatalogueError(
                 f"--value {key}: {CATALOGUE} declares no station metric `{key}`"
             )
-    base_sha = _git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
-    head_sha = _git(root, "rev-parse", "HEAD")
+    base_sha, head_sha = _git(root, "rev-parse", f"{base}^{{commit}}", "HEAD").split()
+    base_short, head_short = (
+        _git(root, "rev-parse", "--short", sha) for sha in (base_sha, head_sha)
+    )
     env = os.environ | {
         "MF_METRICS_CHANGE": change,
         "MF_METRICS_BASE": base_sha,
@@ -271,8 +277,8 @@ def collect(
     record = {
         "change": change,
         "version": change_version(root, change),
-        "base": _git(root, "rev-parse", "--short", base_sha),
-        "analyzed": _git(root, "rev-parse", "--short", head_sha),
+        "base": base_short,
+        "analyzed": head_short,
         "measured_on": "local",
         "collected_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "mf_version": mf_version(Path(__file__).resolve().parent),
@@ -280,12 +286,7 @@ def collect(
         "model": model,
         "values": values,
     }
-    target = root / out
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"metrics: wrote {out}")
+    _write(root, out, json.dumps(record, indent=2, ensure_ascii=False) + "\n")
     return 0
 
 
@@ -304,14 +305,19 @@ def _tracked_records(root: Path) -> list[dict[str, Any]]:
     return [json.loads((root / name).read_text(encoding="utf-8")) for name in names]
 
 
-def previous_release(root: Path, version: str) -> dict[str, Any] | None:
-    """Return the tracked data file with the highest version below `version`."""
+def _below(root: Path, version: str) -> list[dict[str, Any]]:
+    """Return the tracked data files with a version below `version`, oldest first."""
     below = [
         record
         for record in _tracked_records(root)
         if version_key(record["version"]) < version_key(version)
     ]
-    below.sort(key=lambda record: version_key(record["version"]))
+    return sorted(below, key=lambda record: version_key(record["version"]))
+
+
+def previous_release(root: Path, version: str) -> dict[str, Any] | None:
+    """Return the tracked data file with the highest version below `version`."""
+    below = _below(root, version)
     return below[-1] if below else None
 
 
@@ -373,8 +379,9 @@ def chart(metric: Metric, points: list[tuple[str, Number | None, bool]]) -> str:
     plot_w, plot_h = _W - _LEFT - _RIGHT, _H - _TOP - _BOTTOM
 
     def x(i: int) -> float:
-        step = plot_w / (len(points) - 1) if len(points) > 1 else 0
-        return _LEFT + (i * step if len(points) > 1 else plot_w / 2)
+        if len(points) == 1:
+            return _LEFT + plot_w / 2
+        return _LEFT + i * plot_w / (len(points) - 1)
 
     def y(v: Number) -> float:
         return _TOP + (hi - v) / (hi - lo) * plot_h
@@ -403,15 +410,16 @@ def chart(metric: Metric, points: list[tuple[str, Number | None, bool]]) -> str:
         else:
             run.append(f"{x(i):.1f},{y(value):.1f}")
     for i, (version, value, here) in enumerate(points):
-        label = ' class="now"' if here else ""
+        now = " now" if here else ""
         parts.append(
-            f'<text class="axis{" now" if here else ""}" x="{x(i):.1f}" y="{_H - 14}" '
+            f'<text class="axis{now}" x="{x(i):.1f}" y="{_H - 14}" '
             f'text-anchor="middle">{_E(version)}</text>'
         )
         if value is not None:
             radius = 4 if here else 2.5
             parts.append(
-                f'<circle{label} cx="{x(i):.1f}" cy="{y(value):.1f}" r="{radius}">'
+                f'<circle class="dot{now}" cx="{x(i):.1f}" cy="{y(value):.1f}" '
+                f'r="{radius}">'
                 f"<title>{_E(version)}: {_fmt(value)}</title></circle>"
             )
     parts.append("</svg>")
@@ -423,8 +431,8 @@ body { font: 14px/1.4 system-ui, sans-serif; margin: 2rem; color: #222; }
 table { border-collapse: collapse; } td, th { padding: .2rem .7rem; text-align: left; }
 tr + tr td { border-top: 1px solid #ddd; } .num { text-align: right; }
 .charts { display: flex; flex-wrap: wrap; gap: 1rem; } figure { margin: 0; }
-.line { fill: none; stroke: #4a6fa5; stroke-width: 1.5; } circle { fill: #4a6fa5; }
-circle.now { fill: #d1495b; } .watch { stroke: #d1495b; }
+.line { fill: none; stroke: #4a6fa5; stroke-width: 1.5; } .dot { fill: #4a6fa5; }
+.dot.now { fill: #d1495b; } .watch { stroke: #d1495b; }
 .axis { font-size: 10px; fill: #666; } .axis.now { fill: #d1495b; font-weight: bold; }
 """
 
@@ -434,20 +442,15 @@ def render_page(
 ) -> str:
     """Return the page: a header, what moved since the previous release, the charts."""
     change, version = record["change"], record["version"]
-    previous = previous_release(root, version)
-    history = [
-        r
-        for r in _tracked_records(root)
-        if r["change"] != change and version_key(r["version"]) < version_key(version)
-    ]
-    history = sorted([*history, record], key=lambda r: version_key(r["version"]))
+    history = _below(root, version)
+    previous = history[-1] if history else None
+    history.append(record)
     rows = []
     for metric in metrics:
         key = metric["id"]
         now, before = _value(record, key), _value(previous, key)
-        state = classify(metric, before, now)
-        rows.append((STATES.index(state), metric, before, now, state))
-    rows.sort(key=lambda row: row[0])
+        rows.append((metric, before, now, classify(metric, before, now)))
+    rows.sort(key=lambda row: STATES.index(row[-1]))
 
     folder = _change_dir(root, change)
     here = (root / out).parent
@@ -479,7 +482,7 @@ def render_page(
         "<table><tr><th>metric</th><th>previous</th><th>now</th><th>Δ</th>"
         "<th>state</th></tr>",
     ]
-    for _, metric, before, now, state in rows:
+    for metric, before, now, state in rows:
         if now is None:
             why = (
                 record["values"]
@@ -524,10 +527,7 @@ def page(root: Path, change: str, data: Path | None, out: Path | None) -> int:
     data = data or CHANGES / f"{change}.json"
     out = out or Path(".minions/metrics") / f"{change}.html"
     record = json.loads((root / data).read_text(encoding="utf-8"))
-    target = root / out
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_page(root, metrics, record, out), encoding="utf-8")
-    print(f"metrics: wrote {out}")
+    _write(root, out, render_page(root, metrics, record, out))
     return 0
 
 

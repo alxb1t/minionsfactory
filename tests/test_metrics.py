@@ -80,7 +80,7 @@ def _script(root: Path, name: str, body: str) -> str:
     return f"scripts/{name}"
 
 
-def _collect(root: Path, *extra: str, base: str = "HEAD") -> int:
+def _collect(*extra: str, base: str = "HEAD") -> int:
     out = ".minions/metrics/0002-x.json"
     argv = ["collect", "--change", "0002-x", "--base", base, "--out", out, *extra]
     return metrics.main(argv)
@@ -101,24 +101,18 @@ def test_collect_writes_a_value_per_metric(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The real `uv run --script` path: the scripts declare no dependency.
-    add = _script(
-        tmp_path, "add.py", "import sys\nprint(sum(int(a) for a in sys.argv[1:]))\n"
-    )
-    env = _script(
-        tmp_path, "env.py", 'import os\nprint(len(os.environ["MF_METRICS_CHANGE"]))\n'
-    )
-    catalogue = (
-        _metric("added", script=add, args=["3", "4"])
-        + _metric("change-id-length", script=env)
-        + _metric("gate-seconds", source="station")
-    )
+    # The script adds its args to the change id's length, read from its environment.
+    body = "import os, sys\nchange = os.environ['MF_METRICS_CHANGE']\n"
+    body += "print(sum(int(a) for a in sys.argv[1:]) + len(change))\n"
+    catalogue = _metric(
+        "added", script=_script(tmp_path, "add.py", body), args=["3", "4"]
+    ) + _metric("gate-seconds", source="station")
     _repo(tmp_path, catalogue)
     monkeypatch.chdir(tmp_path)
 
-    assert _collect(tmp_path, "--value", "gate-seconds=1.5") == 0
+    assert _collect("--value", "gate-seconds=1.5") == 0
     assert _values(tmp_path) == {
-        "added": {"value": 7},
-        "change-id-length": {"value": len("0002-x")},
+        "added": {"value": 7 + len("0002-x")},
         "gate-seconds": {"value": 1.5},
     }
 
@@ -143,7 +137,7 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
     _by_python(monkeypatch)
     monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 0.5)
 
-    assert _collect(tmp_path) == 0
+    assert _collect() == 0
     assert _values(tmp_path) == {
         "says": {"status": "unavailable", "why": "cannot read the backlog"},
         "silent": {"status": "unavailable", "why": "exit 4"},
@@ -159,7 +153,7 @@ def test_no_catalogue_exits_3_and_says_so(
     _repo(tmp_path, None)
     monkeypatch.chdir(tmp_path)
 
-    assert _collect(tmp_path) == 3
+    assert _collect() == 3
     assert metrics.main(["page", "0002-x"]) == 3
     assert capsys.readouterr().out == "metrics: none — no catalogue\n" * 2
     assert not (tmp_path / ".minions").exists()
@@ -182,11 +176,11 @@ def test_a_broken_catalogue_exits_2_naming_the_entry(
     catalogue = tmp_path / "metrics" / "catalogue.toml"
     for text, named in broken.items():
         catalogue.write_text(text)
-        assert _collect(tmp_path) == 2, named
+        assert _collect() == 2, named
         assert named in capsys.readouterr().err
 
     catalogue.write_text(good)
-    assert _collect(tmp_path, "--value", "other=1") == 2
+    assert _collect("--value", "other=1") == 2
     assert "--value other" in capsys.readouterr().err
 
 
@@ -205,7 +199,7 @@ def test_station_values_are_passed_or_derived(
     _git(tmp_path, "commit", "-q", "-m", "work")
     monkeypatch.chdir(tmp_path)
 
-    assert _collect(tmp_path, "--value", "gate-seconds=12", base=base) == 0
+    assert _collect("--value", "gate-seconds=12", base=base) == 0
     assert _values(tmp_path) == {
         "gate-seconds": {"value": 12},
         "diff-lines": {"value": 3},
@@ -311,7 +305,7 @@ def test_the_page_leads_with_what_moved_and_shows_gaps(
     )
     assert gap.count("<polyline") == 2
     assert gap.count("<circle") == 4
-    assert gap.count('<circle class="now"') == 1
+    assert gap.count('<circle class="dot now"') == 1
 
 
 def test_provenance_is_recorded_never_guessed(

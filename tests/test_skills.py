@@ -333,6 +333,13 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     assert _layout_problems(tmp_path)[0] == "docs/decisions.md: no tree under `### D18`"
 
 
+def _file_problem(path: Path) -> str | None:
+    """Return `missing file` or `empty file` for a bad bundled file, else None."""
+    if not path.is_file():
+        return "missing file"
+    return None if path.read_text().strip() else "empty file"
+
+
 def _resource_problems(base: Path) -> list[str]:
     """Return missing, empty or escaping local skill-resource targets."""
     problems: list[str] = []
@@ -345,10 +352,8 @@ def _resource_problems(base: Path) -> list[str]:
             prefix = f"{skill.relative_to(base)}: {target}"
             if not resolved.is_relative_to(package):
                 problems.append(f"{prefix}: outside skill package")
-            elif not resolved.is_file():
-                problems.append(f"{prefix}: missing file")
-            elif not resolved.read_text().strip():
-                problems.append(f"{prefix}: empty file")
+            elif problem := _file_problem(resolved):
+                problems.append(f"{prefix}: {problem}")
     return problems
 
 
@@ -407,10 +412,8 @@ def _metrics_script_problems(base: Path) -> list[str]:
         prefix = f"skills/{name}/SKILL.md: {target}"
         if not skill.is_file() or target not in skill.read_text():
             problems.append(f"{prefix}: not named")
-        elif not (resolved := skill.parent / target).is_file():
-            problems.append(f"{prefix}: missing file")
-        elif not resolved.read_text().strip():
-            problems.append(f"{prefix}: empty file")
+        elif problem := _file_problem(skill.parent / target):
+            problems.append(f"{prefix}: {problem}")
     return problems
 
 

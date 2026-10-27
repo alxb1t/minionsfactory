@@ -47,6 +47,7 @@ def broken(root: Path) -> int:
         for text in texts.values()
         for n in re.findall(r"^### D(\d+) ·", text, re.M)
     }
+    known: dict[Path, set[str]] = {}
     total = 0
     for path, text in texts.items():
         prose = _prose(text)
@@ -58,7 +59,9 @@ def broken(root: Path) -> int:
             if not linked.exists():
                 total += 1
             elif anchor and linked.suffix == ".md":
-                total += anchor not in anchors(linked.read_text(encoding="utf-8"))
+                if linked not in known:
+                    known[linked] = anchors(linked.read_text(encoding="utf-8"))
+                total += anchor not in known[linked]
         if path.name != "README.md":
             total += sum(int(n) not in headings for n in DECISION.findall(prose))
     return total
