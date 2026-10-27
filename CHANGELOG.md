@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Record the design as D43, let D2 allow a bundled script and D18 name `metrics/` as optional, and name the new
+  paths in `AGENTS.md`, `README.md` and `docs/README.md` (change `0030-change-impact`, phase 4). The draft and
+  page for this change were collected on MF itself.
+
 - Collect the metrics at the stations: the build drafts them after simplify and names the page, and the release
   commits `metrics/changes/<change-id>.json` (change `0030-change-impact`, phase 3). No catalogue, no metrics.
 

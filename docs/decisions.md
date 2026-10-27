@@ -10,7 +10,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38                   D11…D17, D40
+       D5…D10, D38                   D11…D17, D40, D43
 
   The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42
 ```
@@ -31,7 +31,8 @@ all about one thing.**
 
 **What MinionsFactory ships is a way of working — grill, cut, build, converge, release — as installable skills. It
 is not a framework. The stations install nothing into the repo they work on; `mf-bootstrap` writes a new
-repo's starting files, once.**
+repo's starting files, once. A skill may bundle a standard-library script, run from its own package and never
+copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
 
 - **Why:** a tool installed per repo is a copy of the contract in every target.
 
@@ -211,6 +212,19 @@ persists in that file. Claude Code keeps parallel dispatch; generic workers may 
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
 
+### D43 · Project health is measured per change, from the repo's own catalogue
+
+**A repo that adopts declares its metrics in `metrics/catalogue.toml`. The build collects a draft after simplify,
+for the person to read before converge; the release collects on its final tree and commits
+`metrics/changes/<change-id>.json`. One bundled script collects and renders; each metric is a Python script it
+runs without a shell; the page is generated from the data, never tracked. No catalogue, no metrics, and the
+station says so.**
+
+- **Why:** the gate proves a project works, not where it is heading; every number comes from a command, never from
+  an agent.
+- **Rejected:** an analysis platform — the repo would report outward · a narrative report — a prose copy drifts ·
+  a tracked page — a view is regenerable · metrics run on a repo that declared none.
+
 ## The target repo
 
 What the skills need from a repository they work on.
@@ -229,6 +243,9 @@ What the skills need from a repository they work on.
 ├── AGENTS.md            what is true of this repo
 └── .minions/            run output, gitignored
 ```
+
+`metrics/` is optional: a repo that adopts holds its catalogue and its data files there
+([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)); the bootstrap writes none.
 
 - **Why:** what travels between repos is a layout a reader can find, not a tool.
 - **Held in step by:** the layout scan in `tests/test_skills.py`: every entry of the tree has a template in

@@ -28,7 +28,9 @@ What holds, and what was chosen.
 
 | where | holds |
 |---|---|
-| [`skills/`](../skills/) | station instructions and bundled generic role references; Claude Code retains native engines |
+| [`skills/`](../skills/) | station instructions, bundled generic role references and the bundled metrics script; Claude Code retains native engines |
+| [`metrics/`](../metrics/) | MF's metrics catalogue and the data file each release records |
+| [`scripts/metrics/`](../scripts/metrics/) | the metric scripts the catalogue names |
 | [`openspec/specs/`](../openspec/specs/) | the living spec |
 | [`openspec/changes/`](../openspec/changes/) | the active change, and the archive |
 | [`CHANGELOG.md`](../CHANGELOG.md) | what shipped, per version |

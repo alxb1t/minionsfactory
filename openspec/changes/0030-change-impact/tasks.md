@@ -8,7 +8,7 @@ the design's, word for word.
 - [x] 1 — Write the collector
 - [x] 2 — Write MF's catalogue and metric scripts
 - [x] 3 — Add the stations' metrics steps
-- [ ] 4 — Record the design and demonstrate it on MF
+- [x] 4 — Record the design and demonstrate it on MF
 
 ## 1 — Write the collector
 
@@ -39,11 +39,11 @@ the design's, word for word.
 
 ## 4 — Record the design and demonstrate it on MF
 
-- [ ] 4.1 In `docs/decisions.md`, add D43 after D40, extend the overview line, and amend D2 and D18, per [D8](design.md#d8).
+- [x] 4.1 In `docs/decisions.md`, add D43 after D40, extend the overview line, and amend D2 and D18, per [D8](design.md#d8).
   Verify: `grep -c "^### D43 · Project health is measured per change, from the repo's own catalogue$" docs/decisions.md` prints `1`, and `grep -c 'D11…D17, D40, D43' docs/decisions.md` prints `1`.
-- [ ] 4.2 Name the new paths in `AGENTS.md`, `README.md` and `docs/README.md`, per [D8](design.md#d8).
+- [x] 4.2 Name the new paths in `AGENTS.md`, `README.md` and `docs/README.md`, per [D8](design.md#d8).
   Verify: `grep -q 'scripts/metrics/' AGENTS.md && grep -q 'scripts/metrics/' docs/README.md && grep -q 'metrics/catalogue.toml' README.md` exits 0.
-- [ ] 4.3 Collect and render this change's draft on MF, per [D9](design.md#d9): `uv run --script skills/mf-build/scripts/metrics.py collect --change 0030-change-impact --base 8c88e90 --out .minions/metrics/0030-change-impact.json`, then `uv run --script skills/mf-build/scripts/metrics.py page 0030-change-impact --data .minions/metrics/0030-change-impact.json`.
+- [x] 4.3 Collect and render this change's draft on MF, per [D9](design.md#d9): `uv run --script skills/mf-build/scripts/metrics.py collect --change 0030-change-impact --base 8c88e90 --out .minions/metrics/0030-change-impact.json`, then `uv run --script skills/mf-build/scripts/metrics.py page 0030-change-impact --data .minions/metrics/0030-change-impact.json`.
   Verify: ``uv run python -c 'import json; v = json.load(open(".minions/metrics/0030-change-impact.json"))["values"]; assert len(v) == 12 and all("value" in v[k] for k in v if k != "gate-seconds")'`` exits 0, and `grep -q 'What moved' .minions/metrics/0030-change-impact.html` exits 0.
-- [ ] 4.4 The suite has the planned tests.
+- [x] 4.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `35 tests collected`.

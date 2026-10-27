@@ -33,6 +33,10 @@ skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies 
   pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
+- **`metrics/`** — MF's metrics: `catalogue.toml` declares what is measured, and `changes/` holds the data file
+  each release records, per D43.
+- **`scripts/metrics/`** — the metric scripts the catalogue names. `uv` runs them and the bundled collector,
+  `skills/mf-build/scripts/metrics.py`, as it runs the gate.
 - **`tests/`** — the suite.
 - **Project inputs and outputs stay inside the repository**, per the principle *The repo reaches nothing outside
   itself*.
