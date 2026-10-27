@@ -127,9 +127,11 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "words": 'print("12")\nprint("n/a")\n',
         "slow": "import time\ntime.sleep(5)\n",
         "fine": 'print("note")\nprint(" 9 ")\n',
-        # uv's error for a missing script names the home and the root in full.
+        # uv's error for a missing script names the home and the root in full;
+        # a path that only shares their prefix is left as it is.
         "paths": "import os, sys\nhome, root = os.path.expanduser('~'), os.getcwd()\n"
-        "print(f\"{home}/x/python: can't open '{root}/gone.py'\", file=sys.stderr)\n"
+        "sys.stderr.write(f\"{home}/x/python: can't open '{root}/gone.py' \")\n"
+        "print(f'near {root}s/a {home}ice/b /opt{root}/c', file=sys.stderr)\n"
         "sys.exit(2)\n",
     }
     catalogue = "".join(
@@ -140,7 +142,8 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
     monkeypatch.chdir(tmp_path)
     _by_python(monkeypatch)
     monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 0.5)
-    monkeypatch.setenv("HOME", str(tmp_path.parent / "fictional-home"))
+    home = tmp_path.parent / "fictional-home"
+    monkeypatch.setenv("HOME", str(home))
 
     assert _collect() == 0
     assert _values(tmp_path) == {
@@ -151,7 +154,8 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "fine": {"value": 9},
         "paths": {
             "status": "unavailable",
-            "why": "~/x/python: can't open '<repo>/gone.py'",
+            "why": "~/x/python: can't open '<repo>/gone.py' "
+            f"near {tmp_path}s/a {home}ice/b /opt{tmp_path}/c",
         },
     }
 
@@ -179,6 +183,11 @@ def test_a_broken_catalogue_exits_2_naming_the_entry(
         _metric("up", source="station", better="up"): "metric 1 `up`: `better`",
         _metric("both", source="station", script="s"): "1 `both`: declares both",
         _metric("none"): "metric 1 `none`: declares neither",
+        _metric("typo", source="station", wacth=0): "1 `typo`: unknown key `wacth`",
+        # A script outside the tree is code no reviewed diff shows.
+        _metric("url", script="https://example.invalid/m.py"): "1 `url`: `script` is",
+        _metric("abs", script="/elsewhere/m.py"): "1 `abs`: `script` is not",
+        _metric("up", script="../m.py"): "1 `up`: `script` is not a path inside",
     }
     _repo(tmp_path, "")
     monkeypatch.chdir(tmp_path)
@@ -276,7 +285,7 @@ def test_previous_is_the_highest_version_below(tmp_path: Path) -> None:
 
 
 def test_the_page_leads_with_what_moved_and_shows_gaps(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     catalogue = (
         _metric("steady", source="station", noise=5)
@@ -296,6 +305,8 @@ def test_the_page_leads_with_what_moved_and_shows_gaps(
     assert (
         metrics.main(["page", "0002-x", "--data", str(data.relative_to(tmp_path))]) == 0
     )
+    # The build's close-out quotes the counts; no agent counts the rows.
+    assert "metrics: crossed here 1 · worsened 1\n" in capsys.readouterr().out
     page = (tmp_path / ".minions" / "metrics" / "0002-x.html").read_text()
     states = ["crossed here", "worsened", "over", "steady", "unavailable"]
     at = [page.index(f"<td>{state}</td>") for state in states]
@@ -346,3 +357,18 @@ def test_provenance_is_recorded_never_guessed(
     assert frozen.main(argv) == 0
     data = json.loads((repo / out).read_text())
     assert (data["executor"], data["model"]) == ("native (Claude Code)", "m-1")
+
+    # A copy vendored into another checkout is not MF's; one at MF's own path is.
+    host = tmp_path / "host"
+    places = {
+        ".claude/skills/mf-build/scripts": "unknown",
+        "skills/mf-build/scripts": "v9.9",
+    }
+    for place in places:
+        (host / place).mkdir(parents=True)
+        shutil.copy(_SCRIPT, host / place)
+    _git(host, "init", "-q")
+    _git(host, "add", ".")
+    _git(host, "commit", "-q", "-m", "host")
+    _git(host, "tag", "v9.9")
+    assert {place: metrics.mf_version(host / place) for place in places} == places

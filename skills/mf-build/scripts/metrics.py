@@ -26,9 +26,11 @@ from typing import Any
 
 CATALOGUE = Path("metrics/catalogue.toml")
 CHANGES = Path("metrics/changes")
+MF_PATH = Path("skills/mf-build/scripts/metrics.py")
 NO_CATALOGUE = "metrics: none — no catalogue"
 TIMEOUT_SECONDS = 300
 REQUIRED = ("id", "title", "group", "unit", "better")
+KEYS = {*REQUIRED, "watch", "noise", "script", "args", "source"}
 DERIVED = ("diff-lines", "diff-files", "phases")
 # What moved lists the states in this order; within a state, the catalogue's.
 STATES = (
@@ -61,13 +63,22 @@ def _is_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
-def _entry_problem(entry: dict[str, Any], seen: set[str]) -> str | None:
+def _inside(root: Path, script: str) -> bool:
+    """Return whether `script` is a path that resolves inside `root`, never a URL."""
+    if re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script):
+        return False
+    return (root / script).resolve().is_relative_to(root.resolve())
+
+
+def _entry_problem(entry: dict[str, Any], seen: set[str], root: Path) -> str | None:
     """Return what is wrong with one `[[metric]]` entry, or None."""
     missing = [key for key in REQUIRED if not isinstance(entry.get(key), str)]
     if missing:
         return "missing " + ", ".join(f"`{key}`" for key in missing)
     if entry["id"] in seen:
         return "`id` repeated"
+    if unknown := sorted(entry.keys() - KEYS):
+        return "unknown key " + ", ".join(f"`{key}`" for key in unknown)
     if entry["better"] not in ("lower", "higher"):
         return "`better` is neither `lower` nor `higher`"
     if "script" in entry and "source" in entry:
@@ -78,6 +89,8 @@ def _entry_problem(entry: dict[str, Any], seen: set[str]) -> str | None:
         return '`source` is not "station"'
     if "script" in entry and not isinstance(entry["script"], str):
         return "`script` is not a string"
+    if "script" in entry and not _inside(root, entry["script"]):
+        return "`script` is not a path inside the repository"
     args = entry.get("args", [])
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
         return "`args` is not a list of strings"
@@ -109,7 +122,7 @@ def load_catalogue(root: Path) -> list[Metric] | None:
             raise CatalogueError(f"{name}: not a table")
         if isinstance(entry.get("id"), str):
             name += f" `{entry['id']}`"
-        if problem := _entry_problem(entry, seen):
+        if problem := _entry_problem(entry, seen, root):
             raise CatalogueError(f"{name}: {problem}")
         seen.add(entry["id"])
     return entries
@@ -137,10 +150,15 @@ def _unavailable(why: str) -> Value:
 
 
 def _scrubbed(why: str, root: Path) -> str:
-    """Return `why`, to be committed, with the root as `<repo>` and the home as `~`."""
-    why = why.replace(str(root), "<repo>")
-    home = str(Path.home())
-    return why.replace(home, "~") if home != root.anchor else why
+    """Return `why`, to be committed, with the root as `<repo>` and the home as `~`.
+
+    Only a whole path is replaced: `/app` never inside `/usr/app/x` or `/apps`.
+    """
+    for path, name in ((root, "<repo>"), (Path.home(), "~")):
+        if str(path) != path.anchor:
+            whole = r"(?<![\w.~/\\-])" + re.escape(str(path)) + r"(?=[/\\'\"\s:]|$)"
+            why = re.sub(whole, name, why)
+    return why
 
 
 def run_metric(root: Path, metric: Metric, env: dict[str, str]) -> Value:
@@ -218,8 +236,19 @@ def _derived(root: Path, change: str, base: str, head: str) -> dict[str, Value]:
 
 
 def mf_version(package: Path) -> str:
-    """Return `git describe` of the checkout holding `package`, else `unknown`."""
+    """Return `git describe` of the MF checkout holding `package`, else `unknown`.
+
+    A checkout that tracks the collector anywhere but `MF_PATH` is not MF's.
+    """
     try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--full-name", MF_PATH.name],
+            cwd=package,
+            capture_output=True,
+            text=True,
+        )
+        if tracked.returncode != 0 or tracked.stdout.strip() != MF_PATH.as_posix():
+            return "unknown"
         done = subprocess.run(
             ["git", "describe", "--tags", "--always", "--dirty"],
             cwd=package,
@@ -444,6 +473,21 @@ tr + tr td { border-top: 1px solid #ddd; } .num { text-align: right; }
 """
 
 
+Row = tuple[Metric, Number | None, Number | None, str]
+
+
+def moved(
+    metrics: list[Metric], record: dict[str, Any], previous: dict[str, Any] | None
+) -> list[Row]:
+    """Return (metric, previous, now, state) per metric, in What moved's order."""
+    rows = []
+    for metric in metrics:
+        key = metric["id"]
+        now, before = _value(record, key), _value(previous, key)
+        rows.append((metric, before, now, classify(metric, before, now)))
+    return sorted(rows, key=lambda row: STATES.index(row[-1]))
+
+
 def render_page(
     root: Path, metrics: list[Metric], record: dict[str, Any], out: Path
 ) -> str:
@@ -452,12 +496,7 @@ def render_page(
     history = _below(root, version)
     previous = history[-1] if history else None
     history.append(record)
-    rows = []
-    for metric in metrics:
-        key = metric["id"]
-        now, before = _value(record, key), _value(previous, key)
-        rows.append((metric, before, now, classify(metric, before, now)))
-    rows.sort(key=lambda row: STATES.index(row[-1]))
+    rows = moved(metrics, record, previous)
 
     folder = _change_dir(root, change)
     here = (root / out).parent
@@ -535,6 +574,10 @@ def page(root: Path, change: str, data: Path | None, out: Path | None) -> int:
     out = out or Path(".minions/metrics") / f"{change}.html"
     record = json.loads((root / data).read_text(encoding="utf-8"))
     _write(root, out, render_page(root, metrics, record, out))
+    rows = moved(metrics, record, previous_release(root, record["version"]))
+    states = [row[-1] for row in rows]
+    crossed, worsened = states.count("crossed here"), states.count("worsened")
+    print(f"metrics: crossed here {crossed} · worsened {worsened}")
     return 0
 
 

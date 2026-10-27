@@ -26,7 +26,7 @@ the design's, word for word.
 - [x] 2.2 Write `metrics/catalogue.toml` with [D7](design.md#d7)'s entries, in its table's order.
   Verify: `grep -c '^\[\[metric\]\]' metrics/catalogue.toml` prints `12`.
 - [x] 2.3 Write `tests/test_metric_scripts.py` with the tests the [Tests](design.md#tests) table names for it.
-  Verify: `uv run pytest -q tests/test_metric_scripts.py` reports `6 passed`.
+  Verify: `uv run pytest -q tests/test_metric_scripts.py` reports `7 passed`.
 
 ## 3 — Add the stations' metrics steps
 
@@ -46,4 +46,4 @@ the design's, word for word.
 - [x] 4.3 Collect and render this change's draft on MF, per [D9](design.md#d9): `uv run --script skills/mf-build/scripts/metrics.py collect --change 0030-change-impact --base 8c88e90 --out .minions/metrics/0030-change-impact.json`, then `uv run --script skills/mf-build/scripts/metrics.py page 0030-change-impact --data .minions/metrics/0030-change-impact.json`.
   Verify: ``uv run python -c 'import json; v = json.load(open(".minions/metrics/0030-change-impact.json"))["values"]; assert len(v) == 12 and all("value" in v[k] for k in v if k != "gate-seconds")'`` exits 0, and `grep -q 'What moved' .minions/metrics/0030-change-impact.html` exits 0.
 - [x] 4.4 The suite has the planned tests.
-  Verify: `uv run pytest --collect-only -q | tail -1` prints `35 tests collected`.
+  Verify: `uv run pytest --collect-only -q | tail -1` prints `36 tests collected`.

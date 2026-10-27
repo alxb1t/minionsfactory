@@ -98,8 +98,9 @@ the catalogue declares no station metric for is ignored, with a note on stderr, 
 lines of the change's `tasks.md`, active or archived) are derived by the collector itself from `--base`: the cut
 settles this detail of Q39, so no station copies a number by hand.
 
-**A broken catalogue:** TOML that does not parse; a missing required field; an `id` repeated; `better` other than
-`lower` or `higher`; both or neither of `script` and `source`.
+**A broken catalogue:** TOML that does not parse; a missing required field; a key D3 does not name; an `id`
+repeated; `better` other than `lower` or `higher`; both or neither of `script` and `source`; a `script` that is a
+URL, absolute, or resolves outside the root, since the station would run code no reviewed diff shows.
 
 ### D4
 
@@ -121,9 +122,11 @@ settles this detail of Q39, so no station copies a number by hand.
 ```
 
 `version` is read from the change's `proposal.md` (`openspec/changes/<id>/`, else `openspec/changes/archive/<id>/`).
-`mf_version` is `git describe --tags --always --dirty` in the directory the collector's own path resolves to, else
-`unknown`. `executor` is what executor selection reported; `model` is the station's own report, else
-`unidentified`. `measured_on` is `local` in this version.
+`mf_version` is `git describe --tags --always --dirty` in the directory the collector's own path resolves to, when
+that checkout tracks it at `skills/mf-build/scripts/metrics.py`, else `unknown`: a copy vendored into another
+checkout is not MF's. `executor` is what executor selection reported; `model` is the station's own report, else
+`unidentified`. `measured_on` is `local` in this version. `analyzed` is `HEAD`; at release that is the last build
+commit, and the values measure its tree plus the staged fold, archive and changelog.
 
 ### D5
 
@@ -171,7 +174,7 @@ after Step 3's commit or no-op, from the repository root:
    --out .minions/metrics/<change-id>.json --executor "<what executor selection reported>"
    --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
 2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data .minions/metrics/<change-id>.json`
-   writes `.minions/metrics/<change-id>.html`.
+   writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
 
 | exit | then |
 |---|---|
@@ -184,7 +187,7 @@ A metric `unavailable` is not a halt, and **a watch never halts the build**: the
 before converge.
 ```
 
-Its *Your sentences* gain: *the metrics page and its counts of crossed here and worsened, or `metrics: none — no
+Its *Your sentences* gain: *the metrics page with the counts line its `page` printed, or `metrics: none — no
 catalogue`*.
 
 **`skills/mf-release/SKILL.md`** — in *Step 4 — Cut the version line*, after item 2:
@@ -214,7 +217,7 @@ none — no catalogue`*.
 | `converge-reading-set` | instruction load | words | lower | 10500 · 50 | `reading_set.py converge`: words of `AGENTS.md`, `docs/principles.md`, `docs/decisions.md`, `skills/mf-converge/SKILL.md` |
 | `shared-context` | instruction load | words | lower | — · 50 | `reading_set.py shared`: the first three |
 | `rule-ids` | contract | ids | lower | — | `rule_ids.py`: distinct bold first-cell ids `I`, `P`, `T`, `W`, `C`, `A` across `skills/*/SKILL.md` |
-| `tests-collected` | proof | tests | higher | — | `tests_collected.py`: `uv run pytest --collect-only -q`, the number before `tests collected` |
+| `tests-collected` | proof | tests | higher | — | `tests_collected.py`: `uv run pytest --collect-only -q`, the number before `tests collected`; a non-zero exit → `unavailable` |
 | `gate-seconds` | proof | seconds | lower | — · 5 | `source = "station"` |
 | `hedge-words` | clarity | words | lower | — | `prose.py hedge`: *should*, *might*, *appropriately*, *as needed*, *if possible*, *etc.*, *probably*, *typically*, *generally*, *various* — whole words, any case |
 | `long-sentences` | clarity | sentences | lower | — | `prose.py long`: sentences over 30 words |
@@ -224,8 +227,9 @@ none — no catalogue`*.
 | `amends` | conformance | commits | lower | — | `conformance.py amends`: subjects `docs(<id>): amend the change directory` in `<base>..HEAD` |
 | `open-backlog-cards` | debt | cards | lower | 10 | `backlog.py`: lines `- **<4 digits>·` in `.minions/backlog.md`; no file → `unavailable` |
 
-`prose.py` reads `skills/*/SKILL.md` and `skills/*/references/*.md`, outside fenced code, inline code and table
-rows; a sentence ends at `.`, `!` or `?` before a space or the paragraph's end. Skill text's example links —
+`prose.py` reads `skills/*/SKILL.md` and `skills/*/references/*.md`, outside frontmatter, fenced code, inline code
+and table rows; a sentence ends at `.`, `!` or `?` before a space or the paragraph's end, and a list item starts a
+paragraph. A heading's anchor, for `references.py`, keeps its inline code's text, as GitHub's does. Skill text's example links —
 `[design](design.md)` — are not references, so `references.py` reads the docs, not the skills.
 
 ### D8
@@ -274,7 +278,7 @@ real `uv run --script` path over a metric script with no dependency.
 
 | layer | at cut | added | removed | proof |
 |---|---:|---:|---:|---|
-| Unit test functions | 18 | 17 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `18 tests collected` at the cut, `35 tests collected` after |
+| Unit test functions | 18 | 18 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `18 tests collected` at the cut, `36 tests collected` after |
 | Integration tests | 0 | 0 | 0 | — |
 | End-to-end runs | 0 | 0 | 0 | — |
 
@@ -283,7 +287,7 @@ real `uv run --script` path over a metric script with no dependency.
 | `test_collect_writes_a_value_per_metric` | `tests/test_metrics.py` | each declared metric gets a value; the real `uv run --script` path |
 | `test_a_failing_metric_is_unavailable_with_its_reason` | the same | non-zero exit, no number, timeout |
 | `test_no_catalogue_exits_3_and_says_so` | the same | the switch |
-| `test_a_broken_catalogue_exits_2_naming_the_entry` | the same | parse, missing field, repeated id, bad `better`, both or neither of `script` and `source` |
+| `test_a_broken_catalogue_exits_2_naming_the_entry` | the same | parse, missing field, repeated id, bad `better`, both or neither of `script` and `source`, an unknown key, a `script` outside the root |
 | `test_station_values_are_passed_or_derived` | the same | `--value`, the git-derived ones, an unpassed one `unavailable` |
 | `test_the_states_against_the_previous_release` | the same | every row of D5's table |
 | `test_previous_is_the_highest_version_below` | the same | `v0.9` < `v0.10`; no previous → new |
@@ -291,14 +295,15 @@ real `uv run --script` path over a metric script with no dependency.
 | `test_provenance_is_recorded_never_guessed` | the same | `unknown`, `unidentified`, the revisions |
 | `test_reading_sets_count_words` | `tests/test_metric_scripts.py` | `reading_set.py` |
 | `test_rule_ids_are_counted_once` | the same | `rule_ids.py` |
-| `test_prose_skips_code_and_tables` | the same | `prose.py`: hedge words, long sentences |
+| `test_prose_skips_code_and_tables` | the same | `prose.py`: hedge words, long sentences; frontmatter skipped, a list item its own paragraph |
+| `test_tests_collected_is_unavailable_on_a_broken_collection` | the same | `tests_collected.py`: a non-zero exit is no count |
 | `test_broken_references_find_files_headings_and_ids` | the same | `references.py` |
 | `test_conformance_counts_trailers_amends_and_minions` | the same | `conformance.py`, in a `tmp_path` git repo |
 | `test_backlog_cards_are_unavailable_without_a_backlog` | the same | `backlog.py` |
 | `test_the_stations_run_the_bundled_metrics_script` | `tests/test_skills.py` | `mf-build` names `scripts/metrics.py` and `mf-release` names `../mf-build/scripts/metrics.py`, each resolving to a nonempty file |
 | `test_the_metrics_script_scan_reports_a_missing_script` | the same | its twin (`W5`, `T6`) |
 
-Planned addition count: ``grep -cE '^\| `test_[a-z0-9_]+` \| `?(tests/|the same)' openspec/changes/0030-change-impact/design.md`` prints `17`.
+Planned addition count: ``grep -cE '^\| `test_[a-z0-9_]+` \| `?(tests/|the same)' openspec/changes/0030-change-impact/design.md`` prints `18`.
 
 ## Dependencies
 

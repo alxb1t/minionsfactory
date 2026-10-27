@@ -190,7 +190,7 @@ after Step 3's commit or no-op, from the repository root:
    --out .minions/metrics/<change-id>.json --executor "<what executor selection reported>"
    --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
 2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data .minions/metrics/<change-id>.json`
-   writes `.minions/metrics/<change-id>.html`.
+   writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
 
 | exit | then |
 |---|---|
@@ -208,8 +208,8 @@ before converge.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
-did not — the simplify commit id or honest no-op, and the metrics page and its counts of crossed here and
-worsened, or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
+did not — the simplify commit id or honest no-op, and the metrics page with the counts line its `page` printed,
+or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Then **stop** and hand back.
 
 ## Stop-conditions — halt rather than guess

@@ -4,8 +4,9 @@
 # ///
 """Print the skills' hedge words (`hedge`) or sentences over 30 words (`long`).
 
-The text is `skills/*/SKILL.md` and `skills/*/references/*.md`, outside fenced
-code, inline code and table rows. Why: 0030-change-impact design D7.
+The text is `skills/*/SKILL.md` and `skills/*/references/*.md`, outside
+frontmatter, fenced code, inline code and table rows. Why: 0030-change-impact
+design D7.
 """
 
 import re
@@ -18,13 +19,17 @@ HEDGES = re.compile(
     re.IGNORECASE,
 )
 LONG = 30
+FRONTMATTER = re.compile(r"\A---\n.*?^---$", re.DOTALL | re.MULTILINE)
+ITEM = re.compile(r"\s*([-*+]|\d+\.)\s")
 
 
 def paragraphs(text: str) -> list[str]:
     r"""Return the prose paragraphs of a markdown text, each joined to one line.
 
-    e.g. "A `b` c.\n| x |\n\nD." → ["A  c.", "D."]
+    A leading `---` frontmatter block is skipped, and a list item starts a paragraph.
+    e.g. "A `b` c.\n| x |\n\nD.\n- e" → ["A  c.", "D.", "- e"]
     """
+    text = FRONTMATTER.sub("", text, count=1)
     found: list[str] = []
     lines: list[str] = []
     fenced = False
@@ -34,11 +39,11 @@ def paragraphs(text: str) -> list[str]:
             continue
         if fenced or line.lstrip().startswith("|"):
             continue
-        if line.strip():
-            lines.append(re.sub(r"`[^`]*`", "", line.strip()))
-        elif lines:
+        if lines and (not line.strip() or ITEM.match(line)):
             found.append(" ".join(lines))
             lines = []
+        if line.strip():
+            lines.append(re.sub(r"`[^`]*`", "", line.strip()))
     return found
 
 

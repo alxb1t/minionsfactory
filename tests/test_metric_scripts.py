@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts" / "metrics"
 
 
@@ -66,14 +68,34 @@ def test_rule_ids_are_counted_once(tmp_path: Path) -> None:
     assert _load("rule_ids").rule_ids(tmp_path) == 2
 
 
+def test_tests_collected_is_unavailable_on_a_broken_collection() -> None:
+    tests_collected = _load("tests_collected")
+    assert tests_collected.collected("35 tests collected in 0.1s\n", 0) == 35
+
+    # A test file that fails to import still prints a partial count.
+    with pytest.raises(SystemExit, match="exit 2"):
+        tests_collected.collected("1 test collected, 1 error in 0.1s\n", 2)
+
+
 def test_prose_skips_code_and_tables(tmp_path: Path) -> None:
     long = " ".join(["word"] * 31) + "."
     limit = " ".join(["word"] * 30) + "."
+    item = " ".join(["word"] * 20)
     _write(
         tmp_path,
         {
             "skills/mf-a/SKILL.md": "\n".join(
                 [
+                    # Frontmatter is not prose, and each list item is its own.
+                    "---",
+                    f"description: {item} {item}",
+                    "---",
+                    "",
+                    f"- {item}",
+                    f"  {item[:9]}",
+                    f"- {item}",
+                    f"1. {item}",
+                    "",
                     "You should go. As NEEDED, it is etc. a shoulder.",
                     "Use `should` here.",
                     "",
@@ -105,10 +127,13 @@ def test_broken_references_find_files_headings_and_ids(tmp_path: Path) -> None:
                     "[ok](docs/a.md) [gone](docs/missing.md) [web](https://example.com)",
                     "[head](docs/a.md#real-heading) [bad](docs/a.md#no-such-heading)",
                     "[id](docs/a.md#d1--one) per D1 and D9; `D7 [code](nowhere.md)`.",
+                    # A heading's inline code keeps its text in the anchor.
+                    "[claim](docs/a.md#fixed-is-a-claim-only-the-checker-writes-verified)",
                 ]
             ),
             "README.md": "D9 is a version here. [self](#top)\n\n# Top\n",
-            "docs/a.md": "# Real heading\n\n### D1 · One\n\n```\n[x](no.md)\n```\n",
+            "docs/a.md": "# Real heading\n\n### D1 · One\n\n```\n[x](no.md)\n```\n"
+            "\n### `fixed` is a claim; only the checker writes `verified`\n",
         },
     )
 

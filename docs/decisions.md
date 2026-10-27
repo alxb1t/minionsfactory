@@ -224,6 +224,8 @@ station says so.**
   an agent.
 - **Rejected:** an analysis platform — the repo would report outward · a narrative report — a prose copy drifts ·
   a tracked page — a view is regenerable · metrics run on a repo that declared none.
+- **Accepts:** a release's data file sits inside the commit it measures, so its `analyzed` names the last build
+  commit, and its values are that commit's tree plus the release's staged fold, archive and changelog.
 
 ## The target repo
 

@@ -17,19 +17,24 @@ DECISION = re.compile(r"\bD(\d+)\b")
 HEADING = re.compile(r"^#+\s+(.*)$", re.MULTILINE)
 
 
+def _unfenced(text: str) -> str:
+    """Return `text` without fenced code."""
+    return re.sub(r"^\s*```.*?^\s*```", "", text, flags=re.MULTILINE | re.DOTALL)
+
+
 def _prose(text: str) -> str:
     """Return `text` without fenced or inline code, where links are examples."""
-    text = re.sub(r"^\s*```.*?^\s*```", "", text, flags=re.MULTILINE | re.DOTALL)
-    return re.sub(r"`[^`\n]*`", "", text)
+    return re.sub(r"`[^`\n]*`", "", _unfenced(text))
 
 
 def anchors(text: str) -> set[str]:
     """Return the heading anchors GitHub gives a markdown text.
 
+    A heading's inline code keeps its text, as GitHub's anchor does.
     e.g. "### D14 · Converge is optional" → "d14--converge-is-optional"
     """
     found: set[str] = set()
-    for heading in HEADING.findall(_prose(text)):
+    for heading in HEADING.findall(_unfenced(text)):
         slug = re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
         number = 0
         while (candidate := slug + (f"-{number}" if number else "")) in found:
