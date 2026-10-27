@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-10-27
+
+Gate: local 0m4s · CI 0m13s (CI at d7a18b8) · 0.30.0: local 0m5s · CI 0m11s (CI at 8c88e90)
+
+- Record v0.30.0's metrics, `metrics/changes/0030-change-impact.json`, measured on the `v0.30.0` tree (change
+  `0031-metrics-baseline`, phase 1). It is the previous release the next page compares with.
+
 ## [0.30.0] - 2026-10-27
 
 Gate: local 0m5s · CI 0m11s (CI at 8c88e90) · 0.29.0: local 0m1s · CI 0m11s (CI at a926ca1)
