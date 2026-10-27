@@ -155,8 +155,10 @@ binding check covers it, and a gate without one gives a separate step nothing to
    **2b. Metrics.** No `metrics/catalogue.toml` → record `metrics: none — no catalogue`. Otherwise, from the
    repository root: `uv run --script ../mf-build/scripts/metrics.py collect --change <change-id> --base <base>
    --out metrics/changes/<change-id>.json --value gate-seconds=<precondition 1's seconds>
-   --executor "<what you identified>" --model "<your model, or unidentified>"` — `../mf-build/` resolved from this
-   skill's package, `<base>` as in precondition 8. Exit 2, any other non-zero exit, a missing script or a missing
+   [--executor "<executor>"] --model "<your model, or unidentified>"` — `../mf-build/` resolved from this
+   skill's package, `<base>` as in precondition 8. Pass `--executor` only from runtime evidence, worded as
+   `mf-build`'s *Executor selection* reports it: `native (Claude Code)` or `generic (<executor>)`. No evidence →
+   omit it, and the file records `unidentified`. Exit 2, any other non-zero exit, a missing script or a missing
    `uv` → **halt**, nothing committed. Stage `metrics/changes/<change-id>.json` by name.
 3. **Re-run the full gate — before anything is committed or tagged.** The fold and the archive moved files the
    gate reads, so Step 1's green says nothing about this tree. **Red → halt: report it and stop, and never repair

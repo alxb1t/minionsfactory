@@ -127,6 +127,10 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "words": 'print("12")\nprint("n/a")\n',
         "slow": "import time\ntime.sleep(5)\n",
         "fine": 'print("note")\nprint(" 9 ")\n',
+        # uv's error for a missing script names the home and the root in full.
+        "paths": "import os, sys\nhome, root = os.path.expanduser('~'), os.getcwd()\n"
+        "print(f\"{home}/x/python: can't open '{root}/gone.py'\", file=sys.stderr)\n"
+        "sys.exit(2)\n",
     }
     catalogue = "".join(
         _metric(key, script=_script(tmp_path, f"{key}.py", body))
@@ -136,6 +140,7 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
     monkeypatch.chdir(tmp_path)
     _by_python(monkeypatch)
     monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 0.5)
+    monkeypatch.setenv("HOME", str(tmp_path.parent / "fictional-home"))
 
     assert _collect() == 0
     assert _values(tmp_path) == {
@@ -144,6 +149,10 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "words": {"status": "unavailable", "why": "no number on the last line"},
         "slow": {"status": "unavailable", "why": "timed out after 0.5 s"},
         "fine": {"value": 9},
+        "paths": {
+            "status": "unavailable",
+            "why": "~/x/python: can't open '<repo>/gone.py'",
+        },
     }
 
 
@@ -179,13 +188,9 @@ def test_a_broken_catalogue_exits_2_naming_the_entry(
         assert _collect() == 2, named
         assert named in capsys.readouterr().err
 
-    catalogue.write_text(good)
-    assert _collect("--value", "other=1") == 2
-    assert "--value other" in capsys.readouterr().err
-
 
 def test_station_values_are_passed_or_derived(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     catalogue = "".join(
         _metric(key, source="station")
@@ -199,7 +204,9 @@ def test_station_values_are_passed_or_derived(
     _git(tmp_path, "commit", "-q", "-m", "work")
     monkeypatch.chdir(tmp_path)
 
-    assert _collect("--value", "gate-seconds=12", base=base) == 0
+    # A value the catalogue does not declare is noted, never a halt.
+    assert _collect("--value", "gate-seconds=12", "--value", "other=1", base=base) == 0
+    assert "--value other ignored" in capsys.readouterr().err
     assert _values(tmp_path) == {
         "gate-seconds": {"value": 12},
         "diff-lines": {"value": 3},

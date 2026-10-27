@@ -88,11 +88,12 @@ args = ["converge"]
 ```
 
 **A metric script sees** `MF_METRICS_CHANGE` (the change id), `MF_METRICS_BASE` and `MF_METRICS_HEAD` in its
-environment. **`unavailable`'s reason** is the first stderr line, else `exit <code>`, `no number on the last line`
-or `timed out after 300 s`.
+environment. **`unavailable`'s reason** is the first stderr line, the repository root written `<repo>` and the
+home `~` because the release commits it, else `exit <code>`, `no number on the last line` or `timed out after 300 s`.
 
 **Station values** (`source = "station"`): `gate-seconds` is passed with `--value`, from the release's precondition
-1 run; the build passes none, so its draft records it `unavailable` — *not passed by the station*. `diff-lines`
+1 run; the build passes none, so its draft records it `unavailable` — *not passed by the station*. A `--value`
+the catalogue declares no station metric for is ignored, with a note on stderr, never a halt. `diff-lines`
 (insertions plus deletions over `<base>..HEAD`, `metrics/` excluded), `diff-files` and `phases` (the `## Progress`
 lines of the change's `tasks.md`, active or archived) are derived by the collector itself from `--base`: the cut
 settles this detail of Q39, so no station copies a number by hand.
@@ -192,8 +193,10 @@ catalogue`*.
    **2b. Metrics.** No `metrics/catalogue.toml` → record `metrics: none — no catalogue`. Otherwise, from the
    repository root: `uv run --script ../mf-build/scripts/metrics.py collect --change <change-id> --base <base>
    --out metrics/changes/<change-id>.json --value gate-seconds=<precondition 1's seconds>
-   --executor "<what you identified>" --model "<your model, or unidentified>"` — `../mf-build/` resolved from this
-   skill's package, `<base>` as in precondition 8. Exit 2, any other non-zero exit, a missing script or a missing
+   [--executor "<executor>"] --model "<your model, or unidentified>"` — `../mf-build/` resolved from this
+   skill's package, `<base>` as in precondition 8. Pass `--executor` only from runtime evidence, worded as
+   `mf-build`'s *Executor selection* reports it: `native (Claude Code)` or `generic (<executor>)`. No evidence →
+   omit it, and the file records `unidentified`. Exit 2, any other non-zero exit, a missing script or a missing
    `uv` → **halt**, nothing committed. Stage `metrics/changes/<change-id>.json` by name.
 ```
 

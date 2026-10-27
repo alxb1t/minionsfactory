@@ -136,6 +136,13 @@ def _unavailable(why: str) -> Value:
     return {"status": "unavailable", "why": why}
 
 
+def _scrubbed(why: str, root: Path) -> str:
+    """Return `why`, to be committed, with the root as `<repo>` and the home as `~`."""
+    why = why.replace(str(root), "<repo>")
+    home = str(Path.home())
+    return why.replace(home, "~") if home != root.anchor else why
+
+
 def run_metric(root: Path, metric: Metric, env: dict[str, str]) -> Value:
     """Return the number a metric script prints last, or `unavailable` and why."""
     argv = metric_argv(metric["script"], metric.get("args", []))
@@ -151,13 +158,13 @@ def run_metric(root: Path, metric: Metric, env: dict[str, str]) -> Value:
     except subprocess.TimeoutExpired:
         return _unavailable(f"timed out after {TIMEOUT_SECONDS} s")
     except OSError as exc:
-        return _unavailable(str(exc))
+        return _unavailable(_scrubbed(str(exc), root))
     lines = done.stdout.strip().splitlines()
     number = _number(lines[-1]) if lines else None
     if done.returncode == 0 and number is not None:
         return {"value": number}
     if stderr := done.stderr.strip().splitlines():
-        return _unavailable(stderr[0])
+        return _unavailable(_scrubbed(stderr[0], root))
     if done.returncode != 0:
         return _unavailable(f"exit {done.returncode}")
     return _unavailable("no number on the last line")
@@ -247,11 +254,11 @@ def collect(
         print(NO_CATALOGUE)
         return 3
     stations = {m["id"] for m in metrics if m.get("source") == "station"}
-    for key in passed:
-        if key not in stations:
-            raise CatalogueError(
-                f"--value {key}: {CATALOGUE} declares no station metric `{key}`"
-            )
+    for key in sorted(passed.keys() - stations):
+        print(
+            f"metrics: --value {key} ignored — {CATALOGUE} declares no station metric",
+            file=sys.stderr,
+        )
     base_sha, head_sha = _git(root, "rev-parse", f"{base}^{{commit}}", "HEAD").split()
     base_short, head_short = (
         _git(root, "rev-parse", "--short", sha) for sha in (base_sha, head_sha)
