@@ -1,0 +1,49 @@
+{
+  "change": "0031-metrics-baseline",
+  "version": "v0.30.1",
+  "base": "d7a18b8",
+  "analyzed": "0b6a444",
+  "measured_on": "local",
+  "collected_at": "2026-10-27T19:41:31+02:00",
+  "mf_version": "v0.30.0-3-g0b6a444-dirty",
+  "executor": "native (Claude Code)",
+  "model": "claude-opus-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 10253
+    },
+    "shared-context": {
+      "value": 5067
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 36
+    },
+    "gate-seconds": {
+      "value": 4
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 35
+    },
+    "broken-references": {
+      "value": 1
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 9
+    }
+  }
+}
