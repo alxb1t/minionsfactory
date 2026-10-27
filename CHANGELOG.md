@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-27
+
+Gate: local 0m5s · CI 0m11s (CI at 8c88e90) · 0.29.0: local 0m1s · CI 0m11s (CI at a926ca1)
+
 - Record the design as D43, let D2 allow a bundled script and D18 name `metrics/` as optional, and name the new
   paths in `AGENTS.md`, `README.md` and `docs/README.md` (change `0030-change-impact`, phase 4). The draft and
   page for this change were collected on MF itself.
