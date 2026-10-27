@@ -17,6 +17,7 @@ context it names: what is *true* of the repository, not a script. The change its
   2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
   3 simplify ─▶ gate ─▶ commit
+  3.5 metrics, when the repo has a catalogue: collect ─▶ page
   4 report
 ```
 
@@ -180,13 +181,35 @@ review reads a diff that includes its edits and no station verifies its own. Run
 unreviewed edits after the final station had spoken. So simplify writes **no findings file**, and `mf-release`
 names it excluded (its precondition 4).
 
+## Step 3.5 — Collect the metrics
+
+No `metrics/catalogue.toml` → state `metrics: none — no catalogue` in your report, and skip this step. Otherwise,
+after Step 3's commit or no-op, from the repository root:
+
+1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
+   --out .minions/metrics/<change-id>.json --executor "<what executor selection reported>"
+   --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
+2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data .minions/metrics/<change-id>.json`
+   writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
+
+| exit | then |
+|---|---|
+| 0 | carry on |
+| 3 | state `metrics: none — no catalogue` |
+| 2 | **halt**, naming the entry it printed |
+| any other, or `uv` missing | **halt**, naming it |
+
+A metric `unavailable` is not a halt, and **a watch never halts the build**: the page is the person's, who decides
+before converge.
+
 ## Step 4 — Report, then stop
 
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
-did not — and the simplify commit id or honest no-op. The last line: `Next: /mf-converge, in a fresh session.`
+did not — the simplify commit id or honest no-op, and the metrics page with the counts line its `page` printed,
+or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Then **stop** and hand back.
 
 ## Stop-conditions — halt rather than guess

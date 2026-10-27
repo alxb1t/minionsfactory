@@ -151,6 +151,15 @@ binding check covers it, and a gate without one gives a separate step nothing to
 2. **Version file**, if the repository keeps one — bump it to the same number; none → record `none`. Then correct
    any **prose** that states the current version where it is read as current — a README status line is the usual
    one: a prose claim no step reaches goes stale, one release at a time.
+
+   **2b. Metrics.** No `metrics/catalogue.toml` → record `metrics: none — no catalogue`. Otherwise, from the
+   repository root: `uv run --script ../mf-build/scripts/metrics.py collect --change <change-id> --base <base>
+   --out metrics/changes/<change-id>.json --value gate-seconds=<precondition 1's seconds>
+   [--executor "<executor>"] --model "<your model, or unidentified>"` — `../mf-build/` resolved from this
+   skill's package, `<base>` as in precondition 8. Pass `--executor` only from runtime evidence, worded as
+   `mf-build`'s *Executor selection* reports it: `native (Claude Code)` or `generic (<executor>)`. No evidence →
+   omit it, and the file records `unidentified`. Exit 2, any other non-zero exit, a missing script or a missing
+   `uv` → **halt**, nothing committed. Stage `metrics/changes/<change-id>.json` by name.
 3. **Re-run the full gate — before anything is committed or tagged.** The fold and the archive moved files the
    gate reads, so Step 1's green says nothing about this tree. **Red → halt: report it and stop, and never repair
    it by weakening anything.** Nothing is committed or tagged yet: report the staged fold and archive move and the
@@ -158,7 +167,7 @@ binding check covers it, and a gate without one gives a separate step nothing to
    and tag over a red tree would make precondition 5 halt every retry — a state this station may not undo, since
    it edits no feature code and rolling back a tag is not its job.
 4. **Commit** — **one** release commit, `chore(release): <version>.0`: the fold, the archive move, the changelog
-   cut and any version bump land **together**, staged **by name**, never `git add -A`. Then `git diff --quiet`
+   cut, any version bump and the metrics data file land **together**, staged **by name**, never `git add -A`. Then `git diff --quiet`
    must exit 0 and `git ls-files --others --exclude-standard` must print nothing — else **halt**: the commit must
    hold exactly the tree item 3 gated. After it, `git status --porcelain` prints nothing. The message ends with
    the trailer block, `Co-Authored-By:` and `Change: <change-id>` **contiguous**: a blank line between them
@@ -205,7 +214,8 @@ authorizes nothing.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
-`converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; and the merge
+`converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; the metrics
+data file, or `metrics: none — no catalogue`; and the merge
 and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is for the human to act
 on.
 

@@ -67,6 +67,9 @@ it into a new repo; the other skills install nothing.
 └── .minions/            run output, gitignored
 ```
 
+`metrics/catalogue.toml` is optional: a repo that declares it gets its metrics measured at every change, and one
+that does not is told so ([D43](docs/decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).
+
 ## This repo's gate
 
 **`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests. The

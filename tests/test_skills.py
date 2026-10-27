@@ -333,6 +333,13 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     assert _layout_problems(tmp_path)[0] == "docs/decisions.md: no tree under `### D18`"
 
 
+def _file_problem(path: Path) -> str | None:
+    """Return `missing file` or `empty file` for a bad bundled file, else None."""
+    if not path.is_file():
+        return "missing file"
+    return None if path.read_text().strip() else "empty file"
+
+
 def _resource_problems(base: Path) -> list[str]:
     """Return missing, empty or escaping local skill-resource targets."""
     problems: list[str] = []
@@ -345,10 +352,8 @@ def _resource_problems(base: Path) -> list[str]:
             prefix = f"{skill.relative_to(base)}: {target}"
             if not resolved.is_relative_to(package):
                 problems.append(f"{prefix}: outside skill package")
-            elif not resolved.is_file():
-                problems.append(f"{prefix}: missing file")
-            elif not resolved.read_text().strip():
-                problems.append(f"{prefix}: empty file")
+            elif problem := _file_problem(resolved):
+                problems.append(f"{prefix}: {problem}")
     return problems
 
 
@@ -388,4 +393,52 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
         "skills/mf-example/SKILL.md: references/../../outside.md: "
         "outside skill package",
         "skills/mf-example/SKILL.md: references/linked.md: outside skill package",
+    ]
+
+
+# The stations run the collector from the build's package: the build by its own path,
+# the release through `../mf-build/`. Why: 0030-change-impact design D6.
+_METRICS_SCRIPTS = {
+    "mf-build": "scripts/metrics.py",
+    "mf-release": "../mf-build/scripts/metrics.py",
+}
+
+
+def _metrics_script_problems(base: Path) -> list[str]:
+    """Return each station that does not name the collector, or names a bad file."""
+    problems: list[str] = []
+    for name, target in _METRICS_SCRIPTS.items():
+        skill = base / "skills" / name / "SKILL.md"
+        prefix = f"skills/{name}/SKILL.md: {target}"
+        if not skill.is_file() or target not in skill.read_text():
+            problems.append(f"{prefix}: not named")
+        elif problem := _file_problem(skill.parent / target):
+            problems.append(f"{prefix}: {problem}")
+    return problems
+
+
+def test_the_stations_run_the_bundled_metrics_script() -> None:
+    assert _metrics_script_problems(_REPO) == []
+
+
+def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> None:
+    _plant(
+        tmp_path,
+        {
+            "mf-build": "Run `<this package>/scripts/metrics.py collect`.\n",
+            "mf-release": "Run `../mf-build/scripts/metrics.py collect`.\n",
+        },
+    )
+    assert _metrics_script_problems(tmp_path) == [
+        "skills/mf-build/SKILL.md: scripts/metrics.py: missing file",
+        "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: missing file",
+    ]
+
+    script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
+    script.parent.mkdir()
+    script.write_text(" \n")
+    (tmp_path / "skills" / "mf-release" / "SKILL.md").write_text("No metrics.\n")
+    assert _metrics_script_problems(tmp_path) == [
+        "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
+        "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
     ]

@@ -124,8 +124,10 @@ is done on a commit and a ticked box together; a round number lives in the findi
 ### The repo reaches nothing outside itself
 
 **Project inputs and outputs stay inside the target repository, save `mf-release`'s read-only remote CI lookup
-for its `Gate:` line. Installed skills and bundled references are instruction-package material, not permission
-to read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or
+for its `Gate:` line and the bundled metrics script's read-only `git describe` of its own package
+([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)). Installed skills,
+bundled references and bundled scripts are instruction-package material, not permission to read arbitrary outside
+files. Run output goes to the gitignored `.minions/`; the repo names no path, token or
 tool of the place its plan is kept.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
