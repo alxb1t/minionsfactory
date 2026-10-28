@@ -93,7 +93,8 @@ itself; the release re-runs it and inherits nothing.**
 
 **No deleted or skipped test, no blanket suppression, no loosened config. A gate that can only pass weakened is a
 plan problem: halt and say so. A test deleted or merged as the change's `## Tests` table names it, its proofs
-carried by a named remaining test or retired by a named decision, is consolidation, not weakening.**
+carried by a named remaining test or retired by a decision in force at the base, is consolidation, not
+weakening.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads

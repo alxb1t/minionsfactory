@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-10-28
+
+Gate: local 0m3s · CI 0m13s (CI at 577dba5) · 0.31.0: local 0m3s · CI 0m14s (CI at cb52d5b)
+
+- `mf-release` names one `<tag>` — `vX.Y` → `vX.Y.0`, `vX.Y.Z` as itself — so a patch ships as itself; D19 gains
+  the patch line, and `AGENTS.md` states what a patch may hold (change `0033-release-patches`, phase 1).
+
+- A test is retired only by a decision in force at the base, in `I16`, `T5`, the coverage-trace pass, D39, the
+  principle and the bootstrap's `AGENTS.md` template: a branch cannot certify its own test's removal (change
+  `0033-release-patches`, phase 2).
+
+- The metrics collector treats a `script` starting with `-` as a broken catalogue, since `uv` reads it as an
+  option, and an absolute `script` too, even inside the tree; it scrubs a home or root path unless a name
+  character touches it (change `0033-release-patches`, phase 3).
+
+- `mf-plan` names how it finds the default branch, as the bootstrap does, and `README.md`'s smoke-record link
+  points at the archived 0027 design (change `0033-release-patches`, phase 4).
+
 ## [0.31.0] - 2026-10-28
 
 Gate: local 0m3s · CI 0m14s (CI at cb52d5b) · 0.30.1: local 0m4s · CI 0m13s (CI at d7a18b8)

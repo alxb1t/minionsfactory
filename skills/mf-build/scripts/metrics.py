@@ -64,8 +64,12 @@ def _is_number(value: object) -> bool:
 
 
 def _inside(root: Path, script: str) -> bool:
-    """Return whether `script` is a path that resolves inside `root`, never a URL."""
-    if re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script):
+    """Return whether `script` is a relative path inside `root`, not a URL or option."""
+    if (
+        script.startswith("-")
+        or Path(script).is_absolute()
+        or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script)
+    ):
         return False
     return (root / script).resolve().is_relative_to(root.resolve())
 
@@ -152,11 +156,12 @@ def _unavailable(why: str) -> Value:
 def _scrubbed(why: str, root: Path) -> str:
     """Return `why`, to be committed, with the root as `<repo>` and the home as `~`.
 
-    Only a whole path is replaced: `/app` never inside `/usr/app/x` or `/apps`.
+    A path is replaced unless a name character touches it: `/app` never inside
+    `/usr/app/x`, `/apps` or `/app.bak`, but in `file:///app` and `(/app)`.
     """
     for path, name in ((root, "<repo>"), (Path.home(), "~")):
         if str(path) != path.anchor:
-            whole = r"(?<![\w.~/\\-])" + re.escape(str(path)) + r"(?=[/\\'\"\s:]|$)"
+            whole = r"(?<![\w.~-])" + re.escape(str(path)) + r"(?![\w-]|\.\w)"
             why = re.sub(whole, name, why)
     return why
 

@@ -36,7 +36,8 @@ commit trailer, so a wrong one releases against another change's verdicts:
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
 
 The release version is the `version:` frontmatter in the change's own `proposal.md`: read it, never invent it or
-derive it from a filename. Below, `<version>` is that value (`vX.Y`) and the tag is `<version>.0`.
+derive it from a filename. Below, `<version>` is that value — `vX.Y`, or `vX.Y.Z` for a patch — and `<tag>` is
+`<version>.0` for `vX.Y`, `<version>` itself for `vX.Y.Z`: `v0.31` → `v0.31.0`, `v0.31.1` → `v0.31.1`.
 
 ## Where the constants come from — disk, never a guess
 
@@ -86,7 +87,7 @@ precondition 4 says what absence means.
    A checkout that lost `.minions/` reads as skipped; the skip line is its only record. **Simplify is excluded
    here, by name**: it runs inside `mf-build`, fixing in place, **produces no findings file by design**, and the
    review station judged its edits.
-5. **The version line is aligned** — the tag `<version>.0` does **not** already exist (`git tag -l`), and
+5. **The version line is aligned** — `<tag>` does **not** already exist (`git tag -l`), and
    `CHANGELOG.md`'s `## [Unreleased]` holds **real entries**, not an empty heading. Else → halt.
 6. **The tree is clean** — `git status --porcelain` prints nothing. Else → halt.
 7. If converge ran (precondition 4): **HEAD equals the head: of both findings files** — `git rev-parse HEAD`
@@ -133,7 +134,7 @@ binding check covers it, and a gate without one gives a separate step nothing to
 
 ## Step 4 — Cut the version line
 
-1. **`CHANGELOG.md`** — rename the `## [Unreleased]` heading to `## [<version without the leading v>.0] - <today>`,
+1. **`CHANGELOG.md`** — rename the `## [Unreleased]` heading to `## [<tag without the leading v>] - <today>`,
    and seed a fresh **empty** `## [Unreleased]` above it. Under the renamed heading, before its entries, write
    **the `Gate:` line**, the one line a release adds:
 
@@ -148,9 +149,9 @@ binding check covers it, and a gate without one gives a separate step nothing to
 
    **Write no other changelog prose.** The phases that earned the entries wrote them; prose added at release has
    no phase behind it.
-2. **Version file**, if the repository keeps one — bump it to the same number; none → record `none`. Then correct
-   any **prose** that states the current version where it is read as current — a README status line is the usual
-   one: a prose claim no step reaches goes stale, one release at a time.
+2. **Version file**, if the repository keeps one — bump it to `<tag>` without the `v`; none → record `none`. Then
+   correct any **prose** that states the current version where it is read as current — a README status line is the
+   usual one: a prose claim no step reaches goes stale, one release at a time.
 
    **2b. Metrics.** No `metrics/catalogue.toml` → record `metrics: none — no catalogue`. Otherwise, from the
    repository root: `uv run --script ../mf-build/scripts/metrics.py collect --change <change-id> --base <base>
@@ -166,7 +167,7 @@ binding check covers it, and a gate without one gives a separate step nothing to
    uncommitted changelog cut and version bump, and name reverting them as the human's. Why this order: a commit
    and tag over a red tree would make precondition 5 halt every retry — a state this station may not undo, since
    it edits no feature code and rolling back a tag is not its job.
-4. **Commit** — **one** release commit, `chore(release): <version>.0`: the fold, the archive move, the changelog
+4. **Commit** — **one** release commit, `chore(release): <tag>`: the fold, the archive move, the changelog
    cut, any version bump and the metrics data file land **together**, staged **by name**, never `git add -A`. Then `git diff --quiet`
    must exit 0 and `git ls-files --others --exclude-standard` must print nothing — else **halt**: the commit must
    hold exactly the tree item 3 gated. After it, `git status --porcelain` prints nothing. The message ends with
@@ -174,13 +175,13 @@ binding check covers it, and a gate without one gives a separate step nothing to
    silently breaks it. **When converge was skipped** (precondition 4), the skip line is its own body paragraph
    before the trailer block — the durable record of the skip:
 
-       chore(release): <version>.0
+       chore(release): <tag>
 
        converge: skipped — no findings files
 
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
-5. **Tag** — annotated, on the release commit, **local only**: `git tag -a <version>.0 -m "<version>.0"`. The tag,
+5. **Tag** — annotated, on the release commit, **local only**: `git tag -a <tag> -m "<tag>"`. The tag,
    the release commit and the changelog entry **are** the release record; write no other narrative.
 6. **Clear the paid-down cards.** A paydown change lists the card ids it closed under `backlog:` in its
    `proposal.md` frontmatter, now under `openspec/changes/archive/<change-id>/`. No `backlog:` key → record
@@ -201,7 +202,7 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
    contiguous.
 3. **The merged tree is the tagged tree:** `git diff --quiet <branch> <default-branch>` exits 0.
 4. **No `origin`:** `git remote get-url origin` fails → push nothing, and say so in your sentences.
-5. **Push:** `git push origin <default-branch>`, then `git push origin <version>.0`. A rejected push halts; the
+5. **Push:** `git push origin <default-branch>`, then `git push origin <tag>`. A rejected push halts; the
    default branch stays merged locally. Never pull, never `--force`, never push the version branch.
 
 ## Step 6 — Close: report, and stop
@@ -221,11 +222,11 @@ on.
 
 The last line, after a merge: `Next: grill the next version.` With no merge:
 
-    Next: merge and push — release <version>.0 is on branch <branch>:
+    Next: merge and push — release <tag> is on branch <branch>:
       git switch <default-branch>
       git merge --no-ff <branch>
       git push origin <default-branch>
-      git push origin <version>.0
+      git push origin <tag>
 
 Then **stop**.
 

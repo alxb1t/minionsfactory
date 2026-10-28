@@ -57,7 +57,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
-| **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to the decision that retires it (`retired by Dn`) | — (stop-condition 5) |
+| **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
 
 ## Step 1 — Lift the context
 
@@ -255,7 +255,7 @@ they differ. A test is paid for on every gate run, on every engine it runs on: t
 | **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
 | **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
 | **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |
-| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids, or to the decision that retires it | a deletion outside the table weakens the gate |
+| **T5** | **Delete or merge only per the design's table** — a test is deleted or merged only as `design.md`'s `## Tests` table names it, each removed test mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it | a deletion outside the table weakens the gate |
 | **T6** | **A twin at the lowest layer** — `W5`'s twin is a unit test of the guard or a step in the guard's own test, never a new end-to-end test. Where neither fits, the guard test's red run with the guard removed goes in the commit body | a twin that boots a browser is a test of the test kit |
 
 ## Prose rules

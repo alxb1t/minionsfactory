@@ -268,7 +268,8 @@ value. The changelog follows Keep a Changelog: each phase appends under `Unrelea
 heading.**
 
 ```
-proposal.md `version: vX.Y`  =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  the version file
+proposal.md `version: vX.Y`    =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  the version file
+proposal.md `version: vX.Y.Z`  =  CHANGELOG `## [X.Y.Z]`  =  tag `vX.Y.Z`  =  the version file
 ```
 
 - **Why:** one source of version truth leaves nothing to reconcile.
@@ -333,8 +334,8 @@ retired names.**
 
 **A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
 engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
-`## Tests` table names it, its proofs carried by a remaining test or retired by a named decision. Review judges
-each new test's cost and traces each removed one's proofs.**
+`## Tests` table names it, its proofs carried by a remaining test or retired by a decision in force at the base.
+Review judges each new test's cost and traces each removed one's proofs.**
 
 - **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
