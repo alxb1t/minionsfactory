@@ -5,15 +5,15 @@ template are the design's, word for word.
 
 ## Progress
 
-- [ ] 1 — Write the plan station
+- [x] 1 — Write the plan station
 - [ ] 2 — Make the cut halt on a light brief
 - [ ] 3 — Record the station in the decisions, the principle and the docs
 
 ## 1 — Write the plan station
 
-- [ ] 1.1 Write `skills/mf-plan/SKILL.md` per [D1](design.md#d1) through [D5](design.md#d5), with `name: mf-plan` and a `description:` that says when to use it.
+- [x] 1.1 Write `skills/mf-plan/SKILL.md` per [D1](design.md#d1) through [D5](design.md#d5), with `name: mf-plan` and a `description:` that says when to use it.
   Verify: `grep -c '^## ' skills/mf-plan/SKILL.md` prints `9`, and `grep -c '^name: mf-plan$' skills/mf-plan/SKILL.md` prints `1`.
-- [ ] 1.2 Add `test_mf_plan_holds_its_parameters_and_never` and `test_the_plan_scan_reports_a_missing_section` to `tests/test_skills.py`, per [D7](design.md#d7).
+- [x] 1.2 Add `test_mf_plan_holds_its_parameters_and_never` and `test_the_plan_scan_reports_a_missing_section` to `tests/test_skills.py`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_skills.py -k plan` reports `2 passed`.
 
 ## 2 — Make the cut halt on a light brief

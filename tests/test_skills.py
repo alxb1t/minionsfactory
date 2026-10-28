@@ -442,3 +442,45 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
     ]
+
+
+# The plan station holds its parameters, naming the required brief, and its forbidden
+# acts. Why: 0032-mf-plan design D7.
+_PLAN = "mf-plan"
+_PLAN_PARAMETERS = "## Parameters"
+_PLAN_NEVER = "## Never"
+
+
+def _plan_problems(base: Path) -> list[str]:
+    """Return one line per section `base`'s plan station is missing."""
+    path = base / "skills" / _PLAN / "SKILL.md"
+    prefix = f"skills/{_PLAN}/SKILL.md"
+    if not path.is_file():
+        return [f"{prefix}: does not exist"]
+    lines = path.read_text().splitlines()
+    problems: list[str] = []
+    inside = named = False
+    for line in lines:
+        if line.startswith("## "):
+            inside = line == _PLAN_PARAMETERS
+        elif inside and line.startswith("| `brief` |"):
+            named = True
+    if not named:
+        problems.append(f"{prefix}: `{_PLAN_PARAMETERS}` names no `brief`")
+    if _PLAN_NEVER not in lines:
+        problems.append(f"{prefix}: no `{_PLAN_NEVER}`")
+    return problems
+
+
+def test_mf_plan_holds_its_parameters_and_never() -> None:
+    assert _plan_problems(_REPO) == []
+
+
+def test_the_plan_scan_reports_a_missing_section(tmp_path: Path) -> None:
+    # A `brief` row past the parameters' section must not count.
+    _plant(tmp_path, {_PLAN: "## Parameters\n\n## Step 1\n\n| `brief` | yes |\n"})
+
+    assert _plan_problems(tmp_path) == [
+        f"skills/{_PLAN}/SKILL.md: `{_PLAN_PARAMETERS}` names no `brief`",
+        f"skills/{_PLAN}/SKILL.md: no `{_PLAN_NEVER}`",
+    ]
