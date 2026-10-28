@@ -5,19 +5,19 @@ word.
 
 ## Progress
 
-- [ ] 1 — Read the standards in the build and converge
+- [x] 1 — Read the standards in the build and converge
 - [ ] 2 — Write the standards in the bootstrap
 - [ ] 3 — Adopt the standards in MF
 - [ ] 4 — Bootstrap a scratch repo **HUMAN**
 
 ## 1 — Read the standards in the build and converge
 
-- [ ] 1.1 Replace the context paragraph at `skills/mf-build/SKILL.md:12-13` with [D1](design.md#d1)'s after text.
+- [x] 1.1 Replace the context paragraph at `skills/mf-build/SKILL.md:12-13` with [D1](design.md#d1)'s after text.
   Verify: `grep -c 'CODE_STANDARDS.md' skills/mf-build/SKILL.md` prints `1`.
-- [ ] 1.2 Apply [D1](design.md#d1) to Step 3's input line in `skills/mf-converge/SKILL.md`, and to
+- [x] 1.2 Apply [D1](design.md#d1) to Step 3's input line in `skills/mf-converge/SKILL.md`, and to
   `skills/mf-converge/references/generic-review.md` and `skills/mf-converge/references/generic-security.md`.
   Verify: `grep -c 'CODE_STANDARDS.md' skills/mf-converge/SKILL.md` prints `1`, `grep -c 'root standards files' skills/mf-converge/references/generic-review.md skills/mf-converge/references/generic-security.md` prints `1` for each file, and `grep -c 'standards files is a' skills/mf-converge/references/generic-review.md` prints `1`.
-- [ ] 1.3 Rewrite rows `C1` and `C2` of `skills/mf-build/SKILL.md` and add the override sentence after `:295`, per
+- [x] 1.3 Rewrite rows `C1` and `C2` of `skills/mf-build/SKILL.md` and add the override sentence after `:295`, per
   [D2](design.md#d2).
   Verify: `grep -c 'No explanatory comment' skills/mf-build/SKILL.md` prints `1`, and ``grep -c 'names a `C` rule replaces it' skills/mf-build/SKILL.md`` prints `1`.
 

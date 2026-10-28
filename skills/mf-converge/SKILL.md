@@ -220,7 +220,8 @@ files. Give each:
 - the patch path `.minions/findings/<change-id>_diff.patch`, and the selected commits, parents, diff kinds and
   counts for a merge-aware [catch-up scope](#catch-up-scope);
 - its findings path `.minions/findings/<change-id>_<role>.md`;
-- root `AGENTS.md` and its mandatory context, and the change's proposal, design and tasks under
+- root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
+  it does not name, and the change's proposal, design and tasks under
   `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
 - its engine, per *Executor and worker selection*;
 - the card, from [`## The card`](#the-card) — every finding is a card;
