@@ -6,7 +6,7 @@ word.
 ## Progress
 
 - [x] 1 — Read the standards in the build and converge
-- [ ] 2 — Write the standards in the bootstrap
+- [x] 2 — Write the standards in the bootstrap
 - [ ] 3 — Adopt the standards in MF
 - [ ] 4 — Bootstrap a scratch repo **HUMAN**
 
@@ -23,19 +23,19 @@ word.
 
 ## 2 — Write the standards in the bootstrap
 
-- [ ] 2.1 Write `skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl` and
+- [x] 2.1 Write `skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl` and
   `skills/mf-bootstrap/templates/CONTRIBUTING.md.tmpl`, per [D3](design.md#d3).
   Verify: `ls skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl skills/mf-bootstrap/templates/CONTRIBUTING.md.tmpl` lists both.
-- [ ] 2.2 Add *Read first* to `skills/mf-bootstrap/templates/AGENTS.md.tmpl` and point *How a change is cut here* at
+- [x] 2.2 Add *Read first* to `skills/mf-bootstrap/templates/AGENTS.md.tmpl` and point *How a change is cut here* at
   the guide, per [D3](design.md#d3).
   Verify: `grep -c '(CODING_STANDARDS.md)' skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `1`, and `grep -c '(CONTRIBUTING.md)' skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `2`.
-- [ ] 2.3 Edit the description, the halt row and the collision precondition of `skills/mf-bootstrap/SKILL.md`, per
+- [x] 2.3 Edit the description, the halt row and the collision precondition of `skills/mf-bootstrap/SKILL.md`, per
   [D3](design.md#d3).
   Verify: `grep -c 'CODE_STANDARDS.md' skills/mf-bootstrap/SKILL.md` prints `1`, and `grep -c 'CONTRIBUTING.md' skills/mf-bootstrap/SKILL.md` prints `2`.
-- [ ] 2.4 Extend the layout scan and the Tests-section guard in `tests/test_skills.py`, and their breach tests' expected
+- [x] 2.4 Extend the layout scan and the Tests-section guard in `tests/test_skills.py`, and their breach tests' expected
   lists, per [D5](design.md#d5).
   Verify: `grep -c '_TEMPLATE_LINKS' tests/test_skills.py` prints `2`, and `uv run pytest -q tests/test_skills.py -k 'template or layout'` reports `4 passed`.
-- [ ] 2.5 Amend D18's line, add D46 after D18 in `docs/decisions.md`, and add the sentence after the tree in
+- [x] 2.5 Amend D18's line, add D46 after D18 in `docs/decisions.md`, and add the sentence after the tree in
   `README.md`, per [D4](design.md#d4).
   Verify: `grep -c '^### D46 · ' docs/decisions.md` prints `1`, `grep -c 'CODING_STANDARDS.md' README.md` prints `1`, and `uv run --script scripts/metrics/references.py` prints `0`.
 

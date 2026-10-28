@@ -1,6 +1,6 @@
 ---
 name: mf-bootstrap
-description: Bootstrap a new repo for the mf-* line — write the gate, openspec/, AGENTS.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
+description: Bootstrap a new repo for the mf-* line — write the gate, openspec/, AGENTS.md, CODING_STANDARDS.md, CONTRIBUTING.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
 ---
 
 # mf-bootstrap — a new repo the line can cut in
@@ -23,7 +23,7 @@ A template's **target path** is its path under `templates/`, beside this file, w
 
 | target path | when it already exists |
 |---|---|
-| `Makefile` · `AGENTS.md` · `CHANGELOG.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
+| `Makefile` · `AGENTS.md` · `CHANGELOG.md` · `CODING_STANDARDS.md` · `CONTRIBUTING.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
 | `README.md` | skip it; the file stays as it is |
 | `.gitignore` | append the template's lines, starting on a new line, when no line reads `.minions/`; else leave it |
 
@@ -42,8 +42,8 @@ Every one holds, or **halt** naming the one that failed:
 - When the target is a repo, `git status --porcelain` prints nothing, and `git branch --show-current` is the
   default branch: the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or `main`
   when that command fails.
-- No collision: no `openspec/` directory, and no target path the table marks *halt*, exists. Name every
-  collision in one halt: adopting an existing repo is not this skill's job.
+- No collision: no `openspec/` directory, no `CODE_STANDARDS.md`, and no target path the table marks *halt*,
+  exists. Name every collision in one halt: adopting an existing repo is not this skill's job.
 
 ## Step 2 — Write
 

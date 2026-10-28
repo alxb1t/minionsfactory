@@ -69,6 +69,9 @@ it into a new repo; the other skills install nothing.
 └── .minions/            run output, gitignored
 ```
 
+`mf-bootstrap` also writes `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md` and `CONTRIBUTING.md`; a repo without
+them still works ([D46](docs/decisions.md#d46--a-repos-own-rules-live-in-its-coding-standards-and-contribution-guide)).
+
 `metrics/catalogue.toml` is optional: a repo that declares it gets its metrics measured at every change, and one
 that does not is told so ([D43](docs/decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).
 

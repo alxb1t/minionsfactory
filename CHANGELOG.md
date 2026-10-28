@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an explanatory comment, `C2` names the exceptions, and a project rule naming a `C` rule replaces it (change
   `0039-repository-standards`, phase 1).
 
+- `mf-bootstrap` writes `CODING_STANDARDS.md` and `CONTRIBUTING.md` from small language-neutral templates, its
+  `AGENTS.md` names both mandatory context, and it halts on an existing standards file; D46 records where a repo's
+  own rules live (change `0039-repository-standards`, phase 2).
+
 ## [0.33.0] - 2026-10-28
 
 Gate: local 0m26s · CI 0m17s (CI at 6e5dcc5) · 0.32.0: local 0m22s · CI 0m19s (CI at aa85c14)
