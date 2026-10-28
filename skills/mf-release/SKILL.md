@@ -94,7 +94,7 @@ precondition 4 says what absence means.
    matches each file's `head:`, the last commit a round judged; a later commit shipped unreviewed. Else → halt:
    *run `/mf-converge` — it runs a catch-up round over `<head>..HEAD`*. Checked before the fold, so the release's
    own commit is never the one compared.
-8. **The gate is the base's, or the cut planned its change.** Run
+8. **The gate changes only as the cut planned.** Run
    `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base>`, `../mf-converge/`
    resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass.
    Exit 1 → **halt**, copying what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be

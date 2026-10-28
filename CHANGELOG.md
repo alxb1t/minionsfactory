@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `;` or from a variable, `.ONESHELL` or a `SHELL` assignment: the routes converge round 1 found (change
   `0034-gate-recipe-hardening`, converge).
 
+- The gate check halts on a gate makefile line a planned change removes unquoted, such as a `pipefail` `SHELL`
+  no dry run prints. It claims only what it reads: exit 0 prints `gate: no unplanned change`, and both stations
+  title the precondition *The gate changes only as the cut planned* (change `0034-gate-recipe-hardening`, phase 3).
+
 ## [0.31.1] - 2026-10-28
 
 Gate: local 0m3s · CI 0m13s (CI at 577dba5) · 0.31.0: local 0m3s · CI 0m14s (CI at cb52d5b)

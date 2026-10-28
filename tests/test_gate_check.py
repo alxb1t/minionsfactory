@@ -71,7 +71,7 @@ def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
     # A calling make's `-q` would fail both dry runs unless the check clears it.
     result = _check(tmp_path, base, {"MAKEFLAGS": "q"})
-    assert (result.returncode, result.stdout) == (0, "gate: the base's\n")
+    assert (result.returncode, result.stdout) == (0, "gate: no unplanned change\n")
     exports = tmp_path / ".minions" / "gate-check"
     assert not exports.exists() or not any(exports.iterdir())
 
@@ -202,6 +202,15 @@ def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
     assert result.returncode == 1, result.stdout
     for line in lines:
         assert f"\n  added: Makefile: {line.strip()}\n" in result.stdout
+
+
+def test_a_planned_change_that_removes_an_unquoted_line_halts(tmp_path: Path) -> None:
+    # The dry run never prints `SHELL`, so only the diff's removed line shows it.
+    gate = f"SHELL := /bin/bash -o pipefail\n{_GATE}"
+    base = _branch(tmp_path, {"Makefile": gate}, _planned(), {"Makefile": _GATE})
+    result = _check(tmp_path, base)
+    assert result.returncode == 1, result.stdout
+    assert "\n  removed: Makefile: SHELL := /bin/bash -o pipefail\n" in result.stdout
 
 
 def test_a_planned_change_the_task_quotes_passes(tmp_path: Path) -> None:

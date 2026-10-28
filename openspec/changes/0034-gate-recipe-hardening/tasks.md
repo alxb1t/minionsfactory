@@ -7,7 +7,7 @@ text are the design's, word for word.
 
 - [x] 1 — Write the gate check
 - [x] 2 — Make the stations call it
-- [ ] 3 — Quote removed lines, and claim only what the check reads
+- [x] 3 — Quote removed lines, and claim only what the check reads
 
 ## 1 — Write the gate check
 
@@ -33,11 +33,11 @@ text are the design's, word for word.
 
 ## 3 — Quote removed lines, and claim only what the check reads
 
-- [ ] 3.1 In `skills/mf-converge/scripts/gate_check.py`, make the planned scan halt on every non-blank gate-makefile line the branch removes, as it does for one it adds, and add `test_a_planned_change_that_removes_an_unquoted_line_halts` to `tests/test_gate_check.py`, per [D3](design.md#d3).
+- [x] 3.1 In `skills/mf-converge/scripts/gate_check.py`, make the planned scan halt on every non-blank gate-makefile line the branch removes, as it does for one it adds, and add `test_a_planned_change_that_removes_an_unquoted_line_halts` to `tests/test_gate_check.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_gate_check.py -k removes_an_unquoted_line` reports `1 passed`.
-- [ ] 3.2 Make exit 0 print `gate: no unplanned change` in place of `gate: the base's`, and the script's docstring claim no more, in `skills/mf-converge/scripts/gate_check.py` and `test_an_unchanged_gate_passes`, per [D4](design.md#d4) and [D7](design.md#d7).
+- [x] 3.2 Make exit 0 print `gate: no unplanned change` in place of `gate: the base's`, and the script's docstring claim no more, in `skills/mf-converge/scripts/gate_check.py` and `test_an_unchanged_gate_passes`, per [D4](design.md#d4) and [D7](design.md#d7).
   Verify: `grep -c "gate: the base's" skills/mf-converge/scripts/gate_check.py tests/test_gate_check.py` prints `skills/mf-converge/scripts/gate_check.py:0` and `tests/test_gate_check.py:0`, and `grep -c "gate is the base's" skills/mf-converge/scripts/gate_check.py` prints `0`.
-- [ ] 3.3 Retitle converge's precondition 6 and the release's precondition 8 **The gate changes only as the cut planned.**, per [D7](design.md#d7).
+- [x] 3.3 Retitle converge's precondition 6 and the release's precondition 8 **The gate changes only as the cut planned.**, per [D7](design.md#d7).
   Verify: `grep -c 'The gate changes only as the cut planned' skills/mf-converge/SKILL.md skills/mf-release/SKILL.md` prints `skills/mf-converge/SKILL.md:1` and `skills/mf-release/SKILL.md:1`.
-- [ ] 3.4 The suite has the planned tests.
+- [x] 3.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `50 tests collected`.

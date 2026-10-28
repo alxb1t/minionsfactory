@@ -2,12 +2,13 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Check that a branch's gate is the base's, or that the cut planned its change.
+"""Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
     gate_check.py --change <id> --base <rev>
 
-Exit 0 the gate passes · 1 halt · 2 the gate cannot be read.
-Why: 0034-gate-recipe-hardening design D1…D4.
+Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
+It reads makefiles and dry runs; a file read at parse time, or a program the
+recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
 """
 
 import argparse
@@ -154,24 +155,34 @@ def dry_run(root: Path, side: str) -> list[str]:
     return output.replace(str(root.resolve()), "<export>").splitlines()
 
 
-def added_lines(base: str, files: list[str]) -> list[tuple[str, str]]:
-    """Return each non-blank line the branch adds to `files`, by file.
+def changed_lines(base: str, files: list[str]) -> list[tuple[str, str, str]]:
+    """Return each non-blank line the branch adds to or removes from `files`.
 
     Any added line may hide a failure — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in
     `MAKEFLAGS` — through forms no pattern list keeps up with: a continued line,
-    `define`, a computed name, `$(eval)`. So every one needs the task's quote.
+    `define`, a computed name, `$(eval)`. A removed one may too: a `SHELL` with
+    `pipefail`, which no dry run prints. So every one needs the task's quote.
+    e.g. "-SHELL := /bin/bash -o pipefail" → ("removed", "Makefile", "SHELL := …")
     """
-    added: list[tuple[str, str]] = []
+    changed: list[tuple[str, str, str]] = []
     if not files:
-        return added
+        return changed
     current = ""
+    header = False
     argv = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames"]
     for line in _git(*argv, base, "HEAD", "--", *files).splitlines():
-        if line.startswith("+++ "):
-            current = line.removeprefix("+++ b/")
-        elif line.startswith("+") and line[1:].strip():
-            added.append((current, line[1:].strip()))
-    return added
+        if line.startswith("diff --git "):
+            header = True
+        elif line.startswith("@@"):
+            header = False
+        elif header:
+            # A side that is `/dev/null` names no file; the other side does.
+            if line.startswith(("--- a/", "+++ b/")):
+                current = line[6:]
+        elif line.startswith(("+", "-")) and line[1:].strip():
+            kind = "added" if line[0] == "+" else "removed"
+            changed.append((kind, current, line[1:].strip()))
+    return changed
 
 
 def read_side(rev: str, root: Path, side: str) -> tuple[set[str], list[str]]:
@@ -207,7 +218,7 @@ def check(change: str, base: str) -> str:
         )
     )
     if not touched and not diff:
-        return "gate: the base's"
+        return "gate: no unplanned change"
     if not tasks:
         # The changed makefiles, or else the dry runs' diff.
         shown = "".join(f"\n  {name}" for name in touched) or f"\n{diff}"
@@ -227,14 +238,14 @@ def check(change: str, base: str) -> str:
         if line.strip() and line not in kept and not quoted(line)
     ]
     problems += [
-        f"  added: {name}: {text}"
-        for name, text in added_lines(base, touched)
+        f"  {kind}: {name}: {text}"
+        for kind, name, text in changed_lines(base, touched)
         if not quoted(text)
     ]
     if problems:
         raise Stop(
             1,
-            "gate: halt — the planned change adds or drops a line "
+            "gate: halt — the planned change adds, removes or drops a line "
             "the task does not quote:\n" + "\n".join(problems) + f"\n{diff}",
         )
     return f"gate: planned — {' · '.join(tasks)}\n{diff}"

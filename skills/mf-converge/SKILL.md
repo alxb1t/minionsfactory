@@ -154,7 +154,7 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
    from* passed. Halt naming the root `Makefile`.
 5. **The gate is green before round 1** — run `make gate` yourself. Red → halt; `mf-build` owns it. Skipped, a
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
-6. **The gate is the base's, or the cut planned its change.** Run
+6. **The gate changes only as the cut planned.** Run
    `uv run --script <this package>/scripts/gate_check.py --change <change-id> --base <base>`, `<base>` being
    Step 2's merge-base. Exit 0 → pass. Exit 1 → **halt**, copying what it prints to the report and the status log.
    Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side. A branch does not certify its
