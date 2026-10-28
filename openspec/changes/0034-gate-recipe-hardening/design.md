@@ -1,7 +1,7 @@
 # Gate-recipe hardening — design
 
 One bundled check reads both sides' gates from fresh exports, halts on any unplanned change to a file the gate's
-make reads, and halts on a planned change that drops a command or adds an ignore mark. Verdict: ready to build.
+make reads, and halts on a planned change that drops a command or adds a line its task does not quote. Verdict: ready to build.
 Scope is [the proposal](proposal.md); behaviour is [the delta](specs/sdd/spec.md).
 
 ## Context
@@ -44,7 +44,7 @@ The grilling settled these choices (the brief's Q2–Q11); the build does not re
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on an added line that starts a recipe with `-` or a variable (after a tab or a rule's `;`), names `.IGNORE` or `.ONESHELL`, assigns `SHELL`, `.SHELLFLAGS` or `.RECIPEPREFIX`, or sets `MAKEFLAGS` with an `i` flag — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; the exact text in the task is a decision a person read | `-k` as a mark — it hides nothing, the run still exits 2; a task that only names the recipe excusing every line |
+| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on every non-blank line it adds — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; any added line may hide one — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in `MAKEFLAGS` — through a continued line, `define`, a computed name or `$(eval)`; the exact text in the task is a decision a person read | A list of ignore marks, which converge rounds 1 and 2 found missing forms; a task that only names the recipe excusing every line |
 
 `<cut>` is the one commit `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints;
 none or more than one halts.
@@ -58,7 +58,7 @@ none or more than one halts.
 | exit | means | prints |
 |---|---|---|
 | 0 | the gate is the base's, or the plan covers its change | `gate: the base's` or `gate: planned — <the planning task>` |
-| 1 | halt: an unplanned gate makefile or dry-run change, a dropped line, an ignore mark, or no single cut commit | the reason, the files or lines, and the two dry runs' diff for a planned change or one no makefile explains |
+| 1 | halt: an unplanned gate makefile or dry-run change, a dropped or an added line the task does not quote, or no single cut commit | the reason, the files or lines, and the two dry runs' diff for a planned change or one no makefile explains |
 | 2 | cannot check: an export lacks a path of its tree, a dry run failed on a side, or git or make is missing | the side, and the path or the first line of make's error |
 
 ### D5

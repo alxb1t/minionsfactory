@@ -30,17 +30,6 @@ CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
-# A recipe's `-`, after a tab or a rule's `;`, or a `$` that may expand to one.
-RECIPE_PREFIX = re.compile(r"\t[@+\s]*[-$]")
-RULE_RECIPE = re.compile(r"[^\t#=]*:[^;=]*;[@+\s]*[-$]")
-SHELL_SET = re.compile(
-    r"(?:^|[\s:;])(?:SHELL|\.SHELLFLAGS|\.RECIPEPREFIX)\s*(?:[+?!]|:{1,3})?="
-)
-SPECIAL_TARGETS = (".IGNORE", ".ONESHELL")
-MAKEFLAGS_SET = re.compile(
-    r"\s*(?:(?:export|override)\s+)*MAKEFLAGS\s*(?:[+?!]|::?)?=(.*)$"
-)
-IGNORE_FLAG = re.compile(r"-[A-Za-z]*i[A-Za-z]*")
 
 
 class Stop(Exception):
@@ -165,37 +154,24 @@ def dry_run(root: Path, side: str) -> list[str]:
     return output.replace(str(root.resolve()), "<export>").splitlines()
 
 
-def ignores_errors(line: str) -> bool:
-    """Return whether a makefile line may hide a failing command.
+def added_lines(base: str, files: list[str]) -> list[tuple[str, str]]:
+    """Return each non-blank line the branch adds to `files`, by file.
 
-    A `-` recipe prefix after a tab or a rule's `;`, or a variable there that may expand
-    to one; `.IGNORE` or `.ONESHELL`; a `SHELL`, `.SHELLFLAGS` or `.RECIPEPREFIX`
-    assignment; or `-i` in `MAKEFLAGS`.
+    Any added line may hide a failure — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in
+    `MAKEFLAGS` — through forms no pattern list keeps up with: a continued line,
+    `define`, a computed name, `$(eval)`. So every one needs the task's quote.
     """
-    if RECIPE_PREFIX.match(line) or RULE_RECIPE.match(line) or SHELL_SET.search(line):
-        return True
-    if any(target in line for target in SPECIAL_TARGETS):
-        return True
-    if match := MAKEFLAGS_SET.match(line):
-        words = match[1].split()
-        # The first word may be bare flag letters: `MAKEFLAGS += ki`.
-        flags = [f"-{word}" for word in words[:1]] + words
-        return any(w == "--ignore-errors" or IGNORE_FLAG.fullmatch(w) for w in flags)
-    return False
-
-
-def ignore_marks(base: str, files: list[str]) -> list[tuple[str, str]]:
-    """Return each line the branch adds to `files` that ignores errors, by file."""
-    marks: list[tuple[str, str]] = []
+    added: list[tuple[str, str]] = []
     if not files:
-        return marks
+        return added
     current = ""
-    for line in _git("diff", "-U0", base, "HEAD", "--", *files).splitlines():
+    argv = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames"]
+    for line in _git(*argv, base, "HEAD", "--", *files).splitlines():
         if line.startswith("+++ "):
             current = line.removeprefix("+++ b/")
-        elif line.startswith("+") and ignores_errors(line[1:]):
-            marks.append((current, line[1:].strip()))
-    return marks
+        elif line.startswith("+") and line[1:].strip():
+            added.append((current, line[1:].strip()))
+    return added
 
 
 def read_side(rev: str, root: Path, side: str) -> tuple[set[str], list[str]]:
@@ -251,16 +227,15 @@ def check(change: str, base: str) -> str:
         if line.strip() and line not in kept and not quoted(line)
     ]
     problems += [
-        f"  ignore mark: {name}: {text}"
-        for name, text in ignore_marks(base, touched)
+        f"  added: {name}: {text}"
+        for name, text in added_lines(base, touched)
         if not quoted(text)
     ]
     if problems:
         raise Stop(
             1,
-            "gate: halt — the planned change hides a failure the task does not quote:\n"
-            + "\n".join(problems)
-            + f"\n{diff}",
+            "gate: halt — the planned change adds or drops a line "
+            "the task does not quote:\n" + "\n".join(problems) + f"\n{diff}",
         )
     return f"gate: planned — {' · '.join(tasks)}\n{diff}"
 

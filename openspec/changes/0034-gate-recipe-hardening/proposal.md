@@ -24,8 +24,8 @@ and pass both stations.
   `HEAD` with `git archive`, runs make in each with `MAKEFLAGS` and `MFLAGS` cleared, and removes the exports.
 - **Unplanned:** a branch that changes any **gate makefile** — any file make reads for `gate` on either side — or
   the gate's dry run halts.
-- **Planned** (a cut task names the recipe): a dropped command line, or an added `-` prefix, `.IGNORE` or `-i` in
-  `MAKEFLAGS`, halts unless the task quotes it.
+- **Planned** (a cut task names the recipe): a dropped command line, or any line added to a gate makefile — a `-`
+  prefix, `.IGNORE` or `-i` in `MAKEFLAGS` among them — halts unless the task quotes it.
 - **An export that lacks a path, or a dry run that fails in one, halts**, naming the side.
 - Converge's precondition 6 and the release's precondition 8 call the check; the principle's *Held by:* names it.
 
@@ -38,7 +38,7 @@ None.
 ### Modified Capabilities
 
 - `sdd`, a MODIFIED requirement, corrected:
-  - *Converge and the release halt on a gate the cut did not plan* — exports, gate makefiles, ignore marks, a
+  - *Converge and the release halt on a gate the cut did not plan* — exports, gate makefiles, unquoted lines, a
     failing export.
 
 ## Impact

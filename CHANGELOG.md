@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `skills/mf-converge/scripts/gate_check.py` reads both sides' gate from fresh `git archive` exports and halts on
-  an unplanned change to a gate makefile, or a planned one that drops a command or adds an ignore mark: a branch
-  can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`, phase 1).
+  an unplanned change to a gate makefile, or a planned one that drops a command or adds a gate makefile line its
+  task does not quote: a branch can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`,
+  phase 1).
 
 - `mf-converge` precondition 6 and `mf-release` precondition 8 run the gate check and halt on its verdict, and
   *Never weaken the gate to pass* names it: one rule in both stations (change `0034-gate-recipe-hardening`,

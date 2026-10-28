@@ -9,10 +9,8 @@ there with `MAKEFLAGS` and `MFLAGS` cleared, and remove them when it ends. A **g
 the `MAKEFILE_LIST` or a `Reading makefile` line of `make -pn -r -w -d gate` on either export. When no sub-task in
 `tasks.md` as the cut commit holds it names both `Makefile` and `` `gate` ``, a branch that changes a gate makefile,
 or the `make -n gate` output, SHALL halt. When such a task exists, the script SHALL show the two exports'
-`make -n gate` diff, and SHALL halt on a command line the base prints and the branch does not, and on a gate
-makefile line the branch adds with a `-` recipe prefix or a variable leading a recipe, a `.IGNORE` or `.ONESHELL`
-target, a `SHELL`, `.SHELLFLAGS` or `.RECIPEPREFIX` assignment, or `-i` in `MAKEFLAGS`, unless that task quotes the
-line. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
+`make -n gate` diff, and SHALL halt on a command line the base prints and the branch does not, and on every
+non-blank gate makefile line the branch adds, unless that task quotes the line. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
 side. The cut commit SHALL be the one commit that adds the change's `design.md`; more than one SHALL be a
 halt.
 
@@ -26,10 +24,10 @@ halt.
 - **WHEN** a cut task names the gate recipe, and the base's dry run prints a command line the branch's does not
 - **THEN** each station shows the two dry runs' diff and halts, unless that task quotes the line
 
-#### Scenario: A planned change adds an ignore mark
-- **WHEN** a cut task names the gate recipe, and the branch adds a `-` recipe prefix — after a tab, after a rule's
-  `;` or from a variable — a `.IGNORE` or `.ONESHELL` target, a `SHELL` assignment or `-i` in `MAKEFLAGS` that the
-  task does not quote
+#### Scenario: A planned change adds a line the task does not quote
+- **WHEN** a cut task names the gate recipe, and the branch adds a gate makefile line the task does not quote — a
+  `-` recipe prefix, a `.IGNORE` target, a `SHELL` assignment or `-i` in `MAKEFLAGS`, in any form: a continued rule
+  line, `define`, a computed name, `$(eval)`
 - **THEN** each station halts, naming the line
 
 #### Scenario: The base's gate reads a file the export lacks
