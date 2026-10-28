@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-cut-change` halts on a brief whose title declares `light`, naming `mf-plan` with `depth=hard`, and its
   diagram starts at `mf-plan` (change `0032-mf-plan`, phase 2).
 
+- Record the station: D5 now plans with `mf-plan`, the boundary principle lists the operator's brief and the
+  metrics script's git reads as its exceptions (closing `0030·R3`), and the docs name `mf-plan` (change
+  `0032-mf-plan`, phase 3).
+
 ## [0.30.1] - 2026-10-27
 
 Gate: local 0m4s · CI 0m13s (CI at d7a18b8) · 0.30.0: local 0m5s · CI 0m11s (CI at 8c88e90)

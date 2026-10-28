@@ -56,14 +56,17 @@ may use any toolchain.**
 
 How an idea becomes a change the build can run.
 
-### D5 · The planning line is adopted, not built
+### D5 · A change is planned with `mf-plan` and written with the OpenSpec CLI
 
-**A change is grilled with the `grilling` skill and written with the OpenSpec CLI: its `instructions` shape each
-artifact, its `validate --strict` is the check on a change. MinionsFactory adds only the conducting.**
+**`mf-plan` grills a version to settled decisions and writes the brief; the OpenSpec CLI's `instructions` shape
+each artifact, and its `validate --strict` is the check on a change. `mf-plan` takes its frontier rounds from the
+adopted `grilling` skill it replaces.**
 
-- **Why:** both tools are maintained elsewhere; a planning line of our own is a surface to maintain.
-- **Rejected:** `to-spec`, which collides with `openspec instructions` · `to-tickets`, which is redundant · a
-  `docs/agents/` adapter, which has no reader.
+- **Why:** the line's practice must run on every executor, and a plugin one host carries cannot; the OpenSpec CLI
+  is maintained elsewhere and stays adopted.
+- **Rejected:** wrapping `grilling` — a plugin other hosts lack, text that moves upstream · `to-spec`, which
+  collides with `openspec instructions` · `to-tickets`, which is redundant · a `docs/agents/` adapter, which has no
+  reader.
 
 ### D6 · A change's artifacts are its record
 

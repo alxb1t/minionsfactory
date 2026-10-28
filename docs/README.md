@@ -6,7 +6,7 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
 ```
    grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
- `grilling`  mf-cut-change    mf-build     mf-converge          mf-release    the skills
+  mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security
 
    conducted by a person today · by an LLM conductor held by scripts: designed, not built

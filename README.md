@@ -12,7 +12,7 @@ One change goes from an idea to a tag on the default branch.
 ```
    grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
- `grilling`  mf-cut-change    mf-build     mf-converge          mf-release    the skills
+  mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security
 
    conducted by a person today · by an LLM conductor held by scripts: designed, not built
@@ -22,6 +22,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 
 | skill | what it is for |
 | --- | --- |
+| [`mf-plan`](skills/mf-plan/SKILL.md) | grill a version to settled decisions and write the brief the cut reads |
 | [`mf-bootstrap`](skills/mf-bootstrap/SKILL.md) | write a new repo's starting files and commit them, once, before the first cut |
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |

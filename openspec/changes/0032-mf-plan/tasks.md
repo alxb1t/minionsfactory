@@ -7,7 +7,7 @@ template are the design's, word for word.
 
 - [x] 1 — Write the plan station
 - [x] 2 — Make the cut halt on a light brief
-- [ ] 3 — Record the station in the decisions, the principle and the docs
+- [x] 3 — Record the station in the decisions, the principle and the docs
 
 ## 1 — Write the plan station
 
@@ -23,11 +23,11 @@ template are the design's, word for word.
 
 ## 3 — Record the station in the decisions, the principle and the docs
 
-- [ ] 3.1 Rewrite D5 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 3.1 Rewrite D5 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: ``grep -c '^### D5 · A change is planned with `mf-plan` and written with the OpenSpec CLI$' docs/decisions.md`` prints `1`.
-- [ ] 3.2 Rewrite the bold paragraph of *The repo reaches nothing outside itself* in `docs/principles.md`, per [D6](design.md#d6), closing `0030·R3`.
+- [x] 3.2 Rewrite the bold paragraph of *The repo reaches nothing outside itself* in `docs/principles.md`, per [D6](design.md#d6), closing `0030·R3`.
   Verify: ``grep -c "save \`mf-release\`'s read-only remote CI lookup" docs/principles.md`` prints `0`, and `grep -c "the operator's brief" docs/principles.md` prints `1`.
-- [ ] 3.3 Name `mf-plan` in `AGENTS.md`'s skills line, and in `README.md`'s and `docs/README.md`'s diagrams and `README.md`'s skill table, per [D6](design.md#d6).
+- [x] 3.3 Name `mf-plan` in `AGENTS.md`'s skills line, and in `README.md`'s and `docs/README.md`'s diagrams and `README.md`'s skill table, per [D6](design.md#d6).
   Verify: `grep -l 'mf-plan' README.md docs/README.md | wc -l` prints `2`, `grep -c 'plan, bootstrap, cut, build, converge, release' AGENTS.md` prints `1`, and ``grep -c '`grilling`' README.md docs/README.md`` prints `README.md:0` and `docs/README.md:0`.
-- [ ] 3.4 The suite has the planned tests.
+- [x] 3.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `38 tests collected`.
