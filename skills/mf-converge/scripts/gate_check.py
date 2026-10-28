@@ -123,14 +123,14 @@ def export(rev: str, dest: Path, side: str) -> None:
             raise Stop(2, f"gate: cannot check — the {side}'s export lacks {name}")
 
 
-def gate_makefiles(root: Path, trace: str) -> set[str]:
-    """Return the files make reads in `make -pn -r -w -d gate`, as paths inside `root`.
+def gate_makefiles(root: Path, trace: str) -> dict[str, set[str]]:
+    """Map each makefile inside `root` to the paths its resolution depends on.
 
     Names come from make's `Reading makefile` lines and each `MAKEFILE_LIST`. A makefile
     can reassign the list or print a directory line, so each name is tried against every
     directory the trace enters, and kept where `root` holds that file. Keep the
-    lexical name, resolved target and symlink ancestors: Git tracks the links.
-    e.g. "Reading makefile `gate.mk' (search path)..." → {"gate.mk"}
+    lexical name and every followed link beside the target: Git tracks the links.
+    e.g. "Reading makefile `gate.mk' (search path)..." → {"gate.mk": {"gate.mk"}}
     """
     top = root.resolve()
     directories = {top}
@@ -142,22 +142,51 @@ def gate_makefiles(root: Path, trace: str) -> set[str]:
             names.add(match[1])
         elif line.startswith("MAKEFILE_LIST :="):
             names.update(line.removeprefix("MAKEFILE_LIST :=").split())
-    paths: set[Path] = set()
+    files: dict[str, set[str]] = {}
     for where in directories:
         for name in names:
-            path = Path(os.path.abspath(where / name))
+            path = Path.cwd() / where / name
+            lexical = Path(os.path.abspath(path))
             target = path.resolve()
-            if not path.is_relative_to(top) or not target.is_relative_to(top):
+            if not lexical.is_relative_to(top) or not target.is_relative_to(top):
                 continue
             if not path.is_file():
                 continue
-            paths.update((path, target))
-            paths.update(
-                parent
-                for parent in path.parents
-                if parent.is_relative_to(top) and parent.is_symlink()
-            )
-    return {path.relative_to(top).as_posix() for path in paths}
+            dependencies = _resolution_paths(path) | {lexical, target}
+            files[path.relative_to(top).as_posix()] = {
+                entry.relative_to(top).as_posix()
+                for entry in dependencies
+                if entry.is_relative_to(top)
+            }
+    return files
+
+
+def _resolution_paths(path: Path) -> set[Path]:
+    """Return every symlink followed through `path`, including link targets' parents.
+
+    Resolve components in order: `..` follows a link's target, not its lexical parent.
+    The caller has resolved the path already, so a cycle cannot reach this walk.
+    """
+    cursor = Path(path.anchor)
+    pending = list(path.parts[1:])
+    links: set[Path] = set()
+    while pending:
+        part = pending.pop(0)
+        if part == "..":
+            cursor = cursor.parent
+            continue
+        entry = cursor / part
+        if entry.is_symlink():
+            links.add(entry)
+            target = entry.readlink()
+            if target.is_absolute():
+                cursor = Path(target.anchor)
+                pending = list(target.parts[1:]) + pending
+            else:
+                pending = list(target.parts) + pending
+        else:
+            cursor = entry
+    return links
 
 
 def changed_lines(
@@ -187,7 +216,7 @@ def _lines(path: Path) -> list[str]:
     return path.read_text(errors="replace").splitlines() if path.is_file() else []
 
 
-def read_side(rev: str, root: Path, side: str) -> tuple[set[str], list[str]]:
+def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], list[str]]:
     """Export `rev` to `root`; return its gate makefiles and its dry run.
 
     The dry run's lines carry `<export>` in place of `root`'s own path.
@@ -211,8 +240,16 @@ def check(change: str, base: str) -> str:
         base_files, base_lines = read_side(base, root / "base", "base")
         head_files, head_lines = read_side("HEAD", root / "head", "head")
         changed = set(_git("diff", "--name-only", "-z", base, "HEAD").split("\0"))
-        touched = sorted((base_files | head_files) & changed)
-        edits = changed_lines(root / "base", root / "head", touched)
+        touched = sorted(
+            set().union(*base_files.values(), *head_files.values()) & changed
+        )
+        # A changed directory link is no text file; compare the makefiles it redirects.
+        affected = sorted(
+            name
+            for name in base_files.keys() | head_files.keys()
+            if (base_files.get(name, set()) | head_files.get(name, set())) & changed
+        )
+        edits = changed_lines(root / "base", root / "head", affected)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

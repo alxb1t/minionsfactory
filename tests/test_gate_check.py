@@ -163,7 +163,80 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
         result = _check(root, base)
         if result.returncode != 1 or not result.stdout.endswith(f":\n  {changed}\n"):
             failures.append((label, result.returncode, result.stdout))
-    assert not failures, failures
+    # Every link followed while resolving an include can change its contents,
+    # even when the direct include name and the dry run stay unchanged.
+    topologies = [
+        (
+            "chain",
+            "gate.mk",
+            {"gate.mk": "alias.mk", "alias.mk": "strict/gate.mk"},
+            "alias.mk",
+            "ignored/gate.mk",
+        ),
+        ("directory", "rules/gate.mk", {"rules": "strict"}, "rules", "ignored"),
+        (
+            "directory-chain",
+            "rules/gate.mk",
+            {"rules": "alias", "alias": "strict"},
+            "alias",
+            "ignored",
+        ),
+        (
+            "target-directory",
+            "gate.mk",
+            {"gate.mk": "rules/gate.mk", "rules": "strict"},
+            "rules",
+            "ignored",
+        ),
+        (
+            "relative-chain",
+            "links/gate.mk",
+            {"links/gate.mk": "../alias/gate.mk", "alias": "strict"},
+            "alias",
+            "ignored",
+        ),
+        (
+            "parent-after-link",
+            "rules/../gate.mk",
+            {"rules": "strict/deep"},
+            "rules",
+            "ignored/deep",
+        ),
+    ]
+    for label, include, links, changed, target in topologies:
+        for plan, tasks, expected in [
+            ("unplanned", _UNPLANNED, 1),
+            ("unquoted", _planned(), 1),
+            ("quoted", _planned(" Quotes `false` and `-false`."), 0),
+        ]:
+            root = tmp_path / f"{label}-{plan}"
+            root.mkdir()
+            for name, destination in links.items():
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).symlink_to(destination)
+            initial = {
+                "Makefile": f"include {include}\n",
+                "strict/gate.mk": "gate:\n\tfalse\n",
+                "ignored/gate.mk": "gate:\n\t-false\n",
+                "strict/deep/keep": "",
+                "ignored/deep/keep": "",
+            }
+            base = _branch(root, initial, tasks, {"README.md": "x\n"})
+            (root / changed).unlink()
+            (root / changed).symlink_to(target)
+            _commit(root, {}, "retarget resolution dependency")
+            result = _check(root, base)
+            valid = result.returncode == expected
+            if plan == "unplanned":
+                valid &= result.stdout.endswith(f":\n  {changed}\n")
+            elif plan == "unquoted":
+                valid &= "removed:" in result.stdout and "added:" in result.stdout
+                valid &= "false" in result.stdout and "-false" in result.stdout
+            else:
+                valid &= result.stdout.startswith("gate: planned")
+            if not valid:
+                failures.append((f"{label}-{plan}", result.returncode, result.stdout))
+    assert not failures, "\n".join(map(str, failures))
 
 
 def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
