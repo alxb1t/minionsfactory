@@ -24,12 +24,19 @@ EXPORTS = Path(".minions/gate-check")
 TIMEOUT_SECONDS = 300
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
-# `gate_makefiles` parses make's English `Entering directory` lines.
+# `gate_makefiles` parses make's English `Reading makefile` and directory lines.
 PINNED = {"LC_ALL": "C"}
 CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
-DIRECTORY = re.compile(r": (Entering|Leaving) directory [`'](.*)'$")
-DASH_PREFIX = re.compile(r"\t[@+]*-")
+DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
+READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
+# A recipe's `-`, after a tab or a rule's `;`, or a `$` that may expand to one.
+RECIPE_PREFIX = re.compile(r"\t[@+\s]*[-$]")
+RULE_RECIPE = re.compile(r"[^\t#=]*:[^;=]*;[@+\s]*[-$]")
+SHELL_SET = re.compile(
+    r"(?:^|[\s:;])(?:SHELL|\.SHELLFLAGS|\.RECIPEPREFIX)\s*(?:[+?!]|:{1,3})?="
+)
+SPECIAL_TARGETS = (".IGNORE", ".ONESHELL")
 MAKEFLAGS_SET = re.compile(
     r"\s*(?:(?:export|override)\s+)*MAKEFLAGS\s*(?:[+?!]|::?)?=(.*)$"
 )
@@ -119,29 +126,37 @@ def export(rev: str, dest: Path, side: str) -> None:
             tar.extractall(dest, filter="data")
     except (tarfile.TarError, OSError) as error:
         raise Stop(2, f"gate: cannot check — the {side}'s export failed: {error}")
+    # `export-ignore` drops a path the checkout's make still reads.
+    for entry in _git("ls-tree", "-r", "-z", "--full-tree", rev).split("\0"):
+        meta, _, name = entry.partition("\t")
+        if name and meta.split()[1] != "commit" and not os.path.lexists(dest / name):
+            raise Stop(2, f"gate: cannot check — the {side}'s export lacks {name}")
 
 
-def gate_makefiles(root: Path, database: str) -> set[str]:
-    """Return the files of each `MAKEFILE_LIST` in `make -pn -r -w gate`, inside `root`.
+def gate_makefiles(root: Path, trace: str) -> set[str]:
+    """Return the files make reads in `make -pn -r -w -d gate`, as paths inside `root`.
 
-    A sub-make's names are relative to its `Entering directory` line's directory.
-    e.g. "MAKEFILE_LIST :=  Makefile gate.mk" → {"Makefile", "gate.mk"}
+    Names come from make's `Reading makefile` lines and each `MAKEFILE_LIST`. A makefile
+    can reassign the list or print a directory line, so each name is tried against every
+    directory the trace enters, and kept where `root` holds that file.
+    e.g. "Reading makefile `gate.mk' (search path)..." → {"gate.mk"}
     """
     top = root.resolve()
-    directories = [top]
-    found: set[str] = set()
-    for line in database.splitlines():
+    directories = {top}
+    names: set[str] = set()
+    for line in trace.splitlines():
         if match := DIRECTORY.search(line):
-            if match[1] == "Entering":
-                directories.append(Path(match[2]))
-            elif len(directories) > 1:
-                directories.pop()
+            directories.add(Path(match[1]))
+        elif match := READING.search(line):
+            names.add(match[1])
         elif line.startswith("MAKEFILE_LIST :="):
-            for name in line.removeprefix("MAKEFILE_LIST :=").split():
-                path = (directories[-1] / name).resolve()
-                if path.is_relative_to(top):
-                    found.add(path.relative_to(top).as_posix())
-    return found
+            names.update(line.removeprefix("MAKEFILE_LIST :=").split())
+    paths = {(where / name).resolve() for where in directories for name in names}
+    return {
+        path.relative_to(top).as_posix()
+        for path in paths
+        if path.is_relative_to(top) and path.is_file()
+    }
 
 
 def dry_run(root: Path, side: str) -> list[str]:
@@ -151,8 +166,15 @@ def dry_run(root: Path, side: str) -> list[str]:
 
 
 def ignores_errors(line: str) -> bool:
-    """Return whether a makefile line adds a `-` recipe prefix, `.IGNORE` or `-i`."""
-    if DASH_PREFIX.match(line) or ".IGNORE" in line:
+    """Return whether a makefile line may hide a failing command.
+
+    A `-` recipe prefix after a tab or a rule's `;`, or a variable there that may expand
+    to one; `.IGNORE` or `.ONESHELL`; a `SHELL`, `.SHELLFLAGS` or `.RECIPEPREFIX`
+    assignment; or `-i` in `MAKEFLAGS`.
+    """
+    if RECIPE_PREFIX.match(line) or RULE_RECIPE.match(line) or SHELL_SET.search(line):
+        return True
+    if any(target in line for target in SPECIAL_TARGETS):
         return True
     if match := MAKEFLAGS_SET.match(line):
         words = match[1].split()
@@ -165,6 +187,8 @@ def ignores_errors(line: str) -> bool:
 def ignore_marks(base: str, files: list[str]) -> list[tuple[str, str]]:
     """Return each line the branch adds to `files` that ignores errors, by file."""
     marks: list[tuple[str, str]] = []
+    if not files:
+        return marks
     current = ""
     for line in _git("diff", "-U0", base, "HEAD", "--", *files).splitlines():
         if line.startswith("+++ "):
@@ -177,10 +201,10 @@ def ignore_marks(base: str, files: list[str]) -> list[tuple[str, str]]:
 def read_side(rev: str, root: Path, side: str) -> tuple[set[str], list[str]]:
     """Export `rev` to `root`; return its gate makefiles and its dry run."""
     export(rev, root, side)
-    database = _run(
-        ["make", "-pn", "-r", "-w", "gate"], root, f"the {side}'s make database"
+    trace = _run(
+        ["make", "-pn", "-r", "-w", "-d", "gate"], root, f"the {side}'s make database"
     )
-    return gate_makefiles(root, database), dry_run(root, side)
+    return gate_makefiles(root, trace), dry_run(root, side)
 
 
 def check(change: str, base: str) -> str:
@@ -197,14 +221,24 @@ def check(change: str, base: str) -> str:
 
     changed = set(_git("diff", "--name-only", base, "HEAD").splitlines())
     touched = sorted((base_files | head_files) & changed)
-    if not touched:
+    diff = "\n".join(
+        difflib.unified_diff(
+            base_lines,
+            head_lines,
+            "base: make -n gate",
+            "head: make -n gate",
+            lineterm="",
+        )
+    )
+    if not touched and not diff:
         return "gate: the base's"
     if not tasks:
-        listed = "".join(f"\n  {name}" for name in touched)
+        # The changed makefiles, or else the dry runs' diff.
+        shown = "".join(f"\n  {name}" for name in touched) or f"\n{diff}"
         raise Stop(
             1,
-            "gate: halt — the branch changes a gate makefile, and no cut task names "
-            f"`Makefile` and `gate`:{listed}",
+            "gate: halt — the branch changes the gate, and no cut task names "
+            f"`Makefile` and `gate`:{shown}",
         )
 
     def quoted(text: str) -> bool:
@@ -221,15 +255,6 @@ def check(change: str, base: str) -> str:
         for name, text in ignore_marks(base, touched)
         if not quoted(text)
     ]
-    diff = "\n".join(
-        difflib.unified_diff(
-            base_lines,
-            head_lines,
-            "base: make -n gate",
-            "head: make -n gate",
-            lineterm="",
-        )
-    )
     if problems:
         raise Stop(
             1,

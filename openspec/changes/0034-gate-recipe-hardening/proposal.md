@@ -22,11 +22,11 @@ and pass both stations.
 
 - **A bundled check**, `skills/mf-converge/scripts/gate_check.py`, run as a `uv` script: it exports the base and
   `HEAD` with `git archive`, runs make in each with `MAKEFLAGS` and `MFLAGS` cleared, and removes the exports.
-- **Unplanned:** a branch that changes any **gate makefile** — any file in `make -pn -r gate`'s `MAKEFILE_LIST` on
-  either side — halts.
+- **Unplanned:** a branch that changes any **gate makefile** — any file make reads for `gate` on either side — or
+  the gate's dry run halts.
 - **Planned** (a cut task names the recipe): a dropped command line, or an added `-` prefix, `.IGNORE` or `-i` in
   `MAKEFLAGS`, halts unless the task quotes it.
-- **A dry run that fails in an export halts**, naming the side.
+- **An export that lacks a path, or a dry run that fails in one, halts**, naming the side.
 - Converge's precondition 6 and the release's precondition 8 call the check; the principle's *Held by:* names it.
 
 ## Capabilities

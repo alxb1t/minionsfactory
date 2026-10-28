@@ -41,6 +41,7 @@ def _branch(
     root: Path, base: dict[str, str], tasks: str, branch: dict[str, str]
 ) -> str:
     """Commit `base`, then the cut with `tasks`, then `branch`; return the base."""
+    root.mkdir(exist_ok=True)
     _git(root, "init", "-q")
     _commit(root, {".gitignore": ".minions/\n.env\n", **base}, "base")
     first = _git(root, "rev-parse", "HEAD")
@@ -84,6 +85,28 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     result = _check(tmp_path, base)
     assert result.returncode == 1
     assert result.stdout.endswith("names `Makefile` and `gate`:\n  gate.mk\n")
+
+    # A makefile the base's wildcard picks up cannot drop itself from the list.
+    wildcard = tmp_path / "wildcard"
+    files = {"Makefile": "include $(wildcard mk/*.mk)\ngate:\n\tfalse\n"}
+    files["mk/a.mk"] = "A = 1\n"
+    hidden = ".IGNORE:\nMAKEFILE_LIST := Makefile mk/a.mk\n"
+    hidden += "$(info make: Entering directory `/')\n"
+    base = _branch(wildcard, files, _UNPLANNED, {"mk/z.mk": hidden})
+    result = _check(wildcard, base)
+    assert result.returncode == 1, result.stdout
+    assert result.stdout.endswith(":\n  mk/z.mk\n")
+
+    # A file make reads through `$(shell)` is no makefile, but its dry run differs.
+    data = tmp_path / "data"
+    files = {"Makefile": "CMD := $(shell cat gate.cmd)\ngate:\n\t$(CMD)\n"}
+    base = _branch(
+        data, {**files, "gate.cmd": "false\n"}, _UNPLANNED, {"gate.cmd": "true\n"}
+    )
+    result = _check(data, base)
+    assert result.returncode == 1, result.stdout
+    assert "and no cut task names" in result.stdout
+    assert "\n-false\n+true" in result.stdout
 
 
 def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
@@ -137,6 +160,26 @@ def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
     assert "\n  ignore mark: Makefile: -echo b\n" in result.stdout
     assert "dropped" not in result.stdout
 
+    # A `-` after a rule's `;` or from a variable, and a `SHELL`, hide a failure too.
+    forms = tmp_path / "forms"
+    branch = {"Makefile": "SHELL := /bin/sh\nI := -\ngate:\n\techo a\n\t$(I)echo b\n"}
+    branch["Makefile"] += "side: ; -echo d\n"
+    base = _branch(forms, {"Makefile": _GATE}, _planned(), branch)
+    result = _check(forms, base)
+    assert result.returncode == 1, result.stdout
+    for mark in ("SHELL := /bin/sh", "$(I)echo b", "side: ; -echo d"):
+        assert f"\n  ignore mark: Makefile: {mark}\n" in result.stdout
+
+    # `.ONESHELL` runs the recipe as one script, whose middle lines may fail.
+    oneshell = tmp_path / "oneshell"
+    gate = "gate:\n\tfalse\n"
+    base = _branch(
+        oneshell, {"Makefile": gate}, _planned(), {"Makefile": f".ONESHELL:\n{gate}"}
+    )
+    result = _check(oneshell, base)
+    assert result.returncode == 1, result.stdout
+    assert "\n  ignore mark: Makefile: .ONESHELL:\n" in result.stdout
+
 
 def test_a_planned_change_the_task_quotes_passes(tmp_path: Path) -> None:
     branch = {"Makefile": "gate:\n\techo a\n\t-echo c\n"}
@@ -156,6 +199,17 @@ def test_a_dry_run_failing_in_an_export_exits_2(tmp_path: Path) -> None:
     assert result.stdout.startswith("gate: cannot check — the base's make database")
     assert ".env" in result.stdout
     assert not (tmp_path / ".minions" / "gate-check" / _CHANGE).exists()
+
+    # A path the branch marks `export-ignore` is missing from its export.
+    ignored = tmp_path / "ignored"
+    branch = {
+        "GNUmakefile": "gate:\n\ttrue\n",
+        ".gitattributes": "GNUmakefile export-ignore\n",
+    }
+    base = _branch(ignored, {"Makefile": "gate:\n\tfalse\n"}, _UNPLANNED, branch)
+    result = _check(ignored, base)
+    assert result.returncode == 2, result.stdout
+    assert result.stdout == "gate: cannot check — the head's export lacks GNUmakefile\n"
 
 
 def test_no_single_cut_commit_halts(tmp_path: Path) -> None:

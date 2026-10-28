@@ -38,13 +38,13 @@ The grilling settled these choices (the brief's Q2–Q11); the build does not re
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D2 | A **gate makefile** is any file in a `MAKEFILE_LIST :=` line of `make -pn -r gate` on either export, as a path inside the export. **Unplanned** — no planning task (D3) — a branch whose `git diff --name-only <base> HEAD` names a gate makefile halts | One rule closes the include, sub-make, `-`, `.IGNORE` and `MAKEFLAGS` routes (`0023·S1`, `S5`, `R8`); it reads one line of make's database, the same on 3.81 and 4.x | Parsing make's database for prefixes; comparing output alone |
+| D2 | A **gate makefile** is any file in a `MAKEFILE_LIST :=` or `Reading makefile` line of `make -pn -r -w -d gate` on either export, tried against every directory the trace enters, as a path inside the export. **Unplanned** — no planning task (D3) — a branch whose `git diff --name-only <base> HEAD` names a gate makefile, or whose `make -n gate` differs from the base's, halts | One rule closes the include, sub-make, `-`, `.IGNORE` and `MAKEFLAGS` routes (`0023·S1`, `S5`, `R8`); it reads one line of make's database, the same on 3.81 and 4.x | Parsing make's database for prefixes; comparing output alone |
 
 ### D3
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on an added line that starts a recipe with `-` (a tab, then `-`), names `.IGNORE`, or sets `MAKEFLAGS` with an `i` flag — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; the exact text in the task is a decision a person read | `-k` as a mark — it hides nothing, the run still exits 2; a task that only names the recipe excusing every line |
+| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on an added line that starts a recipe with `-` or a variable (after a tab or a rule's `;`), names `.IGNORE` or `.ONESHELL`, assigns `SHELL`, `.SHELLFLAGS` or `.RECIPEPREFIX`, or sets `MAKEFLAGS` with an `i` flag — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; the exact text in the task is a decision a person read | `-k` as a mark — it hides nothing, the run still exits 2; a task that only names the recipe excusing every line |
 
 `<cut>` is the one commit `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints;
 none or more than one halts.
@@ -58,8 +58,8 @@ none or more than one halts.
 | exit | means | prints |
 |---|---|---|
 | 0 | the gate is the base's, or the plan covers its change | `gate: the base's` or `gate: planned — <the planning task>` |
-| 1 | halt: an unplanned gate makefile change, a dropped line, an ignore mark, or no single cut commit | the reason, the files or lines, and for a planned change the two dry runs' diff |
-| 2 | cannot check: a dry run failed on a side, or git or make is missing | the side and the first line of make's error |
+| 1 | halt: an unplanned gate makefile or dry-run change, a dropped line, an ignore mark, or no single cut commit | the reason, the files or lines, and the two dry runs' diff for a planned change or one no makefile explains |
+| 2 | cannot check: an export lacks a path of its tree, a dry run failed on a side, or git or make is missing | the side, and the path or the first line of make's error |
 
 ### D5
 
