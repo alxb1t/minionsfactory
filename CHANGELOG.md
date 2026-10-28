@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-28
+
+Gate: local 0m3s · CI 0m14s (CI at cb52d5b) · 0.30.1: local 0m4s · CI 0m13s (CI at d7a18b8)
+
 - Add the plan station, `skills/mf-plan/SKILL.md`: it grills a version in rounds, reads the target only at its
   default branch, and writes the brief after every round. Its structure is held by `tests/test_skills.py`
   (change `0032-mf-plan`, phase 1).
