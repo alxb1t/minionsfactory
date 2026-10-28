@@ -4,16 +4,16 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## Progress
 
-- [ ] 1 — Resolve one run directory in the scripts
+- [x] 1 — Resolve one run directory in the scripts
 - [ ] 2 — Make the cut work in worktrees
 - [ ] 3 — Share the run directory and merge in the primary
 - [ ] 4 — Record the workspaces
 
 ## 1 — Resolve one run directory in the scripts
 
-- [ ] 1.1 **HALT CHECK** `git rev-parse --path-format=absolute --git-common-dir` prints the primary's git directory from a linked worktree, the premise of [D3](design.md#d3).
+- [x] 1.1 **HALT CHECK** `git rev-parse --path-format=absolute --git-common-dir` prints the primary's git directory from a linked worktree, the premise of [D3](design.md#d3).
   Verify: `git rev-parse --path-format=absolute --git-common-dir` prints a path ending in `/.git`.
-- [ ] 1.2 Resolve the run directory per [D3](design.md#d3) in `skills/mf-build/scripts/metrics.py`, `skills/mf-converge/scripts/gate_check.py` and `scripts/metrics/backlog.py`, and add the tests the [Tests](design.md#tests) table names.
+- [x] 1.2 Resolve the run directory per [D3](design.md#d3) in `skills/mf-build/scripts/metrics.py`, `skills/mf-converge/scripts/gate_check.py` and `scripts/metrics/backlog.py`, and add the tests the [Tests](design.md#tests) table names.
   Verify: `uv run pytest -q -k primary_run_directory` reports `3 passed`.
 
 ## 2 — Make the cut work in worktrees

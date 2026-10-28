@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `metrics.py`'s default page, `gate_check.py`'s exports and `backlog.py`'s backlog resolve `.minions/` beside the
+  primary checkout's git directory: every worktree shares one run directory (change `0036-parallel-workspaces`,
+  phase 1).
+
 ## [0.31.3] - 2026-10-28
 
 Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)

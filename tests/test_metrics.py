@@ -379,3 +379,20 @@ def test_provenance_is_recorded_never_guessed(
     _git(host, "commit", "-q", "-m", "host")
     _git(host, "tag", "v9.9")
     assert {place: metrics.mf_version(host / place) for place in places} == places
+
+
+def test_the_page_defaults_to_the_primary_run_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
+    primary.mkdir()
+    _repo(primary, _metric("steady", source="station"))
+    _git(primary, "worktree", "add", "-q", "-b", "v0.2_x", str(worktree))
+    data = primary / ".minions" / "metrics" / "0002-x.json"
+    data.parent.mkdir(parents=True)
+    data.write_text(json.dumps(_record("v0.2", "0002-x", steady=1)))
+    monkeypatch.chdir(worktree)
+
+    assert metrics.main(["page", "0002-x", "--data", str(data)]) == 0
+    assert (primary / ".minions" / "metrics" / "0002-x.html").is_file()
+    assert not (worktree / ".minions").exists()

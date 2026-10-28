@@ -21,7 +21,6 @@ import sys
 import tarfile
 from pathlib import Path
 
-EXPORTS = Path(".minions/gate-check")
 TIMEOUT_SECONDS = 300
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
@@ -73,6 +72,12 @@ def _run(argv: list[str], cwd: Path, what: str) -> str:
 def _git(*args: str) -> str:
     """Return the output of a git command run in the repository root."""
     return _run(["git", *args], Path("."), f"git {args[0]}")
+
+
+def exports() -> Path:
+    """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
+    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(common.strip()).parent / ".minions" / "gate-check"
 
 
 def cut_commit(change: str) -> str:
@@ -234,7 +239,7 @@ def check(change: str, base: str) -> str:
     """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
-    root = EXPORTS / change
+    root = exports() / change
     shutil.rmtree(root, ignore_errors=True)
     try:
         base_files, base_lines = read_side(base, root / "base", "base")
