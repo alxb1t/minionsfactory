@@ -401,12 +401,13 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 
 # The stations run each bundled script from its owner's package: the owner by its own
 # path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
-# 0034-gate-recipe-hardening design D5.
+# 0034-gate-recipe-hardening design D5; 0037-serial-integration design Tests.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
     ("mf-converge", "scripts/gate_check.py"),
     ("mf-release", "../mf-converge/scripts/gate_check.py"),
+    ("mf-integrate", "scripts/integrate.py"),
 ]
 
 
@@ -443,6 +444,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: "
         "missing file",
+        "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -454,7 +456,16 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
         "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
+        "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
     ]
+
+
+def test_mf_integrate_runs_its_script() -> None:
+    pair = ("mf-integrate", "scripts/integrate.py")
+    assert pair in _METRICS_SCRIPTS
+    skill = _REPO / "skills" / pair[0] / "SKILL.md"
+    assert pair[1] in skill.read_text()
+    assert _file_problem(skill.parent / pair[1]) is None
 
 
 # The plan station holds its parameters, naming the required brief, and its forbidden

@@ -27,6 +27,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
+| [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 
 ## Install
@@ -88,9 +89,16 @@ merges in the primary.
 MF declares `Worktrees: ../`, which names the folder holding its checkout. Move it into a container before the next
 cut:
 
-1. Move the checkout to `<container>/main`.
-2. Run `make install-skills` from `<container>/main`: the skill symlinks still point at the old path.
-3. Update the planning side's path to the repo.
+1. Move the checkout to `<container>/main` through a temporary name, since the container takes the checkout's
+   name: `mv <repo> <repo>.tmp && mkdir <repo> && mv <repo>.tmp <repo>/main`.
+2. Rebuild the environment from `<container>/main`, since `.venv` records the old path:
+   `rm -rf .venv && uv sync --locked`.
+3. Re-link the skills from `<container>/main`, since the symlinks still point at the old path:
+   `make install-skills SKILLS_DIR=$HOME/.claude/skills`, naming the host's skills directory.
+4. Update the planning side's path to the repo.
+
+A version whose base moved is brought onto the default branch by `mf-integrate`, run in the primary
+([D45](docs/decisions.md#d45--one-station-merges-the-default-branch-into-the-next-version)).
 
 ## This repo's gate
 

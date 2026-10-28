@@ -143,10 +143,37 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — the files' `round:` is the last judged round, and the catch-up round counts against the cap of
    three. At the cap → halt as drawn.
-3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does: overwrite
-   the patch and print its numbers.
+3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
+   A range with a merge uses [Catch-up scope](#catch-up-scope): overwrite the patch with the merge's
+   `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
+   judged by what it decided; the gate judges the combined tree.
 4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the same
    cap.
+
+### Catch-up scope
+
+For a catch-up containing a merge, enumerate `git rev-list --reverse --first-parent <judged head>..HEAD`.
+Check that the judged head lies on HEAD's first-parent chain. Each merge must have exactly two parents and its
+second parent must be an ancestor of the default branch. An unsupported ancestry or merge → halt, naming it.
+This selects the version's own commits and merges, excluding commits inherited from the default branch.
+
+For each selected commit, in order, freeze its `git show --format=fuller --patch` when it has one parent, or
+`git show --format=fuller --remerge-diff` when it is a merge. Keep the commit headers even for an empty diff.
+Print the selected commit ids, their parent ids and whether each uses an ordinary diff or remerge-diff, the
+selected commit count, and the union of paths changed in those diffs. These are this round's scope and counts;
+the full range's inherited commits and endpoint-diff file count are not its scope. Give every checker this
+selection with the range and patch, under Step 3.
+
+Each checker independently reconstructs the selection and diffs with git, compares them with the frozen patch,
+and reports the selected ids, commit count and changed-file count in its Summary. A missing commit or patch,
+a failed command or a mismatch is a scope failure. Neither engine may reopen inherited default-branch changes.
+
+**Empty resolutions:** zero changed files can earn clean only when the selection is non-empty, consists solely
+of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
+empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
+zero changed files and the non-zero examined commit count. The conductor checks these against the freeze and
+runs the gate on HEAD under Step 7. The review still reports its stale-claim, test-cost and coverage-trace passes
+(no changed paths, new tests or removed tests). All other zero-file scopes fail Step 5.
 
 ## Step 1 — Preconditions (each one halts, naming what is missing)
 
@@ -190,7 +217,8 @@ Dispatch both as fresh workers, per *Executor and worker selection*, read-only a
 files. Give each:
 
 - the range `<base>..HEAD` and its two commit ids;
-- the patch path `.minions/findings/<change-id>_diff.patch`;
+- the patch path `.minions/findings/<change-id>_diff.patch`, and the selected commits, parents, diff kinds and
+  counts for a merge-aware [catch-up scope](#catch-up-scope);
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md` and its mandatory context, and the change's proposal, design and tasks under
   `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
@@ -212,15 +240,21 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 | test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so Step 8 picks it |
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
-**Native scoping (Claude Code).** Invoke `/code-review` scoped to the range. Invoke `/security-review` with no
+**Native scoping (Claude Code).** For a merge-aware catch-up, scope both native engines to the selected
+ordinary diffs and remerge-diffs with surrounding source, using the frozen patch; independently reconstruct the
+selection first under Catch-up scope, including the empty-resolution checks. Report that route and its scope.
+The ordinary native route below applies to other rounds.
+
+Invoke `/code-review` scoped to the range. Invoke `/security-review` with no
 target: on a clean tree it reviews the committed branch work, its expected path, not a fallback. **Only if what a
 station reviewed came back empty or clearly wrong** does it fall back to reviewing the patch file, and its
 Summary **states which it did**, with the file and commit counts it resolved. The patch is a fallback, not the
 channel: a review from a patch alone loses the file context the engine's blame, history and comment passes need.
 
 **Generic scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
-resource. Report the scope actually resolved; halt when the inputs cannot support a verdict. Step 4's findings
-and Step 5's scope rules apply to either engine.
+resource. For a merge-aware catch-up, reconstruct and judge only Catch-up scope. Report the scope actually
+resolved; halt when the inputs cannot support a verdict. Step 4's findings and Step 5's scope rules apply to
+either engine.
 
 **Engine overrides, no exceptions:** never `--fix` — a station edits nothing but its own findings
 file · never `--comment` — findings land on disk, not on a pull request · never `ultra` — it is user-triggered
@@ -289,13 +323,14 @@ Write `verdicts` to the status log after each read. A file is **not clean** — 
 | the findings file | why |
 |---|---|
 | is missing | a station that never ran, or crashed, cannot pass the loop |
-| resolved zero files, or materially fewer files or commits than **this round's freeze** | a scope failure, indistinguishable from a real clean |
+| resolved zero files outside the checked empty-resolution case, or materially fewer files or commits than **this round's freeze** | a scope failure, indistinguishable from a real clean |
 | is review's, and its Summary does not say the stale-claim pass ran | drift outside the diff went unsearched |
 | is review's, and its Summary does not say the test-cost pass ran, or does not say the coverage-trace pass ran or the freeze removed no test | the test passes went unrun |
 
 **This round's freeze** is Step 2's in round 1 and Step 6's re-freeze after it, never round 1's once
 superseded: a verify round over a one-file fix that reports one file is converging. A station that resolved zero
-files writes `changes-requested` with one finding, *scope resolution failed*.
+files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-resolution case writes
+`changes-requested` with one finding, *scope resolution failed*.
 
 Non-blocking cards — review `drift` and `nit`, security `medium` and `low` — stay in the findings files until
 Step 9, so pickup can fix them first. Both `clean`, both scopes matching → converged: go to Step 8.

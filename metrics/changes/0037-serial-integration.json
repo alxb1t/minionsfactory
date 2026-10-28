@@ -1,0 +1,49 @@
+{
+  "change": "0037-serial-integration",
+  "version": "v0.33",
+  "base": "6e5dcc5",
+  "analyzed": "93e5124",
+  "measured_on": "local",
+  "collected_at": "2026-10-28T18:52:26+02:00",
+  "mf_version": "v0.32.0-1-g6e5dcc5",
+  "executor": "native (Claude Code)",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 11166
+    },
+    "shared-context": {
+      "value": 5533
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 58
+    },
+    "gate-seconds": {
+      "value": 26
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 37
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 2
+    }
+  }
+}

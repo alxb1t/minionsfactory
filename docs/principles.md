@@ -59,8 +59,9 @@ read-only except for their own findings file.**
 
 ### Nothing reads as clean by being absent
 
-**A missing findings file is not clean. A station that resolved zero files must not write `clean`. A review without
-its stale-claim pass is not clean.**
+**A missing findings file is not clean. A station that resolved zero files must not write `clean`, except when
+each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A review
+without its stale-claim pass is not clean.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass.
 - **Held by:** `mf-converge` Step 5; `mf-release` precondition 4, which states a skip and halts on a lone patch

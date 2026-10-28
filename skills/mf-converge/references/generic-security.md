@@ -15,7 +15,9 @@ input missing or unusable → halt, naming it. No remote or native review plugin
 
 ## Inspect and write
 
-1. Resolve the range with git; read changed behaviour with surrounding source and tests.
+1. Resolve the range with git; for a merge-aware catch-up, independently reconstruct the owning contract's
+   Catch-up scope, including its empty-resolution checks, and judge only its selected diffs. Read changed
+   behaviour with surrounding source and tests.
 2. Trace inputs across authorization and trust boundaries. Inspect secret handling, personal-data exposure,
    unsafe permissions, external effects, and relevant prompt or tool instructions.
 3. A finding needs a concrete trigger, a reachable defect and a harm; a list of categories is not one. Never
