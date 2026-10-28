@@ -152,7 +152,8 @@ def _unavailable(why: str) -> Value:
 def _scrubbed(why: str, root: Path) -> str:
     """Return `why`, to be committed, with the root as `<repo>` and the home as `~`.
 
-    Only a whole path is replaced: `/app` never inside `/usr/app/x` or `/apps`.
+    A path is replaced unless a name character touches it: `/app` never inside
+    `/usr/app/x`, `/apps` or `/app.bak`, but in `file:///app` and `(/app)`.
     """
     for path, name in ((root, "<repo>"), (Path.home(), "~")):
         if str(path) != path.anchor:

@@ -128,7 +128,8 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "slow": "import time\ntime.sleep(5)\n",
         "fine": 'print("note")\nprint(" 9 ")\n',
         # uv's error for a missing script names the home and the root in full;
-        # a path that only shares their prefix is left as it is.
+        # a path that only shares their prefix is left as it is, and a home after
+        # `//`, `(` or `=`, or before `.`, `;` or `)`, is still scrubbed.
         "paths": "import os, sys\nhome, root = os.path.expanduser('~'), os.getcwd()\n"
         "sys.stderr.write(f\"{home}/x/python: can't open '{root}/gone.py' \")\n"
         "print(f'near {root}s/a {home}ice/b /opt{root}/c', end=' ', file=sys.stderr)\n"

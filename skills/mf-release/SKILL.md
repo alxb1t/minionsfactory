@@ -87,7 +87,7 @@ precondition 4 says what absence means.
    A checkout that lost `.minions/` reads as skipped; the skip line is its only record. **Simplify is excluded
    here, by name**: it runs inside `mf-build`, fixing in place, **produces no findings file by design**, and the
    review station judged its edits.
-5. **The version line is aligned** — the tag `<tag>` does **not** already exist (`git tag -l`), and
+5. **The version line is aligned** — `<tag>` does **not** already exist (`git tag -l`), and
    `CHANGELOG.md`'s `## [Unreleased]` holds **real entries**, not an empty heading. Else → halt.
 6. **The tree is clean** — `git status --porcelain` prints nothing. Else → halt.
 7. If converge ran (precondition 4): **HEAD equals the head: of both findings files** — `git rev-parse HEAD`
