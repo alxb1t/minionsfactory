@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-10-28
+
+Gate: local 0m21s · CI 0m15s (CI at 8d7383e) · 0.31.1: local 0m3s · CI 0m13s (CI at 577dba5)
+
+- `skills/mf-converge/scripts/gate_check.py` reads both sides' gate from fresh `git archive` exports and halts on
+  an unplanned change to a gate makefile, or a planned one that drops a command or adds a gate makefile line its
+  task does not quote: a branch can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`,
+  phase 1).
+
+- `mf-converge` precondition 6 and `mf-release` precondition 8 run the gate check and halt on its verdict, and
+  *Never weaken the gate to pass* names it: one rule in both stations (change `0034-gate-recipe-hardening`,
+  phase 2).
+
+- The gate check takes gate makefiles from make's `Reading makefile` trace as well as `MAKEFILE_LIST`, halts on
+  an unplanned dry-run change, on an export missing an `export-ignore` path, and on a planned `-` after a rule's
+  `;` or from a variable, `.ONESHELL` or a `SHELL` assignment: the routes converge round 1 found (change
+  `0034-gate-recipe-hardening`, converge).
+
+- The gate check halts on a gate makefile line a planned change removes unquoted, such as a `pipefail` `SHELL`
+  no dry run prints. It claims only what it reads: exit 0 prints `gate: no unplanned change`, and both stations
+  title the precondition *The gate changes only as the cut planned* (change `0034-gate-recipe-hardening`, phase 3).
+
 ## [0.31.1] - 2026-10-28
 
 Gate: local 0m3s · CI 0m13s (CI at 577dba5) · 0.31.0: local 0m3s · CI 0m14s (CI at cb52d5b)

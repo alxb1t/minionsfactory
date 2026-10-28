@@ -99,7 +99,8 @@ weakening.**
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
   the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; `mf-converge`
-  precondition 6 and `mf-release` precondition 8, for the recipe.
+  precondition 6 and `mf-release` precondition 8, through `skills/mf-converge/scripts/gate_check.py`, for the
+  recipe.
 
 ## State and the boundary
 

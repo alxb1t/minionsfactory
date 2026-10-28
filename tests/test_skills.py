@@ -399,18 +399,21 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
     ]
 
 
-# The stations run the collector from the build's package: the build by its own path,
-# the release through `../mf-build/`. Why: 0030-change-impact design D6.
-_METRICS_SCRIPTS = {
-    "mf-build": "scripts/metrics.py",
-    "mf-release": "../mf-build/scripts/metrics.py",
-}
+# The stations run each bundled script from its owner's package: the owner by its own
+# path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
+# 0034-gate-recipe-hardening design D5.
+_METRICS_SCRIPTS = [
+    ("mf-build", "scripts/metrics.py"),
+    ("mf-release", "../mf-build/scripts/metrics.py"),
+    ("mf-converge", "scripts/gate_check.py"),
+    ("mf-release", "../mf-converge/scripts/gate_check.py"),
+]
 
 
 def _metrics_script_problems(base: Path) -> list[str]:
-    """Return each station that does not name the collector, or names a bad file."""
+    """Return each station that does not name its script, or names a bad file."""
     problems: list[str] = []
-    for name, target in _METRICS_SCRIPTS.items():
+    for name, target in _METRICS_SCRIPTS:
         skill = base / "skills" / name / "SKILL.md"
         prefix = f"skills/{name}/SKILL.md: {target}"
         if not skill.is_file() or target not in skill.read_text():
@@ -429,12 +432,17 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         tmp_path,
         {
             "mf-build": "Run `<this package>/scripts/metrics.py collect`.\n",
-            "mf-release": "Run `../mf-build/scripts/metrics.py collect`.\n",
+            "mf-converge": "Run `<this package>/scripts/gate_check.py`.\n",
+            "mf-release": "Run `../mf-build/scripts/metrics.py collect` and "
+            "`../mf-converge/scripts/gate_check.py`.\n",
         },
     )
     assert _metrics_script_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: scripts/metrics.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: missing file",
+        "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
+        "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: "
+        "missing file",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -444,6 +452,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
     assert _metrics_script_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
+        "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
     ]
 
 

@@ -94,14 +94,11 @@ precondition 4 says what absence means.
    matches each file's `head:`, the last commit a round judged; a later commit shipped unreviewed. Else → halt:
    *run `/mf-converge` — it runs a catch-up round over `<head>..HEAD`*. Checked before the fold, so the release's
    own commit is never the one compared.
-8. **The gate is the base's, or the cut planned its change.** Halt when this branch
-   changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
-   `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
-   `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
-   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
-   halt. `<base>` is `git merge-base <default-branch> HEAD`. When a cut task names the recipe, show the two dry
-   runs' diff in the report, and halt on a command line the base's dry run prints and the branch's does not,
-   unless that task names it. A branch does not release its own weakened gate.
+8. **The gate changes only as the cut planned.** Run
+   `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base>`, `../mf-converge/`
+   resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass.
+   Exit 1 → **halt**, copying what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be
+   read, and it names the side. A branch does not release its own weakened gate.
 
 ## Step 2 — Fold the delta into the living specs
 
