@@ -160,30 +160,16 @@ def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
     assert "\n  added: Makefile: -echo b\n" in result.stdout
     assert "dropped" not in result.stdout
 
-    # A `-` after a rule's `;` or from a variable, and a `SHELL`, hide a failure too.
-    forms = tmp_path / "forms"
-    branch = {"Makefile": "SHELL := /bin/sh\nI := -\ngate:\n\techo a\n\t$(I)echo b\n"}
-    branch["Makefile"] += "side: ; -echo d\n"
-    base = _branch(forms, {"Makefile": _GATE}, _planned(), branch)
-    result = _check(forms, base)
-    assert result.returncode == 1, result.stdout
-    for mark in ("SHELL := /bin/sh", "$(I)echo b", "side: ; -echo d"):
-        assert f"\n  added: Makefile: {mark}\n" in result.stdout
-
-    # `.ONESHELL` runs the recipe as one script, whose middle lines may fail.
-    oneshell = tmp_path / "oneshell"
-    gate = "gate:\n\tfalse\n"
-    base = _branch(
-        oneshell, {"Makefile": gate}, _planned(), {"Makefile": f".ONESHELL:\n{gate}"}
-    )
-    result = _check(oneshell, base)
-    assert result.returncode == 1, result.stdout
-    assert "\n  added: Makefile: .ONESHELL:\n" in result.stdout
-
-    # A pattern list misses forms: a continued rule line, `define`, a computed name,
-    # `$(eval)`, a `$(shell)` value. Every added line the task does not quote halts.
+    # A pattern list misses forms: a `-` after a rule's `;` or from a variable,
+    # `.ONESHELL`, a continued rule line, `define`, a computed name, `$(eval)`, a
+    # `$(shell)` value. Every added line the task does not quote halts.
     unlisted = tmp_path / "unlisted"
     lines = [
+        "SHELL := /bin/sh",
+        "I := -",
+        ".ONESHELL:",
+        "side: ; -echo d",
+        "\t$(I)echo b",
         "S := SHELL",
         "$(S) := /bin/sh",
         "define SHELL",
@@ -197,7 +183,7 @@ def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
         " ; -false",
     ]
     branch = {"Makefile": "\n".join(lines) + "\n"}
-    base = _branch(unlisted, {"Makefile": gate}, _planned(), branch)
+    base = _branch(unlisted, {"Makefile": "gate:\n\tfalse\n"}, _planned(), branch)
     result = _check(unlisted, base)
     assert result.returncode == 1, result.stdout
     for line in lines:

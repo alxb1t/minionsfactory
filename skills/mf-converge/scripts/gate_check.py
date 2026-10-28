@@ -149,49 +149,45 @@ def gate_makefiles(root: Path, trace: str) -> set[str]:
     }
 
 
-def dry_run(root: Path, side: str) -> list[str]:
-    """Return `make -n gate`'s lines in `root`, its own path made `<export>`."""
-    output = _run(["make", "-n", "gate"], root, f"the {side}'s dry run")
-    return output.replace(str(root.resolve()), "<export>").splitlines()
-
-
-def changed_lines(base: str, files: list[str]) -> list[tuple[str, str, str]]:
-    """Return each non-blank line the branch adds to or removes from `files`.
+def changed_lines(
+    base: Path, head: Path, files: list[str]
+) -> list[tuple[str, str, str]]:
+    """Return each non-blank line of `files` that the `head` export adds or removes.
 
     Any added line may hide a failure — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in
     `MAKEFLAGS` — through forms no pattern list keeps up with: a continued line,
     `define`, a computed name, `$(eval)`. A removed one may too: a `SHELL` with
     `pipefail`, which no dry run prints. So every one needs the task's quote.
-    e.g. "-SHELL := /bin/bash -o pipefail" → ("removed", "Makefile", "SHELL := …")
+    e.g. "SHELL := /bin/bash -o pipefail" in base only → ("removed", "Makefile", …)
     """
     changed: list[tuple[str, str, str]] = []
-    if not files:
-        return changed
-    current = ""
-    header = False
-    argv = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames"]
-    for line in _git(*argv, base, "HEAD", "--", *files).splitlines():
-        if line.startswith("diff --git "):
-            header = True
-        elif line.startswith("@@"):
-            header = False
-        elif header:
-            # A side that is `/dev/null` names no file; the other side does.
-            if line.startswith(("--- a/", "+++ b/")):
-                current = line[6:]
-        elif line.startswith(("+", "-")) and line[1:].strip():
-            kind = "added" if line[0] == "+" else "removed"
-            changed.append((kind, current, line[1:].strip()))
-    return changed
+    for name in files:
+        old, new = (_lines(side / name) for side in (base, head))
+        matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag != "equal":
+                changed += [("removed", name, t.strip()) for t in old[i1:i2]]
+                changed += [("added", name, t.strip()) for t in new[j1:j2]]
+    return [line for line in changed if line[2]]
+
+
+def _lines(path: Path) -> list[str]:
+    """Return a file's lines; a file the side lacks has none."""
+    return path.read_text(errors="replace").splitlines() if path.is_file() else []
 
 
 def read_side(rev: str, root: Path, side: str) -> tuple[set[str], list[str]]:
-    """Export `rev` to `root`; return its gate makefiles and its dry run."""
+    """Export `rev` to `root`; return its gate makefiles and its dry run.
+
+    The dry run's lines carry `<export>` in place of `root`'s own path.
+    """
     export(rev, root, side)
     trace = _run(
         ["make", "-pn", "-r", "-w", "-d", "gate"], root, f"the {side}'s make database"
     )
-    return gate_makefiles(root, trace), dry_run(root, side)
+    output = _run(["make", "-n", "gate"], root, f"the {side}'s dry run")
+    lines = output.replace(str(root.resolve()), "<export>").splitlines()
+    return gate_makefiles(root, trace), lines
 
 
 def check(change: str, base: str) -> str:
@@ -203,11 +199,12 @@ def check(change: str, base: str) -> str:
     try:
         base_files, base_lines = read_side(base, root / "base", "base")
         head_files, head_lines = read_side("HEAD", root / "head", "head")
+        changed = set(_git("diff", "--name-only", base, "HEAD").splitlines())
+        touched = sorted((base_files | head_files) & changed)
+        edits = changed_lines(root / "base", root / "head", touched)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
-    changed = set(_git("diff", "--name-only", base, "HEAD").splitlines())
-    touched = sorted((base_files | head_files) & changed)
     diff = "\n".join(
         difflib.unified_diff(
             base_lines,
@@ -238,9 +235,7 @@ def check(change: str, base: str) -> str:
         if line.strip() and line not in kept and not quoted(line)
     ]
     problems += [
-        f"  {kind}: {name}: {text}"
-        for kind, name, text in changed_lines(base, touched)
-        if not quoted(text)
+        f"  {kind}: {name}: {text}" for kind, name, text in edits if not quoted(text)
     ]
     if problems:
         raise Stop(
