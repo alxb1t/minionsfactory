@@ -268,7 +268,8 @@ value. The changelog follows Keep a Changelog: each phase appends under `Unrelea
 heading.**
 
 ```
-proposal.md `version: vX.Y`  =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  the version file
+proposal.md `version: vX.Y`    =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  the version file
+proposal.md `version: vX.Y.Z`  =  CHANGELOG `## [X.Y.Z]`  =  tag `vX.Y.Z`  =  the version file
 ```
 
 - **Why:** one source of version truth leaves nothing to reconcile.

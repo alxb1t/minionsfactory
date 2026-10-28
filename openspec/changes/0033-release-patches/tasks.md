@@ -4,18 +4,18 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 
 ## Progress
 
-- [ ] 1 — Ship a patch as itself
+- [x] 1 — Ship a patch as itself
 - [ ] 2 — Retire a test only by a decision in force at the base
 - [ ] 3 — Close the collector's gaps
 - [ ] 4 — Fix the small text
 
 ## 1 — Ship a patch as itself
 
-- [ ] 1.1 In `skills/mf-release/SKILL.md`, define `<tag>` at the version paragraph and use it wherever `<version>.0` stands, per [D1](design.md#d1).
+- [x] 1.1 In `skills/mf-release/SKILL.md`, define `<tag>` at the version paragraph and use it wherever `<version>.0` stands, per [D1](design.md#d1).
   Verify: `grep -c '<version>\.0' skills/mf-release/SKILL.md` prints `1` — the definition's `<version>.0` for `vX.Y` — and `grep -c '<tag>' skills/mf-release/SKILL.md` prints at least `9`.
-- [ ] 1.2 Give D19's diagram in `docs/decisions.md` its patch line, per [D1](design.md#d1).
+- [x] 1.2 Give D19's diagram in `docs/decisions.md` its patch line, per [D1](design.md#d1).
   Verify: ``grep -c 'version: vX.Y.Z`  =  CHANGELOG `## \[X.Y.Z\]`' docs/decisions.md`` prints `1`.
-- [ ] 1.3 Add the patch bullet to *The record* in `AGENTS.md`, per [D2](design.md#d2).
+- [x] 1.3 Add the patch bullet to *The record* in `AGENTS.md`, per [D2](design.md#d2).
   Verify: ``grep -c '^- \*\*A patch\*\* (`vX.Y.Z`) fixes what the line already does' AGENTS.md`` prints `1`.
 
 ## 2 — Retire a test only by a decision in force at the base

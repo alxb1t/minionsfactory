@@ -17,6 +17,8 @@ mandatory shared context.**
 - **Docs are written to `mf-build`'s prose rules** `P1`…`P13`: terse, answer first, things named rather than
   counted.
 - **A change is cut** with the `mf-cut-change` skill.
+- **A patch** (`vX.Y.Z`) fixes what the line already does — backlog cards, a rule that misstates the behaviour, a
+  defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.
 
 ## The quality gate — `make gate`
 
