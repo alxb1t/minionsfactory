@@ -10,7 +10,8 @@ the `MAKEFILE_LIST` or a `Reading makefile` line of `make -pn -r -w -d gate` on 
 `tasks.md` as the cut commit holds it names both `Makefile` and `` `gate` ``, a branch that changes a gate makefile,
 or the `make -n gate` output, SHALL halt. When such a task exists, the script SHALL show the two exports'
 `make -n gate` diff, and SHALL halt on a command line the base prints and the branch does not, and on every
-non-blank gate makefile line the branch adds, unless that task quotes the line. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
+non-blank gate makefile line the branch adds or removes, unless that task quotes the line. Its verdict SHALL
+name what it read — the gate makefiles and the dry runs — and SHALL NOT state that the gate is the base's. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
 side. The cut commit SHALL be the one commit that adds the change's `design.md`; more than one SHALL be a
 halt.
 
@@ -25,8 +26,8 @@ halt.
 - **THEN** each station shows the two dry runs' diff and halts, unless that task quotes the line
 
 #### Scenario: A planned change adds a line the task does not quote
-- **WHEN** a cut task names the gate recipe, and the branch adds a gate makefile line the task does not quote — a
-  `-` recipe prefix, a `.IGNORE` target, a `SHELL` assignment or `-i` in `MAKEFLAGS`, in any form: a continued rule
+- **WHEN** a cut task names the gate recipe, and the branch adds or removes a gate makefile line the task does not
+  quote — a removed `SHELL := /bin/bash -o pipefail`; an added `-` recipe prefix, a `.IGNORE` target, a `SHELL` assignment or `-i` in `MAKEFLAGS`, in any form: a continued rule
   line, `define`, a computed name, `$(eval)`
 - **THEN** each station halts, naming the line
 

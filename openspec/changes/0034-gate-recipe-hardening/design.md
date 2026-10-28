@@ -19,8 +19,9 @@ Premises were re-checked on `main` at `8d7383e` (v0.31.1) before the cut.
 
 ## Goals / Non-Goals
 
-**Goal:** no change to the files a gate's make reads ships unless its cut planned it, and no planned change hides a
-failing command.
+**Goal:** no change to a gate makefile or to the gate's dry run ships unless its cut planned it, and a planned change
+quotes every gate-makefile line it adds or removes. The check claims no more than it reads — makefiles and dry
+runs ([D7](#d7)).
 
 **Non-goals:** see [the exclusions](proposal.md#not-in-this-change).
 
@@ -44,7 +45,7 @@ The grilling settled these choices (the brief's Q2–Q11); the build does not re
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on every non-blank line it adds — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; any added line may hide one — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in `MAKEFLAGS` — through a continued line, `define`, a computed name or `$(eval)`; the exact text in the task is a decision a person read | A list of ignore marks, which converge rounds 1 and 2 found missing forms; a task that only names the recipe excusing every line |
+| D3 | A **planning task** is a `- [ ] N.M` or `- [x] N.M` line in `tasks.md` at the cut commit naming both `Makefile` and `` `gate` ``. **Planned**: compare both exports' `make -n gate`, and halt on a line the base prints and the branch does not; scan the gate makefiles' diff, and halt on every non-blank line it adds or removes — each unless a planning task holds the line's text | A planned recipe change must still not hide a failure; any added line may hide one — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in `MAKEFLAGS` — through a continued line, `define`, a computed name or `$(eval)`; the exact text in the task is a decision a person read | A list of ignore marks, which converge rounds 1 and 2 found missing forms; a task that only names the recipe excusing every line |
 
 `<cut>` is the one commit `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints;
 none or more than one halts.
@@ -57,7 +58,7 @@ none or more than one halts.
 
 | exit | means | prints |
 |---|---|---|
-| 0 | the gate is the base's, or the plan covers its change | `gate: the base's` or `gate: planned — <the planning task>` |
+| 0 | no gate makefile or dry run changed, or the plan quotes every changed line | `gate: no unplanned change` or `gate: planned — <the planning task>` |
 | 1 | halt: an unplanned gate makefile or dry-run change, a dropped or an added line the task does not quote, or no single cut commit | the reason, the files or lines, and the two dry runs' diff for a planned change or one no makefile explains |
 | 2 | cannot check: an export lacks a path of its tree, a dry run failed on a side, or git or make is missing | the side, and the path or the first line of make's error |
 
@@ -84,6 +85,16 @@ package, `<base>` being `git merge-base <default-branch> HEAD`, the copy to the 
 The principle's *Held by:* ends: *`mf-converge` precondition 6 and `mf-release` precondition 8, through
 `skills/mf-converge/scripts/gate_check.py`, for the recipe.*
 
+### D7
+
+| id | decision | because | rejected |
+|---|---|---|---|
+| D7 | **The claim is what the check reads.** Its verdict names makefiles and dry runs, never "the base's gate"; a failure hidden through a file make reads at parse time (`$(shell cat …)`) or a program the recipe calls is out of its reach, stated here and carded (`0034·R9`) | Converge's run 1 hit the cap: each round found a new route through make, which no reading of makefiles closes; a narrower true claim beats a wider false one | Chasing the routes one round at a time; claiming the base's gate |
+
+The precondition's title in both stations becomes **The gate changes only as the cut planned.** The route that
+closes the class — run the gate in each export with a recording shell that fails every command, and halt when make
+carries on past a failure — is `0034·R9`'s fix, a version of its own.
+
 ### D6
 
 | id | decision | because | rejected |
@@ -97,7 +108,7 @@ The tests run real `git` and `make` in `tmp_path` repositories — the lowest la
 
 | layer | at cut | added | removed | proof |
 |---|---:|---:|---:|---|
-| Unit test functions | 38 | 11 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `38 tests collected` at the cut, `49 tests collected` after |
+| Unit test functions | 38 | 12 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `38 tests collected` at the cut, `50 tests collected` after |
 | Integration tests | 0 | 0 | 0 | — |
 | End-to-end runs | 0 | 0 | 0 | — |
 
@@ -114,12 +125,13 @@ The tests run real `git` and `make` in `tmp_path` repositories — the lowest la
 | `test_a_planned_change_the_task_quotes_passes` | the same | planned; every line quoted → exit 0 |
 | `test_a_dry_run_failing_in_an_export_exits_2` | the same | a hard `include .env`, ignored → exit 2 naming the side |
 | `test_no_single_cut_commit_halts` | the same | `design.md` added twice → exit 1 |
+| `test_a_planned_change_that_removes_an_unquoted_line_halts` | the same | `0034·R8`: a planned branch deletes `SHELL := /bin/bash -o pipefail`, the task quoting nothing → exit 1 |
 
 | test, extended | file | gains |
 |---|---|---|
 | `test_the_stations_run_the_bundled_metrics_script` · `test_the_metrics_script_scan_reports_a_missing_script` | `tests/test_skills.py` | `_METRICS_SCRIPTS` becomes a list of pairs holding `mf-converge` → `scripts/gate_check.py` and `mf-release` → `../mf-converge/scripts/gate_check.py`; the twin plants a missing `gate_check.py` |
 
-Planned addition count: ``grep -cE '^\| `test_[a-z0-9_]+` \| `?(tests/test_gate|the same)' openspec/changes/0034-gate-recipe-hardening/design.md`` prints `11`.
+Planned addition count: ``grep -cE '^\| `test_[a-z0-9_]+` \| `?(tests/test_gate|the same)' openspec/changes/0034-gate-recipe-hardening/design.md`` prints `12`.
 
 ## Dependencies
 

@@ -24,8 +24,11 @@ and pass both stations.
   `HEAD` with `git archive`, runs make in each with `MAKEFLAGS` and `MFLAGS` cleared, and removes the exports.
 - **Unplanned:** a branch that changes any **gate makefile** — any file make reads for `gate` on either side — or
   the gate's dry run halts.
-- **Planned** (a cut task names the recipe): a dropped command line, or any line added to a gate makefile — a `-`
-  prefix, `.IGNORE` or `-i` in `MAKEFLAGS` among them — halts unless the task quotes it.
+- **Planned** (a cut task names the recipe): a dropped command line, or any line added to or removed from a gate
+  makefile — a `-` prefix, `.IGNORE`, `-i` in `MAKEFLAGS`, a removed `SHELL … -o pipefail` among them — halts
+  unless the task quotes it.
+- **The verdict claims only what it read**: makefiles and dry runs. A failure hidden through a file read at parse
+  time, or a program the recipe calls, is out of its reach, carded as `0034·R9`.
 - **An export that lacks a path, or a dry run that fails in one, halts**, naming the side.
 - Converge's precondition 6 and the release's precondition 8 call the check; the principle's *Held by:* names it.
 
