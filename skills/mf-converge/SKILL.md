@@ -37,6 +37,10 @@ wrong one converges on **another** change's verdicts:
    `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 The release version is the change's `proposal.md` `version:` frontmatter. **The backlog** is
 `.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
 
@@ -371,6 +375,9 @@ tier are on the card — and no human confirms it.
 ## Step 9 — Write the backlog
 
 Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
+
+**The lock:** before writing `.minions/backlog.md`, `mkdir .minions/backlog.lock`; it exists → wait 5 seconds and
+retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted.
 
 1. **Take every non-blocking card** in either findings file whose **Status** is not `verified`.
 2. **Run its Still true? check.** A card the check shows gone is **moot**: do not write it; name it in the

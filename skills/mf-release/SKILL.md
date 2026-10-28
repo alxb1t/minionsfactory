@@ -51,6 +51,10 @@ a branch nobody checked.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 A **version file** may be absent — many repos keep none. That is a **stated skip, not a halt**: report it as
 `none`, and why.
 
@@ -108,6 +112,11 @@ precondition 4 says what absence means.
        git merge <default-branch>        # resolve, then make gate
        /mf-converge                      # when converge ran: its catch-up round judges the merge
        /mf-release
+
+10. **Earlier cuts have shipped** — inspect every other branch named by `git branch --no-merged
+    <default-branch> --list 'v*'`, reading its own change's proposal with `git show <branch>:<proposal-path>`
+    (match its version and slug to the branch). A branch whose own change id has a lower numeric prefix than this
+    change's → halt before finalization, naming that branch and change id; an unreadable reservation also halts.
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -193,9 +202,14 @@ binding check covers it, and a gate without one gives a separate step nothing to
    `proposal.md` frontmatter, now under `openspec/changes/archive/<change-id>/`. No `backlog:` key → record
    `backlog: none`. Otherwise delete exactly those cards from `.minions/backlog.md` — each card's list line and
    nested bullets — and a change heading left empty. An id not found is reported, not a halt. Nothing to commit:
-   the backlog is gitignored.
+   the backlog is gitignored. **The lock:** before writing `.minions/backlog.md`, `mkdir .minions/backlog.lock`;
+   it exists → wait 5 seconds and retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write
+   ends, written or halted.
 
 ## Step 5 — Merge and push, on the person's yes
+
+The **primary** is the worktree `git worktree list --porcelain` shows on `branch refs/heads/<default-branch>`, or
+this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
 Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6.
 
@@ -208,13 +222,19 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
        git tag -d <tag>
        git reset --hard HEAD~1           # the release commit
        git merge <default-branch>  ·  /mf-converge  ·  /mf-release
-2. **Merge:** `git switch <default-branch>`, then `git merge --no-ff <branch>` with the message
-   `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and `Change: <change-id>`,
-   contiguous.
-3. **The merged tree is the tagged tree:** `git diff --quiet <branch> <default-branch>` exits 0.
+2. **Merge in the primary:** its tree is clean — `git -C <primary> status --porcelain` prints nothing — else halt.
+   The primary is this checkout → `git switch <default-branch>` first. Then `git -C <primary> merge --no-ff
+   <branch>` with the message `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and
+   `Change: <change-id>`, contiguous.
+3. **The merged tree is the tagged tree:** `git -C <primary> diff --quiet <branch> <default-branch>` exits 0.
 4. **No `origin`:** `git remote get-url origin` fails → push nothing, and say so in your sentences.
-5. **Push:** `git push origin <default-branch>`, then `git push origin <tag>`. A rejected push halts; the
-   default branch stays merged locally. Never pull, never `--force`, never push the version branch.
+5. **Push, from the primary:** `git -C <primary> push origin <default-branch>`, then
+   `git -C <primary> push origin <tag>`. A rejected push halts; the default branch stays merged locally. Never
+   pull, never `--force`, never push the version branch.
+6. **Remove the version's worktree**, when this checkout is a linked worktree other than the primary:
+   inspect `git -C <this worktree> ls-files --others --ignored --exclude-standard` without reading file contents.
+   Any ignored path, or a failed check → retain the worktree and report cleanup skipped; otherwise
+   `git -C <primary> worktree remove <this worktree>`, keeping the branch. A refusal is reported, never forced.
 
 ## Step 6 — Close: report, and stop
 
@@ -231,13 +251,14 @@ data file, or `metrics: none — no catalogue`; and the merge
 and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is for the human to act
 on.
 
-The last line, after a merge: `Next: grill the next version.` With no merge:
+The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
+when Step 5.6 ran. With no merge:
 
     Next: merge and push — release <tag> is on branch <branch>:
-      git switch <default-branch>
-      git merge --no-ff <branch>
-      git push origin <default-branch>
-      git push origin <tag>
+      git -C <primary> switch <default-branch>
+      git -C <primary> merge --no-ff <branch>
+      git -C <primary> push origin <default-branch>
+      git -C <primary> push origin <tag>
 
 Then **stop**.
 

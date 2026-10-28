@@ -71,6 +71,27 @@ it into a new repo; the other skills install nothing.
 `metrics/catalogue.toml` is optional: a repo that declares it gets its metrics measured at every change, and one
 that does not is told so ([D43](docs/decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).
 
+## Parallel workspaces
+
+Versions are built side by side, each in its own worktree beside a primary checkout that stays on the default
+branch ([D44](docs/decisions.md#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them)). A repo opts
+in by declaring `Worktrees:` in `AGENTS.md`; every worktree shares the primary's `.minions/`, and the release
+merges in the primary.
+
+```
+<container>/
+├── main/              the primary checkout, on the default branch; .minions/ lives here
+├── v0.33_<slug>/      a version's worktree, made by mf-cut-change
+└── v0.34_<slug>/      another, built side by side
+```
+
+MF declares `Worktrees: ../`, which names the folder holding its checkout. Move it into a container before the next
+cut:
+
+1. Move the checkout to `<container>/main`.
+2. Run `make install-skills` from `<container>/main`: the skill symlinks still point at the old path.
+3. Update the planning side's path to the repo.
+
 ## This repo's gate
 
 **`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests. The

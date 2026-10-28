@@ -369,3 +369,19 @@ def test_no_single_cut_commit_halts(tmp_path: Path) -> None:
     result = _check(tmp_path, base)
     assert result.returncode == 1
     assert result.stdout.startswith("gate: halt — no single cut commit")
+
+
+def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
+    primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
+    log = tmp_path / "pwd.log"
+    # make evaluates `$(shell)` while it parses, so each export logs where it is.
+    gate = f"$(shell pwd >> {log})\n{_GATE}"
+    base = _branch(primary, {"Makefile": gate}, _UNPLANNED, {"README.md": "x\n"})
+    _git(primary, "worktree", "add", "-q", "-b", "v0.2_x", str(worktree))
+
+    result = _check(worktree, base)
+    assert (result.returncode, result.stdout) == (0, "gate: no unplanned change\n")
+    exports = (primary / ".minions" / "gate-check" / _CHANGE).resolve()
+    made = {Path(line) for line in log.read_text().splitlines()}
+    assert made == {exports / "base", exports / "head"}
+    assert not exports.exists() and not (worktree / ".minions").exists()

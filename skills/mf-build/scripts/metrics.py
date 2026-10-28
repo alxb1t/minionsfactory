@@ -200,6 +200,12 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def run_directory(root: Path) -> Path:
+    """Return `.minions/` beside the primary checkout, the same from every worktree."""
+    common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(common).parent / ".minions"
+
+
 def _change_dir(root: Path, change: str) -> Path:
     """Return the change's directory relative to `root`, active or archived."""
     active = Path("openspec/changes") / change
@@ -576,7 +582,7 @@ def page(root: Path, change: str, data: Path | None, out: Path | None) -> int:
         print(NO_CATALOGUE)
         return 3
     data = data or CHANGES / f"{change}.json"
-    out = out or Path(".minions/metrics") / f"{change}.html"
+    out = out or run_directory(root) / "metrics" / f"{change}.html"
     record = json.loads((root / data).read_text(encoding="utf-8"))
     _write(root, out, render_page(root, metrics, record, out))
     rows = moved(metrics, record, previous_release(root, record["version"]))

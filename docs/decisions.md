@@ -12,7 +12,7 @@ An id is never reused or renumbered. A new decision takes the next number, in th
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44
 ```
 
 ## The shape
@@ -184,9 +184,10 @@ be clean.**
 
 **Once the loop is clean, converge fixes this run's small cards and its drift in one more round. Everything else
 becomes a card — why, when, what, priority, fix and size, trigger, still true? — in the gitignored
-`.minions/backlog.md`. A card is a finding of the check loop, or of the hand read that stands in for it; work with no
-finding behind it is planning, and lives outside the repo. The backlog never blocks a release; a paydown change
-lists the cards it closes and its release deletes them.**
+`.minions/backlog.md`: one file per repository, in the primary's `.minions/`, shared by every worktree and written
+under `.minions/backlog.lock`. A card is a finding of the check loop, or of the hand read that stands in for it;
+work with no finding behind it is planning, and lives outside the repo. The backlog never blocks a release; a
+paydown change lists the cards it closes and its release deletes them.**
 
 - **Why:** small fixes are cheapest while the context is fresh. A backlog that blocks would block every release, and
   one kept outside the repo cannot cite `path:line`.
@@ -249,6 +250,8 @@ What the skills need from a repository they work on.
 └── .minions/            run output, gitignored
 ```
 
+`.minions/` is the primary checkout's; `AGENTS.md` may declare `Worktrees:` and `Workspace setup:` ([D44](#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them)).
+
 `metrics/` is optional: a repo that adopts holds its catalogue and its data files there
 ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)); the bootstrap writes none.
 
@@ -276,8 +279,9 @@ proposal.md `version: vX.Y.Z`  =  CHANGELOG `## [X.Y.Z]`  =  tag `vX.Y.Z`  =  th
 
 ### D20 · A change id is an identifier, numbered in ship order
 
-**`<digits>-<slug>`, never renamed once cut. The number is higher than every id before it; the cut takes the id it
-is given; a version is numbered at its cut, so planned work carries a name, not a number.**
+**`<digits>-<slug>`, never renamed once cut. The number is higher than every id on the default branch and on every
+open version branch; the cut takes the id it is given; versions ship in cut order; a version is numbered at its cut,
+so planned work carries a name, not a number.**
 
 Example: `0011-cut-and-gate`, on the branch `<version>_cut_and_gate`.
 
@@ -360,3 +364,14 @@ the bootstrap templates — never that a sentence exists.**
 - **Why:** a phrase scan proves a sentence exists, not that a station obeys it, and it freezes the wording: no
   sentence can be reworded without editing a test, so skill text only grows.
 - **Gave up:** the gate failing when a rule's sentence is deleted. Review reads the diff for it.
+
+### D44 · Versions run side by side in worktrees; one primary merges them
+
+**A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
+primary checkout, which stays on the default branch. Ids and versions are reserved at the cut against every open
+version branch, and versions ship in cut order. Every worktree shares the primary's `.minions/`; the release merges
+in the primary.**
+
+- **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids
+  without a lock file.
+- **Rejected:** host-managed worktrees — places MF cannot name · rebasing a judged branch · a reservation file.

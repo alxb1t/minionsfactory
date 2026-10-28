@@ -44,6 +44,14 @@ skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies 
   itself*.
 - **Execution follows the host**, per D11 and D40; provider setup is the operator's, per D22.
 
+## Workspaces
+
+Where `mf-cut-change` puts a version's branch, per
+[D44](docs/decisions.md#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them).
+
+- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`, relative to the primary checkout.
+- **Workspace setup:** none — the gate's first step is `uv sync --locked`.
+
 ## Guardrails (invariants — hold for every role)
 
 - **Never commit a secret, or a *real* absolute path from the machine the run is on** — `.env`, an API key; the

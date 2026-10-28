@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-28
+
+Gate: local 0m22s · CI 0m19s (CI at aa85c14) · 0.31.3: local 0m21s · CI 0m17s (CI at ee2e751)
+
+- Build metrics drafts use the shared run directory; release halts while an earlier cut remains open and retains
+  worktrees containing ignored local files (change `0036-parallel-workspaces`, converge fixes R1, R2 and S1).
+
+- `metrics.py`'s default page, `gate_check.py`'s exports and `backlog.py`'s backlog resolve `.minions/` beside the
+  primary checkout's git directory: every worktree shares one run directory (change `0036-parallel-workspaces`,
+  phase 1).
+
+- `mf-cut-change` reserves an id and a version against every unmerged version branch and the tags, and makes the
+  version's worktree when `AGENTS.md` declares `Worktrees:`, running a declared `Workspace setup:` there: the
+  primary stays on the default branch (change `0036-parallel-workspaces`, phase 2).
+
+- Every station defines the run directory, `.minions/` beside the primary checkout; converge and the release write
+  the backlog under `.minions/backlog.lock`; the release merges in the primary and removes the version's worktree;
+  `mf-plan` checks which versions can run side by side (change `0036-parallel-workspaces`, phase 3).
+
+- D44 records versions side by side in worktrees; D16, D18 and D20 name the shared run directory, the
+  `Worktrees:` keys and ids reserved against open branches. `AGENTS.md` declares MF's workspaces, and `README.md`
+  gives the move into a container (change `0036-parallel-workspaces`, phase 4).
+
 ## [0.31.3] - 2026-10-28
 
 Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)

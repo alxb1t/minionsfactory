@@ -37,6 +37,10 @@ resolve → **halt**; never search for one.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 Every one holds, or **halt** naming the one that failed:
 
 - you are on the default branch, and `git status --porcelain` prints nothing;
@@ -44,9 +48,10 @@ Every one holds, or **halt** naming the one that failed:
 - `make -n gate` exits 0 and prints at least one command; paste its output. No root `Makefile`, no `gate`
   target, an empty recipe, or only `is up to date` / `Nothing to be done` → halt, naming the root `Makefile`.
   `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`;
-- `change-id` is free, and its number is higher than every id under `openspec/changes/` and
-  `openspec/changes/archive/`;
-- the branch `v<version>_<slug>` does not exist (`git branch --list`).
+- `change-id` is free: its number is higher than every id under `openspec/changes/` and `openspec/changes/archive/`
+  on the default branch and on every unmerged version branch — each `git branch --no-merged <default-branch> --list
+  'v*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`;
+- the version is free: no branch `v<version>_*` (`git branch --list`) and no tag `<tag>` (`git tag -l`).
 
 ## Step 2 — Gather
 
@@ -67,8 +72,14 @@ alone, and never record an overturn the human did not make.
 
 ## Step 4 — Branch
 
-`git switch -c v<version>_<slug>`. The slug is the id without its number, hyphens → underscores:
-`0011-cut-and-gate` at `v0.11` → `v0.11_cut_and_gate`.
+The slug is the id without its number, hyphens → underscores: `0011-cut-and-gate` at `v0.11` →
+`v0.11_cut_and_gate`. Root `AGENTS.md` decides where the branch lives:
+
+- **`Worktrees:` declared** → `git worktree add -b v<version>_<slug> <path>/v<version>_<slug> <default-branch>`,
+  `<path>` its value, relative to this checkout. `Workspace setup:` names a command → run it in the new worktree,
+  halting on a failure, naming it. Every path in Steps 5–10 is in the new worktree, and the commit is made there
+  (`git -C <worktree>`). This checkout stays on the default branch.
+- **No `Worktrees:`** → `git switch -c v<version>_<slug>`, as before.
 
 ## Step 5 — Scaffold
 
@@ -126,7 +137,8 @@ On edits, go back to Step 7. An edit the human asks for after the commit is a fu
 
 ## Step 10 — Commit
 
-Stage `openspec/changes/<change-id>/` by name — never `git add -A`. The message is
+Stage `openspec/changes/<change-id>/` by name — never `git add -A` — in the worktree when Step 4 made one. The
+message is
 `docs(<change-id>): land the change directory`, ending with the trailer block, contiguous:
 
     Co-Authored-By: <the attribution line this session uses>
@@ -137,9 +149,10 @@ Stage `openspec/changes/<change-id>/` by name — never `git add -A`. The messag
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the branch, the commit id, and `git status --porcelain` printing nothing. Then suggest models, as
-[Suggesting models](#suggesting-models) says. The last line: `Next: /mf-build <change-id>, in a fresh session.`
-Then stop.
+Your sentences: the branch, the worktree when Step 4 made one, the commit id, and `git status --porcelain` printing
+nothing there. Then suggest models, as [Suggesting models](#suggesting-models) says. The last line:
+`Next: cd <worktree> && /mf-build <change-id>, in a fresh session.` with a worktree, else
+`Next: /mf-build <change-id>, in a fresh session.` Then stop.
 
 ## Input contract
 
