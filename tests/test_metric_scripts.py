@@ -190,10 +190,9 @@ def test_backlog_cards_are_unavailable_without_a_backlog(tmp_path: Path) -> None
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:
     primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
-    _write(primary, {"README.md": "x\n"})
+    primary.mkdir()
     _git(primary, "init", "-q")
-    _git(primary, "add", ".")
-    _git(primary, "commit", "-q", "-m", "base")
+    _git(primary, "commit", "-q", "--allow-empty", "-m", "base")
     _git(primary, "worktree", "add", "-q", "-b", "v0.2_x", str(worktree))
     _write(primary, {".minions/backlog.md": "- **0023·a**\n- **0024·b**\n"})
 
