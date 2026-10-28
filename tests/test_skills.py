@@ -17,12 +17,15 @@ _SHARED_OWNERS = ("mf-build", "mf-cut-change")
 _CONTRACT = "## Input contract"
 
 
-def _section_labels(path: Path, heading: str) -> list[str]:
-    """Return the bold first cells of the table rows in `path`'s `heading` section.
+def _section_labels(
+    path: Path, heading: str, cell: str = r"\*\*(.+?)\*\*"
+) -> list[str]:
+    """Return the first cells of the table rows in `path`'s `heading` section.
 
-    The section runs up to the next `## ` heading.
+    The section runs up to the next `## ` heading. A cell matches `cell`, bold by
+    default: e.g. "| **I1** | …" → "I1".
     """
-    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
+    row = re.compile(rf"^\| {cell} \|")
     labels: list[str] = []
     inside = False
     for line in path.read_text().splitlines():
@@ -441,4 +444,39 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
     assert _metrics_script_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
+    ]
+
+
+# The plan station holds its parameters, naming the required brief, and its forbidden
+# acts. Why: 0032-mf-plan design D7.
+_PLAN = "mf-plan"
+_PLAN_PARAMETERS = "## Parameters"
+_PLAN_NEVER = "## Never"
+
+
+def _plan_problems(base: Path) -> list[str]:
+    """Return one line per section `base`'s plan station is missing."""
+    prefix = f"skills/{_PLAN}/SKILL.md"
+    path = base / prefix
+    if not path.is_file():
+        return [f"{prefix}: does not exist"]
+    problems: list[str] = []
+    if "brief" not in _section_labels(path, _PLAN_PARAMETERS, cell=r"`(.+?)`"):
+        problems.append(f"{prefix}: `{_PLAN_PARAMETERS}` names no `brief`")
+    if _PLAN_NEVER not in path.read_text().splitlines():
+        problems.append(f"{prefix}: no `{_PLAN_NEVER}`")
+    return problems
+
+
+def test_mf_plan_holds_its_parameters_and_never() -> None:
+    assert _plan_problems(_REPO) == []
+
+
+def test_the_plan_scan_reports_a_missing_section(tmp_path: Path) -> None:
+    # A `brief` row past the parameters' section must not count.
+    _plant(tmp_path, {_PLAN: "## Parameters\n\n## Step 1\n\n| `brief` | yes |\n"})
+
+    assert _plan_problems(tmp_path) == [
+        f"skills/{_PLAN}/SKILL.md: `{_PLAN_PARAMETERS}` names no `brief`",
+        f"skills/{_PLAN}/SKILL.md: no `{_PLAN_NEVER}`",
     ]
