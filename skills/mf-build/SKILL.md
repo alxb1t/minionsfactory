@@ -191,12 +191,13 @@ names it excluded (its precondition 4).
 ## Step 3.5 — Collect the metrics
 
 No `metrics/catalogue.toml` → state `metrics: none — no catalogue` in your report, and skip this step. Otherwise,
-after Step 3's commit or no-op, from the repository root:
+after Step 3's commit or no-op, from the repository root. Resolve `<draft>` to the run directory's absolute
+`metrics/<change-id>.json` path:
 
 1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
-   --out .minions/metrics/<change-id>.json --executor "<what executor selection reported>"
+   --out "<draft>" --executor "<what executor selection reported>"
    --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
-2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data .minions/metrics/<change-id>.json`
+2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data "<draft>"`
    writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
 
 | exit | then |

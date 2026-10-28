@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Build metrics drafts use the shared run directory; release halts while an earlier cut remains open and retains
+  worktrees containing ignored local files (change `0036-parallel-workspaces`, converge fixes R1, R2 and S1).
+
 - `metrics.py`'s default page, `gate_check.py`'s exports and `backlog.py`'s backlog resolve `.minions/` beside the
   primary checkout's git directory: every worktree shares one run directory (change `0036-parallel-workspaces`,
   phase 1).

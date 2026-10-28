@@ -113,6 +113,11 @@ precondition 4 says what absence means.
        /mf-converge                      # when converge ran: its catch-up round judges the merge
        /mf-release
 
+10. **Earlier cuts have shipped** — inspect every other branch named by `git branch --no-merged
+    <default-branch> --list 'v*'`, reading its own change's proposal with `git show <branch>:<proposal-path>`
+    (match its version and slug to the branch). A branch whose own change id has a lower numeric prefix than this
+    change's → halt before finalization, naming that branch and change id; an unreadable reservation also halts.
+
 ## Step 2 — Fold the delta into the living specs
 
 Apply the change's `specs/` delta into `openspec/specs/`:
@@ -227,6 +232,8 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
    `git -C <primary> push origin <tag>`. A rejected push halts; the default branch stays merged locally. Never
    pull, never `--force`, never push the version branch.
 6. **Remove the version's worktree**, when this checkout is a linked worktree other than the primary:
+   inspect `git -C <this worktree> ls-files --others --ignored --exclude-standard` without reading file contents.
+   Any ignored path, or a failed check → retain the worktree and report cleanup skipped; otherwise
    `git -C <primary> worktree remove <this worktree>`, keeping the branch. A refusal is reported, never forced.
 
 ## Step 6 — Close: report, and stop
