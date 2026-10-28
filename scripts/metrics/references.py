@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Print the broken references in `AGENTS.md`, `README.md` and `docs/*.md`.
+"""Print the broken references in the root docs and `docs/*.md`.
 
 A link to a missing file or heading is broken, and so is a cited `D<n>` with no
 `### D<n> ·` heading. The skills are not read: their links are examples.
@@ -15,6 +15,7 @@ from pathlib import Path
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 DECISION = re.compile(r"\bD(\d+)\b")
 HEADING = re.compile(r"^#+\s+(.*)$", re.MULTILINE)
+ROOT_DOCS = ("AGENTS.md", "README.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 
 
 def _unfenced(text: str) -> str:
@@ -45,7 +46,7 @@ def anchors(text: str) -> set[str]:
 
 def broken(root: Path) -> int:
     """Return the broken links and the cited decisions with no heading."""
-    files = [root / "AGENTS.md", root / "README.md", *sorted(root.glob("docs/*.md"))]
+    files = [*(root / name for name in ROOT_DOCS), *sorted(root.glob("docs/*.md"))]
     texts = {path: path.read_text(encoding="utf-8") for path in files if path.is_file()}
     headings = {
         int(n)

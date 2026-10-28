@@ -7,7 +7,7 @@ word.
 
 - [x] 1 — Read the standards in the build and converge
 - [x] 2 — Write the standards in the bootstrap
-- [ ] 3 — Adopt the standards in MF
+- [x] 3 — Adopt the standards in MF
 - [ ] 4 — Bootstrap a scratch repo **HUMAN**
 
 ## 1 — Read the standards in the build and converge
@@ -41,11 +41,11 @@ word.
 
 ## 3 — Adopt the standards in MF
 
-- [ ] 3.1 Write `CODING_STANDARDS.md` and `CONTRIBUTING.md` at the root, per [D6](design.md#d6).
+- [x] 3.1 Write `CODING_STANDARDS.md` and `CONTRIBUTING.md` at the root, per [D6](design.md#d6).
   Verify: `wc -w CODING_STANDARDS.md CONTRIBUTING.md | tail -1` prints a total below `300`.
-- [ ] 3.2 Edit `AGENTS.md`'s *The record* and add the rows to `docs/README.md`, per [D6](design.md#d6).
+- [x] 3.2 Edit `AGENTS.md`'s *The record* and add the rows to `docs/README.md`, per [D6](design.md#d6).
   Verify: `grep -c '(CODING_STANDARDS.md)' AGENTS.md` prints `1`, `grep -c 'Docs are written' AGENTS.md` prints `0`, and `grep -c '../CONTRIBUTING.md' docs/README.md` prints `1`.
-- [ ] 3.3 Add both files to `scripts/metrics/reading_set.py` and `scripts/metrics/references.py`, and extend their
+- [x] 3.3 Add both files to `scripts/metrics/reading_set.py` and `scripts/metrics/references.py`, and extend their
   tests in `tests/test_metric_scripts.py`, per [D7](design.md#d7).
   Verify: `grep -c 'CONTRIBUTING.md' scripts/metrics/reading_set.py scripts/metrics/references.py` prints `1` for each file, `uv run pytest -q tests/test_metric_scripts.py` reports `8 passed`, and `uv run --script scripts/metrics/references.py` prints `0`.
 

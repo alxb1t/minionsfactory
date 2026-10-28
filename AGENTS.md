@@ -11,12 +11,10 @@ record is [`docs/README.md`](docs/README.md).
 
 ## The record
 
-**Before work, read [the principles](docs/principles.md) and [the decisions in force](docs/decisions.md):
-mandatory shared context.**
+**Before work, read [the principles](docs/principles.md), [the decisions in force](docs/decisions.md),
+[the coding standards](CODING_STANDARDS.md) and [the contribution guide](CONTRIBUTING.md): mandatory shared
+context.**
 
-- **Docs are written to `mf-build`'s prose rules** `P1`…`P13`: terse, answer first, things named rather than
-  counted.
-- **A change is cut** with the `mf-cut-change` skill.
 - **A patch** (`vX.Y.Z`) fixes what the line already does — backlog cards, a rule that misstates the behaviour, a
   defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.
 
