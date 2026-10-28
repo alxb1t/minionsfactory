@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-10-28
+
+Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)
+
 - `mf-release` precondition 9 halts on a moved base before the fold, the commit and the tag, naming the merge-in;
   Step 5.1's halt, past the tag, names the person's recovery (change `0035-release-moved-base`, phase 1).
 
