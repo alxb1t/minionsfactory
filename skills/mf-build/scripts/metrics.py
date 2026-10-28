@@ -64,8 +64,12 @@ def _is_number(value: object) -> bool:
 
 
 def _inside(root: Path, script: str) -> bool:
-    """Return whether `script` is a path inside `root`, never a URL or an option."""
-    if script.startswith("-") or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script):
+    """Return whether `script` is a relative path inside `root`, not a URL or option."""
+    if (
+        script.startswith("-")
+        or Path(script).is_absolute()
+        or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script)
+    ):
         return False
     return (root / script).resolve().is_relative_to(root.resolve())
 

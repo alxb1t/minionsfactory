@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0033-release-patches`, phase 2).
 
 - The metrics collector treats a `script` starting with `-` as a broken catalogue, since `uv` reads it as an
-  option, and scrubs a home or root path unless a name character touches it (change `0033-release-patches`,
-  phase 3).
+  option, and an absolute `script` too, even inside the tree; it scrubs a home or root path unless a name
+  character touches it (change `0033-release-patches`, phase 3).
 
 - `mf-plan` names how it finds the default branch, as the bootstrap does, and `README.md`'s smoke-record link
   points at the archived 0027 design (change `0033-release-patches`, phase 4).

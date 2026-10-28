@@ -190,6 +190,8 @@ def test_a_broken_catalogue_exits_2_naming_the_entry(
         # A script outside the tree is code no reviewed diff shows.
         _metric("url", script="https://example.invalid/m.py"): "1 `url`: `script` is",
         _metric("abs", script="/elsewhere/m.py"): "1 `abs`: `script` is not",
+        # An absolute path is a machine's path, even one inside the tree.
+        _metric("in", script=str(tmp_path / "m.py")): "1 `in`: `script` is not",
         _metric("up", script="../m.py"): "1 `up`: `script` is not a path inside",
         # `uv` would read a leading `-` as its own option.
         _metric("opt", script="--quiet"): "1 `opt`: `script` is not a path inside",
