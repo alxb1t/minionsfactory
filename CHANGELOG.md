@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the backlog under `.minions/backlog.lock`; the release merges in the primary and removes the version's worktree;
   `mf-plan` checks which versions can run side by side (change `0036-parallel-workspaces`, phase 3).
 
+- D44 records versions side by side in worktrees; D16, D18 and D20 name the shared run directory, the
+  `Worktrees:` keys and ids reserved against open branches. `AGENTS.md` declares MF's workspaces, and `README.md`
+  gives the move into a container (change `0036-parallel-workspaces`, phase 4).
+
 ## [0.31.3] - 2026-10-28
 
 Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)

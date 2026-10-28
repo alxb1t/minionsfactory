@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 - [x] 1 — Resolve one run directory in the scripts
 - [x] 2 — Make the cut work in worktrees
 - [x] 3 — Share the run directory and merge in the primary
-- [ ] 4 — Record the workspaces
+- [x] 4 — Record the workspaces
 
 ## 1 — Resolve one run directory in the scripts
 
@@ -36,11 +36,11 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## 4 — Record the workspaces
 
-- [ ] 4.1 Add D44, amend D20, D16 and D18, and extend the overview line in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 4.1 Add D44, amend D20, D16 and D18, and extend the overview line in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -c '^### D44 · Versions run side by side in worktrees; one primary merges them$' docs/decisions.md` prints `1`, and `grep -c 'versions ship in cut order' docs/decisions.md` prints at least `1`.
-- [ ] 4.2 Add the `## Workspaces` section to `AGENTS.md`, per [D1](design.md#d1).
+- [x] 4.2 Add the `## Workspaces` section to `AGENTS.md`, per [D1](design.md#d1).
   Verify: ``grep -c '^- \*\*Worktrees:\*\* `../`' AGENTS.md`` prints `1`.
-- [ ] 4.3 Add the *Parallel workspaces* section, with the move's runbook, to `README.md`, per [D6](design.md#d6).
+- [x] 4.3 Add the *Parallel workspaces* section, with the move's runbook, to `README.md`, per [D6](design.md#d6).
   Verify: `grep -c '^## Parallel workspaces$' README.md` prints `1`.
-- [ ] 4.4 The suite has the planned tests.
+- [x] 4.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `53 tests collected`.
