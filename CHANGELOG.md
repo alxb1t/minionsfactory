@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `mf-release` precondition 9 halts on a moved base before the fold, the commit and the tag, naming the merge-in;
-  Step 5.1's late halt names the person's recovery after a tag (change `0035-release-moved-base`, phase 1).
+  Step 5.1's halt, past the tag, names the person's recovery (change `0035-release-moved-base`, phase 1).
 
 - `mf-build`, `mf-converge`, `mf-cut-change` and `mf-release` name the default branch as `mf-plan` does: one branch,
   found one way, in every station (change `0035-release-moved-base`, phase 2).

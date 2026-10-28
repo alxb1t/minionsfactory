@@ -164,9 +164,11 @@ Once all pass, write `start` to the status log.
 
 ## Step 2 — Freeze the diff
 
+The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
+`main` when that fails.
+
 1. **Derive the base**: `git merge-base <default-branch> HEAD`, the default branch. Never accept one as an
-   argument; never pick a commit by eye. The **default branch** is the one
-   `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or `main` when that fails.
+   argument; never pick a commit by eye.
 2. **Halt if `base` equals `HEAD`.** Over an empty range every station returns clean, and the loop converges on a
    change it never read.
 3. **Write the patch** — `mkdir -p .minions/findings`, then `.minions/findings/<change-id>_diff.patch`, holding
