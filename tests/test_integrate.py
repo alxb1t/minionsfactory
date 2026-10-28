@@ -172,6 +172,7 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
     )
     _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": delta}, "phase")
     _commit(root, {"openspec/specs/sdd/spec.md": _spec("Main's.")}, "release")
+    _git(tree, "merge", "-q", "--no-commit", "main")
 
     result = _run(root, "delta", str(tree))
 

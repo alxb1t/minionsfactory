@@ -20,7 +20,7 @@ naming it.
   make gate in the worktree ─▶ commit the merge, `Change: <id>` ─▶ Next: /mf-converge, then /mf-release
 ```
 
-Why a station: the merge-in a moved base needs conflicts on the same files every time — `CHANGELOG.md`, the
+Why a station: merging a moved base in meets conflicts on the same files every time — `CHANGELOG.md`, the
 decision ids, a requirement both sides changed. Fixed rules settle the exact parts; judgement is the person's.
 
 ## Parameters

@@ -10,7 +10,8 @@
     integrate.py delta <worktree>
 
 Exit 0 done · 1 halt: not ready, or a conflict the rules do not cover · 2 cannot run.
-`changelog` and `decisions` resolve an open merge and stage what they wrote.
+The worktree commands read an open merge; `changelog` and `decisions` stage
+what they write.
 Why: 0037-serial-integration design D2.
 """
 
@@ -30,6 +31,7 @@ DECISIONS = "docs/decisions.md"
 DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
 # A citation is `D45` in text or `#d45--` in a link's anchor.
 CITATION = re.compile(r"(\bD|#d)(\d+)\b")
+EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
@@ -172,9 +174,11 @@ def next_version(cwd: Path) -> str:
     branches = [ref.removeprefix("refs/heads/") for ref in listing.split()]
     if not branches:
         raise Stop(1, "next: none — no open version")
-    queue = sorted((int(change_of(cwd, b).split("-")[0]), b) for b in branches)
-    branch = queue[0][1]
-    change = change_of(cwd, branch)
+    _, branch, change = min(
+        (int(change.split("-")[0]), branch, change)
+        for branch in branches
+        for change in [change_of(cwd, branch)]
+    )
     tree = _worktrees(cwd).get(branch)
     line = f"next: {branch} · {change} · {tree or 'no worktree'}"
     if why := unready(cwd, branch, change, tree):
@@ -206,7 +210,7 @@ def _unmerged(tree: Path) -> set[str]:
 def _write(tree: Path, path: str, text: str) -> None:
     """Write a resolved file and stage it, unless git still holds it in conflict."""
     (tree / path).write_text(text)
-    if path not in _unmerged(tree) or "<<<<<<<" not in text:
+    if "<<<<<<<" not in text or path not in _unmerged(tree):
         _git(tree, "add", "--", path)
 
 
@@ -294,10 +298,13 @@ def _apply(base: list[str], start: int, end: int, edits: list[Edit]) -> list[str
 def _resolve(base: list[str], ours: list[str], theirs: list[str]) -> list[str]:
     """Return one region both sides edited, by the rules; else stop with exit 1.
 
-    Both inserted at one point → theirs, then ours. The same lines edited →
-    each line merged by insertions. Anything else is not a mechanical conflict.
+    One side alone edited → its edit. Both inserted at one point → theirs, then
+    ours. The same lines edited → each line merged by insertions. Anything else
+    is not a mechanical conflict.
     """
-    if ours == theirs:
+    if ours == base or ours == theirs:
+        return theirs
+    if theirs == base:
         return ours
     if not base:
         return theirs + ours
@@ -312,58 +319,52 @@ def _resolve(base: list[str], ours: list[str], theirs: list[str]) -> list[str]:
 def merge3(base: str, ours: str, theirs: str) -> str:
     """Return the three-way merge of the sides, by the rules in `_resolve`."""
     lines = base.splitlines(keepends=True)
-    sides = {"ours": ours.splitlines(keepends=True)}
-    sides["theirs"] = theirs.splitlines(keepends=True)
     edits = sorted(
         (start, end, side, added)
-        for side, text in sides.items()
-        for start, end, added in _changes(lines, text)
+        for side, text in enumerate((ours, theirs))
+        for start, end, added in _changes(lines, text.splitlines(keepends=True))
     )
+    # A group is the base span overlapping edits cover, with each side's edits in it.
+    groups: list[tuple[int, int, list[list[Edit]]]] = []
+    for start, end, side, added in edits:
+        if groups and (start < groups[-1][1] or start == groups[-1][0]):
+            first, last, sides = groups[-1]
+            groups[-1] = (first, max(last, end), sides)
+        else:
+            sides = [[], []]
+            groups.append((start, end, sides))
+        sides[side].append((start, end, added))
     out: list[str] = []
-    pos = group_end = 0
-    group: list[tuple[int, int, str, list[str]]] = []
-    for edit in [*edits, None]:
-        if edit and group and (edit[0] < group_end or edit[0] == group[0][0]):
-            group.append(edit)
-            group_end = max(group_end, edit[1])
-            continue
-        if group:
-            start = group[0][0]
-            mine = [(s, e, a) for s, e, side, a in group if side == "ours"]
-            yours = [(s, e, a) for s, e, side, a in group if side == "theirs"]
-            out += lines[pos:start]
-            regions = [_apply(lines, start, group_end, x) for x in (mine, yours)]
-            if mine and yours:
-                out += _resolve(lines[start:group_end], *regions)
-            else:
-                out += regions[0] if mine else regions[1]
-            pos = group_end
-        if edit:
-            group, group_end = [edit], edit[1]
+    pos = 0
+    for start, end, (mine, yours) in groups:
+        regions = [_apply(lines, start, end, side) for side in (mine, yours)]
+        out += lines[pos:start] + _resolve(lines[start:end], *regions)
+        pos = end
     return "".join(out + lines[pos:])
 
 
-def _added(base: str, side: str) -> set[str]:
-    """Return the lines `side` added or rewrote against `base`."""
-    edits = _changes(base.splitlines(), side.splitlines())
-    return {line for _, _, added in edits for line in added}
+def _ids(text: str) -> set[int]:
+    """Return the decision ids `text` heads a section with."""
+    return {int(n) for n in DECISION.findall(text)}
 
 
-def _recite(tree: Path, path: str, base: str, ids: dict[int, int]) -> bool:
-    """Renumber citations on the lines the branch wrote in `path`; return if any."""
-    file = tree / path
+def _recite(tree: Path, path: str, ids: dict[int, int]) -> None:
+    """Renumber the citations on the lines the branch wrote in `path`.
+
+    A renumbered id is absent at the base, so a line citing it that the default
+    branch's file lacks is the branch's.
+    """
     try:
-        text = file.read_text()
+        text = (tree / path).read_text()
     except (OSError, UnicodeDecodeError):
-        return False
-    ours = _added(_show(tree, base, path) or "", _show(tree, "HEAD", path) or "")
-    ours -= set((_show(tree, "MERGE_HEAD", path) or "").splitlines())
+        return
+    if not any(int(match[2]) in ids for match in CITATION.finditer(text)):
+        return
+    theirs = set((_show(tree, "MERGE_HEAD", path) or "").splitlines())
     lines = text.splitlines(keepends=True)
-    out = [_renumber(x, ids) if x.rstrip("\n") in ours else x for x in lines]
-    if out == lines:
-        return False
-    _write(tree, path, "".join(out))
-    return True
+    out = [x if x.rstrip("\n") in theirs else _renumber(x, ids) for x in lines]
+    if out != lines:
+        _write(tree, path, "".join(out))
 
 
 def decisions(tree: Path) -> str:
@@ -373,22 +374,17 @@ def decisions(tree: Path) -> str:
     if sides == [None, None, None]:
         return f"decisions: none — no {DECISIONS}"
     base_text, ours, theirs = (side or "" for side in sides)
-
-    def numbers(text: str) -> set[int]:
-        return {int(n) for n in DECISION.findall(text)}
-
-    taken = numbers(theirs)
-    new = sorted(numbers(ours) - numbers(base_text))
+    top = max(_ids(theirs), default=0)
+    new = sorted(_ids(ours) - _ids(base_text))
     ids: dict[int, int] = {}
-    if new and taken and new[0] <= max(taken):
-        ids = {old: max(taken) + i for i, old in enumerate(new, 1)}
+    if new and new[0] <= top:
+        ids = {old: top + i for i, old in enumerate(new, 1)}
     _write(tree, DECISIONS, merge3(base_text, _renumber(ours, ids), theirs))
     if not ids:
         return "decisions: no id collides"
-    changed = _git(tree, "diff", "--name-only", base, "HEAD").splitlines()
-    for path in changed:
+    for path in _git(tree, "diff", "--name-only", base, "HEAD").splitlines():
         if path != DECISIONS:
-            _recite(tree, path, base, ids)
+            _recite(tree, path, ids)
     moves = ", ".join(f"D{old} → D{new}" for old, new in ids.items())
     return f"decisions: renumbered {moves}, citations with them"
 
@@ -422,9 +418,7 @@ def delta(tree: Path) -> str:
 
     Stops with exit 1, naming each MODIFIED or REMOVED title it changed since the base.
     """
-    merging = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
-    theirs = "MERGE_HEAD" if merging else default_branch(tree)
-    base = _git(tree, "merge-base", "HEAD", theirs).strip()
+    base = _merge_base(tree)
     listing = _git(tree, "ls-tree", "--name-only", "HEAD:openspec/changes").split()
     changes = [name for name in listing if CHANGE_ID.fullmatch(name)]
     if len(changes) != 1:
@@ -435,16 +429,28 @@ def delta(tree: Path) -> str:
     for path in (p for p in files if p.endswith("/spec.md")):
         capability = Path(path).parent.name
         living = f"openspec/specs/{capability}/spec.md"
-        sections = ("## MODIFIED Requirements", "## REMOVED Requirements")
-        for title in _requirements(_show(tree, "HEAD", path) or "", sections):
-            before = _requirement(_show(tree, base, living), title)
-            if before != _requirement(_show(tree, theirs, living), title):
+        before, after = (_show(tree, rev, living) for rev in (base, "MERGE_HEAD"))
+        for title in _requirements(_show(tree, "HEAD", path) or "", EDITED):
+            if _requirement(before, title) != _requirement(after, title):
                 moved.append(
                     f"delta: changed on the default branch: {capability}: {title}"
                 )
     if moved:
         raise Stop(1, "\n".join(moved))
     return "delta: the default branch changed no requirement the delta edits"
+
+
+ON_A_MERGE = {
+    "changelog": (
+        changelog,
+        "keep the branch's [Unreleased] entries above the releases",
+    ),
+    "decisions": (
+        decisions,
+        "renumber the branch's new decisions, citations with them",
+    ),
+    "delta": (delta, "name each delta title the default branch changed since the base"),
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -454,19 +460,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("next", help="print the lowest-id open version, and if ready")
-    for name, text in (
-        ("changelog", "keep the branch's [Unreleased] entries above the releases"),
-        ("decisions", "renumber the branch's new decisions, citations with them"),
-        ("delta", "name each delta title the default branch changed since the base"),
-    ):
+    for name, (_, text) in ON_A_MERGE.items():
         commands.add_parser(name, help=text).add_argument("worktree")
     args = parser.parse_args(argv)
     try:
         if args.command == "next":
             print(next_version(Path.cwd()))
         else:
-            run = {"changelog": changelog, "decisions": decisions, "delta": delta}
-            print(run[args.command](_tree(args.worktree)))
+            print(ON_A_MERGE[args.command][0](_tree(args.worktree)))
     except Stop as stop:
         print(stop)
         return stop.code
