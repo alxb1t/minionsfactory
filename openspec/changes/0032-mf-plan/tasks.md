@@ -28,6 +28,6 @@ template are the design's, word for word.
 - [ ] 3.2 Rewrite the bold paragraph of *The repo reaches nothing outside itself* in `docs/principles.md`, per [D6](design.md#d6), closing `0030·R3`.
   Verify: ``grep -c "save \`mf-release\`'s read-only remote CI lookup" docs/principles.md`` prints `0`, and `grep -c "the operator's brief" docs/principles.md` prints `1`.
 - [ ] 3.3 Name `mf-plan` in `AGENTS.md`'s skills line, and in `README.md`'s and `docs/README.md`'s diagrams and `README.md`'s skill table, per [D6](design.md#d6).
-  Verify: `grep -l 'mf-plan' README.md docs/README.md AGENTS.md | wc -l` prints `3`, and ``grep -c '`grilling`' README.md docs/README.md`` prints `README.md:0` and `docs/README.md:0`.
+  Verify: `grep -l 'mf-plan' README.md docs/README.md | wc -l` prints `2`, `grep -c 'plan, bootstrap, cut, build, converge, release' AGENTS.md` prints `1`, and ``grep -c '`grilling`' README.md docs/README.md`` prints `README.md:0` and `docs/README.md:0`.
 - [ ] 3.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `38 tests collected`.
