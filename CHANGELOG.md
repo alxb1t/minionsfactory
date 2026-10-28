@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `skills/mf-integrate/scripts/integrate.py` holds the merge-in's exact rules: the lowest-id open version and if it
+  is ready, the branch's `[Unreleased]` entries kept above the default branch's releases, a colliding decision
+  renumbered with its citations, and the delta checked against the default branch (change `0037-serial-integration`, phase 1).
+
 ## [0.32.0] - 2026-10-28
 
 Gate: local 0m22s · CI 0m19s (CI at aa85c14) · 0.31.3: local 0m21s · CI 0m17s (CI at ee2e751)

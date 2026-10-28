@@ -5,15 +5,15 @@ design's, word for word.
 
 ## Progress
 
-- [ ] 1 — Write the integration script
+- [x] 1 — Write the integration script
 - [ ] 2 — Write the station and correct converge and the release
 - [ ] 3 — Record the integration
 
 ## 1 — Write the integration script
 
-- [ ] 1.1 Write `skills/mf-integrate/scripts/integrate.py` per [D2](design.md#d2), its PEP 723 header pinning `>=3.12`.
+- [x] 1.1 Write `skills/mf-integrate/scripts/integrate.py` per [D2](design.md#d2), its PEP 723 header pinning `>=3.12`.
   Verify: `uv run --script skills/mf-integrate/scripts/integrate.py --help` exits 0.
-- [ ] 1.2 Write `tests/test_integrate.py` with the tests the [Tests](design.md#tests) table names for it.
+- [x] 1.2 Write `tests/test_integrate.py` with the tests the [Tests](design.md#tests) table names for it.
   Verify: `uv run pytest -q tests/test_integrate.py` reports `4 passed`.
 
 ## 2 — Write the station and correct converge and the release
