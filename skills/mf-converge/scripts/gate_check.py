@@ -128,7 +128,8 @@ def gate_makefiles(root: Path, trace: str) -> set[str]:
 
     Names come from make's `Reading makefile` lines and each `MAKEFILE_LIST`. A makefile
     can reassign the list or print a directory line, so each name is tried against every
-    directory the trace enters, and kept where `root` holds that file.
+    directory the trace enters, and kept where `root` holds that file. Keep the
+    lexical name, resolved target and symlink ancestors: Git tracks the links.
     e.g. "Reading makefile `gate.mk' (search path)..." → {"gate.mk"}
     """
     top = root.resolve()
@@ -141,12 +142,22 @@ def gate_makefiles(root: Path, trace: str) -> set[str]:
             names.add(match[1])
         elif line.startswith("MAKEFILE_LIST :="):
             names.update(line.removeprefix("MAKEFILE_LIST :=").split())
-    paths = {(where / name).resolve() for where in directories for name in names}
-    return {
-        path.relative_to(top).as_posix()
-        for path in paths
-        if path.is_relative_to(top) and path.is_file()
-    }
+    paths: set[Path] = set()
+    for where in directories:
+        for name in names:
+            path = Path(os.path.abspath(where / name))
+            target = path.resolve()
+            if not path.is_relative_to(top) or not target.is_relative_to(top):
+                continue
+            if not path.is_file():
+                continue
+            paths.update((path, target))
+            paths.update(
+                parent
+                for parent in path.parents
+                if parent.is_relative_to(top) and parent.is_symlink()
+            )
+    return {path.relative_to(top).as_posix() for path in paths}
 
 
 def changed_lines(
@@ -199,7 +210,7 @@ def check(change: str, base: str) -> str:
     try:
         base_files, base_lines = read_side(base, root / "base", "base")
         head_files, head_lines = read_side("HEAD", root / "head", "head")
-        changed = set(_git("diff", "--name-only", base, "HEAD").splitlines())
+        changed = set(_git("diff", "--name-only", "-z", base, "HEAD").split("\0"))
         touched = sorted((base_files | head_files) & changed)
         edits = changed_lines(root / "base", root / "head", touched)
     finally:

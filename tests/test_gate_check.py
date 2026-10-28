@@ -108,6 +108,63 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     assert "and no cut task names" in result.stdout
     assert "\n-false\n+true" in result.stdout
 
+    # Preserve the names Git tracks when make follows an include symlink, including
+    # a parent directory, or Git would quote the filename in line-based output.
+    cases = [
+        (
+            "symlink",
+            {
+                "Makefile": "include rules.mk\ngate:\n\tfalse\n",
+                "strict.mk": "# strict\n",
+                "loose.mk": ".IGNORE:\n",
+            },
+            ("rules.mk", "strict.mk", "loose.mk"),
+            "rules.mk",
+        ),
+        (
+            "recipe-symlink",
+            {
+                "Makefile": "include gate.mk\n",
+                "strict.mk": "gate:\n\tfalse\n",
+                "ignored.mk": "gate:\n\t-false\n",
+            },
+            ("gate.mk", "strict.mk", "ignored.mk"),
+            "gate.mk",
+        ),
+        (
+            "parent-symlink",
+            {
+                "Makefile": "include rules/gate.mk\n",
+                "strict/gate.mk": "gate:\n\tfalse\n",
+                "ignored/gate.mk": "gate:\n\t-false\n",
+            },
+            ("rules", "strict", "ignored"),
+            "rules",
+        ),
+        (
+            "quoted-name",
+            {"Makefile": "include café.mk\ngate:\n\tfalse\n", "café.mk": "# strict\n"},
+            None,
+            "café.mk",
+        ),
+    ]
+    failures = []
+    for label, initial, link, changed in cases:
+        root = tmp_path / label
+        root.mkdir()
+        if link:
+            (root / link[0]).symlink_to(link[1])
+        edits = {"README.md": "x\n"} if link else {changed: ".IGNORE:\n"}
+        base = _branch(root, initial, _UNPLANNED, edits)
+        if link:
+            (root / link[0]).unlink()
+            (root / link[0]).symlink_to(link[2])
+            _commit(root, {}, "retarget include")
+        result = _check(root, base)
+        if result.returncode != 1 or not result.stdout.endswith(f":\n  {changed}\n"):
+            failures.append((label, result.returncode, result.stdout))
+    assert not failures, failures
+
 
 def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
     files = {"Makefile": "gate:\n\t$(MAKE) -C checks check\n"}
