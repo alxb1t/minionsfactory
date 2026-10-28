@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-10-28
+
+Gate: local 0m21s · CI 0m15s (CI at 8d7383e) · 0.31.1: local 0m3s · CI 0m13s (CI at 577dba5)
+
 - `skills/mf-converge/scripts/gate_check.py` reads both sides' gate from fresh `git archive` exports and halts on
   an unplanned change to a gate makefile, or a planned one that drops a command or adds a gate makefile line its
   task does not quote: a branch can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`,

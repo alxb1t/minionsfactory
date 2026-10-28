@@ -1,0 +1,49 @@
+{
+  "change": "0034-gate-recipe-hardening",
+  "version": "v0.31.2",
+  "base": "8d7383e",
+  "analyzed": "afd2797",
+  "measured_on": "local",
+  "collected_at": "2026-10-28T14:48:37+02:00",
+  "mf_version": "v0.31.1-12-gafd2797-dirty",
+  "executor": "native (Claude Code)",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 10311
+    },
+    "shared-context": {
+      "value": 5187
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 50
+    },
+    "gate-seconds": {
+      "value": 21
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 32
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 4
+    }
+  }
+}
