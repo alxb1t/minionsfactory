@@ -61,6 +61,9 @@ A breach of any, found mid-build, is a halt naming the id.
 
 ## Step 1 — Lift the context
 
+The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
+`main` when that fails.
+
 **First, check the input-contract items marked yes** — a failure halts, naming the id:
 
 - **`I1`** — `git ls-files --error-unmatch openspec/changes/<change-id>/tasks.md` exits 0, and

@@ -1,0 +1,49 @@
+{
+  "change": "0035-release-moved-base",
+  "version": "v0.31.3",
+  "base": "ee2e751",
+  "analyzed": "611138c",
+  "measured_on": "local",
+  "collected_at": "2026-10-28T16:09:22+02:00",
+  "mf_version": "v0.31.2-5-g611138c-dirty",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 10325
+    },
+    "shared-context": {
+      "value": 5187
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 50
+    },
+    "gate-seconds": {
+      "value": 21
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 32
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 2
+    }
+  }
+}
