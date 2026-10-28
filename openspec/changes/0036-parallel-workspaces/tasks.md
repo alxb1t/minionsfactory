@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 ## Progress
 
 - [x] 1 — Resolve one run directory in the scripts
-- [ ] 2 — Make the cut work in worktrees
+- [x] 2 — Make the cut work in worktrees
 - [ ] 3 — Share the run directory and merge in the primary
 - [ ] 4 — Record the workspaces
 
@@ -18,9 +18,9 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## 2 — Make the cut work in worktrees
 
-- [ ] 2.1 Rewrite the id and version preconditions in `skills/mf-cut-change/SKILL.md`, per [D2](design.md#d2).
+- [x] 2.1 Rewrite the id and version preconditions in `skills/mf-cut-change/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -c 'every unmerged version branch' skills/mf-cut-change/SKILL.md` prints `1`, and `grep -c 'git tag -l' skills/mf-cut-change/SKILL.md` prints at least `1`.
-- [ ] 2.2 Rewrite Step 4, Step 10 and the report in `skills/mf-cut-change/SKILL.md` for the declared worktree and setup, per [D1](design.md#d1).
+- [x] 2.2 Rewrite Step 4, Step 10 and the report in `skills/mf-cut-change/SKILL.md` for the declared worktree and setup, per [D1](design.md#d1).
   Verify: `grep -c 'git worktree add -b' skills/mf-cut-change/SKILL.md` prints `1`, and `grep -c 'Workspace setup:' skills/mf-cut-change/SKILL.md` prints at least `1`.
 
 ## 3 — Share the run directory and merge in the primary

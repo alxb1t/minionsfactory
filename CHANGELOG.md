@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   primary checkout's git directory: every worktree shares one run directory (change `0036-parallel-workspaces`,
   phase 1).
 
+- `mf-cut-change` reserves an id and a version against every unmerged version branch and the tags, and makes the
+  version's worktree when `AGENTS.md` declares `Worktrees:`, running a declared `Workspace setup:` there: the
+  primary stays on the default branch (change `0036-parallel-workspaces`, phase 2).
+
 ## [0.31.3] - 2026-10-28
 
 Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)
