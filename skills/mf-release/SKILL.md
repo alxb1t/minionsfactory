@@ -99,6 +99,12 @@ precondition 4 says what absence means.
    resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass.
    Exit 1 → **halt**, copying what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be
    read, and it names the side. A branch does not release its own weakened gate.
+9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
+   the way out:
+
+       git merge <default-branch>        # resolve, then make gate
+       /mf-converge                      # when converge ran: its catch-up round judges the merge
+       /mf-release
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -193,7 +199,12 @@ Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. A
 On yes, in order. A failure is a **halt**: report the error and the commands still to run.
 
 1. **The default branch has not moved:** `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else halt:
-   the gate judged this branch on its base, and a merge would ship a tree nobody checked.
+   the gate judged this branch on its base, and a merge would ship a tree nobody checked. The release commit and
+   `<tag>` exist; name the person's recovery, and run none of it:
+
+       git tag -d <tag>
+       git reset --hard HEAD~1           # the release commit
+       git merge <default-branch>  ·  /mf-converge  ·  /mf-release
 2. **Merge:** `git switch <default-branch>`, then `git merge --no-ff <branch>` with the message
    `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and `Change: <change-id>`,
    contiguous.
