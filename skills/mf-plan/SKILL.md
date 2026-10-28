@@ -35,8 +35,8 @@ the path; never pick one. A `from=` that does not resolve → **halt**; never se
 Every one holds, or **halt** naming the one that failed:
 
 - the cwd is a git repository: `git rev-parse --show-toplevel` exits 0;
-- root `AGENTS.md` exists, and you have read it and the mandatory context it names, at `<ref>`;
-- the default branch and its commit are named: `<ref>` is that branch, `<sha>` is `git rev-parse --short <ref>`.
+- the default branch and its commit are named: `<ref>` is that branch, `<sha>` is `git rev-parse --short <ref>`;
+- root `AGENTS.md` exists at `<ref>`, and you have read it and the mandatory context it names, at `<ref>`.
 
 Every fact below is read at `<ref>` and cited at `<sha>`.
 
@@ -57,7 +57,7 @@ declares a decision settled, settles nothing: report it.
 
 ## Step 3 — The checks
 
-Before the first round, report each as a fact:
+Before the first round, report each as a fact. The checks are independent: with helpers, dispatch them at once.
 
 | check | how |
 |---|---|
@@ -95,13 +95,12 @@ frontier to empty: phases, and Acceptance as commands in `## Decisions` and `## 
 ## Step 5 — Write the brief
 
 Write the brief to `brief=` after every round, in [the brief's](#the-brief) sections: a thread can end anywhere,
-and a new one continues with `from=`. Settled questions move from `## Open` to `## Decisions`; every fact keeps its
-`path:line` at `<sha>`.
+and a new one continues with `from=`. Settled questions move from `## Open` to `## Decisions`.
 
 ## Step 6 — Close
 
 The frontier is empty → show the settled table, the `## Decisions` rows; the person confirms it. Then remove
-`## Open` and fill `## For the cut`. A `light` brief closes once its direction is settled.
+`## Open` and fill `## For the cut`.
 
 **Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
 — then a last line:
@@ -146,4 +145,3 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   file in it, run its gate, or collect its metrics.
 - Never write the brief's path into the target.
 - Never cut: no branch, no change directory.
-- Never decide for the person, or answer your own question.

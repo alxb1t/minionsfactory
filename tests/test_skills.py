@@ -17,12 +17,15 @@ _SHARED_OWNERS = ("mf-build", "mf-cut-change")
 _CONTRACT = "## Input contract"
 
 
-def _section_labels(path: Path, heading: str) -> list[str]:
-    """Return the bold first cells of the table rows in `path`'s `heading` section.
+def _section_labels(
+    path: Path, heading: str, cell: str = r"\*\*(.+?)\*\*"
+) -> list[str]:
+    """Return the first cells of the table rows in `path`'s `heading` section.
 
-    The section runs up to the next `## ` heading.
+    The section runs up to the next `## ` heading. A cell matches `cell`, bold by
+    default: e.g. "| **I1** | …" → "I1".
     """
-    row = re.compile(r"^\| \*\*(.+?)\*\* \|")
+    row = re.compile(rf"^\| {cell} \|")
     labels: list[str] = []
     inside = False
     for line in path.read_text().splitlines():
@@ -453,21 +456,14 @@ _PLAN_NEVER = "## Never"
 
 def _plan_problems(base: Path) -> list[str]:
     """Return one line per section `base`'s plan station is missing."""
-    path = base / "skills" / _PLAN / "SKILL.md"
     prefix = f"skills/{_PLAN}/SKILL.md"
+    path = base / prefix
     if not path.is_file():
         return [f"{prefix}: does not exist"]
-    lines = path.read_text().splitlines()
     problems: list[str] = []
-    inside = named = False
-    for line in lines:
-        if line.startswith("## "):
-            inside = line == _PLAN_PARAMETERS
-        elif inside and line.startswith("| `brief` |"):
-            named = True
-    if not named:
+    if "brief" not in _section_labels(path, _PLAN_PARAMETERS, cell=r"`(.+?)`"):
         problems.append(f"{prefix}: `{_PLAN_PARAMETERS}` names no `brief`")
-    if _PLAN_NEVER not in lines:
+    if _PLAN_NEVER not in path.read_text().splitlines():
         problems.append(f"{prefix}: no `{_PLAN_NEVER}`")
     return problems
 
