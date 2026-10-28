@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   version's worktree when `AGENTS.md` declares `Worktrees:`, running a declared `Workspace setup:` there: the
   primary stays on the default branch (change `0036-parallel-workspaces`, phase 2).
 
+- Every station defines the run directory, `.minions/` beside the primary checkout; converge and the release write
+  the backlog under `.minions/backlog.lock`; the release merges in the primary and removes the version's worktree;
+  `mf-plan` checks which versions can run side by side (change `0036-parallel-workspaces`, phase 3).
+
 ## [0.31.3] - 2026-10-28
 
 Gate: local 0m21s · CI 0m17s (CI at ee2e751) · 0.31.2: local 0m21s · CI 0m15s (CI at 8d7383e)

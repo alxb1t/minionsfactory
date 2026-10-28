@@ -37,6 +37,10 @@ resolve → **halt**; never search for one.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 Every one holds, or **halt** naming the one that failed:
 
 - you are on the default branch, and `git status --porcelain` prints nothing;

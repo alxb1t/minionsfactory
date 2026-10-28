@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 - [x] 1 — Resolve one run directory in the scripts
 - [x] 2 — Make the cut work in worktrees
-- [ ] 3 — Share the run directory and merge in the primary
+- [x] 3 — Share the run directory and merge in the primary
 - [ ] 4 — Record the workspaces
 
 ## 1 — Resolve one run directory in the scripts
@@ -25,13 +25,13 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## 3 — Share the run directory and merge in the primary
 
-- [ ] 3.1 Define the run directory in `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md`, `skills/mf-cut-change/SKILL.md` and `skills/mf-plan/SKILL.md`, per [D3](design.md#d3).
+- [x] 3.1 Define the run directory in `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-release/SKILL.md`, `skills/mf-cut-change/SKILL.md` and `skills/mf-plan/SKILL.md`, per [D3](design.md#d3).
   Verify: `grep -l 'git-common-dir' skills/mf-build/SKILL.md skills/mf-converge/SKILL.md skills/mf-release/SKILL.md skills/mf-cut-change/SKILL.md skills/mf-plan/SKILL.md | wc -l` prints `5`.
-- [ ] 3.2 Add the backlog lock to converge Step 9 and release Step 4.6, per [D3](design.md#d3).
+- [x] 3.2 Add the backlog lock to converge Step 9 and release Step 4.6, per [D3](design.md#d3).
   Verify: `grep -l 'backlog.lock' skills/mf-converge/SKILL.md skills/mf-release/SKILL.md | wc -l` prints `2`.
-- [ ] 3.3 Rewrite release Step 5 and Step 6's no-merge commands for the primary, per [D4](design.md#d4).
+- [x] 3.3 Rewrite release Step 5 and Step 6's no-merge commands for the primary, per [D4](design.md#d4).
   Verify: `grep -c 'git worktree list --porcelain' skills/mf-release/SKILL.md` prints `1`, and `grep -c 'worktree remove' skills/mf-release/SKILL.md` prints at least `1`.
-- [ ] 3.4 Add the *parallel with* row to `skills/mf-plan/SKILL.md`'s checks, per [D5](design.md#d5).
+- [x] 3.4 Add the *parallel with* row to `skills/mf-plan/SKILL.md`'s checks, per [D5](design.md#d5).
   Verify: `grep -c '^| parallel with |' skills/mf-plan/SKILL.md` prints `1`.
 
 ## 4 — Record the workspaces

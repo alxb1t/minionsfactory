@@ -41,6 +41,10 @@ Every one holds, or **halt** naming the one that failed:
 
 Every fact below is read at `<ref>` and cited at `<sha>`.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 ## Step 2 — Read the target, read-only
 
 Read the target only at `<ref>`, never its working tree: the tree may be a build's half-done state.
@@ -69,6 +73,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 | a split | a version whose one diff would be too large for review is proposed as two |
 | re-measure | with `from=`: a fact citing a commit other than `<sha>` is checked again at `<sha>` |
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
+| parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is proposed in an order, naming the file |
 
 No `.minions/backlog.md` → say so, and skip the backlog checks.
 

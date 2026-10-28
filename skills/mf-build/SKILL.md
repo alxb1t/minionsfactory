@@ -64,6 +64,10 @@ A breach of any, found mid-build, is a halt naming the id.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
+The **run directory** is `.minions/` beside the primary checkout:
+`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`.minions/` path below is in it.
+
 **First, check the input-contract items marked yes** — a failure halts, naming the id:
 
 - **`I1`** — `git ls-files --error-unmatch openspec/changes/<change-id>/tasks.md` exits 0, and
