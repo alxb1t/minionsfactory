@@ -213,6 +213,12 @@ this checkout when none does. The merge happens there: git refuses a branch anot
 
 Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6.
 
+When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
+ignored paths by name, never reading a file:
+`git -C <this worktree> ls-files --others --ignored --exclude-standard --directory`. Then ask `Merge <branch> into <default-branch> and push? The worktree <this worktree> goes too, with:
+<the listed paths> (yes/no)`, the `with:` part dropped when nothing is listed. A listing that fails → ask
+`… and push? The worktree <this worktree> stays: its ignored paths could not be listed. (yes/no)`.
+
 On yes, in order. A failure is a **halt**: report the error and the commands still to run.
 
 1. **The default branch has not moved:** `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else halt:
@@ -231,10 +237,9 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 5. **Push, from the primary:** `git -C <primary> push origin <default-branch>`, then
    `git -C <primary> push origin <tag>`. A rejected push halts; the default branch stays merged locally. Never
    pull, never `--force`, never push the version branch.
-6. **Remove the version's worktree**, when this checkout is a linked worktree other than the primary:
-   inspect `git -C <this worktree> ls-files --others --ignored --exclude-standard` without reading file contents.
-   Any ignored path, or a failed check → retain the worktree and report cleanup skipped; otherwise
-   `git -C <primary> worktree remove <this worktree>`, keeping the branch. A refusal is reported, never forced.
+6. **Remove the version's worktree**, when the ask said it goes: `git -C <primary> worktree remove
+   <this worktree>`, keeping the branch; git deletes the ignored paths the ask named. A refusal is reported, never
+   forced.
 
 ## Step 6 — Close: report, and stop
 

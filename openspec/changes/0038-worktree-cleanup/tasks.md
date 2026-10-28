@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## Progress
 
-- [ ] 1 — Name and remove the worktree in the release
+- [x] 1 — Name and remove the worktree in the release
 - [ ] 2 — Correct the records
 
 ## 1 — Name and remove the worktree in the release
 
-- [ ] 1.1 Add [D1](design.md#d1)'s paragraph after Step 5's ask in `skills/mf-release/SKILL.md`.
+- [x] 1.1 Add [D1](design.md#d1)'s paragraph after Step 5's ask in `skills/mf-release/SKILL.md`.
   Verify: `grep -c 'goes too, with:' skills/mf-release/SKILL.md` prints `1`, and `grep -c 'exclude-standard --directory' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 1.2 Replace item 6 of Step 5 in `skills/mf-release/SKILL.md` with [D1](design.md#d1)'s after text.
+- [x] 1.2 Replace item 6 of Step 5 in `skills/mf-release/SKILL.md` with [D1](design.md#d1)'s after text.
   Verify: `grep -c 'Any ignored path' skills/mf-release/SKILL.md` prints `0`, and `grep -c 'when the ask said it goes' skills/mf-release/SKILL.md` prints `1`.
 
 ## 2 — Correct the records
