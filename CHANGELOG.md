@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-28
+
+Gate: local 0m26s · CI 0m23s (CI at 193a550) · 0.33.0: local 0m26s · CI 0m17s (CI at 6e5dcc5)
+
 - The release's one ask names a version's worktree and its ignored paths, and on yes removes the worktree with
   plain `git worktree remove`: a built worktree always holds `.venv/`, so it was never removed (change
   `0038-worktree-cleanup`, phase 1).
