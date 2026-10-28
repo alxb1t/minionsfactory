@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plain `git worktree remove`: a built worktree always holds `.venv/`, so it was never removed (change
   `0038-worktree-cleanup`, phase 1).
 
+- README's container tree and runbook name the primary `<repo>/`, after the repository; the 0034 proposal and the
+  `[0.31.2]` entry claim only what the gate check reads, per its design's D7 (change `0038-worktree-cleanup`,
+  phase 2).
+
 ## [0.33.0] - 2026-10-28
 
 Gate: local 0m26s · CI 0m17s (CI at 6e5dcc5) · 0.32.0: local 0m22s · CI 0m19s (CI at aa85c14)
@@ -68,7 +72,7 @@ Gate: local 0m21s · CI 0m15s (CI at 8d7383e) · 0.31.1: local 0m3s · CI 0m13s 
 
 - `skills/mf-converge/scripts/gate_check.py` reads both sides' gate from fresh `git archive` exports and halts on
   an unplanned change to a gate makefile, or a planned one that drops a command or adds a gate makefile line its
-  task does not quote: a branch can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`,
+  task does not quote: a file make reads at parse time stays out of its reach (change `0034-gate-recipe-hardening`,
   phase 1).
 
 - `mf-converge` precondition 6 and `mf-release` precondition 8 run the gate check and halt on its verdict, and

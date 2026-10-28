@@ -5,8 +5,9 @@ backlog: [0023·S1, 0023·S5, 0023·R8]
 
 # Gate-recipe hardening
 
-A branch can no longer certify its own weakened gate: both sides' dry runs come from fresh exports, and every
-route that silences a check halts.
+A branch can no longer certify a gate it weakened through a gate makefile or the dry run: both sides' dry runs come
+from fresh exports, and an unplanned change to either halts. A file make reads at parse time is out of reach
+([D7](design.md#d7)).
 
 Read [design](design.md) for the decisions, [tasks](tasks.md) for the phases, and
 [the delta](specs/sdd/spec.md) for the corrected requirement.
