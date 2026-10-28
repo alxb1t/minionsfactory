@@ -5,14 +5,14 @@ rule whose breach is a defect is a [principle](principles.md). An entry is writt
 no history: when a change adds or overturns one, it edits this page in one of its phases, and its own
 `design.md` keeps how that came about.
 
-An id is never reused or renumbered. A new decision takes the next number, in the group it belongs to.
+An id in force is never reused or renumbered. A new decision takes the next number, in the group it belongs to.
 
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44
+  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45
 ```
 
 ## The shape
@@ -375,3 +375,14 @@ in the primary.**
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids
   without a lock file.
 - **Rejected:** host-managed worktrees — places MF cannot name · rebasing a judged branch · a reservation file.
+
+### D45 · One station merges the default branch into the next version
+
+**`mf-integrate`, run in the primary, merges the default branch into the lowest-id open version's worktree,
+applies fixed rules to the CHANGELOG, decision ids and spec delta, hands a semantic conflict to the person with the
+merge open, gates, and commits the merge; converge's catch-up judges the merge by its remerge-diff.**
+
+- **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
+  read, and what the merge decided is exactly what review must see.
+- **Rejected:** `merge=union` — it drops a blank line and hides the result from the remerge-diff · rebasing a judged
+  branch · resolving silently against either design.

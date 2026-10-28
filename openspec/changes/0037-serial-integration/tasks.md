@@ -7,7 +7,7 @@ design's, word for word.
 
 - [x] 1 — Write the integration script
 - [x] 2 — Write the station and correct converge and the release
-- [ ] 3 — Record the integration
+- [x] 3 — Record the integration
 
 ## 1 — Write the integration script
 
@@ -29,9 +29,9 @@ design's, word for word.
 
 ## 3 — Record the integration
 
-- [ ] 3.1 Add D45 and reword line 8 of `docs/decisions.md`, and extend the overview line, per [D5](design.md#d5).
+- [x] 3.1 Add D45 and reword line 8 of `docs/decisions.md`, and extend the overview line, per [D5](design.md#d5).
   Verify: `grep -c '^### D45 · One station merges the default branch into the next version$' docs/decisions.md` prints `1`, and `grep -c 'An id in force is never reused or renumbered' docs/decisions.md` prints `1`.
-- [ ] 3.2 Name `mf-integrate` in `AGENTS.md`'s skills line and `README.md`'s skill table, and add the move's steps to README's runbook, per [D5](design.md#d5).
+- [x] 3.2 Name `mf-integrate` in `AGENTS.md`'s skills line and `README.md`'s skill table, and add the move's steps to README's runbook, per [D5](design.md#d5).
   Verify: `grep -l 'mf-integrate' AGENTS.md README.md | wc -l` prints `2`, and `grep -c 'SKILLS_DIR=' README.md` prints at least `1`.
-- [ ] 3.3 The suite has the planned tests.
+- [x] 3.3 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `58 tests collected`.

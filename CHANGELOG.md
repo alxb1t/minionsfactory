@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the merge by its remerge-diff, and the release's moved-base halts name the station (change
   `0037-serial-integration`, phase 2).
 
+- D45 records the integrate station, and `docs/decisions.md` keeps an id *in force* fixed; `AGENTS.md` and
+  `README.md` name `mf-integrate`, and README's move into a container gains the temporary name, the `.venv`
+  rebuild and `SKILLS_DIR` (change `0037-serial-integration`, phase 3).
+
 ## [0.32.0] - 2026-10-28
 
 Gate: local 0m22s · CI 0m19s (CI at aa85c14) · 0.31.3: local 0m21s · CI 0m17s (CI at ee2e751)
