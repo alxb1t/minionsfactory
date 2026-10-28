@@ -64,8 +64,8 @@ def _is_number(value: object) -> bool:
 
 
 def _inside(root: Path, script: str) -> bool:
-    """Return whether `script` is a path that resolves inside `root`, never a URL."""
-    if re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script):
+    """Return whether `script` is a path inside `root`, never a URL or an option."""
+    if script.startswith("-") or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", script):
         return False
     return (root / script).resolve().is_relative_to(root.resolve())
 
@@ -156,7 +156,7 @@ def _scrubbed(why: str, root: Path) -> str:
     """
     for path, name in ((root, "<repo>"), (Path.home(), "~")):
         if str(path) != path.anchor:
-            whole = r"(?<![\w.~/\\-])" + re.escape(str(path)) + r"(?=[/\\'\"\s:]|$)"
+            whole = r"(?<![\w.~-])" + re.escape(str(path)) + r"(?![\w-]|\.\w)"
             why = re.sub(whole, name, why)
     return why
 

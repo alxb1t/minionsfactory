@@ -131,7 +131,8 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         # a path that only shares their prefix is left as it is.
         "paths": "import os, sys\nhome, root = os.path.expanduser('~'), os.getcwd()\n"
         "sys.stderr.write(f\"{home}/x/python: can't open '{root}/gone.py' \")\n"
-        "print(f'near {root}s/a {home}ice/b /opt{root}/c', file=sys.stderr)\n"
+        "print(f'near {root}s/a {home}ice/b /opt{root}/c', end=' ', file=sys.stderr)\n"
+        "print(f'file://{home}/x ({home}) HOME={home}; {home}.', file=sys.stderr)\n"
         "sys.exit(2)\n",
     }
     catalogue = "".join(
@@ -155,7 +156,8 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "paths": {
             "status": "unavailable",
             "why": "~/x/python: can't open '<repo>/gone.py' "
-            f"near {tmp_path}s/a {home}ice/b /opt{tmp_path}/c",
+            f"near {tmp_path}s/a {home}ice/b /opt{tmp_path}/c "
+            "file://~/x (~) HOME=~; ~.",
         },
     }
 
@@ -188,6 +190,8 @@ def test_a_broken_catalogue_exits_2_naming_the_entry(
         _metric("url", script="https://example.invalid/m.py"): "1 `url`: `script` is",
         _metric("abs", script="/elsewhere/m.py"): "1 `abs`: `script` is not",
         _metric("up", script="../m.py"): "1 `up`: `script` is not a path inside",
+        # `uv` would read a leading `-` as its own option.
+        _metric("opt", script="--quiet"): "1 `opt`: `script` is not a path inside",
     }
     _repo(tmp_path, "")
     monkeypatch.chdir(tmp_path)

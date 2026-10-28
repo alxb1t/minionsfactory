@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 
 - [x] 1 — Ship a patch as itself
 - [x] 2 — Retire a test only by a decision in force at the base
-- [ ] 3 — Close the collector's gaps
+- [x] 3 — Close the collector's gaps
 - [ ] 4 — Fix the small text
 
 ## 1 — Ship a patch as itself
@@ -27,9 +27,9 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 
 ## 3 — Close the collector's gaps
 
-- [ ] 3.1 In `skills/mf-build/scripts/metrics.py`, make `_inside` refuse a `script` starting with `-`, and extend `test_a_broken_catalogue_exits_2_naming_the_entry` in `tests/test_metrics.py` with it, per [D4](design.md#d4).
+- [x] 3.1 In `skills/mf-build/scripts/metrics.py`, make `_inside` refuse a `script` starting with `-`, and extend `test_a_broken_catalogue_exits_2_naming_the_entry` in `tests/test_metrics.py` with it, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_metrics.py -k broken_catalogue` reports `1 passed`, and `grep -c '"--quiet"' tests/test_metrics.py` prints `1`.
-- [ ] 3.2 Give `_scrubbed` D4's pattern, and extend `test_a_failing_metric_is_unavailable_with_its_reason` with its `file://`, `(…)`, `HOME=…;` and trailing-`.` cases, per [D4](design.md#d4).
+- [x] 3.2 Give `_scrubbed` D4's pattern, and extend `test_a_failing_metric_is_unavailable_with_its_reason` with its `file://`, `(…)`, `HOME=…;` and trailing-`.` cases, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_metrics.py -k failing_metric` reports `1 passed`, and `grep -c 'file://' tests/test_metrics.py` prints at least `1`.
 
 ## 4 — Fix the small text
