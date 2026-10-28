@@ -34,6 +34,9 @@ resolve → **halt**; never search for one.
 
 ## Step 1 — Preconditions
 
+The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
+`main` when that fails.
+
 Every one holds, or **halt** naming the one that failed:
 
 - you are on the default branch, and `git status --porcelain` prints nothing;

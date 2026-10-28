@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 ## Progress
 
 - [x] 1 — Check the base before the release tags
-- [ ] 2 — Name the default branch in every station
+- [x] 2 — Name the default branch in every station
 
 ## 1 — Check the base before the release tags
 
@@ -16,5 +16,5 @@ Build the settled [design](design.md), one phase at a time. The station text is 
 
 ## 2 — Name the default branch in every station
 
-- [ ] 2.1 Add [D3](design.md#d3)'s line to `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-cut-change/SKILL.md` and `skills/mf-release/SKILL.md`, and drop converge's "usually `main`".
+- [x] 2.1 Add [D3](design.md#d3)'s line to `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-cut-change/SKILL.md` and `skills/mf-release/SKILL.md`, and drop converge's "usually `main`".
   Verify: `grep -l 'git symbolic-ref --short refs/remotes/origin/HEAD' skills/mf-build/SKILL.md skills/mf-converge/SKILL.md skills/mf-cut-change/SKILL.md skills/mf-release/SKILL.md | wc -l` prints `4`, and ``grep -c 'usually `main`' skills/mf-converge/SKILL.md`` prints `0`.

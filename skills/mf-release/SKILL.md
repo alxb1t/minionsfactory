@@ -48,6 +48,9 @@ non-zero (no `gate` target), or when it prints no command — an empty recipe, o
 `Nothing to be done`. Never infer a gate or run a command you found instead: it exits 0 over nothing and releases
 a branch nobody checked.
 
+The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
+`main` when that fails.
+
 A **version file** may be absent — many repos keep none. That is a **stated skip, not a halt**: report it as
 `none`, and why.
 
