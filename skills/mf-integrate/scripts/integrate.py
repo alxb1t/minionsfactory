@@ -207,9 +207,27 @@ def _unmerged(tree: Path) -> set[str]:
     return set(_git(tree, "diff", "--name-only", "--diff-filter=U").splitlines())
 
 
+def _safe_path(tree: Path, path: str) -> Path:
+    """Return a regular worktree path, rejecting links and escaping components."""
+    relative = Path(path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise Stop(1, f"integrate: halt — unsafe path: {path}")
+    root = tree.resolve()
+    target = root
+    for part in relative.parts:
+        target /= part
+        if target.is_symlink():
+            raise Stop(1, f"integrate: halt — unsafe path: {path}")
+    if not target.resolve().is_relative_to(root) or (
+        target.exists() and not target.is_file()
+    ):
+        raise Stop(1, f"integrate: halt — unsafe path: {path}")
+    return target
+
+
 def _write(tree: Path, path: str, text: str) -> None:
     """Write a resolved file and stage it, unless git still holds it in conflict."""
-    (tree / path).write_text(text)
+    _safe_path(tree, path).write_text(text)
     if "<<<<<<<" not in text or path not in _unmerged(tree):
         _git(tree, "add", "--", path)
 
@@ -268,15 +286,17 @@ def _changes(base: list[str], side: list[str]) -> list[Edit]:
 
 
 def _merge_line(base: str, ours: str, theirs: str) -> str | None:
-    """Return a line both sides only inserted into, theirs first; else None.
+    """Return a group-map line both sides appended decision ids to; else None.
 
     e.g. "D44", "D44, D46", "D44, D45" → "D44, D45, D46"
     """
+    if not CITATION.search(base):
+        return None
     tokens = TOKEN.findall(base)
     inserts: dict[int, list[str]] = {}
     for side in (theirs, ours):
         for start, end, added in _changes(tokens, TOKEN.findall(side)):
-            if start != end:
+            if start != end or not re.fullmatch(r"(?:, D\d+)+", "".join(added)):
                 return None
             inserts.setdefault(start, []).extend(added)
     return "".join(
@@ -295,28 +315,31 @@ def _apply(base: list[str], start: int, end: int, edits: list[Edit]) -> list[str
     return out + base[pos:end]
 
 
-def _resolve(base: list[str], ours: list[str], theirs: list[str]) -> list[str]:
+def _resolve(
+    base: list[str], ours: list[str], theirs: list[str], group_map: bool
+) -> list[str]:
     """Return one region both sides edited, by the rules; else stop with exit 1.
 
-    One side alone edited → its edit. Both inserted at one point → theirs, then
-    ours. The same lines edited → each line merged by insertions. Anything else
-    is not a mechanical conflict.
+    One side alone edited → its edit. New decision sections → theirs, then ours.
+    Group map lines accept added ids. Overlapping prose goes to the person.
     """
     if ours == base or ours == theirs:
         return theirs
     if theirs == base:
         return ours
-    if not base:
+    if not base and all(
+        DECISION.match("".join(side).lstrip("\n")) for side in (ours, theirs)
+    ):
         return theirs + ours
-    if len(base) == len(ours) == len(theirs):
+    if group_map and len(base) == len(ours) == len(theirs):
         lines = [_merge_line(*trio) for trio in zip(base, ours, theirs, strict=True)]
         if None not in lines:
             return [line for line in lines if line is not None]
-    where = base[0].strip() or "a blank line"
+    where = (base[0].strip() if base else "") or "a blank line"
     raise Stop(1, f"decisions: halt — both sides changed the text at: {where}")
 
 
-def merge3(base: str, ours: str, theirs: str) -> str:
+def merge3(base: str, ours: str, theirs: str, *, decision_map: bool = False) -> str:
     """Return the three-way merge of the sides, by the rules in `_resolve`."""
     lines = base.splitlines(keepends=True)
     edits = sorted(
@@ -338,7 +361,15 @@ def merge3(base: str, ours: str, theirs: str) -> str:
     pos = 0
     for start, end, (mine, yours) in groups:
         regions = [_apply(lines, start, end, side) for side in (mine, yours)]
-        out += lines[pos:start] + _resolve(lines[start:end], *regions)
+        prefix = lines[:start]
+        in_map = (
+            decision_map
+            and not any(line.startswith("## ") for line in prefix)
+            and sum(line.startswith("```") for line in prefix) % 2 == 1
+        )
+        out += lines[pos:start] + _resolve(
+            lines[start:end], regions[0], regions[1], in_map
+        )
         pos = end
     return "".join(out + lines[pos:])
 
@@ -348,23 +379,28 @@ def _ids(text: str) -> set[int]:
     return {int(n) for n in DECISION.findall(text)}
 
 
-def _recite(tree: Path, path: str, ids: dict[int, int]) -> None:
-    """Renumber the citations on the lines the branch wrote in `path`.
+def _recite(tree: Path, path: str, ids: dict[int, int], base: str) -> None:
+    """Merge the branch's renumbered citations using edit positions in the base.
 
-    A renumbered id is absent at the base, so a line citing it that the default
-    branch's file lacks is the branch's.
+    A manual resolution that differs from the mechanical merge has ambiguous
+    ownership and is handed to the person.
     """
+    target = _safe_path(tree, path)
     try:
-        text = (tree / path).read_text()
+        text = target.read_text()
     except (OSError, UnicodeDecodeError):
         return
     if not any(int(match[2]) in ids for match in CITATION.finditer(text)):
         return
-    theirs = set((_show(tree, "MERGE_HEAD", path) or "").splitlines())
-    lines = text.splitlines(keepends=True)
-    out = [x if x.rstrip("\n") in theirs else _renumber(x, ids) for x in lines]
-    if out != lines:
-        _write(tree, path, "".join(out))
+    before, ours, theirs = (
+        _show(tree, rev, path) or "" for rev in (base, "HEAD", "MERGE_HEAD")
+    )
+    expected = merge3(before, ours, theirs)
+    rewritten = merge3(before, _renumber(ours, ids), theirs)
+    if text not in (expected, rewritten):
+        raise Stop(1, f"decisions: halt — citation ownership is ambiguous in {path}")
+    if rewritten != text:
+        _write(tree, path, rewritten)
 
 
 def decisions(tree: Path) -> str:
@@ -379,12 +415,16 @@ def decisions(tree: Path) -> str:
     ids: dict[int, int] = {}
     if new and new[0] <= top:
         ids = {old: top + i for i, old in enumerate(new, 1)}
-    _write(tree, DECISIONS, merge3(base_text, _renumber(ours, ids), theirs))
+    _write(
+        tree,
+        DECISIONS,
+        merge3(base_text, _renumber(ours, ids), theirs, decision_map=True),
+    )
     if not ids:
         return "decisions: no id collides"
     for path in _git(tree, "diff", "--name-only", base, "HEAD").splitlines():
         if path != DECISIONS:
-            _recite(tree, path, ids)
+            _recite(tree, path, ids, base)
     moves = ", ".join(f"D{old} → D{new}" for old, new in ids.items())
     return f"decisions: renumbered {moves}, citations with them"
 

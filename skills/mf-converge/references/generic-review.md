@@ -16,13 +16,16 @@ An input missing or unusable → halt, naming it. No remote or native review plu
 
 ## Inspect and write
 
-1. Resolve the range with git; read changed files with surrounding source, callers and tests.
+1. Resolve the range with git; for a merge-aware catch-up, independently reconstruct the owning contract's
+   Catch-up scope, including its empty-resolution checks, and judge only its selected diffs. Read changed files
+   with surrounding source, callers and tests.
 2. Check correctness, spec compliance, the target's standards and test proofs. Trace a concrete trigger to its
    consequence and cite the source on each card; skip speculative improvements.
 3. Run the contract's stale-claim, test-cost and coverage-trace passes (Step 3).
 4. Check backlog repeats; apply the anchored severity floors.
 5. Write the frontmatter, cards and a Summary with the resolved file and commit counts and the passes run. An
-   empty or materially incomplete scope cannot earn clean: report scope failure, per Step 5.
+   empty scope outside the checked empty-resolution case, or a materially incomplete scope, cannot earn clean:
+   report scope failure, per Step 5.
 
 ## Verify freshly
 

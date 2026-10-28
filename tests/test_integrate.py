@@ -4,9 +4,12 @@ Real git in a scratch repository with linked worktrees and real merges.
 Why: 0037-serial-integration design D2.
 """
 
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-integrate" / "scripts" / "integrate.py"
@@ -132,13 +135,30 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
 ) -> None:
     head = f"# Decisions\n\n```\n  {_MAP}\n```\n\n## Repo conventions\n"
     old = _decision(43, "Old") + _decision(44, "Older")
-    root = _primary(tmp_path, {"docs/decisions.md": head + old})
+    root = _primary(
+        tmp_path, {"docs/decisions.md": head + old, "docs/shared.md": "## Common\n"}
+    )
     tree = _version(root, "0046-b", "v0.47")
     ours = head.replace("D44", "D44, D45") + old + _decision(45, "Branch")
     cite = "Per [D45](decisions.md#d45--branch), and D44 stays.\n"
-    _commit(tree, {"docs/decisions.md": ours, "docs/guide.md": cite}, "phase")
+    _commit(
+        tree,
+        {
+            "docs/decisions.md": ours,
+            "docs/guide.md": cite,
+            "docs/shared.md": "## Branch\nPer D45.\n\n## Common\n",
+        },
+        "phase",
+    )
     theirs = head.replace("D44", "D44, D45") + old + _decision(45, "Main")
-    _commit(root, {"docs/decisions.md": theirs}, "release")
+    _commit(
+        root,
+        {
+            "docs/decisions.md": theirs,
+            "docs/shared.md": "## Common\n\n## Main\nPer D45.\n",
+        },
+        "release",
+    )
     _git(tree, "merge", "-q", "main", check=False)
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == "docs/decisions.md"
 
@@ -151,8 +171,30 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert (tree / "docs/decisions.md").read_text() == merged
     guide = "Per [D46](decisions.md#d46--branch), and D44 stays.\n"
     assert (tree / "docs/guide.md").read_text() == guide
+    assert (tree / "docs/shared.md").read_text() == (
+        "## Branch\nPer D46.\n\n## Common\n\n## Main\nPer D45.\n"
+    )
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
     assert _git(tree, "diff", "--name-only") == ""
+    helpers = runpy.run_path(str(_SCRIPT))
+    with pytest.raises(helpers["Stop"], match="both sides changed"):
+        helpers["merge3"](
+            "The mode is enabled.\n",
+            "The mode is never enabled.\n",
+            "The mode is always enabled.\n",
+            decision_map=True,
+        )
+    external = tmp_path / "external.md"
+    external.write_text("Per D45.\n")
+    (tree / "linked.md").symlink_to(external)
+    (tree / "linked-dir").symlink_to(tmp_path, target_is_directory=True)
+    for path in ("linked.md", "linked-dir/external.md", "../external.md"):
+        with pytest.raises(helpers["Stop"], match="unsafe path"):
+            helpers["_write"](tree, path, "replacement\n")
+        assert external.read_text() == "Per D45.\n"
+        with pytest.raises(helpers["Stop"], match="unsafe path"):
+            helpers["_recite"](tree, path, {45: 46}, "HEAD")
+        assert external.read_text() == "Per D45.\n"
 
 
 def _spec(first: str) -> str:
