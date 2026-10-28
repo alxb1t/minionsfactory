@@ -29,13 +29,12 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def _commit(root: Path, files: dict[str, str], message: str) -> str:
+def _commit(root: Path, files: dict[str, str], message: str) -> None:
     for name, text in files.items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(text)
     _git(root, "add", ".")
     _git(root, "commit", "-q", "-m", message)
-    return _git(root, "rev-parse", "HEAD")
 
 
 def _branch(
@@ -43,7 +42,8 @@ def _branch(
 ) -> str:
     """Commit `base`, then the cut with `tasks`, then `branch`; return the base."""
     _git(root, "init", "-q")
-    first = _commit(root, {".gitignore": ".minions/\n.env\n", **base}, "base")
+    _commit(root, {".gitignore": ".minions/\n.env\n", **base}, "base")
+    first = _git(root, "rev-parse", "HEAD")
     change = f"openspec/changes/{_CHANGE}"
     _commit(root, {f"{change}/design.md": "# X\n", f"{change}/tasks.md": tasks}, "cut")
     _commit(root, branch, "build")
@@ -160,10 +160,10 @@ def test_a_dry_run_failing_in_an_export_exits_2(tmp_path: Path) -> None:
 
 def test_no_single_cut_commit_halts(tmp_path: Path) -> None:
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
-    design = tmp_path / "openspec" / "changes" / _CHANGE / "design.md"
-    _git(tmp_path, "rm", "-q", str(design))
+    design = f"openspec/changes/{_CHANGE}/design.md"
+    _git(tmp_path, "rm", "-q", design)
     _git(tmp_path, "commit", "-q", "-m", "drop")
-    _commit(tmp_path, {str(design.relative_to(tmp_path)): "# X\n"}, "again")
+    _commit(tmp_path, {design: "# X\n"}, "again")
     result = _check(tmp_path, base)
     assert result.returncode == 1
     assert result.stdout.startswith("gate: halt — no single cut commit")

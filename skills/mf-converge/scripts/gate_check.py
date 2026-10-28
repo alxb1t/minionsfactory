@@ -11,9 +11,7 @@ Why: 0034-gate-recipe-hardening design D1…D4.
 """
 
 import argparse
-import contextlib
 import difflib
-import io
 import os
 import re
 import shutil
@@ -26,15 +24,16 @@ EXPORTS = Path(".minions/gate-check")
 TIMEOUT_SECONDS = 300
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
+# `gate_makefiles` parses make's English `Entering directory` lines.
+PINNED = {"LC_ALL": "C"}
 CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
 DIRECTORY = re.compile(r": (Entering|Leaving) directory [`'](.*)'$")
 DASH_PREFIX = re.compile(r"\t[@+]*-")
 MAKEFLAGS_SET = re.compile(
-    r"\s*(?:(?:export|override)\s+)*MAKEFLAGS\s*(?:\+|::?|\?|!)?=(.*)$"
+    r"\s*(?:(?:export|override)\s+)*MAKEFLAGS\s*(?:[+?!]|::?)?=(.*)$"
 )
 IGNORE_FLAG = re.compile(r"-[A-Za-z]*i[A-Za-z]*")
-IGNORE_LETTERS = re.compile(r"[A-Za-z]*i[A-Za-z]*")
 
 
 class Stop(Exception):
@@ -48,7 +47,8 @@ class Stop(Exception):
 
 def _env() -> dict[str, str]:
     """Return this process's environment without the inherited make flags."""
-    return {key: value for key, value in os.environ.items() if key not in CLEARED}
+    kept = {key: value for key, value in os.environ.items() if key not in CLEARED}
+    return kept | PINNED
 
 
 def _run(argv: list[str], cwd: Path, what: str) -> str:
@@ -95,39 +95,30 @@ def planning_tasks(tasks: str) -> list[str]:
 
     e.g. "- [ ] 1.2 Edit the `gate` recipe in `Makefile`." → "1.2 Edit the `gate` …"
     """
-    found: list[list[str]] = []
-    current: list[str] | None = None
+    found: list[str] = []
+    wrapped = False
     for line in tasks.splitlines():
         if match := SUBTASK.match(line):
-            current = [match[1]]
-            found.append(current)
-        elif current is not None and line[:1] in (" ", "\t") and line.strip():
-            current.append(line.strip())
+            found.append(match[1])
+            wrapped = True
+        elif wrapped and line[:1] in (" ", "\t") and line.strip():
+            found[-1] += " " + line.strip()
         else:
-            current = None
-    texts = [" ".join(parts) for parts in found]
-    return [text for text in texts if "Makefile" in text and "`gate`" in text]
+            wrapped = False
+    return [text for text in found if "Makefile" in text and "`gate`" in text]
 
 
 def export(rev: str, dest: Path, side: str) -> None:
     """Write the tree at `rev` into `dest`, an empty directory it creates."""
     dest.mkdir(parents=True)
-    failed = f"gate: cannot check — the {side}'s export failed"
+    archive = dest.with_suffix(".tar")
+    argv = ["git", "archive", "--format=tar", f"--output={archive}", rev]
+    _run(argv, Path("."), f"the {side}'s export")
     try:
-        archive = subprocess.run(
-            ["git", "archive", "--format=tar", rev],
-            capture_output=True,
-            timeout=TIMEOUT_SECONDS,
-        )
-        if archive.returncode != 0:
-            error = archive.stderr.decode(errors="replace").strip().splitlines()
-            raise Stop(2, f"{failed}: {error[0] if error else archive.returncode}")
-        with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        with tarfile.open(archive) as tar:
             tar.extractall(dest, filter="data")
-    except FileNotFoundError:
-        raise Stop(2, "gate: cannot check — git is missing") from None
-    except (subprocess.SubprocessError, tarfile.TarError, OSError) as error:
-        raise Stop(2, f"{failed}: {error}") from None
+    except (tarfile.TarError, OSError) as error:
+        raise Stop(2, f"gate: cannot check — the {side}'s export failed: {error}")
 
 
 def gate_makefiles(root: Path, database: str) -> set[str]:
@@ -156,14 +147,7 @@ def gate_makefiles(root: Path, database: str) -> set[str]:
 def dry_run(root: Path, side: str) -> list[str]:
     """Return `make -n gate`'s lines in `root`, its own path made `<export>`."""
     output = _run(["make", "-n", "gate"], root, f"the {side}'s dry run")
-    # Longest first: a resolved `/private/var/…` holds the unresolved `/var/…`.
-    paths = sorted({str(root.resolve()), str(root.absolute())}, key=len, reverse=True)
-    lines = []
-    for line in output.splitlines():
-        for path in paths:
-            line = line.replace(path, "<export>")
-        lines.append(line)
-    return lines
+    return output.replace(str(root.resolve()), "<export>").splitlines()
 
 
 def ignores_errors(line: str) -> bool:
@@ -172,9 +156,9 @@ def ignores_errors(line: str) -> bool:
         return True
     if match := MAKEFLAGS_SET.match(line):
         words = match[1].split()
-        if words and IGNORE_LETTERS.fullmatch(words[0]):
-            return True
-        return any(w == "--ignore-errors" or IGNORE_FLAG.fullmatch(w) for w in words)
+        # The first word may be bare flag letters: `MAKEFLAGS += ki`.
+        flags = [f"-{word}" for word in words[:1]] + words
+        return any(w == "--ignore-errors" or IGNORE_FLAG.fullmatch(w) for w in flags)
     return False
 
 
@@ -210,8 +194,6 @@ def check(change: str, base: str) -> str:
         head_files, head_lines = read_side("HEAD", root / "head", "head")
     finally:
         shutil.rmtree(root, ignore_errors=True)
-        with contextlib.suppress(OSError):
-            EXPORTS.rmdir()
 
     changed = set(_git("diff", "--name-only", base, "HEAD").splitlines())
     touched = sorted((base_files | head_files) & changed)
