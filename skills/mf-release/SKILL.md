@@ -109,7 +109,7 @@ precondition 4 says what absence means.
 9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
    the way out:
 
-       git merge <default-branch>        # resolve, then make gate
+       /mf-integrate                     # in the primary: merges, applies its rules, gates, commits
        /mf-converge                      # when converge ran: its catch-up round judges the merge
        /mf-release
 
@@ -221,7 +221,7 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 
        git tag -d <tag>
        git reset --hard HEAD~1           # the release commit
-       git merge <default-branch>  ·  /mf-converge  ·  /mf-release
+       /mf-integrate  ·  /mf-converge  ·  /mf-release
 2. **Merge in the primary:** its tree is clean — `git -C <primary> status --porcelain` prints nothing — else halt.
    The primary is this checkout → `git switch <default-branch>` first. Then `git -C <primary> merge --no-ff
    <branch>` with the message `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and

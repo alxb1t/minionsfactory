@@ -144,7 +144,12 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
 2. **Cap** — the files' `round:` is the last judged round, and the catch-up round counts against the cap of
    three. At the cap → halt as drawn.
 3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does: overwrite
-   the patch and print its numbers.
+   the patch and print its numbers. When the range holds a merge of the default branch — a commit
+   `git rev-list --merges <judged head>..HEAD` lists whose second parent is an ancestor of the default branch —
+   the patch is that merge's `git show --remerge-diff <merge>` plus
+   `git log -p --no-merges <judged head>..HEAD --not <default-branch>`, the range's other commits. The merge is
+   judged by what it decided, never by the default branch's changes: a clean merge adds nothing to read, and the
+   gate judges the combined tree.
 4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the same
    cap.
 

@@ -6,7 +6,7 @@ design's, word for word.
 ## Progress
 
 - [x] 1 — Write the integration script
-- [ ] 2 — Write the station and correct converge and the release
+- [x] 2 — Write the station and correct converge and the release
 - [ ] 3 — Record the integration
 
 ## 1 — Write the integration script
@@ -18,13 +18,13 @@ design's, word for word.
 
 ## 2 — Write the station and correct converge and the release
 
-- [ ] 2.1 Write `skills/mf-integrate/SKILL.md` per [D1](design.md#d1) and [D4](design.md#d4), with `name: mf-integrate`.
+- [x] 2.1 Write `skills/mf-integrate/SKILL.md` per [D1](design.md#d1) and [D4](design.md#d4), with `name: mf-integrate`.
   Verify: `grep -c '^name: mf-integrate$' skills/mf-integrate/SKILL.md` prints `1`, and `grep -c 'MERGE_HEAD' skills/mf-integrate/SKILL.md` prints at least `1`.
-- [ ] 2.2 Rewrite the catch-up round's step 3 in `skills/mf-converge/SKILL.md`, per [D3](design.md#d3).
+- [x] 2.2 Rewrite the catch-up round's step 3 in `skills/mf-converge/SKILL.md`, per [D3](design.md#d3).
   Verify: `grep -c 'remerge-diff' skills/mf-converge/SKILL.md` prints at least `1`.
-- [ ] 2.3 Rewrite release precondition 9's halt in `skills/mf-release/SKILL.md` to name the station, per [D1](design.md#d1).
+- [x] 2.3 Rewrite release precondition 9's halt in `skills/mf-release/SKILL.md` to name the station, per [D1](design.md#d1).
   Verify: `grep -c '/mf-integrate' skills/mf-release/SKILL.md` prints at least `1`.
-- [ ] 2.4 Add the station's pair to `_METRICS_SCRIPTS` and `test_mf_integrate_runs_its_script` in `tests/test_skills.py`, per [Tests](design.md#tests).
+- [x] 2.4 Add the station's pair to `_METRICS_SCRIPTS` and `test_mf_integrate_runs_its_script` in `tests/test_skills.py`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_skills.py -k mf_integrate_runs_its_script` reports `1 passed`.
 
 ## 3 — Record the integration
