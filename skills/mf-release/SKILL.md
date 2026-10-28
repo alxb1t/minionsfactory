@@ -211,7 +211,8 @@ binding check covers it, and a gate without one gives a separate step nothing to
 The **primary** is the worktree `git worktree list --porcelain` shows on `branch refs/heads/<default-branch>`, or
 this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
-Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6.
+Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6. In a
+linked worktree, ask the form below instead.
 
 When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
 ignored paths by name, never reading a file:
@@ -258,7 +259,7 @@ and the push, or that there is no `origin`. A preamble flagged for a hand-edit (
 on.
 
 The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
-when Step 5.6 ran. With no merge:
+when Step 5.6 removed the worktree. With no merge:
 
     Next: merge and push — release <tag> is on branch <branch>:
       git -C <primary> switch <default-branch>
