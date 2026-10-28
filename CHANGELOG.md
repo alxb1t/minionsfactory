@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default branch, and writes the brief after every round. Its structure is held by `tests/test_skills.py`
   (change `0032-mf-plan`, phase 1).
 
+- `mf-cut-change` halts on a brief whose title declares `light`, naming `mf-plan` with `depth=hard`, and its
+  diagram starts at `mf-plan` (change `0032-mf-plan`, phase 2).
+
 ## [0.30.1] - 2026-10-27
 
 Gate: local 0m4s · CI 0m13s (CI at d7a18b8) · 0.30.0: local 0m5s · CI 0m11s (CI at 8c88e90)

@@ -6,7 +6,7 @@ template are the design's, word for word.
 ## Progress
 
 - [x] 1 — Write the plan station
-- [ ] 2 — Make the cut halt on a light brief
+- [x] 2 — Make the cut halt on a light brief
 - [ ] 3 — Record the station in the decisions, the principle and the docs
 
 ## 1 — Write the plan station
@@ -18,7 +18,7 @@ template are the design's, word for word.
 
 ## 2 — Make the cut halt on a light brief
 
-- [ ] 2.1 In `skills/mf-cut-change/SKILL.md`, add the light-brief halt to Step 2 and start the diagram at `mf-plan`, per [D5](design.md#d5) and [D6](design.md#d6).
+- [x] 2.1 In `skills/mf-cut-change/SKILL.md`, add the light-brief halt to Step 2 and start the diagram at `mf-plan`, per [D5](design.md#d5) and [D6](design.md#d6).
   Verify: `grep -q 'depth=hard from=' skills/mf-cut-change/SKILL.md` exits 0, and `grep -c 'grilling ──▶ mf-cut-change' skills/mf-cut-change/SKILL.md` prints `0`.
 
 ## 3 — Record the station in the decisions, the principle and the docs
