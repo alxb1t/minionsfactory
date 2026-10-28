@@ -5,18 +5,18 @@ text are the design's, word for word.
 
 ## Progress
 
-- [ ] 1 — Write the gate check
+- [x] 1 — Write the gate check
 - [ ] 2 — Make the stations call it
 
 ## 1 — Write the gate check
 
-- [ ] 1.1 **HALT CHECK** `make -pn -r gate` prints a `MAKEFILE_LIST :=` line, the premise of [D2](design.md#d2).
+- [x] 1.1 **HALT CHECK** `make -pn -r gate` prints a `MAKEFILE_LIST :=` line, the premise of [D2](design.md#d2).
   Verify: `make -pn -r gate 2>/dev/null | grep -c '^MAKEFILE_LIST :='` prints at least `1`.
-- [ ] 1.2 Write `skills/mf-converge/scripts/gate_check.py` per [D1](design.md#d1) through [D4](design.md#d4), its PEP 723 header pinning `>=3.12`.
+- [x] 1.2 Write `skills/mf-converge/scripts/gate_check.py` per [D1](design.md#d1) through [D4](design.md#d4), its PEP 723 header pinning `>=3.12`.
   Verify: `uv run --script skills/mf-converge/scripts/gate_check.py --help` exits 0.
-- [ ] 1.3 Write `tests/test_gate_check.py` with the tests the [Tests](design.md#tests) table names for it.
+- [x] 1.3 Write `tests/test_gate_check.py` with the tests the [Tests](design.md#tests) table names for it.
   Verify: `uv run pytest -q tests/test_gate_check.py` reports `11 passed`.
-- [ ] 1.4 MF's own gate passes the check on this branch, the recipe untouched.
+- [x] 1.4 MF's own gate passes the check on this branch, the recipe untouched.
   Verify: `uv run --script skills/mf-converge/scripts/gate_check.py --change 0034-gate-recipe-hardening --base 8d7383e` exits 0, and `ls .minions/gate-check 2>/dev/null | wc -l` prints `0`.
 
 ## 2 — Make the stations call it
