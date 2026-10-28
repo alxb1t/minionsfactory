@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-28
+
+Gate: local 0m22s · CI 0m19s (CI at aa85c14) · 0.31.3: local 0m21s · CI 0m17s (CI at ee2e751)
+
 - Build metrics drafts use the shared run directory; release halts while an earlier cut remains open and retains
   worktrees containing ignored local files (change `0036-parallel-workspaces`, converge fixes R1, R2 and S1).
 
