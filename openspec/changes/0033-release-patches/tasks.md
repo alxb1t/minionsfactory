@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 - [x] 1 — Ship a patch as itself
 - [x] 2 — Retire a test only by a decision in force at the base
 - [x] 3 — Close the collector's gaps
-- [ ] 4 — Fix the small text
+- [x] 4 — Fix the small text
 
 ## 1 — Ship a patch as itself
 
@@ -34,7 +34,7 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 
 ## 4 — Fix the small text
 
-- [ ] 4.1 Name how `skills/mf-plan/SKILL.md`'s Step 1 finds the default branch, per [D5](design.md#d5).
+- [x] 4.1 Name how `skills/mf-plan/SKILL.md`'s Step 1 finds the default branch, per [D5](design.md#d5).
   Verify: `grep -c 'git symbolic-ref --short refs/remotes/origin/HEAD' skills/mf-plan/SKILL.md` prints `1`.
-- [ ] 4.2 Point `README.md`'s smoke-record link at the archived 0027 design, per [D5](design.md#d5).
+- [x] 4.2 Point `README.md`'s smoke-record link at the archived 0027 design, per [D5](design.md#d5).
   Verify: `grep -c 'openspec/changes/archive/0027-migrate-to-agents/design.md#smoke-evidence' README.md` prints `1`, and `uv run --script scripts/metrics/references.py` prints `0`.

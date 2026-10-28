@@ -35,7 +35,8 @@ the path; never pick one. A `from=` that does not resolve → **halt**; never se
 Every one holds, or **halt** naming the one that failed:
 
 - the cwd is a git repository: `git rev-parse --show-toplevel` exits 0;
-- the default branch and its commit are named: `<ref>` is that branch, `<sha>` is `git rev-parse --short <ref>`;
+- the default branch is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
+  `main` when that fails; `<ref>` is that branch, `<sha>` is `git rev-parse --short <ref>`;
 - root `AGENTS.md` exists at `<ref>`, and you have read it and the mandatory context it names, at `<ref>`.
 
 Every fact below is read at `<ref>` and cited at `<sha>`.

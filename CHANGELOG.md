@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   option, and scrubs a home or root path unless a name character touches it (change `0033-release-patches`,
   phase 3).
 
+- `mf-plan` names how it finds the default branch, as the bootstrap does, and `README.md`'s smoke-record link
+  points at the archived 0027 design (change `0033-release-patches`, phase 4).
+
 ## [0.31.0] - 2026-10-28
 
 Gate: local 0m3s · CI 0m14s (CI at cb52d5b) · 0.30.1: local 0m4s · CI 0m13s (CI at d7a18b8)

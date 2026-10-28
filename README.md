@@ -50,7 +50,7 @@ executor: Codex through Zed ACP, Zed's native agent and a Claude model through O
 Authentication and provider configuration belong to the operator. Model suggestions use offered menus and
 supported controls; they do not change configuration.
 
-Compatibility evidence belongs in the change's [smoke record](openspec/changes/0027-migrate-to-agents/design.md#smoke-evidence).
+Compatibility evidence belongs in the change's [smoke record](openspec/changes/archive/0027-migrate-to-agents/design.md#smoke-evidence).
 Hosts without live evidence are described by required capabilities, not labeled tested.
 
 ## What a target repo needs
