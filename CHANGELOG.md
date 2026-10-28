@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an unplanned change to a gate makefile, or a planned one that drops a command or adds an ignore mark: a branch
   can no longer certify its own weakened gate (change `0034-gate-recipe-hardening`, phase 1).
 
+- `mf-converge` precondition 6 and `mf-release` precondition 8 run the gate check and halt on its verdict, and
+  *Never weaken the gate to pass* names it: one rule in both stations (change `0034-gate-recipe-hardening`,
+  phase 2).
+
 ## [0.31.1] - 2026-10-28
 
 Gate: local 0m3s · CI 0m13s (CI at 577dba5) · 0.31.0: local 0m3s · CI 0m14s (CI at cb52d5b)

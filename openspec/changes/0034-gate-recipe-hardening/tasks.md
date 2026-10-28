@@ -6,7 +6,7 @@ text are the design's, word for word.
 ## Progress
 
 - [x] 1 — Write the gate check
-- [ ] 2 — Make the stations call it
+- [x] 2 — Make the stations call it
 
 ## 1 — Write the gate check
 
@@ -21,11 +21,11 @@ text are the design's, word for word.
 
 ## 2 — Make the stations call it
 
-- [ ] 2.1 Replace converge's precondition 6 in `skills/mf-converge/SKILL.md` and the release's precondition 8 in `skills/mf-release/SKILL.md` with [D5](design.md#d5)'s text.
+- [x] 2.1 Replace converge's precondition 6 in `skills/mf-converge/SKILL.md` and the release's precondition 8 in `skills/mf-release/SKILL.md` with [D5](design.md#d5)'s text.
   Verify: `grep -c 'gate_check.py' skills/mf-converge/SKILL.md skills/mf-release/SKILL.md` prints `skills/mf-converge/SKILL.md:1` and `skills/mf-release/SKILL.md:1`, and `grep -c 'make -n -f - gate' skills/mf-converge/SKILL.md skills/mf-release/SKILL.md` prints `skills/mf-converge/SKILL.md:0` and `skills/mf-release/SKILL.md:0`.
-- [ ] 2.2 Name the script in the *Held by:* of *Never weaken the gate to pass* in `docs/principles.md`, per [D5](design.md#d5).
+- [x] 2.2 Name the script in the *Held by:* of *Never weaken the gate to pass* in `docs/principles.md`, per [D5](design.md#d5).
   Verify: `grep -c 'skills/mf-converge/scripts/gate_check.py' docs/principles.md` prints `1`.
-- [ ] 2.3 Turn `_METRICS_SCRIPTS` in `tests/test_skills.py` into a list of station and script pairs holding the gate check's, and extend the twin, per [Tests](design.md#tests).
+- [x] 2.3 Turn `_METRICS_SCRIPTS` in `tests/test_skills.py` into a list of station and script pairs holding the gate check's, and extend the twin, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_skills.py -k metrics_script` reports `2 passed`, and `grep -c 'gate_check.py' tests/test_skills.py` prints at least `2`.
-- [ ] 2.4 The suite has the planned tests.
+- [x] 2.4 The suite has the planned tests.
   Verify: `uv run pytest --collect-only -q | tail -1` prints `49 tests collected`.

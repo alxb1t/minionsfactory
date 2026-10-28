@@ -154,14 +154,11 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
    from* passed. Halt naming the root `Makefile`.
 5. **The gate is green before round 1** — run `make gate` yourself. Red → halt; `mf-build` owns it. Skipped, a
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
-6. **The gate is the base's, or the cut planned its change.** Halt when this branch
-   changes the gate's dry run and no task at the cut names the gate recipe: `make -n gate` prints other than
-   `git show <base>:Makefile | make -n -f - gate`, and no task in `tasks.md` as the cut commit holds it —
-   `git show <cut>:openspec/changes/<change-id>/tasks.md` — names the `gate` recipe. `<cut>` is the one commit
-   `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md` prints; more than one is a
-   halt. `<base>` is Step 2's merge-base. When a cut task names the recipe, show the two dry runs' diff in the
-   report and the status log, and halt on a command line the base's dry run prints and the branch's does not,
-   unless that task names it. A branch does not certify its own weakened gate.
+6. **The gate is the base's, or the cut planned its change.** Run
+   `uv run --script <this package>/scripts/gate_check.py --change <change-id> --base <base>`, `<base>` being
+   Step 2's merge-base. Exit 0 → pass. Exit 1 → **halt**, copying what it prints to the report and the status log.
+   Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side. A branch does not certify its
+   own weakened gate.
 
 Once all pass, write `start` to the status log.
 
