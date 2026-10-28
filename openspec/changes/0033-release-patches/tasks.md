@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 ## Progress
 
 - [x] 1 — Ship a patch as itself
-- [ ] 2 — Retire a test only by a decision in force at the base
+- [x] 2 — Retire a test only by a decision in force at the base
 - [ ] 3 — Close the collector's gaps
 - [ ] 4 — Fix the small text
 
@@ -20,9 +20,9 @@ Build the settled [design](design.md), one phase at a time. Each before → afte
 
 ## 2 — Retire a test only by a decision in force at the base
 
-- [ ] 2.1 Rewrite `I16` in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, `T5` in those and `skills/mf-converge/SKILL.md`, and the coverage-trace row in `skills/mf-converge/SKILL.md`, per [D3](design.md#d3).
+- [x] 2.1 Rewrite `I16` in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, `T5` in those and `skills/mf-converge/SKILL.md`, and the coverage-trace row in `skills/mf-converge/SKILL.md`, per [D3](design.md#d3).
   Verify: `grep -c 'in force at the base' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md skills/mf-converge/SKILL.md` prints `skills/mf-build/SKILL.md:2`, `skills/mf-cut-change/SKILL.md:2` and `skills/mf-converge/SKILL.md:2`.
-- [ ] 2.2 Rewrite D39 in `docs/decisions.md`, *Never weaken the gate to pass* in `docs/principles.md`, and the `## Tests` bullet of `skills/mf-bootstrap/templates/AGENTS.md.tmpl`, per [D3](design.md#d3).
+- [x] 2.2 Rewrite D39 in `docs/decisions.md`, *Never weaken the gate to pass* in `docs/principles.md`, and the `## Tests` bullet of `skills/mf-bootstrap/templates/AGENTS.md.tmpl`, per [D3](design.md#d3).
   Verify: `grep -c 'named decision' docs/decisions.md docs/principles.md` prints `docs/decisions.md:0` and `docs/principles.md:0`, and `grep -c 'in force at the base that retires it' skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `1`.
 
 ## 3 — Close the collector's gaps

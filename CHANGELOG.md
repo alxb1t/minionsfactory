@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-release` names one `<tag>` — `vX.Y` → `vX.Y.0`, `vX.Y.Z` as itself — so a patch ships as itself; D19 gains
   the patch line, and `AGENTS.md` states what a patch may hold (change `0033-release-patches`, phase 1).
 
+- A test is retired only by a decision in force at the base, in `I16`, `T5`, the coverage-trace pass, D39, the
+  principle and the bootstrap's `AGENTS.md` template: a branch cannot certify its own test's removal (change
+  `0033-release-patches`, phase 2).
+
 ## [0.31.0] - 2026-10-28
 
 Gate: local 0m3s · CI 0m14s (CI at cb52d5b) · 0.30.1: local 0m4s · CI 0m13s (CI at d7a18b8)
