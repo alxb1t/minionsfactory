@@ -1,0 +1,49 @@
+{
+  "change": "0033-release-patches",
+  "version": "v0.31.1",
+  "base": "577dba5",
+  "analyzed": "18c37b2",
+  "measured_on": "local",
+  "collected_at": "2026-10-28T13:00:44+02:00",
+  "mf_version": "v0.31.0-8-g18c37b2-dirty",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 10379
+    },
+    "shared-context": {
+      "value": 5185
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 38
+    },
+    "gate-seconds": {
+      "value": 3
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 36
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 9
+    }
+  }
+}

@@ -384,13 +384,13 @@ sets SHALL be equal, non-empty, and numbered from `T1` with no gap.
 ### Requirement: A test is deleted or merged only as the design's table names it
 
 `skills/mf-build/SKILL.md` SHALL treat a test deleted or merged as the change's `design.md` `## Tests` table names it
-— each removed test mapped to the remaining test that carries its assertions and scenario ids, or to the decision
-that retires it — as consolidation, not as weakening the gate, and SHALL halt on a deletion outside that table.
+— each removed test mapped to the remaining test that carries its assertions and scenario ids, or to a decision
+in force at the base that retires it — as consolidation, not as weakening the gate, and SHALL halt on a deletion outside that table.
 `skills/mf-cut-change/SKILL.md` SHALL write that table for every test a change deletes or merges. The fix station
 in `skills/mf-converge/SKILL.md` SHALL never delete or merge a test.
 
 #### Scenario: The build names the table, and the fix station never deletes
-- **WHEN** a phase deletes a test that `design.md`'s `## Tests` table maps to a decision that retires it
+- **WHEN** a phase deletes a test that `design.md`'s `## Tests` table maps to a decision in force at the base that retires it
 - **THEN** `mf-build` treats the deletion as consolidation and does not halt
 
 #### Scenario: A deletion outside the table
@@ -406,7 +406,7 @@ in `skills/mf-converge/SKILL.md` SHALL never delete or merge a test.
 The review station SHALL run a **test-cost pass** after its engine, carding each new end-to-end test that a lower
 layer proves, that re-opens a state another test reaches, or that runs on engines its outcome cannot depend on. When
 the freeze removes a test, it SHALL run a **coverage-trace pass**, tracing each removed assertion and scenario id to
-the test that runs it now, or to the decision in force that the design's `## Tests` table names as retiring it. A
+the test that runs it now, or to the decision, in force at the base, that the design's `## Tests` table names as retiring it. A
 proof carried by neither SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The
 station SHALL say in its Summary that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
 
@@ -416,7 +416,7 @@ station SHALL say in its Summary that each pass ran, and `skills/mf-converge/SKI
 - **THEN** `mf-converge` treats it as a scope failure and halts
 
 #### Scenario: The freeze removes a test the table retires
-- **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force on the branch
+- **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force at the base
 - **THEN** the coverage-trace pass accepts the removal and cards nothing for it
 
 #### Scenario: A proof carried by neither
@@ -606,8 +606,9 @@ Each `[[metric]]` in `metrics/catalogue.toml` SHALL declare `id`, `title`, `grou
 `source = "station"`. The collector SHALL run a metric's script as `uv run --script <script> <args>` from the
 repository root, never through a shell, with a 300-second timeout. A run that exits 0 with a number on its last
 stdout line SHALL record that number; any other outcome SHALL record `unavailable` with its reason. A failing
-metric SHALL NOT fail the station. A catalogue that does not parse, lacks a required field or repeats an `id`
-SHALL halt the station, naming the entry.
+metric SHALL NOT fail the station. A catalogue that does not parse, lacks a required field, repeats an `id`, or
+names a `script` that is not a path inside the repository — a URL, an absolute path, a path escaping the root, or
+one starting with `-` — SHALL halt the station, naming the entry.
 
 #### Scenario: A metric script prints its value
 - **WHEN** a metric's script exits 0 and its last stdout line is a number
@@ -619,7 +620,8 @@ SHALL halt the station, naming the entry.
 - **AND** the station carries on with the other metrics
 
 #### Scenario: The catalogue is broken
-- **WHEN** the catalogue does not parse, an entry lacks a required field, or two entries share an `id`
+- **WHEN** the catalogue does not parse, an entry lacks a required field, two entries share an `id`, or a `script`
+  is not a path inside the repository or starts with `-`
 - **THEN** the station halts, naming the entry
 
 ### Requirement: The build collects a draft of the metrics after simplify
