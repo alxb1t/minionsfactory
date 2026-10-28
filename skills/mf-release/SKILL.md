@@ -215,8 +215,9 @@ Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. A
 
 When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
 ignored paths by name, never reading a file:
-`git -C <this worktree> ls-files --others --ignored --exclude-standard --directory`. Then ask `Merge <branch> into <default-branch> and push? The worktree <this worktree> goes too, with:
-<the listed paths> (yes/no)`, the `with:` part dropped when nothing is listed. A listing that fails → ask
+`git -C <this worktree> ls-files --others --ignored --exclude-standard --directory`. Then ask
+`Merge <branch> into <default-branch> and push? The worktree <this worktree> goes too, with: <the listed paths>
+(yes/no)`, the `with:` part dropped when nothing is listed. A listing that fails → ask
 `… and push? The worktree <this worktree> stays: its ignored paths could not be listed. (yes/no)`.
 
 On yes, in order. A failure is a **halt**: report the error and the commands still to run.
