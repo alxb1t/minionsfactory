@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.red`; a merge the person resolved and staged reads as a resumed `integrate` stage, not a halt (change
   `0040-mf-ship`, phase 1, reopened).
 
+- The probe shipped: a bootstrapped repo with two cut versions went through `mf-ship` unattended to tags `v0.1.0`
+  and `v0.2.0` on `main`, integrated once, its run log complete; `evidence/probe_run.md` records each check
+  (change `0040-mf-ship`, phase 4).
+
 ## [0.34.0] - 2026-10-29
 
 Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)
