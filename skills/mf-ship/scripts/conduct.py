@@ -342,6 +342,11 @@ def _merge_open(tree: Path) -> bool:
     return _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
 
 
+def _unmerged(tree: Path) -> bool:
+    """Return whether an open merge leaves a path unmerged in `tree`."""
+    return bool(_git(tree, "diff", "--name-only", "--diff-filter=U").strip())
+
+
 def _dirty(tree: Path) -> bool:
     """Return whether `git status --porcelain` prints anything."""
     return bool(_git(tree, "status", "--porcelain").strip())
@@ -355,6 +360,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     runs = primary / ".minions"
     change = version.change
     if _merge_open(tree):
+        if not _unmerged(tree):
+            return "integrate", "a merge is open and staged: integrate resumes it"
         marks = runs / "integrate"
         if (marks / f"{change}.red").is_file():
             return "integrating", f"red gate: .minions/integrate/{change}.red"
@@ -392,19 +399,27 @@ def _check_build(version: Version, tree: Path) -> str | None:
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the converge check fails, or None."""
-    if why := _unjudged(primary / ".minions", tree, version.change):
+    runs = primary / ".minions"
+    if halt := _converge_halt(runs, version.change):
+        return f"the status log halts: {halt}"
+    if why := _unjudged(runs, tree, version.change):
         return why
     return "the tree is not clean" if _dirty(tree) else None
 
 
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
-    """Return why the integrate check fails, or None."""
+    """Return why the integrate check fails, or None; an open merge names its note."""
+    if _merge_open(tree):
+        note = f".minions/integrate/{version.change}"
+        if (primary / f"{note}.red").is_file():
+            return f"integrate halted — red gate, see {note}.red"
+        if (primary / f"{note}.md").is_file():
+            return f"integrate halted — semantic conflict, see {note}.md"
+        return "a merge is still open"
     default = default_branch(primary)
     subject = _subject(tree)
     if subject != f"chore(integrate): merge {default} into {version.branch}":
         return f"HEAD is not the integrate commit: {subject}"
-    if _merge_open(tree):
-        return "a merge is still open"
     if not _ancestor(tree, default, "HEAD"):
         return f"{default} is not an ancestor of HEAD"
     return None

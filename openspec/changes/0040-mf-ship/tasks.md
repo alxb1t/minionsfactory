@@ -5,7 +5,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 ## Progress
 
-- [ ] 1 — Write the ship script
+- [x] 1 — Write the ship script
 - [x] 2 — Give the release, the cut and integrate what an unattended run needs
 - [x] 3 — Write the ship station and record it
 - [ ] 4 — Ship the probe **HUMAN · METERED**
@@ -28,7 +28,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named`; name them in D47 of `docs/decisions.md` and in Step 3's `Say once:` of
   `skills/mf-ship/SKILL.md`: `converge runs the generic review and security engines`.
   Verify: `grep -c 'Use the generic review and security engines' skills/mf-ship/scripts/conduct.py` prints `1`, `grep -c 'generic review and security engines' docs/decisions.md skills/mf-ship/SKILL.md` prints `1` for each file, and `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
-- [ ] 1.6 Give `skills/mf-ship/scripts/conduct.py` [D2](design.md#d2)'s converge and integrate check rows — a status-log halt fails
+- [x] 1.6 Give `skills/mf-ship/scripts/conduct.py` [D2](design.md#d2)'s converge and integrate check rows — a status-log halt fails
   converge's check; an open merge names its note or `.red` — with one step each in `test_each_check_passes_only_on_disk_evidence`; and the resumed `integrate` stage row, with one
   step in `test_status_reads_each_stage_from_disk`.
   Verify: `grep -c 'semantic conflict, see' skills/mf-ship/scripts/conduct.py` prints `1`, `grep -c 'diff-filter=U' skills/mf-ship/scripts/conduct.py` prints at least `1`, and `uv run pytest -q tests/test_conduct.py` reports `10 passed`.

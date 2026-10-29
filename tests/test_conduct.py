@@ -142,7 +142,8 @@ def test_status_reads_each_stage_from_disk(
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert stage().endswith(" · integrate")
 
-    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    _commit(tree, {"moved.txt": "y\n"}, "the version moves too")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
     marks = root / ".minions" / "integrate"
     marks.mkdir(parents=True)
     stage_of, find = conduct["stage_of"], conduct["find_version"]
@@ -153,6 +154,9 @@ def test_status_reads_each_stage_from_disk(
     (marks / "0001-todo.red").write_text("gate red\n")
     assert stage() == "0001-todo · v0.1_todo · integrating"
     assert stage_of(root, version)[1].startswith("red gate")
+    _git(tree, "checkout", "--theirs", "moved.txt")
+    _git(tree, "add", "moved.txt")
+    assert stage() == "0001-todo · v0.1_todo · integrate"
     _git(tree, "merge", "--abort")
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
@@ -183,10 +187,34 @@ def test_each_check_passes_only_on_disk_evidence(
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
     assert check("converge")[1].endswith(", not HEAD")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    assert check("converge") == (
+        1,
+        "check: converge · fail — the status log halts: 10:00:00 · round 3 · halt"
+        " — cap reached",
+    )
+    log.unlink()
     assert check("converge") == (0, "check: converge · pass")
 
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert check("integrate")[1].startswith("check: integrate · fail — HEAD is not")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    marks = root / ".minions" / "integrate"
+    marks.mkdir()
+    (marks / "0001-todo.md").write_text("note\n")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — semantic conflict,"
+        " see .minions/integrate/0001-todo.md",
+    )
+    (marks / "0001-todo.red").write_text("gate red\n")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/integrate/0001-todo.red",
+    )
+    _git(tree, "merge", "--abort")
     _git(
         tree,
         "merge",
