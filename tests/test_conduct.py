@@ -422,7 +422,6 @@ def test_a_rerun_resumes_from_disk(
 
     calls.unlink()
     fake()
-    time.sleep(1)
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -430,6 +429,14 @@ def test_a_rerun_resumes_from_disk(
 
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
     assert _git(root, "tag", "-l") == "v0.1.0"
+    runs = tmp_path / "runs"
+    first, second = (conduct["RunLog"](runs, "20261029-163000") for _ in "ab")
+    assert (first.path.name, second.path.name) == (
+        "20261029-163000.md",
+        "20261029-163000-2.md",
+    )
+    assert second.stamp == "20261029-163000-2"
+    assert conduct["last_log"](runs) == second.path
 
 
 def test_run_refuses_without_worktrees_declared(
@@ -471,15 +478,14 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     claude = argv("claude", "Do it.", root, "opus", "high")
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
+    assert claude[claude.index("--add-dir") + 1] == str(container)
     allowed = claude[
         claude.index("--allowedTools") + 1 : claude.index("--disallowedTools")
     ]
     assert f"Edit(/{container}/**)" in allowed
     assert allowed[-2:] == ["Bash(npm:*)", "Bash(pnpm:*)"]
-    assert {"Skill", "Agent", "Bash(git:*)", "Bash(cp:*)"} <= set(allowed)
-    assert not any(
-        rule.startswith(("Write(", "Bash(rm:", "Bash(cd:")) for rule in allowed
-    )
+    assert {"Skill", "Agent", "Bash(git:*)", "Bash(cp:*)", "Bash(rm:*)"} <= set(allowed)
+    assert not any(rule.startswith(("Write(", "Bash(cd:")) for rule in allowed)
     assert "Bash(git push --force:*)" in claude[claude.index("--disallowedTools") + 1 :]
     codex = argv("codex", "Do it.", root, None, None)
     roots = json.dumps([str(root / ".minions"), str(root / ".git")])

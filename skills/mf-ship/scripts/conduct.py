@@ -17,6 +17,7 @@ Why: 0040-mf-ship design D2.
 """
 
 import argparse
+import itertools
 import json
 import os
 import re
@@ -49,7 +50,7 @@ COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
     *("head", "tail", "cat", "ls", "wc", "echo", "mkdir", "rmdir", "date", "test"),
     *("diff", "find", "sort", "mktemp", "cp", "mv", "touch", "basename", "dirname"),
-    *("readlink", "tr", "cut"),
+    *("readlink", "tr", "cut", "rm"),
 )
 DENIED = (
     *("git push --force", "git push -f", "git reset --hard", "git clean"),
@@ -476,11 +477,18 @@ class RunLog:
     """The run log: one event per line, appended under a lock directory."""
 
     def __init__(self, runs: Path, stamp: str) -> None:
-        """Create `<stamp>.md` in `runs`, titled."""
+        """Create `<stamp>.md` in `runs`, titled; `<stamp>-2.md`, … when taken."""
         runs.mkdir(parents=True, exist_ok=True)
-        self.path = runs / f"{stamp}.md"
-        self.lock = runs / f"{stamp}.lock"
-        self.path.write_text(f"# Ship run {stamp}\n\n")
+        for n in itertools.count(1):
+            self.stamp = stamp if n == 1 else f"{stamp}-{n}"
+            self.path = runs / f"{self.stamp}.md"
+            try:
+                with self.path.open("x") as log:
+                    log.write(f"# Ship run {self.stamp}\n\n")
+                break
+            except FileExistsError:
+                continue
+        self.lock = runs / f"{self.stamp}.lock"
 
     def event(self, who: str, event: str, detail: str) -> None:
         """Append `<HH:MM:SS> · <who> · <event> — <detail>`."""
@@ -562,6 +570,7 @@ def argv(
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
+            *("--add-dir", str(edit_root(cwd))),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     common = _common_dir(cwd)
@@ -683,8 +692,8 @@ class Run:
         self.primary = primary
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
-        self.stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.log = RunLog(self.runs, self.stamp)
+        self.log = RunLog(self.runs, datetime.now().strftime("%Y%m%d-%H%M%S"))
+        self.stamp = self.log.stamp
         self.halted = threading.Event()
         self.halts: list[tuple[str, str]] = []
         self.released: list[str] = []
@@ -912,14 +921,24 @@ def _cards(backlog: Path, change: str) -> list[str]:
     return ids
 
 
+def last_log(runs: Path) -> Path | None:
+    """Return the newest run log in `runs`, or None.
+
+    e.g. `20261029-163000.md`, `20261029-163000-2.md` → the second
+    """
+    logs = list(runs.glob("*.md"))
+    if not logs:
+        return None
+    return max(logs, key=lambda log: (log.stem[:15], len(log.stem), log.stem))
+
+
 def report(cwd: Path) -> str:
     """Return the last run's close-out: per version touched, then its last line."""
     primary = primary_of(cwd)
     runs = primary / ".minions"
-    logs = sorted((runs / "runs").glob("*.md"))
-    if not logs:
+    if (log := last_log(runs / "runs")) is None:
         return "report: none — no run yet"
-    events = [line for line in logs[-1].read_text().splitlines() if EVENT.match(line)]
+    events = [line for line in log.read_text().splitlines() if EVENT.match(line)]
     touched = dict.fromkeys(
         found[1]
         for line in events
@@ -958,7 +977,7 @@ def report(cwd: Path) -> str:
                 ]
             )
         )
-    lines.append(events[-1] if events else f"{logs[-1].name}: no event")
+    lines.append(events[-1] if events else f"{log.name}: no event")
     return "\n".join(lines)
 
 
