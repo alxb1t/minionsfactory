@@ -16,7 +16,8 @@ Premises were re-checked on `main` at `c8136be` (v0.34.0) before the cut.
 | The second HALT CHECK, and a probe at the amend (2026-10-29): `--allowedTools` is variadic and swallows a prompt after it; `Write(path)` rules are ignored, `Edit(path)` covers every file tool; an absolute path needs `//`, symlink-resolved; `Bash(git:*)` allows `git commit`, the deny `Bash(git push --force:*)` wins (`Permission to use Bash with command git push --force origin main has been denied.`), a command off the list is refused (`… needs approval …`); `Skill` and `Agent` are the tool names | [D1](#d1)'s command, [D2](#d2)'s argv, list and denial strings |
 | The third HALT CHECK (1.4) and a probe after it (2026-10-29): a compound command with a denied part is denied whole; a denial exits `0`; Claude Code's own guard refuses `$(…)`, shell variables, loops and `cd` before git whatever the list allows; redirects, pipes, `2>&1`, `git -C` and `pwd` pass; `cp`, `mv`, `touch` off the list are refused | [D2](#d2)'s shell rules, its added commands, and a denial reported, not halted on (the brief's Q32–Q35) |
 | The phase-4 probe run and two probes after it (2026-10-29): a worker's shell commands are confined to its working directories — `ls` and `cat` of the primary's `.minions/` from a worktree were refused while an `Edit` rule let a write through; `--add-dir <container>` lifts it; with `Bash(rm:*)`, `rm` inside the container ran and `rm`, `rm -rf` outside it were refused (`needs approval. The path is outside the working directories`); the probe's `.gitignore` lacked `__pycache__/`; git fails under x86 binaries on this machine (`xcrun` architecture) | [D2](#d2)'s `--add-dir` and `rm`, [D9](#d9)'s prep (the brief's Q36–Q40) |
-| The phase-4 probe's second run (2026-10-29): with no remote, converge on Claude Code halted before its fan-out — native security needs a remote, and generic runs only on an explicit user choice (`skills/mf-converge/SKILL.md:111`); a worker that went on judged security inline, and its status log disowned that verdict | [D2](#d2)'s converge prompt carries the person's choice of the generic review and security engines |
+| The phase-4 probe's second run (2026-10-29): with no remote, converge on Claude Code halted before its fan-out — native security needs a remote, and generic runs only on an explicit user choice (`skills/mf-converge/SKILL.md:111`); a worker that went on judged security inline, and its status log disowned that verdict | [D2](#d2)'s converge prompt carries the person's choice of the generic review and security engines (the brief's Q41, ratified) |
+| The probe's third run (2026-10-29): `0001-todo` shipped unattended; `0002-marks` halted at integrate on a semantic conflict in `AGENTS.md:3` — both converges fixed the bootstrap's `Work in progress: no code yet.`, differently; the integrate check then named only the commit subject; in the second run the converge check had passed verdicts the status log's halt disowned | [D2](#d2)'s converge and integrate checks, [D9](#d9)'s prep (Q42–Q43) |
 | Release Step 5 asks once (`skills/mf-release/SKILL.md:214-222`); its Never: "merge or push without the person's yes in this session" (`:274`); a hand-edit flag is for the human (`:133-134`, `:258-259`); Step 6's sentences name no worktree outcome (`:255-259`, `0038·N1`) | [D3](#d3) |
 | The cut's suggestion "stays in chat" (`skills/mf-cut-change/SKILL.md:246-247`); its Never: "into the change, or into any file" (`:280`) | [D4](#d4) |
 | Integrate's red gate halts with the merge open and no marker (`skills/mf-integrate/SKILL.md:109-110`); Step 2's table reads `MERGE_HEAD` with no note as an interrupted run (`:69`); Step 4.4 deletes the note (`:120`) | [D5](#d5) |
@@ -94,8 +95,8 @@ is the catch-up round.
 | stage | passes when |
 |---|---|
 | `build` | every `## Progress` box ticked; `git status --porcelain` prints nothing |
-| `converge` | the review and security files are both `verdict: clean` with `head:` equal to `HEAD`; the tree clean |
-| `integrate` | `HEAD`'s subject is `chore(integrate): merge <default-branch> into <branch>`; no `MERGE_HEAD`; the default branch an ancestor of `HEAD` |
+| `converge` | the review and security files are both `verdict: clean` with `head:` equal to `HEAD`; the newest `## Run` of `.minions/findings/<id>_status_log.md` does not open on `· halt`; the tree clean |
+| `integrate` | `HEAD`'s subject is `chore(integrate): merge <default-branch> into <branch>`; no `MERGE_HEAD`; the default branch an ancestor of `HEAD`. With `MERGE_HEAD` open, the reason names it: `integrate halted — semantic conflict, see .minions/integrate/<id>.md`, or `— red gate` for `.red` |
 | `release` | the default branch contains the branch; `<tag>` exists; with an `origin`, `git ls-remote --tags origin <tag>` prints a line |
 | `probe` | the scratch repo's `HEAD` holds `probe.txt` reading `ok` |
 
@@ -351,7 +352,7 @@ disk.**
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D9 | The acceptance run is the `mf_ship_probe` fixture: a container at `../mf_ship_probe/` from MF's primary, its primary `mf_ship_probe/mf_ship_probe/`; prep, two cuts from the briefs below, `/mf-ship` | Two features built side by side need disjoint files; fixed briefs make the run cheap and repeatable (Q20, Q21) | `/tmp`; grilling the probe's versions |
+| D9 | The acceptance run is the `mf_ship_probe` fixture: a container at `../mf_ship_probe/` from MF's primary, its primary `mf_ship_probe/mf_ship_probe/`; prep, two cuts from the briefs below, `/mf-ship` | Two features built side by side need disjoint files — and every file the bootstrap wrote is shared, so the prep removes the line any feature falsifies; fixed briefs make the run cheap and repeatable (Q20, Q21, Q42) | `/tmp`; grilling the probe's versions |
 
 **The prep commit**, on the probe's `main` after `/mf-bootstrap`:
 
@@ -369,6 +370,8 @@ disk.**
   ```
 
 - `.gitignore`, a line `__pycache__/`: the gate's `unittest` writes it, and a station's check needs a clean tree.
+- `AGENTS.md`, line 3, `Work in progress: no code yet.`, deleted: every version makes it stale, each converge rewrites
+  it, and the rewrites conflict at integrate.
 - `AGENTS.md`, at its end:
 
   ```markdown
