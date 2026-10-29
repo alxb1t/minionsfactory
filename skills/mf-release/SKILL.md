@@ -1,13 +1,13 @@
 ---
 name: mf-release
-description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag, then on the person's yes merge into the default branch and push. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
+description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag, then on the person's yes, or merge=yes from mf-ship, merge into the default branch and push. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
 ---
 
 # mf-release — verify, fold, archive, tag, then merge and push on a yes
 
 > **You verify and finalize, then ask.** You never edit feature code or lower a bar to ship. A precondition fails
 > → **halt**, naming exactly what is missing and who owns it. The merge and the push are high-consequence: you run
-> them only on the person's yes, asked once in Step 5.
+> them only on the person's yes: asked once in Step 5, or given as `merge=yes` by the person who started `mf-ship`.
 
 Why a separate station: **the loop that declared convergence does not also archive and tag on it.** When converge
 ran, you re-read its verdicts from disk yourself; when it did not, you are the only check after the build, and
@@ -38,6 +38,11 @@ commit trailer, so a wrong one releases against another change's verdicts:
 The release version is the `version:` frontmatter in the change's own `proposal.md`: read it, never invent it or
 derive it from a filename. Below, `<version>` is that value — `vX.Y`, or `vX.Y.Z` for a patch — and `<tag>` is
 `<version>.0` for `vX.Y`, `<version>` itself for `vX.Y.Z`: `v0.31` → `v0.31.0`, `v0.31.1` → `v0.31.1`.
+
+## Parameter — merge
+
+`merge=yes` is given only by `mf-ship`: the person who started it said yes to every merge and push of the run.
+It replaces Step 5's ask, never a check. Echo `merge: yes (mf-ship)`. Any other value → **halt**.
 
 ## Where the constants come from — disk, never a guess
 
@@ -133,6 +138,8 @@ A rename arrives as REMOVED (old title) + ADDED (new title): the fold has no ren
 **Capability preamble prose is kept verbatim.** The fold cannot reach it, so read it by eye: where the change made
 it false, **flag it for a hand-edit** in your report. Never silently rewrite it, and never silently leave it wrong.
 
+Under `merge=yes`, a flag halts the release after Step 4 and before Step 5: the person reads the prose, then merges.
+
 **A change that declares no delta (`skip_specs`) folds nothing — and still archives**: Step 3 runs as for any
 other change.
 
@@ -212,7 +219,7 @@ The **primary** is the worktree `git worktree list --porcelain` shows on `branch
 this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
 Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6. In a
-linked worktree, ask the form below instead.
+linked worktree, ask the form below instead. Under `merge=yes`, print the ask and take it as yes.
 
 When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
 ignored paths by name, never reading a file:
@@ -255,8 +262,8 @@ authorizes nothing.
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
 `converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
-and the push, or that there is no `origin`. A preamble flagged for a hand-edit (Step 2) is for the human to act
-on.
+and the push, or that there is no `origin`; and the worktree removed, kept or refused. A preamble flagged for a
+hand-edit (Step 2) is for the human to act on.
 
 The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
 when Step 5.6 removed the worktree. With no merge:
@@ -271,8 +278,8 @@ Then **stop**.
 
 ## Never
 
-- **Never merge or push without the person's yes in this session**, never `--force`, never pull, and never push
-  the version branch. A halt in Step 5 leaves the rest to the human.
+- **Never merge or push without the person's yes in this session, or `merge=yes`**, never `--force`, never pull,
+  and never push the version branch. A halt in Step 5 leaves the rest to the human.
 - **Never edit feature code or tests.** A failed precondition goes back to the build or the converge loop: you
   are a gate, not a fix.
 - **Never release over a failed precondition** — no exceptions, and no copy of the list here: Step 1 is the list.

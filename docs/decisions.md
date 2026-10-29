@@ -197,14 +197,16 @@ paydown change lists the cards it closes and its release deletes them.**
 ### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes
 
 **It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog with
-one `Gate:` line of the gate's times, and tags. Then it asks once; on yes it merges into the default branch with
-`--no-ff` and pushes the default branch and the tag. It never forces, never pushes the version branch, never
-edits feature code. Fold and archive land in one commit.**
+one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or `merge=yes`, the yes the person
+gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
+tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
+commit.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
   leaves the spec tree and the change disagreeing.
 - **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
-  separate merge skill: one more invocation · a merge without asking.
+  separate merge skill: one more invocation · a merge nobody said yes to: `merge=yes` comes only from a run the
+  person started.
 
 ### D40 · Workers are fresh and observable
 
@@ -361,8 +363,9 @@ Review judges each new test's cost and traces each removed one's proofs.**
 ### D41 · Model suggestions use offered capabilities
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
-required capability; it suggests effort only when the host exposes that setting. Suggestions stay in chat and
-leave model selection and provider setup with the operator.**
+required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
+writes it to `.minions/models/<change-id>.toml`, never into the change, for `mf-ship`; model selection and provider
+setup stay with the operator.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.

@@ -6,7 +6,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 ## Progress
 
 - [x] 1 — Write the ship script
-- [ ] 2 — Give the release, the cut and integrate what an unattended run needs
+- [x] 2 — Give the release, the cut and integrate what an unattended run needs
 - [ ] 3 — Write the ship station and record it
 - [ ] 4 — Ship the probe **HUMAN · METERED**
 
@@ -26,13 +26,13 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 ## 2 — Give the release, the cut and integrate what an unattended run needs
 
-- [ ] 2.1 Apply [D3](design.md#d3) to `skills/mf-release/SKILL.md`.
+- [x] 2.1 Apply [D3](design.md#d3) to `skills/mf-release/SKILL.md`.
   Verify: `grep -c '^## Parameter — merge' skills/mf-release/SKILL.md` prints `1`, and `grep -c 'removed, kept or refused' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 2.2 Apply [D4](design.md#d4) to `skills/mf-cut-change/SKILL.md`.
+- [x] 2.2 Apply [D4](design.md#d4) to `skills/mf-cut-change/SKILL.md`.
   Verify: `grep -c 'models/<change-id>.toml' skills/mf-cut-change/SKILL.md` prints `1`, and `grep -c 'or into a tracked file' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 2.3 Apply [D5](design.md#d5) to `skills/mf-integrate/SKILL.md`.
+- [x] 2.3 Apply [D5](design.md#d5) to `skills/mf-integrate/SKILL.md`.
   Verify: `grep -c '<change-id>.red' skills/mf-integrate/SKILL.md` prints `3`.
-- [ ] 2.4 Amend D17 and D41 in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 2.4 Amend D17 and D41 in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -c 'a merge nobody said yes to' docs/decisions.md` prints `1`, and `grep -c 'models/<change-id>.toml' docs/decisions.md` prints `1`.
 
 ## 3 — Write the ship station and record it

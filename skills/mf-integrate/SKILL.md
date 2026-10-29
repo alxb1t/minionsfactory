@@ -66,6 +66,7 @@ Then, in the worktree:
 | `git -C <worktree> rev-parse -q --verify MERGE_HEAD` | and | then |
 |---|---|---|
 | succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.3 |
+| succeeds | `.minions/integrate/<change-id>.red` exists | the person fixed the merged tree: Step 3.3 |
 | succeeds | no note | an interrupted run: Step 3.2 |
 | fails | `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | nothing to merge: report it, and `Next: /mf-release` |
 | fails | otherwise | Step 3.1. `git -C <worktree> status --porcelain` prints something → **halt** |
@@ -106,8 +107,8 @@ Then, in the worktree:
 ## Step 4 — Gate and commit
 
 1. In the worktree, run `make -n gate` and paste its output; halt, naming the worktree's `Makefile`, when it
-   exits non-zero or prints no command. Then `make gate`. **Red → halt** with the merge open, commit nothing, and
-   never weaken the gate to pass.
+   exits non-zero or prints no command. Then `make gate`. **Red → halt** with the merge open, commit nothing, write
+   `.minions/integrate/<change-id>.red` holding `gate red` and the date, and never weaken the gate to pass.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
    nothing — else **halt**: the commit must hold the tree the gate judged.
 3. **Commit the merge**, the trailer block contiguous:
@@ -117,7 +118,8 @@ Then, in the worktree:
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
 
-4. Delete `.minions/integrate/<change-id>.md` when it exists: the merge settled it.
+4. Delete `.minions/integrate/<change-id>.md` and `.minions/integrate/<change-id>.red` when they exist: the merge
+   settled it.
 
 ## Step 5 — Report
 

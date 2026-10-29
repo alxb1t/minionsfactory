@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one agent process per station under an allowlist, denials logged; `tests/test_conduct.py` drives it with a fake
   agent (change `0040-mf-ship`, phase 1).
 
+- `mf-release` takes `merge=yes` from `mf-ship` in place of its ask, halts on a hand-edit flag before the merge, and
+  names the worktree removed, kept or refused (`0038·N1`); the cut writes `.minions/models/<change-id>.toml`;
+  integrate's red gate leaves `.minions/integrate/<change-id>.red`. D17 and D41 say so (change `0040-mf-ship`,
+  phase 2).
+
 ## [0.34.0] - 2026-10-29
 
 Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)
