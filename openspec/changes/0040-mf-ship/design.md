@@ -11,7 +11,8 @@ Premises were re-checked on `main` at `c8136be` (v0.34.0) before the cut.
 | evidence at the cut | implication |
 |---|---|
 | A worker is "a new host subagent or a fresh agent process" (`skills/mf-converge/SKILL.md:114`); no live skill runs a whole station in one | [D1](#d1)'s HALT CHECK, then [D2](#d2) |
-| `claude --help` lists `-p`, `--model`, `--effort`; `codex exec --help` lists `-m`, `-c <key=value>`, `-C <dir>` | [D2](#d2)'s worker commands |
+| `claude --help` lists `-p`, `--model`, `--effort`, `--allowedTools`, `--disallowedTools`; `codex exec --help` lists `-m`, `-c <key=value>`, `-C <dir>`, `-s <sandbox>` | [D2](#d2)'s worker commands |
+| The build's first HALT CHECK (2026-10-29): a headless `claude -p` subagent ran, and its write was denied — no permission flag | [D1](#d1) and [D2](#d2) carry the allowlist (the brief's Q23–Q31) |
 | Release Step 5 asks once (`skills/mf-release/SKILL.md:214-222`); its Never: "merge or push without the person's yes in this session" (`:274`); a hand-edit flag is for the human (`:133-134`, `:258-259`); Step 6's sentences name no worktree outcome (`:255-259`, `0038·N1`) | [D3](#d3) |
 | The cut's suggestion "stays in chat" (`skills/mf-cut-change/SKILL.md:246-247`); its Never: "into the change, or into any file" (`:280`) | [D4](#d4) |
 | Integrate's red gate halts with the merge open and no marker (`skills/mf-integrate/SKILL.md:109-110`); Step 2's table reads `MERGE_HEAD` with no note as an interrupted run (`:69`); Step 4.4 deletes the note (`:120`) | [D5](#d5) |
@@ -40,10 +41,11 @@ The grilling settled these choices (the brief's Q1–Q22); the build does not re
 The check, run in a scratch directory:
 
 ```bash
-d=$(mktemp -d) && cd "$d" && claude -p "Start one subagent. It writes the word ok to probe.txt in the current directory. Wait for it to finish, then stop." && cat probe.txt
+d=$(mktemp -d) && cd "$d" && claude -p --allowedTools "Read,Agent,Write($d/**)" "Start one subagent. It writes the word ok to probe.txt in the current directory. Wait for it to finish, then stop." && cat probe.txt
 ```
 
-`cat probe.txt` prints `ok`. Anything else halts the build: the plan is wrong.
+`cat probe.txt` prints `ok`: a subagent can be started, and it inherits the process's allowlist. Anything else halts the
+build: the plan is wrong.
 
 ### D2
 
@@ -57,7 +59,8 @@ d=$(mktemp -d) && cd "$d" && claude -p "Start one subagent. It writes the word o
 conduct.py status                        one line per open version: <change-id> · <branch> · <stage>
 conduct.py check <stage> <change-id>     exit 0 when disk proves the stage; else 1 and a reason line
 conduct.py log --verify <run-log>        exit 0 when the log is complete (below)
-conduct.py run --executor claude|codex   the loop
+conduct.py run --executor claude|codex [--detach]   the loop; --detach starts it in a new session and returns
+conduct.py agent --executor claude|codex <prompt>  one worker in the cwd, under the permissions below; its exit code
 conduct.py report                        the last run's close-out lines
 ```
 
@@ -120,8 +123,8 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 
 | executor | argv |
 |---|---|
-| `claude` | `claude -p [--model <m>] [--effort <e>] <prompt>` |
-| `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -C <cwd> <prompt>` |
+| `claude` | `claude -p [--model <m>] [--effort <e>] --allowedTools <allowed> --disallowedTools <denied> <prompt>` |
+| `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -s workspace-write -c 'sandbox_workspace_write.writable_roots=["<run dir>","<git common dir>"]' -c sandbox_workspace_write.network_access=true -C <cwd> <prompt>` |
 | `MF_SHIP_AGENT` set | `$MF_SHIP_AGENT <prompt>` — the injectable worker the tests use |
 
 | station | cwd | prompt |
@@ -130,6 +133,22 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 | converge | the worktree | `Run the mf-converge skill for change <change-id>.` |
 | integrate | the primary | `Run the mf-integrate skill.` |
 | release | the worktree | `Run the mf-release skill for change <change-id> with merge=yes.` |
+
+**Permissions.** Workers never bypass the harness's prompts; they act under a list — a guardrail, not a containment:
+`make`, `uv` and `python3` run any code, and the line needs them.
+
+| list | holds |
+|---|---|
+| allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(<tree>/**)`, `Write(<tree>/**)`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, and each command `AGENTS.md`'s `Ship tools:` line names |
+| denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)` — deny wins over allow |
+| Codex | `-s workspace-write`, the run directory and git's common directory writable, the network on |
+
+`<tree>` is the directory `AGENTS.md`'s `Worktrees:` names, resolved from the primary — it holds the primary and
+every version's worktree, since the cut writes into a new worktree and integrate into a version's; with no
+`Worktrees:` (an `agent` call before a repo exists), the cwd. Every path is absolute, resolved at run time. `Ship tools:` is an optional `AGENTS.md` line, `- **Ship tools:** \`npm\`, \`pnpm\``, read with
+`\*\*Ship tools:\*\*`; MF declares none. `rm` is off the list: stations use `git rm`. A denied command halts like any
+failed check, and the `halt` line names it, found in the worker's log: `halt — build denied: Bash(rm -rf build)`.
+The `start` line records `permissions: allowlist` or `permissions: workspace-write`.
 
 Each worker runs in its own process group (`start_new_session=True`), stdout and stderr to
 `.minions/runs/<stamp>/<change-id>_<station>.log`; past 3 hours (`TIMEOUT = 10800`) the group is killed and the run
@@ -243,8 +262,9 @@ The skill, written to the P rules, holds:
 - **Step 2 — State** — `conduct.py status`, pasted. `.minions/runs/active` exists → report the status and the run
   log's last lines, then stop: a run is live. Else run `conduct.py report` and keep its lines.
 - **Step 3 — Start** — no open version → report `nothing to ship`, stop. Else start detached:
-  `nohup uv run --script <this package>/scripts/conduct.py run --executor <executor> >/dev/null 2>&1 &`, then
-  confirm `.minions/runs/active` exists within 10 seconds, else halt.
+  `uv run --script <this package>/scripts/conduct.py run --executor <executor> --detach`, then
+  confirm `.minions/runs/active` exists within 10 seconds, else halt. Say once that every worker acts under
+  [D2](#d2)'s allowlist, with no permission prompt.
 - **Step 4 — Report** — at most three sentences: the last run's report, or that a run started and its log path;
   the command to follow it, `tail -f .minions/runs/<stamp>.md`. Last line: `Next: /mf-ship again for its status, or
   its report once it ends.`
@@ -280,11 +300,14 @@ D47, after D45:
 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
 then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
-agent process, judged by a check on disk; the first failed check halts the run, and a re-run resumes from disk.**
+agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
+prompts bypassed, and is judged by a check on disk; the first failed check halts the run, and a re-run resumes from
+disk.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
-- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file.
+- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
+  bypass permission prompts: the list blocks what is off it, though `make`, `uv` and `python3` still run any code.
 ```
 
 ### D8
@@ -402,7 +425,7 @@ agent process, judged by a check on disk; the first failed check halts the run, 
 
 | layer | at cut | added | removed | proof |
 |---|---:|---:|---:|---|
-| Unit test functions | 58 | 9 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `58 tests collected` at the cut, `67 tests collected` after |
+| Unit test functions | 58 | 10 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `58 tests collected` at the cut, `68 tests collected` after |
 | Integration tests | 0 | 0 | 0 | — |
 | End-to-end runs | 0 | 0 | 0 | — |
 
@@ -420,6 +443,7 @@ that reads the prompt and does on disk what that station would (ticks boxes, wri
 | `test_run_halts_on_a_timeout` | a worker past a shortened `TIMEOUT` is killed; the run halts |
 | `test_a_rerun_resumes_from_disk` | after a halt is handled, finished stations do not run again |
 | `test_run_refuses_without_worktrees_declared` | exit 2, no worker started |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor, `Ship tools:` added, and a denial in the log named in `halt` |
 
 The HALT CHECK and the phase-4 run spend model tokens and stay outside the gate.
 
@@ -429,8 +453,8 @@ None.
 
 ## Risks / Trade-offs
 
-- **Workers act with the operator's permissions, and the harness is no boundary (old D24)** → named, not solved;
-  the probe worker proves a worker can act before any station runs.
+- **The allowlist is a guardrail, not a containment** — `make`, `uv` and `python3` run any code; Bash writes are not
+  path-bound (old D24) → named, not solved; the probe worker proves a worker can act before any station runs.
 - **A detached run outlives the session** → its log and `.minions/runs/active` show it; `/mf-ship` reports it.
 - **The installed skills are `main`'s during this build** → phase 4 points them at this worktree, then back.
 - **Parallel builds share the machine** → MF's gate binds nothing; a target whose gate does is a later trigger.

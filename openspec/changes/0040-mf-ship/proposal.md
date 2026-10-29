@@ -60,5 +60,6 @@ Dependencies: none. The gate recipe stays unchanged. Running `mf-ship` needs an 
 ## Not in this change
 
 Planning and the cut stay the person's. Self-answered grilling, cloud and nightly runs, retries after a halt, gate
-resources per target and a width setting wait for a run that needs them. Worker permissions stay the operator's:
-the harness is no security boundary, and this change adds none. The bootstrap still declares no `Worktrees:`.
+resources per target and a width setting wait for a run that needs them. Workers act under an allowlist (Claude
+Code) or the workspace-write sandbox (Codex), never with prompts bypassed — a guardrail, not a containment. The
+bootstrap still declares no `Worktrees:`.

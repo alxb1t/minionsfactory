@@ -103,13 +103,19 @@ every open version to the default branch: build, then converge, for every open v
 at a time in change-id order, integrate when its base moved, converge's catch-up round, and release with
 `merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor running
 `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
-names for it, or the executor's default. Starting `mf-ship` SHALL be the person's yes to every merge and push of
-the run.
+names for it, or the executor's default. A worker SHALL act under `conduct.py`'s allowlist on Claude Code — extended by
+`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied — or the workspace-write sandbox
+on Codex, and SHALL never run with permission prompts bypassed. Starting `mf-ship` SHALL be the person's yes to every
+merge and push of the run.
 
 #### Scenario: Two cut versions ship
 - **WHEN** two versions are cut, each in its own worktree, and `mf-ship` runs to the end
 - **THEN** both are released, merged and pushed in change-id order, the later one integrated and judged by a
   catch-up round first, and only the primary is left
+
+#### Scenario: A worker runs a command off the list
+- **WHEN** a build worker's command is denied by the allowlist
+- **THEN** the run halts, and its `halt` line names the denied command
 
 #### Scenario: No worktrees are declared
 - **WHEN** `mf-ship` starts in a repo whose `AGENTS.md` declares no `Worktrees:`

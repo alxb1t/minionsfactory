@@ -16,10 +16,10 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
   Verify: its `cat probe.txt` prints `ok`.
 - [ ] 1.2 Write `skills/mf-ship/scripts/conduct.py` per [D2](design.md#d2): its commands, the stage table, the
   checks, the loop, the workers, the run log and the report.
-  Verify: `uv run --script skills/mf-ship/scripts/conduct.py --help` exits 0, and `uv run --script skills/mf-ship/scripts/conduct.py --help | grep -c 'status,check,log,run,report'` prints `1`.
+  Verify: `uv run --script skills/mf-ship/scripts/conduct.py --help` exits 0, and `uv run --script skills/mf-ship/scripts/conduct.py --help | grep -c 'status,check,log,run,agent,report'` prints `1`.
 - [ ] 1.3 Write `tests/test_conduct.py` with the tests [Tests](design.md#tests) names, each over `tmp_path` repos and
   a fake agent through `MF_SHIP_AGENT`.
-  Verify: `uv run pytest -q tests/test_conduct.py` reports `9 passed`.
+  Verify: `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
 
 ## 2 — Give the release, the cut and integrate what an unattended run needs
 
@@ -47,7 +47,9 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 ## 4 — Ship the probe **HUMAN · METERED**
 
 One fresh session runs this checklist from MF's primary; each `Verify:` runs in this worktree. The probe is
-[D9](design.md#d9)'s.
+[D9](design.md#d9)'s. Every agent step runs through `conduct.py agent`, under [D2](design.md#d2)'s allowlist:
+each such command starts with `C=$(cd ../v0.35_mf_ship && pwd)/skills/mf-ship/scripts/conduct.py &&`, run from MF's
+primary before any `cd`.
 
 - [ ] 4.1 The hand-over: open a fresh session in MF's primary and prompt
   `Run phase 4 of 0040-mf-ship's tasks.md, the checklist, step by step.`; read its report; then run
@@ -55,16 +57,16 @@ One fresh session runs this checklist from MF's primary; each `Verify:` runs in 
   Verify: `test -f openspec/changes/0040-mf-ship/evidence/probe_run.md` exits 0.
 - [ ] 4.2 Point the installed skills at this worktree: `make -C ../v0.35_mf_ship install-skills SKILLS_DIR=$HOME/.claude/skills`.
   Verify: `grep -c '^skills: v0.35_mf_ship$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
-- [ ] 4.3 Make the probe: `mkdir -p ../mf_ship_probe/mf_ship_probe && cd ../mf_ship_probe/mf_ship_probe && claude -p "Run the mf-bootstrap skill."`.
+- [ ] 4.3 Make the probe: `mkdir -p ../mf_ship_probe/mf_ship_probe && cd ../mf_ship_probe/mf_ship_probe && uv run --script "$C" agent --executor claude "Run the mf-bootstrap skill."`.
   Verify: `grep -c '^bootstrap commits: 1$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
 - [ ] 4.4 Write [D9](design.md#d9)'s prep edits in `../mf_ship_probe/mf_ship_probe`, then
   `git -C ../mf_ship_probe/mf_ship_probe add Makefile AGENTS.md tests/test_smoke.py && git -C ../mf_ship_probe/mf_ship_probe commit -m "chore: a unittest gate and worktrees"`.
   Verify: `grep -c '^prep gate: exit 0$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
 - [ ] 4.5 Write [D9](design.md#d9)'s briefs to `../mf_ship_probe/briefs/todo.md` and `../mf_ship_probe/briefs/marks.md`;
-  then, in `../mf_ship_probe/mf_ship_probe`, `claude -p "Run the mf-cut-change skill: 0001-todo v0.1 brief=../briefs/todo.md"`
-  and `claude -p "Run the mf-cut-change skill: 0002-marks v0.2 brief=../briefs/marks.md"`.
+  then, in `../mf_ship_probe/mf_ship_probe`, `uv run --script "$C" agent --executor claude "Run the mf-cut-change skill: 0001-todo v0.1 brief=../briefs/todo.md"`
+  and `uv run --script "$C" agent --executor claude "Run the mf-cut-change skill: 0002-marks v0.2 brief=../briefs/marks.md"`.
   Verify: `grep -c '^cuts: v0.1_todo v0.2_marks · models 0001-todo.toml 0002-marks.toml$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
-- [ ] 4.6 In `../mf_ship_probe/mf_ship_probe`, `claude -p "Run the mf-ship skill."`; then wait until
+- [ ] 4.6 In `../mf_ship_probe/mf_ship_probe`, `uv run --script "$C" agent --executor claude "Run the mf-ship skill."`; then wait until
   `test -d ../mf_ship_probe/mf_ship_probe/.minions/runs/active` fails. `ls ../mf_ship_probe/mf_ship_probe/.minions/runs/*.md`
   prints the run log's path.
   Verify: `grep -c '^run: done$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
