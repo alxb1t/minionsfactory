@@ -13,6 +13,7 @@ Premises were re-checked on `main` at `c8136be` (v0.34.0) before the cut.
 | A worker is "a new host subagent or a fresh agent process" (`skills/mf-converge/SKILL.md:114`); no live skill runs a whole station in one | [D1](#d1)'s HALT CHECK, then [D2](#d2) |
 | `claude --help` lists `-p`, `--model`, `--effort`, `--allowedTools`, `--disallowedTools`; `codex exec --help` lists `-m`, `-c <key=value>`, `-C <dir>`, `-s <sandbox>` | [D2](#d2)'s worker commands |
 | The build's first HALT CHECK (2026-10-29): a headless `claude -p` subagent ran, and its write was denied — no permission flag | [D1](#d1) and [D2](#d2) carry the allowlist (the brief's Q23–Q31) |
+| The second HALT CHECK, and a probe at the amend (2026-10-29): `--allowedTools` is variadic and swallows a prompt after it; `Write(path)` rules are ignored, `Edit(path)` covers every file tool; an absolute path needs `//`, symlink-resolved; `Bash(git:*)` allows `git commit`, the deny `Bash(git push --force:*)` wins (`Permission to use Bash with command git push --force origin main has been denied.`), a command off the list is refused (`… needs approval …`); `Skill` and `Agent` are the tool names | [D1](#d1)'s command, [D2](#d2)'s argv, list and denial strings |
 | Release Step 5 asks once (`skills/mf-release/SKILL.md:214-222`); its Never: "merge or push without the person's yes in this session" (`:274`); a hand-edit flag is for the human (`:133-134`, `:258-259`); Step 6's sentences name no worktree outcome (`:255-259`, `0038·N1`) | [D3](#d3) |
 | The cut's suggestion "stays in chat" (`skills/mf-cut-change/SKILL.md:246-247`); its Never: "into the change, or into any file" (`:280`) | [D4](#d4) |
 | Integrate's red gate halts with the merge open and no marker (`skills/mf-integrate/SKILL.md:109-110`); Step 2's table reads `MERGE_HEAD` with no note as an interrupted run (`:69`); Step 4.4 deletes the note (`:120`) | [D5](#d5) |
@@ -41,7 +42,7 @@ The grilling settled these choices (the brief's Q1–Q22); the build does not re
 The check, run in a scratch directory:
 
 ```bash
-d=$(mktemp -d) && cd "$d" && claude -p --allowedTools "Read,Agent,Write($d/**)" "Start one subagent. It writes the word ok to probe.txt in the current directory. Wait for it to finish, then stop." && cat probe.txt
+d=$(cd "$(mktemp -d)" && pwd -P) && cd "$d" && claude -p "Start one subagent. It writes the word ok to probe.txt in the current directory. Wait for it to finish, then stop." --allowedTools "Read,Agent,Edit(/$d/**)" && cat probe.txt
 ```
 
 `cat probe.txt` prints `ok`: a subagent can be started, and it inherits the process's allowlist. Anything else halts the
@@ -60,7 +61,8 @@ conduct.py status                        one line per open version: <change-id> 
 conduct.py check <stage> <change-id>     exit 0 when disk proves the stage; else 1 and a reason line
 conduct.py log --verify <run-log>        exit 0 when the log is complete (below)
 conduct.py run --executor claude|codex [--detach]   the loop; --detach starts it in a new session and returns
-conduct.py agent --executor claude|codex <prompt>  one worker in the cwd, under the permissions below; its exit code
+conduct.py agent --executor claude|codex <prompt>  one worker in the cwd, under the permissions below, its output to
+                                                  .minions/runs/agent-<stamp>.log; its exit code
 conduct.py report                        the last run's close-out lines
 ```
 
@@ -123,7 +125,7 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 
 | executor | argv |
 |---|---|
-| `claude` | `claude -p [--model <m>] [--effort <e>] --allowedTools <allowed> --disallowedTools <denied> <prompt>` |
+| `claude` | `claude -p <prompt> [--model <m>] [--effort <e>] --output-format stream-json --verbose --allowedTools <allowed> --disallowedTools <denied>` — the prompt first: both list flags are variadic |
 | `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -s workspace-write -c 'sandbox_workspace_write.writable_roots=["<run dir>","<git common dir>"]' -c sandbox_workspace_write.network_access=true -C <cwd> <prompt>` |
 | `MF_SHIP_AGENT` set | `$MF_SHIP_AGENT <prompt>` — the injectable worker the tests use |
 
@@ -139,15 +141,16 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 
 | list | holds |
 |---|---|
-| allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(<tree>/**)`, `Write(<tree>/**)`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, and each command `AGENTS.md`'s `Ship tools:` line names |
+| allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(/<tree>/**)` — it covers every file-editing tool, and its leading `/` makes the absolute path `//`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, and each command `AGENTS.md`'s `Ship tools:` line names |
 | denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)` — deny wins over allow |
 | Codex | `-s workspace-write`, the run directory and git's common directory writable, the network on |
 
 `<tree>` is the directory `AGENTS.md`'s `Worktrees:` names, resolved from the primary — it holds the primary and
 every version's worktree, since the cut writes into a new worktree and integrate into a version's; with no
-`Worktrees:` (an `agent` call before a repo exists), the cwd. Every path is absolute, resolved at run time. `Ship tools:` is an optional `AGENTS.md` line, `- **Ship tools:** \`npm\`, \`pnpm\``, read with
+`Worktrees:` (an `agent` call before a repo exists), the cwd. Every path is absolute and symlink-resolved (`Path.resolve()`) at run time. `Ship tools:` is an optional `AGENTS.md` line, `- **Ship tools:** \`npm\`, \`pnpm\``, read with
 `\*\*Ship tools:\*\*`; MF declares none. `rm` is off the list: stations use `git rm`. A denied command halts like any
-failed check, and the `halt` line names it, found in the worker's log: `halt — build denied: Bash(rm -rf build)`.
+failed check, and the `halt` line names it, found in the worker's stream-json log by the strings `has been denied` and
+`needs approval`: `halt — build denied: Bash(rm -rf build)`.
 The `start` line records `permissions: allowlist` or `permissions: workspace-write`.
 
 Each worker runs in its own process group (`start_new_session=True`), stdout and stderr to
@@ -443,9 +446,9 @@ that reads the prompt and does on disk what that station would (ticks boxes, wri
 | `test_run_halts_on_a_timeout` | a worker past a shortened `TIMEOUT` is killed; the run halts |
 | `test_a_rerun_resumes_from_disk` | after a halt is handled, finished stations do not run again |
 | `test_run_refuses_without_worktrees_declared` | exit 2, no worker started |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor, `Ship tools:` added, and a denial in the log named in `halt` |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, and each denial string in a log named in `halt` |
 
-The HALT CHECK and the phase-4 run spend model tokens and stay outside the gate.
+The HALT CHECK, task 1.4's probe and the phase-4 run spend model tokens and stay outside the gate.
 
 ## Dependencies
 
@@ -458,6 +461,8 @@ None.
 - **A detached run outlives the session** → its log and `.minions/runs/active` show it; `/mf-ship` reports it.
 - **The installed skills are `main`'s during this build** → phase 4 points them at this worktree, then back.
 - **Parallel builds share the machine** → MF's gate binds nothing; a target whose gate does is a later trigger.
+- **The Codex row is untested on this machine** → its flags are read from `codex exec --help`; phase 4 runs Claude only.
+  The first Codex run is its check.
 
 ## Migration Plan
 
