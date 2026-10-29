@@ -78,7 +78,8 @@ number.
 
 | stage | when | the loop |
 |---|---|---|
-| `integrating` | `MERGE_HEAD` exists | halt: `.minions/integrate/<id>.red` → red gate; `.minions/integrate/<id>.md` → semantic conflict; neither → interrupted |
+| `integrating` | `MERGE_HEAD` exists and `git diff --name-only --diff-filter=U` lists a path | halt: `.minions/integrate/<id>.red` → red gate; `.minions/integrate/<id>.md` → semantic conflict; neither → interrupted |
+| `integrate` (resumed) | `MERGE_HEAD` exists and no path is unmerged: the person resolved and staged it | `mf-integrate`, in the primary: it resumes at its Step 3.3 |
 | `released` | `HEAD`'s subject is `chore(release): <tag>` and `<tag>` exists | halt: the release stopped before its merge |
 | `human` | the first unticked `## Progress` line of `tasks.md` holds `**HUMAN` | halt, naming the phase |
 | `build` | a `## Progress` box is unticked | `mf-build` |

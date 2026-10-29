@@ -154,3 +154,7 @@ and the run directory: a re-run derives every stage again and continues.
 #### Scenario: The person re-runs after a halt
 - **WHEN** the person handles the halt and runs `mf-ship` again
 - **THEN** each version continues from its stage on disk, and the finished stations do not run again
+
+#### Scenario: The person resolves a semantic conflict
+- **WHEN** integrate halted with the merge open, and the person resolves and stages every conflicted path
+- **THEN** a re-run of `mf-ship` resumes integrate, then the catch-up round and the release
