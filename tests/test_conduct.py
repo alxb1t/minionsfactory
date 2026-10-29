@@ -1,0 +1,592 @@
+"""The ship script: stages and checks from disk, the run log, the loop, the workers.
+
+Real git in scratch repositories with linked worktrees; this file, run as a script,
+is the fake agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
+"""
+
+import json
+import os
+import re
+import runpy
+import shlex
+import subprocess
+import sys
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+_REPO = Path(__file__).resolve().parent.parent
+_SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
+_IDENTITY = ["-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
+_IDENTITY += ["-c", "commit.gpgsign=false"]
+_WORKTREES = (
+    "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
+)
+
+
+def _git(root: Path, *args: str, check: bool = True) -> str:
+    return subprocess.run(
+        ["git", *_IDENTITY, *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=check,
+    ).stdout.strip()
+
+
+def _commit(root: Path, files: dict[str, str], message: str) -> None:
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", message)
+
+
+def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
+    """Return a primary checkout on `main`, its `AGENTS.md` holding `agents`."""
+    root = tmp_path / "main"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    _commit(root, {".gitignore": ".minions/\n", "AGENTS.md": agents}, "base")
+    return root.resolve()
+
+
+def _version(root: Path, change: str, version: str, progress: str) -> Path:
+    """Cut `change` at `version` in a linked worktree, `progress` its list."""
+    branch = f"{version}_{change.split('-', 1)[1].replace('-', '_')}"
+    tree = root.parent / branch
+    _git(root, "worktree", "add", "-q", "-b", branch, str(tree))
+    folder = f"openspec/changes/{change}"
+    files = {
+        f"{folder}/proposal.md": f"---\nversion: {version}\n---\n",
+        f"{folder}/tasks.md": f"## Progress\n\n{progress}",
+    }
+    _commit(tree, files, f"cut {change}")
+    return tree.resolve()
+
+
+def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> None:
+    folder = root / ".minions" / "findings"
+    folder.mkdir(parents=True, exist_ok=True)
+    for role in ("review", "security"):
+        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
+        (folder / f"{change}_{role}.md").write_text(text)
+
+
+def _conduct() -> dict[str, Any]:
+    return runpy.run_path(str(_SCRIPT))
+
+
+def _main(
+    conduct: dict[str, Any], cwd: Path, *args: str, monkeypatch: pytest.MonkeyPatch
+) -> int:
+    monkeypatch.chdir(cwd)
+    return conduct["main"](list(args))
+
+
+@pytest.fixture
+def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
+    """Point `MF_SHIP_AGENT` at this file; return a setter of its modes."""
+    calls = tmp_path / "calls.txt"
+
+    def modes(*names: str) -> Path:
+        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, __file__]))
+        monkeypatch.setenv("FAKE_CALLS", str(calls))
+        monkeypatch.setenv("FAKE_MODE", ",".join(names))
+        return calls
+
+    modes()
+    return modes
+
+
+def _calls(path: Path) -> list[str]:
+    return path.read_text().splitlines() if path.is_file() else []
+
+
+def _log(root: Path) -> list[str]:
+    logs = sorted((root / ".minions" / "runs").glob("*.md"))
+    return logs[-1].read_text().splitlines()[2:]
+
+
+def test_status_reads_each_stage_from_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — One\n")
+    tasks = tree / "openspec/changes/0001-todo/tasks.md"
+
+    def stage() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    assert stage() == "0001-todo · v0.1_todo · build"
+    tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
+    assert stage().endswith(" · human")
+    tasks.write_text("## Progress\n\n- [x] 1 — One\n")
+    _commit(tree, {}, "build")
+    assert stage().endswith(" · converge")
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    assert stage().endswith(" · converge-halted")
+    log.write_text("# t\n\n## Run 2 — d\n10:00:00 · round 1 · done — ok\n")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), verdict="blocking")
+    assert stage().endswith(" · converge")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    assert stage().endswith(" · release")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    assert stage().endswith(" · integrate")
+
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    marks = root / ".minions" / "integrate"
+    marks.mkdir(parents=True)
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    version = find(root, "0001-todo")
+    assert stage_of(root, version)[1].startswith("interrupted")
+    (marks / "0001-todo.md").write_text("note\n")
+    assert stage_of(root, version)[1].startswith("semantic conflict")
+    (marks / "0001-todo.red").write_text("gate red\n")
+    assert stage() == "0001-todo · v0.1_todo · integrating"
+    assert stage_of(root, version)[1].startswith("red gate")
+    _git(tree, "merge", "--abort")
+
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    _git(tree, "tag", "v0.1.0")
+    assert stage().endswith(" · released")
+
+
+def test_each_check_passes_only_on_disk_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — One\n")
+
+    def check(stage: str, target: str = "0001-todo") -> tuple[int, str]:
+        capsys.readouterr()
+        code = _main(conduct, root, "check", stage, target, monkeypatch=monkeypatch)
+        return code, capsys.readouterr().out.strip()
+
+    assert check("build") == (1, "check: build · fail — phase 1 unticked")
+    tasks = tree / "openspec/changes/0001-todo/tasks.md"
+    tasks.write_text("## Progress\n\n- [x] 1 — One\n")
+    assert check("build") == (1, "check: build · fail — the tree is not clean")
+    _commit(tree, {}, "build")
+    assert check("build") == (0, "check: build · pass")
+
+    assert check("converge") == (1, "check: converge · fail — no review findings file")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
+    assert check("converge")[1].endswith(", not HEAD")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    assert check("converge") == (0, "check: converge · pass")
+
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    assert check("integrate")[1].startswith("check: integrate · fail — HEAD is not")
+    _git(
+        tree,
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "chore(integrate): merge main into x",
+        "main",
+    )
+    assert check("integrate")[0] == 1
+    _git(
+        tree,
+        "commit",
+        "-q",
+        "--amend",
+        "-m",
+        "chore(integrate): merge main into v0.1_todo",
+    )
+    assert check("integrate") == (0, "check: integrate · pass")
+
+    assert check("release") == (
+        1,
+        "check: release · fail — main does not contain v0.1_todo",
+    )
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'v0.1_todo'", "v0.1_todo")
+    assert check("release") == (1, "check: release · fail — v0.1.0 does not exist")
+    _git(root, "tag", "v0.1.0")
+    assert check("release") == (0, "check: release · pass")
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
+    _git(root, "push", "-q", "origin", "v0.1.0")
+    assert check("release") == (0, "check: release · pass")
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    _git(scratch, "init", "-q")
+    _commit(scratch, {"Makefile": "gate:\n\ttrue\n"}, "init")
+    assert check("probe", str(scratch)) == (
+        1,
+        "check: probe · fail — HEAD holds no probe.txt",
+    )
+    _commit(scratch, {"probe.txt": "ok\n"}, "probe")
+    assert check("probe", str(scratch)) == (0, "check: probe · pass")
+
+
+def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    start = "10:00:00 · run · start — executor claude"
+    spawn = "10:00:01 · 0001-todo · spawn — build · model default"
+    finish = "10:00:09 · 0001-todo · finish — build · exit 0 · 8s"
+    denied = "10:00:09 · 0001-todo · denied — build · Bash(rm -rf build)"
+    done = "10:00:10 · run · done — released v0.1.0"
+    cases = {
+        "complete": ([start, spawn, finish, denied, done], 0, "log: complete"),
+        "unpaired": (
+            [start, spawn, done],
+            1,
+            "log: incomplete — a spawn with no finish: 0001-todo build",
+        ),
+        "open": (
+            [start, spawn, finish],
+            1,
+            "log: incomplete — the run ends on neither halt nor done",
+        ),
+        "unknown": (
+            [start, "10:00:02 · run · retry — build", done],
+            1,
+            "log: incomplete — unknown event: 10:00:02 · run · retry — build",
+        ),
+    }
+    for name, (lines, code, printed) in cases.items():
+        log = tmp_path / f"{name}.md"
+        log.write_text("# Ship run x\n\n" + "\n".join(lines) + "\n")
+        capsys.readouterr()
+        got = _main(
+            conduct, tmp_path, "log", "--verify", str(log), monkeypatch=monkeypatch
+        )
+        assert (got, capsys.readouterr().out.strip()) == (code, printed), name
+
+
+def test_run_ships_two_versions_in_cut_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    seen = _calls(calls)
+    assert seen[0] == "probe"
+    assert sorted(seen[1:5]) == [
+        "build 0001-todo",
+        "build 0002-marks",
+        "converge 0001-todo",
+        "converge 0002-marks",
+    ]
+    assert seen[1:5].index("build 0001-todo") < seen[1:5].index("converge 0001-todo")
+    assert seen[5:] == [
+        "release 0001-todo",
+        "integrate",
+        "converge 0002-marks",
+        "release 0002-marks",
+    ]
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "branch", "--no-merged", "main") == ""
+    assert _git(root, "log", "-1", "--format=%s", "v0.2.0") == "chore(release): v0.2.0"
+    assert "chore(integrate): merge main into v0.2_marks" in _git(
+        root, "log", "--format=%s", "main"
+    )
+    lines = _log(root)
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+    assert any(line.endswith(" · spawn — build · model default") for line in lines)
+    assert not (root / ".minions" / "runs" / "active").exists()
+    log = sorted((root / ".minions" / "runs").glob("*.md"))[-1]
+    assert (
+        _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    report = capsys.readouterr().out.splitlines()
+    assert report[0].startswith("0001-todo · v0.1.0 · merge ")
+    assert report[0].endswith(
+        " · no origin · round 1 · cards none · denied none · metrics: none"
+    )
+    assert report[-1] == lines[-1]
+
+
+def test_run_halts_on_a_human_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "v0.1", "- [x] 1 — Todo\n- [ ] 2 — Ship **HUMAN**\n")
+    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert not any(call.startswith("release") for call in _calls(calls))
+    assert _log(root)[-1].endswith(
+        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
+    )
+    assert _git(root, "tag", "-l") == ""
+
+    only = tmp_path / "only"
+    only.mkdir()
+    lone = _primary(only)
+    _version(lone, "0001-todo", "v0.1", "- [ ] 1 — Ship **HUMAN**\n")
+    calls.unlink()
+    assert (
+        _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+
+
+def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("liar")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    lines = _log(root)
+    assert any(re.search(r" · finish — build · exit 0 · \d+s$", line) for line in lines)
+    assert lines[-1].endswith(
+        " · 0001-todo · halt — build check fail — phase 1 unticked"
+    )
+
+
+def test_run_halts_on_a_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["TIMEOUT"] = 2
+    fake("sleep")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+
+    started = time.monotonic()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert time.monotonic() - started < 20
+    lines = _log(root)
+    assert any(" · 0001-todo · finish — build · exit -9 · " in line for line in lines)
+    assert lines[-1].endswith(
+        " · 0001-todo · halt — build timed out after 2s; its group was killed"
+    )
+
+
+def test_a_rerun_resumes_from_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("liar")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    _commit(
+        tree,
+        {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"},
+        "build",
+    )
+
+    calls.unlink()
+    fake()
+    time.sleep(1)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
+def test_run_refuses_without_worktrees_declared(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path, agents="# agents\n")
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+
+    assert capsys.readouterr().out.strip() == (
+        "run: cannot run — AGENTS.md declares no **Worktrees:**"
+    )
+    assert _calls(calls) == []
+    assert not (root / ".minions" / "runs").exists()
+
+
+def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    rules = conduct["SHELL_RULES"]
+    root = _primary(tmp_path, agents=_WORKTREES + "- **Ship tools:** `npm`, `pnpm`\n")
+    container = root.parent.resolve()
+    argv = conduct["argv"]
+
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    claude = argv("claude", "Do it.", root, "opus", "high")
+    assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
+    assert claude[3:7] == ["--model", "opus", "--effort", "high"]
+    allowed = claude[
+        claude.index("--allowedTools") + 1 : claude.index("--disallowedTools")
+    ]
+    assert f"Edit(/{container}/**)" in allowed
+    assert allowed[-2:] == ["Bash(npm:*)", "Bash(pnpm:*)"]
+    assert {"Skill", "Agent", "Bash(git:*)", "Bash(cp:*)"} <= set(allowed)
+    assert not any(
+        rule.startswith(("Write(", "Bash(rm:", "Bash(cd:")) for rule in allowed
+    )
+    assert "Bash(git push --force:*)" in claude[claude.index("--disallowedTools") + 1 :]
+    codex = argv("codex", "Do it.", root, None, None)
+    roots = json.dumps([str(root / ".minions"), str(root / ".git")])
+    assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
+    assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
+
+    fake("deny")
+    assert argv("claude", "Do it.", root, None, None) == [
+        sys.executable,
+        __file__,
+        f"Do it.\n\n{rules}",
+    ]
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    lines = _log(root)
+    assert any(
+        line.endswith(" · 0001-todo · denied — build · Bash(rm -rf build)")
+        for line in lines
+    )
+    capsys.readouterr()
+    _main(conduct, root, "report", monkeypatch=monkeypatch)
+    assert " · denied Bash(rm -rf build) · " in capsys.readouterr().out
+
+    fake("deny", "liar")
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    _version(second, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _log(second)[-1].endswith(
+        " · halt — build check fail — phase 1 unticked · denied: Bash(rm -rf build)"
+    )
+
+
+def _fake(prompt: str) -> None:
+    """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
+    modes = set(os.environ["FAKE_MODE"].split(","))
+    here = Path.cwd()
+    found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
+    station, change = (found[1], found[2]) if found else ("probe", None)
+    with open(os.environ["FAKE_CALLS"], "a") as calls:
+        calls.write(f"{station} {change}\n" if change else f"{station}\n")
+    if station == "build" and "deny" in modes:
+        use = {
+            "type": "tool_use",
+            "id": "t1",
+            "name": "Bash",
+            "input": {"command": "rm -rf build"},
+        }
+        result = {
+            "type": "tool_result",
+            "tool_use_id": "t1",
+            "is_error": True,
+            "content": "Bash has been denied.",
+        }
+        for block in (use, result):
+            print(json.dumps({"message": {"content": [block]}}))
+    if station == "build" and "sleep" in modes:
+        time.sleep(60)
+    if station == "build" and "liar" in modes:
+        return
+    common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    primary = Path(common).parent
+    if station == "probe":
+        _commit(here, {"probe.txt": "ok\n"}, "probe")
+    elif station == "build":
+        tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
+        _commit(
+            here, {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}, "build"
+        )
+    elif station == "converge":
+        _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
+    elif station == "integrate":
+        for branch in _git(
+            here, "branch", "--no-merged", "main", "--format=%(refname:short)"
+        ).split():
+            tree = primary.parent / branch
+            if subprocess.run(
+                ["git", "merge-base", "--is-ancestor", "main", "HEAD"], cwd=tree
+            ).returncode:
+                message = f"chore(integrate): merge main into {branch}"
+                _git(tree, "merge", "-q", "--no-ff", "-m", message, "main")
+                return
+    elif station == "release":
+        branch = _git(here, "branch", "--show-current")
+        tag = f"{branch.split('_')[0]}.0"
+        (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
+        _git(
+            here,
+            "mv",
+            f"openspec/changes/{change}",
+            f"openspec/changes/archive/{change}",
+        )
+        _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
+        _git(here, "tag", tag)
+        _git(
+            primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
+        )
+        _git(primary, "worktree", "remove", str(here))
+
+
+if __name__ == "__main__":
+    _fake(sys.argv[1])
