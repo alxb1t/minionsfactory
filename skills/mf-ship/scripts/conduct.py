@@ -31,10 +31,10 @@ import threading
 import time
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 TIMEOUT = 10800
+STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
 LOCK_SECONDS = 30
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
@@ -164,10 +164,15 @@ def primary_of(cwd: Path) -> Path:
     return common.parent
 
 
+def _root(cwd: Path) -> Path:
+    """Return the primary checkout of the repo holding `cwd`, or `cwd` outside one."""
+    common = _common_dir(cwd)
+    return common.parent if common else cwd.resolve()
+
+
 def run_dir(cwd: Path) -> Path:
     """Return `.minions/` beside the primary checkout, or in `cwd` outside a repo."""
-    common = _common_dir(cwd)
-    return common.parent / ".minions" if common else cwd.resolve() / ".minions"
+    return _root(cwd) / ".minions"
 
 
 def _frontmatter(text: str, key: str) -> str | None:
@@ -284,9 +289,9 @@ def find_version(primary: Path, change: str) -> Version | None:
     trees = _worktrees(primary)
     listing = _git(primary, "branch", "--list", "v*", "--format=%(refname:short)")
     for branch in listing.split():
-        if branch.endswith(f"_{slug}") and (held := _change_on(primary, branch)):
-            if held[0] == change:
-                return Version(change, branch, held[1], trees.get(branch))
+        held = _change_on(primary, branch) if branch.endswith(f"_{slug}") else None
+        if held and held[0] == change:
+            return Version(change, branch, held[1], trees.get(branch))
     return None
 
 
@@ -553,20 +558,17 @@ def _models(runs: Path, change: str, station: str) -> tuple[str | None, str | No
 
 def edit_root(cwd: Path) -> Path:
     """Return the directory a worker may edit: `Worktrees:`, resolved, else `cwd`."""
-    if (common := _common_dir(cwd)) is not None:
-        values = _agents_values(common.parent, "Worktrees")
-        if values:
-            return (common.parent / values[0]).resolve()
-    return cwd.resolve()
+    root = _root(cwd)
+    values = _agents_values(root, "Worktrees")
+    return (root / values[0]).resolve() if values else cwd.resolve()
 
 
-def allowlist(cwd: Path) -> tuple[list[str], list[str]]:
-    """Return the Claude worker's allowed and denied rules for `cwd`."""
-    common = _common_dir(cwd)
-    extra = _agents_values(common.parent if common else cwd, "Ship tools") or []
+def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
+    """Return the Claude worker's allowed and denied rules, editing inside `tree`."""
+    extra = _agents_values(_root(cwd), "Ship tools") or []
     allowed = [
         *TOOLS,
-        f"Edit(/{edit_root(cwd)}/**)",
+        f"Edit(/{tree}/**)",
         *(f"Bash({command}:*)" for command in (*COMMANDS, *extra)),
     ]
     return allowed, [f"Bash({command}:*)" for command in DENIED]
@@ -583,13 +585,14 @@ def argv(
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
     if executor == "claude":
-        allowed, denied = allowlist(cwd)
+        tree = edit_root(cwd)
+        allowed, denied = allowlist(cwd, tree)
         return [
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
-            *("--add-dir", str(edit_root(cwd))),
+            *("--add-dir", str(tree)),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     common = _common_dir(cwd)
@@ -663,23 +666,32 @@ def denials(log: Path) -> list[str]:
     """Return each tool use a worker's stream-json log shows denied."""
     uses: dict[str, str] = {}
     found: list[str] = []
-    for line in log.read_text(errors="replace").splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        message = event.get("message") if isinstance(event, dict) else None
-        content = message.get("content") if isinstance(message, dict) else None
-        for block in content if isinstance(content, list) else []:
-            if not isinstance(block, dict):
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"tool_use"' not in line and '"is_error"' not in line:
                 continue
-            if block.get("type") == "tool_use":
-                uses[str(block.get("id"))] = _call(block)
-            elif block.get("type") == "tool_result" and block.get("is_error"):
-                text = _text(block.get("content"))
-                if any(denial in text for denial in DENIALS):
-                    found.append(uses.get(str(block.get("tool_use_id")), text.strip()))
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            message = event.get("message") if isinstance(event, dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
+            for block in content if isinstance(content, list) else []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_use":
+                    uses[str(block.get("id"))] = _call(block)
+                elif block.get("type") == "tool_result" and block.get("is_error"):
+                    text = _text(block.get("content"))
+                    if any(denial in text for denial in DENIALS):
+                        use = uses.get(str(block.get("tool_use_id")))
+                        found.append(use or text.strip())
     return found
+
+
+def _executor_missing(executor: str) -> bool:
+    """Return whether neither `MF_SHIP_AGENT` nor the executor's CLI is there."""
+    return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
 
 
 def preconditions(cwd: Path, executor: str) -> Path:
@@ -696,7 +708,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
         raise Stop(2, "run: cannot run — the primary's tree is not clean")
     if not _agents_values(primary, "Worktrees"):
         raise Stop(2, "run: cannot run — AGENTS.md declares no **Worktrees:**")
-    if not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None:
+    if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
     if (primary / ".minions" / "runs" / "active").exists():
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
@@ -711,9 +723,7 @@ class Run:
         self.primary = primary
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
-        self.log = RunLog(self.runs, datetime.now().strftime("%Y%m%d-%H%M%S"))
-        self.stamp = self.log.stamp
-        self.halted = threading.Event()
+        self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.released: list[str] = []
         self.guard = threading.Lock()
@@ -722,20 +732,22 @@ class Run:
         """Record a halt; no new worker starts after it."""
         with self.guard:
             self.halts.append((who, reason))
-            self.halted.set()
 
-    def spawn(self, who: str, station: str, cwd: Path, prompt: str) -> list[str] | None:
+    def spawn(
+        self,
+        who: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str | None, str | None] = (None, None),
+    ) -> list[str] | None:
         """Run one worker and log it and its denials.
 
         Return the denials, or None when a timeout halted the run.
         """
-        model, effort = (
-            _models(self.primary / ".minions", who, station)
-            if who != "run"
-            else (None, None)
-        )
+        model, effort = models
         self.log.event(who, "spawn", f"{station} · model {model or 'default'}")
-        out = self.runs / self.stamp / f"{who}_{station}.log"
+        out = self.runs / self.log.stamp / f"{who}_{station}.log"
         started = time.monotonic()
         code, killed = work(argv(self.executor, prompt, cwd, model, effort), cwd, out)
         seconds = round(time.monotonic() - started)
@@ -765,7 +777,7 @@ class Run:
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt."""
         try:
-            while not self.halted.is_set():
+            while not self.halts:
                 stage, why = stage_of(self.primary, version)
                 if stage in HALTS:
                     self.halt(version.change, f"{stage} — {why}")
@@ -777,7 +789,8 @@ class Run:
                 if cwd is None:
                     self.halt(version.change, f"{version.branch} has no worktree")
                     return
-                denied = self.spawn(version.change, stage, cwd, prompt)
+                models = _models(self.primary / ".minions", version.change, stage)
+                denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
                 reason = check(self.primary, stage, version)
@@ -826,7 +839,7 @@ class Run:
                 self.halt(change, f"{stage} — {why}")
         else:
             self.probe()
-        if not self.halted.is_set():
+        if not self.halts:
             threads = [
                 threading.Thread(
                     target=self.advance, args=(version, ("integrate", "release"))
@@ -839,8 +852,6 @@ class Run:
             for thread in threads:
                 thread.join()
         for version in versions:
-            if self.halted.is_set():
-                break
             self.advance(version, ())
         for who, reason in self.halts:
             self.log.event(who, "halt", reason)
@@ -883,7 +894,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             conductor.log.event("run", "halt", f"conduct.py failed: {error}")
             code = 1
         ended = "done" if code == 0 else "halt"
-        print(f"run: {ended} · .minions/runs/{conductor.stamp}.md")
+        print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code
     finally:
         active.rmdir()
@@ -891,9 +902,9 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
 
 def agent(cwd: Path, executor: str, prompt: str) -> int:
     """Run one worker in `cwd` under the run's permissions; return its exit code."""
-    if not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None:
+    if _executor_missing(executor):
         raise Stop(2, f"agent: cannot run — {executor} is not on PATH")
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = time.strftime(STAMP)
     out = run_dir(cwd) / "runs" / f"agent-{stamp}.log"
     code, killed = work(argv(executor, prompt, cwd, None, None), cwd, out)
     for denied in denials(out):
@@ -957,16 +968,14 @@ def report(cwd: Path) -> str:
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
         return "report: none — no run yet"
-    events = [line for line in log.read_text().splitlines() if EVENT.match(line)]
-    touched = dict.fromkeys(
-        found[1]
-        for line in events
-        if (found := EVENT.match(line)) and found[1] != "run"
-    )
+    events = [
+        found for line in log.read_text().splitlines() if (found := EVENT.match(line))
+    ]
+    touched = dict.fromkeys(found[1] for found in events if found[1] != "run")
     denied: dict[str, list[str]] = {}
-    for line in events:
-        if (found := EVENT.match(line)) and found[2] == "denied":
-            call = line[found.end() :].split(" · ", 1)[-1]
+    for found in events:
+        if found[2] == "denied":
+            call = found.string[found.end() :].split(" · ", 1)[-1]
             denied.setdefault(found[1], []).append(call)
     lines = [f"run · denied {', '.join(denied['run'])}"] if "run" in denied else []
     for change in sorted(touched, key=lambda name: int(name.split("-")[0])):
@@ -974,9 +983,8 @@ def report(cwd: Path) -> str:
         if version is None:
             lines.append(f"{change} · no version branch")
             continue
-        pushed = (
-            _pushed(primary, version.tag) if _tagged(primary, version.tag) else False
-        )
+        tagged = _tagged(primary, version.tag)
+        pushed = _pushed(primary, version.tag) if tagged else False
         review = runs / "findings" / f"{change}_review.md"
         round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
         page = runs / "metrics" / f"{change}.html"
@@ -984,7 +992,7 @@ def report(cwd: Path) -> str:
             " · ".join(
                 [
                     change,
-                    version.tag if _tagged(primary, version.tag) else "no tag",
+                    version.tag if tagged else "no tag",
                     f"merge {_merge_commit(primary, version) or 'none'}",
                     {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
                     f"round {round_ or 'none'}",
@@ -996,7 +1004,7 @@ def report(cwd: Path) -> str:
                 ]
             )
         )
-    lines.append(events[-1] if events else f"{log.name}: no event")
+    lines.append(events[-1].string if events else f"{log.name}: no event")
     return "\n".join(lines)
 
 

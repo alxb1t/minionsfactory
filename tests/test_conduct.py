@@ -341,7 +341,7 @@ def test_run_ships_two_versions_in_cut_order(
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
-    log = sorted((root / ".minions" / "runs").glob("*.md"))[-1]
+    log = conduct["last_log"](root / ".minions" / "runs")
     assert (
         _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
     )
