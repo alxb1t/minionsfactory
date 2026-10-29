@@ -8,10 +8,10 @@ edits and commits are the fix station's.
 Load the owning [converge contract](../SKILL.md): Steps 3–7 and The card. It owns the card, severity anchors,
 repeat escalation, counters, reviewed head, verify transitions and red runs. Use it, not a format of your own.
 
-Inputs: base and head ids, the judged range, the patch path, the target's `AGENTS.md` and mandatory context,
-the change's proposal, design and tasks, this resource, your findings path, the backlog. A verify pass adds your
-findings file and the scoped fix range. Resolve this resource and the contract from the installed package. An
-input missing or unusable → halt, naming it. No remote or native review plugin is needed.
+Inputs: base and head ids, the judged range, the patch path, the target's `AGENTS.md`, its mandatory context and
+its root standards files, the change's proposal, design and tasks, this resource, your findings path, the backlog.
+A verify pass adds your findings file and the scoped fix range. Resolve this resource and the contract from the
+installed package. An input missing or unusable → halt, naming it. No remote or native review plugin is needed.
 
 ## Inspect and write
 

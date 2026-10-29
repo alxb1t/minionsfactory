@@ -34,4 +34,6 @@ What holds, and what was chosen.
 | [`openspec/specs/`](../openspec/specs/) | the living spec |
 | [`openspec/changes/`](../openspec/changes/) | the active change, and the archive |
 | [`CHANGELOG.md`](../CHANGELOG.md) | what shipped, per version |
+| [`CODING_STANDARDS.md`](../CODING_STANDARDS.md) | the rules this repo's code and docs follow |
+| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | how a change lands, and the evidence it carries |
 | [`AGENTS.md`](../AGENTS.md) | what is true of this repository: the gate, the layout, the guardrails |

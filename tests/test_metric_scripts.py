@@ -47,12 +47,14 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
             "docs/principles.md": "four  five",
             "docs/decisions.md": "six",
             "skills/mf-converge/SKILL.md": "seven eight nine ten",
+            "CODING_STANDARDS.md": "eleven",
+            "CONTRIBUTING.md": "twelve thirteen",
         },
     )
     reading_set = _load("reading_set")
 
-    assert reading_set.words(tmp_path, "shared") == 6
-    assert reading_set.words(tmp_path, "converge") == 10
+    assert reading_set.words(tmp_path, "shared") == 9
+    assert reading_set.words(tmp_path, "converge") == 13
 
 
 def test_rule_ids_are_counted_once(tmp_path: Path) -> None:
@@ -134,10 +136,11 @@ def test_broken_references_find_files_headings_and_ids(tmp_path: Path) -> None:
             "README.md": "D9 is a version here. [self](#top)\n\n# Top\n",
             "docs/a.md": "# Real heading\n\n### D1 · One\n\n```\n[x](no.md)\n```\n"
             "\n### `fixed` is a claim; only the checker writes `verified`\n",
+            "CONTRIBUTING.md": "[gone](nowhere.md)\n",
         },
     )
 
-    assert _load("references").broken(tmp_path) == 3
+    assert _load("references").broken(tmp_path) == 4
 
 
 def test_conformance_counts_trailers_amends_and_minions(tmp_path: Path) -> None:

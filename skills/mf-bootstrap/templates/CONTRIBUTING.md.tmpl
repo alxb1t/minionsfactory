@@ -1,0 +1,21 @@
+# Contributing to <name>
+
+How a change lands here, and the evidence it carries. Mandatory context, named by [AGENTS.md](AGENTS.md).
+
+## How a change lands
+
+Each version is one change, made with the MinionsFactory skills:
+
+```
+mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
+```
+
+`mf-converge` may be skipped; the release then says so.
+
+## The evidence a change carries
+
+- **Its change directory** under `openspec/changes/`: proposal, design, tasks and spec delta.
+- **Each `Verify:`**, run by the build before its box is ticked.
+- **A green `make gate`** at every phase's commit.
+- **A `Change: <change-id>` trailer** on every commit but the bootstrap's.
+- **The check loop's findings**, in `.minions/findings/`, when converge ran.

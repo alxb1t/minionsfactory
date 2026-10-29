@@ -214,18 +214,27 @@ def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     ]
 
 
-# A new repo starts under the rules for tests: the bootstrap's `AGENTS.md` states them.
-# Why: 0026-test-cost design B13.
+# A new repo starts under the rules for tests and reads its standards: the bootstrap's
+# `AGENTS.md` states the one and links the other.
+# Why: 0026-test-cost design B13; 0039-repository-standards design D5.
 _AGENTS_TEMPLATE = "skills/mf-bootstrap/templates/AGENTS.md.tmpl"
 _TEMPLATE_TESTS = "## Tests"
+_TEMPLATE_LINKS = ("(CODING_STANDARDS.md)", "(CONTRIBUTING.md)")
 
 
 def _template_tests_problems(base: Path) -> list[str]:
-    """Return a line when `base`'s bootstrap `AGENTS.md` template has no `## Tests`."""
-    lines = (base / _AGENTS_TEMPLATE).read_text().splitlines()
-    if _TEMPLATE_TESTS in lines:
-        return []
-    return [f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
+    """Return a line per missing `## Tests` or standards link in the template."""
+    text = (base / _AGENTS_TEMPLATE).read_text()
+    problems = (
+        []
+        if _TEMPLATE_TESTS in text.splitlines()
+        else [f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"]
+    )
+    return problems + [
+        f"{_AGENTS_TEMPLATE}: no link `{link}`"
+        for link in _TEMPLATE_LINKS
+        if link not in text
+    ]
 
 
 def test_the_bootstrap_holds_its_template_tests_section() -> None:
@@ -238,7 +247,9 @@ def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None
     (tmp_path / _AGENTS_TEMPLATE).write_text("# <name>\n\n### Tests\n")
 
     assert _template_tests_problems(tmp_path) == [
-        f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line"
+        f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line",
+        f"{_AGENTS_TEMPLATE}: no link `(CODING_STANDARDS.md)`",
+        f"{_AGENTS_TEMPLATE}: no link `(CONTRIBUTING.md)`",
     ]
 
 
@@ -248,7 +259,7 @@ def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None
 _TEMPLATES = "skills/mf-bootstrap/templates"
 _LAYOUT_ENTRY = re.compile(r"^[├└]── (\S+)")
 _RUN_OUTPUT = ".minions/"
-_ALSO_WRITTEN = ("CHANGELOG.md", "README.md")
+_ALSO_WRITTEN = ("CHANGELOG.md", "README.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 _VALIDATE = "openspec validate --all --strict --no-interactive"
 
 
@@ -314,8 +325,9 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     )
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "decisions.md").write_text(decisions)
-    # Templates with no `openspec/changes/`, `AGENTS.md` or `README.md`, a `.gitignore`
-    # that only mentions `.minions/` in a comment, and a gate that validates nothing.
+    # Templates with no `openspec/changes/`, `AGENTS.md`, `README.md` or standards
+    # files, a `.gitignore` that only mentions `.minions/` in a comment, and a gate
+    # that validates nothing.
     root = tmp_path / _TEMPLATES
     (root / "openspec" / "specs").mkdir(parents=True)
     (root / "openspec" / "specs" / ".gitkeep.tmpl").write_text("")
@@ -327,6 +339,8 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
         f"{_TEMPLATES}: no template under `openspec/changes/`",
         f"{_TEMPLATES}: no template for `AGENTS.md`",
         f"{_TEMPLATES}: no template for `README.md`",
+        f"{_TEMPLATES}: no template for `CODING_STANDARDS.md`",
+        f"{_TEMPLATES}: no template for `CONTRIBUTING.md`",
         f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
         f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",
     ]

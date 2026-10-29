@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45
+  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45
 ```
 
 ## The shape
@@ -238,7 +238,8 @@ What the skills need from a repository they work on.
 ### D18 · The contract with a target repo is a layout on disk
 
 **The skills need the layout below from a repo, and nothing else. `mf-bootstrap` writes it once into a new repo,
-`.minions/` as a `.gitignore` line, with `CHANGELOG.md` and `README.md`; the stations install nothing
+`.minions/` as a `.gitignore` line, with `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md` and `CONTRIBUTING.md`
+([D46](#d46--a-repos-own-rules-live-in-its-coding-standards-and-contribution-guide)); the stations install nothing
 ([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 
 ```
@@ -258,6 +259,17 @@ What the skills need from a repository they work on.
 - **Why:** what travels between repos is a layout a reader can find, not a tool.
 - **Held in step by:** the layout scan in `tests/test_skills.py`: every entry of the tree has a template in
   `skills/mf-bootstrap/templates/`.
+
+### D46 · A repo's own rules live in its coding standards and contribution guide
+
+**`CODING_STANDARDS.md` holds a repo's coding rules, `CONTRIBUTING.md` how a change lands and the evidence it
+carries; `AGENTS.md` names both mandatory context. `mf-build`'s rules are the portable default: a project rule that
+names one replaces it. `mf-bootstrap` writes both; an existing repo adopts them by hand, and the build and converge
+read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` its `AGENTS.md` does not name.**
+
+- **Why:** a rule needs one home every station reads; where none is written, an agent invents one.
+- **Rejected:** one combined file · the rules in `AGENTS.md` · a precedence between the coding filenames ·
+  migrating existing repos.
 
 ## Repo conventions
 

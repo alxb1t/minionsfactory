@@ -9,8 +9,10 @@ description: Build the active in-repo change phase by phase — one phase at a t
 > do **not** review, converge or release your own work: `mf-converge` conducts the end-of-change loop and
 > `mf-release` finalizes.
 
-Before work, read root `AGENTS.md` — the gate, the conventions and seams, the guardrails — and the mandatory
-context it names: what is *true* of the repository, not a script. The change itself is authoritative. Missing root `AGENTS.md` → **halt**, naming it.
+Before work, read root `AGENTS.md` — the gate, the conventions and seams, the guardrails — the mandatory context it
+names, and a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name: what is *true*
+of the repository, not a script. The change itself is authoritative. Missing root `AGENTS.md` → **halt**, naming
+it. A contradiction between those files that decides a phase's code → **halt**, naming both.
 
 ```
   1 lift
@@ -292,12 +294,13 @@ comments next to it — never a whole file unasked; a task that says "rewrite X"
 
 ## Rules for code comments
 
-`C` covers the comments and docstrings a phase writes; each rule carries an example.
+`C` covers the comments and docstrings a phase writes; each rule carries an example. A rule in the repo's coding
+standards that names a `C` rule replaces it.
 
 | id | rule | example / why |
 |---|---|---|
-| **C1** | **Say why, not what** — the code says what; the comment says why it is this way | `# run before the fold: archiving first leaves markers pointing at nothing` |
-| **C2** | **Comment the surprise only** — a workaround, an ordering constraint, a non-obvious invariant; never restate the line | delete `# increment the counter` |
+| **C1** | **No explanatory comment** — names, types, structure and tests say what code does; a comment is one of `C2`'s exceptions | delete `# increment the counter`; rename `n` to `retries` |
+| **C2** | **The exceptions only** — a short why or a pointer for a constraint code cannot express, a contract or required docstring (`C3`), a tool directive or header | `# why: 0011 design D1` · `# noqa: E501` · `#!/usr/bin/env python3` |
 | **C3** | **A docstring's first line is one imperative sentence** saying what the caller gets | `"""Return the ids in the contract section, in order."""` |
 | **C4** | **Short, simple, terse** — `P1`…`P3` apply | "use", not "leverage" |
 | **C5** | **No history** — no "used to", "was changed in v0.8", "previously"; history is git and CHANGELOG | isekai: *"the comment above `PINNED` states the rule, never its history"* |

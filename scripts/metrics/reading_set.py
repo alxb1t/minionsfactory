@@ -10,7 +10,13 @@ Why: 0030-change-impact design D7.
 import sys
 from pathlib import Path
 
-SHARED = ("AGENTS.md", "docs/principles.md", "docs/decisions.md")
+SHARED = (
+    "AGENTS.md",
+    "docs/principles.md",
+    "docs/decisions.md",
+    "CODING_STANDARDS.md",
+    "CONTRIBUTING.md",
+)
 SETS = {"shared": SHARED, "converge": (*SHARED, "skills/mf-converge/SKILL.md")}
 
 
