@@ -84,7 +84,7 @@ merges in the primary.
 
 ```
 <container>/
-├── main/              the primary checkout, on the default branch; .minions/ lives here
+├── <repo>/            the primary checkout, named after the repository, on the default branch; .minions/ lives here
 ├── v0.33_<slug>/      a version's worktree, made by mf-cut-change
 └── v0.34_<slug>/      another, built side by side
 ```
@@ -92,11 +92,11 @@ merges in the primary.
 MF declares `Worktrees: ../`, which names the folder holding its checkout. Move it into a container before the next
 cut:
 
-1. Move the checkout to `<container>/main` through a temporary name, since the container takes the checkout's
-   name: `mv <repo> <repo>.tmp && mkdir <repo> && mv <repo>.tmp <repo>/main`.
-2. Rebuild the environment from `<container>/main`, since `.venv` records the old path:
+1. Move the checkout to `<container>/<repo>` through a temporary name, since the container takes the checkout's
+   name: `mv <repo> <repo>.tmp && mkdir <repo> && mv <repo>.tmp <repo>/<repo>`.
+2. Rebuild the environment from `<container>/<repo>`, since `.venv` records the old path:
    `rm -rf .venv && uv sync --locked`.
-3. Re-link the skills from `<container>/main`, since the symlinks still point at the old path:
+3. Re-link the skills from `<container>/<repo>`, since the symlinks still point at the old path:
    `make install-skills SKILLS_DIR=$HOME/.claude/skills`, naming the host's skills directory.
 4. Update the planning side's path to the repo.
 

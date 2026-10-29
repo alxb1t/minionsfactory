@@ -364,13 +364,14 @@ self-check item cannot be met. An edit after the commit SHALL be a further commi
 ancestor of `HEAD`, naming the merge-in: `/mf-integrate`, then converge's catch-up round when converge ran, then the release
 again. The default branch SHALL be the one `git symbolic-ref --short
 refs/remotes/origin/HEAD` names after `origin/`, or `main`. It SHALL, after the tag, ask the person once whether to
-merge and push. On yes it SHALL halt when the default branch is not an ancestor of the branch, naming the person's
+merge and push. When the release runs in a linked worktree other than the primary, that one ask SHALL name the
+worktree and the ignored paths it holds, listed by name without reading file contents. On yes it SHALL halt when the
+default branch is not an ancestor of the branch, naming the person's
 recovery — the tag deleted and the release commit reset, by the person — then merge with `--no-ff` in the worktree
 that holds the default branch, halting when that worktree's tree is not clean, check that the merged tree equals the
-branch's, and push the default branch and the tag to `origin`. After the merge it SHALL remove the version's linked
-worktree, keeping its branch, only after a successful ignored-path check finds no ignored local files; otherwise
-it SHALL retain the worktree and report cleanup skipped without reading file contents. A worktree that refuses
-removal is reported, not forced. It SHALL never force a push, never push
+branch's, and push the default branch and the tag to `origin`. After the merge it SHALL remove the worktree the ask
+named, without `--force`, keeping its branch. A listing that fails SHALL be named in the ask, and the worktree
+retained. A worktree that refuses removal is reported, not forced. It SHALL never force a push, never push
 the version branch, and SHALL merge without pushing when there is no `origin`. On anything but yes it SHALL print
 the commands and stop.
 
@@ -393,11 +394,14 @@ the commands and stop.
 #### Scenario: A release run in a linked worktree
 - **WHEN** the version branch is checked out in a linked worktree and the primary holds the default branch
 - **THEN** the release merges in the primary, never switching branches in the version's worktree
-- **AND** it removes the version's worktree after the merge when no ignored local files remain, the branch kept
+- **AND** it removes the version's worktree after the merge, the branch kept
 
 #### Scenario: A version's worktree contains ignored local files
-- **WHEN** the merge succeeds and the version's worktree contains ignored local files
-- **THEN** the release retains the worktree and reports cleanup skipped without reading their contents
+- **WHEN** the version's worktree holds ignored paths, such as `.venv/` and the test caches
+- **THEN** the ask names each path without reading its contents, and on yes the release removes the worktree with
+  them, without `--force`
+- **AND WHEN** the listing fails
+- **THEN** the ask names the failure, and the release retains the worktree
 
 ### Requirement: A HUMAN phase is handed over as a checklist of commands
 

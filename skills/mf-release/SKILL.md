@@ -211,7 +211,15 @@ binding check covers it, and a gate without one gives a separate step nothing to
 The **primary** is the worktree `git worktree list --porcelain` shows on `branch refs/heads/<default-branch>`, or
 this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
-Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6.
+Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6. In a
+linked worktree, ask the form below instead.
+
+When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
+ignored paths by name, never reading a file:
+`git -C <this worktree> ls-files --others --ignored --exclude-standard --directory`. Then ask
+`Merge <branch> into <default-branch> and push? The worktree <this worktree> goes too, with: <the listed paths>
+(yes/no)`, the `with:` part dropped when nothing is listed. A listing that fails → ask
+`… and push? The worktree <this worktree> stays: its ignored paths could not be listed. (yes/no)`.
 
 On yes, in order. A failure is a **halt**: report the error and the commands still to run.
 
@@ -231,10 +239,9 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 5. **Push, from the primary:** `git -C <primary> push origin <default-branch>`, then
    `git -C <primary> push origin <tag>`. A rejected push halts; the default branch stays merged locally. Never
    pull, never `--force`, never push the version branch.
-6. **Remove the version's worktree**, when this checkout is a linked worktree other than the primary:
-   inspect `git -C <this worktree> ls-files --others --ignored --exclude-standard` without reading file contents.
-   Any ignored path, or a failed check → retain the worktree and report cleanup skipped; otherwise
-   `git -C <primary> worktree remove <this worktree>`, keeping the branch. A refusal is reported, never forced.
+6. **Remove the version's worktree**, when the ask said it goes: `git -C <primary> worktree remove
+   <this worktree>`, keeping the branch; git deletes the ignored paths the ask named. A refusal is reported, never
+   forced.
 
 ## Step 6 — Close: report, and stop
 
@@ -252,7 +259,7 @@ and the push, or that there is no `origin`. A preamble flagged for a hand-edit (
 on.
 
 The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
-when Step 5.6 ran. With no merge:
+when Step 5.6 removed the worktree. With no merge:
 
     Next: merge and push — release <tag> is on branch <branch>:
       git -C <primary> switch <default-branch>
