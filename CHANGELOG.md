@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-29
+
+Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)
+
 - `mf-build` and `mf-converge` read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` that
   `AGENTS.md` does not name; a contradiction between them halts the build or is a `drift` card. `C1` now forbids
   an explanatory comment, `C2` names the exceptions, and a project rule naming a `C` rule replaces it (change

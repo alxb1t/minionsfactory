@@ -22,7 +22,7 @@ wheels = [
 
 [[package]]
 name = "minions-factory"
-version = "0.33.1"
+version = "0.34.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
