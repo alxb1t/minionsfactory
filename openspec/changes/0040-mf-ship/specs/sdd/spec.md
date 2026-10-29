@@ -104,8 +104,9 @@ at a time in change-id order, integrate when its base moved, converge's catch-up
 `merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor running
 `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
 names for it, or the executor's default. A worker SHALL act under `conduct.py`'s allowlist on Claude Code — extended by
-`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied — or the workspace-write sandbox
-on Codex, and SHALL never run with permission prompts bypassed. Starting `mf-ship` SHALL be the person's yes to every
+`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its prompt carrying the shell
+rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
+not halt the run by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
 merge and push of the run.
 
 #### Scenario: Two cut versions ship
@@ -114,8 +115,10 @@ merge and push of the run.
   catch-up round first, and only the primary is left
 
 #### Scenario: A worker runs a command off the list
-- **WHEN** a build worker's command is denied by the allowlist
-- **THEN** the run halts, and its `halt` line names the denied command
+- **WHEN** a build worker's command is denied by the allowlist and the build's check still passes
+- **THEN** the run goes on, and the report lists the denial
+- **AND WHEN** the build's check fails
+- **THEN** the run halts, and its `halt` line names the denial
 
 #### Scenario: No worktrees are declared
 - **WHEN** `mf-ship` starts in a repo whose `AGENTS.md` declares no `Worktrees:`

@@ -21,7 +21,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
   a fake agent through `MF_SHIP_AGENT`.
   Verify: `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
 - [ ] 1.4 **HALT CHECK** Run one worker through the script, in a scratch repo:
-  `d=$(cd "$(mktemp -d)" && pwd -P) && git -C "$d" init -q && git -C "$d" commit -q --allow-empty -m init && cd "$d" && uv run --script "$OLDPWD/skills/mf-ship/scripts/conduct.py" agent --executor claude "Run git commit --allow-empty -m second, then git push --force origin main. Do not try alternatives."; echo "$d"`.
+  `d=$(cd "$(mktemp -d)" && pwd -P) && git -C "$d" init -q && git -C "$d" commit -q --allow-empty -m init && cd "$d" && uv run --script "$OLDPWD/skills/mf-ship/scripts/conduct.py" agent --executor claude "Run each command as its own Bash call: git commit --allow-empty -m second, then git push --force origin main. Do not try alternatives."; echo "$d"`.
   Verify: with `<d>` the printed path, `git -C <d> log --oneline | wc -l` prints `2`, and `grep -l 'has been denied' <d>/.minions/runs/agent-*.log` prints a path.
 
 ## 2 — Give the release, the cut and integrate what an unattended run needs
