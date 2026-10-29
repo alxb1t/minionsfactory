@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and cut bullets; the reading-set and broken-references metrics count and check them (change
   `0039-repository-standards`, phase 3).
 
+- A scratch bootstrap from this branch wrote and linked both standards files on a green gate, and halted on an
+  existing `CODE_STANDARDS.md` with nothing written (change `0039-repository-standards`, phase 4).
+
 ## [0.33.0] - 2026-10-28
 
 Gate: local 0m26s · CI 0m17s (CI at 6e5dcc5) · 0.32.0: local 0m22s · CI 0m19s (CI at aa85c14)

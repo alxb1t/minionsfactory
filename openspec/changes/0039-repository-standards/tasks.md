@@ -8,7 +8,7 @@ word.
 - [x] 1 — Read the standards in the build and converge
 - [x] 2 — Write the standards in the bootstrap
 - [x] 3 — Adopt the standards in MF
-- [ ] 4 — Bootstrap a scratch repo **HUMAN**
+- [x] 4 — Bootstrap a scratch repo **HUMAN**
 
 ## 1 — Read the standards in the build and converge
 
@@ -53,11 +53,11 @@ word.
 
 The installed skills are `main`'s, so the scratch runs use this branch's bootstrap by path.
 
-- [ ] 4.1 In this worktree, print the paths:
+- [x] 4.1 In this worktree, print the paths:
   `echo "WT=$(git rev-parse --show-toplevel)"; A=$(mktemp -d)/scratch_a; B=$(mktemp -d)/scratch_b; mkdir "$A" "$B"; touch "$B/CODE_STANDARDS.md"; echo "A=$A B=$B"`.
   Verify: `ls -A "$B"` prints `CODE_STANDARDS.md`.
-- [ ] 4.2 Open a fresh agent session in `$A` and prompt `Run the skill at $WT/skills/mf-bootstrap/SKILL.md here.`,
+- [x] 4.2 Open a fresh agent session in `$A` and prompt `Run the skill at $WT/skills/mf-bootstrap/SKILL.md here.`,
   with `$WT` the printed value.
   Verify: `ls "$A/CODING_STANDARDS.md" "$A/CONTRIBUTING.md"` lists both, `make -C "$A" gate` exits 0, `git -C "$A" log --oneline | wc -l` prints `1`, and `grep -c '(CODING_STANDARDS.md)' "$A/AGENTS.md"` prints `1`.
-- [ ] 4.3 Open a fresh agent session in `$B` and prompt the same.
+- [x] 4.3 Open a fresh agent session in `$B` and prompt the same.
   Verify: the session halts naming `CODE_STANDARDS.md`, and `ls -A "$B"` prints only `CODE_STANDARDS.md`.
