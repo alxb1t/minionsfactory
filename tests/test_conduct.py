@@ -493,6 +493,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
 
+    assert conduct["PROMPTS"]["converge"].format(change="0001-todo") == (
+        "Run the mf-converge skill for change 0001-todo. Use the generic review and"
+        " security engines: the person chose them for this run by starting mf-ship."
+    )
+
     fake("deny")
     assert argv("claude", "Do it.", root, None, None) == [
         sys.executable,

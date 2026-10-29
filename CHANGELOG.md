@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rm`, refused outside the tree. A run log takes `-2`, `-3`, … when its name is taken, and `report` reads the newest
   (change `0040-mf-ship`, phase 1, reopened).
 
+- Starting `mf-ship` chooses converge's generic review and security engines, so an unattended run needs no remote;
+  `conduct.py`'s converge prompt, D47 and the station say so (change `0040-mf-ship`, phase 1, reopened).
+
 ## [0.34.0] - 2026-10-29
 
 Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)

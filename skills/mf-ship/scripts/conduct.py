@@ -59,7 +59,11 @@ DENIED = (
 DENIALS = ("has been denied", "needs approval")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
-    "converge": "Run the mf-converge skill for change {change}.",
+    "converge": (
+        "Run the mf-converge skill for change {change}."
+        " Use the generic review and security engines:"
+        " the person chose them for this run by starting mf-ship."
+    ),
     "integrate": "Run the mf-integrate skill.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
 }

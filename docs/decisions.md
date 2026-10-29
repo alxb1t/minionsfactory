@@ -407,7 +407,8 @@ merge open, gates, and commits the merge; converge's catch-up judges the merge b
 then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
 agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
 prompts bypassed, and is judged by a check on disk; the first failed check halts the run, and a re-run resumes from
-disk.**
+disk. Starting it chooses converge's engines: converge runs the generic review and security engines, which need no
+remote.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
