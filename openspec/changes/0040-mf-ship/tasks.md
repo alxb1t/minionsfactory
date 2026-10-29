@@ -5,7 +5,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 ## Progress
 
-- [x] 1 — Write the ship script
+- [ ] 1 — Write the ship script
 - [x] 2 — Give the release, the cut and integrate what an unattended run needs
 - [x] 3 — Write the ship station and record it
 - [ ] 4 — Ship the probe **HUMAN · METERED**
@@ -24,6 +24,10 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
   `<c>/p` declaring `Worktrees: ../`, a worktree `<c>/wt`:
   `c=$(cd "$(mktemp -d)" && pwd -P) && git init -q "$c/p" && printf -- '- **Worktrees:** `../`\n' > "$c/p/AGENTS.md" && git -C "$c/p" add AGENTS.md && git -C "$c/p" commit -q -m init && git -C "$c/p" worktree add -q -b wt "$c/wt" && cd "$c/wt" && uv run --script "$OLDPWD/skills/mf-ship/scripts/conduct.py" agent --executor claude "Run each command as its own Bash call: git commit --allow-empty -m second, then git push --force origin main, then write the word ok to $c/p/.minions/probe.txt. Do not try alternatives."; echo "$c"`.
   Verify: with `<c>` the printed path, `git -C <c>/wt log --oneline | wc -l` prints `2`, `cat <c>/p/.minions/probe.txt` prints `ok`, and `grep -l 'has been denied' <c>/p/.minions/runs/agent-*.log` prints a path.
+- [ ] 1.5 Give converge's prompt in `skills/mf-ship/scripts/conduct.py` the generic engines, per [D2](design.md#d2), with a step asserting it in
+  `test_a_worker_carries_the_allowlist_and_a_denial_is_named`; name them in D47 of `docs/decisions.md` and in Step 3's `Say once:` of
+  `skills/mf-ship/SKILL.md`: `converge runs the generic review and security engines`.
+  Verify: `grep -c 'Use the generic review and security engines' skills/mf-ship/scripts/conduct.py` prints `1`, `grep -c 'generic review and security engines' docs/decisions.md skills/mf-ship/SKILL.md` prints `1` for each file, and `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
 
 ## 2 — Give the release, the cut and integrate what an unattended run needs
 

@@ -107,7 +107,7 @@ names for it, or the executor's default. A worker SHALL act under `conduct.py`'s
 `AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its shell reaching the directory
 `Worktrees:` names and nothing outside it, its prompt carrying the shell rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
 not halt the run by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
-merge and push of the run.
+merge and push of the run, and their choice of converge's generic review and security engines.
 
 #### Scenario: Two cut versions ship
 - **WHEN** two versions are cut, each in its own worktree, and `mf-ship` runs to the end
