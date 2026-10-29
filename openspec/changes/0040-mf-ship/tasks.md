@@ -5,7 +5,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 ## Progress
 
-- [x] 1 — Write the ship script
+- [ ] 1 — Write the ship script
 - [x] 2 — Give the release, the cut and integrate what an unattended run needs
 - [x] 3 — Write the ship station and record it
 - [ ] 4 — Ship the probe **HUMAN · METERED**
@@ -14,15 +14,16 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 - [x] 1.1 **HALT CHECK** Run [D1](design.md#d1)'s check in a scratch directory.
   Verify: its `cat probe.txt` prints `ok`.
-- [x] 1.2 Write `skills/mf-ship/scripts/conduct.py` per [D2](design.md#d2): its commands, the stage table, the
+- [ ] 1.2 Write `skills/mf-ship/scripts/conduct.py` per [D2](design.md#d2): its commands, the stage table, the
   checks, the loop, the workers, the run log and the report.
   Verify: `uv run --script skills/mf-ship/scripts/conduct.py --help` exits 0, and `uv run --script skills/mf-ship/scripts/conduct.py --help | grep -c 'status,check,log,run,agent,report'` prints `1`.
-- [x] 1.3 Write `tests/test_conduct.py` with the tests [Tests](design.md#tests) names, each over `tmp_path` repos and
+- [ ] 1.3 Write `tests/test_conduct.py` with the tests [Tests](design.md#tests) names, each over `tmp_path` repos and
   a fake agent through `MF_SHIP_AGENT`.
   Verify: `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
-- [x] 1.4 **HALT CHECK** Run one worker through the script, in a scratch repo:
-  `d=$(cd "$(mktemp -d)" && pwd -P) && git -C "$d" init -q && git -C "$d" commit -q --allow-empty -m init && cd "$d" && uv run --script "$OLDPWD/skills/mf-ship/scripts/conduct.py" agent --executor claude "Run each command as its own Bash call: git commit --allow-empty -m second, then git push --force origin main. Do not try alternatives."; echo "$d"`.
-  Verify: with `<d>` the printed path, `git -C <d> log --oneline | wc -l` prints `2`, and `grep -l 'has been denied' <d>/.minions/runs/agent-*.log` prints a path.
+- [ ] 1.4 **HALT CHECK** Run one worker through the script from a worktree of a scratch container, `<c>`: a primary
+  `<c>/p` declaring `Worktrees: ../`, a worktree `<c>/wt`:
+  `c=$(cd "$(mktemp -d)" && pwd -P) && git init -q "$c/p" && printf -- '- **Worktrees:** `../`\n' > "$c/p/AGENTS.md" && git -C "$c/p" add AGENTS.md && git -C "$c/p" commit -q -m init && git -C "$c/p" worktree add -q -b wt "$c/wt" && cd "$c/wt" && uv run --script "$OLDPWD/skills/mf-ship/scripts/conduct.py" agent --executor claude "Run each command as its own Bash call: git commit --allow-empty -m second, then git push --force origin main, then write the word ok to $c/p/.minions/probe.txt. Do not try alternatives."; echo "$c"`.
+  Verify: with `<c>` the printed path, `git -C <c>/wt log --oneline | wc -l` prints `2`, `cat <c>/p/.minions/probe.txt` prints `ok`, and `grep -l 'has been denied' <c>/p/.minions/runs/agent-*.log` prints a path.
 
 ## 2 — Give the release, the cut and integrate what an unattended run needs
 
@@ -63,7 +64,7 @@ primary before any `cd`.
 - [ ] 4.3 Make the probe: `mkdir -p ../mf_ship_probe/mf_ship_probe && cd ../mf_ship_probe/mf_ship_probe && uv run --script "$C" agent --executor claude "Run the mf-bootstrap skill."`.
   Verify: `grep -c '^bootstrap commits: 1$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
 - [ ] 4.4 Write [D9](design.md#d9)'s prep edits in `../mf_ship_probe/mf_ship_probe`, then
-  `git -C ../mf_ship_probe/mf_ship_probe add Makefile AGENTS.md tests/test_smoke.py && git -C ../mf_ship_probe/mf_ship_probe commit -m "chore: a unittest gate and worktrees"`.
+  `git -C ../mf_ship_probe/mf_ship_probe add .gitignore Makefile AGENTS.md tests/test_smoke.py && git -C ../mf_ship_probe/mf_ship_probe commit -m "chore: a unittest gate and worktrees"`.
   Verify: `grep -c '^prep gate: exit 0$' openspec/changes/0040-mf-ship/evidence/probe_run.md` prints `1`.
 - [ ] 4.5 Write [D9](design.md#d9)'s briefs to `../mf_ship_probe/briefs/todo.md` and `../mf_ship_probe/briefs/marks.md`;
   then, in `../mf_ship_probe/mf_ship_probe`, `uv run --script "$C" agent --executor claude "Run the mf-cut-change skill: 0001-todo v0.1 brief=../briefs/todo.md"`

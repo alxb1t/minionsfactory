@@ -104,8 +104,8 @@ at a time in change-id order, integrate when its base moved, converge's catch-up
 `merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor running
 `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
 names for it, or the executor's default. A worker SHALL act under `conduct.py`'s allowlist on Claude Code — extended by
-`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its prompt carrying the shell
-rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
+`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its shell reaching the directory
+`Worktrees:` names and nothing outside it, its prompt carrying the shell rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
 not halt the run by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
 merge and push of the run.
 

@@ -15,6 +15,7 @@ Premises were re-checked on `main` at `c8136be` (v0.34.0) before the cut.
 | The build's first HALT CHECK (2026-10-29): a headless `claude -p` subagent ran, and its write was denied — no permission flag | [D1](#d1) and [D2](#d2) carry the allowlist (the brief's Q23–Q31) |
 | The second HALT CHECK, and a probe at the amend (2026-10-29): `--allowedTools` is variadic and swallows a prompt after it; `Write(path)` rules are ignored, `Edit(path)` covers every file tool; an absolute path needs `//`, symlink-resolved; `Bash(git:*)` allows `git commit`, the deny `Bash(git push --force:*)` wins (`Permission to use Bash with command git push --force origin main has been denied.`), a command off the list is refused (`… needs approval …`); `Skill` and `Agent` are the tool names | [D1](#d1)'s command, [D2](#d2)'s argv, list and denial strings |
 | The third HALT CHECK (1.4) and a probe after it (2026-10-29): a compound command with a denied part is denied whole; a denial exits `0`; Claude Code's own guard refuses `$(…)`, shell variables, loops and `cd` before git whatever the list allows; redirects, pipes, `2>&1`, `git -C` and `pwd` pass; `cp`, `mv`, `touch` off the list are refused | [D2](#d2)'s shell rules, its added commands, and a denial reported, not halted on (the brief's Q32–Q35) |
+| The phase-4 probe run and two probes after it (2026-10-29): a worker's shell commands are confined to its working directories — `ls` and `cat` of the primary's `.minions/` from a worktree were refused while an `Edit` rule let a write through; `--add-dir <container>` lifts it; with `Bash(rm:*)`, `rm` inside the container ran and `rm`, `rm -rf` outside it were refused (`needs approval. The path is outside the working directories`); the probe's `.gitignore` lacked `__pycache__/`; git fails under x86 binaries on this machine (`xcrun` architecture) | [D2](#d2)'s `--add-dir` and `rm`, [D9](#d9)'s prep (the brief's Q36–Q40) |
 | Release Step 5 asks once (`skills/mf-release/SKILL.md:214-222`); its Never: "merge or push without the person's yes in this session" (`:274`); a hand-edit flag is for the human (`:133-134`, `:258-259`); Step 6's sentences name no worktree outcome (`:255-259`, `0038·N1`) | [D3](#d3) |
 | The cut's suggestion "stays in chat" (`skills/mf-cut-change/SKILL.md:246-247`); its Never: "into the change, or into any file" (`:280`) | [D4](#d4) |
 | Integrate's red gate halts with the merge open and no marker (`skills/mf-integrate/SKILL.md:109-110`); Step 2's table reads `MERGE_HEAD` with no note as an interrupted run (`:69`); Step 4.4 deletes the note (`:120`) | [D5](#d5) |
@@ -126,7 +127,7 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 
 | executor | argv |
 |---|---|
-| `claude` | `claude -p <prompt> [--model <m>] [--effort <e>] --output-format stream-json --verbose --allowedTools <allowed> --disallowedTools <denied>` — the prompt first: both list flags are variadic |
+| `claude` | `claude -p <prompt> [--model <m>] [--effort <e>] --output-format stream-json --verbose --add-dir <tree> --allowedTools <allowed> --disallowedTools <denied>` — the prompt first: `--add-dir` and both list flags are variadic |
 | `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -s workspace-write -c 'sandbox_workspace_write.writable_roots=["<run dir>","<git common dir>"]' -c sandbox_workspace_write.network_access=true -C <cwd> <prompt>` |
 | `MF_SHIP_AGENT` set | `$MF_SHIP_AGENT <prompt>` — the injectable worker the tests use |
 
@@ -142,15 +143,16 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 
 | list | holds |
 |---|---|
-| allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(/<tree>/**)` — it covers every file-editing tool, and its leading `/` makes the absolute path `//`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, `cp`, `mv`, `touch`, `basename`, `dirname`, `readlink`, `tr`, `cut`, and each command `AGENTS.md`'s `Ship tools:` line names |
+| allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(/<tree>/**)` — it covers every file-editing tool, and its leading `/` makes the absolute path `//`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, `cp`, `mv`, `touch`, `basename`, `dirname`, `readlink`, `tr`, `cut`, `rm`, and each command `AGENTS.md`'s `Ship tools:` line names |
 | denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)` — deny wins over allow |
 | Codex | `-s workspace-write`, the run directory and git's common directory writable, the network on |
 
 `<tree>` is the directory `AGENTS.md`'s `Worktrees:` names, resolved from the primary — it holds the primary and
 every version's worktree, since the cut writes into a new worktree and integrate into a version's; with no
 `Worktrees:` (an `agent` call before a repo exists), the cwd. Every path is absolute and symlink-resolved (`Path.resolve()`) at run time. `Ship tools:` is an optional `AGENTS.md` line, `- **Ship tools:** \`npm\`, \`pnpm\``, read with
-`\*\*Ship tools:\*\*`; MF declares none. Off the list: `rm` — stations use `git rm`; `xargs` — it would run any
-command; `cd` — Claude Code refuses it before git whatever the list says, and the stations use `git -C`.
+`\*\*Ship tools:\*\*`; MF declares none. `--add-dir <tree>` lets a worker's shell reach the run directory and the other worktrees; outside `<tree>` the shell's
+file commands, `rm` among them, are refused. Code — `python3`, a `make` recipe — is not confined. Off the list:
+`xargs` — it would run any command; `cd` — Claude Code refuses it before git whatever the list says, and the stations use `git -C`.
 
 **A denial does not halt; the check decides.** Each denial — a `tool_result` with `is_error` holding `has been denied`
 or `needs approval` in the worker's stream-json log — is logged as a `denied` event, named from its `tool_use`, and
@@ -169,7 +171,8 @@ Each worker runs in its own process group (`start_new_session=True`), stdout and
 `.minions/runs/<stamp>/<change-id>_<station>.log`; past 3 hours (`TIMEOUT = 10800`) the group is killed and the run
 halts.
 
-**The run log** is `.minions/runs/<stamp>.md`, `<stamp>` the start as `%Y%m%d-%H%M%S`. It opens `# Ship run
+**The run log** is `.minions/runs/<stamp>.md`, `<stamp>` the start as `%Y%m%d-%H%M%S`, `-2`, `-3`, … appended when
+the name is taken. It opens `# Ship run
 <stamp>`, then one line per event, appended under a lock (`mkdir .minions/runs/<stamp>.lock`, `rmdir` after):
 
 ```
@@ -364,6 +367,7 @@ disk.**
           self.assertTrue(True)
   ```
 
+- `.gitignore`, a line `__pycache__/`: the gate's `unittest` writes it, and a station's check needs a clean tree.
 - `AGENTS.md`, at its end:
 
   ```markdown
@@ -459,7 +463,7 @@ that reads the prompt and does on disk what that station would (ticks boxes, wri
 | `test_run_halts_on_a_timeout` | a worker past a shortened `TIMEOUT` is killed; the run halts |
 | `test_a_rerun_resumes_from_disk` | after a halt is handled, finished stations do not run again |
 | `test_run_refuses_without_worktrees_declared` | exit 2, no worker started |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended; each denial string in a log becomes a `denied` event, a passing check
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `--add-dir` the resolved tree, `Bash(rm:*)` allowed, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended; each denial string in a log becomes a `denied` event, a passing check
 still passes, and a failing check's `halt` names the denial |
 
 The HALT CHECK, task 1.4's probe and the phase-4 run spend model tokens and stay outside the gate.
