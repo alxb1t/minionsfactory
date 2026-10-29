@@ -7,7 +7,7 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 - [x] 1 — Write the ship script
 - [x] 2 — Give the release, the cut and integrate what an unattended run needs
-- [ ] 3 — Write the ship station and record it
+- [x] 3 — Write the ship station and record it
 - [ ] 4 — Ship the probe **HUMAN · METERED**
 
 ## 1 — Write the ship script
@@ -37,14 +37,14 @@ word; `conduct.py` and `SKILL.md` follow [D2](design.md#d2) and [D6](design.md#d
 
 ## 3 — Write the ship station and record it
 
-- [ ] 3.1 Write `skills/mf-ship/SKILL.md` per [D6](design.md#d6).
+- [x] 3.1 Write `skills/mf-ship/SKILL.md` per [D6](design.md#d6).
   Verify: `grep -c '^name: mf-ship$' skills/mf-ship/SKILL.md` prints `1`, and `grep -c 'scripts/conduct.py' skills/mf-ship/SKILL.md` prints at least `1`.
-- [ ] 3.2 Add the `mf-ship` pair to `_METRICS_SCRIPTS` in `tests/test_skills.py`, and its line to both expected lists
+- [x] 3.2 Add the `mf-ship` pair to `_METRICS_SCRIPTS` in `tests/test_skills.py`, and its line to both expected lists
   of `test_the_metrics_script_scan_reports_a_missing_script`, per [D6](design.md#d6).
   Verify: `grep -c '("mf-ship", "scripts/conduct.py")' tests/test_skills.py` prints `1`, and `uv run pytest -q tests/test_skills.py -k metrics_script` reports `2 passed`.
-- [ ] 3.3 Amend D3 and add D47 after D45 in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 3.3 Amend D3 and add D47 after D45 in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -c '^### D47 · ' docs/decisions.md` prints `1`, `grep -c 'No station is reimplemented' docs/decisions.md` prints `1`, and `uv run --script scripts/metrics/references.py` prints `0`.
-- [ ] 3.4 Edit `README.md`, `AGENTS.md`, `CONTRIBUTING.md` and `docs/README.md`, per [D8](design.md#d8).
+- [x] 3.4 Edit `README.md`, `AGENTS.md`, `CONTRIBUTING.md` and `docs/README.md`, per [D8](design.md#d8).
   Verify: `grep -c 'skills/mf-ship/SKILL.md' README.md` prints `1`, `grep -c 'designed, not built' README.md` prints `0`, `grep -c 'mf-ship' AGENTS.md CONTRIBUTING.md` prints `1` for each file, and `grep -c 'the bundled scripts' docs/README.md` prints `1`.
 
 ## 4 — Ship the probe **HUMAN · METERED**

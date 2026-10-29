@@ -9,8 +9,8 @@ another way is a [decision](decisions.md).
 - **Station** — one role in the line, with one job: cut, build, review, security, fix, release.
 - **Change** — the unit of work and of release: a directory under `openspec/changes/` holding its proposal,
   design, tasks and spec delta.
-- **Conductor** — whoever dispatches stations and reads their results from disk: a person, or `mf-converge` for
-  the check loop.
+- **Conductor** — whoever dispatches stations and reads their results from disk: a person, `mf-converge` for
+  the check loop, or `mf-ship`'s script for a whole run.
 - **Checker** — a station that judges and edits nothing but its own findings file: review, security.
 - **Findings file** — a checker's one output, `.minions/findings/<change-id>_<role>.md`, its verdict in the
   frontmatter.

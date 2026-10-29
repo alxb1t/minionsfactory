@@ -26,9 +26,9 @@ skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies 
 
 ## Layout — where things live here
 
-- **`skills/`** — the `mf-*` skills, one `SKILL.md` each: plan, bootstrap, cut, build, converge, release, and
-  `mf-integrate`, which merges a moved base into the next version. Tracked here and installed by symlink
-  (`make install-skills`).
+- **`skills/`** — the `mf-*` skills, one `SKILL.md` each: plan, bootstrap, cut, build, converge, release,
+  `mf-integrate`, which merges a moved base into the next version, and `mf-ship`, which takes cut versions to the
+  default branch unattended. Tracked here and installed by symlink (`make install-skills`).
 - **`docs/`** — the map, the principles, the decisions.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not
   pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.

@@ -9,7 +9,7 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security
 
-   conducted by a person today · by an LLM conductor held by scripts: designed, not built
+   conducted by a person, or by mf-ship: a script that starts each station as a fresh agent process
 ```
 
 Executors load the skills with their own syntax. Convergence needs fresh observable workers with shared-disk
@@ -28,7 +28,7 @@ What holds, and what was chosen.
 
 | where | holds |
 |---|---|
-| [`skills/`](../skills/) | station instructions, bundled generic role references and the bundled metrics script; Claude Code retains native engines |
+| [`skills/`](../skills/) | station instructions, bundled generic role references and the bundled scripts; Claude Code retains native engines |
 | [`metrics/`](../metrics/) | MF's metrics catalogue and the data file each release records |
 | [`scripts/metrics/`](../scripts/metrics/) | the metric scripts the catalogue names |
 | [`openspec/specs/`](../openspec/specs/) | the living spec |

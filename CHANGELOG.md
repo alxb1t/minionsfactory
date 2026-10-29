@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integrate's red gate leaves `.minions/integrate/<change-id>.red`. D17 and D41 say so (change `0040-mf-ship`,
   phase 2).
 
+- `mf-ship` starts `conduct.py` detached from the primary and reports its runs; D3 and the docs name it, and D47
+  records it (change `0040-mf-ship`, phase 3).
+
 ## [0.34.0] - 2026-10-29
 
 Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)

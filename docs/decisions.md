@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45
+  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
 ```
 
 ## The shape
@@ -38,12 +38,11 @@ copied into the target ([D43](#d43--project-health-is-measured-per-change-from-t
 
 ### D3 · One line of stations, conducted by a person or by an LLM
 
-**The stations are the skills. A person conducts them today; an LLM conductor, held by deterministic checks, is
-designed to run the same skills unattended. There is no third way to run the line.**
+**The stations are the skills. A person conducts them, or `mf-ship`'s script starts each as a fresh agent process
+and checks it from disk (D47). No station is reimplemented: there is no third way to run the line.**
 
 - **Why:** one source for what a station does. A second implementation of every station drifts from the first.
-- **Rejected:** a deterministic runner: no judgement for a thin brief, and a second copy of every station as a role
-  prompt.
+- **Rejected:** a runner that reimplements the stations · an LLM session waiting on long-running stations.
 
 ### D4 · This repo's own gate is Python on uv
 
@@ -401,3 +400,16 @@ merge open, gates, and commits the merge; converge's catch-up judges the merge b
   read, and what the merge decided is exactly what review must see.
 - **Rejected:** `merge=union` — it drops a blank line and hides the result from the remerge-diff · rebasing a judged
   branch · resolving silently against either design.
+
+### D47 · `mf-ship` takes cut versions to the default branch unattended
+
+**Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
+then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
+agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
+prompts bypassed, and is judged by a check on disk; the first failed check halts the run, and a re-run resumes from
+disk.**
+
+- **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
+  commands.
+- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
+  bypass permission prompts: the list blocks what is off it, though `make`, `uv` and `python3` still run any code.
