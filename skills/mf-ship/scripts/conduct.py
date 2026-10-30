@@ -66,11 +66,7 @@ FORCED = (
 DENIALS = ("has been denied", "needs approval")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
-    "converge": (
-        "Run the mf-converge skill for change {change}."
-        " Use the generic review and security engines:"
-        " the person chose them for this run by starting mf-ship."
-    ),
+    "converge": "Run the mf-converge skill for change {change}{tier}.",
     "integrate": "Run the mf-integrate skill.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
 }
@@ -547,26 +543,39 @@ class RunLog:
             self.lock.rmdir()
 
 
+def _table(runs: Path, change: str, name: str) -> dict[str, object]:
+    """Return a table of the cut's models file; no file or no table is empty."""
+    path = runs / "models" / f"{change}.toml"
+    if not path.is_file():
+        return {}
+    try:
+        data = tomllib.loads(path.read_text())
+    except tomllib.TOMLDecodeError as error:
+        raise Stop(1, f"conduct: halt — models/{path.name}: {error}") from None
+    table = data.get(name)
+    return table if isinstance(table, dict) else {}
+
+
 def _models(runs: Path, change: str, station: str) -> tuple[str | None, str | None]:
     """Return the station's model and effort from the cut's models file, or Nones.
 
     Integrate uses the `[release]` table.
     """
-    path = runs / "models" / f"{change}.toml"
-    if not path.is_file():
-        return None, None
-    try:
-        data = tomllib.loads(path.read_text())
-    except tomllib.TOMLDecodeError as error:
-        raise Stop(1, f"conduct: halt — models/{path.name}: {error}") from None
-    table = data.get("release" if station == "integrate" else station)
-    if not isinstance(table, dict):
-        return None, None
+    table = _table(runs, change, "release" if station == "integrate" else station)
     model, effort = table.get("model"), table.get("effort")
     return (
         model if isinstance(model, str) else None,
         effort if isinstance(effort, str) else None,
     )
+
+
+def _tier(runs: Path, change: str) -> str:
+    """Return the converge prompt's tier clause, or "" when the cut set no tier.
+
+    e.g. `tier = "high"` under `[converge]` → " with tier=high"
+    """
+    tier = _table(runs, change, "converge").get("tier")
+    return f" with tier={tier}" if isinstance(tier, str) else ""
 
 
 def edit_root(cwd: Path) -> Path:
@@ -805,11 +814,13 @@ class Run:
                 if stage in stop_at:
                     return
                 cwd = self.primary if stage == "integrate" else version.tree
-                prompt = PROMPTS[stage].format(change=version.change)
+                runs = self.primary / ".minions"
+                tier = _tier(runs, version.change) if stage == "converge" else ""
+                prompt = PROMPTS[stage].format(change=version.change, tier=tier)
                 if cwd is None:
                     self.halt(version.change, f"{version.branch} has no worktree")
                     return
-                models = _models(self.primary / ".minions", version.change, stage)
+                models = _models(runs, version.change, stage)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return

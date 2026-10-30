@@ -6,7 +6,7 @@ design's, word for word.
 ## Progress
 
 - [x] 1 — Write the method
-- [ ] 2 — Run it at a tier
+- [x] 2 — Run it at a tier
 - [ ] 3 — Record it
 - [ ] 4 — Calibrate it
 
@@ -21,16 +21,16 @@ design's, word for word.
 
 ## 2 — Run it at a tier
 
-- [ ] 2.1 Replace *Executor and worker selection* and edit Step 3 in `skills/mf-converge/SKILL.md`, per
+- [x] 2.1 Replace *Executor and worker selection* and edit Step 3 in `skills/mf-converge/SKILL.md`, per
   [D4](design.md#d4).
   Verify: `grep -c '/code-review\|/security-review' skills/mf-converge/SKILL.md` prints `0`, and `grep -c '^## The tier and the workers' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 2.2 Add the frontmatter keys, the card's fields, the status-log details and Step 10's sentence in
+- [x] 2.2 Add the frontmatter keys, the card's fields, the status-log details and Step 10's sentence in
   `skills/mf-converge/SKILL.md`, per [D4](design.md#d4).
   Verify: `grep -c 'all fourteen keys' skills/mf-converge/SKILL.md` prints `1`, and `grep -c '^| \*\*Verdict\*\* |' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 2.3 Edit the release's close-out in `skills/mf-release/SKILL.md` and the cut's *Suggesting models* in
+- [x] 2.3 Edit the release's close-out in `skills/mf-release/SKILL.md` and the cut's *Suggesting models* in
   `skills/mf-cut-change/SKILL.md`, per [D5](design.md#d5) and [D6](design.md#d6).
   Verify: `grep -c 'converge tier' skills/mf-release/SKILL.md` prints `1`, and `grep -c '^tier = ' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 2.4 Give `skills/mf-ship/scripts/conduct.py` [D7](design.md#d7)'s converge prompt and `_tier()`, and change the
+- [x] 2.4 Give `skills/mf-ship/scripts/conduct.py` [D7](design.md#d7)'s converge prompt and `_tier()`, and change the
   prompt assertion and add the tier step in `tests/test_conduct.py`.
   Verify: `grep -c 'Use the generic review' skills/mf-ship/scripts/conduct.py` prints `0`, `grep -c 'def _tier' skills/mf-ship/scripts/conduct.py` prints `1`, and `uv run pytest -q tests/test_conduct.py` reports `10 passed`.
 

@@ -260,7 +260,8 @@ authorizes nothing.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
-`converge ran`, or `converge: skipped — no findings files`; the paid-down cards, or `backlog: none`; the metrics
+`converge ran`, or `converge: skipped — no findings files`; the converge tier and each `inconclusive` section, from
+the findings files' frontmatter and Summaries; the paid-down cards, or `backlog: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
 and the push, or that there is no `origin`; and the worktree removed, kept or refused. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.
