@@ -221,7 +221,9 @@ files. Give each:
   counts for a merge-aware [catch-up scope](#catch-up-scope);
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
-  it does not name, and the change's proposal, design and tasks under
+  it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
+  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design and
+  tasks under
   `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
 - its engine, per *Executor and worker selection*;
 - the card, from [`## The card`](#the-card) — every finding is a card;

@@ -9,7 +9,8 @@ Load the owning [converge contract](../SKILL.md): Steps 3–7 and The card. It o
 repeat escalation, counters, reviewed head, verify transitions and red runs. Use it, not a format of your own.
 
 Inputs: base and head ids, the judged range, the patch path, the target's `AGENTS.md`, its mandatory context and
-its root standards files, the change's proposal, design and tasks, this resource, your findings path, the backlog.
+its root standards files, architecture decisions and threat model, the change's proposal, design and tasks, this
+resource, your findings path, the backlog.
 A verify pass adds your findings file and the scoped fix range. Resolve this resource and the contract from the
 installed package. An input missing or unusable → halt, naming it. No remote or native review plugin is needed.
 
@@ -18,8 +19,9 @@ installed package. An input missing or unusable → halt, naming it. No remote o
 1. Resolve the range with git; for a merge-aware catch-up, independently reconstruct the owning contract's
    Catch-up scope, including its empty-resolution checks, and judge only its selected diffs. Read changed
    behaviour with surrounding source and tests.
-2. Trace inputs across authorization and trust boundaries. Inspect secret handling, personal-data exposure,
-   unsafe permissions, external effects, and relevant prompt or tool instructions.
+2. Read the target's threat model first, when there is one: what is worth protecting, its trust boundaries and
+   entry points. Trace inputs across those boundaries and across authorization. Inspect secret handling,
+   personal-data exposure, unsafe permissions, external effects, and relevant prompt or tool instructions.
 3. A finding needs a concrete trigger, a reachable defect and a harm; a list of categories is not one. Never
    copy a secret into a finding.
 4. Check backlog repeats; apply the anchored severity floors and the security tiers.

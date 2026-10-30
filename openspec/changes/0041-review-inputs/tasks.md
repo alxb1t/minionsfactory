@@ -5,18 +5,18 @@ word for word.
 
 ## Progress
 
-- [ ] 1 — Read the architecture decisions and the threat model
+- [x] 1 — Read the architecture decisions and the threat model
 - [ ] 2 — Write them in the bootstrap
 - [ ] 3 — Adopt the threat model in MF
 - [ ] 4 — Bootstrap a scratch repo through an agent
 
 ## 1 — Read the architecture decisions and the threat model
 
-- [ ] 1.1 Replace the context paragraph at `skills/mf-build/SKILL.md:12-15` with [D1](design.md#d1)'s after text.
+- [x] 1.1 Replace the context paragraph at `skills/mf-build/SKILL.md:12-15` with [D1](design.md#d1)'s after text.
   Verify: `grep -c 'THREAT_MODEL.md' skills/mf-build/SKILL.md` prints `1`, and `grep -c 'no task of the change amends' skills/mf-build/SKILL.md` prints `1`.
-- [ ] 1.2 Replace the context paragraph at `skills/mf-cut-change/SKILL.md:18-19` with [D1](design.md#d1)'s after text.
+- [x] 1.2 Replace the context paragraph at `skills/mf-cut-change/SKILL.md:18-19` with [D1](design.md#d1)'s after text.
   Verify: `grep -c 'THREAT_MODEL.md' skills/mf-cut-change/SKILL.md` prints `1`, and `grep -c 'design within the decisions in force' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 1.3 Apply [D1](design.md#d1) to Step 3's input line in `skills/mf-converge/SKILL.md`, and to
+- [x] 1.3 Apply [D1](design.md#d1) to Step 3's input line in `skills/mf-converge/SKILL.md`, and to
   `skills/mf-converge/references/generic-review.md` and `skills/mf-converge/references/generic-security.md`.
   Verify: `grep -c 'THREAT_MODEL.md' skills/mf-converge/SKILL.md` prints `1`, `grep -c 'architecture decisions and threat model' skills/mf-converge/references/generic-review.md skills/mf-converge/references/generic-security.md` prints `1` for each file, and `grep -c "Read the target's threat model first" skills/mf-converge/references/generic-security.md` prints `1`.
 
