@@ -147,7 +147,7 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 | list | holds |
 |---|---|
 | allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(/<tree>/**)` — it covers every file-editing tool, and its leading `/` makes the absolute path `//`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, `cp`, `mv`, `touch`, `basename`, `dirname`, `readlink`, `tr`, `cut`, `rm`, and each command `AGENTS.md`'s `Ship tools:` line names |
-| denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)`; and, for each of `push --force`, `push -f`, `push +`, `reset --hard`, `clean -`, `branch -D`, `tag -d` and `worktree remove --force`, the `git -C <dir>` and trailing-flag forms `Bash(git <sub> * <flag>*)`, `Bash(git * <sub> <flag>*)` and `Bash(git * <sub> * <flag>*)` — a prefix rule never matches `git -C <dir> reset --hard`, which the shell rules ask for. Deny wins over allow |
+| denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)`; and, for each of `push --force`, `push -f`, `push +`, `reset --hard`, `clean -`, `branch -D`, `tag -d`, `worktree remove --force` and `worktree remove -f`, the glob forms `Bash(git <sub> <flag>*)`, `Bash(git <sub> * <flag>*)`, `Bash(git * <sub> <flag>*)` and `Bash(git * <sub> * <flag>*)` — a `:*` rule matches `<prefix> *`, so never `git push --force-with-lease`, `git push -fu`, a trailing flag, or `git -C <dir> reset --hard`, which the shell rules ask for. Deny wins over allow |
 | Codex | `-s workspace-write`, the run directory, git's common directory and `<tree>` writable — integrate merges into a version's worktree, the release into the primary — the network on |
 
 `<tree>` is the directory `AGENTS.md`'s `Worktrees:` names, resolved from the primary — it holds the primary and
@@ -468,7 +468,7 @@ that reads the prompt and does on disk what that station would (ticks boxes, wri
 | `test_run_halts_on_a_timeout` | a worker past a shortened `TIMEOUT` is killed; the run halts |
 | `test_a_rerun_resumes_from_disk` | after a halt is handled, finished stations do not run again |
 | `test_run_refuses_without_worktrees_declared` | exit 2, no worker started |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `--add-dir` the resolved tree, `Bash(rm:*)` allowed, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended, each destructive `git -C` and trailing-flag form denied; each denial string in a log becomes a `denied` event on one line, a multi-line command folded, a passing check
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `--add-dir` the resolved tree, `Bash(rm:*)` allowed, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended, each destructive glued, `git -C` and trailing-flag form denied, `:*` read as ` *`; each denial string in a log becomes a `denied` event on one line, a multi-line command folded, a passing check
 still passes, and a failing check's `halt` names the denial |
 
 The HALT CHECK, task 1.4's probe and the phase-4 run spend model tokens and stay outside the gate.
@@ -486,7 +486,8 @@ None.
 - **Parallel builds share the machine** → MF's gate binds nothing; a target whose gate does is a later trigger.
 - **The glob deny forms are read from Claude Code's rule syntax, not probed on this machine** — only the prefix
   `Bash(git push --force:*)` was → `test_a_worker_carries_the_allowlist_and_a_denial_is_named` matches each
-  destructive form against the list as globs; the next metered run's denials are their check.
+  destructive form against the list as globs, `:*` read as ` *`; the next metered run's denials are their check.
+  A bundle with the flag not first, `git push -uf`, still passes: the list is a guardrail, not a parser.
 - **The Codex row is untested on this machine** → its flags are read from `codex exec --help`; phase 4 runs Claude only.
   The first Codex run is its check.
 

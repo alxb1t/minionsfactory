@@ -56,11 +56,12 @@ DENIED = (
     *("git push --force", "git push -f", "git reset --hard", "git clean"),
     *("git branch -D", "git tag -d", "git worktree remove --force"),
 )
-# Each (subcommand, flag) also denied in the `git -C <dir>` and trailing-flag forms,
-# which a prefix rule never matches.
+# Each (subcommand, flag) also denied as globs: a `:*` rule matches `<prefix> *`, so
+# never `--force-with-lease`, `-fu`, `git -C <dir> …` or a trailing flag.
 FORCED = (
     *(("push", "--force"), ("push", "-f"), ("push", "+"), ("reset", "--hard")),
     *(("clean", "-"), ("branch", "-D"), ("tag", "-d"), ("worktree remove", "--force")),
+    ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval")
 PROMPTS = {
@@ -585,7 +586,10 @@ def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
     ]
     denied = [f"Bash({command}:*)" for command in DENIED]
     for sub, flag in FORCED:
-        forms = (f"git {sub} * {flag}", f"git * {sub} {flag}", f"git * {sub} * {flag}")
+        forms = (
+            *(f"git {sub} {flag}", f"git {sub} * {flag}"),
+            *(f"git * {sub} {flag}", f"git * {sub} * {flag}"),
+        )
         denied += [f"Bash({form}*)" for form in forms]
     return allowed, denied
 

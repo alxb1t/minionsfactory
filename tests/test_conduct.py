@@ -528,12 +528,24 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert "Bash(git push --force:*)" in denied
 
     def refused(command: str) -> bool:
-        return any(
-            fnmatch.fnmatchcase(command, rule[5:-1].replace(":*", "*"))
-            for rule in denied
-        )
+        # Claude Code reads a trailing `:*` as ` *`, which also matches the bare prefix.
+        for rule in denied:
+            pattern = rule[5:-1]
+            if pattern.endswith(":*"):
+                pattern = pattern[:-2] + " *"
+            bare = pattern.endswith(" *") and pattern.count("*") == 1
+            if fnmatch.fnmatchcase(command, pattern) or (
+                bare and command == pattern[:-2]
+            ):
+                return True
+        return False
 
     for command in (
+        "git push --force-with-lease origin main",
+        "git push -fu origin main",
+        "git clean -fdx",
+        "git worktree remove -f /r/wt",
+        "git -C /r worktree remove -f /r/wt",
         "git -C /r reset --hard HEAD~1",
         "git -C /r clean -fdx",
         "git push origin main --force",
