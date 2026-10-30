@@ -39,12 +39,12 @@ word for word.
 
 [D7](design.md#d7)'s live run, from this worktree under the shell rules: no `cd`, no shell variables.
 
-- [ ] 4.1 Write `../mf_metrics_probe/review-metrics.toml` with a `python3` one-liner using `pathlib.Path.home()`: every
-  directory under `Developer/` up to four levels down that holds `.minions/findings/`, as `repos`, and
+- [ ] 4.1 Write `../mf_metrics_probe/review-metrics.toml` with a `python3` one-liner using `pathlib.Path.home()`: `repos` holds
+  `Path.home() / "Developer/tropicsamui.rent"` and `Path.home() / "Developer/AI_Engineering/isekai"`, as strings, and
   `out = "../mf_metrics_probe/page.html"`.
   Verify: `grep -c '^repos = ' ../mf_metrics_probe/review-metrics.toml` prints `1`.
 - [ ] 4.2 `uv run --script skills/mf-review-metrics/scripts/review_metrics.py --config ../mf_metrics_probe/review-metrics.toml`.
-  Verify: `grep -o '<section class="repo">' ../mf_metrics_probe/page.html | wc -l` prints at least `7`, and `grep -c '<script' ../mf_metrics_probe/page.html` prints `0`.
+  Verify: `grep -c '<section class="repo">' ../mf_metrics_probe/page.html` prints `2`, and `grep -c '<script' ../mf_metrics_probe/page.html` prints `0`.
 - [ ] 4.3 Write `openspec/changes/0045-review-metrics/evidence/live_run.md` in this worktree, no absolute path: `repos: <n> ·
   changes: <n> · lacked: <the fields with gaps, and their counts>` — the numbers the script printed.
   Verify: `grep -c '^repos: ' openspec/changes/0045-review-metrics/evidence/live_run.md` prints `1`.

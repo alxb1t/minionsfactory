@@ -139,12 +139,12 @@ then the per tier × model table it printed. No advice: the default tier is the 
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D7 | **The page**: a header (repos and changes read); per repo a `<section class="repo">` — its table (changes, median rounds, findings and blocking per change) and its charts over changes by `reviewed` (rounds, findings, blocking, duration, tokens); a table per tier × model (median rounds, findings and blocking per change, refuted share, median duration, median tokens); "what each repo lacked" — per field, the count of records with a gap. Text escaped; no script | Q4, Q6; D43's page rules | A JavaScript chart library |
+| D7 | **The page**: a header (repos and changes read); per repo a `<section class="repo">` opening its own line — its table (changes, median rounds, findings and blocking per change) and its charts over changes by `reviewed` (rounds, findings, blocking, duration, tokens); a table per tier × model (median rounds, findings and blocking per change, refuted share, median duration, median tokens); "what each repo lacked" — per field, the count of records with a gap. Text escaped; no script | Q4, Q6; D43's page rules | A JavaScript chart library |
 
-The live run, from this worktree: a `python3` one-liner using `pathlib.Path.home()` finds every directory under the
-home directory's `Developer/`, up to four levels down, holding `.minions/findings/`, and writes their paths and
-`out = "../mf_metrics_probe/page.html"` to `../mf_metrics_probe/review-metrics.toml`; the script runs with
-`--config` on it (Q12). The worker's shell is confined to the container; Python is not.
+The live run, from this worktree: a `python3` one-liner using `pathlib.Path.home()` writes the operator's two named repos —
+`Path.home() / "Developer/tropicsamui.rent"` and `Path.home() / "Developer/AI_Engineering/isekai"`, the two with the
+most findings — as `repos`, and `out = "../mf_metrics_probe/page.html"` to
+`../mf_metrics_probe/review-metrics.toml`; the script runs with `--config` on it (Q12). The worker's shell is confined to the container; Python is not.
 
 ## Tests
 
@@ -187,4 +187,4 @@ Each phase ends on a green gate. Nothing is irreversible; the probe is deleted a
 ## Verdict
 
 Ready to build. Acceptance: the script reads every era with gaps, draws the page through `chart()`, halts without a
-config; the principle and D50 record it; the live run's page holds a section per repo found.
+config; the principle and D50 record it; the live run's page holds a section for each of its two repos.
