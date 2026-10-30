@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-30
+
+Gate: local 0m44s · CI 0m19s (CI at c8136be) · 0.34.0: local 0m25s · CI 0m22s (CI at f60847b)
+
 - `skills/mf-ship/scripts/conduct.py` reads each open version's stage and each station's check from disk, and runs
   one agent process per station under an allowlist, denials logged; `tests/test_conduct.py` drives it with a fake
   agent (change `0040-mf-ship`, phase 1).
