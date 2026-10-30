@@ -15,8 +15,10 @@ description: Cut a new in-repo change from a settled grilling — create its ver
                  └── I1 … I16 ──────┘   the input contract, owned by mf-build
 ```
 
-Before work, read root `AGENTS.md` and the mandatory context it names: shared context, not your source.
-Missing root `AGENTS.md` → **halt**, naming it.
+Before work, read root `AGENTS.md`, the mandatory context it names, and the architecture decisions and threat model:
+the ones it names, else `docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present.
+They are shared context, not your source: design within the decisions in force. Missing root `AGENTS.md` → **halt**,
+naming it.
 
 ## Parameters
 

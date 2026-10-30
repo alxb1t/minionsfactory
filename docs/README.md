@@ -36,4 +36,5 @@ What holds, and what was chosen.
 | [`CHANGELOG.md`](../CHANGELOG.md) | what shipped, per version |
 | [`CODING_STANDARDS.md`](../CODING_STANDARDS.md) | the rules this repo's code and docs follow |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | how a change lands, and the evidence it carries |
+| [`THREAT_MODEL.md`](../THREAT_MODEL.md) | what a security review weighs MF's changes against |
 | [`AGENTS.md`](../AGENTS.md) | what is true of this repository: the gate, the layout, the guardrails |

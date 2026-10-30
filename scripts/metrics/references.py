@@ -15,7 +15,13 @@ from pathlib import Path
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 DECISION = re.compile(r"\bD(\d+)\b")
 HEADING = re.compile(r"^#+\s+(.*)$", re.MULTILINE)
-ROOT_DOCS = ("AGENTS.md", "README.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
+ROOT_DOCS = (
+    "AGENTS.md",
+    "README.md",
+    "CODING_STANDARDS.md",
+    "CONTRIBUTING.md",
+    "THREAT_MODEL.md",
+)
 
 
 def _unfenced(text: str) -> str:

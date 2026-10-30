@@ -10,7 +10,8 @@ severity anchors, repeats, counters, reviewed head, the stale-claim, test-cost a
 red runs. Use it, not a format of your own.
 
 Inputs: base and head ids, the judged range, the patch path, the target's `AGENTS.md`, its mandatory context and
-its root standards files, the change's proposal, design and tasks, this resource, your findings path, the backlog.
+its root standards files, architecture decisions and threat model, the change's proposal, design and tasks, this
+resource, your findings path, the backlog.
 A verify pass adds your findings file and the scoped fix range. Resolve this resource and the contract from the
 installed package. An input missing or unusable → halt, naming it. No remote or native review plugin is needed.
 
@@ -19,9 +20,9 @@ installed package. An input missing or unusable → halt, naming it. No remote o
 1. Resolve the range with git; for a merge-aware catch-up, independently reconstruct the owning contract's
    Catch-up scope, including its empty-resolution checks, and judge only its selected diffs. Read changed files
    with surrounding source, callers and tests.
-2. Check correctness, spec compliance, the target's standards files and test proofs; a contradiction between
-   standards files is a `drift` card. Trace a concrete trigger to its
-   consequence and cite the source on each card; skip speculative improvements.
+2. Check correctness, spec compliance, the target's standards files, its architecture decisions and test proofs;
+   a contradiction between standards files is a `drift` card. Trace a concrete trigger to its consequence and cite
+   the source on each card; skip speculative improvements.
 3. Run the contract's stale-claim, test-cost and coverage-trace passes (Step 3).
 4. Check backlog repeats; apply the anchored severity floors.
 5. Write the frontmatter, cards and a Summary with the resolved file and commit counts and the passes run. An

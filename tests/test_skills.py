@@ -219,7 +219,12 @@ def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
 # Why: 0026-test-cost design B13; 0039-repository-standards design D5.
 _AGENTS_TEMPLATE = "skills/mf-bootstrap/templates/AGENTS.md.tmpl"
 _TEMPLATE_TESTS = "## Tests"
-_TEMPLATE_LINKS = ("(CODING_STANDARDS.md)", "(CONTRIBUTING.md)")
+_TEMPLATE_LINKS = (
+    "(CODING_STANDARDS.md)",
+    "(CONTRIBUTING.md)",
+    "(docs/decisions.md)",
+    "(THREAT_MODEL.md)",
+)
 
 
 def _template_tests_problems(base: Path) -> list[str]:
@@ -250,6 +255,8 @@ def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None
         f"{_AGENTS_TEMPLATE}: no `{_TEMPLATE_TESTS}` line",
         f"{_AGENTS_TEMPLATE}: no link `(CODING_STANDARDS.md)`",
         f"{_AGENTS_TEMPLATE}: no link `(CONTRIBUTING.md)`",
+        f"{_AGENTS_TEMPLATE}: no link `(docs/decisions.md)`",
+        f"{_AGENTS_TEMPLATE}: no link `(THREAT_MODEL.md)`",
     ]
 
 
@@ -259,7 +266,14 @@ def test_the_template_tests_scan_reports_a_wrong_heading(tmp_path: Path) -> None
 _TEMPLATES = "skills/mf-bootstrap/templates"
 _LAYOUT_ENTRY = re.compile(r"^[├└]── (\S+)")
 _RUN_OUTPUT = ".minions/"
-_ALSO_WRITTEN = ("CHANGELOG.md", "README.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
+_ALSO_WRITTEN = (
+    "CHANGELOG.md",
+    "README.md",
+    "CODING_STANDARDS.md",
+    "CONTRIBUTING.md",
+    "THREAT_MODEL.md",
+    "docs/decisions.md",
+)
 _VALIDATE = "openspec validate --all --strict --no-interactive"
 
 
@@ -341,6 +355,8 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
         f"{_TEMPLATES}: no template for `README.md`",
         f"{_TEMPLATES}: no template for `CODING_STANDARDS.md`",
         f"{_TEMPLATES}: no template for `CONTRIBUTING.md`",
+        f"{_TEMPLATES}: no template for `THREAT_MODEL.md`",
+        f"{_TEMPLATES}: no template for `docs/decisions.md`",
         f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
         f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",
     ]
