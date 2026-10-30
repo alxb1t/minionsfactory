@@ -4,6 +4,7 @@ Real git in scratch repositories with linked worktrees; this file, run as a scri
 is the fake agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
+import fnmatch
 import json
 import os
 import re
@@ -156,6 +157,10 @@ def test_status_reads_each_stage_from_disk(
     assert stage_of(root, version)[1].startswith("red gate")
     _git(tree, "checkout", "--theirs", "moved.txt")
     _git(tree, "add", "moved.txt")
+    assert stage() == "0001-todo · v0.1_todo · integrating"
+    (marks / "0001-todo.red").unlink()
+    assert stage_of(root, version)[1].startswith("semantic conflict")
+    (marks / "0001-todo.md").unlink()
     assert stage() == "0001-todo · v0.1_todo · integrate"
     _git(tree, "merge", "--abort")
 
@@ -253,12 +258,17 @@ def test_each_check_passes_only_on_disk_evidence(
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     _git(scratch, "init", "-q")
-    _commit(scratch, {"Makefile": "gate:\n\ttrue\n"}, "init")
+    _commit(scratch, {"Makefile": "gate:\n\ttouch .gated\n"}, "init")
     assert check("probe", str(scratch)) == (
         1,
         "check: probe · fail — HEAD holds no probe.txt",
     )
     _commit(scratch, {"probe.txt": "ok\n"}, "probe")
+    assert check("probe", str(scratch)) == (
+        1,
+        "check: probe · fail — make gate left no .gated",
+    )
+    (scratch / ".gated").touch()
     assert check("probe", str(scratch)) == (0, "check: probe · pass")
 
 
@@ -514,9 +524,40 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert allowed[-2:] == ["Bash(npm:*)", "Bash(pnpm:*)"]
     assert {"Skill", "Agent", "Bash(git:*)", "Bash(cp:*)", "Bash(rm:*)"} <= set(allowed)
     assert not any(rule.startswith(("Write(", "Bash(cd:")) for rule in allowed)
-    assert "Bash(git push --force:*)" in claude[claude.index("--disallowedTools") + 1 :]
+    denied = claude[claude.index("--disallowedTools") + 1 :]
+    assert "Bash(git push --force:*)" in denied
+
+    def refused(command: str) -> bool:
+        return any(
+            fnmatch.fnmatchcase(command, rule[5:-1].replace(":*", "*"))
+            for rule in denied
+        )
+
+    for command in (
+        "git -C /r reset --hard HEAD~1",
+        "git -C /r clean -fdx",
+        "git push origin main --force",
+        "git push origin +main",
+        "git -C /r push --force origin main",
+        "git -C /r push origin main -f",
+        "git -C /r push origin +main",
+        "git -C /r push origin main --force-with-lease",
+        "git -C /r branch -D v0.1_todo",
+        "git -C /r tag -d v0.1.0",
+        "git -C /r worktree remove --force /r/wt",
+    ):
+        assert refused(command), command
+    for command in (
+        "git -C /r commit -m 'refactor: clean up the parser'",
+        "git -C /r push origin main",
+        "git -C /r push origin v0.1.0",
+        "git -C /r merge --no-ff -m 'Merge branch v0.1_todo' v0.1_todo",
+        "git -C /r worktree remove /r/wt",
+        "git -C /r branch -d v0.1_todo",
+    ):
+        assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None)
-    roots = json.dumps([str(root / ".minions"), str(root / ".git")])
+    roots = json.dumps([str(root / ".minions"), str(root / ".git"), str(container)])
     assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
@@ -526,7 +567,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         " security engines: the person chose them for this run by starting mf-ship."
     )
 
-    fake("deny")
+    fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None) == [
         sys.executable,
         __file__,
@@ -542,9 +583,15 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         line.endswith(" · 0001-todo · denied — build · Bash(rm -rf build)")
         for line in lines
     )
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert (
+        _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
+    )
     capsys.readouterr()
     _main(conduct, root, "report", monkeypatch=monkeypatch)
-    assert " · denied Bash(rm -rf build) · " in capsys.readouterr().out
+    assert (
+        ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
+    ) in capsys.readouterr().out
 
     fake("deny", "liar")
     other = tmp_path / "other"
@@ -581,7 +628,14 @@ def _fake(prompt: str) -> None:
             "is_error": True,
             "content": "Bash has been denied.",
         }
-        for block in (use, result):
+        blocks = [use, result]
+        if "heredoc" in modes:
+            command = 'git commit -m "$(cat <<EOF\nbuild\nEOF\n)"'
+            blocks += [
+                {**use, "id": "t2", "input": {"command": command}},
+                {**result, "tool_use_id": "t2"},
+            ]
+        for block in blocks:
             print(json.dumps({"message": {"content": [block]}}))
     if station == "build" and "sleep" in modes:
         time.sleep(60)
@@ -591,6 +645,7 @@ def _fake(prompt: str) -> None:
     primary = Path(common).parent
     if station == "probe":
         _commit(here, {"probe.txt": "ok\n"}, "probe")
+        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=True)
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
         _commit(

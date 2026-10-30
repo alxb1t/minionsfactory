@@ -85,7 +85,8 @@ Starting the run chooses converge's engines: converge runs the generic review an
 
 **Close-out:** at most three sentences — the last run's report, or that a run started and its log, the newest
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
-in full. The last line:
+in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate` commits the merge; until
+then a run halts on it again. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.
 

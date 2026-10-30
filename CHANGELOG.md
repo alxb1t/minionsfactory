@@ -27,8 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conduct.py`'s converge prompt, D47 and the station say so (change `0040-mf-ship`, phase 1, reopened).
 
 - `conduct.py`'s converge check fails on a status-log halt, and its integrate check names an open merge's note or
-  `.red`; a merge the person resolved and staged reads as a resumed `integrate` stage, not a halt (change
-  `0040-mf-ship`, phase 1, reopened).
+  `.red`; an open merge with a note or `.red` halts until `/mf-integrate` commits it, and one staged with neither
+  reads as a resumed `integrate` stage (change `0040-mf-ship`, phase 1, reopened).
 
 - The probe shipped: a bootstrapped repo with two cut versions went through `mf-ship` unattended to tags `v0.1.0`
   and `v0.2.0` on `main`, integrated once, its run log complete; `evidence/probe_run.md` records each check

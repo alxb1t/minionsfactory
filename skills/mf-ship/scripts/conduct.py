@@ -56,6 +56,12 @@ DENIED = (
     *("git push --force", "git push -f", "git reset --hard", "git clean"),
     *("git branch -D", "git tag -d", "git worktree remove --force"),
 )
+# Each (subcommand, flag) also denied in the `git -C <dir>` and trailing-flag forms,
+# which a prefix rule never matches.
+FORCED = (
+    *(("push", "--force"), ("push", "-f"), ("push", "+"), ("reset", "--hard")),
+    *(("clean", "-"), ("branch", "-D"), ("tag", "-d"), ("worktree remove", "--force")),
+)
 DENIALS = ("has been denied", "needs approval")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
@@ -365,14 +371,17 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     runs = primary / ".minions"
     change = version.change
     if _merge_open(tree):
-        if not _unmerged(tree):
-            return "integrate", "a merge is open and staged: integrate resumes it"
         marks = runs / "integrate"
         if (marks / f"{change}.red").is_file():
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
-        return "integrating", "interrupted: a merge is open with no note"
+        if _unmerged(tree):
+            return "integrating", "interrupted: a merge is open with no note"
+        return (
+            "integrate",
+            "a merge is open and staged, with no note: integrate resumes",
+        )
     if _subject(tree) == f"chore(release): {version.tag}" and _tagged(
         primary, version.tag
     ):
@@ -450,11 +459,13 @@ def _pushed(primary: Path, tag: str) -> bool | None:
 
 
 def check_probe(scratch: Path) -> str | None:
-    """Return why the probe check fails, or None."""
+    """Return why the probe check fails, or None; the scratch gate leaves `.gated`."""
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
-    return None if held.strip() == "ok" else f"probe.txt reads {held.strip()!r}"
+    if held.strip() != "ok":
+        return f"probe.txt reads {held.strip()!r}"
+    return None if (scratch / ".gated").is_file() else "make gate left no .gated"
 
 
 def check(primary: Path, stage: str, version: Version) -> str | None:
@@ -515,7 +526,8 @@ class RunLog:
         self.lock = runs / f"{self.stamp}.lock"
 
     def event(self, who: str, event: str, detail: str) -> None:
-        """Append `<HH:MM:SS> · <who> · <event> — <detail>`."""
+        """Append `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line."""
+        detail = " ".join(detail.split())
         deadline = time.monotonic() + LOCK_SECONDS
         while True:
             try:
@@ -571,7 +583,11 @@ def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
         f"Edit(/{tree}/**)",
         *(f"Bash({command}:*)" for command in (*COMMANDS, *extra)),
     ]
-    return allowed, [f"Bash({command}:*)" for command in DENIED]
+    denied = [f"Bash({command}:*)" for command in DENIED]
+    for sub, flag in FORCED:
+        forms = (f"git {sub} * {flag}", f"git * {sub} {flag}", f"git * {sub} * {flag}")
+        denied += [f"Bash({form}*)" for form in forms]
+    return allowed, denied
 
 
 def argv(
@@ -596,7 +612,7 @@ def argv(
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     common = _common_dir(cwd)
-    roots = [str(run_dir(cwd)), *([str(common)] if common else [])]
+    roots = [str(run_dir(cwd)), *([str(common)] if common else []), str(edit_root(cwd))]
     return [
         *("codex", "exec"),
         *(("-m", model) if model else ()),
@@ -807,8 +823,9 @@ class Run:
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         try:
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text("gate:\n\ttrue\n")
-            _git(scratch, "add", "Makefile")
+            (scratch / "Makefile").write_text("gate:\n\ttouch .gated\n")
+            (scratch / ".gitignore").write_text(".gated\n")
+            _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             denied = self.spawn("run", "probe", scratch, PROBE)
             if denied is not None:

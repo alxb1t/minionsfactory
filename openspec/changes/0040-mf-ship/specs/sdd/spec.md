@@ -156,5 +156,8 @@ and the run directory: a re-run derives every stage again and continues.
 - **THEN** each version continues from its stage on disk, and the finished stations do not run again
 
 #### Scenario: The person resolves a semantic conflict
-- **WHEN** integrate halted with the merge open, and the person resolves and stages every conflicted path
-- **THEN** a re-run of `mf-ship` resumes integrate, then the catch-up round and the release
+- **WHEN** integrate halted on a semantic conflict or a red gate, with the merge open and its note under
+  `.minions/integrate/`
+- **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
+- **AND WHEN** the person settles it and `/mf-integrate` commits the merge
+- **THEN** a re-run of `mf-ship` runs the catch-up round, then the release

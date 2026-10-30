@@ -78,8 +78,8 @@ number.
 
 | stage | when | the loop |
 |---|---|---|
-| `integrating` | `MERGE_HEAD` exists and `git diff --name-only --diff-filter=U` lists a path | halt: `.minions/integrate/<id>.red` → red gate; `.minions/integrate/<id>.md` → semantic conflict; neither → interrupted |
-| `integrate` (resumed) | `MERGE_HEAD` exists and no path is unmerged: the person resolved and staged it | `mf-integrate`, in the primary: it resumes at its Step 3.3 |
+| `integrating` | `MERGE_HEAD` exists, and `.minions/integrate/<id>.red` or `.minions/integrate/<id>.md` exists, or `git diff --name-only --diff-filter=U` lists a path | halt: `.red` → red gate; `.md` → semantic conflict; neither → interrupted. The person settles it and runs `/mf-integrate`, which commits the merge and deletes the note; until then a re-run halts again |
+| `integrate` (resumed) | `MERGE_HEAD` exists, no note or `.red`, and no path is unmerged | `mf-integrate`, in the primary: it resumes at its Step 3.2 |
 | `released` | `HEAD`'s subject is `chore(release): <tag>` and `<tag>` exists | halt: the release stopped before its merge |
 | `human` | the first unticked `## Progress` line of `tasks.md` holds `**HUMAN` | halt, naming the phase |
 | `build` | a `## Progress` box is unticked | `mf-build` |
@@ -99,7 +99,7 @@ is the catch-up round.
 | `converge` | the review and security files are both `verdict: clean` with `head:` equal to `HEAD`; the newest `## Run` of `.minions/findings/<id>_status_log.md` does not open on `· halt`; the tree clean |
 | `integrate` | `HEAD`'s subject is `chore(integrate): merge <default-branch> into <branch>`; no `MERGE_HEAD`; the default branch an ancestor of `HEAD`. With `MERGE_HEAD` open, the reason names it: `integrate halted — semantic conflict, see .minions/integrate/<id>.md`, or `— red gate` for `.red` |
 | `release` | the default branch contains the branch; `<tag>` exists; with an `origin`, `git ls-remote --tags origin <tag>` prints a line |
-| `probe` | the scratch repo's `HEAD` holds `probe.txt` reading `ok` |
+| `probe` | the scratch repo's `HEAD` holds `probe.txt` reading `ok`, and `.gated` exists: `make gate` ran |
 
 **The loop** (`run`):
 
@@ -119,8 +119,8 @@ preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes �
   `--git-common-dir`), on the default branch, `git status --porcelain` empty; root `AGENTS.md` holds a line matching
   `\*\*Worktrees:\*\*`; the executor's CLI is on `PATH`, unless `MF_SHIP_AGENT` is set; no `.minions/runs/active`.
   `mkdir .minions/runs/active` claims the run; it is removed at `halt` and at `done`.
-- **The probe** (Q11): a scratch repo under `tempfile.mkdtemp()` holding a `Makefile` whose `gate:` runs `true`,
-  one commit; the probe worker's prompt is `In this directory, write the word ok to probe.txt, commit it with the
+- **The probe** (Q11): a scratch repo under `tempfile.mkdtemp()` holding a `Makefile` whose `gate:` runs
+  `touch .gated` and a `.gitignore` naming `.gated`, one commit; the probe worker's prompt is `In this directory, write the word ok to probe.txt, commit it with the
   message probe, then run make gate.`
 - **A halt** — a failed check, a halt stage, a worker past its timeout — logs `halt`, starts no new worker, waits for
   the running ones, and exits 1. A halt never kills a worker that is still within its timeout.
@@ -131,7 +131,7 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 | executor | argv |
 |---|---|
 | `claude` | `claude -p <prompt> [--model <m>] [--effort <e>] --output-format stream-json --verbose --add-dir <tree> --allowedTools <allowed> --disallowedTools <denied>` — the prompt first: `--add-dir` and both list flags are variadic |
-| `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -s workspace-write -c 'sandbox_workspace_write.writable_roots=["<run dir>","<git common dir>"]' -c sandbox_workspace_write.network_access=true -C <cwd> <prompt>` |
+| `codex` | `codex exec [-m <m>] [-c model_reasoning_effort=<e>] -s workspace-write -c 'sandbox_workspace_write.writable_roots=["<run dir>","<git common dir>","<tree>"]' -c sandbox_workspace_write.network_access=true -C <cwd> <prompt>` |
 | `MF_SHIP_AGENT` set | `$MF_SHIP_AGENT <prompt>` — the injectable worker the tests use |
 
 | station | cwd | prompt |
@@ -147,8 +147,8 @@ integrate uses `[release]`; a missing file or table passes no flag, and the log 
 | list | holds |
 |---|---|
 | allowed (Claude) | `Read`, `Glob`, `Grep`, `Agent`, `Skill`; `Edit(/<tree>/**)` — it covers every file-editing tool, and its leading `/` makes the absolute path `//`; `Bash(<cmd>:*)` for `git`, `uv`, `make`, `python3`, `openspec`, `gh`, `grep`, `sed`, `awk`, `head`, `tail`, `cat`, `ls`, `wc`, `echo`, `mkdir`, `rmdir`, `date`, `test`, `diff`, `find`, `sort`, `mktemp`, `cp`, `mv`, `touch`, `basename`, `dirname`, `readlink`, `tr`, `cut`, `rm`, and each command `AGENTS.md`'s `Ship tools:` line names |
-| denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)` — deny wins over allow |
-| Codex | `-s workspace-write`, the run directory and git's common directory writable, the network on |
+| denied (Claude) | `Bash(git push --force:*)`, `Bash(git push -f:*)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, `Bash(git branch -D:*)`, `Bash(git tag -d:*)`, `Bash(git worktree remove --force:*)`; and, for each of `push --force`, `push -f`, `push +`, `reset --hard`, `clean -`, `branch -D`, `tag -d` and `worktree remove --force`, the `git -C <dir>` and trailing-flag forms `Bash(git <sub> * <flag>*)`, `Bash(git * <sub> <flag>*)` and `Bash(git * <sub> * <flag>*)` — a prefix rule never matches `git -C <dir> reset --hard`, which the shell rules ask for. Deny wins over allow |
+| Codex | `-s workspace-write`, the run directory, git's common directory and `<tree>` writable — integrate merges into a version's worktree, the release into the primary — the network on |
 
 `<tree>` is the directory `AGENTS.md`'s `Worktrees:` names, resolved from the primary — it holds the primary and
 every version's worktree, since the cut writes into a new worktree and integrate into a version's; with no
@@ -468,7 +468,7 @@ that reads the prompt and does on disk what that station would (ticks boxes, wri
 | `test_run_halts_on_a_timeout` | a worker past a shortened `TIMEOUT` is killed; the run halts |
 | `test_a_rerun_resumes_from_disk` | after a halt is handled, finished stations do not run again |
 | `test_run_refuses_without_worktrees_declared` | exit 2, no worker started |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `--add-dir` the resolved tree, `Bash(rm:*)` allowed, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended; each denial string in a log becomes a `denied` event, a passing check
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | the argv per executor — the prompt first, `--add-dir` the resolved tree, `Bash(rm:*)` allowed, `Edit(//…)` on a resolved path, no `Write(` — `Ship tools:` added, the shell rules appended, each destructive `git -C` and trailing-flag form denied; each denial string in a log becomes a `denied` event on one line, a multi-line command folded, a passing check
 still passes, and a failing check's `halt` names the denial |
 
 The HALT CHECK, task 1.4's probe and the phase-4 run spend model tokens and stay outside the gate.
@@ -484,6 +484,9 @@ None.
 - **A detached run outlives the session** → its log and `.minions/runs/active` show it; `/mf-ship` reports it.
 - **The installed skills are `main`'s during this build** → phase 4 points them at this worktree, then back.
 - **Parallel builds share the machine** → MF's gate binds nothing; a target whose gate does is a later trigger.
+- **The glob deny forms are read from Claude Code's rule syntax, not probed on this machine** — only the prefix
+  `Bash(git push --force:*)` was → `test_a_worker_carries_the_allowlist_and_a_denial_is_named` matches each
+  destructive form against the list as globs; the next metered run's denials are their check.
 - **The Codex row is untested on this machine** → its flags are read from `codex exec --help`; phase 4 runs Claude only.
   The first Codex run is its check.
 
