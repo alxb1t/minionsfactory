@@ -15,6 +15,8 @@ record is [`docs/README.md`](docs/README.md).
 [the coding standards](CODING_STANDARDS.md) and [the contribution guide](CONTRIBUTING.md): mandatory shared
 context.**
 
+**Before designing, building or reviewing — the cut, build and converge — also read [the threat model](THREAT_MODEL.md).**
+
 - **A patch** (`vX.Y.Z`) fixes what the line already does — backlog cards, a rule that misstates the behaviour, a
   defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.
 

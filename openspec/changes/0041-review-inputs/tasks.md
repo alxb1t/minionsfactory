@@ -7,7 +7,7 @@ word for word.
 
 - [x] 1 — Read the architecture decisions and the threat model
 - [x] 2 — Write them in the bootstrap
-- [ ] 3 — Adopt the threat model in MF
+- [x] 3 — Adopt the threat model in MF
 - [ ] 4 — Bootstrap a scratch repo through an agent
 
 ## 1 — Read the architecture decisions and the threat model
@@ -38,11 +38,11 @@ word for word.
 
 ## 3 — Adopt the threat model in MF
 
-- [ ] 3.1 Write `THREAT_MODEL.md` at the root, per [D4](design.md#d4).
+- [x] 3.1 Write `THREAT_MODEL.md` at the root, per [D4](design.md#d4).
   Verify: `wc -w < THREAT_MODEL.md` prints a number below `330`, and `grep -c '0040·S2' THREAT_MODEL.md` prints `1`.
-- [ ] 3.2 Add [D4](design.md#d4)'s sentence to `AGENTS.md` and its row to `docs/README.md`.
+- [x] 3.2 Add [D4](design.md#d4)'s sentence to `AGENTS.md` and its row to `docs/README.md`.
   Verify: `grep -c '(THREAT_MODEL.md)' AGENTS.md` prints `1`, and `grep -c '../THREAT_MODEL.md' docs/README.md` prints `1`.
-- [ ] 3.3 Add `THREAT_MODEL.md` to `scripts/metrics/reading_set.py` and `scripts/metrics/references.py`, and extend
+- [x] 3.3 Add `THREAT_MODEL.md` to `scripts/metrics/reading_set.py` and `scripts/metrics/references.py`, and extend
   their tests in `tests/test_metric_scripts.py`, per [D4](design.md#d4) and [D5](design.md#d5).
   Verify: `grep -c 'THREAT_MODEL.md' scripts/metrics/reading_set.py scripts/metrics/references.py` prints `1` for each file, `uv run pytest -q tests/test_metric_scripts.py` reports `8 passed`, and `uv run --script scripts/metrics/references.py` prints `0`.
 

@@ -17,7 +17,10 @@ SHARED = (
     "CODING_STANDARDS.md",
     "CONTRIBUTING.md",
 )
-SETS = {"shared": SHARED, "converge": (*SHARED, "skills/mf-converge/SKILL.md")}
+SETS = {
+    "shared": SHARED,
+    "converge": (*SHARED, "THREAT_MODEL.md", "skills/mf-converge/SKILL.md"),
+}
 
 
 def words(root: Path, name: str) -> int:
