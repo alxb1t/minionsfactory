@@ -5,18 +5,18 @@ design's, word for word.
 
 ## Progress
 
-- [ ] 1 — Write the method
+- [x] 1 — Write the method
 - [ ] 2 — Run it at a tier
 - [ ] 3 — Record it
 - [ ] 4 — Calibrate it
 
 ## 1 — Write the method
 
-- [ ] 1.1 Replace `skills/mf-converge/references/generic-review.md` with [D1](design.md#d1)'s text.
+- [x] 1.1 Replace `skills/mf-converge/references/generic-review.md` with [D1](design.md#d1)'s text.
   Verify: `grep -c '^## Inspect: one section each, in this order$' skills/mf-converge/references/generic-review.md` prints `1`, and `grep -c 'inconclusive' skills/mf-converge/references/generic-review.md` prints at least `2`.
-- [ ] 1.2 Replace `skills/mf-converge/references/generic-security.md` with [D2](design.md#d2)'s text.
+- [x] 1.2 Replace `skills/mf-converge/references/generic-security.md` with [D2](design.md#d2)'s text.
   Verify: `grep -c 'source → control → sink → boundary → counterevidence' skills/mf-converge/references/generic-security.md` prints `1`, and `grep -c '^\*\*Trust precedents\*\*' skills/mf-converge/references/generic-security.md` prints `1`.
-- [ ] 1.3 Write `skills/mf-converge/references/high-tier.md`, per [D3](design.md#d3).
+- [x] 1.3 Write `skills/mf-converge/references/high-tier.md`, per [D3](design.md#d3).
   Verify: `grep -c '^4\. \*\*Role writer\.\*\*' skills/mf-converge/references/high-tier.md` prints `1`.
 
 ## 2 — Run it at a tier

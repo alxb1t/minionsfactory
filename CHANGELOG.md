@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `generic-review.md` and `generic-security.md` become MF's method: the packet, the checklists, the finding bar,
+  `inconclusive` and `## Refuted`; `high-tier.md` describes the high tier's workers (change `0042-review-method`,
+  phase 1).
+
 ## [0.36.0] - 2026-10-30
 
 Gate: local 0m39s · CI 0m27s (CI at 2c138d2) · 0.35.0: local 0m44s · CI 0m19s (CI at c8136be)
