@@ -42,8 +42,8 @@ Every one holds, or **halt** naming the one that failed:
 - When the target is a repo, `git status --porcelain` prints nothing, and `git branch --show-current` is the
   default branch: the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or `main`
   when that command fails.
-- No collision: no `openspec/` directory, no `CODE_STANDARDS.md` or `ARCHITECTURE.md`, and no target
-  path the table marks *halt*, exists. Name every collision in one halt: adopting an existing repo is not this skill's job.
+- No collision: no `openspec/` directory, no `CODE_STANDARDS.md` or `ARCHITECTURE.md`, and no target path the
+  table marks *halt*, exists. Name every collision in one halt: adopting an existing repo is not this skill's job.
 
 ## Step 2 — Write
 
