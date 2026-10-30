@@ -79,7 +79,7 @@ lines.
 
 Say once: every worker acts under the script's allowlist (Claude Code) or the workspace-write sandbox (Codex),
 with no permission prompt. The list is a guardrail, not a containment: `make`, `uv` and `python3` run any code.
-Starting the run chooses converge's engines: converge runs the generic review and security engines.
+Converge runs MF's method at the tier the cut chose.
 
 ## Step 4 — Report, then stop
 

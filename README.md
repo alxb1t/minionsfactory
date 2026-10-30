@@ -42,10 +42,10 @@ make uninstall-skills    # remove the symlinks into this checkout
 
 ## Execution
 
-Claude Code uses native `/simplify`, `/code-review` and `/security-review`; a required missing command halts.
-Other and unidentified executors load the bundled generic roles. The host must support instruction loading and,
-for convergence, fresh subagents or fresh agent processes whose completion and findings the conductor can read.
-Generic workers may run sequentially over the same frozen head and need no remote review service.
+Claude Code uses native `/simplify`; review and security run MF's method on every host, at the `standard` or `high`
+tier. Other and unidentified executors load the bundled generic simplify. The host must support instruction loading
+and, for convergence, fresh subagents or fresh agent processes whose completion and findings the conductor can read.
+Workers may run sequentially over the same frozen head and need no remote review service.
 
 Use each host's syntax to load the `mf-*` instructions. The editor, provider and model do not identify the
 executor: Codex through Zed ACP, Zed's native agent and a Claude model through OpenRouter take the generic path.

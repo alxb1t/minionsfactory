@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38                   D11…D17, D40, D43
+       D5…D10, D38                   D11…D17, D40, D43, D49
 
   The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
 ```
@@ -128,14 +128,15 @@ What happens between the last phase and the tag.
 
 ### D11 · Engines follow the executor
 
-**Claude Code invokes native `/code-review`, `/security-review` and `/simplify`, keeping their scope and
-restrictions. Other and unidentified executors load the bundled generic roles. The station reports the route
-from executor evidence; model, provider and editor names do not select it.**
+**Review and security run MF's method from the bundled references on every executor. Claude Code keeps native
+`/simplify`; other and unidentified executors load generic simplify. The station reports the route from executor
+evidence; model, provider and editor names do not select it.**
 
-- **Why:** native engines stay useful while the instruction package travels between capable hosts.
-- **Accepts:** a missing required native command halts; switching that run to generic needs explicit user choice.
-  Native `/security-review` needs a remote; generic security judges the explicit range without one.
-- **Rejected:** silent native fallback, provider routing and a new review-plugin dependency.
+- **Why:** one review method runs on Claude, Codex or any capable host, so a review is comparable across them;
+  native `/simplify` stays useful where it exists.
+- **Accepts:** a missing native `/simplify` halts; switching that run to generic needs explicit user choice.
+- **Rejected:** native review engines in production — host-bound and costly; the person runs them by hand to compare
+  · silent native fallback · provider routing.
 
 ### D12 · Review, security and simplify are kept apart
 
@@ -211,11 +212,22 @@ commit.**
 
 **A checker or verification worker is a new host subagent or fresh agent process receiving explicit task inputs,
 without the build transcript. The conductor dispatches, waits and reads findings from shared disk; role identity
-persists in that file. Claude Code keeps parallel dispatch; generic workers may run sequentially on one freeze.**
+persists in that file. Dispatch prefers parallel; workers may run sequentially on one freeze.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
+
+### D49 · One review method, two depths
+
+**Converge runs MF's method at `tier=standard` — one fresh worker per role, from a packet given up front — or at
+`tier=high` — per role, finders, a verifier per candidate, a gap sweep and a writer, all dispatched by converge.
+`standard` is the default; the cut suggests `high` for changes to authentication, the gate, migrations, CI or the
+review machinery. Both write the review and security files, recording the tier.**
+
+- **Why:** most changes need a cheap review of the obvious; a few need many independent readers. The same
+  checklist and finding bar at both depths keep the results comparable.
+- **Rejected:** native review in production · `high` as the default · a third findings file · nested fan-out.
 
 ### D43 · Project health is measured per change, from the repo's own catalogue
 
@@ -420,8 +432,7 @@ merge open, gates, and commits the merge; converge's catch-up judges the merge b
 then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
 agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
 prompts bypassed, and is judged by a check on disk; the first failed check halts the run, and a re-run resumes from
-disk. Starting it chooses converge's engines: converge runs the generic review and security engines, which need no
-remote.**
+disk. Converge runs at the tier the cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.

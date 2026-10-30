@@ -7,7 +7,7 @@ design's, word for word.
 
 - [x] 1 — Write the method
 - [x] 2 — Run it at a tier
-- [ ] 3 — Record it
+- [x] 3 — Record it
 - [ ] 4 — Calibrate it
 
 ## 1 — Write the method
@@ -36,12 +36,12 @@ design's, word for word.
 
 ## 3 — Record it
 
-- [ ] 3.1 Rewrite D11, amend D40 and D47, and add D49 after D40 in `docs/decisions.md`, per [D9](design.md#d9).
+- [x] 3.1 Rewrite D11, amend D40 and D47, and add D49 after D40 in `docs/decisions.md`, per [D9](design.md#d9).
   Verify: `grep -c '^### D49 · ' docs/decisions.md` prints `1`, `grep -c 'Claude Code keeps parallel dispatch' docs/decisions.md` prints `0`, and `uv run --script scripts/metrics/references.py` prints `0`.
-- [ ] 3.2 Correct `skills/mf-ship/SKILL.md`, `skills/mf-bootstrap/SKILL.md`, `README.md` and `docs/README.md`, per
+- [x] 3.2 Correct `skills/mf-ship/SKILL.md`, `skills/mf-bootstrap/SKILL.md`, `README.md` and `docs/README.md`, per
   [D8](design.md#d8).
   Verify: `grep -c 'code-review\|security-review' README.md skills/mf-bootstrap/SKILL.md skills/mf-ship/SKILL.md` prints `0` for each file.
-- [ ] 3.3 **HALT CHECK** Measure the converge reading set against [D4](design.md#d4)'s bound, the value at v0.36.
+- [x] 3.3 **HALT CHECK** Measure the converge reading set against [D4](design.md#d4)'s bound, the value at v0.36.
   Verify: `uv run --script scripts/metrics/reading_set.py converge` prints a number no greater than `12143`.
 
 ## 4 — Calibrate it
