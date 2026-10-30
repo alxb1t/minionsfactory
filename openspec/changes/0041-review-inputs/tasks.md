@@ -8,7 +8,7 @@ word for word.
 - [x] 1 — Read the architecture decisions and the threat model
 - [x] 2 — Write them in the bootstrap
 - [x] 3 — Adopt the threat model in MF
-- [ ] 4 — Bootstrap a scratch repo through an agent
+- [x] 4 — Bootstrap a scratch repo through an agent
 
 ## 1 — Read the architecture decisions and the threat model
 
@@ -51,10 +51,10 @@ word for word.
 [D6](design.md#d6)'s probe: run from this worktree, under the shell rules — no `cd`; `uv run --directory` sets each
 worker's cwd.
 
-- [ ] 4.1 `mkdir -p ../mf_inputs_probe/fresh ../mf_inputs_probe/taken && touch ../mf_inputs_probe/taken/THREAT_MODEL.md`,
+- [x] 4.1 `mkdir -p ../mf_inputs_probe/fresh ../mf_inputs_probe/taken && touch ../mf_inputs_probe/taken/THREAT_MODEL.md`,
   then `uv run --directory ../mf_inputs_probe/fresh --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.36_review_inputs/skills/mf-bootstrap/SKILL.md here."`.
   Verify: `ls ../mf_inputs_probe/fresh/THREAT_MODEL.md ../mf_inputs_probe/fresh/docs/decisions.md` lists both, `grep -c '(THREAT_MODEL.md)' ../mf_inputs_probe/fresh/AGENTS.md` prints `1`, and `git -C ../mf_inputs_probe/fresh log --oneline | wc -l` prints `1`.
-- [ ] 4.2 `uv run --directory ../mf_inputs_probe/taken --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.36_review_inputs/skills/mf-bootstrap/SKILL.md here."`.
+- [x] 4.2 `uv run --directory ../mf_inputs_probe/taken --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.36_review_inputs/skills/mf-bootstrap/SKILL.md here."`.
   Verify: `ls ../mf_inputs_probe/taken` prints only `THREAT_MODEL.md`, and `grep -l 'THREAT_MODEL.md' ../mf_inputs_probe/taken/.minions/runs/agent-*.log` prints a path.
-- [ ] 4.3 Delete the probe: `rm -rf ../mf_inputs_probe`.
+- [x] 4.3 Delete the probe: `rm -rf ../mf_inputs_probe`.
   Verify: `test -e ../mf_inputs_probe` fails.
