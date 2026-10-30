@@ -16,6 +16,7 @@ mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge or a ha
 - **Side by side** — each version in its own worktree; `mf-integrate` merges a moved base in
   ([D44](docs/decisions.md#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them),
   [D45](docs/decisions.md#d45--one-station-merges-the-default-branch-into-the-next-version)).
+- **Unattended** — `mf-ship` takes cut versions to the default branch ([D47](docs/decisions.md#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)).
 
 ## The evidence a change carries
 

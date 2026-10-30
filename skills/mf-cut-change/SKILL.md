@@ -243,8 +243,8 @@ After the commit, suggest in chat a model for the build, the check loop and the 
 session's menu; with no menu, describe the capability needed — never invent model names.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
-selected model, authenticate or configure a provider: those are the operator's. Suggestions stay in chat, never
-in tracked prose.
+selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
+write it to `.minions/models/<change-id>.toml`, the run directory's, for `mf-ship`; never into tracked prose.
 
 | the change holds | build with |
 |---|---|
@@ -268,6 +268,16 @@ Suggested models
   effort    <include a supported setting per station when available>
 ```
 
+```toml
+[build]
+model = "<offered model>"
+effort = "<effort>"        # only where the host exposes it
+[converge]
+model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
+[release]
+model = "<offered model>"
+```
+
 A suggestion, never an instruction: the human chooses.
 
 ## Never
@@ -277,4 +287,4 @@ A suggestion, never an instruction: the human chooses.
 - Never commit a `## Dependencies` that is not `None.` before the human's OK.
 - Never overturn a settled decision alone, or invent scope the source did not settle.
 - Never write the brief's path, or any absolute path, into the change.
-- Never write the model suggestion into the change, or into any file.
+- Never write the model suggestion into the change, or into a tracked file.

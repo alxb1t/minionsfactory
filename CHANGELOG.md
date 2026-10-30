@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-30
+
+Gate: local 0m44s · CI 0m19s (CI at c8136be) · 0.34.0: local 0m25s · CI 0m22s (CI at f60847b)
+
+- `skills/mf-ship/scripts/conduct.py` reads each open version's stage and each station's check from disk, and runs
+  one agent process per station under an allowlist, denials logged; `tests/test_conduct.py` drives it with a fake
+  agent (change `0040-mf-ship`, phase 1).
+
+- `mf-release` takes `merge=yes` from `mf-ship` in place of its ask, halts on a hand-edit flag before the merge, and
+  names the worktree removed, kept or refused (`0038·N1`); the cut writes `.minions/models/<change-id>.toml`;
+  integrate's red gate leaves `.minions/integrate/<change-id>.red`. D17 and D41 say so (change `0040-mf-ship`,
+  phase 2).
+
+- `mf-ship` starts `conduct.py` detached from the primary and reports its runs; D3 and the docs name it, and D47
+  records it (change `0040-mf-ship`, phase 3).
+
+- A worker's shell reaches the run directory and every worktree: `conduct.py` passes `--add-dir <tree>` and allows
+  `rm`, refused outside the tree. A run log takes `-2`, `-3`, … when its name is taken, and `report` reads the newest
+  (change `0040-mf-ship`, phase 1, reopened).
+
+- Starting `mf-ship` chooses converge's generic review and security engines, so an unattended run needs no remote;
+  `conduct.py`'s converge prompt, D47 and the station say so (change `0040-mf-ship`, phase 1, reopened).
+
+- `conduct.py`'s converge check fails on a status-log halt, and its integrate check names an open merge's note or
+  `.red`; an open merge with a note or `.red` halts until `/mf-integrate` commits it, and one staged with neither
+  reads as a resumed `integrate` stage (change `0040-mf-ship`, phase 1, reopened).
+
+- The probe shipped: a bootstrapped repo with two cut versions went through `mf-ship` unattended to tags `v0.1.0`
+  and `v0.2.0` on `main`, integrated once, its run log complete; `evidence/probe_run.md` records each check
+  (change `0040-mf-ship`, phase 4).
+
 ## [0.34.0] - 2026-10-29
 
 Gate: local 0m25s · CI 0m22s (CI at f60847b) · 0.33.1: local 0m26s · CI 0m23s (CI at 193a550)

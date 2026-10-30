@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45
+  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
 ```
 
 ## The shape
@@ -38,12 +38,11 @@ copied into the target ([D43](#d43--project-health-is-measured-per-change-from-t
 
 ### D3 · One line of stations, conducted by a person or by an LLM
 
-**The stations are the skills. A person conducts them today; an LLM conductor, held by deterministic checks, is
-designed to run the same skills unattended. There is no third way to run the line.**
+**The stations are the skills. A person conducts them, or `mf-ship`'s script starts each as a fresh agent process
+and checks it from disk (D47). No station is reimplemented: there is no third way to run the line.**
 
 - **Why:** one source for what a station does. A second implementation of every station drifts from the first.
-- **Rejected:** a deterministic runner: no judgement for a thin brief, and a second copy of every station as a role
-  prompt.
+- **Rejected:** a runner that reimplements the stations · an LLM session waiting on long-running stations.
 
 ### D4 · This repo's own gate is Python on uv
 
@@ -197,14 +196,16 @@ paydown change lists the cards it closes and its release deletes them.**
 ### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes
 
 **It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog with
-one `Gate:` line of the gate's times, and tags. Then it asks once; on yes it merges into the default branch with
-`--no-ff` and pushes the default branch and the tag. It never forces, never pushes the version branch, never
-edits feature code. Fold and archive land in one commit.**
+one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or `merge=yes`, the yes the person
+gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
+tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
+commit.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
   leaves the spec tree and the change disagreeing.
 - **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
-  separate merge skill: one more invocation · a merge without asking.
+  separate merge skill: one more invocation · a merge nobody said yes to: `merge=yes` comes only from a run the
+  person started.
 
 ### D40 · Workers are fresh and observable
 
@@ -361,8 +362,9 @@ Review judges each new test's cost and traces each removed one's proofs.**
 ### D41 · Model suggestions use offered capabilities
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
-required capability; it suggests effort only when the host exposes that setting. Suggestions stay in chat and
-leave model selection and provider setup with the operator.**
+required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
+writes it to `.minions/models/<change-id>.toml`, never into the change, for `mf-ship`; model selection and provider
+setup stay with the operator.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
@@ -398,3 +400,17 @@ merge open, gates, and commits the merge; converge's catch-up judges the merge b
   read, and what the merge decided is exactly what review must see.
 - **Rejected:** `merge=union` — it drops a blank line and hides the result from the remerge-diff · rebasing a judged
   branch · resolving silently against either design.
+
+### D47 · `mf-ship` takes cut versions to the default branch unattended
+
+**Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
+then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
+agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
+prompts bypassed, and is judged by a check on disk; the first failed check halts the run, and a re-run resumes from
+disk. Starting it chooses converge's engines: converge runs the generic review and security engines, which need no
+remote.**
+
+- **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
+  commands.
+- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
+  bypass permission prompts: the list blocks what is off it, though `make`, `uv` and `python3` still run any code.

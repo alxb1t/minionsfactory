@@ -15,7 +15,7 @@ One change goes from an idea to a tag on the default branch.
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security
 
-   conducted by a person today · by an LLM conductor held by scripts: designed, not built
+   conducted by a person, or by mf-ship: a script that starts each station as a fresh agent process
 ```
 
 Each skill is the authority on what it does; this table is a map, not a summary.
@@ -29,6 +29,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
 | [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
+| [`mf-ship`](skills/mf-ship/SKILL.md) | take every cut version to the default branch unattended — build, converge, integrate, release |
 
 ## Install
 
