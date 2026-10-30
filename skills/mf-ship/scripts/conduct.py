@@ -814,13 +814,13 @@ class Run:
                 if stage in stop_at:
                     return
                 cwd = self.primary if stage == "integrate" else version.tree
-                runs = self.primary / ".minions"
-                tier = _tier(runs, version.change) if stage == "converge" else ""
-                prompt = PROMPTS[stage].format(change=version.change, tier=tier)
                 if cwd is None:
                     self.halt(version.change, f"{version.branch} has no worktree")
                     return
-                models = _models(runs, version.change, stage)
+                minions = self.primary / ".minions"
+                tier = _tier(minions, version.change) if stage == "converge" else ""
+                prompt = PROMPTS[stage].format(change=version.change, tier=tier)
+                models = _models(minions, version.change, stage)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return

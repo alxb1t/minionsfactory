@@ -574,17 +574,14 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
 
-    runs, converge = root / ".minions", conduct["PROMPTS"]["converge"]
-    assert converge.format(
-        change="0001-todo", tier=conduct["_tier"](runs, "0001-todo")
-    ) == ("Run the mf-converge skill for change 0001-todo.")
-    (runs / "models").mkdir(parents=True, exist_ok=True)
-    (runs / "models" / "0001-todo.toml").write_text('[converge]\ntier = "high"\n')
-    assert converge.format(
-        change="0001-todo", tier=conduct["_tier"](runs, "0001-todo")
-    ) == ("Run the mf-converge skill for change 0001-todo with tier=high.")
+    assert conduct["PROMPTS"]["converge"].format(change="0001-todo", tier="") == (
+        "Run the mf-converge skill for change 0001-todo."
+    )
+    models = root / ".minions" / "models"
+    models.mkdir(parents=True, exist_ok=True)
+    (models / "0001-todo.toml").write_text('[converge]\ntier = "high"\n')
 
-    fake("deny", "heredoc")
+    calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None) == [
         sys.executable,
         __file__,
@@ -595,6 +592,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
+    assert "converge 0001-todo with tier=high" in _calls(calls)
     lines = _log(root)
     assert any(
         line.endswith(" · 0001-todo · denied — build · Bash(rm -rf build)")
@@ -630,8 +628,10 @@ def _fake(prompt: str) -> None:
     here = Path.cwd()
     found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
+    tier = re.search(r" with tier=\w+", prompt)
     with open(os.environ["FAKE_CALLS"], "a") as calls:
-        calls.write(f"{station} {change}\n" if change else f"{station}\n")
+        called = f"{station} {change}" if change else station
+        calls.write(f"{called}{tier[0] if tier else ''}\n")
     if station == "build" and "deny" in modes:
         use = {
             "type": "tool_use",
