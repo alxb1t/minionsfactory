@@ -6,8 +6,8 @@ description: Conduct the end-of-change check loop — freeze the diff, fan out r
 # mf-converge — conduct the end-of-change loop
 
 > **Your role is CONDUCTOR. You judge nothing yourself.** You freeze the diff, dispatch fresh read-only
-> workers, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, you do
-> not decide that the code is fine, and you do not release: `mf-release` finalizes, in a separate session.
+> workers, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, decide
+> that the code is fine, or release: `mf-release` finalizes, in a separate session.
 
 Why: a station run inside your own context shares the context that produced the work — **three opinions from
 one reader** — and no fresh reader can re-run it. The stations are fresh workers, or there is no check.
@@ -75,7 +75,7 @@ The events, and no others:
 
 | event | written in | detail holds |
 |---|---|---|
-| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
+| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed, the tier |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the tier and the worker count |
 | `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking`, ending `tokens <n>` from the worker's output, or `tokens unavailable` |
@@ -92,9 +92,9 @@ The events, and no others:
 
 ## Run 2 — 2026-09-28 10:04
 10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
-10:09:02 · round 1 · verdicts — review clean · security clean
-10:04:20 · round 1 · fan-out — review and security dispatched
-10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
+10:09:02 · round 1 · verdicts — review clean · security clean · tokens unavailable
+10:04:20 · round 1 · fan-out — review and security dispatched · standard · 2 workers
+10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files · standard
 
 ## Run 1 — 2026-09-27 14:02
 14:31:00 · round 3 · halt — cap reached, R3 open
@@ -177,7 +177,7 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
    interrupted. Halt naming the first unticked phase; `mf-build` owns it.
 3. **The derived range is non-empty** — Step 2. Halt if `base` equals `HEAD`.
 4. **The root `Makefile` has a `gate` target that runs a command** — the dry run of *Where the constants come
-   from* passed. Halt naming the root `Makefile`.
+   from* passed.
 5. **The gate is green before round 1** — run `make gate` yourself. Red → halt; `mf-build` owns it. Skipped, a
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
 6. **The gate changes only as the cut planned.** Run
@@ -193,8 +193,8 @@ Once all pass, write `start` to the status log.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
-1. **Derive the base**: `git merge-base <default-branch> HEAD`, the default branch. Never accept one as an
-   argument; never pick a commit by eye.
+1. **Derive the base**: `git merge-base <default-branch> HEAD`. Never accept one as an argument; never pick a
+   commit by eye.
 2. **Halt if `base` equals `HEAD`.** Over an empty range every station returns clean, and the loop converges on a
    change it never read.
 3. **Write the patch** — `mkdir -p .minions/findings`, then `.minions/findings/<change-id>_diff.patch`, holding

@@ -45,6 +45,7 @@ EVENTS = ("start", "spawn", "finish", "check", "denied", "halt", "done")
 HALTS = ("integrating", "released", "human", "converge-halted")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
+TIERS = ("standard", "high")
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -573,9 +574,16 @@ def _tier(runs: Path, change: str) -> str:
     """Return the converge prompt's tier clause, or "" when the cut set no tier.
 
     e.g. `tier = "high"` under `[converge]` → " with tier=high"
+
+    Any value but `TIERS` halts: the models file is writable by a worker, and the
+    value lands in the next worker's prompt.
     """
     tier = _table(runs, change, "converge").get("tier")
-    return f" with tier={tier}" if isinstance(tier, str) else ""
+    if tier is None:
+        return ""
+    if tier not in TIERS:
+        raise Stop(1, f"conduct: halt — models/{change}.toml: tier {tier!r} unknown")
+    return f" with tier={tier}"
 
 
 def edit_root(cwd: Path) -> Path:

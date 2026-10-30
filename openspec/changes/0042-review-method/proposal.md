@@ -30,7 +30,7 @@ note, borrowed from Claude Code, Codex, Matt Pocock, gstack and CodeRabbit.
   `mode`, `workers`, `model` and `packet`.
 - **Native `/code-review` and `/security-review` leave converge**; native `/simplify` stays in the build.
 - **The cut suggests the tier**, `mf-ship` passes it, the release reports it with any `inconclusive` section.
-- **Decisions:** D11 rewritten, D40 and D47 amended, D49 added.
+- **Decisions:** D11 rewritten, D14, D40 and D47 amended, D49 added.
 - **A calibration** on seeded and clean fixtures, run by the build.
 
 ## Capabilities
@@ -46,6 +46,9 @@ None.
     native `/simplify` stays.
   - *Independent workers have fresh contexts* — MODIFIED: no Claude Code exception; `high` dispatches more workers.
   - *Generic passes preserve the station boundaries* — MODIFIED: the checklists, the finding bar and the packet.
+  - *Review searches for stale claims*, *Review judges test cost and traced coverage*, *Bundled generic role
+    references resolve*, *The ship station takes cut versions to the default branch* — MODIFIED: they stop naming
+    the retired engines.
   - *Converge runs at a tier* — ADDED.
   - *A finding carries its evidence and verdict* — ADDED.
 
@@ -53,8 +56,8 @@ None.
 
 Changes `skills/mf-converge/SKILL.md` and both its references, adds `skills/mf-converge/references/high-tier.md`;
 changes `skills/mf-cut-change/SKILL.md`, `skills/mf-release/SKILL.md`, `skills/mf-ship/SKILL.md`,
-`skills/mf-ship/scripts/conduct.py`, `skills/mf-bootstrap/SKILL.md`, `tests/test_conduct.py`, `tests/test_skills.py`,
-`docs/decisions.md`, `docs/README.md` and `README.md`. The [delta](specs/sdd/spec.md) is folded by release.
+`skills/mf-ship/scripts/conduct.py`, `skills/mf-bootstrap/SKILL.md`, `tests/test_conduct.py`, `docs/decisions.md`,
+`docs/README.md` and `README.md`. The [delta](specs/sdd/spec.md) is folded by release.
 
 Dependencies: none. The gate recipe stays unchanged.
 

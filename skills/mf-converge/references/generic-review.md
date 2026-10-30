@@ -27,8 +27,8 @@ range. An input missing or unusable → halt, naming it.
    does not ask for; a requirement that looks implemented but is wrong. Quote the requirement line.
 3. **Standards.** Only rules written in the target's standards files and `AGENTS.md`, each finding citing the
    file and the rule's line; the repo's rule overrides a general smell. Nothing a formatter, linter or type checker
-   already enforces. A contradiction between standards files on a rule the diff touches is a `drift` card, whoever
-   introduced it: the person settles it.
+   already enforces. A contradiction between standards files is a `drift` card, inside the diff or not: the person
+   settles it.
 4. **Architecture.** Against the decisions in force: a change that breaks one, and no task of the change amends it.
    Cite the decision's id.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed
@@ -41,7 +41,8 @@ check what can be checked without it, and go on. `inconclusive` never blocks and
 
 ## The bar a finding clears
 
-- The change introduced it; it overlaps the diff.
+- The change introduced it and it overlaps the diff, or the contract's passes or repeat rule name it, or it is a
+  contradiction between standards files.
 - The author would fix it, and it needs no unstated assumption.
 - A concrete scenario — what runs, and what goes wrong — and the offending line quoted verbatim.
 - A citation for every spec, standards or architecture finding.

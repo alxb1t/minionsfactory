@@ -64,9 +64,10 @@ each citing its source document, including the existing stale-claim, test-cost a
 
 Security SHALL read the target's threat model first, then inspect changed behavior and relevant surrounding
 context for concrete vulnerabilities, secrets exposure, unsafe permissions and trust-boundary failures, including
-prompt, tool and model-output trust where relevant. A finding SHALL be introduced by the change, carry a concrete
-scenario and the offending line quoted, and SHALL NOT be one the reference's do-not-flag list names unless the
-target's threat model overrides it. A section whose source document is missing SHALL be marked `inconclusive`, never
+prompt, tool and model-output trust where relevant. A finding SHALL be introduced by the change, unless the
+contract's passes or repeat rule name it or it is a contradiction between standards files, carry a concrete scenario
+and the offending line quoted, and SHALL NOT be one the reference's do-not-flag list names unless the target's threat
+model overrides it. A section whose source document is missing SHALL be marked `inconclusive`, never
 read as a pass. Findings SHALL use the existing cards, severity, verdict, verification and release contracts. Review
 and security SHALL edit their own findings files, leave code changes to the fix station, and keep findings local
 rather than publish external comments.
@@ -86,6 +87,86 @@ rather than publish external comments.
 - **THEN** the security file's threat-model section is `inconclusive`, its generic classes are still checked, and
   the verdict may still be `clean`
 
+### Requirement: Review searches for stale claims
+
+The review station SHALL run a **stale-claim pass** after its sections: every path, symbol, verb, route or count the
+diff renames, deletes or changes is searched across the rest of the tree, and each mention the change made false is
+carded as `drift`. The station SHALL say in its Summary that the pass ran, and `skills/mf-converge/SKILL.md` SHALL
+check that it did.
+
+#### Scenario: Converge names the stale-claim pass
+- **WHEN** the frozen diff renames a path that a file outside the diff still names
+- **THEN** review cards that mention as `drift`, and its Summary says the stale-claim pass ran
+
+#### Scenario: A review without the pass
+- **WHEN** a review findings file's Summary does not say the stale-claim pass ran
+- **THEN** `mf-converge` treats it as a scope failure and halts
+
+### Requirement: Review judges test cost and traced coverage
+
+The review station SHALL run a **test-cost pass** after its sections, carding each new end-to-end test that a lower
+layer proves, that re-opens a state another test reaches, or that runs on engines its outcome cannot depend on. When
+the freeze removes a test, it SHALL run a **coverage-trace pass**, tracing each removed assertion and scenario id to
+the test that runs it now, or to the decision, in force at the base, that the design's `## Tests` table names as retiring it. A
+proof carried by neither SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The
+station SHALL say in its Summary that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
+
+#### Scenario: Converge names both passes where they run and where they are checked
+- **WHEN** a review findings file's Summary does not say the test-cost pass ran, or the coverage-trace pass ran or
+  the freeze removed no test
+- **THEN** `mf-converge` treats it as a scope failure and halts
+
+#### Scenario: The freeze removes a test the table retires
+- **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force at the base
+- **THEN** the coverage-trace pass accepts the removal and cards nothing for it
+
+#### Scenario: A proof carried by neither
+- **WHEN** a removed assertion maps to no remaining test and to no retiring decision
+- **THEN** review cards it `blocking`
+
+### Requirement: Bundled generic role references resolve
+
+The shipped skills SHALL explicitly load their role resources: converge's review and security references on every
+executor, and the build's generic simplify when that path runs.
+Their `references/` Markdown targets SHALL resolve to nonempty files within the referring skill's package.
+Missing, empty and escaping targets SHALL fail the gate's resource-integrity check.
+
+#### Scenario: The generic instruction package is incomplete
+- **WHEN** a referenced role resource is missing, empty or resolves outside its skill package
+- **THEN** the resource-integrity check reports the referring skill and the invalid target
+
+#### Scenario: The package contains valid role resources
+- **WHEN** the shipped resource references resolve within their packages to nonempty files
+- **THEN** the resource-integrity check passes without treating illustrative change-document links as resources
+
+### Requirement: The ship station takes cut versions to the default branch
+
+`skills/mf-ship/SKILL.md`, run in the primary checkout of a repo whose `AGENTS.md` declares `Worktrees:`, SHALL take
+every open version to the default branch: build, then converge, for every open version at once; then, one version
+at a time in change-id order, integrate when its base moved, converge's catch-up round, and release with
+`merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor running
+`mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
+names for it, or the executor's default. A worker SHALL act under `conduct.py`'s allowlist on Claude Code — extended by
+`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its shell reaching the directory
+`Worktrees:` names and nothing outside it, its prompt carrying the shell rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
+not halt the run by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
+merge and push of the run.
+
+#### Scenario: Two cut versions ship
+- **WHEN** two versions are cut, each in its own worktree, and `mf-ship` runs to the end
+- **THEN** both are released, merged and pushed in change-id order, the later one integrated and judged by a
+  catch-up round first, and only the primary is left
+
+#### Scenario: A worker runs a command off the list
+- **WHEN** a build worker's command is denied by the allowlist and the build's check still passes
+- **THEN** the run goes on, and the report lists the denial
+- **AND WHEN** the build's check fails
+- **THEN** the run halts, and its `halt` line names the denial
+
+#### Scenario: No worktrees are declared
+- **WHEN** `mf-ship` starts in a repo whose `AGENTS.md` declares no `Worktrees:`
+- **THEN** it halts, naming the missing declaration, and starts no worker
+
 ## ADDED Requirements
 
 ### Requirement: Converge runs at a tier
@@ -98,8 +179,8 @@ stale-claim, test-cost and coverage-trace passes, the role writer SHALL report t
 verify round SHALL give a fresh verifier to each card marked `fixed` or `wontfix`. Converge SHALL halt, naming the
 role and the count, before a role passes 40 verifiers in a round, and SHALL NOT verify only some of its candidates.
 Both tiers SHALL write the same review and security files, whose frontmatter SHALL record `tier`, `mode`, `workers`,
-`model` and `packet`. The cut SHALL suggest the tier in `.minions/models/<change-id>.toml`, `mf-ship` SHALL pass it,
-and the release SHALL report it.
+`model` and `packet`. The cut SHALL suggest the tier in `.minions/models/<change-id>.toml`, `mf-ship` SHALL pass it
+and halt on any value but `standard` or `high`, and the release SHALL report it.
 
 #### Scenario: No tier is given
 - **WHEN** converge runs without `tier=`
@@ -108,6 +189,10 @@ and the release SHALL report it.
 #### Scenario: The cut suggests high
 - **WHEN** the models file's `[converge]` table holds `tier = "high"` and `mf-ship` runs converge
 - **THEN** the prompt carries `tier=high`, and the findings files record `tier: high`
+
+#### Scenario: The models file holds an unknown tier
+- **WHEN** the models file's `[converge]` table holds a `tier` other than `standard` or `high`
+- **THEN** `mf-ship` halts, naming the value, and starts no converge worker
 
 #### Scenario: A standard diff is large
 - **WHEN** a standard-tier change exceeds 1,500 changed lines

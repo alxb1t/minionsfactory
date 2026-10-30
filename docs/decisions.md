@@ -160,7 +160,7 @@ producer, not a checker: it holds no verdict.**
 the release commit. The diff patch or either findings file means converge ran, and then both files must exist and
 be clean.**
 
-- **Why:** a prose-only change read by hand does not earn the engine passes, and a silent skip would look like a
+- **Why:** a prose-only change read by hand does not earn the check passes, and a silent skip would look like a
   pass.
 - **Accepts:** a checkout that lost `.minions/` reads as skipped, and the skip line is its only record. Reopen
   when an unattended run releases from a fresh checkout.

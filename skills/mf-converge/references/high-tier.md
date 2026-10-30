@@ -22,7 +22,8 @@ per role:  finders ─▶ verifiers ─▶ gap sweep ─▶ role writer ─▶ .
    the ceiling, and start none of the batch: never trim or sample it. Every candidate gets a verifier, or the person
    decides, by splitting the change or running `tier=standard`.
 3. **Gap sweep.** One per role, given the verified list and the packet: it looks only for what was missed — a moved
-   guard, a flipped default, a sibling site — and writes `sweep-<role>.md`. Each new candidate gets a verifier.
+   guard, a flipped default, a sibling site — and writes `sweep-<role>.md` in the same form as the finders. Each new
+   candidate gets a verifier.
 4. **Role writer.** One per role: it writes the role's findings file from the verified outputs — `confirmed` and
    `plausible` as cards, `refuted` under `## Refuted` — applying the contract's repeat rule to each card against the
    backlog, with the frontmatter, `workers:` the count of workers this role used, and the Summary the reference asks

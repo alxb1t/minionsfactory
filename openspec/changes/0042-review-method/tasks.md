@@ -36,7 +36,7 @@ design's, word for word.
 
 ## 3 — Record it
 
-- [x] 3.1 Rewrite D11, amend D40 and D47, and add D49 after D40 in `docs/decisions.md`, per [D9](design.md#d9).
+- [x] 3.1 Rewrite D11, amend D14, D40 and D47, and add D49 after D40 in `docs/decisions.md`, per [D9](design.md#d9).
   Verify: `grep -c '^### D49 · ' docs/decisions.md` prints `1`, `grep -c 'Claude Code keeps parallel dispatch' docs/decisions.md` prints `0`, and `uv run --script scripts/metrics/references.py` prints `0`.
 - [x] 3.2 Correct `skills/mf-ship/SKILL.md`, `skills/mf-bootstrap/SKILL.md`, `README.md` and `docs/README.md`, per
   [D8](design.md#d8).
