@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D11 and D40 name one method on every host, D47 the cut's tier and D49 the two depths; `mf-ship`, `mf-bootstrap`
   and the READMEs stop naming native review (change `0042-review-method`, phase 3).
 
+- A calibration on seeded and clean fixtures catches all five seeded defects at both tiers and blocks neither clean
+  fixture (change `0042-review-method`, phase 4).
+
 ## [0.36.0] - 2026-10-30
 
 Gate: local 0m39s · CI 0m27s (CI at 2c138d2) · 0.35.0: local 0m44s · CI 0m19s (CI at c8136be)

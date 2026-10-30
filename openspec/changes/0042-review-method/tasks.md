@@ -8,7 +8,7 @@ design's, word for word.
 - [x] 1 — Write the method
 - [x] 2 — Run it at a tier
 - [x] 3 — Record it
-- [ ] 4 — Calibrate it
+- [x] 4 — Calibrate it
 
 ## 1 — Write the method
 
@@ -49,19 +49,19 @@ design's, word for word.
 [D10](design.md#d10)'s calibration, run from this worktree under the shell rules: no `cd`, `uv run --directory`
 sets each worker's cwd, and the answer key never enters a fixture.
 
-- [ ] 4.1 Under `../mf_review_probe/`, build `seeded-standard`, `seeded-high`, `clean-standard` and `clean-high` from
+- [x] 4.1 Under `../mf_review_probe/`, build `seeded-standard`, `seeded-high`, `clean-standard` and `clean-high` from
   [D10](design.md#d10)'s files: in each, `git init -b main`, the base files, `git add` and the `chore: base` commit,
   `git -C <fixture> switch -c v0.2_discount`, the change directory, the seeded or clean `cart.py` and
   `tests/test_cart.py`, and the `feat: apply a discount code` commit with its `Change: 0002-discount` trailer.
   Verify: `make -C ../mf_review_probe/seeded-standard gate` exits 0, `make -C ../mf_review_probe/clean-high gate` exits 0, and `git -C ../mf_review_probe/seeded-high log --oneline | wc -l` prints `2`.
-- [ ] 4.2 For each fixture, `uv run --directory ../mf_review_probe/<fixture> --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.37_review_method/skills/mf-converge/SKILL.md for change 0002-discount with tier=<tier>."`,
+- [x] 4.2 For each fixture, `uv run --directory ../mf_review_probe/<fixture> --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.37_review_method/skills/mf-converge/SKILL.md for change 0002-discount with tier=<tier>."`,
   `<fixture>` and `<tier>` paired as `seeded-standard` · `standard`, `seeded-high` · `high`, `clean-standard` ·
   `standard`, `clean-high` · `high`.
   Verify: `ls ../mf_review_probe/seeded-standard/.minions/findings/0002-discount_review.md ../mf_review_probe/seeded-high/.minions/findings/0002-discount_security.md ../mf_review_probe/clean-standard/.minions/findings/0002-discount_review.md ../mf_review_probe/clean-high/.minions/findings/0002-discount_security.md` lists all four.
-- [ ] 4.3 Score each fixture's findings files against [D10](design.md#d10)'s answer key, and write
+- [x] 4.3 Score each fixture's findings files against [D10](design.md#d10)'s answer key, and write
   `openspec/changes/0042-review-method/evidence/calibration.md` in this worktree, one line per fixture and no absolute
   path: `<fixture>: <n> of 5 · <tier> · workers <n> · duration <s>s · tokens <n|unavailable>` for a seeded fixture,
   with the unmatched rows named; `<fixture>: no blocker` or `<fixture>: <n> blocking — <ids>` for a clean one.
   Verify: `grep -c '^seeded-standard: 5 of 5 · standard' openspec/changes/0042-review-method/evidence/calibration.md` prints `1`, `grep -c '^seeded-high: 5 of 5 · high' openspec/changes/0042-review-method/evidence/calibration.md` prints `1`, and `grep -c '^clean-.*: no blocker$' openspec/changes/0042-review-method/evidence/calibration.md` prints `2`.
-- [ ] 4.4 Delete the probe: `rm -rf ../mf_review_probe`.
+- [x] 4.4 Delete the probe: `rm -rf ../mf_review_probe`.
   Verify: `test -e ../mf_review_probe` fails.
