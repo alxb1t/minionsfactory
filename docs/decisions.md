@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43
 
-  The shape D1…D4 · The target repo D18, D46 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
+  The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
 ```
 
 ## The shape
@@ -239,9 +239,10 @@ What the skills need from a repository they work on.
 ### D18 · The contract with a target repo is a layout on disk
 
 **The skills need the layout below from a repo, and nothing else. `mf-bootstrap` writes it once into a new repo,
-`.minions/` as a `.gitignore` line, with `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md` and `CONTRIBUTING.md`
-([D46](#d46--a-repos-own-rules-live-in-its-coding-standards-and-contribution-guide)); the stations install nothing
-([D2](#d2--the-product-is-the-practice-and-its-skills)).**
+`.minions/` as a `.gitignore` line, with `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md`, `CONTRIBUTING.md`
+([D46](#d46--a-repos-own-rules-live-in-its-coding-standards-and-contribution-guide)), `THREAT_MODEL.md` and
+`docs/decisions.md` ([D48](#d48--a-repos-architecture-decisions-and-threat-model-have-a-known-home)); the stations
+install nothing ([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 
 ```
 <target>/
@@ -271,6 +272,18 @@ read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` its 
 - **Why:** a rule needs one home every station reads; where none is written, an agent invents one.
 - **Rejected:** one combined file · the rules in `AGENTS.md` · a precedence between the coding filenames ·
   migrating existing repos.
+
+### D48 · A repo's architecture decisions and threat model have a known home
+
+**Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
+in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
+build halts on a phase that breaks one unless the change amends it, and converge hands both to every worker.
+`mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
+
+- **Why:** a review judges against what is written down; without a threat model, security falls back on generic
+  categories.
+- **Rejected:** `SECURITY.md` — a reporting policy, another thing · an `ARCHITECTURE.md` template that goes stale ·
+  plan and release reading them.
 
 ## Repo conventions
 

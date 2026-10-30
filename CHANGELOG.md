@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name; the build halts on a phase that breaks a decision in force unless a task amends it, and generic security
   reads the threat model first (change `0041-review-inputs`, phase 1).
 
+- `mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`, links both from the `AGENTS.md` template
+  and halts on either, or `ARCHITECTURE.md`, already there; D48 records where the documents live and D18 names the
+  two files (change `0041-review-inputs`, phase 2).
+
 ## [0.35.0] - 2026-10-30
 
 Gate: local 0m44s · CI 0m19s (CI at c8136be) · 0.34.0: local 0m25s · CI 0m22s (CI at f60847b)

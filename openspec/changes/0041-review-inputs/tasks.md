@@ -6,7 +6,7 @@ word for word.
 ## Progress
 
 - [x] 1 — Read the architecture decisions and the threat model
-- [ ] 2 — Write them in the bootstrap
+- [x] 2 — Write them in the bootstrap
 - [ ] 3 — Adopt the threat model in MF
 - [ ] 4 — Bootstrap a scratch repo through an agent
 
@@ -22,18 +22,18 @@ word for word.
 
 ## 2 — Write them in the bootstrap
 
-- [ ] 2.1 Write `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl` and `skills/mf-bootstrap/templates/docs/decisions.md.tmpl`,
+- [x] 2.1 Write `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl` and `skills/mf-bootstrap/templates/docs/decisions.md.tmpl`,
   per [D2](design.md#d2).
   Verify: `ls skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl skills/mf-bootstrap/templates/docs/decisions.md.tmpl` lists both.
-- [ ] 2.2 Add [D2](design.md#d2)'s sentence to *Read first* in `skills/mf-bootstrap/templates/AGENTS.md.tmpl`.
+- [x] 2.2 Add [D2](design.md#d2)'s sentence to *Read first* in `skills/mf-bootstrap/templates/AGENTS.md.tmpl`.
   Verify: `grep -c '(THREAT_MODEL.md)' skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `1`, and `grep -c '(docs/decisions.md)' skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `1`.
-- [ ] 2.3 Edit the description, the halt row and the collision precondition of `skills/mf-bootstrap/SKILL.md`, per
+- [x] 2.3 Edit the description, the halt row and the collision precondition of `skills/mf-bootstrap/SKILL.md`, per
   [D2](design.md#d2).
   Verify: `grep -c 'THREAT_MODEL.md' skills/mf-bootstrap/SKILL.md` prints `2`, and `grep -c 'ARCHITECTURE.md' skills/mf-bootstrap/SKILL.md` prints `1`.
-- [ ] 2.4 Extend `_TEMPLATE_LINKS`, `_ALSO_WRITTEN` and both breach tests' expected lists in `tests/test_skills.py`, per
+- [x] 2.4 Extend `_TEMPLATE_LINKS`, `_ALSO_WRITTEN` and both breach tests' expected lists in `tests/test_skills.py`, per
   [D5](design.md#d5).
   Verify: `grep -c '"(THREAT_MODEL.md)"' tests/test_skills.py` prints `1`, and `uv run pytest -q tests/test_skills.py -k 'template or layout'` reports `4 passed`.
-- [ ] 2.5 Amend D18's line and add D48 after D46 in `docs/decisions.md`, per [D3](design.md#d3).
+- [x] 2.5 Amend D18's line and add D48 after D46 in `docs/decisions.md`, per [D3](design.md#d3).
   Verify: `grep -c '^### D48 · ' docs/decisions.md` prints `1`, and `uv run --script scripts/metrics/references.py` prints `0`.
 
 ## 3 — Adopt the threat model in MF
