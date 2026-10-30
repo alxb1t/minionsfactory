@@ -13,9 +13,11 @@ Premises were re-checked on `main` at `bb8d8c0` (v0.37.0) before the cut.
 | `skills/mf-build/scripts/metrics.py` (643 lines, stdlib PEP 723): `Metric = dict[str, Any]` `:47`, `Number = int \| float` `:49`, `chart(metric, points)` `:416` — `points` of `(label, value, is_this_one)`, a gap for `None`, using only `title` and `watch`; `_STYLE` `:476` | [D3](#d3) loads both by path |
 | `tests/test_metrics.py:20-26` loads a script with `importlib.util.spec_from_file_location` | the new tests do the same |
 | `skills/mf-converge/SKILL.md`: the frontmatter's fourteen keys `:248-266` (`tier`, `mode`, `workers`, `model`, `packet` since v0.37); the card's `Evidence:`, `Verdict:` and `<severity> · <role> · <category>`; `## Refuted`; the status log's `## Run N — <date> <time>`, `HH:MM:SS · round N · <event> — <detail>`, `verdicts … tokens <n>` or `tokens unavailable` `:81`, `done — converged in N rounds · M cards to backlog` | [D4](#d4)'s fields |
-| Older files: the same nine frontmatter keys since v0.10 (isekai's oldest, `0008-one-path_review.md`); cards since v0.14; status logs since v0.18 | [D4](#d4) parses each field on its own |
-| This machine's findings, at planning: isekai 74 review files, tropicsamui.rent 21, gpunit 15, minionsfactory 11, kitchen_scheduler_archived 8, agent-iac 4, synthetic_portraits 3 | [D7](#d7)'s live run |
-| `docs/principles.md:127-143` *The repo reaches nothing outside itself* — three exceptions | [D5](#d5) adds the station's |
+| Older files: the same nine frontmatter keys since v0.10 (the oldest on the machine, a `0008-*_review.md`), findings as `- **severity:** <grade>` bullets; cards since v0.14, `Priority:` sometimes in backticks, old security categories in brackets (`medium · security (integrity)`); status logs `<change-id>_status_log.md` since v0.18; no file on the machine has `tier:` yet | [D4](#d4) parses each field on its own |
+| `skills/mf-converge/SKILL.md:276-277`: security blocks on `critical` and `high`, review on `blocking`; `:290-292` the `## Resolution log`'s transitions, `<from> → <to>` — the largest repo's hold `fixed → verified` 241 times, `fixed → open` 4 | [D4](#d4)'s `blocking`, `verified` and `reopened` |
+| Status logs' `start` lines name the engine as `engine generic` or `engine: generic`; `done` lines say `N cards to backlog` or `1 card to backlog`, some none; a `halt` at the cap names `cap` | [D4](#d4)'s `engine`, `to_backlog` and `capped` |
+| The operator's two named repos, at the cut: 280 and 100 files in `.minions/findings/` | [D7](#d7)'s live run |
+| `docs/principles.md:127-144` *The repo reaches nothing outside itself* — three exceptions | [D5](#d5) adds the station's |
 | D43 (`docs/decisions.md:232-245`): every number from a command; no analysis platform; the page never tracked | [D5](#d5)'s D50 sits after it |
 | `README.md`'s skills table ends with `mf-ship`'s row; `AGENTS.md:30-33`'s skill list is edited by simplify in the same run | [D6](#d6) adds a README row only |
 | `uv run pytest --collect-only -q \| tail -1` prints `68 tests collected` | [Tests](#tests) |
@@ -35,13 +37,13 @@ The grilling settled these choices (the brief's method Q37, Q39 and Q1–Q12); t
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D1 | The config is `$XDG_CONFIG_HOME/minionsfactory/review-metrics.toml`, else `~/.config/minionsfactory/review-metrics.toml`: `repos = [<paths>]`, `out = "<page path>"`; `--config`, `--repo` (repeatable) and `--out` override; no repo from either → exit 2 naming the path looked for | The person's infra-as-config rule; flags only override (Q2) | The vault; a repo |
+| D1 | The config is `$XDG_CONFIG_HOME/minionsfactory/review-metrics.toml`, else `~/.config/minionsfactory/review-metrics.toml`: `repos = [<paths>]`, `out = "<page path>"`, a relative path resolved against the config's directory; `--config`, `--repo` (repeatable) and `--out` override, `--out` resolved against the cwd; no repo from either → exit 2 naming the path looked for | The person's infra-as-config rule; flags only override (Q2) | The vault; a repo |
 
 ### D2
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D2 | `skills/mf-review-metrics/scripts/review_metrics.py`, stdlib PEP 723 (`requires-python = ">=3.12"`, `dependencies = []`); exits `0` written · `2` cannot run | MF's script rule | A dependency |
+| D2 | `skills/mf-review-metrics/scripts/review_metrics.py`, stdlib PEP 723 (`requires-python = ">=3.12"`, `dependencies = []`); exits `0` written · `2` cannot run; on `0` it prints the page's path, `repos: <n> · changes: <n>`, the tier × model table as markdown, and `lacked:` with each gap field and its count | MF's script rule | A dependency |
 
 ### D3
 
@@ -55,17 +57,26 @@ The grilling settled these choices (the brief's method Q37, Q39 and Q1–Q12); t
 |---|---|---|---|
 | D4 | **A record per change per repo**, each field parsed on its own and `None` when unreadable | Every era stays usable; a gap is never a zero (Q4, Q5) | An era detector |
 
+A change's files are `.minions/findings/<change-id>_review.md`, `_security.md` and `_status_log.md`; a change with
+any of them is a record. **Clean** means a file's `verdict: clean`.
+
 | field | read from |
 |---|---|
-| `repo`, `change`, `reviewed` | the repo's directory name; the file name before `_review.md`; the frontmatter's `reviewed` |
-| `tier`, `mode`, `model`, `packet_skipped` | the frontmatter, both files; `packet`'s `skipped:` count |
-| `workers` | the review and security files' `workers` summed |
-| `rounds`, `clean` | the review file's `round`; both `verdict: clean` |
-| `findings`, `blocking`, by severity and category | every card's `Priority:` — severity its first word, category its third when present |
-| `confirmed`, `plausible`, `refuted` | the cards' `Verdict:`; the `## Refuted` list's entries |
-| `reopened` | the `## Resolution log` lines naming `reopen` |
-| `inconclusive` | the Summary lines holding `inconclusive` |
-| `duration`, `tokens`, `capped`, `to_backlog` | the status log: each run's first to last event, summed; the `tokens <n>` of `verdicts` lines, summed; a `halt` naming the cap; the `done` line's `N cards to backlog` |
+| `repo`, `change`, `reviewed` | the repo's directory name; the file name before `_review.md`, `_security.md` or `_status_log.md`; the frontmatter's `reviewed`, the review file's first |
+| `tier`, `model`, `mode` | the review file's frontmatter, else the security file's; `tier` absent → `unknown` in the tables |
+| `engine` | a status log `start` line's `engine <word>` or `engine: <word>` |
+| `workers` | the review and security files' `workers`, summed |
+| `packet_included`, `packet_skipped` | `packet`'s entries before `skipped:`, and after it, counted |
+| `rounds` | the review file's `round`, else the security file's |
+| `findings`, by severity and category | every card's `Priority:`, backticks stripped: severity the first `·` field, category the third, else the bracketed word after the role; a file with no card, its `- **severity:** <grade>` bullets; a file with neither, `0` when clean, else a gap |
+| `blocking` | the findings graded `blocking` in review and `critical` or `high` in security |
+| `confirmed`, `plausible`, `plausible_verified`, `refuted` | the cards' `Verdict:` first word; the `plausible` cards whose **Status** is `verified`; the `## Refuted` list's entries — each a gap in a file with no card carrying `Verdict:` |
+| `verified`, `reopened` | the `## Resolution log`'s `→ verified` transitions; its `→ open` transitions from `fixed`, `wontfix` or `accepted` |
+| `inconclusive` | the lines holding `inconclusive`, outside the cards — a gap in a file with no `tier:` |
+| `duration`, `tokens`, `capped`, `to_backlog` | the status log: each `## Run` heading's first to last event time, summed; the `tokens <n>` of `verdicts` lines, summed, a gap when none has one; `1` for a `halt` line naming `cap`, else `0`; the `done` line's `N card(s) to backlog`, a gap when it names none |
+
+**Plausible, verified** stands in for the brief's "plausible later confirmed": a card's `Verdict:` is never rewritten,
+so a fix verified against it is the record there is.
 
 ### D5
 
@@ -139,12 +150,26 @@ then the per tier × model table it printed. No advice: the default tier is the 
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D7 | **The page**: a header (repos and changes read); per repo a `<section class="repo">` opening its own line — its table (changes, median rounds, findings and blocking per change) and its charts over changes by `reviewed` (rounds, findings, blocking, duration, tokens); a table per tier × model (median rounds, findings and blocking per change, refuted share, median duration, median tokens); "what each repo lacked" — per field, the count of records with a gap. Text escaped; no script | Q4, Q6; D43's page rules | A JavaScript chart library |
+| D7 | **The page**, every chart drawn by the loaded `chart` over the repo's changes in `reviewed` order: see the layout below. Text escaped; no script | Q4, Q6, method Q37 and Q39; D43's page rules | A JavaScript chart library; a recommendation |
 
-The live run, from this worktree: a `python3` one-liner using `pathlib.Path.home()` writes the operator's two named repos —
-`Path.home() / "Developer/tropicsamui.rent"` and `Path.home() / "Developer/AI_Engineering/isekai"`, the two with the
-most findings — as `repos`, and `out = "../mf_metrics_probe/page.html"` to
-`../mf_metrics_probe/review-metrics.toml`; the script runs with `--config` on it (Q12). The worker's shell is confined to the container; Python is not.
+```
+header         repos read · changes read
+per repo       <section class="repo">, opening its own line
+  table        changes · median rounds · findings, blocking, verified, reopened per change · capped · to backlog
+  severity     findings per grade, a row per grade the repo used
+  charts       rounds · findings · blocking · verified · reopened · capped · to_backlog · duration · tokens
+tier × model   a row per tier, model and engine, `unknown` for a gap: changes · median rounds · findings and
+               blocking per change · median workers · confirmed, plausible, plausible verified, refuted ·
+               inconclusive · packet included and skipped · top categories · median duration · median tokens
+lacked         per repo, each field and the count of records with a gap
+```
+
+Each median shows its count beside it.
+
+The live run reads the operator's config, written beside the container before the run, so no repo names the repos it
+reads (Q1): `../mf_metrics_probe/review-metrics.toml`, holding the operator's two named repos as `repos` and
+`out = "page.html"`. The script runs with `--config` on it (Q12). The worker's shell is confined to the container;
+Python is not.
 
 ## Tests
 
@@ -153,17 +178,18 @@ no test is removed.
 
 | layer | at cut | added | removed | proof |
 |---|---:|---:|---:|---|
-| Unit test functions | 68 | 5 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `68 tests collected` at the cut, `73 tests collected` after |
+| Unit test functions | 68 | 6 | 0 | `uv run pytest --collect-only -q \| tail -1` prints `68 tests collected` at the cut, `74 tests collected` after |
 | Integration tests | 0 | 0 | 0 | — |
 | End-to-end runs | 0 | 0 | 0 | — |
 
 | test | holds |
 |---|---|
 | `test_no_config_exits_2_naming_the_path` | D1's halt, nothing written |
-| `test_each_era_parses_with_gaps` | a no-card file, a carded file with no tier, a v0.37 file with `Evidence:`, `Verdict:` and `## Refuted`: each record's fields, `None` where absent |
-| `test_the_status_log_gives_duration_tokens_and_the_cap` | runs summed, `tokens unavailable` a gap, a cap halt, `cards to backlog` |
-| `test_the_page_draws_charts_and_lists_gaps` | `<section class="repo">` per repo, the tier × model table, an `<svg` from the loaded `chart`, the gaps list, escaped text, no `<script` |
-| `test_overrides_win_over_the_config` | `--repo` and `--out` over the config's |
+| `test_each_era_parses_with_gaps` | a pre-card file with `- **severity:**` bullets, a clean file with no finding, a carded file with no tier and a backticked `Priority:`, a v0.37 file with `Evidence:`, `Verdict:` and `## Refuted`: each record's fields, `0` for the clean file, `None` where absent |
+| `test_the_resolution_log_counts_verified_and_reopened` | `fixed → verified`, `fixed → open` and `wontfix → open` counted; a sentence saying "nothing reopened" counts nothing |
+| `test_the_status_log_gives_duration_tokens_and_the_cap` | runs summed, `tokens unavailable` a gap, a cap halt, `1 card to backlog` and `3 cards to backlog`, `engine: generic` |
+| `test_the_page_draws_charts_and_lists_gaps` | `<section class="repo">` per repo, the severity table, the tier × model table with an `unknown` row, an `<svg` from the loaded `chart`, the gaps list, escaped text, no `<script`; the printed summary |
+| `test_overrides_win_over_the_config` | `--repo` and `--out` over the config's; a relative `out` resolved against the config's directory |
 
 ## Dependencies
 
@@ -173,8 +199,10 @@ None.
 
 - **A free-text field reads wrong in an old file** → that field is a gap, and the page lists it; no number is invented.
 - **Medians over few changes mislead** → the tables show the count beside each median.
-- **The live run reads repos outside the container** → read-only, by Python, never written; its config lives in the
-  probe, not the person's `~/.config`.
+- **The live run reads repos outside the container** → read-only, by Python, never written; its config is the
+  operator's, in the probe, not the person's `~/.config`.
+- **A free-text status line reads as a number it is not** → each status-log field is a fixed pattern from
+  [D4](#d4), and the test feeds it real lines.
 
 ## Migration Plan
 
@@ -187,4 +215,4 @@ Each phase ends on a green gate. Nothing is irreversible; the probe is deleted a
 ## Verdict
 
 Ready to build. Acceptance: the script reads every era with gaps, draws the page through `chart()`, halts without a
-config; the principle and D50 record it; the live run's page holds a section for each of its two repos.
+config; the principle and D50 record it; the live run's page holds a section for each repo its config names.
