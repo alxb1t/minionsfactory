@@ -217,9 +217,10 @@ files. Give each:
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
   it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
-  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design and
-  tasks under `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
-- its tier, and its reference;
+  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
+  and spec delta under `openspec/changes/<change-id>/`, with the living specs the delta touches — review reads the
+  design's `## Tests` table;
+- its tier, mode and reference;
 - the card, from [`## The card`](#the-card) — every finding is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
 
@@ -239,8 +240,7 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 
 **Scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
 resource. For a merge-aware catch-up, reconstruct and judge only Catch-up scope. Report the scope actually
-resolved; halt when the inputs cannot support a verdict. Step 4's findings and Step 5's scope rules apply at
-either tier.
+resolved; halt when the inputs cannot support a verdict.
 
 ## Step 4 — The findings file contract
 

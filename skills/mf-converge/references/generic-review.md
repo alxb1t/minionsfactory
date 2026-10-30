@@ -5,15 +5,17 @@ fix station's. This is MF's method on every host; the tier changes who runs it, 
 
 ## Inputs and contract
 
-Load the owning [converge contract](../SKILL.md): Steps 3–7, The card, Rules for tests. It owns the card, severity
-anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and red runs.
+Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope, The card, Rules for tests. It owns the
+card, severity anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and
+red runs.
 
-**The packet**, given up front: base and head ids, the judged range and patch; the change's proposal, design, tasks
-and spec delta, and the living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root
-standards files, architecture decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches
-that subtree; this resource; your findings path; the backlog. Read beyond the diff only to trace a section's angle
-— the callers of a changed symbol, the consumers of a changed enum — never to explore. A verify pass adds your
-findings file and the scoped fix range. An input missing or unusable → halt, naming it.
+**The packet**, given up front: base and head ids, the judged range and patch; the change's proposal, design and
+tasks, its spec delta unless it declares `skip_specs: true`, and the living specs the delta touches; the target's
+`AGENTS.md`, its mandatory context, its root standards files, architecture decisions and threat model; a
+subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your tier and mode; your findings
+path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
+symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
+range. An input missing or unusable → halt, naming it.
 
 ## Inspect: one section each, in this order
 
@@ -25,7 +27,8 @@ findings file and the scoped fix range. An input missing or unusable → halt, n
    does not ask for; a requirement that looks implemented but is wrong. Quote the requirement line.
 3. **Standards.** Only rules written in the target's standards files and `AGENTS.md`, each finding citing the
    file and the rule's line; the repo's rule overrides a general smell. Nothing a formatter, linter or type checker
-   already enforces.
+   already enforces. A contradiction between standards files on a rule the diff touches is a `drift` card, whoever
+   introduced it: the person settles it.
 4. **Architecture.** Against the decisions in force: a change that breaks one, and no task of the change amends it.
    Cite the decision's id.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed
@@ -57,9 +60,9 @@ the invariant, quoted — goes under `## Refuted` in your file, never a card.
 
 The frontmatter with every key the contract names, the cards, `## Refuted`, and a Summary: the resolved file and
 commit counts, each section's outcome (findings, none, or `inconclusive` and why), the passes run, and the packet's
-included and skipped documents. Over 1,500 changed lines at `standard`, the limitations say `over the standard cap —
-consider tier=high or a split`. An empty or materially incomplete scope cannot earn clean: report scope failure, per
-Step 5.
+included and skipped documents. Over 1,500 changed lines at `standard`, the Summary says
+`over the standard cap — consider tier=high or a split`. An empty scope outside the checked empty-resolution case, or
+a materially incomplete scope, cannot earn clean: report scope failure, per Step 5.
 
 ## Verify freshly
 

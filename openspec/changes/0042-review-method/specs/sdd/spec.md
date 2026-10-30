@@ -2,7 +2,7 @@
 
 ### Requirement: Engine selection follows the executor
 
-Build and converge SHALL identify and report the executing agent from runtime evidence, not from its model,
+The build SHALL identify and report the executing agent from runtime evidence, not from its model,
 provider or editor. Positively identified Claude Code SHALL retain native `/simplify` and its restrictions. Review
 and security SHALL run MF's method from the bundled references on every executor, Claude Code included; converge
 SHALL invoke no native `/code-review` or `/security-review`. Other and unidentified executors SHALL use the bundled
@@ -27,7 +27,7 @@ generic simplify through the host's instruction-loading facilities.
 
 #### Scenario: The executor is unidentified
 - **WHEN** the session exposes no reliable executor identity
-- **THEN** the station reports and uses the generic path without guessing from the model name
+- **THEN** the build reports and uses the generic path without guessing from the model name
 
 ### Requirement: Independent workers have fresh contexts
 
@@ -36,9 +36,10 @@ transcript. A resumed worker, inherited build conversation or fork carrying that
 freshness. The conductor SHALL dispatch, observe completion and read each role's findings from shared disk.
 
 Converge SHALL prefer parallel dispatch and permit sequential independent workers over the same frozen head,
-completing every checker of a round before a fix begins. At `high` it SHALL dispatch each finder, verifier, gap
-sweep and role writer itself, none dispatching another, and record `mode: parallel` or `mode: sequential`. The
-station SHALL halt before work requiring an unavailable worker capability, naming that capability.
+completing every checker of a round before a fix begins. At `high` it SHALL dispatch each finder, pass worker,
+verifier, gap sweep and role writer itself, none dispatching another, and record `mode: parallel` or
+`mode: sequential`. The station SHALL halt before work requiring an unavailable worker capability, naming that
+capability.
 
 #### Scenario: A generic host executes workers sequentially
 - **WHEN** review completes before a fresh security worker starts
@@ -92,9 +93,13 @@ rather than publish external comments.
 `skills/mf-converge/SKILL.md` SHALL take `tier=standard|high`, `standard` when absent. At `standard` each role's one
 fresh worker SHALL judge the change from a packet given up front, reading beyond the diff only to trace a named
 angle. At `high` each role SHALL run finders per angle, a fresh verifier per candidate, a gap sweep and a fresh role
-writer, per `skills/mf-converge/references/high-tier.md`. Both tiers SHALL write the same review and security files,
-whose frontmatter SHALL record `tier`, `mode`, `workers`, `model` and `packet`. The cut SHALL suggest the tier in
-`.minions/models/<change-id>.toml`, `mf-ship` SHALL pass it, and the release SHALL report it.
+writer, per `skills/mf-converge/references/high-tier.md`. At `high` a named pass worker SHALL run review's
+stale-claim, test-cost and coverage-trace passes, the role writer SHALL report them and apply the repeat rule, and a
+verify round SHALL give a fresh verifier to each card marked `fixed` or `wontfix`. Converge SHALL halt, naming the
+role and the count, before a role passes 40 verifiers in a round, and SHALL NOT verify only some of its candidates.
+Both tiers SHALL write the same review and security files, whose frontmatter SHALL record `tier`, `mode`, `workers`,
+`model` and `packet`. The cut SHALL suggest the tier in `.minions/models/<change-id>.toml`, `mf-ship` SHALL pass it,
+and the release SHALL report it.
 
 #### Scenario: No tier is given
 - **WHEN** converge runs without `tier=`
@@ -106,7 +111,20 @@ whose frontmatter SHALL record `tier`, `mode`, `workers`, `model` and `packet`. 
 
 #### Scenario: A standard diff is large
 - **WHEN** a standard-tier change exceeds 1,500 changed lines
-- **THEN** it is reviewed anyway, and each file's limitations say it is over the standard cap
+- **THEN** it is reviewed anyway, and each file's Summary says it is over the standard cap
+
+#### Scenario: Review runs its passes at high
+- **WHEN** review runs at `high`
+- **THEN** the pass worker writes `pass-review.md`, and the role writer's Summary reports each pass from it
+
+#### Scenario: A verify round at high meets a wontfix
+- **WHEN** the fixer marks a card `wontfix` and commits nothing
+- **THEN** a fresh verifier judges it against the unchanged head and the previous freeze's patch
+- **AND** the role writer records `accepted` or reopens the card
+
+#### Scenario: Candidates pass the ceiling at high
+- **WHEN** a role's next verifiers would take it past 40 in a round
+- **THEN** converge halts, naming the role, the count and the ceiling, and starts none of that batch
 
 ### Requirement: A finding carries its evidence and verdict
 

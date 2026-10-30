@@ -129,7 +129,7 @@ What happens between the last phase and the tag.
 ### D11 · Engines follow the executor
 
 **Review and security run MF's method from the bundled references on every executor. Claude Code keeps native
-`/simplify`; other and unidentified executors load generic simplify. The station reports the route from executor
+`/simplify`; other and unidentified executors load generic simplify. The build reports the route from executor
 evidence; model, provider and editor names do not select it.**
 
 - **Why:** one review method runs on Claude, Codex or any capable host, so a review is comparable across them;

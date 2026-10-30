@@ -47,15 +47,17 @@ fix station's. This is MF's method on every host; the tier changes who runs it, 
 
 ## Inputs and contract
 
-Load the owning [converge contract](../SKILL.md): Steps 3–7, The card, Rules for tests. It owns the card, severity
-anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and red runs.
+Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope, The card, Rules for tests. It owns the
+card, severity anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and
+red runs.
 
-**The packet**, given up front: base and head ids, the judged range and patch; the change's proposal, design, tasks
-and spec delta, and the living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root
-standards files, architecture decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches
-that subtree; this resource; your findings path; the backlog. Read beyond the diff only to trace a section's angle
-— the callers of a changed symbol, the consumers of a changed enum — never to explore. A verify pass adds your
-findings file and the scoped fix range. An input missing or unusable → halt, naming it.
+**The packet**, given up front: base and head ids, the judged range and patch; the change's proposal, design and
+tasks, its spec delta unless it declares `skip_specs: true`, and the living specs the delta touches; the target's
+`AGENTS.md`, its mandatory context, its root standards files, architecture decisions and threat model; a
+subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your tier and mode; your findings
+path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
+symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
+range. An input missing or unusable → halt, naming it.
 
 ## Inspect: one section each, in this order
 
@@ -67,7 +69,8 @@ findings file and the scoped fix range. An input missing or unusable → halt, n
    does not ask for; a requirement that looks implemented but is wrong. Quote the requirement line.
 3. **Standards.** Only rules written in the target's standards files and `AGENTS.md`, each finding citing the
    file and the rule's line; the repo's rule overrides a general smell. Nothing a formatter, linter or type checker
-   already enforces.
+   already enforces. A contradiction between standards files on a rule the diff touches is a `drift` card, whoever
+   introduced it: the person settles it.
 4. **Architecture.** Against the decisions in force: a change that breaks one, and no task of the change amends it.
    Cite the decision's id.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed
@@ -99,9 +102,9 @@ the invariant, quoted — goes under `## Refuted` in your file, never a card.
 
 The frontmatter with every key the contract names, the cards, `## Refuted`, and a Summary: the resolved file and
 commit counts, each section's outcome (findings, none, or `inconclusive` and why), the passes run, and the packet's
-included and skipped documents. Over 1,500 changed lines at `standard`, the limitations say `over the standard cap —
-consider tier=high or a split`. An empty or materially incomplete scope cannot earn clean: report scope failure, per
-Step 5.
+included and skipped documents. Over 1,500 changed lines at `standard`, the Summary says
+`over the standard cap — consider tier=high or a split`. An empty scope outside the checked empty-resolution case, or
+a materially incomplete scope, cannot earn clean: report scope failure, per Step 5.
 
 ## Verify freshly
 
@@ -132,8 +135,8 @@ what it checks.
 
 ## Inputs and contract
 
-Load the owning [converge contract](../SKILL.md): Steps 3–7 and The card. It owns the card, severity anchors,
-repeat escalation, counters, reviewed head, verify transitions and red runs. **The packet** is review's (see
+Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope and The card. It owns the card, severity
+anchors, repeat escalation, counters, reviewed head, verify transitions and red runs. **The packet** is review's (see
 [review](generic-review.md#inputs-and-contract)), read beyond the diff only to trace an input to its sink. An input
 missing or unusable → halt, naming it.
 
@@ -145,7 +148,9 @@ missing or unusable → halt, naming it.
 2. **Trace each input that crosses a boundary into a sink**, with the existing defences on the way. Classes:
    injection — SQL, shell, template, path traversal; authentication, authorization and IDOR; crypto misuse and
    secrets; deserialization and `eval`; data exposure; SSRF; **model output trusted as input** — written to a sink
-   unvalidated, stored and fed back as a prompt, or run as code; prompt and tool instructions a change exposes.
+   unvalidated, stored and fed back as a prompt, or run as code; prompt and tool instructions a change exposes;
+   **unsafe permissions and external effects** — a widened allowlist, sandbox or file mode, whatever the input, the
+   change itself being the source.
 3. **A finding is the tuple** source → control → sink → boundary → counterevidence: where untrusted input enters,
    the closest control, where it lands, the boundary it crosses, and what you checked that could defeat it. A real
    bug that is not security goes to review's lane, as a note in your Summary.
@@ -166,8 +171,9 @@ counterevidence quoted.
 
 The frontmatter with every key the contract names, evidence-bearing cards, `## Refuted`, and a Summary with the
 range, the resolved file and commit counts, the threat model's state (read, `inconclusive`, changed by the range)
-and the packet's included and skipped documents. An uninspected change cannot earn clean: report scope failure, per
-Step 5.
+and the packet's included and skipped documents. Over 1,500 changed lines at `standard`, the Summary says
+`over the standard cap — consider tier=high or a split`. An uninspected change cannot earn clean: report scope
+failure, per Step 5.
 
 ## Verify freshly
 
@@ -185,7 +191,11 @@ own.
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| D3 | `high` is described in a new reference the conductor reads only at `high`: per role, finders per angle, a verifier per candidate, a gap sweep, a role writer, all dispatched by converge | Claude's ladder without nesting; `SKILL.md` stays small (Q45, Q51) | Nested fan-out; the conductor writing a verdict |
+| D3 | `high` is described in a new reference the conductor reads only at `high`: per role, finders per angle, a verifier per candidate, a gap sweep, a role writer, all dispatched by converge; review adds a pass worker; a role's verifiers stop at a ceiling of 40 a round, and converge halts above it | Claude's ladder without nesting; `SKILL.md` stays small (Q45, Q51); the passes need a named worker, and the largest cost term a bound | Nested fan-out; the conductor writing a verdict |
+
+The ceiling is an estimate. `seeded-high` spent 89 workers across both roles and every round on a five-line change,
+about 75 of them verifiers once finders, sweeps and writers are taken out, and the per-role counts went with the
+probe. Forty a role leaves such a change room and bounds a round near 100 workers.
 
 `skills/mf-converge/references/high-tier.md`, whole:
 
@@ -201,20 +211,31 @@ per role:  finders ─▶ verifiers ─▶ gap sweep ─▶ role writer ─▶ .
 ```
 
 1. **Finders.** Review: one per section of [review](generic-review.md#inspect-one-section-each-in-this-order) — the
-   correctness section split into one finder per 150 changed lines, at least 2, at most 8. Security: one finder per
-   boundary the threat model names, at least 2, at most 4. Each writes `finder-<role>-<n>.md`: every candidate, the
-   half-believed ones too, with its scenario and quoted line — finders forward, verifiers judge.
+   correctness section split into one finder per 150 changed lines, at least 2, at most 8 — and one **pass worker**,
+   which runs the contract's stale-claim, test-cost and coverage-trace passes. Security: one finder per boundary the
+   threat model names, at least 2, at most 4. Each writes `finder-<role>-<n>.md`, the pass worker `pass-review.md`:
+   every candidate as one top-level list line, the half-believed ones too, with its scenario and quoted line —
+   finders forward, verifiers judge. `pass-review.md` also says what each pass searched or read.
 2. **Verifiers.** One per candidate, given the candidate without the finder's reasoning. Each writes
    `verify-<role>-<n>.md`: `confirmed`, `plausible` or `refuted`, with the evidence the reference asks for.
+
+   **The ceiling is 40 verifiers per role per round.** Before each batch of a role's verifiers, count its candidates
+   and add the verifiers that role already ran this round. Above the ceiling → halt, naming the role, the count and
+   the ceiling, and start none of the batch: never trim or sample it. Every candidate gets a verifier, or the person
+   decides, by splitting the change or running `tier=standard`.
 3. **Gap sweep.** One per role, given the verified list and the packet: it looks only for what was missed — a moved
    guard, a flipped default, a sibling site — and writes `sweep-<role>.md`. Each new candidate gets a verifier.
 4. **Role writer.** One per role: it writes the role's findings file from the verified outputs — `confirmed` and
-   `plausible` as cards, `refuted` under `## Refuted` — with the frontmatter, `workers:` the count of workers this
-   role used, and the Summary the reference asks for.
+   `plausible` as cards, `refuted` under `## Refuted` — applying the contract's repeat rule to each card against the
+   backlog, with the frontmatter, `workers:` the count of workers this role used, and the Summary the reference asks
+   for. Review's Summary reports each pass from `pass-review.md`.
 
 Where the host runs workers in parallel, dispatch each step's workers together; else one at a time, and the files
-record `mode: sequential`. **A verify round at high** gives each card marked `fixed` a fresh verifier over the fix
-range, runs the gap sweep over that range, and has a fresh role writer update the file; no finders.
+record `mode: sequential`. **A verify round at high** gives each card marked `fixed` or `wontfix` a fresh verifier
+over this round's freeze — the unchanged head and the previous freeze's patch when the fixer committed nothing — and
+that verifier says `fixed` → `verified`, `wontfix` → `accepted`, or either → `open` with its reason. The round also
+runs review's pass worker and each role's gap sweep over that freeze, under the same ceiling, and a fresh role writer
+updates the file; no finders.
 ````
 
 ### D4
@@ -245,10 +266,13 @@ range, runs the gap sweep over that range, and has a fresh role writer update th
 
 - **Step 3** (`:213-216`): `Dispatch both as fresh workers, per *Executor and worker selection*,` → `Dispatch both
   roles as fresh workers, per *The tier and the workers*,`; the input bullet `- its engine, per *Executor and worker
-  selection*;` → `- its tier, and its reference;`.
+  selection*;` → `- its tier, mode and reference;`; `proposal, design and tasks under
+  \`openspec/changes/<change-id>/\`` → `proposal, design, tasks and spec delta under
+  \`openspec/changes/<change-id>/\`, with the living specs the delta touches`.
 - **Step 3** deletes the paragraphs `**Native scoping (Claude Code).**…`, `Invoke \`/code-review\`…` and `**Engine
   overrides, no exceptions:**…` (`:245-262`); `**Generic scoping.**` → `**Scoping.**`, its first sentence `Judge the
-  explicit base/head range and patch with surrounding source, by the loaded role resource.` kept.
+  explicit base/head range and patch with surrounding source, by the loaded role resource.` kept, its last sentence
+  deleted to pay for the delta's words: Steps 4 and 5 hold at either tier unasked.
 - **Step 4's frontmatter** (`:268-281`): after `verdict: clean | changes-requested`, add
 
   ```yaml
@@ -334,7 +358,7 @@ with no tier, and a new step writes a models file with `tier = "high"` and expec
 `docs/decisions.md`:
 
 - **D11**, the bold paragraph → `**Review and security run MF's method from the bundled references on every
-  executor. Claude Code keeps native \`/simplify\`; other and unidentified executors load generic simplify. The station
+  executor. Claude Code keeps native \`/simplify\`; other and unidentified executors load generic simplify. The build
   reports the route from executor evidence; model, provider and editor names do not select it.**`; *Why* → `one
   review method runs on Claude, Codex or any capable host, so a review is comparable across them; native
   \`/simplify\` stays useful where it exists.`; *Accepts* → `a missing native \`/simplify\` halts; switching that run to
