@@ -1,0 +1,49 @@
+{
+  "change": "0042-review-method",
+  "version": "v0.37",
+  "base": "07cc44c",
+  "analyzed": "0378333",
+  "measured_on": "local",
+  "collected_at": "2026-10-30T19:52:48+02:00",
+  "mf_version": "v0.36.0-1-g07cc44c",
+  "executor": "native (Claude Code)",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 12138
+    },
+    "shared-context": {
+      "value": 6406
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 68
+    },
+    "gate-seconds": {
+      "value": 49
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 46
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 8
+    }
+  }
+}

@@ -260,6 +260,8 @@ The highest row any phase matches decides the capability; map it to the offered 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
   output — means run it, in the build's model. Say which you found.
+- **Tier** — `high` when the change touches authentication, the gate, migrations, CI or the review references and
+  `mf-converge` itself; else `standard`. Say which signal you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -276,6 +278,7 @@ model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
+tier = "standard"     # "high" when the change touches auth, the gate, migrations, CI or the review skills
 [release]
 model = "<offered model>"
 ```

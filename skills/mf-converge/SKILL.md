@@ -6,8 +6,8 @@ description: Conduct the end-of-change check loop — freeze the diff, fan out r
 # mf-converge — conduct the end-of-change loop
 
 > **Your role is CONDUCTOR. You judge nothing yourself.** You freeze the diff, dispatch fresh read-only
-> workers, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, you do
-> not decide that the code is fine, and you do not release: `mf-release` finalizes, in a separate session.
+> workers, read their verdicts **from disk**, dispatch one fix pass, and re-verify. You do not review, decide
+> that the code is fine, or release: `mf-release` finalizes, in a separate session.
 
 Why: a station run inside your own context shares the context that produced the work — **three opinions from
 one reader** — and no fresh reader can re-run it. The stations are fresh workers, or there is no check.
@@ -75,10 +75,10 @@ The events, and no others:
 
 | event | written in | detail holds |
 |---|---|---|
-| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
+| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed, the tier |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
-| `fan-out` | Step 3, Step 7 | the roles dispatched and the range they judge |
-| `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking` |
+| `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the tier and the worker count |
+| `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking`, ending `tokens <n>` from the worker's output, or `tokens unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -92,33 +92,28 @@ The events, and no others:
 
 ## Run 2 — 2026-09-28 10:04
 10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
-10:09:02 · round 1 · verdicts — review clean · security clean
-10:04:20 · round 1 · fan-out — review and security dispatched
-10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
+10:09:02 · round 1 · verdicts — review clean · security clean · tokens unavailable
+10:04:20 · round 1 · fan-out — review and security dispatched · standard · 2 workers
+10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files · standard
 
 ## Run 1 — 2026-09-27 14:02
 14:31:00 · round 3 · halt — cap reached, R3 open
 …
 ```
 
-## Executor and worker selection — before checker dispatch
+## The tier and the workers — before checker dispatch
 
-Report `engine: native (Claude Code)` or `engine: generic (<executor or unidentified>)`, from runtime evidence.
-A model, provider or editor name is not executor evidence.
-
-| executor | engines |
-|---|---|
-| Claude Code, positively identified | invocable `/code-review` and `/security-review`. A missing one → halt naming it; only an explicit user choice runs generic for that run. Step 3's native scoping holds; native security still needs a remote |
-| other or unidentified | each worker loads [generic review](references/generic-review.md) or [generic security](references/generic-security.md), resolved from the installed skill package. Generic security takes the explicit range and needs no remote or native plugin |
+`tier=standard|high` — `standard` when absent. Echo it, and write it in the `start` line. **Every host runs MF's
+method:** each worker loads [review](references/generic-review.md) or [security](references/generic-security.md),
+resolved from the installed package. At `standard` each role is one fresh worker. At `high` read
+[the high tier](references/high-tier.md): per role, finders, verifiers, a gap sweep and a writer, every one
+dispatched by you.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
-build transcript: never a resumed worker or a fork of the producer's conversation. Every checker and verify
-dispatch starts fresh; role identity lives in its findings file.
-
-Before dispatch, confirm the host can start workers, wait for them, and read their named outputs on shared disk.
-It cannot → halt naming the capability; never review inline or open an unobservable sibling thread. Claude Code
-dispatches in parallel; generic prefers parallel and accepts sequential workers over the same frozen head. Both
-checkers finish before any fixer starts. MF skill names are instruction names: load them with the host's syntax.
+build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
+can start workers, wait for them, and read their named outputs on shared disk; it cannot → halt naming the
+capability, never review inline. Prefer parallel dispatch; sequential workers over the same frozen head are
+allowed. Every checker of a round finishes before any fixer starts.
 
 ## Catch-up round
 
@@ -166,7 +161,7 @@ selection with the range and patch, under Step 3.
 
 Each checker independently reconstructs the selection and diffs with git, compares them with the frozen patch,
 and reports the selected ids, commit count and changed-file count in its Summary. A missing commit or patch,
-a failed command or a mismatch is a scope failure. Neither engine may reopen inherited default-branch changes.
+a failed command or a mismatch is a scope failure. Neither role may reopen inherited default-branch changes.
 
 **Empty resolutions:** zero changed files can earn clean only when the selection is non-empty, consists solely
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
@@ -182,7 +177,7 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
    interrupted. Halt naming the first unticked phase; `mf-build` owns it.
 3. **The derived range is non-empty** — Step 2. Halt if `base` equals `HEAD`.
 4. **The root `Makefile` has a `gate` target that runs a command** — the dry run of *Where the constants come
-   from* passed. Halt naming the root `Makefile`.
+   from* passed.
 5. **The gate is green before round 1** — run `make gate` yourself. Red → halt; `mf-build` owns it. Skipped, a
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
 6. **The gate changes only as the cut planned.** Run
@@ -198,8 +193,8 @@ Once all pass, write `start` to the status log.
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
-1. **Derive the base**: `git merge-base <default-branch> HEAD`, the default branch. Never accept one as an
-   argument; never pick a commit by eye.
+1. **Derive the base**: `git merge-base <default-branch> HEAD`. Never accept one as an argument; never pick a
+   commit by eye.
 2. **Halt if `base` equals `HEAD`.** Over an empty range every station returns clean, and the loop converges on a
    change it never read.
 3. **Write the patch** — `mkdir -p .minions/findings`, then `.minions/findings/<change-id>_diff.patch`, holding
@@ -213,7 +208,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 The stations are **review** and **security**. Simplify ran inside `mf-build` and wrote no findings file; its
 edits are in this range, so review judges them.
 
-Dispatch both as fresh workers, per *Executor and worker selection*, read-only apart from their own findings
+Dispatch both roles as fresh workers, per *The tier and the workers*, read-only apart from their own findings
 files. Give each:
 
 - the range `<base>..HEAD` and its two commit ids;
@@ -222,9 +217,10 @@ files. Give each:
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
   it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
-  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design and
-  tasks under `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
-- its engine, per *Executor and worker selection*;
+  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
+  and spec delta under `openspec/changes/<change-id>/`, with the living specs the delta touches — review reads the
+  design's `## Tests` table;
+- its tier, mode and reference;
 - the card, from [`## The card`](#the-card) — every finding is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
 
@@ -234,7 +230,7 @@ Write `fan-out` to the status log at dispatch.
 station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
 `nit` or `drift` to `blocking`. The station judges the match; you judge nothing.
 
-**Review runs these passes after its engine**, and its Summary says each ran:
+**Review runs these passes after its sections**, and its Summary says each ran:
 
 | pass | runs | cards |
 |---|---|---|
@@ -242,30 +238,14 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 | test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so Step 8 picks it |
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
-**Native scoping (Claude Code).** For a merge-aware catch-up, scope both native engines to the selected
-ordinary diffs and remerge-diffs with surrounding source, using the frozen patch; independently reconstruct the
-selection first under Catch-up scope, including the empty-resolution checks. Report that route and its scope.
-The ordinary native route below applies to other rounds.
-
-Invoke `/code-review` scoped to the range. Invoke `/security-review` with no
-target: on a clean tree it reviews the committed branch work, its expected path, not a fallback. **Only if what a
-station reviewed came back empty or clearly wrong** does it fall back to reviewing the patch file, and its
-Summary **states which it did**, with the file and commit counts it resolved. The patch is a fallback, not the
-channel: a review from a patch alone loses the file context the engine's blame, history and comment passes need.
-
-**Generic scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
+**Scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
 resource. For a merge-aware catch-up, reconstruct and judge only Catch-up scope. Report the scope actually
-resolved; halt when the inputs cannot support a verdict. Step 4's findings and Step 5's scope rules apply to
-either engine.
-
-**Engine overrides, no exceptions:** never `--fix` — a station edits nothing but its own findings
-file · never `--comment` — findings land on disk, not on a pull request · never `ultra` — it is user-triggered
-and billed, and is not agent-launchable.
+resolved; halt when the inputs cannot support a verdict.
 
 ## Step 4 — The findings file contract
 
 Each station writes **exactly one** file, `.minions/findings/<change-id>_<role>.md`, and nothing else. Something
-parses it, and it opens with this frontmatter, all nine keys:
+parses it, and it opens with this frontmatter, all fourteen keys:
 
 ```yaml
 ---
@@ -278,6 +258,11 @@ reviewed: <YYYY-MM-DD>
 round: <int, bumped by each verify pass>
 open_blocking: <int>
 verdict: clean | changes-requested
+tier: standard | high
+mode: parallel | sequential
+workers: <int, the workers this role used>
+model: <the model, as the host reports it, or unknown>
+packet: <the documents included; then `skipped:` and those skipped>
 ---
 ```
 
@@ -377,7 +362,7 @@ record drifts.
 ## Step 7 — Verify, and the cap
 
 Re-run the gate yourself, and write `verify` to the status log. Dispatch review and security again as **fresh**
-workers at `round ≥ 2`, with Step 3's engines, inputs and dispatch rules, and write `fan-out`. Also pass each its
+workers at `round ≥ 2`, with Step 3's tier, inputs and dispatch rules, and write `fan-out`. Also pass each its
 own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
 counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a
 fix's new test is judged like the build's. Read the verdicts from disk under Step 5.
@@ -435,7 +420,8 @@ retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the verdicts and the round, read from disk; each blocking finding's end state, by id; the cards
+Your sentences: the verdicts and the round, read from disk; the tier, and each `inconclusive` section; each
+blocking finding's end state, by id; the cards
 written, by qualified id, and the backlog's total card count, so a vanished file shows as a drop; the exit code of
 the gate you re-run at the end.
 
@@ -453,7 +439,9 @@ field — never a heading, since the backlog's headings are its changes. This sk
 | **Why it's a problem** | the harm, in one or two sentences |
 | **When you'd hit it** | a concrete scenario: what you run, and what happens |
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
-| **Priority** | `<severity> · <role>` — and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level |
+| **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran` |
+| **Verdict** | `confirmed`, or `plausible` and what would confirm it |
+| **Priority** | `<severity> · <role> · <category>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
@@ -468,7 +456,9 @@ and name things rather than count them: "the review and security files", not "th
   - **Why it's a problem:** the handler reads the whole body before it checks the length.
   - **When you'd hit it:** a client posts a file larger than the server's memory.
   - **What it affects:** `save()` in `src/upload.py` (`src/upload.py:42`).
-  - **Priority:** medium · security — one request can exhaust memory.
+  - **Evidence:** `body = request.body.read()` at `src/upload.py:42` — no length check before it · read.
+  - **Verdict:** confirmed.
+  - **Priority:** medium · security · stability — one request can exhaust memory.
   - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
   - **Trigger:** the next change that opens `src/upload.py`.
   - **Still true?** `grep -n 'request.body.read()' src/upload.py`

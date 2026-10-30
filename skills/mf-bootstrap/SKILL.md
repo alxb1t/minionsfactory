@@ -72,8 +72,7 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
-nothing; and, when `git remote get-url origin` fails, that native Claude Code `/security-review` cannot load
-without a remote — generic security needs none, and provider setup stays with the operator.
+nothing; provider setup stays with the operator.
 
 The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
 
