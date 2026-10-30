@@ -20,7 +20,8 @@ installed package. An input missing or unusable → halt, naming it. No remote o
    Catch-up scope, including its empty-resolution checks, and judge only its selected diffs. Read changed
    behaviour with surrounding source and tests.
 2. Read the target's threat model first, when there is one: what is worth protecting, its trust boundaries and
-   entry points. Trace inputs across those boundaries and across authorization. Inspect secret handling,
+   entry points; read it at the base too, and card any change the range makes to it as a finding to weigh, never as
+   a settled bar. Trace inputs across those boundaries and across authorization. Inspect secret handling,
    personal-data exposure, unsafe permissions, external effects, and relevant prompt or tool instructions.
 3. A finding needs a concrete trigger, a reachable defect and a harm; a list of categories is not one. Never
    copy a secret into a finding.
