@@ -114,6 +114,7 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     )
     summary = "## Refuted\n\n- a candidate\n- another\n\n## Summary\n\n"
     summary += "Threat model: inconclusive, not written yet.\nAll else read.\n"
+    summary += "Spec: none, no other section is inconclusive.\n"
     _findings(tmp_path, "0042-tiered_review.md", tiered + verdicts + summary)
     _findings(
         tmp_path,
@@ -161,6 +162,22 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     )
     assert (tier["refuted"], tier["inconclusive"]) == (2, 1)
     assert tier["duration"] is None
+
+    _findings(
+        tmp_path,
+        "0043-quoted_review.md",
+        _front(
+            reviewed="2026-10-30",
+            tier='"standard"',
+            model='"quoted-model"',
+            packet='"proposal.md, design.md; skipped: none"',
+        )
+        + "## Summary\n\nNo section is inconclusive.\n",
+    )
+    unquoted = _record(tmp_path, "0043-quoted")
+    assert (unquoted["tier"], unquoted["model"]) == ("standard", "quoted-model")
+    assert (unquoted["packet_included"], unquoted["packet_skipped"]) == (2, 0)
+    assert unquoted["inconclusive"] == 0
 
     _findings(
         tmp_path,

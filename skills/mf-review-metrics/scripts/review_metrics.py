@@ -120,6 +120,7 @@ _PRIORITY = _bullet("Priority")
 _VERDICT = _bullet("Verdict")
 _STATUS = _bullet("Status")
 _SEVERITY = _bullet("severity")
+_DENIED = re.compile(r"\b(?:no|not|none|never|without)\b[^,.;]*inconclusive")
 _EVENT = re.compile(
     r"^(\d\d):(\d\d):(\d\d) · (?:round \S+ · )?([\w-]+) — (.*)$", re.MULTILINE
 )
@@ -135,7 +136,10 @@ def _split_front(text: str) -> tuple[dict[str, str], str]:
     """Return a file's frontmatter keys, and its body with backticks stripped."""
     found = re.match(r"---\n(.*?)\n---\n?", text, re.DOTALL)
     block, body = (found.group(1), text[found.end() :]) if found else ("", text)
-    front = dict(re.findall(r"^(\w+):[ \t]*(.*?)[ \t]*$", block, re.MULTILINE))
+    pairs = re.findall(
+        r"^(\w+):[ \t]*(?:([\"'])(.*)\2|(.*?))[ \t]*$", block, re.MULTILINE
+    )
+    front = {key: quoted or plain for key, _, quoted, plain in pairs}
     return front, body.replace("`", "")
 
 
@@ -229,7 +233,10 @@ def _findings_file(path: Path, blocking: tuple[str, ...]) -> Record | None:
         **_verdicts(body, cards),
         **_resolutions(body),
         "inconclusive": (
-            sum("inconclusive" in line for line in outside.splitlines())
+            sum(
+                "inconclusive" in line and not _DENIED.search(line.lower())
+                for line in outside.splitlines()
+            )
             if "tier" in front
             else None
         ),
