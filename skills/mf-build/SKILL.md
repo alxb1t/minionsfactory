@@ -1,6 +1,6 @@
 ---
 name: mf-build
-description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with a native or generic simplify pass. Use when a change under openspec/changes/ has been cut and its phases need building.
+description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with mf-simplify. Use when a change under openspec/changes/ has been cut and its phases need building.
 ---
 
 # mf-build — build the active change, one phase at a time
@@ -21,7 +21,7 @@ it → **halt**, naming the decision and the task.
   1 lift
   2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
-  3 simplify ─▶ gate ─▶ commit
+  3 mf-simplify ─▶ its commit, or lean already
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
   4 report
 ```
@@ -58,7 +58,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
-| **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `/simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
+| **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
@@ -104,17 +104,10 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
 | every `## Progress` box is ticked | the change is built: report that and stop; invent no scope |
 
-## Executor selection — before production edits
+## Executor — report it
 
-Report `engine: native (Claude Code)` or `engine: generic (<executor or unidentified>)`, from runtime evidence.
-Model, provider and editor names do not identify the executor.
-
-| executor | simplify engine |
-|---|---|
-| Claude Code, positively identified | native `/simplify`, invocable before production edits, with its own behaviour. Missing → halt naming it; generic for this run only if the user explicitly selects it |
-| other or unidentified — Codex, also through Zed ACP; Zed's native agent; a Claude model through OpenRouter | load [generic simplify](references/generic-simplify.md) before its pass and follow it, resolved from this installed skill package, not the target's cwd |
-
-MF skill names identify instructions; load or invoke them with the host's syntax.
+Report `executor: <Claude Code, Codex, … or unidentified>` from runtime evidence; model, provider and editor names
+do not identify it. It chooses no engine: every step runs MF's own method. The release's metrics record it.
 
 ## Step 2 — The per-phase ritual
 
@@ -182,11 +175,10 @@ Then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 After the last phase, and only then:
 
-1. Run the engine *Executor selection* chose — native **`/simplify`** or generic — over this change's diff,
-   given the base and head ids, the range, the patch, the target context and the change's artifacts. Let it **apply its fixes in place**.
+1. Run [`mf-simplify`](../mf-simplify/SKILL.md) for this change: it edits the range's lines, gates each angle, and
+   commits `refactor(<change-id>): simplify`, or reports `lean already`.
 2. **Re-run the full gate. Red is a halt**: commit nothing over it, and never repair it by weakening the gate.
-3. Commit its edits as **their own trailered commit**, staged by name, apart from any phase commit. No edits →
-   report the no-op honestly; manufacture no commit.
+3. Name its commit and `net:` line in your report, or `lean already`. No edits → no commit.
 
 **Why inside the build:** simplify runs **before** the review and security stations `mf-converge` fans out, so
 review reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
@@ -200,7 +192,7 @@ after Step 3's commit or no-op, from the repository root. Resolve `<draft>` to t
 `metrics/<change-id>.json` path:
 
 1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
-   --out "<draft>" --executor "<what executor selection reported>"
+   --out "<draft>" --executor "<the executor you reported>"
    --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
 2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data "<draft>"`
    writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.

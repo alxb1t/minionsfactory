@@ -6,7 +6,7 @@ word for word.
 ## Progress
 
 - [x] 1 — Write mf-simplify
-- [ ] 2 — Run it in the build
+- [x] 2 — Run it in the build
 - [ ] 3 — Record it
 - [ ] 4 — Calibrate it
 
@@ -17,9 +17,9 @@ word for word.
 
 ## 2 — Run it in the build
 
-- [ ] 2.1 Apply [D2](design.md#d2) to `skills/mf-build/SKILL.md`, and delete `skills/mf-build/references/generic-simplify.md`.
+- [x] 2.1 Apply [D2](design.md#d2) to `skills/mf-build/SKILL.md`, and delete `skills/mf-build/references/generic-simplify.md`.
   Verify: `grep -c '/simplify' skills/mf-build/SKILL.md` prints `0`, `grep -c '../mf-simplify/SKILL.md' skills/mf-build/SKILL.md` prints `1`, and `test -e skills/mf-build/references/generic-simplify.md` fails.
-- [ ] 2.2 Apply [D2](design.md#d2) to `skills/mf-release/SKILL.md` and `skills/mf-cut-change/SKILL.md`.
+- [x] 2.2 Apply [D2](design.md#d2) to `skills/mf-release/SKILL.md` and `skills/mf-cut-change/SKILL.md`.
   Verify: `grep -c 'native (Claude Code)' skills/mf-release/SKILL.md` prints `0`, and `grep -c '/simplify' skills/mf-cut-change/SKILL.md` prints `0`.
 
 ## 3 — Record it
