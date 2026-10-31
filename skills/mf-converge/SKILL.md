@@ -214,6 +214,7 @@ files. Give each:
 - the range `<base>..HEAD` and its two commit ids;
 - the patch path `.minions/findings/<change-id>_diff.patch`, and the selected commits, parents, diff kinds and
   counts for a merge-aware [catch-up scope](#catch-up-scope);
+- the body of the range's `refactor(<change-id>): simplify` commit, when it has one: its notes are for review;
 - its findings path `.minions/findings/<change-id>_<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
   it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,

@@ -13,7 +13,7 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
 ```
 
 Executors load the skills with their own syntax. Convergence needs fresh observable workers with shared-disk
-findings; generic workers can run sequentially. See [execution](../README.md#execution) for routing and evidence.
+findings; workers can run sequentially. See [execution](../README.md#execution) for evidence.
 
 ## The pages
 
@@ -28,7 +28,7 @@ What holds, and what was chosen.
 
 | where | holds |
 |---|---|
-| [`skills/`](../skills/) | station instructions, bundled generic role references and the bundled scripts; Claude Code retains native `/simplify` |
+| [`skills/`](../skills/) | station instructions, bundled generic role references and the bundled scripts |
 | [`metrics/`](../metrics/) | MF's metrics catalogue and the data file each release records |
 | [`scripts/metrics/`](../scripts/metrics/) | the metric scripts the catalogue names |
 | [`openspec/specs/`](../openspec/specs/) | the living spec |
