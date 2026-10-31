@@ -4,19 +4,19 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## Progress
 
-- [ ] 1 — The executor
+- [x] 1 — The executor
 - [ ] 2 — The reach
 - [ ] 3 — The record
 - [ ] 4 — The proof
 
 ## 1 — The executor
 
-- [ ] 1.1 In `skills/mf-ship/scripts/conduct.py`, return the executor from `_models` with its validation, and build each
+- [x] 1.1 In `skills/mf-ship/scripts/conduct.py`, return the executor from `_models` with its validation, and build each
   worker from it, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `grep -c '^EXECUTORS = ' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 1.2 In `skills/mf-ship/scripts/conduct.py`, add `Run.executors`, and probe each executor, per [D3](design.md#d3).
+- [x] 1.2 In `skills/mf-ship/scripts/conduct.py`, add `Run.executors`, and probe each executor, per [D3](design.md#d3).
   Verify: `grep -c 'def executors' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 1.3 In `tests/test_conduct.py`, add `test_a_station_runs_on_its_executor` and
+- [x] 1.3 In `tests/test_conduct.py`, add `test_a_station_runs_on_its_executor` and
   `test_a_models_mismatch_halts_its_version`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "on_its_executor or models_mismatch"` reports `2 passed`.
 

@@ -803,6 +803,109 @@ def test_a_later_version_ships_past_a_halted_one(
     )
 
 
+def test_a_station_runs_on_its_executor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    minions = root / ".minions"
+    (minions / "models").mkdir(parents=True)
+    table = '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\n'
+    (minions / "models" / "0001-todo.toml").write_text(table)
+    models = conduct["_models"]
+    assert models(minions, "0001-todo", "converge", "claude") == ("codex", None, None)
+    assert models(minions, "0001-todo", "build", "claude") == ("claude", None, None)
+    assert models(minions, "0001-todo", "integrate", "claude") == (
+        "claude",
+        "opus",
+        None,
+    )
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls)[:2] == ["probe", "probe"]
+    spawned = [
+        line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
+    ]
+    assert spawned[:2] == [
+        "probe · model default",
+        "probe-codex · model default · executor codex",
+    ]
+    assert "build · model default" in spawned
+    assert "converge · model default · executor codex" in spawned
+    assert "release · model opus" in spawned
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    _version(second, "0001-todo", "- [ ] 1 — Todo\n")
+    (second / ".minions" / "models").mkdir(parents=True)
+    (second / ".minions" / "models" / "0001-todo.toml").write_text(table)
+    conduct["main"].__globals__["_executor_missing"] = lambda name: name == "codex"
+    calls.unlink()
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(" · run · halt — probe-codex — codex is not on PATH")
+        for line in _log(second)
+    )
+
+
+def test_a_models_mismatch_halts_its_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    table = root / ".minions" / "models" / "0001-todo.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text('[converge]\nexecutor = "gemini"\n')
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "release 0002-marks" in _calls(calls)
+    assert "build 0001-todo" not in _calls(calls)
+    assert _calls(calls).count("probe") == 1
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml:"
+            " executor 'gemini' unknown"
+        )
+        for line in _log(root)
+    )
+
+    table.write_text('[converge]\nexecutor = "codex"\nmodel = "claude-opus-5-5"\n')
+    _version(root, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "release 0003-more" in _calls(calls)
+    assert "build 0001-todo" not in _calls(calls)
+    assert _calls(calls).count("probe") == 1
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml:"
+            " converge on codex, model claude-opus-5-5"
+        )
+        for line in _log(root)
+    )
+
+
 def test_run_halts_on_a_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:

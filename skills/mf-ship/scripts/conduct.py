@@ -49,6 +49,7 @@ STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
 TIERS = ("standard", "high")
+EXECUTORS = ("claude", "codex")
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -627,17 +628,24 @@ def _table(runs: Path, change: str, name: str) -> dict[str, object]:
     return table if isinstance(table, dict) else {}
 
 
-def _models(runs: Path, change: str, station: str) -> tuple[str | None, str | None]:
-    """Return the station's model and effort from the cut's models file, or Nones.
+def _models(
+    runs: Path, change: str, station: str, run: str
+) -> tuple[str, str | None, str | None]:
+    """Return the station's executor, model and effort from the cut's models file.
 
-    Integrate uses the `[release]` table.
+    Integrate uses the `[release]` table. An absent executor is the run's, `run`;
+    an absent model or effort is None. A table no executor can run halts the version.
     """
     table = _table(runs, change, "release" if station == "integrate" else station)
+    executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
-    return (
-        model if isinstance(model, str) else None,
-        effort if isinstance(effort, str) else None,
-    )
+    model = model if isinstance(model, str) else None
+    file = f"models/{change}.toml"
+    if executor not in EXECUTORS:
+        raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
+    if executor == "codex" and (model or "").startswith("claude"):
+        raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
+    return str(executor), model, effort if isinstance(effort, str) else None
 
 
 def _tier(runs: Path, change: str) -> str:
@@ -868,17 +876,18 @@ class Run:
         station: str,
         cwd: Path,
         prompt: str,
-        models: tuple[str | None, str | None] = (None, None),
+        models: tuple[str, str | None, str | None],
     ) -> list[str] | None:
         """Run one worker and log it and its denials.
 
         Return the denials, or None when a timeout halted `who`.
         """
-        model, effort = models
-        self.log.event(who, "spawn", f"{station} · model {model or 'default'}")
+        executor, model, effort = models
+        other = f" · executor {executor}" if executor != self.executor else ""
+        self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
         out = self.runs / self.log.stamp / f"{who}_{station}.log"
         started = time.monotonic()
-        code, killed = work(argv(self.executor, prompt, cwd, model, effort), cwd, out)
+        code, killed = work(argv(executor, prompt, cwd, model, effort), cwd, out)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         denied = denials(out)
@@ -920,7 +929,7 @@ class Run:
                 minions = self.primary / ".minions"
                 tier = _tier(minions, version.change) if stage == "converge" else ""
                 prompt = PROMPTS[stage].format(change=version.change, tier=tier)
-                models = _models(minions, version.change, stage)
+                models = _models(minions, version.change, stage, self.executor)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
@@ -976,6 +985,10 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
+            for station in STATIONS:
+                _models(
+                    self.primary / ".minions", version.change, station, self.executor
+                )
             if not self.ready(version, threads):
                 return
             self.advance(version, ("integrate", "release"))
@@ -987,8 +1000,29 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
-    def probe(self) -> None:
+    def executors(self, versions: list[Version]) -> list[str]:
+        """Return the run's executor, then each other one the versions' tables name.
+
+        A table `_models` refuses names none: its version halts in `take`.
+        """
+        found = [self.executor]
+        for version, station in itertools.product(versions, STATIONS):
+            try:
+                executor, *_ = _models(
+                    self.primary / ".minions", version.change, station, self.executor
+                )
+            except (Stop, ValueError):
+                continue
+            if executor not in found:
+                found.append(executor)
+        return found
+
+    def probe(self, executor: str) -> None:
         """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
+        station = "probe" if executor == self.executor else f"probe-{executor}"
+        if _executor_missing(executor):
+            self.halt("run", f"{station} — {executor} is not on PATH")
+            return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         try:
             _git(scratch, "init", "-q", "-b", "main")
@@ -996,9 +1030,9 @@ class Run:
             (scratch / ".gitignore").write_text(".gated\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
-            denied = self.spawn("run", "probe", scratch, PROBE)
+            denied = self.spawn("run", station, scratch, PROBE, (executor, None, None))
             if denied is not None:
-                self.judge("run", "probe", check_probe(scratch), denied)
+                self.judge("run", station, check_probe(scratch), denied)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 
@@ -1027,7 +1061,10 @@ class Run:
                 else:
                     self.halt(change, f"{stage} — {why}")
         else:
-            self.probe()
+            for executor in self.executors(versions):
+                self.probe(executor)
+                if self.halts:
+                    break
         if not (self.halts or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:

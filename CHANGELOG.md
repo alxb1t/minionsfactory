@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `.minions/models/<change-id>.toml` names a station's `executor`, absent meaning the run's. An unknown executor, or
+  `codex` with a `claude-*` model, halts that version before its first worker, and each executor gets its own probe
+  (change `0050-codex-review`, phase 1).
+
 ## [0.42.0] - 2026-10-31
 
 Gate: local 1m38s · CI 0m29s (CI at 0abfe5a) · 0.41.0: local 0m49s · CI 0m29s (CI at ee008f7)
