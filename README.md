@@ -89,8 +89,8 @@ merges in the primary.
 ```
 <container>/
 ├── <repo>/            the primary checkout, named after the repository, on the default branch; .minions/ lives here
-├── v0.33_<slug>/      a version's worktree, made by mf-cut-change
-└── v0.34_<slug>/      another, built side by side
+├── 0033-<slug>/       a version's worktree, made by mf-cut-change
+└── 0034-<slug>/       another, built side by side
 ```
 
 MF declares `Worktrees: ../`, which names the folder holding its checkout. Move it into a container before the next

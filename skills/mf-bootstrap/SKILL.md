@@ -74,7 +74,7 @@ No `Change:` trailer: no change exists yet. After the commit, `git status --porc
 Your sentences: the paths written, skipped and appended; the commit id, with `git status --porcelain` printing
 nothing; provider setup stays with the operator.
 
-The last line: `Next: /mf-cut-change with the first version's change-id and version.` Then stop.
+The last line: `Next: /mf-cut-change with the first version's change-id and bump.` Then stop.
 
 ## Never
 

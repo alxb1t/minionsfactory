@@ -28,6 +28,7 @@ CATALOGUE = Path("metrics/catalogue.toml")
 CHANGES = Path("metrics/changes")
 MF_PATH = Path("skills/mf-build/scripts/metrics.py")
 NO_CATALOGUE = "metrics: none — no catalogue"
+UNRELEASED = "unreleased"
 TIMEOUT_SECONDS = 300
 REQUIRED = ("id", "title", "group", "unit", "better")
 KEYS = {*REQUIRED, "watch", "noise", "script", "args", "source"}
@@ -218,15 +219,13 @@ def _change_dir(root: Path, change: str) -> Path:
 
 
 def change_version(root: Path, change: str) -> str:
-    """Return the `version:` of the change's `proposal.md` frontmatter."""
+    """Return the `version:` of the change's `proposal.md`, or `UNRELEASED`."""
     text = (root / _change_dir(root, change) / "proposal.md").read_text(
         encoding="utf-8"
     )
     front = re.match(r"---\n(.*?)\n---", text, re.DOTALL)
     found = front and re.search(r"^version:\s*(\S+)", front.group(1), re.MULTILINE)
-    if not found:
-        raise SystemExit(f"{change}: no `version:` in its proposal.md frontmatter")
-    return found.group(1)
+    return found.group(1) if found else UNRELEASED
 
 
 def _derived(root: Path, change: str, base: str, head: str) -> dict[str, Value]:
@@ -340,8 +339,10 @@ def collect(
 def version_key(version: str) -> tuple[int, ...]:
     """Return a version as numbers, so `v0.9` sorts below `v0.10`.
 
-    e.g. "v0.10" → (0, 10), "v0.9.1" → (0, 9, 1)
+    e.g. "v0.10" → (0, 10), "v0.9.1" → (0, 9, 1), `UNRELEASED` above every release
     """
+    if version == UNRELEASED:
+        return (sys.maxsize,)
     return tuple(int(part) for part in version.lstrip("v").split("."))
 
 

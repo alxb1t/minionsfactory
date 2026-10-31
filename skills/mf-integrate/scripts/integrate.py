@@ -25,6 +25,7 @@ from pathlib import Path
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
+RELEASE = re.compile(r"chore\(release\): \S+")
 UNRELEASED = re.compile(r"^## \[Unreleased\]\n", re.MULTILINE)
 RELEASED = re.compile(r"^## \[", re.MULTILINE)
 DECISIONS = "docs/decisions.md"
@@ -93,29 +94,13 @@ def default_branch(cwd: Path) -> str:
 def _frontmatter(text: str, key: str) -> str | None:
     """Return a key's value in the text's leading `---` block.
 
-    e.g. a proposal opening `version: v0.33` in its block, "version" → "v0.33"
+    e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
     """
     if not text.startswith("---\n"):
         return None
     block = text[4:].split("\n---", 1)[0]
     found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
     return found[1] if found else None
-
-
-def change_of(cwd: Path, branch: str) -> str:
-    """Return the change on `branch` whose version and slug name the branch.
-
-    e.g. "v0.33_serial_integration" → "0037-serial-integration"
-    """
-    listing = _git(cwd, "ls-tree", "--name-only", f"{branch}:openspec/changes")
-    for name in listing.split():
-        if not (match := CHANGE_ID.fullmatch(name)):
-            continue
-        proposal = _show(cwd, branch, f"openspec/changes/{name}/proposal.md") or ""
-        version = _frontmatter(proposal, "version")
-        if f"{version}_{match[2].replace('-', '_')}" == branch:
-            return name
-    raise Stop(2, f"integrate: cannot run — {branch} holds no change that names it")
 
 
 def _worktrees(cwd: Path) -> dict[str, Path]:
@@ -136,7 +121,7 @@ def _run_dir(cwd: Path) -> Path:
     return Path(common.strip()).parent / ".minions"
 
 
-def unready(cwd: Path, branch: str, change: str, tree: Path | None) -> str | None:
+def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
     Ready is every `## Progress` box ticked, and both findings files clean or
@@ -144,7 +129,7 @@ def unready(cwd: Path, branch: str, change: str, tree: Path | None) -> str | Non
     """
     if tree is None:
         return "no worktree"
-    tasks = _show(cwd, branch, f"openspec/changes/{change}/tasks.md") or ""
+    tasks = _show(cwd, change, f"openspec/changes/{change}/tasks.md") or ""
     boxes = PROGRESS.findall(tasks)
     if not boxes:
         return "tasks.md has no ## Progress list"
@@ -165,23 +150,38 @@ def unready(cwd: Path, branch: str, change: str, tree: Path | None) -> str | Non
     return None
 
 
+def _holds(cwd: Path, change: str) -> bool:
+    """Return whether a branch holds its change, active or just released."""
+    if _show(cwd, change, f"openspec/changes/{change}/proposal.md") is not None:
+        return True
+    return (
+        RELEASE.fullmatch(_git(cwd, "log", "-1", "--format=%s", change).strip())
+        is not None
+    )
+
+
 def next_version(cwd: Path) -> str:
-    """Return the lowest-id unmerged version, its worktree and readiness."""
+    """Return the lowest-id unmerged version, its worktree and readiness.
+
+    A version is a branch named by a change id that holds its change.
+    """
     default = default_branch(cwd)
     listing = _git(
-        cwd, "branch", "--no-merged", default, "--list", "v*", "--format=%(refname)"
+        cwd,
+        *("branch", "--no-merged", default, "--list", "[0-9]*"),
+        "--format=%(refname:short)",
     )
-    branches = [ref.removeprefix("refs/heads/") for ref in listing.split()]
-    if not branches:
+    changes = [
+        name
+        for name in listing.split()
+        if CHANGE_ID.fullmatch(name) and _holds(cwd, name)
+    ]
+    if not changes:
         raise Stop(1, "next: none — no open version")
-    _, branch, change = min(
-        (int(change.split("-")[0]), branch, change)
-        for branch in branches
-        for change in [change_of(cwd, branch)]
-    )
-    tree = _worktrees(cwd).get(branch)
-    line = f"next: {branch} · {change} · {tree or 'no worktree'}"
-    if why := unready(cwd, branch, change, tree):
+    change = min(changes, key=lambda name: int(name.split("-")[0]))
+    tree = _worktrees(cwd).get(change)
+    line = f"next: {change} · {tree or 'no worktree'}"
+    if why := unready(cwd, change, tree):
         raise Stop(1, f"{line} · not ready — {why}")
     return f"{line} · ready"
 

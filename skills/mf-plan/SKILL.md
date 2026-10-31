@@ -68,7 +68,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 |---|---|
 | triggered cards | each card's **Trigger** in `.minions/backlog.md` against the version; matches proposed as `backlog: [<ids>]` |
 | the paydown line | more than ten `- **<4 digits>·` lines (`grep -cE '^- \*\*[0-9]{4}·' .minions/backlog.md`) → recommend a paydown version first |
-| the release can ship it | the version's form against what `skills/mf-release/SKILL.md` at `<ref>` writes for a tag; a mismatch goes to the person |
+| the bump | `minor` or `patch`, a patch against what root `AGENTS.md` says one may hold; a mismatch goes to the person |
 | decisions touched | `docs/decisions.md` at `<ref>`, when present: each decision the version adds or overturns, named |
 | a split | a version whose one diff would be too large for review is proposed as two |
 | re-measure | with `from=`: a fact citing a commit other than `<sha>` is checked again at `<sha>` |
@@ -111,7 +111,7 @@ The frontier is empty → show the settled table, the `## Decisions` rows; the p
 **Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
 — then a last line:
 
-- hard: `Next: /mf-cut-change <id> <version> brief=<path>`
+- hard: `Next: /mf-cut-change <id> <bump> brief=<path>`
 - light: `Next: /mf-plan <what> depth=hard from=<path>`
 
 Then stop.
@@ -142,7 +142,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   - <a question still on the frontier — removed when it is empty>
 
   ## For the cut
-  <the change id and version proposed · `backlog: [ids]` · the conditions — filled when the frontier is empty>
+  <the change id and bump proposed · `backlog: [ids]` · the conditions — filled when the frontier is empty>
   ```
 
 ## Never

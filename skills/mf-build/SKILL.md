@@ -33,8 +33,7 @@ the `Change:` trailer you write, so a wrong one files one change's phases under 
 
 1. The candidates are the directories `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists.
    None → **halt**: `no active change`. Several → **halt**, listing them.
-2. The candidate's branch is `v<its proposal version>_<its slug>` — `0019-inferred-change-id` at `v0.19` →
-   `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+2. The candidate's branch is its change id. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
 
 Echo the change id and the phase you are about to build before you build anything.
@@ -47,7 +46,7 @@ A breach of any, found mid-build, is a halt naming the id.
 
 | id | the change must | Step 1 checks it |
 |---|---|---|
-| **I1** | be committed, on its own branch `v<version>_<slug>` cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
+| **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
 | **I3** | leave `make gate` green on the cut commit | — |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
@@ -59,7 +58,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
-| **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | yes — the key is in the leading frontmatter |
+| **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
@@ -78,7 +77,7 @@ The **run directory** is `.minions/` beside the primary checkout:
 - **`I1`** — `git ls-files --error-unmatch openspec/changes/<change-id>/tasks.md` exits 0, and
   `git branch --show-current` is not the default branch.
 - **`I4`** — `tasks.md` has a `## Progress` list with at least one `- [ ] N — Title` line, ticked or not.
-- **`I13`** — `proposal.md` opens with frontmatter holding a `version:` key.
+- **`I13`** — `proposal.md` opens with frontmatter holding a `bump:` key.
 - **`I14`** — every `## Progress` line containing `**HUMAN` has a `## N — Title` section with at least one
   `Verify:`.
 

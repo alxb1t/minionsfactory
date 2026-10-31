@@ -230,13 +230,13 @@ run SHALL end on `halt` or `done`. The log SHALL NOT be a findings file: no stat
 `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md` and `skills/mf-release/SKILL.md` SHALL take `change-id`
 from their parameter when one is given. When none is given, each SHALL take the candidates from
 `git ls-files openspec/changes/`, without `archive/`: no candidate SHALL halt with `no active change`, several SHALL
-halt listing them, and exactly one SHALL be used only if the current branch equals `v<version>_<slug>` built from
-that change's `proposal.md` `version:` and its id, else halt naming both. The skill SHALL echo the id with
+halt listing them, and exactly one SHALL be used only if the current branch equals its change id, else halt
+naming both. The skill SHALL echo the id with
 `(inferred:` before any other work, and SHALL NOT forbid inference.
 
 #### Scenario: Build, converge and release each name the inference and its halts
 - **WHEN** build, converge or release starts without a `change-id`, one change is active, and the current branch
-  is its `v<version>_<slug>`
+  is its change id
 - **THEN** the skill echoes the id with `(inferred:` and proceeds
 
 #### Scenario: No candidate, several, or another branch
@@ -757,7 +757,7 @@ than recording a metric `unavailable`, SHALL halt the release.
 ### Requirement: The page classifies each metric against the previous release
 
 The page SHALL compare each metric with the previous release — the tracked data file whose version is the highest
-below this change's — and classify it as steady (the change within `noise`), improved or worsened by `better`,
+below this change's, or the highest of all for a change with no number yet — and classify it as steady (the change within `noise`), improved or worsened by `better`,
 crossed here (the previous value on the good side of `watch`, this one past it), over (both past it), back under,
 or new. It SHALL list crossed here, then worsened, then over, then the rest, before the charts. A chart SHALL show
 an `unavailable` value as a gap, never as zero. The page SHALL be a self-contained HTML file with inline SVG, and
@@ -799,7 +799,7 @@ return conclusions citing `path:line` at that commit.
 
 Before its first round, `mf-plan` SHALL report as facts: the backlog cards whose trigger the version fires, proposed
 for `backlog:`; a recommendation to pay down first when the backlog holds more than ten open cards; whether
-`mf-release` can ship the version's form; the decisions in force the version touches, naming any overturn; a split
+the version's bump fits the repository's rule for a patch; the decisions in force the version touches, naming any overturn; a split
 when one diff would be too large for review; re-measured facts when continuing a brief written against an older
 commit; and, when the target holds `metrics/catalogue.toml`, the metrics past their watch in the latest tracked data
 file.
@@ -842,7 +842,7 @@ the brief as not yet hard-grilled.
 ### Requirement: A cut makes a worktree when the repository declares one
 
 When root `AGENTS.md` declares `Worktrees:` with a path, `skills/mf-cut-change/SKILL.md` SHALL create the version's
-branch with `git worktree add -b v<version>_<slug> <path>/v<version>_<slug> <default-branch>`, the path relative to
+branch with `git worktree add -b <change-id> <path>/<change-id> <default-branch>`, the path relative to
 the primary checkout, and SHALL write and commit the change directory in that worktree, leaving the primary on the
 default branch. When `AGENTS.md` also declares `Workspace setup:` with a command, the cut SHALL run it in the new
 worktree, halting on a failure and naming it. A repository that declares no `Worktrees:` SHALL keep the branch
@@ -850,23 +850,12 @@ switch in place.
 
 #### Scenario: A repository with worktrees declared
 - **WHEN** the cut runs in the primary of a repository whose `AGENTS.md` declares `Worktrees: ../`
-- **THEN** the change is committed in `../v<version>_<slug>`, a linked worktree on the new branch
+- **THEN** the change is committed in `../<change-id>`, a linked worktree on the new branch
 - **AND** the primary is still on the default branch, its tree clean
 
 #### Scenario: A repository with no worktrees declared
 - **WHEN** `AGENTS.md` declares no `Worktrees:`
 - **THEN** the cut switches to the new branch in place, as before
-
-### Requirement: A cut reserves its id and version against every open version branch
-
-`skills/mf-cut-change/SKILL.md` SHALL take a change id only when its number is higher than every id under
-`openspec/changes/` and `openspec/changes/archive/` on the default branch and on every `v*` branch not merged into it,
-and a version only when no such branch is named for it and no tag `<tag>` exists. Versions SHALL ship in the order
-they were cut.
-
-#### Scenario: Two cuts while one change is open
-- **WHEN** a version branch holding change `0040-x` is not yet merged, and a second cut is asked for id `0040-y`
-- **THEN** the cut halts: the id is taken by an open branch
 
 ### Requirement: Every worktree shares the primary's run directory
 
@@ -895,7 +884,7 @@ paths and `## Phases` files, and SHALL propose any pair that touches a file in c
 ### Requirement: The integrate station merges the default branch into the next version
 
 `skills/mf-integrate/SKILL.md` SHALL, run in the primary checkout, pick the version with the lowest change id among
-the unmerged `v*` branches, halting and naming it when it is not ready — a phase unticked, or converge not clean —
+the unmerged branches named by a change id that hold their change or a release commit, halting and naming it when it is not ready — a phase unticked, or converge not clean —
 never skipping ahead. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
 the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`. A red gate SHALL
 halt with the merge open and write `.minions/integrate/<change-id>.red`, which the commit deletes. It SHALL NOT
@@ -1175,3 +1164,39 @@ outside git and the run directory: a re-run derives every stage again and contin
 - **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
 - **AND WHEN** the person settles it and `/mf-integrate` commits the merge
 - **THEN** a re-run of `mf-ship` runs the catch-up round, then the release
+
+### Requirement: A cut reserves its id against every open version branch
+
+`skills/mf-cut-change/SKILL.md` SHALL take a change id only when its number is higher than every id under
+`openspec/changes/` and `openspec/changes/archive/` on the default branch and on every branch named by a change id and not merged
+into it. It SHALL take `bump=minor|patch`, write `bump:` into `proposal.md`'s frontmatter, and assign no number.
+Versions SHALL ship in the order they were cut.
+
+#### Scenario: Two cuts while one change is open
+- **WHEN** a version branch holding change `0040-x` is not yet merged, and a second cut is asked for id `0040-y`
+- **THEN** the cut halts: the id is taken by an open branch
+
+### Requirement: The release assigns the version
+
+`skills/mf-release/SKILL.md` SHALL read `bump:` from the change's `proposal.md`, halting on anything but `minor` or
+`patch`, and SHALL take `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
+highest `vX.Y.Z` tag, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
+it collects metrics. `conduct.py` SHALL read a released version's tag from the branch tip's `chore(release): <tag>`,
+SHALL pass the release check only when that tag's commit is the tip and, with an `origin`, origin's tag is on that
+tip, and SHALL hold no number before it.
+
+#### Scenario: A minor after v0.40.0
+- **WHEN** the highest tag is `v0.40.0` and the proposal says `bump: minor`
+- **THEN** the release tags `v0.41.0` and the archived proposal holds `version: v0.41`
+
+#### Scenario: A patch after v0.40.0
+- **WHEN** the highest tag is `v0.40.0` and the proposal says `bump: patch`
+- **THEN** the release tags `v0.40.1` and the archived proposal holds `version: v0.40.1`
+
+#### Scenario: A repository with no version tag
+- **WHEN** no tag has the form `vX.Y.Z`
+- **THEN** `next_tag.py` prints `v0.1.0`
+
+#### Scenario: A draft page before the release
+- **WHEN** the build draws its metrics page and `proposal.md` holds no `version:`
+- **THEN** the page reads `unreleased`, and compares with the highest tracked release

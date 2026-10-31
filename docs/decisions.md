@@ -312,26 +312,29 @@ to.
 
 ### D19 · One version line
 
-**A change's declared version, the `CHANGELOG.md` release, the annotated tag and the project's version file are one
-value. The changelog follows Keep a Changelog: each phase appends under `Unreleased`, the release cuts the
-heading.**
+**A change's version, assigned at its release, the `CHANGELOG.md` release, the annotated tag and the project's version
+file are one value. The changelog follows Keep a Changelog: each phase appends under `Unreleased`, the release cuts
+the heading.**
 
 ```
 proposal.md `version: vX.Y`    =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  the version file
 proposal.md `version: vX.Y.Z`  =  CHANGELOG `## [X.Y.Z]`  =  tag `vX.Y.Z`  =  the version file
 ```
 
+The cut declares `bump: minor` or `bump: patch`; `next_tag.py` computes the tag, and the release writes `version:` into
+the proposal it archives.
+
 - **Why:** one source of version truth leaves nothing to reconcile.
 
 ### D20 · A change id is an identifier, numbered in ship order
 
-**`<digits>-<slug>`, never renamed once cut. The number is higher than every id on the default branch and on every
-open version branch; the cut takes the id it is given; versions ship in cut order; a version is numbered at its cut,
-so planned work carries a name, not a number.**
+**`<digits>-<slug>`, never renamed once cut, and the name of its branch. The number is higher than every id on the
+default branch and on every open version branch; the cut takes the id it is given; versions ship in cut order; a
+version is numbered at its release, so work carries a name, then an id, and a number last.**
 
-Example: `0011-cut-and-gate`, on the branch `<version>_cut_and_gate`.
+Example: `0011-cut-and-gate`, on the branch `0011-cut-and-gate`.
 
-- **Why:** a renamed id splits a change across two trailer values. A number given before the cut is a number to
+- **Why:** a renamed id splits a change across two trailer values. A number given before the release is a number to
   change later.
 
 ### D21 · Every commit names its change
@@ -415,8 +418,8 @@ the bootstrap templates — never that a sentence exists.**
 ### D44 · Versions run side by side in worktrees; one primary merges them
 
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
-primary checkout, which stays on the default branch. Ids and versions are reserved at the cut against every open
-version branch, and versions ship in cut order. Every worktree shares the primary's `.minions/`; the release merges
+primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch,
+and versions ship in cut order. Every worktree shares the primary's `.minions/`; the release merges
 in the primary.**
 
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-31
+
+Gate: local 0m49s · CI 0m29s (CI at ee008f7) · 0.40.0: local 0m44s · CI 0m26s (CI at 6883d41)
+
+- `skills/mf-release/scripts/next_tag.py` computes the next tag from a bump, so a tag is never an agent's arithmetic. A
+  proposal with no `version:` reads `unreleased` in `metrics.py`, above every release, so a draft page compares with
+  the highest tracked one (change `0047-version-at-merge`, phase 1).
+- `conduct.py` and `integrate.py` find versions by branches named by a change id, and `conduct.py` reads a released
+  tag from the branch tip, so no number exists before the release. `status` prints `<change-id> · <stage>` (change
+  `0047-version-at-merge`, phase 2).
+- The skills follow: the cut takes `bump=minor|patch`, the branch is the change id, and `mf-release` computes the tag
+  and writes `version:` into the proposal it archives. `plan:` in a findings file is the change id, and `mf-ship` says
+  a crash stops the run, paying `0046·R3` (change `0047-version-at-merge`, phase 3).
+- D19, D20 and D44, `openspec/config.yaml` and the `README.md` tree say a version takes its number at its release
+  (change `0047-version-at-merge`, phase 4).
+
 ## [0.40.0] - 2026-10-31
 
 Gate: local 0m44s · CI 0m26s (CI at 6883d41) · 0.39.0: local 0m40s · CI 0m28s (CI at 351eeb7)

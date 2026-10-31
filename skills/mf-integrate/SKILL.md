@@ -49,8 +49,8 @@ Every one holds, or **halt** naming the one that failed:
 
 ## Step 2 — Pick the version
 
-Run the script's `next`. It prints one line: `next: <branch> · <change-id> · <worktree> · ready`, or
-`· not ready — <why>`.
+Run the script's `next`. It prints one line: `next: <change-id> · <worktree> · ready`, or
+`· not ready — <why>`. The branch is the change id.
 
 | exit | then |
 |---|---|

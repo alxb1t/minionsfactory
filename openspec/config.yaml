@@ -18,7 +18,7 @@ context: |
 rules:
   proposal:
     - "A change is always four artifacts — `proposal.md`, `specs/`, `design.md`, `tasks.md`. All four exist for every change, including one that changes no requirement."
-    - "`proposal.md` opens with `version: vX.Y` frontmatter (`vX.Y.Z` for a patch). The skills read it, and the CLI neither emits nor checks it."
+    - "`proposal.md` opens with `bump: minor` or `bump: patch` frontmatter. The skills read it, and the CLI neither emits nor checks it."
   specs:
     - "One `spec.md` per capability directory — `specs/<capability>/spec.md`. A `spec.md` at the root of `specs/` is a malformed change."
     - "Never invent a requirement to produce a delta. If nothing behavioural changes, declare the absence: `skip_specs: true` in the change's `.openspec.yaml`, plus `specs/.gitkeep` so the directory stays tracked. The two go together; a spec file under `specs/` beside `skip_specs` fails validation."
