@@ -175,6 +175,17 @@ def test_status_reads_each_stage_from_disk(
     version = find(root, "0001-todo")
     assert stage() == "0001-todo · integrate"
     assert stage_of(root, version)[1].startswith("interrupted")
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\ncat\n")
+    planted.chmod(0o755)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+    _git(root, "config", "filter.probe.clean", str(planted))
+    os.utime(tree / "AGENTS.md", (1, 1))
+    with pytest.raises(conduct["Stop"], match="filter.probe.clean"):
+        stage_of(root, version)
+    assert not ran.exists()
+    _git(root, "config", "--unset", "filter.probe.clean")
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.red").write_text("gate red\n")
@@ -215,6 +226,21 @@ def test_each_check_passes_only_on_disk_evidence(
     (tree / "stray.txt").write_text("x\n")
     assert check("build") == (1, "check: build · fail — the tree is not clean")
     (tree / "stray.txt").unlink()
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\ncat\n")
+    planted.chmod(0o755)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+
+    def filtered(stage: str, seconds: int) -> None:
+        _git(tree, "config", "filter.probe.clean", str(planted))
+        os.utime(tasks, (seconds, seconds))
+        code, out = check(stage)
+        assert (code, "filter.probe.clean" in out) == (1, True)
+        assert not ran.exists()
+        _git(tree, "config", "--unset", "filter.probe.clean")
+
+    filtered("build", 1)
 
     no_done = (1, "check: converge · fail — the status log has no done")
     assert check("converge") == no_done
@@ -237,6 +263,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("converge") == no_done
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert check("converge") == (0, "check: converge · pass")
+    filtered("converge", 2)
 
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert check("integrate")[1].startswith("check: integrate · fail — HEAD is not")
@@ -1135,6 +1162,13 @@ def test_a_rerun_pushes_what_a_release_left(
         assert not ran.exists()
 
     command = str(planted)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+    os.utime(root / "AGENTS.md", (1, 1))
+    _git(root, "config", "filter.probe.clean", command)
+    refused("filter.probe.clean")
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert "filter.probe.clean" in log.read_text()
+    _git(root, "config", "--unset", "filter.probe.clean")
     for key, value in (
         ("hook.probe.event", "pre-push"),
         ("hook.probe.command", command),
@@ -1165,6 +1199,12 @@ def test_a_rerun_pushes_what_a_release_left(
         refused("origin")
     for url in ("https://example.invalid/r.git", "git@example.invalid:r.git"):
         assert conduct["NETWORK_URL"].fullmatch(url)
+
+    _git(root, "remote", "remove", "origin")
+    _git(root, "config", "hook.probe.event", "pre-push")
+    refused("hook.probe.event")
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert "hook.probe.event" in log.read_text()
 
 
 def test_a_stale_claim_is_cleared(

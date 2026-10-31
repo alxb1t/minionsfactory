@@ -159,7 +159,7 @@ def push_left(self) -> None:
     """Push what a release merged and left; a rejection halts the run."""
 ```
 
-`_unpushed`: no `origin` → an empty list. The default branch, when `rev-list --count origin/<default>..<default>` is not
+`_unpushed`: the config refusal below, then no `origin` → an empty list. The default branch, when `rev-list --count origin/<default>..<default>` is not
 `0`. Each `vX.Y.Z` tag merged into the default branch that `git ls-remote --tags origin` lacks. `Run.push_left` pushes them
 with `git push --no-verify origin <name>`, never forcing, and writes a `push` event, which `EVENTS` gains. A failure halts
 `run`.
@@ -167,9 +167,12 @@ with `git push --no-verify origin <name>`, never forcing, and writes a `push` ev
 `ship` calls it after its `start` event, before `if not versions`, and stops on a halt. `status` adds
 `run · unpushed <names>` above its lines, and prints `status: none` only when there is nothing at all.
 
-A worker can write `.git/config`, and `ls-remote`, `push`, `merge` and `commit` run outside its sandbox. So `_unpushed` and
-`_pushed` first run `_refuse_origin`, and `Run.merge_in` runs `_refuse_config_commands`, which it calls: a key at `local` or
-`worktree` scope that `CONFIG_PLAIN` lacks stops with 1, `status` printing it and the run halting, before any such call.
+A worker can write `.git/config`, and `ls-remote`, `push`, `merge`, `commit`, `status` and `diff` run outside its sandbox,
+the last two running a clean filter on a stat-dirty file. So `_unpushed` and `_pushed` first run `_refuse_origin`, and
+`Run.merge_in`, `_dirty` and `_unmerged` run `_refuse_config_commands`, which it calls, as `_unpushed` does above its `origin`
+test: a key at `local` or `worktree` scope that `CONFIG_PLAIN` lacks stops with 1, `status` printing it and the run halting,
+before any such call. `preconditions` skips its clean-tree test on such a key, so the run reaches `push_left` and logs the
+halt.
 `CONFIG_PLAIN` lists the keys that name no program, not the ones that do: a list of those missed `hook.*`, which runs
 under `NO_HOOKS`, and an unknown key now fails closed. Overriding one key would leave the rest, and a snapshot cannot serve:
 `status` and `push_left` run before any worker of their run, and a file under `.minions/` is the worker's to write.
@@ -241,7 +244,7 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`: the lowest layer that reache
 |---|---|
 | `test_a_dead_converge_halts_and_a_rerun_finishes_it` | with `dies-converge`: exit 1, clean findings, no `done`; the run halts, naming the exit; no `release` call; a re-run spawns `converge`, then `release`, with no `build` call |
 | `test_a_rerun_recovers_a_dead_release` | with `dies-release-fold`: a staged fold; `status` reads `release`; a re-run tags once. With `dies-release-tag`: a re-run merges; a moved default branch reads `released`, naming the recovery, `git tag -d` only with a tag. With `dies-release-commit`: `release`; a re-run tags and merges. With `stops-release-tag`, exit 0: `released`, naming `/mf-release`, and no release worker. A tip forged on an old tag or with no tag, and a tagged tip no worker ran: `released` |
-| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag past a global `pre-push` hook, and ends on `done`. A planted `remote.origin.uploadpack`, `hook.*`, `filter.*`, `merge.*`, `include.path`, unknown key or `pushurl`: `status` exits 1 naming it, a run halts, and the program never runs. `origin` at a local path, `file://` or `ext::`, unnamed: the same |
+| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag past a global `pre-push` hook, and ends on `done`. A planted `remote.origin.uploadpack`, `hook.*`, `filter.*`, `merge.*`, `include.path`, unknown key or `pushurl`: `status` exits 1 naming it, a run halts, and the program never runs. `origin` at a local path, `file://` or `ext::`, unnamed: the same. A `filter.*` key over a stat-dirty file, past `preconditions`: the same, the halt logged. No `origin` at all, an unlisted key: the same |
 | `test_a_stale_claim_is_cleared` | `active/` with a dead pid and a live `sleep` group: `status` reads `stale`; a run kills the group and starts. A live pid refuses. A group whose entry holds another start time, or none, lives |
 | `test_a_usage_limit_is_named` | with `dies-limit`, a `result` event with 429: the `halt` line ends ` · stopped by a usage limit · resets 5:50pm (Europe/Athens)` |
 
@@ -249,8 +252,8 @@ Tests edited:
 
 | test | edit |
 |---|---|
-| `test_status_reads_each_stage_from_disk` | an open merge with no note reads `integrate` |
-| `test_each_check_passes_only_on_disk_evidence` | a step for `the status log has no done` |
+| `test_status_reads_each_stage_from_disk` | an open merge with no note reads `integrate`; a planted `filter.*` stops `stage_of` before its `git diff` runs it |
+| `test_each_check_passes_only_on_disk_evidence` | a step for `the status log has no done`; a planted `filter.*` over a stat-dirty file fails the build and converge checks, and never runs |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `work`'s new argument, and the start time in its entry |
 | `test_after_waits_for_its_dependency` | a planted `hook.*` stops `merge_in` before its merge, and the hook never runs |
 | `test_each_check_passes_only_on_disk_evidence` | its bare `origin` is named in the global `mf-ship.localorigin` |
@@ -275,8 +278,7 @@ None.
   halts naming it; a key that proves plain joins the list. Global keys stay the operator's, so a global `filter.*` with a
   worker's `info/attributes` is unchanged.
 - **A local `origin`** → an operator who keeps one names it once in the global `mf-ship.localorigin`.
-- **The refusal is a check before a separate read** → the race is `0049·S7`. `git status` before the refusal can still run a
-  `filter.*` key, in `preconditions` and a station's check; `status` refuses it first, and the rest is `0048·S3`.
+- **The refusal is a check before a separate read** → the race is `0049·S7`.
 - **`converge-reading-set` is past its watch** → [D2](#d2) adds one short section.
 
 ## Migration Plan

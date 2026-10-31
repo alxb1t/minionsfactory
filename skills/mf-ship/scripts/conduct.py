@@ -391,12 +391,20 @@ def _merge_open(tree: Path) -> bool:
 
 
 def _unmerged(tree: Path) -> bool:
-    """Return whether an open merge leaves a path unmerged in `tree`."""
+    """Return whether an open merge leaves a path unmerged in `tree`.
+
+    Past the refusal: a stat-dirty file makes `git diff` run a clean filter.
+    """
+    _refuse_config_commands(tree)
     return bool(_git(tree, "diff", "--name-only", "--diff-filter=U").strip())
 
 
 def _dirty(tree: Path) -> bool:
-    """Return whether `git status --porcelain` prints anything."""
+    """Return whether `git status --porcelain` prints anything.
+
+    Past the refusal: a stat-dirty file makes `git status` run a clean filter.
+    """
+    _refuse_config_commands(tree)
     return bool(_git(tree, "status", "--porcelain").strip())
 
 
@@ -603,18 +611,22 @@ def _check_release(primary: Path, version: Version) -> str | None:
     return None
 
 
+def _config_held(cwd: Path) -> list[str]:
+    """Return the keys in the repo's own git config that `CONFIG_PLAIN` lacks."""
+    listed = _git(cwd, "config", "--list", "--show-scope", "--name-only")
+    return [
+        name
+        for scope, _, name in (line.partition("\t") for line in listed.splitlines())
+        if scope in ("local", "worktree") and not CONFIG_PLAIN.fullmatch(name)
+    ]
+
+
 def _refuse_config_commands(cwd: Path) -> None:
     """Stop with 1 when the repo's own git config holds a key `CONFIG_PLAIN` lacks.
 
     A worker can write that file, and the conductor runs outside its sandbox.
     """
-    listed = _git(cwd, "config", "--list", "--show-scope", "--name-only")
-    held = [
-        name
-        for scope, _, name in (line.partition("\t") for line in listed.splitlines())
-        if scope in ("local", "worktree") and not CONFIG_PLAIN.fullmatch(name)
-    ]
-    if held:
+    if held := _config_held(cwd):
         raise Stop(
             1,
             "conduct: halt — the repo's git config holds a key that could name a"
@@ -657,8 +669,9 @@ def _pushed(primary: Path, change: str, tag: str) -> bool | None:
 def _unpushed(primary: Path) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
-    An `origin` that cannot be read lacks no tag.
+    An `origin` that cannot be read lacks no tag. The config refusal needs no `origin`.
     """
+    _refuse_config_commands(primary)
     if "origin" not in _git(primary, "remote").split():
         return []
     _refuse_origin(primary)
@@ -1042,7 +1055,8 @@ def preconditions(cwd: Path, executor: str) -> Path:
     default = default_branch(primary)
     if (branch := _git(primary, "branch", "--show-current").strip()) != default:
         raise Stop(2, f"run: cannot run — on {branch or 'no branch'}, not {default}")
-    if _dirty(primary):
+    # A held key halts at `push_left`, in the run's log, before any `git status`.
+    if not _config_held(primary) and _dirty(primary):
         raise Stop(2, "run: cannot run — the primary's tree is not clean")
     if not _agents_values(primary, "Worktrees"):
         raise Stop(2, "run: cannot run — AGENTS.md declares no **Worktrees:**")
