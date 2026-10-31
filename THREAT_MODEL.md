@@ -30,4 +30,4 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 ## Known gaps
 
-Carded in `.minions/backlog.md`, accepted until paid down: `0040·S2`, `0040·S3`, `0040·S4`.
+Carded in `.minions/backlog.md`, accepted until paid down: none.

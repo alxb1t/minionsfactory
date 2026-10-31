@@ -503,7 +503,7 @@ def test_after_waits_for_its_dependency(
     _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
-    crash.write_text("raise OSError('no fork')\n")
+    crash.write_text("def delta(tree):\n    raise OSError('no fork')\n")
     script = conduct["main"].__globals__["INTEGRATE"]
     conduct["main"].__globals__["INTEGRATE"] = crash
     calls.unlink()
@@ -527,6 +527,24 @@ def test_after_waits_for_its_dependency(
     )
     assert "chore(integrate): merge main into 0002-marks" in _git(
         crashed, "log", "--format=%s", "0002-marks"
+    )
+
+    fourth = tmp_path / "fourth"
+    fourth.mkdir()
+    planted = _primary(fourth)
+    _version(planted, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(planted, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    held = tmp_path / "held.py"
+    held.write_text(script.read_text())
+    conduct["main"].__globals__["INTEGRATE"] = held
+    monkeypatch.setenv("FAKE_SCRIPT", str(held))
+    assert (
+        _main(conduct, planted, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert held.read_text().startswith("raise OSError")
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        planted, "log", "--format=%s", "0002-marks"
     )
 
 
@@ -906,6 +924,35 @@ def test_a_models_mismatch_halts_its_version(
     )
 
 
+def test_a_changed_git_config_halts_a_merge_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    for mode in ("plant-config", "plant-attributes"):
+        scratch = tmp_path / mode
+        scratch.mkdir()
+        root = _primary(scratch)
+        _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+        tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+        calls = fake(mode)
+
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+
+        assert "release 0001-todo" in _calls(calls)
+        assert "build 0002-marks" not in _calls(calls)
+        assert any(
+            line.endswith(
+                " · 0002-marks · halt — the local git config changed during the run"
+            )
+            for line in _log(root)
+        )
+        assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+        assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
+
+
 def test_run_halts_on_a_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -967,18 +1014,23 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     conduct = _conduct()
     rules = conduct["SHELL_RULES"]
     root = _primary(tmp_path, agents=_WORKTREES + "- **Ship tools:** `npm`, `pnpm`\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     container = root.parent.resolve()
     argv = conduct["argv"]
 
+    assert conduct["reach"](tree) == [root, tree]
+    assert conduct["reach"](tmp_path) == [tmp_path.resolve()]
     monkeypatch.delenv("MF_SHIP_AGENT")
     claude = argv("claude", "Do it.", root, "opus", "high")
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
-    assert claude[claude.index("--add-dir") + 1] == str(container)
+    added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
+    assert added == [str(root), str(tree)]
     allowed = claude[
         claude.index("--allowedTools") + 1 : claude.index("--disallowedTools")
     ]
-    assert f"Edit(/{container}/**)" in allowed
+    assert {f"Edit(/{root}/**)", f"Edit(/{tree}/**)"} <= set(allowed)
+    assert f"Edit(/{container}/**)" not in allowed
     assert allowed[-2:] == ["Bash(npm:*)", "Bash(pnpm:*)"]
     assert {"Skill", "Agent", "Bash(git:*)", "Bash(cp:*)", "Bash(rm:*)"} <= set(allowed)
     assert not any(rule.startswith(("Write(", "Bash(cd:")) for rule in allowed)
@@ -1029,7 +1081,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     ):
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None)
-    roots = json.dumps([str(root / ".minions"), str(root / ".git"), str(container)])
+    roots = json.dumps(
+        [str(root / ".minions"), str(root / ".git"), str(root), str(tree)]
+    )
     assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
@@ -1057,7 +1111,6 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         __file__,
         f"Do it.\n\n{rules}",
     ]
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -1115,6 +1168,8 @@ def _fake(prompt: str) -> None:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
         time.sleep(2)
+    if station == "build" and (script := os.environ.get("FAKE_SCRIPT")):
+        Path(script).write_text("raise OSError('planted')\n")
     if f"liar-{change or station}" in modes:
         return
     if station == "build" and "liar" in modes:
@@ -1160,6 +1215,11 @@ def _fake(prompt: str) -> None:
             primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
         )
         _git(primary, "worktree", "remove", str(here))
+        if "plant-config" in modes:
+            _git(primary, "config", "mf.planted", "x")
+        if "plant-attributes" in modes:
+            (Path(common) / "info").mkdir(exist_ok=True)
+            (Path(common) / "info" / "attributes").write_text("* filter=x\n")
 
 
 if __name__ == "__main__":

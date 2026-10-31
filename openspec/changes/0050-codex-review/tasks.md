@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 ## Progress
 
 - [x] 1 — The executor
-- [ ] 2 — The reach
+- [x] 2 — The reach
 - [ ] 3 — The record
 - [ ] 4 — The proof
 
@@ -22,10 +22,10 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 2 — The reach
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py`, replace `edit_root` with `reach`, per [D5](design.md#d5), and edit
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py`, replace `edit_root` with `reach`, per [D5](design.md#d5), and edit
   `tests/test_conduct.py`'s `test_a_worker_carries_the_allowlist_and_a_denial_is_named`.
   Verify: `grep -c 'def edit_root' skills/mf-ship/scripts/conduct.py` prints `0`.
-- [ ] 2.2 In `skills/mf-ship/scripts/conduct.py`, load `integrate.py` once, and add `_git_state` to `merge_in`, per
+- [x] 2.2 In `skills/mf-ship/scripts/conduct.py`, load `integrate.py` once, and add `_git_state` to `merge_in`, per
   [D6](design.md#d6); edit `tests/test_conduct.py`'s `test_after_waits_for_its_dependency`, and add
   `test_a_changed_git_config_halts_a_merge_in`.
   Verify: `uv run pytest -q tests/test_conduct.py` reports `16 passed`.

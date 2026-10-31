@@ -21,6 +21,7 @@ import itertools
 import json
 import os
 import re
+import runpy
 import shlex
 import shutil
 import signal
@@ -30,6 +31,7 @@ import tempfile
 import threading
 import time
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -364,29 +366,27 @@ def _dirty(tree: Path) -> bool:
     return bool(_git(tree, "status", "--porcelain").strip())
 
 
-def _delta(tree: Path) -> list[str]:
-    """Return the lines `integrate.py delta` names; a crash of it stops with exit 2."""
+def _delta(delta: Callable[[Path], str], tree: Path) -> list[str]:
+    """Return the lines `integrate.py`'s `delta` names; a crash stops with exit 2."""
     try:
-        done = subprocess.run(
-            [sys.executable, str(INTEGRATE), "delta", str(tree)],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        raise Stop(2, "conduct: cannot run — integrate.py delta timed out") from None
-    if done.returncode == 0:
-        return []
-    moved = [line for line in done.stdout.splitlines() if line.startswith(MOVED)]
-    if done.returncode == 1 and moved:
-        return moved
-    said = (done.stdout or done.stderr).strip().splitlines()
-    raise Stop(
-        2,
-        "conduct: cannot run — integrate.py delta: "
-        + (said[-1] if said else f"exit {done.returncode}"),
-    )
+        delta(tree)
+    except Exception as error:
+        code = getattr(error, "code", None)
+        said = str(error).splitlines() if code else [f"{type(error).__name__}: {error}"]
+        moved = [line for line in said if line.startswith(MOVED)]
+        if code == 1 and moved:
+            return moved
+        raise Stop(2, f"conduct: cannot run — integrate.py delta: {said[-1]}") from None
+    return []
+
+
+def _git_state(primary: Path) -> list[str]:
+    """Return the common directory's `config` and `info/attributes`, or "" if none."""
+    common = primary / ".git"
+    files = (common / "config", common / "info" / "attributes")
+    return [
+        file.read_text(errors="replace") if file.is_file() else "" for file in files
+    ]
 
 
 def _note(tree: Path, change: str, moved: list[str]) -> str:
@@ -664,19 +664,21 @@ def _tier(runs: Path, change: str) -> str:
     return f" with tier={tier}"
 
 
-def edit_root(cwd: Path) -> Path:
-    """Return the directory a worker may edit: `Worktrees:`, resolved, else `cwd`."""
+def reach(cwd: Path) -> list[Path]:
+    """Return what a worker may edit: the primary and each linked worktree."""
     root = _root(cwd)
-    values = _agents_values(root, "Worktrees")
-    return (root / values[0]).resolve() if values else cwd.resolve()
+    if _common_dir(cwd) is None:
+        return [cwd.resolve()]
+    linked = [path for path in _worktrees(root).values() if path != root]
+    return [root, *linked]
 
 
-def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
-    """Return the Claude worker's allowed and denied rules, editing inside `tree`."""
+def allowlist(cwd: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
+    """Return the Claude worker's allowed and denied rules, editing inside `trees`."""
     extra = _agents_values(_root(cwd), "Ship tools") or []
     allowed = [
         *TOOLS,
-        f"Edit(/{tree}/**)",
+        *(f"Edit(/{tree}/**)" for tree in trees),
         *(f"Bash({command}:*)" for command in (*COMMANDS, *extra)),
     ]
     denied = [f"Bash({command}:*)" for command in DENIED]
@@ -700,19 +702,23 @@ def argv(
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
+    trees = reach(cwd)
     if executor == "claude":
-        tree = edit_root(cwd)
-        allowed, denied = allowlist(cwd, tree)
+        allowed, denied = allowlist(cwd, trees)
         return [
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
-            *("--add-dir", str(tree)),
+            *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     common = _common_dir(cwd)
-    roots = [str(run_dir(cwd)), *([str(common)] if common else []), str(edit_root(cwd))]
+    roots = [
+        str(run_dir(cwd)),
+        *([str(common)] if common else []),
+        *(str(tree) for tree in trees),
+    ]
     return [
         *("codex", "exec"),
         *(("-m", model) if model else ()),
@@ -835,7 +841,9 @@ class Run:
     """One ship run: the probe, then every open version to the default branch."""
 
     def __init__(self, primary: Path, executor: str) -> None:
-        """Open the run log under the primary's run directory."""
+        """Load `integrate.py`, and open the run log in the primary's run directory."""
+        self.delta = runpy.run_path(str(INTEGRATE))["delta"]
+        self.git_state: list[str] = []
         self.primary = primary
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
@@ -969,13 +977,15 @@ class Run:
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
         """
+        if _git_state(self.primary) != self.git_state:
+            raise Stop(1, "the local git config changed during the run")
         note = self.primary / ".minions" / "integrate" / f"{change}.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
             return
         if not opened:
             _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
-        if moved := _delta(tree):
+        if moved := _delta(self.delta, tree):
             note.parent.mkdir(parents=True, exist_ok=True)
             note.write_text(_note(tree, change, moved))
             return
@@ -1038,6 +1048,7 @@ class Run:
 
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
+        self.git_state = _git_state(self.primary)
         versions = open_versions(self.primary)
         permissions = "allowlist" if self.executor == "claude" else "workspace-write"
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
