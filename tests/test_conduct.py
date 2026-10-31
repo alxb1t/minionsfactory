@@ -548,6 +548,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         "git -C /r worktree remove -f /r/wt",
         "git -C /r reset --hard HEAD~1",
         "git -C /r clean -fdx",
+        "git -C /r clean -n -fdx",
         "git push origin main --force",
         "git push origin +main",
         "git -C /r push --force origin main",
@@ -561,6 +562,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert refused(command), command
     for command in (
         "git -C /r commit -m 'refactor: clean up the parser'",
+        "git commit -q -m 'feat: read' -m 'a clean sibling counts' -m 'Change: 0045'",
         "git -C /r push origin main",
         "git -C /r push origin v0.1.0",
         "git -C /r merge --no-ff -m 'Merge branch v0.1_todo' v0.1_todo",
