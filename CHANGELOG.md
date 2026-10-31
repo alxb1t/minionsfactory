@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-31
+
+Gate: local 0m47s · CI 0m23s (CI at 23fdf6d) · 0.37.0: local 0m49s · CI 0m23s (CI at 07cc44c)
+
 - `skills/mf-simplify/SKILL.md` is MF's own simplify: fixed angles, closed edit kinds, MF's documents as oracles and
   the gate after each angle (change `0044-simplify`, phase 1).
 
