@@ -83,6 +83,12 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
+def _allow_origin(origin: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Name a fixture's local `origin` in the operator's global config."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(origin.parent / "operator.gitconfig"))
+    _git(origin.parent, "config", "--global", "mf-ship.localorigin", str(origin))
+
+
 def _lstart(pid: int) -> str:
     command = ["ps", "-o", "lstart=", "-p", str(pid)]
     return subprocess.run(command, capture_output=True, text=True).stdout.strip()
@@ -291,6 +297,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("release") == (0, "check: release · pass")
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _allow_origin(origin, monkeypatch)
     _git(root, "remote", "add", "origin", str(origin))
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
@@ -551,6 +558,19 @@ def test_after_waits_for_its_dependency(
     assert "chore(integrate): merge main into 0002-marks" in _git(
         crashed, "log", "--format=%s", "0002-marks"
     )
+
+    fourth = tmp_path / "fourth"
+    fourth.mkdir()
+    hooked = _primary(fourth)
+    waiting = _version(hooked, "0002-marks", "- [ ] 1 — Marks\n")
+    _commit(hooked, {"moved.txt": "x\n"}, "main moves")
+    ran = tmp_path / "merge-hook-ran.txt"
+    _git(hooked, "config", "hook.probe.event", "pre-commit")
+    _git(hooked, "config", "hook.probe.command", f"touch {shlex.quote(str(ran))}")
+    with pytest.raises(conduct["Stop"], match="hook.probe.event"):
+        conduct["Run"](hooked, "claude").merge_in(waiting, "0002-marks", "main")
+    assert not ran.exists()
+    assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
 
 def test_a_halted_dependency_blocks_a_chain(
@@ -961,11 +981,19 @@ def test_a_rerun_recovers_a_dead_release(
     assert _calls(calls) == []
     assert any(
         line.endswith(
-            " · 0003-more · halt — released — v0.3.0 is tagged;"
-            " the release stopped before its merge"
+            " · 0003-more · halt — released — v0.3.0 is tagged; main moved, so recover"
+            " by hand: git tag -d v0.3.0, git reset --hard HEAD~1, then"
+            " /mf-integrate 0003-more, /mf-converge, /mf-release"
         )
         for line in _log(root)
     )
+    _git(root, "tag", "-d", "v0.3.0")
+    assert stage_of(root, find(root, "0003-more")) == (
+        "released",
+        "v0.3.0 is not tagged; main moved, so recover by hand: git reset --hard HEAD~1,"
+        " then /mf-integrate 0003-more, /mf-converge, /mf-release",
+    )
+    _git(root, "tag", "v0.3.0", "0003-more")
 
     def last() -> str:
         return stage().splitlines()[-1]
@@ -991,6 +1019,10 @@ def test_a_rerun_recovers_a_dead_release(
     run(1)
     assert "v0.5.0" in _git(root, "tag", "-l").split()
     assert last() == "0005-five · released"
+    assert stage_of(root, find(root, "0005-five"))[1] == (
+        "v0.5.0 is tagged; the release stopped before its merge:"
+        " /mf-release 0005-five merges it on a person's yes"
+    )
     calls.unlink()
     fake()
     run(1)
@@ -1000,11 +1032,14 @@ def test_a_rerun_recovers_a_dead_release(
     _git(forged, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     assert last() == "0006-six · released"
     assert stage_of(root, find(root, "0006-six"))[1] == (
-        "v0.1.0 is tagged on another commit"
+        "v0.1.0 is tagged on another commit: a person reads this tip"
     )
     subject = "chore(release): v9.0.0"
     _git(forged, "commit", "-q", "--amend", "--allow-empty", "-m", subject)
     assert last() == "0006-six · released"
+    assert stage_of(root, find(root, "0006-six"))[1] == (
+        "v9.0.0 is not tagged; no review findings file: a person reads this tip"
+    )
     _findings(root, "0006-six", _git(forged, "rev-parse", "HEAD~1"))
     _git(forged, "tag", "v9.0.0")
     assert last() == "0006-six · released"
@@ -1021,6 +1056,7 @@ def test_a_rerun_pushes_what_a_release_left(
     root = _primary(tmp_path)
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _allow_origin(origin, monkeypatch)
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
     _commit(root, {"released.txt": "x\n"}, "merge the release")
@@ -1039,7 +1075,10 @@ def test_a_rerun_pushes_what_a_release_left(
         )
 
     assert status() == "run · unpushed main v0.1.0"
+    _git(root, "config", "--global", "hook.operator.event", "pre-push")
+    _git(root, "config", "--global", "hook.operator.command", "exit 1")
     run(0)
+    _git(root, "config", "--global", "--remove-section", "hook.operator")
     assert _calls(calls) == []
     lines = _log(root)
     assert [line.split(" · ", 1)[1] for line in lines[1:]] == [
@@ -1086,6 +1125,46 @@ def test_a_rerun_pushes_what_a_release_left(
     assert not ran.exists()
     log = conduct["last_log"](root / ".minions" / "runs")
     assert " · run · halt — conduct: halt — " in log.read_text()
+    _git(root, "config", "--unset", "remote.origin.uploadpack")
+
+    def refused(named: str) -> None:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+        assert named in capsys.readouterr().out
+        run(1)
+        assert not ran.exists()
+
+    command = str(planted)
+    for key, value in (
+        ("hook.probe.event", "pre-push"),
+        ("hook.probe.command", command),
+        ("filter.probe.clean", command),
+        ("merge.probe.driver", command),
+        ("include.path", "absent.gitconfig"),
+        ("a.key.git.adds.later", command),
+    ):
+        _git(root, "config", key, value)
+        refused(key)
+        _git(root, "config", "--unset", key)
+
+    elsewhere = tmp_path / "elsewhere.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(elsewhere))
+    hook = elsewhere / "hooks" / "pre-receive"
+    hook.write_text(planted.read_text())
+    hook.chmod(0o755)
+    _git(root, "config", "remote.origin.pushurl", str(elsewhere))
+    refused("remote.origin.pushurl")
+    _git(root, "config", "--unset", "remote.origin.pushurl")
+    for url in (
+        str(elsewhere),
+        f"file://{elsewhere}",
+        "./elsewhere.git",
+        f"ext::{command}",
+    ):
+        _git(root, "remote", "set-url", "origin", url)
+        refused("origin")
+    for url in ("https://example.invalid/r.git", "git@example.invalid:r.git"):
+        assert conduct["NETWORK_URL"].fullmatch(url)
 
 
 def test_a_stale_claim_is_cleared(

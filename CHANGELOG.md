@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `released`. A resumed verify round gets Step 7's inputs. A hand release never restores a tree. A group is killed only
   while its leader keeps its recorded start time, and the conductor makes no remote call while the repo's git config holds
   a key that runs a command (change `0049-ship-resume`, converge fixes R1, R2, R3, R4, R5, S1, S2 and S3).
+- The conductor's refusal lists the local git config keys that name no program, so `hook.*` and any key git adds later
+  halt, and a dependent's merge is refused the same way; its push passes `--no-verify`. `origin` at a local path or
+  `file://` URL halts unless the global `mf-ship.localorigin` names it. A `released` halt names the person's way out
+  (change `0049-ship-resume`, converge fixes R12, S3 and S6).
 
 ## [0.42.0] - 2026-10-31
 

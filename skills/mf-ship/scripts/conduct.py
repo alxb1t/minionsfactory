@@ -94,14 +94,22 @@ SCRATCH_IDENTITY = (
     *("-c", "commit.gpgsign=false"),
 )
 # A worker can write the common directory, and the conductor runs outside its sandbox.
+# These stop a directory's hooks only; `CONFIG_PLAIN` stops a `hook.*` key's.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
-# The keys that let a repo's own config name a program a remote call runs.
-CONFIG_COMMANDS = re.compile(
-    r"core\.(sshcommand|gitproxy|askpass)|ssh\.variant|credential\..*|gpg\..*"
-    r"|protocol\.(.*\.)?allow|url\..*\.(pushinsteadof|insteadof)"
-    r"|remote\..*\.(uploadpack|receivepack|vcs)",
-    re.IGNORECASE,
+# The only keys a repo's own config may hold: each names no program, and any other
+# halts, so a key git adds later fails closed.
+CONFIG_PLAIN = re.compile(
+    r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
+    r"|precomposeunicode|symlinks)"
+    r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
+    r"|protocol\.version|pull\.(rebase|ff)"
+    r"|remote\..+\.(url|fetch|gh-resolved)"
+    r"|branch\..+\.(remote|merge|rebase|description)"
 )
+# A URL git reaches over a network. Any other form runs a program on this machine: a
+# local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
+NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
+LOCAL_ORIGIN = "mf-ship.localorigin"
 
 
 class Stop(Exception):
@@ -468,19 +476,28 @@ def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str,
 
     The re-entry merges and pushes unasked, so it takes a tag on `HEAD` or none, the
     converge clean at the parent, an unmoved base and a release worker that died.
+    Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
     runs = primary / ".minions"
     own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own is not None and own != _git(tree, "rev-parse", "HEAD"):
-        return "released", f"{tag} is tagged on another commit"
+        return "released", f"{tag} is tagged on another commit: a person reads this tip"
     stated = "is not tagged" if own is None else "is tagged"
-    if (
-        _ancestor(tree, default_branch(primary), "HEAD")
-        and _unjudged(runs, tree, change, "HEAD~1") is None
-        and _release_died(runs / "runs", change)
-    ):
+    default = default_branch(primary)
+    if not _ancestor(tree, default, "HEAD"):
+        undo = "" if own is None else f"git tag -d {tag}, "
+        return "released", (
+            f"{tag} {stated}; {default} moved, so recover by hand: {undo}git reset"
+            f" --hard HEAD~1, then /mf-integrate {change}, /mf-converge, /mf-release"
+        )
+    if why := _unjudged(runs, tree, change, "HEAD~1"):
+        return "released", f"{tag} {stated}; {why}: a person reads this tip"
+    if _release_died(runs / "runs", change):
         return "release", f"{tag} {stated}; the merge is left"
-    return "released", f"{tag} {stated}; the release stopped before its merge"
+    return "released", (
+        f"{tag} {stated}; the release stopped before its merge:"
+        f" /mf-release {change} merges it on a person's yes"
+    )
 
 
 def stage_of(primary: Path, version: Version) -> tuple[str, str]:
@@ -586,30 +603,50 @@ def _check_release(primary: Path, version: Version) -> str | None:
     return None
 
 
-def _refuse_config_commands(primary: Path) -> None:
-    """Stop with 1 when the repo's own git config can run a command on a remote call.
+def _refuse_config_commands(cwd: Path) -> None:
+    """Stop with 1 when the repo's own git config holds a key `CONFIG_PLAIN` lacks.
 
     A worker can write that file, and the conductor runs outside its sandbox.
     """
-    listed = _git(primary, "config", "--list", "--show-scope", "--name-only")
+    listed = _git(cwd, "config", "--list", "--show-scope", "--name-only")
     held = [
         name
         for scope, _, name in (line.partition("\t") for line in listed.splitlines())
-        if scope in ("local", "worktree") and CONFIG_COMMANDS.fullmatch(name)
+        if scope in ("local", "worktree") and not CONFIG_PLAIN.fullmatch(name)
     ]
     if held:
         raise Stop(
             1,
-            "conduct: halt — the repo's git config can run a command on a remote"
-            f" call: {' '.join(held)}; move it to the global config",
+            "conduct: halt — the repo's git config holds a key that could name a"
+            f" program: {' '.join(dict.fromkeys(held))}; move it to the global config"
+            " or remove it",
         )
+
+
+def _refuse_origin(primary: Path) -> None:
+    """Stop with 1 unless a remote call on `origin` can run only its own git.
+
+    Reads the URLs git would use. A local one needs naming in the operator's global
+    `LOCAL_ORIGIN`, which no worker can write. The halt names no URL: it can hold a key.
+    """
+    _refuse_config_commands(primary)
+    allowed = _maybe(primary, "config", "--global", "--get-all", LOCAL_ORIGIN) or ""
+    for mode in (("--all",), ("--all", "--push")):
+        for url in _git(primary, "remote", "get-url", *mode, "origin").splitlines():
+            if not NETWORK_URL.fullmatch(url) and url not in allowed.splitlines():
+                raise Stop(
+                    1,
+                    "conduct: halt — the repo's git config points origin at a local"
+                    " repo, whose hooks would run on a push; repoint it, or name it"
+                    f" in the global {LOCAL_ORIGIN}",
+                )
 
 
 def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     """Return whether origin's tag is on the branch's tip, or None with no origin."""
     if "origin" not in _git(primary, "remote").split():
         return None
-    _refuse_config_commands(primary)
+    _refuse_origin(primary)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
     listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
@@ -624,7 +661,7 @@ def _unpushed(primary: Path) -> list[str]:
     """
     if "origin" not in _git(primary, "remote").split():
         return []
-    _refuse_config_commands(primary)
+    _refuse_origin(primary)
     default = default_branch(primary)
     ahead = _maybe(primary, "rev-list", "--count", f"origin/{default}..{default}")
     found = [default] if (ahead or "").strip() != "0" else []
@@ -1165,6 +1202,7 @@ class Run:
         opened = _merge_open(tree)
         if opened and note.is_file():
             return
+        _refuse_config_commands(tree)
         if not opened:
             _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
         if moved := _delta(tree):
@@ -1211,7 +1249,7 @@ class Run:
             self.halt("run", str(stop))
             return
         for name in unpushed:
-            done = _run(self.primary, "push", "origin", name)
+            done = _run(self.primary, "push", "--no-verify", "origin", name)
             if done.returncode != 0:
                 self.halt(
                     "run", f"git push origin {name} failed, exit {done.returncode}"

@@ -35,7 +35,7 @@ close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and 
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
 outside git and the run directory, except the claim: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted, a release whose
-base moved, a release stopped on purpose or refused, or a repo git config key the run refuses. A worker stopped by a usage
+base moved, a release stopped on purpose or refused, or a repo git config key or local `origin` the run refuses. A worker stopped by a usage
 limit SHALL be halted with its reset time named.
 
 #### Scenario: A HUMAN phase halts its version
@@ -97,8 +97,10 @@ tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit,
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
 worker died, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
 a run, push the default branch and each merged tag `origin` lacks, never forcing, a rejected push halting the run; `status`
-SHALL report that work, so a run starts for it. It SHALL make no remote call while the repo's own git config holds a key
-that can run a command on one. The claim `.minions/runs/active` SHALL hold the conductor's pid and each worker's process
+SHALL report that work, so a run starts for it. It SHALL make no remote call, and merge nothing into a dependent, while the
+repo's own git config holds a key off its list of keys that name no program. It SHALL make no remote call while `origin`'s
+fetch or push URL is not a network URL, unless the operator's global `mf-ship.localorigin` names it. The claim
+`.minions/runs/active` SHALL hold the conductor's pid and each worker's process
 group with its leader's start time: a dead pid is a stale claim, whose groups a run kills, each only while its leader
 keeps that start time, before it clears the claim and starts, and `status` SHALL name it.
 
@@ -118,7 +120,7 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 
 #### Scenario: A release stopped on purpose stays stopped
 - **WHEN** a release tip's worker exited 0 before its merge, or a person ran the release and said no
-- **THEN** the stage is `released`, and a re-run merges nothing
+- **THEN** the stage is `released`, a halt naming `/mf-release`, and a re-run merges nothing
 
 #### Scenario: A tip forges a release
 - **WHEN** a version's tip says `chore(release): <tag>` and the tag is on another commit
@@ -135,6 +137,14 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 #### Scenario: The repo's config names a command
 - **WHEN** the repo's own git config holds `remote.origin.uploadpack`, and `origin` exists
 - **THEN** `status` exits 1 naming the key, a run halts, and the conductor makes no remote call
+
+#### Scenario: The repo's config holds an unlisted key
+- **WHEN** the repo's own git config holds a `hook.*` key, or any key off the list
+- **THEN** `status` exits 1 naming the key, a run halts, and no hook runs on a push or a dependent's merge
+
+#### Scenario: A worker repoints origin at a local repo
+- **WHEN** `origin`'s URL is a local path or a `file://` URL the operator's global config does not name
+- **THEN** `status` exits 1, a run halts, the conductor makes no remote call, and that repo's hooks do not run
 
 #### Scenario: The conductor is killed
 - **WHEN** `.minions/runs/active` holds a dead pid and a live worker group

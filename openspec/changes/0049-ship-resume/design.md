@@ -30,8 +30,8 @@ How `/mf-ship` alone recovers a halt with no decision in it. Verdict at the end:
 | release, before its commit | a staged fold and archive move | `release`, restored, started over |
 | release, after its commit | release commit, no tag | `release`, tagged, then its merge |
 | release, tagged, base unmoved | release commit and tag | `release`, from its merge |
-| release, base moved | release commit | `released`, a halt |
-| release, stopped on purpose or refused | release commit, the worker's exit 0 or no worker | `released`, a halt |
+| release, base moved | release commit | `released`, a halt naming `mf-release` Step 5.1's recovery |
+| release, stopped on purpose or refused | release commit, the worker's exit 0 or no worker | `released`, a halt naming `/mf-release` |
 | release, merged, before its push | `main` ahead of `origin` | pushed at the run's start |
 | the conductor | a stale claim | groups killed, claim cleared, run starts |
 
@@ -115,7 +115,9 @@ No retry is added: `/mf-ship` is the retry.
 
 `stage_of`, a tip whose subject is `chore(release): <tag>`, tagged or not, goes to `_release_tip`. The re-entry merges and
 pushes unasked, so it is `release` only for a death: `<tag>` on `HEAD` or missing, both findings clean at `HEAD~1`, the
-default branch an ancestor of `HEAD`, and `_release_died`. Else `released`.
+default branch an ancestor of `HEAD`, and `_release_died`. Else `released`, the reason naming the way out: a moved base,
+Step 5.1's commands, `git tag -d` only when the tag exists; an unjudged tip or a tag on another commit, a person's read; a
+stopped release, `/mf-release <change-id>`, which merges on a person's yes.
 
 ```python
 def _release_died(runs: Path, change: str) -> bool:
@@ -159,15 +161,23 @@ def push_left(self) -> None:
 
 `_unpushed`: no `origin` → an empty list. The default branch, when `rev-list --count origin/<default>..<default>` is not
 `0`. Each `vX.Y.Z` tag merged into the default branch that `git ls-remote --tags origin` lacks. `Run.push_left` pushes them
-with `git push origin <name>`, never forcing, and writes a `push` event, which `EVENTS` gains. A failure halts `run`.
+with `git push --no-verify origin <name>`, never forcing, and writes a `push` event, which `EVENTS` gains. A failure halts
+`run`.
 
 `ship` calls it after its `start` event, before `if not versions`, and stops on a halt. `status` adds
 `run · unpushed <names>` above its lines, and prints `status: none` only when there is nothing at all.
 
-A worker can write `.git/config`, and `ls-remote` and `push` run outside its sandbox. So `_unpushed` and `_pushed` first run
-`_refuse_config_commands`: a `CONFIG_COMMANDS` key at `local` or `worktree` scope stops with 1, `status` printing it and the
-run halting, and the conductor makes no remote call. Overriding one key would leave the rest, and a snapshot cannot serve:
+A worker can write `.git/config`, and `ls-remote`, `push`, `merge` and `commit` run outside its sandbox. So `_unpushed` and
+`_pushed` first run `_refuse_origin`, and `Run.merge_in` runs `_refuse_config_commands`, which it calls: a key at `local` or
+`worktree` scope that `CONFIG_PLAIN` lacks stops with 1, `status` printing it and the run halting, before any such call.
+`CONFIG_PLAIN` lists the keys that name no program, not the ones that do: a list of those missed `hook.*`, which runs
+under `NO_HOOKS`, and an unknown key now fails closed. Overriding one key would leave the rest, and a snapshot cannot serve:
 `status` and `push_left` run before any worker of their run, and a file under `.minions/` is the worker's to write.
+
+`_refuse_origin` also reads `git remote get-url --all` and `--all --push`, so an `insteadOf` is seen through: each URL must
+match `NETWORK_URL`, or be named in the operator's global `mf-ship.localorigin`, which no worker can write. A local path or
+`file://` target runs that repo's receive hooks with the operator's rights, past `NO_HOOKS`, since git drops `-c` for a
+local transport's child. `CONFIG_PLAIN` holds no `pushurl`. A fixture's bare `origin` is named the same way.
 
 `skills/mf-ship/SKILL.md`, Step 3: `status` prints `status: none — no open version` stays the only stop.
 
@@ -230,8 +240,8 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`: the lowest layer that reache
 | test | holds |
 |---|---|
 | `test_a_dead_converge_halts_and_a_rerun_finishes_it` | with `dies-converge`: exit 1, clean findings, no `done`; the run halts, naming the exit; no `release` call; a re-run spawns `converge`, then `release`, with no `build` call |
-| `test_a_rerun_recovers_a_dead_release` | with `dies-release-fold`: a staged fold; `status` reads `release`; a re-run tags once. With `dies-release-tag`: a re-run merges; a moved default branch reads `released`. With `dies-release-commit`: `release`; a re-run tags and merges. With `stops-release-tag`, exit 0: `released`, and no release worker. A tip forged on an old tag or with no tag, and a tagged tip no worker ran: `released` |
-| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag, and ends on `done`. A planted `remote.origin.uploadpack`: `status` exits 1 naming it, a run halts, and the program never runs |
+| `test_a_rerun_recovers_a_dead_release` | with `dies-release-fold`: a staged fold; `status` reads `release`; a re-run tags once. With `dies-release-tag`: a re-run merges; a moved default branch reads `released`, naming the recovery, `git tag -d` only with a tag. With `dies-release-commit`: `release`; a re-run tags and merges. With `stops-release-tag`, exit 0: `released`, naming `/mf-release`, and no release worker. A tip forged on an old tag or with no tag, and a tagged tip no worker ran: `released` |
+| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag past a global `pre-push` hook, and ends on `done`. A planted `remote.origin.uploadpack`, `hook.*`, `filter.*`, `merge.*`, `include.path`, unknown key or `pushurl`: `status` exits 1 naming it, a run halts, and the program never runs. `origin` at a local path, `file://` or `ext::`, unnamed: the same |
 | `test_a_stale_claim_is_cleared` | `active/` with a dead pid and a live `sleep` group: `status` reads `stale`; a run kills the group and starts. A live pid refuses. A group whose entry holds another start time, or none, lives |
 | `test_a_usage_limit_is_named` | with `dies-limit`, a `result` event with 429: the `halt` line ends ` · stopped by a usage limit · resets 5:50pm (Europe/Athens)` |
 
@@ -242,6 +252,8 @@ Tests edited:
 | `test_status_reads_each_stage_from_disk` | an open merge with no note reads `integrate` |
 | `test_each_check_passes_only_on_disk_evidence` | a step for `the status log has no done` |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `work`'s new argument, and the start time in its entry |
+| `test_after_waits_for_its_dependency` | a planted `hook.*` stops `merge_in` before its merge, and the hook never runs |
+| `test_each_check_passes_only_on_disk_evidence` | its bare `origin` is named in the global `mf-ship.localorigin` |
 
 `_findings` also writes a status log ending on `done`. `_fake` gains `dies-<station>`, leaving that station's state and
 exiting 1, and `stops-release-tag`, leaving a tag and exiting 0. No test is deleted or merged.
@@ -259,9 +271,12 @@ None.
   whose leader is gone is left alive: nothing proves it is ours.
 - **`git restore` over a dirty tree** → only under `merge=yes`, with the archive move staged, and under the paths
   [D4](#d4) names; anything else still halts.
-- **A repo-local `core.sshCommand` or credential helper** → an operator who keeps one must move it to the global config, or
-  `mf-ship` halts; `CONFIG_COMMANDS` is a list, so a key git adds later needs adding. `remote.origin.url` stays allowed: a
-  worker pointing it at a local repo still gets that repo's receive hooks run on a push.
+- **A repo-local key off `CONFIG_PLAIN`** → an operator who keeps one, harmless or not, must move or remove it, or `mf-ship`
+  halts naming it; a key that proves plain joins the list. Global keys stay the operator's, so a global `filter.*` with a
+  worker's `info/attributes` is unchanged.
+- **A local `origin`** → an operator who keeps one names it once in the global `mf-ship.localorigin`.
+- **The refusal is a check before a separate read** → the race is `0049·S7`. `git status` before the refusal can still run a
+  `filter.*` key, in `preconditions` and a station's check; `status` refuses it first, and the rest is `0048·S3`.
 - **`converge-reading-set` is past its watch** → [D2](#d2) adds one short section.
 
 ## Migration Plan
