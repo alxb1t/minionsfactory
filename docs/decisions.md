@@ -430,7 +430,8 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
 applies fixed rules to the CHANGELOG, decision ids and spec delta, hands a semantic conflict to the person with the
 merge open, gates, and commits the merge; converge's catch-up judges the merge by its remerge-diff. `conduct.py` alone
-merges it into a dependent's cut-only branch, which cannot conflict.**
+merges it into a dependent's cut-only branch, which cannot conflict in git: it runs `integrate.py delta` on the open
+merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
   read, and what the merge decided is exactly what review must see.

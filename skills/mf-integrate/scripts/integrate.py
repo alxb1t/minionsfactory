@@ -169,6 +169,16 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     return None
 
 
+def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
+    """Return whether the version's merge is open with its note beside it."""
+    note = _run_dir(cwd) / "integrate" / f"{change}.md"
+    return (
+        tree is not None
+        and note.is_file()
+        and _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
+    )
+
+
 def _holds(cwd: Path, change: str) -> bool:
     """Return whether a branch holds its change, active or just released."""
     if _show(cwd, change, f"openspec/changes/{change}/proposal.md") is not None:
@@ -182,8 +192,9 @@ def _holds(cwd: Path, change: str) -> bool:
 def next_version(cwd: Path, change: str | None = None) -> str:
     """Return the named or the lowest-id ready version, its worktree and readiness.
 
-    A version is a branch named by a change id that holds its change. With none
-    ready, stop on the lowest id's line.
+    A version is a branch named by a change id that holds its change. A named
+    version whose merge is open with its note is ready: a dependent's opens before
+    its build. With none ready, stop on the lowest id's line.
     """
     default = default_branch(cwd)
     listing = _git(
@@ -206,6 +217,8 @@ def next_version(cwd: Path, change: str | None = None) -> str:
     for name in sorted(picks, key=lambda name: int(name.split("-")[0])):
         tree = trees.get(name)
         line = f"next: {name} · {tree or 'no worktree'}"
+        if change and _settling(cwd, name, tree):
+            return f"{line} · ready"
         if (why := unready(cwd, name, tree)) is None:
             return f"{line} · ready"
         lines.append(f"{line} · not ready — {why}")

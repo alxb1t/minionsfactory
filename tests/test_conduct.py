@@ -436,7 +436,58 @@ def test_after_waits_for_its_dependency(
     assert "chore(integrate): merge main into 0002-marks" in _git(
         root, "log", "--format=%s", "0002-marks"
     )
+    assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    living = "openspec/specs/sdd/spec.md"
+    _commit(second, {living: "### Requirement: First\n\nThe base.\n"}, "spec")
+    first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
+    fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
+    _commit(first, fold, "fold\n\nChange: 0001-todo")
+    tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
+    _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
+    calls.unlink()
+
+    def again(code: int) -> str:
+        assert (
+            _main(
+                conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch
+            )
+            == code
+        )
+        return conduct["last_log"](second / ".minions" / "runs").read_text()
+
+    log = again(1)
+    assert "build 0002-marks" not in _calls(calls)
+    halted = (
+        " · 0002-marks · halt — integrating — semantic conflict:"
+        " .minions/integrate/0002-marks.md\n"
+    )
+    assert halted in log
+    assert " · run · halt — halted 0002-marks · blocked none · released v0.1.0" in log
+    assert _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    note = second / ".minions" / "integrate" / "0002-marks.md"
+    held = note.read_text()
+    assert held.startswith("## sdd: First\n")
+    assert "`openspec/changes/0002-marks/design.md`" in held
+    assert "`openspec/changes/archive/0001-todo/design.md`" in held
+
+    _version(second, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    assert halted in again(1)
+    assert "build 0002-marks" not in _calls(calls)
+    assert "release 0003-more" in _calls(calls)
+    assert note.read_text() == held
+
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-marks")
+    note.unlink()
+    calls.unlink()
+    again(0)
+    assert "build 0002-marks" in _calls(calls)
 
 
 def test_a_halted_dependency_blocks_a_chain(

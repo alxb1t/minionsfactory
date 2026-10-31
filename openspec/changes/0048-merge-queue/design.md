@@ -11,7 +11,9 @@ to build.
 - `PROMPTS["integrate"]` names no change (`conduct.py:72`). `next_version` picks the lowest open id
   (`skills/mf-integrate/scripts/integrate.py:163`), and `mf-integrate` has no parameter.
 - `mf-release` precondition 10 halts on an open lower id (`skills/mf-release/SKILL.md:121`).
-- A cut touches only `openspec/changes/<id>/`, so the default branch merges into a cut-only branch with no conflict.
+- A cut touches only `openspec/changes/<id>/`, so the default branch merges into a cut-only branch with no git conflict.
+  Its delta can still modify a requirement the default branch changed, and the release fold replaces that text byte for
+  byte.
 - A release puts `openspec/changes/archive/<id>/` on the default branch: a tree holds a dependency exactly when it holds
   that folder.
 - `I10` asks every file and symbol a design names to exist at `HEAD`, which a dependent's design cannot meet for what its
@@ -30,7 +32,7 @@ dependency cannot be skipped, by `mf-ship` or by hand.
 |---|---|---|---|
 | [D1](#d1) | One thread per version, and one lock around integrate, catch-up and release | `advance` already re-reads the stage, so stage B's loop can go | a queue structure: any order among the ready will do |
 | [D2](#d2) | `after: [<ids>]`, read by `_after`; each id open and lower at the cut | a lower id rules out cycles | a dependency graph file |
-| [D3](#d3) | The dependent joins its dependency's thread, and `conduct.py` merges the default branch | a cut-only branch cannot conflict, so no judgement is needed | an agent for it; merge-order-only dependencies, since a dependent needs the code |
+| [D3](#d3) | The dependent joins its dependency's thread, and `conduct.py` merges the default branch, running `integrate.py delta` on the open merge | a cut-only branch cannot conflict in git, so only a requirement both sides changed needs judgement, and that is the person's | an agent for it; merge-order-only dependencies, since a dependent needs the code; a commit in one step, which loses the dependency's requirement text at the fold |
 | [D4](#d4) | `waiting` in `status`; `blocked — by <id>` down a chain; `held` goes | nothing waits on order any more | keeping `held` for dependents |
 | [D5](#d5) | `mf-integrate` takes a `change-id`; bare, the lowest-id ready | the conductor names the version it holds the lock for | the lowest open id, which a halted version would block |
 | [D6](#d6) | `I17` in `mf-build` and `mf-release`, in place of precondition 10; `I10`'s exception | a dependency cannot be skipped by hand | trusting the conductor alone |
@@ -116,15 +118,36 @@ def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
             return False
     tree = version.tree
     if tree and not all(_shipped(tree, "HEAD", name) for name in after):
-        message = f"chore(integrate): merge {default} into {change}"
-        trailer = f"Change: {change}"
-        _git(tree, "merge", "-q", "--no-ff", "-m", message, "-m", trailer, default)
+        self.merge_in(tree, change, default)
     return True
+
+
+def merge_in(self, tree: Path, change: str, default: str) -> None:
+    """Merge the default branch into a dependent, once the delta check passes."""
+    note = self.primary / ".minions" / "integrate" / f"{change}.md"
+    opened = _merge_open(tree)
+    if opened and note.is_file():
+        return
+    if not opened:
+        _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
+    if moved := _delta(tree):
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text(_note(tree, change, moved))
+        return
+    message = f"chore(integrate): merge {default} into {change}"
+    _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 ```
 
 `_dependencies(primary, change)` is `_after` over the proposal on the branch; after a release it reads nothing, and returns
 an empty list. A chain follows: a blocked version's thread ends unreleased, so its dependent finds it unshipped. A failed
 merge raises `Stop`, which halts the version.
+
+`_delta(tree)` runs `integrate.py delta`, the one copy of the check, from the sibling package, as `mf-release` runs
+`gate_check.py`; exit 2 raises `Stop`. It must run here: once the merge commits, the merge base has moved past the
+dependency, and no later check sees what it changed. `_note` writes one `mf-integrate` note section per title, naming both
+changes. `ready` then returns, `advance` reads `integrating` from the open merge and its note, and the version halts, as
+`mf-integrate` Step 3's does. A re-run leaves the note and the merge as they stand, and a merge left open with no note runs
+the check again. The person settles it, and `/mf-integrate <change-id>` commits it; see [D5](#d5).
 
 ### D4
 
@@ -149,16 +172,20 @@ go. `advance` never meets `waiting`, because `ready` has passed.
 `integrate.py`: `next` takes an optional `change`. `next_version(cwd, change)`, named → that version, and `unready` halts as
 today; a name that is not open → `next: <change> · not open`, exit 1. Bare → the lowest id `unready` passes; none passes →
 the lowest id's line, exit 1, as today. `unready` adds, after the boxes: each id of the proposal's `after:` that
-`_shipped(cwd, change, id)` denies → `after <id>`.
+`_shipped(cwd, change, id)` denies → `after <id>`. A named version whose merge is open with its note is ready, since a
+dependent's merge opens before its build; a bare `next` keeps to `unready`, so it takes no unsettled dependent. Every
+hand-over names the version — the note line, `mf-ship` Step 4, both `mf-release` way-outs — so the merge settled is the one
+committed when several versions halt with a note.
 
 `skills/mf-integrate/SKILL.md`:
 
 - The description: "pick the lowest-id open version" → "take the named version, or the lowest-id ready one".
 - The diagram's first line: `next version (the named id, or the lowest ready id) ─▶ ready? ─ no ─▶ halt, naming it`.
 - `## Parameters`, before → after: "None. The current directory" → a table row `| `change-id` | no | the version to merge;
-  `mf-ship` always names it |`, then "The current directory".
+  `mf-ship` and every hand-over name it |`, then "The current directory".
 - Step 2: "Run the script's `next`, with `<change-id>` when given."; the exit-1 row: "**halt**, copying the line: the named
-  version is not ready, or none is". **Ready** adds "and every `after:` id in its tree".
+  version is not ready, or none is". **Ready** adds "and every `after:` id in its tree", and the named version with an open
+  merge and its note.
 - `## Never`: the "Never skip ahead" line goes.
 
 ### D6
@@ -217,7 +244,8 @@ Step 4: "`halted <ids> · held <ids> · released <tags>`" → "`halted <ids> · 
   a version" → "; a version".
 - **D44**, the bold paragraph: ", and versions ship in cut order. Every" → ". Every".
 - **D45**, the bold paragraph: "into the lowest-id open version's worktree" → "into a version's worktree". Add to the end of
-  the paragraph: "`conduct.py` alone merges it into a dependent's cut-only branch, which cannot conflict."
+  the paragraph: "`conduct.py` alone merges it into a dependent's cut-only branch, which cannot conflict in git: it runs
+  `integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note."
 - **D47**, the bold paragraph: "then integrates, runs the catch-up round and releases each in cut order with `merge=yes`" →
   "then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`"; and "a failed
   check halts its version, a halt holds every version behind it at the merge, a failed probe halts the run" → "a failed check
@@ -237,7 +265,7 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`: the lowest layer that reache
 
 | test | holds |
 |---|---|
-| `test_after_waits_for_its_dependency` | `status` prints `0002-marks · waiting`; a run exits 0; `release 0001-todo` before `build 0002-marks` in the calls; `chore(integrate): merge main into 0002-marks` in that branch's log; both tagged |
+| `test_after_waits_for_its_dependency` | `status` prints `0002-marks · waiting`; a run exits 0; `release 0001-todo` before `build 0002-marks` in the calls; `chore(integrate): merge main into 0002-marks` in that branch's log; both tagged; a delta on a requirement the dependency changed halts `integrating` with no build, the merge open and a note naming both changes, a re-run halts again, and a settled merge builds |
 | `test_a_halted_dependency_blocks_a_chain` | with `liar-0001-todo`, `0002-marks` after it and `0003-more` after `0002-marks`: no `build 0002-marks` or `build 0003-more` call; each logs `blocked — by <id>`; the last line `… · run · halt — halted 0001-todo · blocked 0002-marks 0003-more · released none`; `report` ends their lines ` · blocked by <id>` |
 
 Tests renamed and rewritten, in place:
@@ -246,7 +274,7 @@ Tests renamed and rewritten, in place:
 |---|---|---|
 | `test_run_ships_two_versions_in_cut_order` | `test_a_ready_version_ships_past_a_slow_one` | with `slow-0001-todo`: `release 0002-marks` before `release 0001-todo`; `integrate 0001-todo` and `converge 0001-todo` between them; `0002-marks` tagged `v0.1.0`, `0001-todo` `v0.2.0`; the rest of its log and report steps |
 | `test_an_earlier_version_halts_and_the_later_is_held` | `test_a_later_version_ships_past_a_halted_one` | with `liar-0001-todo`: `release 0002-marks` called; the last line `… · run · halt — halted 0001-todo · blocked none · released v0.1.0` |
-| `test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one` | `test_next_picks_the_named_or_the_lowest_ready_id` | bare `next` passes over `009-early`, unticked, to `0010-later`; `next 009-early` exits 1, naming it; `next 7-fix-login` is `not open`; an `after:` id missing → `not ready — after <id>` |
+| `test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one` | `test_next_picks_the_named_or_the_lowest_ready_id` | bare `next` passes over `009-early`, unticked, to `0010-later`; `next 009-early` exits 1, naming it; `next 7-fix-login` is `not open`; an `after:` id missing → `not ready — after <id>`; an open merge with its note is ready by name, and a bare `next` passes over it |
 
 Tests edited:
 

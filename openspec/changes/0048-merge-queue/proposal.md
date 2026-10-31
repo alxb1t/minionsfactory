@@ -21,9 +21,11 @@ has no way to say so.
 - **One thread per version** — build, converge, then a lock around integrate, catch-up and release. A version takes the
   lock when it is ready.
 - **`after: [<ids>]`** — the cut takes `after=<id>[,<id>]`, and a dependent starts only once each id has released.
-- **`conduct.py` merges the default branch into a cut-only dependent**, with no agent: the merge cannot conflict.
+- **`conduct.py` merges the default branch into a cut-only dependent**, with no agent: the merge cannot conflict in git,
+  and `integrate.py delta` holds a requirement both sides changed open for the person.
 - **`status` shows `waiting`, and a halted dependency blocks** — `blocked — by <id>`, down a chain. `held` goes.
-- **`mf-integrate` takes a `change-id`**; run bare, it picks the lowest-id ready version. "Never skip ahead" goes.
+- **`mf-integrate` takes a `change-id`**; run bare, it picks the lowest-id ready version, and every hand-over names the
+  version. "Never skip ahead" goes.
 - **`I17` replaces release precondition 10** — `mf-build` and `mf-release` halt unless each `after:` id is in `HEAD`.
 - **`I10` counts a name an `after:` change's design adds.**
 - **`mf-plan`'s *parallel with* warns**, and proposes no order.

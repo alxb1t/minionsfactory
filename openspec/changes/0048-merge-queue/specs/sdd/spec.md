@@ -25,7 +25,8 @@ propose no order.
 `skills/mf-integrate/SKILL.md` SHALL, run in the primary checkout, take the version `change-id` names, or with none the
 ready version with the lowest change id among the unmerged branches named by a change id that hold their change or a
 release commit. It SHALL halt, naming the version, when the named one is not ready, or when none is: a phase unticked,
-converge not clean, or an `after:` id missing from its tree. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
+converge not clean, or an `after:` id missing from its tree. A named version whose merge is open with its note SHALL be
+ready. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
 the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`. A red gate SHALL
 halt with the merge open and write `.minions/integrate/<change-id>.red`, which the commit deletes. It SHALL NOT
 release, tag, push or rebase.
@@ -131,7 +132,7 @@ outside git and the run directory: a re-run derives every stage again and contin
 - **WHEN** integrate halted on a semantic conflict or a red gate, with the merge open and its note under
   `.minions/integrate/`
 - **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
-- **AND WHEN** the person settles it and `/mf-integrate` commits the merge
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
 - **THEN** a re-run of `mf-ship` runs the catch-up round, then the release
 
 ### Requirement: A version declares what it builds on
@@ -139,14 +140,22 @@ outside git and the run directory: a re-run derives every stage again and contin
 `skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open version with a lower
 number, and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
 change's design SHALL count as present at the cut. `conduct.py` SHALL start a dependent only once each id has released,
-and SHALL then merge the default branch into its cut-only branch, with no agent. `mf-build` and `mf-release` SHALL halt
-unless each id has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent
-whose dependency has not released.
+and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta` on the open
+merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its note
+under `.minions/integrate/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
+has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency
+has not released.
 
 #### Scenario: A dependent waits
 - **WHEN** a version names a lower open version in `after:`, and `mf-ship` runs
 - **THEN** its build starts only after that version's release, on a tree that holds it
 - **AND** unrelated versions run in parallel meanwhile
+
+#### Scenario: A dependent's delta edits what its dependency changed
+- **WHEN** a dependent's delta modifies a requirement the default branch changed since its base
+- **THEN** the merge stays open, the note names both changes, and the version halts with no build
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` builds the version
 
 #### Scenario: A cut names a dependency it cannot have
 - **WHEN** `after=` names an id that is merged, unknown, or not lower than the change's

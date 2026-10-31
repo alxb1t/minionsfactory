@@ -27,7 +27,7 @@ decision ids, a requirement both sides changed. Fixed rules settle the exact par
 
 | parameter | required | form |
 |---|---|---|
-| `change-id` | no | the version to merge; `mf-ship` always names it |
+| `change-id` | no | the version to merge; `mf-ship` and every hand-over name it |
 
 The current directory is the **primary**, the checkout on the default branch.
 
@@ -63,7 +63,8 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 | 2, or `uv` missing | **halt**, naming what it printed |
 
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
-converge skipped: no findings file and no diff patch.
+converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
+`conduct.py` opens a dependent's merge before its build.
 
 Then, in the worktree:
 
@@ -91,8 +92,8 @@ Then, in the worktree:
    `changelog` and `decisions` stage what they write. Exit 2 → **halt**, naming what it printed, the merge left
    open.
 3. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
-   is a **semantic conflict** → item 4. On a resumed run the rules ran before the halt: only the paths count.
-   Nothing left → Step 4.
+   is a **semantic conflict** → item 4. On a resumed run the rules ran before the halt, or a dependent's cut-only
+   branch gave them nothing to settle: only the paths count. Nothing left → Step 4.
 4. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 
@@ -106,7 +107,7 @@ Then, in the worktree:
 
    The default branch's change is the `Change:` trailer of the commits
    `git log <merge-base>..MERGE_HEAD -- <path>` lists; its design is `openspec/changes/archive/<id>/design.md`.
-   The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths, then /mf-integrate`.
+   The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths, then /mf-integrate <change-id>`.
 
 ## Step 4 — Gate and commit
 

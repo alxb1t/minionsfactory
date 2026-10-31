@@ -86,6 +86,18 @@ def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     result = _run(root, "next", "7-fix-login")
     assert (result.returncode, result.stdout) == (1, "next: 7-fix-login · not open\n")
 
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    _git(early, "merge", "-q", "--no-ff", "--no-commit", "main")
+    note = root / ".minions" / "integrate" / "009-early.md"
+    note.parent.mkdir(parents=True)
+    note.write_text("note\n")
+    result = _run(root, "next", "009-early")
+    assert (result.returncode, result.stdout.split(" · ")[-1]) == (0, "ready\n")
+    assert _run(root, "next").stdout.startswith("next: 0010-later · ")
+    note.unlink()
+    assert _run(root, "next", "009-early").returncode == 1
+    _git(early, "merge", "--abort")
+
     _commit(
         early,
         {"openspec/changes/009-early/tasks.md": "## Progress\n\n- [x] 1 — One\n"},

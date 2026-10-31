@@ -37,6 +37,8 @@ TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
 LOCK_SECONDS = 30
+INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
+MOVED = "delta: changed on the default branch: "
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -356,6 +358,53 @@ def _unmerged(tree: Path) -> bool:
 def _dirty(tree: Path) -> bool:
     """Return whether `git status --porcelain` prints anything."""
     return bool(_git(tree, "status", "--porcelain").strip())
+
+
+def _delta(tree: Path) -> list[str]:
+    """Return the lines `integrate.py delta` names on the merge open in `tree`."""
+    try:
+        done = subprocess.run(
+            [sys.executable, str(INTEGRATE), "delta", str(tree)],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        raise Stop(2, "conduct: cannot run — integrate.py delta timed out") from None
+    if done.returncode not in (0, 1):
+        said = (done.stdout or done.stderr).strip() or f"exit {done.returncode}"
+        raise Stop(2, f"conduct: cannot run — integrate.py delta: {said}")
+    return done.stdout.splitlines() if done.returncode else []
+
+
+def _note(tree: Path, change: str, moved: list[str]) -> str:
+    """Return the integrate note for the requirements the default branch changed.
+
+    e.g. "delta: changed on the default branch: sdd: First" → a `## sdd: First` section
+    """
+    base = _git(tree, "merge-base", "HEAD", "MERGE_HEAD").strip()
+    sections = []
+    for line in moved:
+        heading = line.removeprefix(MOVED)
+        trailers = _git(
+            tree,
+            *("log", "--format=%(trailers:key=Change,valueonly)"),
+            *(f"{base}..MERGE_HEAD", "--"),
+            f"openspec/specs/{heading.split(': ')[0]}/spec.md",
+        )
+        designs = ", ".join(
+            f"`openspec/changes/archive/{name}/design.md`"
+            for name in dict.fromkeys(trailers.split())
+        )
+        sections.append(
+            f"## {heading}\n\n"
+            f"- **The branch:** `openspec/changes/{change}/design.md`\n"
+            f"- **The default branch:** {designs or 'no `Change:` trailer'}\n"
+            "- **Proposed:** rewrite the delta's requirement over the default"
+            " branch's text, keeping both edits.\n"
+        )
+    return "\n".join(sections)
 
 
 def stage_of(primary: Path, version: Version) -> tuple[str, str]:
@@ -887,10 +936,27 @@ class Run:
                 return False
         tree = version.tree
         if tree and not all(_shipped(tree, "HEAD", name) for name in after):
-            message = f"chore(integrate): merge {default} into {change}"
-            trailer = f"Change: {change}"
-            _git(tree, "merge", "-q", "--no-ff", "-m", message, "-m", trailer, default)
+            self.merge_in(tree, change, default)
         return True
+
+    def merge_in(self, tree: Path, change: str, default: str) -> None:
+        """Merge the default branch into a dependent, once the delta check passes.
+
+        A requirement both sides changed leaves the merge open with its note, which
+        `stage_of` reads as an `integrating` halt.
+        """
+        note = self.primary / ".minions" / "integrate" / f"{change}.md"
+        opened = _merge_open(tree)
+        if opened and note.is_file():
+            return
+        if not opened:
+            _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
+        if moved := _delta(tree):
+            note.parent.mkdir(parents=True, exist_ok=True)
+            note.write_text(_note(tree, change, moved))
+            return
+        message = f"chore(integrate): merge {default} into {change}"
+        _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
