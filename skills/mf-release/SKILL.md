@@ -186,7 +186,8 @@ binding check covers it, and a gate without one gives a separate step nothing to
    skill's package, `<base>` as in precondition 8. Pass `--executor` only from runtime evidence, worded as
    `mf-build`'s *Executor* reports it: `Claude Code`, `Codex` or `unidentified`. No evidence → omit it, and the
    file records `unidentified`. Exit 2, any other non-zero exit, a missing script or a missing `uv` → **halt**,
-   nothing committed. Stage `metrics/changes/<change-id>.json` by name.
+   nothing committed. A data file whose `version` is not `<version>` → **halt**, nothing committed: Step 3's write
+   was missed. Stage `metrics/changes/<change-id>.json` by name.
 3. **Re-run the full gate — before anything is committed or tagged.** The fold and the archive moved files the
    gate reads, so Step 1's green says nothing about this tree. **Red → halt: report it and stop, and never repair
    it by weakening anything.** Nothing is committed or tagged yet: report the staged fold and archive move and the

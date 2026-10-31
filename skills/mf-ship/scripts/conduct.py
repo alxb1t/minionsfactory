@@ -423,16 +423,20 @@ def _check_release(primary: Path, version: Version) -> str | None:
     own = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own != tip:
         return f"{tag} is not the tip of {version.change}"
-    if _pushed(primary, tag) is False:
+    if _pushed(primary, version.change, tag) is False:
         return f"{tag} is not on origin"
     return None
 
 
-def _pushed(primary: Path, tag: str) -> bool | None:
-    """Return whether origin holds the tag, or None when there is no origin."""
+def _pushed(primary: Path, change: str, tag: str) -> bool | None:
+    """Return whether origin's tag is on the branch's tip, or None with no origin."""
     if "origin" not in _git(primary, "remote").split():
         return None
-    return bool((_maybe(primary, "ls-remote", "--tags", "origin", tag) or "").strip())
+    ref = f"refs/tags/{tag}"
+    # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
+    listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
+    tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
+    return tip in (listed or "").split()
 
 
 def check_probe(scratch: Path) -> str | None:
@@ -1044,7 +1048,7 @@ def report(cwd: Path) -> str:
         tag = _tag_of(primary, change)
         if tag is not None and not _tagged(primary, tag):
             tag = None
-        pushed = _pushed(primary, tag) if tag is not None else False
+        pushed = _pushed(primary, change, tag) if tag is not None else False
         review = runs / "findings" / f"{change}_review.md"
         round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
         page = runs / "metrics" / f"{change}.html"

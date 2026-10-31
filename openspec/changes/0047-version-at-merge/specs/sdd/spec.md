@@ -118,7 +118,8 @@ Versions SHALL ship in the order they were cut.
 `patch`, and SHALL take `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
 highest `vX.Y.Z` tag, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
 it collects metrics. `conduct.py` SHALL read a released version's tag from the branch tip's `chore(release): <tag>`,
-SHALL pass the release check only when that tag's commit is the tip, and SHALL hold no number before it.
+SHALL pass the release check only when that tag's commit is the tip and, with an `origin`, origin's tag is on that
+tip, and SHALL hold no number before it.
 
 #### Scenario: A minor after v0.40.0
 - **WHEN** the highest tag is `v0.40.0` and the proposal says `bump: minor`

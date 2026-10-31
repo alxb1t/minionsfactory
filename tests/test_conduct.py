@@ -266,8 +266,32 @@ def test_each_check_passes_only_on_disk_evidence(
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     _git(root, "remote", "add", "origin", str(origin))
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
-    _git(root, "push", "-q", "origin", "v0.1.0")
+    runs = root / ".minions" / "runs"
+    runs.mkdir()
+    (runs / "1.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
+
+    def pushed() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.split(" · ")[3]
+
+    _git(root, "push", "-q", "origin", "main~1:refs/tags/v0.1.0")
+    assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
+    assert pushed() == "not pushed"
+    _git(root, "push", "-q", "-f", "origin", "v0.1.0")
     assert check("release") == (0, "check: release · pass")
+    assert pushed() == "pushed"
+    _git(root, "tag", "-f", "v0.1.0", "0001-todo")
+    _git(root, "push", "-q", "-f", "origin", "v0.1.0")
+    assert check("release") == (0, "check: release · pass")
+    assert pushed() == "pushed"
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge the forged tip", "0001-todo")
+    assert check("release") == (
+        1,
+        "check: release · fail — v0.1.0 is not the tip of 0001-todo",
+    )
+    assert pushed() == "not pushed"
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()

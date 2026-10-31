@@ -67,8 +67,9 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
+    # `0010` sorts before `009` as text: the queue is the change id's number.
     _version(root, "0010-later")
-    early = _version(root, "0009-early", ticked=False)
+    early = _version(root, "009-early", ticked=False)
     stray = root.parent / "7-fix-login"
     _git(root, "worktree", "add", "-q", "-b", "7-fix-login", str(stray))
     _commit(stray, {"login.txt": "x\n"}, "not a version")
@@ -76,12 +77,12 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
 
     result = _run(root, "next")
     assert result.returncode == 1
-    assert "next: 0009-early · " in result.stdout
+    assert "next: 009-early · " in result.stdout
     assert "not ready — phase 1 unticked" in result.stdout
 
     _commit(
         early,
-        {"openspec/changes/0009-early/tasks.md": "## Progress\n\n- [x] 1 — One\n"},
+        {"openspec/changes/009-early/tasks.md": "## Progress\n\n- [x] 1 — One\n"},
         "tick",
     )
     result = _run(root, "next")
@@ -90,21 +91,21 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
 
     findings = root / ".minions" / "findings"
     findings.mkdir(parents=True)
-    (findings / "0009-early_review.md").write_text("---\nverdict: clean\n---\n")
+    (findings / "009-early_review.md").write_text("---\nverdict: clean\n---\n")
     result = _run(root, "next")
     assert result.returncode == 1
     assert "not ready — converge ran, and a findings file is missing" in result.stdout
 
-    (findings / "0009-early_security.md").write_text("---\nverdict: clean\n---\n")
+    (findings / "009-early_security.md").write_text("---\nverdict: clean\n---\n")
     assert _run(root, "next").returncode == 0
 
     (early / "openspec/changes/archive").mkdir()
-    folder = "openspec/changes/0009-early"
-    _git(early, "mv", folder, "openspec/changes/archive/0009-early")
+    folder = "openspec/changes/009-early"
+    _git(early, "mv", folder, "openspec/changes/archive/009-early")
     _git(early, "commit", "-q", "-m", "chore(release): v0.1.0")
     result = _run(root, "next")
     assert result.returncode == 1
-    assert "next: 0009-early · " in result.stdout
+    assert "next: 009-early · " in result.stdout
 
 
 _HEAD = "# Changelog\n\n## [Unreleased]\n"

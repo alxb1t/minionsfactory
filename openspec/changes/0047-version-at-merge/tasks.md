@@ -31,7 +31,7 @@ for word.
 - [x] 2.3 Edit `tests/test_conduct.py`'s `_version`, `_fake` and its tests, per [Tests](design.md#tests).
   Verify: `grep -c 'v0.1_todo' tests/test_conduct.py` prints `0`.
 - [x] 2.4 Edit `tests/test_integrate.py`'s `_version` and its tests, per [Tests](design.md#tests).
-  Verify: `grep -c 'next: 0009-early' tests/test_integrate.py` prints `1`.
+  Verify: `grep -c 'next: 009-early' tests/test_integrate.py` prints `2`.
 
 ## 3 — Skill text
 
