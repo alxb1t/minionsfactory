@@ -4,7 +4,7 @@
 # ///
 """Merge the default branch into the next version by fixed rules.
 
-    integrate.py next
+    integrate.py next [<change-id>]
     integrate.py changelog <worktree>
     integrate.py decisions <worktree>
     integrate.py delta <worktree>
@@ -103,6 +103,21 @@ def _frontmatter(text: str, key: str) -> str | None:
     return found[1] if found else None
 
 
+def _after(text: str) -> list[str]:
+    r"""Return the change ids a proposal's `after:` names.
+
+    e.g. "---\nafter: [0047-x, 0048-y]\n---\n" → ["0047-x", "0048-y"]
+    """
+    found = re.search(r"^after:\s*\[(.*)\]", text.split("\n---", 1)[0], re.MULTILINE)
+    return re.findall(r"[^,\s]+", found[1]) if found else []
+
+
+def _shipped(cwd: Path, rev: str, change: str) -> bool:
+    """Return whether `rev` holds the change's archive folder."""
+    path = f"{rev}:openspec/changes/archive/{change}"
+    return _maybe(cwd, "cat-file", "-e", path) is not None
+
+
 def _worktrees(cwd: Path) -> dict[str, Path]:
     """Map each checked-out branch to its worktree."""
     found: dict[str, Path] = {}
@@ -124,8 +139,8 @@ def _run_dir(cwd: Path) -> Path:
 def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
-    Ready is every `## Progress` box ticked, and both findings files clean or
-    converge skipped: no findings file and no diff patch.
+    Ready is every `## Progress` box ticked, every `after:` id in its tree, and both
+    findings files clean or converge skipped: no findings file and no diff patch.
     """
     if tree is None:
         return "no worktree"
@@ -136,6 +151,10 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     unticked = [number for mark, number in boxes if mark != "x"]
     if unticked:
         return f"phase {unticked[0]} unticked"
+    proposal = _show(cwd, change, f"openspec/changes/{change}/proposal.md") or ""
+    for dependency in _after(proposal):
+        if not _shipped(cwd, change, dependency):
+            return f"after {dependency}"
     findings = _run_dir(cwd) / "findings"
     files = [findings / f"{change}_{role}.md" for role in ("review", "security")]
     patch = findings / f"{change}_diff.patch"
@@ -150,6 +169,16 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     return None
 
 
+def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
+    """Return whether the version's merge is open with its note beside it."""
+    note = _run_dir(cwd) / "integrate" / f"{change}.md"
+    return (
+        tree is not None
+        and note.is_file()
+        and _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
+    )
+
+
 def _holds(cwd: Path, change: str) -> bool:
     """Return whether a branch holds its change, active or just released."""
     if _show(cwd, change, f"openspec/changes/{change}/proposal.md") is not None:
@@ -160,10 +189,12 @@ def _holds(cwd: Path, change: str) -> bool:
     )
 
 
-def next_version(cwd: Path) -> str:
-    """Return the lowest-id unmerged version, its worktree and readiness.
+def next_version(cwd: Path, change: str | None = None) -> str:
+    """Return the named or the lowest-id ready version, its worktree and readiness.
 
-    A version is a branch named by a change id that holds its change.
+    A version is a branch named by a change id that holds its change. A named
+    version whose merge is open with its note is ready: a dependent's opens before
+    its build. With none ready, stop on the lowest id's line.
     """
     default = default_branch(cwd)
     listing = _git(
@@ -176,14 +207,22 @@ def next_version(cwd: Path) -> str:
         for name in listing.split()
         if CHANGE_ID.fullmatch(name) and _holds(cwd, name)
     ]
+    if change is not None and change not in changes:
+        raise Stop(1, f"next: {change} · not open")
     if not changes:
         raise Stop(1, "next: none — no open version")
-    change = min(changes, key=lambda name: int(name.split("-")[0]))
-    tree = _worktrees(cwd).get(change)
-    line = f"next: {change} · {tree or 'no worktree'}"
-    if why := unready(cwd, change, tree):
-        raise Stop(1, f"{line} · not ready — {why}")
-    return f"{line} · ready"
+    trees = _worktrees(cwd)
+    lines = []
+    picks = [change] if change else changes
+    for name in sorted(picks, key=lambda name: int(name.split("-")[0])):
+        tree = trees.get(name)
+        line = f"next: {name} · {tree or 'no worktree'}"
+        if change and _settling(cwd, name, tree):
+            return f"{line} · ready"
+        if (why := unready(cwd, name, tree)) is None:
+            return f"{line} · ready"
+        lines.append(f"{line} · not ready — {why}")
+    raise Stop(1, lines[0])
 
 
 def _tree(path: str) -> Path:
@@ -499,13 +538,16 @@ def main(argv: list[str] | None = None) -> int:
         description="Merge the default branch into the next version by fixed rules."
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("next", help="print the lowest-id open version, and if ready")
+    picking = commands.add_parser(
+        "next", help="print the named or the lowest-id ready version"
+    )
+    picking.add_argument("change", metavar="change-id", nargs="?")
     for name, (_, text) in ON_A_MERGE.items():
         commands.add_parser(name, help=text).add_argument("worktree")
     args = parser.parse_args(argv)
     try:
         if args.command == "next":
-            print(next_version(Path.cwd()))
+            print(next_version(Path.cwd(), args.change))
         else:
             print(ON_A_MERGE[args.command][0](_tree(args.worktree)))
     except Stop as stop:

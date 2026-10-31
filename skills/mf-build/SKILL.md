@@ -54,14 +54,15 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | — (stop-condition 5) |
-| **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
-| **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | — (stop-condition 2) |
+| **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
+| **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
 | **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
+| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
 
 ## Step 1 — Lift the context
 
@@ -80,6 +81,7 @@ The **run directory** is `.minions/` beside the primary checkout:
 - **`I13`** — `proposal.md` opens with frontmatter holding a `bump:` key.
 - **`I14`** — every `## Progress` line containing `**HUMAN` has a `## N — Title` section with at least one
   `Verify:`.
+- **`I17`** — for each id in `proposal.md`'s `after:`, `git cat-file -e HEAD:openspec/changes/archive/<id>` exits 0.
 
 Then read:
 

@@ -114,16 +114,12 @@ precondition 4 says what absence means.
 9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
    the way out:
 
-       /mf-integrate                     # in the primary: merges, applies its rules, gates, commits
+       /mf-integrate <change-id>         # in the primary: merges, applies its rules, gates, commits
        /mf-converge                      # when converge ran: its catch-up round judges the merge
        /mf-release
 
-10. **Earlier cuts have shipped** — inspect every other branch named by `git branch --no-merged
-    <default-branch> --list '[0-9]*'`. A version is a branch named `<digits>-<slug>` that holds its proposal,
-    `git show <branch>:openspec/changes/<branch>/proposal.md`, or whose tip's subject,
-    `git log -1 --format=%s <branch>`, is `chore(release): <tag>`; any other branch is not the line's, and is dropped.
-    A version whose change id has a lower numeric prefix than this change's → halt before finalization, naming
-    that branch and change id.
+10. **Its dependencies have shipped** (`I17`) — for each id in `proposal.md`'s `after:`,
+    `git cat-file -e HEAD:openspec/changes/archive/<id>` exits 0. Else → halt, naming the id.
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -241,7 +237,7 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 
        git tag -d <tag>
        git reset --hard HEAD~1           # the release commit
-       /mf-integrate  ·  /mf-converge  ·  /mf-release
+       /mf-integrate <change-id>  ·  /mf-converge  ·  /mf-release
 2. **Merge in the primary:** its tree is clean — `git -C <primary> status --porcelain` prints nothing — else halt.
    The primary is this checkout → `git switch <default-branch>` first. Then `git -C <primary> merge --no-ff
    <branch>` with the message `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and

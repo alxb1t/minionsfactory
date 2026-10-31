@@ -63,12 +63,10 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
-    tmp_path: Path,
-) -> None:
+def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     # `0010` sorts before `009` as text: the queue is the change id's number.
-    _version(root, "0010-later")
+    later = _version(root, "0010-later")
     early = _version(root, "009-early", ticked=False)
     stray = root.parent / "7-fix-login"
     _git(root, "worktree", "add", "-q", "-b", "7-fix-login", str(stray))
@@ -76,9 +74,29 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     _git(root, "worktree", "remove", str(stray))
 
     result = _run(root, "next")
+    assert result.returncode == 0
+    assert result.stdout.startswith("next: 0010-later · ")
+    assert result.stdout.endswith(" · ready\n")
+
+    result = _run(root, "next", "009-early")
     assert result.returncode == 1
     assert "next: 009-early · " in result.stdout
     assert "not ready — phase 1 unticked" in result.stdout
+
+    result = _run(root, "next", "7-fix-login")
+    assert (result.returncode, result.stdout) == (1, "next: 7-fix-login · not open\n")
+
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    _git(early, "merge", "-q", "--no-ff", "--no-commit", "main")
+    note = root / ".minions" / "integrate" / "009-early.md"
+    note.parent.mkdir(parents=True)
+    note.write_text("note\n")
+    result = _run(root, "next", "009-early")
+    assert (result.returncode, result.stdout.split(" · ")[-1]) == (0, "ready\n")
+    assert _run(root, "next").stdout.startswith("next: 0010-later · ")
+    note.unlink()
+    assert _run(root, "next", "009-early").returncode == 1
+    _git(early, "merge", "--abort")
 
     _commit(
         early,
@@ -92,12 +110,18 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     findings = root / ".minions" / "findings"
     findings.mkdir(parents=True)
     (findings / "009-early_review.md").write_text("---\nverdict: clean\n---\n")
-    result = _run(root, "next")
+    result = _run(root, "next", "009-early")
     assert result.returncode == 1
     assert "not ready — converge ran, and a findings file is missing" in result.stdout
 
     (findings / "009-early_security.md").write_text("---\nverdict: clean\n---\n")
-    assert _run(root, "next").returncode == 0
+    assert _run(root, "next", "009-early").returncode == 0
+
+    proposal = "---\nbump: minor\nafter: [009-early]\n---\n"
+    _commit(later, {"openspec/changes/0010-later/proposal.md": proposal}, "after")
+    result = _run(root, "next", "0010-later")
+    assert result.returncode == 1
+    assert "not ready — after 009-early" in result.stdout
 
     (early / "openspec/changes/archive").mkdir()
     folder = "openspec/changes/009-early"
@@ -106,6 +130,11 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     result = _run(root, "next")
     assert result.returncode == 1
     assert "next: 009-early · " in result.stdout
+
+    _git(later, "merge", "-q", "--no-ff", "-m", "bring it in", "009-early")
+    result = _run(root, "next")
+    assert result.returncode == 0
+    assert result.stdout.startswith("next: 0010-later · ")
 
 
 _HEAD = "# Changelog\n\n## [Unreleased]\n"

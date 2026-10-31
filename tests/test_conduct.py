@@ -51,17 +51,21 @@ def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
     root = tmp_path / "main"
     root.mkdir()
     _git(root, "init", "-q", "-b", "main")
+    _git(root, "config", "user.name", "mf")
+    _git(root, "config", "user.email", "mf@example.invalid")
+    _git(root, "config", "commit.gpgsign", "false")
     _commit(root, {".gitignore": ".minions/\n", "AGENTS.md": agents}, "base")
     return root.resolve()
 
 
-def _version(root: Path, change: str, progress: str) -> Path:
+def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     """Cut `change` on a branch of that name, linked, `progress` its list."""
     tree = root.parent / change
     _git(root, "worktree", "add", "-q", "-b", change, str(tree))
     folder = f"openspec/changes/{change}"
+    line = f"after: [{after}]\n" if after else ""
     files = {
-        f"{folder}/proposal.md": "---\nbump: minor\n---\n",
+        f"{folder}/proposal.md": f"---\nbump: minor\n{line}---\n",
         f"{folder}/tasks.md": f"## Progress\n\n{progress}",
     }
     _commit(tree, files, f"cut {change}")
@@ -356,14 +360,14 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     assert conduct["last_log"](runs) == second.path
 
 
-def test_run_ships_two_versions_in_cut_order(
+def test_a_ready_version_ships_past_a_slow_one(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake()
+    calls = fake("slow-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
@@ -375,23 +379,17 @@ def test_run_ships_two_versions_in_cut_order(
 
     seen = _calls(calls)
     assert seen[0] == "probe"
-    assert sorted(seen[1:5]) == [
-        "build 0001-todo",
-        "build 0002-marks",
-        "converge 0001-todo",
-        "converge 0002-marks",
+    assert seen.index("build 0001-todo") < seen.index("converge 0001-todo")
+    between = seen[
+        seen.index("release 0002-marks") + 1 : seen.index("release 0001-todo")
     ]
-    assert seen[1:5].index("build 0001-todo") < seen[1:5].index("converge 0001-todo")
-    assert seen[5:] == [
-        "release 0001-todo",
-        "integrate",
-        "converge 0002-marks",
-        "release 0002-marks",
-    ]
+    assert between[-2:] == ["integrate 0001-todo", "converge 0001-todo"]
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "rev-parse", "v0.1.0") == _git(root, "rev-parse", "0002-marks")
+    assert _git(root, "rev-parse", "v0.2.0") == _git(root, "rev-parse", "0001-todo")
     assert _git(root, "branch", "--no-merged", "main") == ""
     assert _git(root, "log", "-1", "--format=%s", "v0.2.0") == "chore(release): v0.2.0"
-    assert "chore(integrate): merge main into 0002-marks" in _git(
+    assert "chore(integrate): merge main into 0001-todo" in _git(
         root, "log", "--format=%s", "main"
     )
     lines = _log(root)
@@ -405,11 +403,235 @@ def test_run_ships_two_versions_in_cut_order(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
-    assert report[0].startswith("0001-todo · v0.1.0 · merge ")
+    assert report[0].startswith("0001-todo · v0.2.0 · merge ")
     assert report[0].endswith(
         " · no origin · round 1 · cards none · denied none · metrics: none"
     )
     assert report[-1] == lines[-1]
+
+
+def test_after_waits_for_its_dependency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    fired = tmp_path / "fired.txt"
+    hook = root / ".git" / "hooks" / "post-commit"
+    hook.parent.mkdir(exist_ok=True)
+    hook.write_text(f"#!/bin/sh\ngit log -1 --format=%s >> {shlex.quote(str(fired))}\n")
+    hook.chmod(0o755)
+
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert "0002-marks · waiting" in capsys.readouterr().out.splitlines()
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    seen = _calls(calls)
+    assert seen.index("release 0001-todo") < seen.index("build 0002-marks")
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        root, "log", "--format=%s", "0002-marks"
+    )
+    planted = fired.read_text().splitlines()
+    assert "build" in planted
+    assert "chore(integrate): merge main into 0002-marks" not in planted
+    assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    living = "openspec/specs/sdd/spec.md"
+    _commit(second, {living: "### Requirement: First\n\nThe base.\n"}, "spec")
+    first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
+    fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
+    _commit(first, fold, "fold\n\nChange: 0001-todo")
+    tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
+    _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
+    calls.unlink()
+
+    def again(code: int) -> str:
+        assert (
+            _main(
+                conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch
+            )
+            == code
+        )
+        return conduct["last_log"](second / ".minions" / "runs").read_text()
+
+    log = again(1)
+    assert "build 0002-marks" not in _calls(calls)
+    halted = (
+        " · 0002-marks · halt — integrating — semantic conflict:"
+        " .minions/integrate/0002-marks.md\n"
+    )
+    assert halted in log
+    assert " · run · halt — halted 0002-marks · blocked none · released v0.1.0" in log
+    assert _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    note = second / ".minions" / "integrate" / "0002-marks.md"
+    held = note.read_text()
+    assert held.startswith("## sdd: First\n")
+    assert "`openspec/changes/0002-marks/design.md`" in held
+    assert "`openspec/changes/archive/0001-todo/design.md`" in held
+
+    _version(second, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    assert halted in again(1)
+    assert "build 0002-marks" not in _calls(calls)
+    assert "release 0003-more" in _calls(calls)
+    assert note.read_text() == held
+
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-marks")
+    note.unlink()
+    calls.unlink()
+    again(0)
+    assert "build 0002-marks" in _calls(calls)
+
+    third = tmp_path / "third"
+    third.mkdir()
+    crashed = _primary(third)
+    _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    crash = tmp_path / "crash.py"
+    crash.write_text("raise OSError('no fork')\n")
+    script = conduct["main"].__globals__["INTEGRATE"]
+    conduct["main"].__globals__["INTEGRATE"] = crash
+    calls.unlink()
+    assert (
+        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "build 0002-marks" not in _calls(calls)
+    assert any(
+        line.endswith(
+            " · 0002-marks · halt — conduct: cannot run — integrate.py delta:"
+            " OSError: no fork"
+        )
+        for line in _log(crashed)
+    )
+    assert _git(dependent, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    conduct["main"].__globals__["INTEGRATE"] = script
+    assert (
+        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        crashed, "log", "--format=%s", "0002-marks"
+    )
+
+
+def test_a_halted_dependency_blocks_a_chain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("liar-0001-todo")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(root, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    seen = _calls(calls)
+    assert "build 0002-marks" not in seen
+    assert "build 0003-more" not in seen
+    lines = _log(root)
+    assert any(
+        line.endswith(" · 0002-marks · blocked — by 0001-todo") for line in lines
+    )
+    assert any(
+        line.endswith(" · 0003-more · blocked — by 0002-marks") for line in lines
+    )
+    assert lines[-1].endswith(
+        " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
+        " · released none"
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    report = capsys.readouterr().out.splitlines()
+    assert report[1].startswith("0002-marks · ")
+    assert report[1].endswith(" · blocked by 0001-todo")
+    assert report[2].startswith("0003-more · ")
+    assert report[2].endswith(" · blocked by 0002-marks")
+
+    only = tmp_path / "only"
+    only.mkdir()
+    lone = _primary(only)
+    _version(lone, "0001-todo", "- [ ] 1 — Ship **HUMAN**\n")
+    _version(lone, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(lone, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
+    calls.unlink()
+    assert (
+        _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    lines = _log(lone)
+    assert any(
+        line.endswith(" · 0003-more · blocked — by 0002-marks") for line in lines
+    )
+    assert lines[-1].endswith(
+        " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
+        " · released none"
+    )
+
+    edited = tmp_path / "edited"
+    edited.mkdir()
+    hand = _primary(edited)
+    _version(hand, "0001-todo", "- [ ] 1 — Todo\n", after="0002-marks")
+    _version(hand, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(hand, "0003-self", "- [ ] 1 — Self\n", after="0003-self")
+    _version(hand, "0004-free", "- [ ] 1 — Free\n")
+    done = subprocess.run(
+        [sys.executable, str(_SCRIPT), "run", "--executor", "claude"],
+        cwd=hand,
+        capture_output=True,
+        timeout=60,
+    )
+    assert done.returncode == 1
+    seen = _calls(calls)
+    assert "release 0004-free" in seen
+    assert not {"build 0001-todo", "build 0002-marks", "build 0003-self"} & set(seen)
+    lines = _log(hand)
+    for blocked in (
+        " · 0001-todo · blocked — by 0002-marks",
+        " · 0002-marks · blocked — by 0001-todo",
+        " · 0003-self · blocked — by 0003-self",
+    ):
+        assert any(line.endswith(blocked) for line in lines)
+    assert " · run · halt — halted none · blocked " in lines[-1]
+    assert lines[-1].endswith(" · released v0.1.0")
+
+    worked = tmp_path / "worked"
+    worked.mkdir()
+    late = _primary(worked)
+    _version(late, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(late, "0002-marks", "- [ ] 1 — Marks\n")
+    fake("after-self-0001-todo", "slow-0002-marks")
+    assert (
+        _main(conduct, late, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
+        "0001-todo · halt — waiting — after 0001-todo",
+        "run · halt — halted 0001-todo · blocked none · released v0.1.0",
+    ]
 
 
 def test_run_halts_on_a_human_phase(
@@ -426,16 +648,16 @@ def test_run_halts_on_a_human_phase(
         == 1
     )
 
-    assert not any(call.startswith("release") for call in _calls(calls))
+    assert "release 0002-marks" in _calls(calls)
     lines = _log(root)
     assert any(
         line.endswith(" · 0001-todo · halt — human — phase 2 — Ship **HUMAN**")
         for line in lines
     )
     assert lines[-1].endswith(
-        " · run · halt — halted 0001-todo · held 0002-marks · released none"
+        " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
     )
-    assert _git(root, "tag", "-l") == ""
+    assert _git(root, "tag", "-l") == "v0.1.0"
 
     only = tmp_path / "only"
     only.mkdir()
@@ -499,7 +721,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     )
     assert _calls(calls) == ["probe"]
     assert _log(second)[-1].endswith(
-        " · run · halt — halted run · held none · released none"
+        " · run · halt — halted run · blocked none · released none"
     )
 
     third = tmp_path / "third"
@@ -519,7 +741,9 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     assert "converge 0002-marks" not in _calls(calls)
     lines = _log(crashed)
     assert any(" · run · halt — conduct.py failed: " in line for line in lines)
-    assert lines[-1].endswith(" · run · halt — halted run · held none · released none")
+    assert lines[-1].endswith(
+        " · run · halt — halted run · blocked none · released none"
+    )
 
 
 def test_a_later_version_halts_and_the_earlier_ships(
@@ -529,7 +753,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake("liar-0002-marks")
+    calls = fake("liar-0002-marks", "slow-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
@@ -547,7 +771,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     spawned = next(line for line in lines if " · 0001-todo · spawn — release" in line)
     assert lines.index(halted) < lines.index(spawned)
     assert lines[-1].endswith(
-        " · run · halt — halted 0002-marks · held none · released v0.1.0"
+        " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
     )
     log = conduct["last_log"](root / ".minions" / "runs")
     assert (
@@ -559,11 +783,8 @@ def test_a_later_version_halts_and_the_earlier_ships(
     assert report[-2:] == [halted, lines[-1]]
 
 
-def test_an_earlier_version_halts_and_the_later_is_held(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    fake: Callable[..., Path],
+def test_a_later_version_ships_past_a_halted_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     calls = fake("liar-0001-todo")
@@ -576,17 +797,10 @@ def test_an_earlier_version_halts_and_the_later_is_held(
         == 1
     )
 
-    seen = _calls(calls)
-    assert "converge 0002-marks" in seen
-    assert not any(call.startswith(("integrate", "release")) for call in seen)
+    assert "release 0002-marks" in _calls(calls)
     assert _log(root)[-1].endswith(
-        " · run · halt — halted 0001-todo · held 0002-marks · released none"
+        " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
     )
-    capsys.readouterr()
-    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
-    report = capsys.readouterr().out.splitlines()
-    assert report[1].startswith("0002-marks · ")
-    assert report[1].endswith(" · held behind 0001-todo")
 
 
 def test_run_halts_on_a_timeout(
@@ -614,7 +828,7 @@ def test_run_halts_on_a_timeout(
         for line in lines
     )
     assert lines[-1].endswith(
-        " · run · halt — halted 0001-todo · held none · released none"
+        " · run · halt — halted 0001-todo · blocked none · released none"
     )
 
 
@@ -796,6 +1010,8 @@ def _fake(prompt: str) -> None:
             print(json.dumps({"message": {"content": [block]}}))
     if station == "build" and "sleep" in modes:
         time.sleep(60)
+    if station == "build" and f"slow-{change}" in modes:
+        time.sleep(2)
     if f"liar-{change or station}" in modes:
         return
     if station == "build" and "liar" in modes:
@@ -807,22 +1023,24 @@ def _fake(prompt: str) -> None:
         subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=True)
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
-        _commit(
-            here, {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}, "build"
-        )
+        files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}
+        if f"after-self-{change}" in modes:
+            proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
+            files[str(tasks.with_name("proposal.md"))] = proposal
+        _commit(here, files, "build")
     elif station == "converge":
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
     elif station == "integrate":
-        for branch in _git(
-            here, "branch", "--no-merged", "main", "--format=%(refname:short)"
-        ).split():
-            tree = primary.parent / branch
-            if subprocess.run(
-                ["git", "merge-base", "--is-ancestor", "main", "HEAD"], cwd=tree
-            ).returncode:
-                message = f"chore(integrate): merge main into {branch}"
-                _git(tree, "merge", "-q", "--no-ff", "-m", message, "main")
-                return
+        message = f"chore(integrate): merge main into {change}"
+        _git(
+            primary.parent / str(change),
+            "merge",
+            "-q",
+            "--no-ff",
+            "-m",
+            message,
+            "main",
+        )
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
         tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"

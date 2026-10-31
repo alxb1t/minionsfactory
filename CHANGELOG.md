@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-31
+
+Gate: local 1m38s · CI 0m29s (CI at 0abfe5a) · 0.41.0: local 0m49s · CI 0m29s (CI at ee008f7)
+
+- The cut takes `after=<id>[,<id>]` and ends on `Next: /mf-ship, in the primary.` in a repo with worktrees. `I17` holds a
+  dependency to the build's tree, and `I9` and `I10` count what an `after:` change's delta and design add (change
+  `0048-merge-queue`, phase 1).
+- `mf-integrate` takes a `change-id`; run bare, it picks the lowest-id ready version, so a halted version blocks no other.
+  A dependent's merge ends on `Next: /mf-ship, in the primary.`, and `I17` replaces `mf-release`'s check for an open lower
+  id (change `0048-merge-queue`, phase 2).
+- `conduct.py` runs one thread per version and one lock around integrate, catch-up and release, so the first ready is the
+  first merged. A dependent waits for its `after:`, gets the default branch merged in behind the delta check, and is
+  `blocked` when it halts, with no probe when nothing can start; `held` goes. An `after:` edited past the cut blocks or
+  halts its version alone, and the conductor's git runs no hook (change `0048-merge-queue`, phase 3).
+- `mf-plan`'s *parallel with* warns and proposes no order, and D20, D44, D45 and D47 say versions merge as they are
+  ready (change `0048-merge-queue`, phase 4).
+
 ## [0.41.0] - 2026-10-31
 
 Gate: local 0m49s · CI 0m29s (CI at ee008f7) · 0.40.0: local 0m44s · CI 0m26s (CI at 6883d41)
