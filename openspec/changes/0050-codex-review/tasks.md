@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 - [x] 1 — The executor
 - [x] 2 — The reach
-- [ ] 3 — The record
+- [x] 3 — The record
 - [ ] 4 — The proof
 
 ## 1 — The executor
@@ -32,9 +32,9 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 3 — The record
 
-- [ ] 3.1 Add the **Executors** bullet to D47 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 3.1 Add the **Executors** bullet to D47 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -c '^- \*\*Executors:\*\*' docs/decisions.md` prints `1`.
-- [ ] 3.2 Edit `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, per [D8](design.md#d8).
+- [x] 3.2 Edit `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -c 'executor = "codex"' skills/mf-cut-change/SKILL.md` prints `1`.
 
 ## 4 — The proof
