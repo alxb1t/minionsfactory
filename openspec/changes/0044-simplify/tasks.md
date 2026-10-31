@@ -5,14 +5,14 @@ word for word.
 
 ## Progress
 
-- [ ] 1 — Write mf-simplify
+- [x] 1 — Write mf-simplify
 - [ ] 2 — Run it in the build
 - [ ] 3 — Record it
 - [ ] 4 — Calibrate it
 
 ## 1 — Write mf-simplify
 
-- [ ] 1.1 Write `skills/mf-simplify/SKILL.md`, per [D1](design.md#d1).
+- [x] 1.1 Write `skills/mf-simplify/SKILL.md`, per [D1](design.md#d1).
   Verify: `grep -c '^name: mf-simplify$' skills/mf-simplify/SKILL.md` prints `1`, and `grep -c '^## Never applied — noted for review$' skills/mf-simplify/SKILL.md` prints `1`.
 
 ## 2 — Run it in the build
