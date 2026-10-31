@@ -27,7 +27,8 @@ ready version with the lowest change id among the unmerged branches named by a c
 release commit. It SHALL halt, naming the version, when the named one is not ready, or when none is: a phase unticked,
 converge not clean, or an `after:` id missing from its tree. A named version whose merge is open with its note SHALL be
 ready. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
-the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`. A red gate SHALL
+the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`, or with
+`Next: /mf-ship, in the primary.` for a version with an unticked phase. A red gate SHALL
 halt with the merge open and write `.minions/integrate/<change-id>.red`, which the commit deletes. It SHALL NOT
 release, tag, push or rebase.
 
@@ -47,6 +48,10 @@ release, tag, push or rebase.
 - **WHEN** `make gate` fails on the merged tree
 - **THEN** the station halts with the merge open, and `.minions/integrate/<change-id>.red` exists
 
+#### Scenario: A settled dependent has no build yet
+- **WHEN** `/mf-integrate <change-id>` commits the merge of a version with an unticked phase
+- **THEN** its last line is `Next: /mf-ship, in the primary.`
+
 ### Requirement: The ship station takes cut versions to the default branch
 
 `skills/mf-ship/SKILL.md`, run in the primary checkout of a repo whose `AGENTS.md` declares `Worktrees:`, SHALL take
@@ -58,7 +63,12 @@ names for it, or the executor's default. A worker SHALL act under `conduct.py`'s
 `AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its shell reaching the directory
 `Worktrees:` names and nothing outside it, its prompt carrying the shell rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
 not halt a version by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
-merge and push of the run.
+merge and push of the run. `conduct.py` SHALL run its own git with hooks and `core.fsmonitor` off, so a hook a worker
+plants does not run at the conductor's rights.
+
+#### Scenario: A worker plants a hook
+- **WHEN** a `post-commit` hook stands in the repo and `conduct.py` commits a dependent's merge
+- **THEN** the hook does not run on that commit
 
 #### Scenario: Two cut versions ship
 - **WHEN** two versions are cut, each in its own worktree, and `mf-ship` runs to the end
@@ -93,7 +103,8 @@ merge and push of the run.
 
 A failed check SHALL halt its version alone: that version SHALL start no new worker, and every other version SHALL go on
 to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
-probe and a conductor crash SHALL stop the run. A `**HUMAN` phase, a dependency waiting for approval,
+probe and a conductor crash SHALL stop the run. A run with every open version at a halt stage or `waiting` SHALL start
+no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
 converge's cap, an open integrate merge, a red gate, a release stopped before its merge, and a worker past its timeout
 SHALL each halt their version.
 
@@ -120,6 +131,10 @@ outside git and the run directory: a re-run derives every stage again and contin
 - **WHEN** a version halts, a second has it in `after:`, and a third has the second in `after:`
 - **THEN** neither starts a worker, each logs `blocked — by <id>`, and the closing line names both as blocked
 
+#### Scenario: No open version can start
+- **WHEN** one version sits at a `**HUMAN` phase, and every other is `waiting`
+- **THEN** the run starts no worker, and closes naming the first as halted and the others as blocked
+
 #### Scenario: A failed probe stops the run
 - **WHEN** the probe's check fails
 - **THEN** no version starts a worker, and the run closes naming `run` as halted
@@ -139,12 +154,22 @@ outside git and the run directory: a re-run derives every stage again and contin
 
 `skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open version with a lower
 number, and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
-change's design SHALL count as present at the cut. `conduct.py` SHALL start a dependent only once each id has released,
+change's design, and a MODIFIED title a delta takes from an `after:` change's delta, SHALL count as present at the cut.
+`conduct.py` SHALL start a dependent only once each id has released,
 and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta` on the open
 merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its note
 under `.minions/integrate/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
 has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency
-has not released.
+has not released. An `after:` edited past the cut SHALL stop no other version: an unreleased id that is not lower SHALL
+block its version, and an edit that leaves a running version `waiting` SHALL halt it.
+
+#### Scenario: An edit makes a cycle
+- **WHEN** two versions name each other in `after:`, or one names itself, and a third is free
+- **THEN** the named versions block with no worker, the third ships, and the run closes
+
+#### Scenario: A worker edits its own `after:`
+- **WHEN** a build worker adds an unreleased id to its version's `after:`
+- **THEN** that version halts on `waiting`, and every other version goes on
 
 #### Scenario: A dependent waits
 - **WHEN** a version names a lower open version in `after:`, and `mf-ship` runs

@@ -45,6 +45,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = ("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done")
 HALTS = ("integrating", "released", "human", "converge-halted")
+STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
 TIERS = ("standard", "high")
@@ -88,6 +89,8 @@ SCRATCH_IDENTITY = (
     *("-c", "user.name=mf-ship", "-c", "user.email=mf-ship@example.invalid"),
     *("-c", "commit.gpgsign=false"),
 )
+# A worker can write the common directory, and the conductor runs outside its sandbox.
+NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 
 
 class Stop(Exception):
@@ -103,7 +106,7 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2."""
     try:
         return subprocess.run(
-            ["git", *args],
+            ["git", *NO_HOOKS, *args],
             cwd=cwd,
             capture_output=True,
             encoding="utf-8",
@@ -361,7 +364,7 @@ def _dirty(tree: Path) -> bool:
 
 
 def _delta(tree: Path) -> list[str]:
-    """Return the lines `integrate.py delta` names on the merge open in `tree`."""
+    """Return the lines `integrate.py delta` names; a crash of it stops with exit 2."""
     try:
         done = subprocess.run(
             [sys.executable, str(INTEGRATE), "delta", str(tree)],
@@ -372,10 +375,17 @@ def _delta(tree: Path) -> list[str]:
         )
     except subprocess.TimeoutExpired:
         raise Stop(2, "conduct: cannot run — integrate.py delta timed out") from None
-    if done.returncode not in (0, 1):
-        said = (done.stdout or done.stderr).strip() or f"exit {done.returncode}"
-        raise Stop(2, f"conduct: cannot run — integrate.py delta: {said}")
-    return done.stdout.splitlines() if done.returncode else []
+    if done.returncode == 0:
+        return []
+    moved = [line for line in done.stdout.splitlines() if line.startswith(MOVED)]
+    if done.returncode == 1 and moved:
+        return moved
+    said = (done.stdout or done.stderr).strip().splitlines()
+    raise Stop(
+        2,
+        "conduct: cannot run — integrate.py delta: "
+        + (said[-1] if said else f"exit {done.returncode}"),
+    )
 
 
 def _note(tree: Path, change: str, moved: list[str]) -> str:
@@ -834,6 +844,12 @@ class Run:
             self.halts.append((who, reason))
         self.log.event(who, "halt", reason)
 
+    def block(self, change: str, dependency: str) -> None:
+        """Record and log a block; `change` starts no worker."""
+        with self.guard:
+            self.blocked.append(change)
+        self.log.event(change, "blocked", f"by {dependency}")
+
     def stopped(self, change: str) -> bool:
         """Return whether a halt names `change` or the run."""
         with self.guard:
@@ -892,7 +908,7 @@ class Run:
         try:
             while not self.stopped(version.change):
                 stage, why = stage_of(self.primary, version)
-                if stage in HALTS:
+                if stage in STUCK:
                     self.halt(version.change, f"{stage} — {why}")
                     return
                 if stage in stop_at:
@@ -925,14 +941,13 @@ class Run:
         change, default = version.change, default_branch(self.primary)
         after = _dependencies(self.primary, change)
         for dependency in after:
-            if dependency in threads:
+            if dependency in threads and _change_number(dependency) < version.number:
                 threads[dependency].join()
         if self.stopped(change):
             return False
         for dependency in after:
             if not _shipped(self.primary, default, dependency):
-                self.blocked.append(change)
-                self.log.event(change, "blocked", f"by {dependency}")
+                self.block(change, dependency)
                 return False
         tree = version.tree
         if tree and not all(_shipped(tree, "HEAD", name) for name in after):
@@ -1005,12 +1020,15 @@ class Run:
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }
-        if all(stage in HALTS for stage, _ in stages.values()):
+        if all(stage in STUCK for stage, _ in stages.values()):
             for change, (stage, why) in stages.items():
-                self.halt(change, f"{stage} — {why}")
+                if stage == "waiting":
+                    self.block(change, why.removeprefix("after ").split()[0])
+                else:
+                    self.halt(change, f"{stage} — {why}")
         else:
             self.probe()
-        if not self.halts:
+        if not (self.halts or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:
                 threads[version.change] = threading.Thread(

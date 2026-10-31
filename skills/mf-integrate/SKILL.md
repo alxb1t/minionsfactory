@@ -17,7 +17,9 @@ naming it.
          │ yes
   merge <default-branch> in its worktree ─▶ the rules ─▶ a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
-  make gate in the worktree ─▶ commit the merge, `Change: <id>` ─▶ Next: /mf-converge, then /mf-release
+  make gate in the worktree ─▶ commit the merge, `Change: <id>` ─▶ a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
+         │ no
+  Next: /mf-converge, then /mf-release
 ```
 
 Why a station: merging a moved base in meets conflicts on the same files every time — `CHANGELOG.md`, the
@@ -132,7 +134,8 @@ Then, in the worktree:
 — then a last line, `Next: <the next act>`. A halt is reported in full.
 
 Your sentences: the version and its merge commit, each rule's printed line, and the gate's exit code. The last
-line: `Next: /mf-converge, then /mf-release`. Converge's catch-up round judges the merge by its remerge-diff.
+line: `Next: /mf-converge, then /mf-release`; converge's catch-up round judges the merge by its remerge-diff. A
+version with an unticked phase, a dependent merged before its build, ends `Next: /mf-ship, in the primary.`
 
 ## Never
 

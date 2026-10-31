@@ -31,17 +31,17 @@ dependency cannot be skipped, by `mf-ship` or by hand.
 | id | decision | because | rejected |
 |---|---|---|---|
 | [D1](#d1) | One thread per version, and one lock around integrate, catch-up and release | `advance` already re-reads the stage, so stage B's loop can go | a queue structure: any order among the ready will do |
-| [D2](#d2) | `after: [<ids>]`, read by `_after`; each id open and lower at the cut | a lower id rules out cycles | a dependency graph file |
+| [D2](#d2) | `after: [<ids>]`, read by `_after`; each id open and lower at the cut | a lower id rules out cycles, and `ready` joins no other, so an edit past the cut blocks and cannot hang | a dependency graph file |
 | [D3](#d3) | The dependent joins its dependency's thread, and `conduct.py` merges the default branch, running `integrate.py delta` on the open merge | a cut-only branch cannot conflict in git, so only a requirement both sides changed needs judgement, and that is the person's | an agent for it; merge-order-only dependencies, since a dependent needs the code; a commit in one step, which loses the dependency's requirement text at the fold |
 | [D4](#d4) | `waiting` in `status`; `blocked — by <id>` down a chain; `held` goes | nothing waits on order any more | keeping `held` for dependents |
 | [D5](#d5) | `mf-integrate` takes a `change-id`; bare, the lowest-id ready | the conductor names the version it holds the lock for | the lowest open id, which a halted version would block |
-| [D6](#d6) | `I17` in `mf-build` and `mf-release`, in place of precondition 10; `I10`'s exception | a dependency cannot be skipped by hand | trusting the conductor alone |
+| [D6](#d6) | `I17` in `mf-build` and `mf-release`, in place of precondition 10; the exceptions in `I9` and `I10` | a dependency cannot be skipped by hand | trusting the conductor alone |
 | [D7](#d7) | The cut's text, and `mf-plan`'s *parallel with* | Q34 and Q41 of the plan | — |
 | [D8](#d8) | D20, D44, D45 and D47 are edited where they live | A7 | a new decision |
 
 ### D1
 
-`Run` gains `self.merging = threading.Lock()` and `self.blocked: list[str] = []`, and `take`. `deliver` goes.
+`Run` gains `self.merging = threading.Lock()` and `self.blocked: list[str] = []`, `block` and `take`. `deliver` goes.
 
 ```python
 def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
@@ -60,7 +60,11 @@ def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
 ```
 
 `ship` starts a thread for every version, whatever its stage, in change-id order. A dict of threads is built before the
-first starts, so a dependent can join a lower id. The branch on `if not self.halts` before the threads stays.
+first starts, so a dependent can join a lower id.
+
+`ship`'s status test reads `STUCK = (*HALTS, "waiting")`. With every version in it nothing can start, so no probe runs:
+each `waiting` version is blocked by the first id it names, and each other halts. The branch before the threads becomes
+`if not (self.halts or self.blocked)`.
 
 ```python
 threads: dict[str, threading.Thread] = {}
@@ -107,14 +111,13 @@ def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
     change, default = version.change, default_branch(self.primary)
     after = _dependencies(self.primary, change)
     for dependency in after:
-        if dependency in threads:
+        if dependency in threads and _change_number(dependency) < version.number:
             threads[dependency].join()
     if self.stopped(change):
         return False
     for dependency in after:
         if not _shipped(self.primary, default, dependency):
-            self.blocked.append(change)
-            self.log.event(change, "blocked", f"by {dependency}")
+            self.block(change, dependency)
             return False
     tree = version.tree
     if tree and not all(_shipped(tree, "HEAD", name) for name in after):
@@ -140,10 +143,15 @@ def merge_in(self, tree: Path, change: str, default: str) -> None:
 
 `_dependencies(primary, change)` is `_after` over the proposal on the branch; after a release it reads nothing, and returns
 an empty list. A chain follows: a blocked version's thread ends unreleased, so its dependent finds it unshipped. A failed
-merge raises `Stop`, which halts the version.
+merge raises `Stop`, which halts the version. The cut's lower-id rule does not hold an `after:` edited past the cut, so
+`ready` joins only a lower id: a mutual, own or higher id would hang or raise, and falls through to `blocked` instead.
+
+`merge_in` is the conductor's first commit in a target repo, and a Codex worker can write the common directory. So `_run`
+passes `NO_HOOKS`, `-c core.fsmonitor=false -c core.hooksPath=/dev/null`, to every git command `conduct.py` runs.
 
 `_delta(tree)` runs `integrate.py delta`, the one copy of the check, from the sibling package, as `mf-release` runs
-`gate_check.py`; exit 2 raises `Stop`. It must run here: once the merge commits, the merge base has moved past the
+`gate_check.py`; exit 2 raises `Stop`, and so does exit 1 with no `MOVED` line, which is a crash and never a pass. It must
+run here: once the merge commits, the merge base has moved past the
 dependency, and no later check sees what it changed. `_note` writes one `mf-integrate` note section per title, naming both
 changes. `ready` then returns, `advance` reads `integrating` from the open merge and its note, and the version halts, as
 `mf-integrate` Step 3's does. A re-run leaves the note and the merge as they stand, and a merge left open with no note runs
@@ -165,7 +173,8 @@ if missing:
 
 `closing` takes no argument, and returns `halted <ids> · blocked <ids> · released <tags>`, `none` for an empty list.
 `report` reads each `blocked` event and ends that version's line ` · blocked by <id>`; the closing-line parse and `held`
-go. `advance` never meets `waiting`, because `ready` has passed.
+go. `ready` passes every `after:` id, so `advance` meets `waiting` on a worker's edit of `after:` alone, and halts that
+version on it.
 
 ### D5
 
@@ -175,7 +184,8 @@ the lowest id's line, exit 1, as today. `unready` adds, after the boxes: each id
 `_shipped(cwd, change, id)` denies → `after <id>`. A named version whose merge is open with its note is ready, since a
 dependent's merge opens before its build; a bare `next` keeps to `unready`, so it takes no unsettled dependent. Every
 hand-over names the version — the note line, `mf-ship` Step 4, both `mf-release` way-outs — so the merge settled is the one
-committed when several versions halt with a note.
+committed when several versions halt with a note. The commit of a version with an unticked phase ends
+`Next: /mf-ship, in the primary.`, since its build comes next.
 
 `skills/mf-integrate/SKILL.md`:
 
@@ -204,6 +214,10 @@ archive folder in `HEAD` before its build". `mf-cut-change`'s column: "Step 1, f
 `I10`, both tables, after "every file and symbol `design.md` names exists": ", or the design of an `after:` change adds it".
 In `mf-cut-change`'s column: "checking each one in Step 3; an `after:` change's design read with `git show <id>:…`".
 
+`I9`, both tables, after "A MODIFIED title matches an existing requirement exactly": ", or the delta of an `after:` change
+adds it". In `mf-cut-change`'s column, added: "; an `after:` change's delta read with `git show <id>:…`". The default branch
+changed that title, so the dependent's merge stops at `integrate.py delta` for the person, per [D3](#d3).
+
 `mf-cut-change`'s diagram and Step 8 say `I17` where they say `I16`.
 
 ### D7
@@ -222,7 +236,7 @@ touching a file in common is warned of, naming the file, with `after:` suggested
 `mf-ship`, the description: "and release each in cut order" → "and release each as it is ready". The diagram, after:
 
 ```
-preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes ─▶ halt, no worker
+preconditions ─▶ status ─▶ every open version at a halt stage or waiting? ─ yes ─▶ halt, no worker
                     │ no
                   probe worker ─▶ check probe
                     │
@@ -265,8 +279,8 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`: the lowest layer that reache
 
 | test | holds |
 |---|---|
-| `test_after_waits_for_its_dependency` | `status` prints `0002-marks · waiting`; a run exits 0; `release 0001-todo` before `build 0002-marks` in the calls; `chore(integrate): merge main into 0002-marks` in that branch's log; both tagged; a delta on a requirement the dependency changed halts `integrating` with no build, the merge open and a note naming both changes, a re-run halts again, and a settled merge builds |
-| `test_a_halted_dependency_blocks_a_chain` | with `liar-0001-todo`, `0002-marks` after it and `0003-more` after `0002-marks`: no `build 0002-marks` or `build 0003-more` call; each logs `blocked — by <id>`; the last line `… · run · halt — halted 0001-todo · blocked 0002-marks 0003-more · released none`; `report` ends their lines ` · blocked by <id>` |
+| `test_after_waits_for_its_dependency` | `status` prints `0002-marks · waiting`; a run exits 0; `release 0001-todo` before `build 0002-marks` in the calls; `chore(integrate): merge main into 0002-marks` in that branch's log; both tagged; a delta on a requirement the dependency changed halts `integrating` with no build, the merge open and a note naming both changes, a re-run halts again, and a settled merge builds; a planted `post-commit` hook fires on a worker's commit and not on the conductor's merge; a crash of `integrate.py delta` halts the version with no build and the merge open, and a re-run commits it |
+| `test_a_halted_dependency_blocks_a_chain` | with `liar-0001-todo`, `0002-marks` after it and `0003-more` after `0002-marks`: no `build 0002-marks` or `build 0003-more` call; each logs `blocked — by <id>`; the last line `… · run · halt — halted 0001-todo · blocked 0002-marks 0003-more · released none`; `report` ends their lines ` · blocked by <id>`; the same chain on a `**HUMAN` phase starts no worker, with no probe; a mutual `after:` and a self-reference block under a bounded subprocess while a free version ships; `after-self-0001-todo` halts on `waiting` while `0002-marks` ships |
 
 Tests renamed and rewritten, in place:
 
@@ -286,7 +300,8 @@ Tests edited:
 
 `_version` in `tests/test_conduct.py` gains `after: str = ""`, written as an `after:` line. `_primary` sets the repo's
 `user.name`, `user.email` and `commit.gpgsign`, since `conduct.py` now commits. `_fake` gains `slow-<change>`, a build that
-sleeps 2 seconds, and its `integrate` takes the change the prompt names. No test is deleted or merged.
+sleeps 2 seconds, and `after-self-<change>`, a build that adds its own id to `after:`, and its `integrate` takes the change
+the prompt names. No test is deleted or merged.
 
 ## Dependencies
 

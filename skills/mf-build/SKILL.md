@@ -54,7 +54,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | — (stop-condition 5) |
-| **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
+| **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |

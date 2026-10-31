@@ -12,7 +12,7 @@ Before work, read root `AGENTS.md` and the mandatory context it names. Missing r
 naming it.
 
 ```
-preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes ─▶ halt, no worker
+preconditions ─▶ status ─▶ every open version at a halt stage or waiting? ─ yes ─▶ halt, no worker
                     │ no
                   probe worker ─▶ check probe
                     │
