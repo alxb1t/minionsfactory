@@ -181,6 +181,13 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
 
     _findings(
         tmp_path,
+        "0044-escape_review.md",
+        _front(reviewed="2026-10-30", model="a\x1b[2Jb", tier="standard"),
+    )
+    assert _record(tmp_path, "0044-escape")["model"] == "a[2Jb"
+
+    _findings(
+        tmp_path,
         "0020-half_review.md",
         _front("changes-requested") + _card(1, "nit · review"),
     )
@@ -320,7 +327,8 @@ def test_the_page_draws_charts_and_lists_gaps(
     printed = capsys.readouterr().out.splitlines()
     assert printed[:2] == [str(out.resolve()), "repos: 2 · changes: 3"]
     assert printed[2].startswith("| tier | model | engine | changes |")
-    assert "| high | <b>m</b> | generic | 1 | 2 (n=1) |" in "\n".join(printed)
+    assert "| high | unknown | generic | 1 | 2 (n=1) |" in "\n".join(printed)
+    assert "<b>m" not in "\n".join(printed)
     assert printed[-1].startswith("lacked: capped 2 · confirmed 2 · ")
 
 
@@ -354,3 +362,10 @@ def test_overrides_win_over_the_config(
     blocked = ["--config", str(config), "--out", str(config / "page.html")]
     assert review_metrics.main(blocked) == 2
     assert "cannot write" in capsys.readouterr().err
+
+    gone = ["--repo", "missing", "--out", "gone.html"]
+    assert review_metrics.main(gone) == 2
+    err = capsys.readouterr().err
+    assert str((tmp_path / "missing").resolve()) in err
+    assert ".minions/findings" in err
+    assert not (tmp_path / "gone.html").exists()

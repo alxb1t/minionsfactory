@@ -72,7 +72,7 @@ any of them is a record. **Clean** means a file's `verdict: clean`.
 | `blocking` | the findings graded `blocking` in review and `critical` or `high` in security |
 | `confirmed`, `plausible`, `plausible_verified`, `refuted` | the cards' `Verdict:` first word; the `plausible` cards whose **Status** is `verified`; the `## Refuted` list's entries — each a gap in a file with no card carrying `Verdict:` |
 | `verified`, `reopened` | the `## Resolution log`'s `→ verified` transitions; its `→ open` transitions from `fixed`, `wontfix` or `accepted` |
-| `inconclusive` | the lines holding `inconclusive`, outside the cards — a gap in a file with no `tier:` |
+| `inconclusive` | the lines holding `inconclusive`, outside the cards, except a line where no, not, none, never or without comes before it in the clause — a gap in a file with no `tier:` |
 | `duration`, `tokens`, `capped`, `to_backlog` | the status log: each `## Run` heading's first to last event time, summed; the `tokens <n>` of `verdicts` lines, summed, a gap when none has one; `1` for a `halt` line naming `cap`, else `0`; the `done` line's `N card(s) to backlog`, a gap when it names none |
 
 **Plausible, verified** stands in for the brief's "plausible later confirmed": a card's `Verdict:` is never rewritten,

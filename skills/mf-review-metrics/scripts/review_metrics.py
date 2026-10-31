@@ -47,6 +47,7 @@ CATEGORIES = (
     "maintainability",
 )
 TOP_CATEGORIES = 3
+IDENTITY = 3  # the tier table's leading columns: tier, model, engine
 VERDICT_FIELDS = ("confirmed", "plausible", "plausible_verified", "refuted")
 RESOLUTION_FIELDS = ("verified", "reopened")
 GAP = "—"
@@ -121,6 +122,9 @@ _VERDICT = _bullet("Verdict")
 _STATUS = _bullet("Status")
 _SEVERITY = _bullet("severity")
 _DENIED = re.compile(r"\b(?:no|not|none|never|without)\b[^,.;]*inconclusive")
+# why: a findings file's text is evidence; a terminal escape in it must not reach stdout
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_PRINTABLE = re.compile(r"[\w.\-:/ ]{1,64}")
 _EVENT = re.compile(
     r"^(\d\d):(\d\d):(\d\d) · (?:round \S+ · )?([\w-]+) — (.*)$", re.MULTILINE
 )
@@ -136,6 +140,7 @@ def _split_front(text: str) -> tuple[dict[str, str], str]:
     """Return a file's frontmatter keys, and its body with backticks stripped."""
     found = re.match(r"---\n(.*?)\n---\n?", text, re.DOTALL)
     block, body = (found.group(1), text[found.end() :]) if found else ("", text)
+    block = _CONTROL.sub("", block)
     pairs = re.findall(
         r"^(\w+):[ \t]*(?:([\"'])(.*)\2|(.*?))[ \t]*$", block, re.MULTILINE
     )
@@ -363,6 +368,8 @@ def read_change(repo: Path, change: str) -> Record:
 
 def read_repo(repo: Path) -> list[Record]:
     """Return the repo's records in `reviewed` order, those with no date last."""
+    if not (repo / FINDINGS).is_dir():
+        raise CannotRun(f"{repo}: no {FINDINGS} directory")
     names = (path.name for path in (repo / FINDINGS).glob("*.md"))
     changes = {found.group(1) for name in names if (found := FILES.fullmatch(name))}
     records = [read_change(repo, change) for change in changes]
@@ -550,14 +557,21 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
     return "\n".join(lines) + "\n"
 
 
+def _printable(text: str) -> str:
+    """Return `text` when shaped like a tier, model or engine name, else `unknown`."""
+    return text if _PRINTABLE.fullmatch(text) else "unknown"
+
+
 def summary(out: Path, read: list[tuple[str, list[Record]]]) -> str:
     """Return what a written run prints, per 0045-review-metrics design D2."""
     records = _every_record(read)
+    headers, rows = tier_table(records)
+    shown = [[_printable(c) for c in row[:IDENTITY]] + row[IDENTITY:] for row in rows]
     return "\n".join(
         [
             str(out),
             f"repos: {len(read)} · changes: {len(records)}",
-            _markdown_table(tier_table(records)),
+            _markdown_table((headers, shown)),
             f"lacked: {lacked(records)}",
         ]
     )
