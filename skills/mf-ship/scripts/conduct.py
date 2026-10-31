@@ -41,7 +41,7 @@ CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
-EVENTS = ("start", "spawn", "finish", "check", "denied", "halt", "done")
+EVENTS = ("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done")
 HALTS = ("integrating", "released", "human", "converge-halted")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
@@ -69,7 +69,7 @@ DENIALS = ("has been denied", "needs approval")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
     "converge": "Run the mf-converge skill for change {change}{tier}.",
-    "integrate": "Run the mf-integrate skill.",
+    "integrate": "Run the mf-integrate skill for change {change}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
 }
 SHELL_RULES = (
@@ -145,6 +145,12 @@ def _tagged(cwd: Path, tag: str) -> bool:
     return _maybe(cwd, "rev-parse", "-q", "--verify", f"refs/tags/{tag}") is not None
 
 
+def _shipped(cwd: Path, rev: str, change: str) -> bool:
+    """Return whether `rev` holds the change's archive folder."""
+    path = f"{rev}:openspec/changes/archive/{change}"
+    return _maybe(cwd, "cat-file", "-e", path) is not None
+
+
 def _subject(cwd: Path, rev: str = "HEAD") -> str:
     """Return the subject line of `rev`."""
     return _git(cwd, "log", "-1", "--format=%s", rev).strip()
@@ -192,6 +198,15 @@ def _frontmatter(text: str, key: str) -> str | None:
     return found[1] if found else None
 
 
+def _after(text: str) -> list[str]:
+    r"""Return the change ids a proposal's `after:` names.
+
+    e.g. "---\nafter: [0047-x, 0048-y]\n---\n" → ["0047-x", "0048-y"]
+    """
+    found = re.search(r"^after:\s*\[(.*)\]", text.split("\n---", 1)[0], re.MULTILINE)
+    return re.findall(r"[^,\s]+", found[1]) if found else []
+
+
 def _agents_values(root: Path, key: str) -> list[str] | None:
     """Return the backticked values of `AGENTS.md`'s `**<key>:**` line, or None.
 
@@ -213,7 +228,7 @@ class Version:
 
     @property
     def number(self) -> int:
-        """Return the change id's number, the ship order."""
+        """Return the change id's number."""
         return int(self.change.split("-")[0])
 
 
@@ -240,6 +255,12 @@ def _holds(primary: Path, change: str) -> bool:
     folder = f"openspec/changes/{change}"
     active = _show(primary, change, f"{folder}/proposal.md") is not None
     return active or _tag_of(primary, change) is not None
+
+
+def _dependencies(primary: Path, change: str) -> list[str]:
+    """Return the ids the `after:` on the change's branch names; released, none."""
+    proposal = _show(primary, change, f"openspec/changes/{change}/proposal.md")
+    return _after(proposal or "")
 
 
 def open_versions(primary: Path) -> list[Version]:
@@ -359,6 +380,14 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     tag = _tag_of(primary, change)
     if tag is not None and _tagged(primary, tag):
         return "released", f"{tag} is tagged; the release stopped before its merge"
+    default = default_branch(primary)
+    missing = [
+        name
+        for name in _dependencies(primary, change)
+        if not _shipped(primary, default, name)
+    ]
+    if missing:
+        return "waiting", f"after {' '.join(missing)}"
     if unticked := _unticked(tree, change):
         number, title = unticked
         if "**HUMAN" in title:
@@ -368,7 +397,6 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         return "converge-halted", halt
     if why := _unjudged(runs, tree, change):
         return "converge", why
-    default = default_branch(primary)
     if not _ancestor(tree, default, "HEAD"):
         return "integrate", f"{default} is not an ancestor of HEAD"
     return "release", f"converge clean at HEAD; {default} is an ancestor"
@@ -746,8 +774,10 @@ class Run:
         self.runs = primary / ".minions" / "runs"
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
+        self.blocked: list[str] = []
         self.released: list[str] = []
         self.guard = threading.Lock()
+        self.merging = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
         """Record and log a halt; its version starts no new worker."""
@@ -760,12 +790,12 @@ class Run:
         with self.guard:
             return any(who in ("run", change) for who, _ in self.halts)
 
-    def closing(self, held: list[str]) -> str:
-        """Return the closing line's detail: what halted, is held and released."""
-        halted = " ".join(dict.fromkeys(who for who, _ in self.halts))
-        waiting = " ".join(held) or "none"
+    def closing(self) -> str:
+        """Return the closing line's detail: what halted, is blocked and released."""
+        halted = " ".join(dict.fromkeys(who for who, _ in self.halts)) or "none"
+        blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
-        return f"halted {halted} · held {waiting} · released {released}"
+        return f"halted {halted} · blocked {blocked} · released {released}"
 
     def spawn(
         self,
@@ -841,16 +871,40 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
-    def deliver(self, versions: list[Version]) -> list[str]:
-        """Run stage B in change-id order; return the versions a halt holds."""
-        for index, version in enumerate(versions):
-            self.advance(version, ())
-            if self.stopped(version.change):
-                behind = versions[index + 1 :]
-                return [
-                    later.change for later in behind if not self.stopped(later.change)
-                ]
-        return []
+    def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
+        """Wait for the version's dependencies, then bring the default branch in."""
+        change, default = version.change, default_branch(self.primary)
+        after = _dependencies(self.primary, change)
+        for dependency in after:
+            if dependency in threads:
+                threads[dependency].join()
+        if self.stopped(change):
+            return False
+        for dependency in after:
+            if not _shipped(self.primary, default, dependency):
+                self.blocked.append(change)
+                self.log.event(change, "blocked", f"by {dependency}")
+                return False
+        tree = version.tree
+        if tree and not all(_shipped(tree, "HEAD", name) for name in after):
+            message = f"chore(integrate): merge {default} into {change}"
+            trailer = f"Change: {change}"
+            _git(tree, "merge", "-q", "--no-ff", "-m", message, "-m", trailer, default)
+        return True
+
+    def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
+        """Take one version to its release, a halt or a block."""
+        try:
+            if not self.ready(version, threads):
+                return
+            self.advance(version, ("integrate", "release"))
+            if not self.stopped(version.change):
+                with self.merging:
+                    self.advance(version, ())
+        except Stop as stop:
+            self.halt(version.change, str(stop))
+        except Exception as error:
+            self.halt("run", f"conduct.py failed: {error}")
 
     def probe(self) -> None:
         """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
@@ -891,20 +945,17 @@ class Run:
         else:
             self.probe()
         if not self.halts:
-            threads = [
-                threading.Thread(
-                    target=self.advance, args=(version, ("integrate", "release"))
+            threads: dict[str, threading.Thread] = {}
+            for version in versions:
+                threads[version.change] = threading.Thread(
+                    target=self.take, args=(version, threads)
                 )
-                for version in versions
-                if stages[version.change][0] in ("build", "converge")
-            ]
-            for thread in threads:
+            for thread in threads.values():
                 thread.start()
-            for thread in threads:
+            for thread in threads.values():
                 thread.join()
-        held = self.deliver(versions)
-        if self.halts:
-            self.log.event("run", "halt", self.closing(held))
+        if self.halts or self.blocked:
+            self.log.event("run", "halt", self.closing())
             return 1
         self.log.event("run", "done", f"released {' '.join(self.released)}")
         return 0
@@ -1028,12 +1079,12 @@ def report(cwd: Path) -> str:
         found for line in log.read_text().splitlines() if (found := EVENT.match(line))
     ]
     closing = events[-1].string if events else f"{log.name}: no event"
-    listed = re.search(r" · held (.+?) · released ", closing)
-    held = [name for name in listed[1].split() if name != "none"] if listed else []
-    halted = [found[1] for found in events if found[2] == "halt" and found[1] != "run"]
-    touched = dict.fromkeys(
-        [*(found[1] for found in events if found[1] != "run"), *held]
-    )
+    blocked = {
+        found[1]: found.string[found.end() :]
+        for found in events
+        if found[2] == "blocked"
+    }
+    touched = dict.fromkeys(found[1] for found in events if found[1] != "run")
     denied: dict[str, list[str]] = {}
     for found in events:
         if found[2] == "denied":
@@ -1065,11 +1116,7 @@ def report(cwd: Path) -> str:
                     f".minions/metrics/{change}.html"
                     if page.is_file()
                     else "metrics: none",
-                    *(
-                        [f"held behind {min(halted, key=_change_number)}"]
-                        if change in held and halted
-                        else []
-                    ),
+                    *([f"blocked {blocked[change]}"] if change in blocked else []),
                 ]
             )
         )

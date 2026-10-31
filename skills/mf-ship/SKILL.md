@@ -1,6 +1,6 @@
 ---
 name: mf-ship
-description: Take every cut version to the default branch unattended — build and converge them in parallel, then integrate, run the catch-up round and release each in cut order, merging and pushing without asking. Use in the primary checkout once versions are planned and cut.
+description: Take every cut version to the default branch unattended — build and converge them in parallel, then integrate, run the catch-up round and release each as it is ready, merging and pushing without asking. Use in the primary checkout once versions are planned and cut.
 ---
 
 # mf-ship — take every cut version to the default branch, unattended
@@ -16,12 +16,11 @@ preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes �
                     │ no
                   probe worker ─▶ check probe
                     │
-  A · each version at build or converge, in parallel: spawn ─▶ wait ─▶ check, until integrate or release
-      a halt stops only its version; a crash stops the run
+  each version, in parallel: wait for its after: ─▶ build ─▶ converge
+      a halt stops only its version, and blocks what names it; a crash stops the run
+                    │  ready, one at a time
+  integrate ─▶ converge (catch-up) ─▶ release, by its stage
                     │  every thread joined
-  B · each open version, in change-id order: integrate ─▶ converge (catch-up) ─▶ release, by its stage
-      a halt, here or in A, holds every version behind it
-                    │
                   done
 ```
 
@@ -88,7 +87,7 @@ Converge runs MF's method at the tier the cut chose.
 **Close-out:** at most three sentences — the last run's report, or that a run started and its log, the newest
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate` commits the merge; until
-then a run halts on it again. A run with a halt closes on `halted <ids> · held <ids> · released <tags>`:
+then a run halts on it again. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
 what it released stays released, and a re-run resumes the rest. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.

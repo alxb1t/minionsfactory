@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 - [x] 1 — The cut and I17
 - [x] 2 — The merge side
-- [ ] 3 — The conductor
+- [x] 3 — The conductor
 - [ ] 4 — The record
 
 ## 1 — The cut and I17
@@ -33,22 +33,22 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 3 — The conductor
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py`, replace `deliver` with `Run.take` and `Run.ready`, and start a thread for
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py`, replace `deliver` with `Run.take` and `Run.ready`, and start a thread for
   every version, per [D1](design.md#d1), [D2](design.md#d2) and [D3](design.md#d3).
   Verify: `grep -c 'def deliver' skills/mf-ship/scripts/conduct.py` prints `0`.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py`, add `waiting` and `blocked` to `stage_of`, `EVENTS`, `closing` and `report`,
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py`, add `waiting` and `blocked` to `stage_of`, `EVENTS`, `closing` and `report`,
   and drop `held`, per [D4](design.md#d4).
   Verify: `grep -c 'held behind' skills/mf-ship/scripts/conduct.py` prints `0`.
-- [ ] 3.3 In `tests/test_conduct.py`, edit `_version`, `_primary` and `_fake`, and rewrite
+- [x] 3.3 In `tests/test_conduct.py`, edit `_version`, `_primary` and `_fake`, and rewrite
   `test_run_ships_two_versions_in_cut_order` and `test_an_earlier_version_halts_and_the_later_is_held`, per
   [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "past_a_slow_one or past_a_halted_one"` reports `2 passed`.
-- [ ] 3.4 In `tests/test_conduct.py`, add `test_after_waits_for_its_dependency` and
+- [x] 3.4 In `tests/test_conduct.py`, add `test_after_waits_for_its_dependency` and
   `test_a_halted_dependency_blocks_a_chain`, and edit `test_a_later_version_halts_and_the_earlier_ships`,
   `test_run_halts_on_a_human_phase`, `test_run_halts_on_a_timeout` and
   `test_run_halts_when_a_worker_claims_what_disk_does_not_show`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py` reports `13 passed`.
-- [ ] 3.5 Edit `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
+- [x] 3.5 Edit `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -c 'cut order' skills/mf-ship/SKILL.md` prints `0`.
 
 ## 4 — The record
