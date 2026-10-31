@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the run. Each halt is logged when it happens, a run with a halt closes on `halted · held · released`, and `report`
   prints every halt and marks a held version. The deny glob behind the first such halt was fixed in `23fdf6d`
   (change `0046-ship-halts`, phase 1).
+- `mf-converge`: a catch-up over merges only has its own count, one judge round and at most one fix round, so an
+  integrate merge cannot run a converged version out of rounds. D47 and *Every edit opens a round* say so (change
+  `0046-ship-halts`, phase 2).
 
 ## [0.39.0] - 2026-10-31
 

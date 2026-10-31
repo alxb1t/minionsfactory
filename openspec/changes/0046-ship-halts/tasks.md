@@ -6,7 +6,7 @@ word for word.
 ## Progress
 
 - [x] 1 — Per-version halts
-- [ ] 2 — The catch-up's count
+- [x] 2 — The catch-up's count
 
 ## 1 — Per-version halts
 
@@ -34,10 +34,10 @@ word for word.
 
 ## 2 — The catch-up's count
 
-- [ ] 2.1 Edit `skills/mf-converge/SKILL.md`'s `## Catch-up round` diagram, its items 2 and 4, and Step 7, per
+- [x] 2.1 Edit `skills/mf-converge/SKILL.md`'s `## Catch-up round` diagram, its items 2 and 4, and Step 7, per
   [D5](design.md#d5).
   Verify: `grep -c 'the selection merges only' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 2.2 Amend D47 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.2 Amend D47 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -c 'the first failed check halts the run' docs/decisions.md` prints `0`.
-- [ ] 2.3 Add the **A merge** bullet to `docs/principles.md`'s *Every edit opens a round*, per [D6](design.md#d6).
+- [x] 2.3 Add the **A merge** bullet to `docs/principles.md`'s *Every edit opens a round*, per [D6](design.md#d6).
   Verify: `grep -c 'a catch-up over merges only counts its own rounds' docs/principles.md` prints `1`.
