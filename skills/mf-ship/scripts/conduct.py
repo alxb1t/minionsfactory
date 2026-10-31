@@ -419,6 +419,10 @@ def _check_release(primary: Path, version: Version) -> str | None:
         return f"{version.change} has no release commit"
     if not _tagged(primary, tag):
         return f"{tag} does not exist"
+    tip = _git(primary, "rev-parse", f"refs/heads/{version.change}")
+    own = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
+    if own != tip:
+        return f"{tag} is not the tip of {version.change}"
     if _pushed(primary, tag) is False:
         return f"{tag} is not on origin"
     return None

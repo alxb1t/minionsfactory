@@ -119,9 +119,11 @@ precondition 4 says what absence means.
        /mf-release
 
 10. **Earlier cuts have shipped** — inspect every other branch named by `git branch --no-merged
-    <default-branch> --list '[0-9]*'`, reading its own change's proposal with `git show <branch>:<proposal-path>`.
-    A branch whose own change id has a lower numeric prefix than this change's → halt before finalization, naming
-    that branch and change id; an unreadable reservation also halts.
+    <default-branch> --list '[0-9]*'`. A version is a branch named `<digits>-<slug>` that holds its proposal,
+    `git show <branch>:openspec/changes/<branch>/proposal.md`, or whose tip's subject,
+    `git log -1 --format=%s <branch>`, is `chore(release): <tag>`; any other branch is not the line's, and is dropped.
+    A version whose change id has a lower numeric prefix than this change's → halt before finalization, naming
+    that branch and change id.
 
 ## Step 2 — Fold the delta into the living specs
 

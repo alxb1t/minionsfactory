@@ -56,7 +56,8 @@ that is not the primary, and passes `_holds`. `find_version` returns `Version(ch
 `refs/heads/<change>` exists and `CHANGE_ID.fullmatch`es, else None.
 
 `integrate.py`: `change_of` goes. `next_version` lists with the same pattern, takes the lowest id among the names that
-`CHANGE_ID.fullmatch`, and prints `next: <change-id> · <worktree> · ready`. `unready` becomes `unready(cwd, change, tree)`.
+`CHANGE_ID.fullmatch` and pass its own `_holds`, and prints `next: <change-id> · <worktree> · ready`. `unready` becomes
+`unready(cwd, change, tree)`.
 
 `status` prints `<change-id> · <stage>`.
 
@@ -77,8 +78,10 @@ The comparison is numeric, per tag part. A tag of another form, such as `v1` or 
 
 `stage_of`: `tag = _tag_of(primary, change)`; `tag` set and `_tagged` → `released`, the reason as today.
 
-`_check_release`: after the merge check, `tag` None → `<change> has no release commit`; then the tag and push checks
-as today. `advance` appends `_tag_of` after a passing check. `report` shows the tag when `_tag_of` is set and `_tagged`,
+`_check_release`: after the merge check, `tag` None → `<change> has no release commit`; then the tag check as today;
+then `<tag>^{commit}` other than the branch's tip → `<tag> is not the tip of <change>`, since the worker wrote the
+subject and the tag it names may be another release's; then the push check as today. `advance` appends `_tag_of` after
+a passing check. `report` shows the tag when `_tag_of` is set and `_tagged`,
 else `no tag`.
 
 A run's log, once this ships, names versions on `v*` branches `report` no longer finds: that one report prints
@@ -120,7 +123,8 @@ branch differs → **halt**, naming both."
 > `<this package>` resolved from this installed skill, e.g. `minor` after `v0.40.0` → `v0.41.0`. A failure or a missing
 > `uv` → **halt**. `<version>` is `<tag>` with a trailing `.0` dropped: `v0.41.0` → `v0.41`, `v0.41.1` → itself.
 
-Its precondition 10 lists with `--list '[0-9]*'`, and "(match its version and slug to the branch)" goes. Step 3 opens:
+Its precondition 10 lists with `--list '[0-9]*'`, "(match its version and slug to the branch)" goes, and a branch that
+fails `_holds`' test is dropped, not an unreadable reservation. Step 3 opens:
 "Write `version: <version>` below `bump:` in `openspec/changes/<change-id>/proposal.md`."
 
 `mf-plan`, the `the release can ship it` row → `| the bump | `minor` or `patch`, a patch against what root `AGENTS.md`
@@ -174,8 +178,9 @@ Tests edited:
 |---|---|
 | `test_previous_is_the_highest_version_below` | a step: `previous_release(tmp_path, "unreleased")` is the highest tracked; a proposal with no `version:` reads `unreleased` |
 | every test in `tests/test_conduct.py` | `_version(root, change, progress)` cuts `change` on a branch of that name, its proposal `bump: minor`; `status` lines are `<change-id> · <stage>`; branch names in subjects and messages are the change id |
-| `test_each_check_passes_only_on_disk_evidence` | a step for `<change> has no release commit` |
+| `test_each_check_passes_only_on_disk_evidence` | a step for `<change> has no release commit`; a step for a tag that is not the branch's tip |
 | every test in `tests/test_integrate.py` | `_version(root, change, ticked)`; `next: 0009-early · …` |
+| `test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one` | a step: a stray branch is dropped; a step: a released, unmerged version keeps its place |
 
 `_fake`'s `release` takes `v0.<n>.0`, `<n>` being one more than the count of `git tag -l`. No test is deleted or merged.
 
@@ -187,8 +192,8 @@ None.
 
 - **The change ships under the rules it replaces** → its branch and `version:` follow today's skills, which the run reads
   from the primary. The next cut is the first under the new rules, and the live proof.
-- **A branch named like an id that is not a version** → `_holds` drops it: it holds no change folder and no release
-  commit.
+- **A branch named like an id that is not a version** → `_holds`, in `conduct.py` and `integrate.py`, and `mf-release`'s
+  precondition 10 drop it: it holds no change folder and no release commit.
 - **`report` on the last old run prints `no version branch`** → once, and only that line.
 - **A release recovered by hand** → the recovery drops the tag and the release commit, so the next release computes the
   number again.

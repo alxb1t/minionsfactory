@@ -39,7 +39,7 @@ switch in place.
 ### Requirement: The integrate station merges the default branch into the next version
 
 `skills/mf-integrate/SKILL.md` SHALL, run in the primary checkout, pick the version with the lowest change id among
-the unmerged branches named by a change id, halting and naming it when it is not ready — a phase unticked, or converge not clean —
+the unmerged branches named by a change id that hold their change or a release commit, halting and naming it when it is not ready — a phase unticked, or converge not clean —
 never skipping ahead. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
 the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`. A red gate SHALL
 halt with the merge open and write `.minions/integrate/<change-id>.red`, which the commit deletes. It SHALL NOT
@@ -118,7 +118,7 @@ Versions SHALL ship in the order they were cut.
 `patch`, and SHALL take `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
 highest `vX.Y.Z` tag, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
 it collects metrics. `conduct.py` SHALL read a released version's tag from the branch tip's `chore(release): <tag>`,
-and SHALL hold no number before it.
+SHALL pass the release check only when that tag's commit is the tip, and SHALL hold no number before it.
 
 #### Scenario: A minor after v0.40.0
 - **WHEN** the highest tag is `v0.40.0` and the proposal says `bump: minor`

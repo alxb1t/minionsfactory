@@ -255,7 +255,12 @@ def test_each_check_passes_only_on_disk_evidence(
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     _git(root, "merge", "-q", "--no-ff", "-m", "Merge the release", "0001-todo")
     assert check("release") == (1, "check: release · fail — v0.1.0 does not exist")
-    _git(root, "tag", "v0.1.0")
+    _git(root, "tag", "v0.1.0", "main~1")
+    assert check("release") == (
+        1,
+        "check: release · fail — v0.1.0 is not the tip of 0001-todo",
+    )
+    _git(root, "tag", "-f", "-a", "-m", "v0.1.0", "v0.1.0", "0001-todo")
     assert check("release") == (0, "check: release · pass")
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))

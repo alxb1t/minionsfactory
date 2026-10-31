@@ -25,6 +25,7 @@ from pathlib import Path
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
+RELEASE = re.compile(r"chore\(release\): \S+")
 UNRELEASED = re.compile(r"^## \[Unreleased\]\n", re.MULTILINE)
 RELEASED = re.compile(r"^## \[", re.MULTILINE)
 DECISIONS = "docs/decisions.md"
@@ -149,15 +150,32 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     return None
 
 
+def _holds(cwd: Path, change: str) -> bool:
+    """Return whether a branch holds its change, active or just released."""
+    if _show(cwd, change, f"openspec/changes/{change}/proposal.md") is not None:
+        return True
+    return (
+        RELEASE.fullmatch(_git(cwd, "log", "-1", "--format=%s", change).strip())
+        is not None
+    )
+
+
 def next_version(cwd: Path) -> str:
-    """Return the lowest-id unmerged version, its worktree and readiness."""
+    """Return the lowest-id unmerged version, its worktree and readiness.
+
+    A version is a branch named by a change id that holds its change.
+    """
     default = default_branch(cwd)
     listing = _git(
         cwd,
         *("branch", "--no-merged", default, "--list", "[0-9]*"),
         "--format=%(refname:short)",
     )
-    changes = [name for name in listing.split() if CHANGE_ID.fullmatch(name)]
+    changes = [
+        name
+        for name in listing.split()
+        if CHANGE_ID.fullmatch(name) and _holds(cwd, name)
+    ]
     if not changes:
         raise Stop(1, "next: none — no open version")
     change = min(changes, key=lambda name: int(name.split("-")[0]))

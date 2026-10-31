@@ -69,6 +69,10 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     root = _primary(tmp_path, {"README.md": "x\n"})
     _version(root, "0010-later")
     early = _version(root, "0009-early", ticked=False)
+    stray = root.parent / "7-fix-login"
+    _git(root, "worktree", "add", "-q", "-b", "7-fix-login", str(stray))
+    _commit(stray, {"login.txt": "x\n"}, "not a version")
+    _git(root, "worktree", "remove", str(stray))
 
     result = _run(root, "next")
     assert result.returncode == 1
@@ -93,6 +97,14 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
 
     (findings / "0009-early_security.md").write_text("---\nverdict: clean\n---\n")
     assert _run(root, "next").returncode == 0
+
+    (early / "openspec/changes/archive").mkdir()
+    folder = "openspec/changes/0009-early"
+    _git(early, "mv", folder, "openspec/changes/archive/0009-early")
+    _git(early, "commit", "-q", "-m", "chore(release): v0.1.0")
+    result = _run(root, "next")
+    assert result.returncode == 1
+    assert "next: 0009-early · " in result.stdout
 
 
 _HEAD = "# Changelog\n\n## [Unreleased]\n"
