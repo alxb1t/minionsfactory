@@ -6,7 +6,7 @@ for word.
 ## Progress
 
 - [x] 1 — next_tag and metrics
-- [ ] 2 — Identity
+- [x] 2 — Identity
 - [ ] 3 — Skill text
 - [ ] 4 — The record
 
@@ -22,15 +22,15 @@ for word.
 
 ## 2 — Identity
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py`, make the branch the change id, per [D1](design.md#d1), and read the tag
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py`, make the branch the change id, per [D1](design.md#d1), and read the tag
   from the tip, per [D3](design.md#d3).
   Verify: `grep -c 'def _change_on' skills/mf-ship/scripts/conduct.py` prints `0`.
-- [ ] 2.2 In `skills/mf-integrate/scripts/integrate.py`, drop `change_of` and read branches named by a change id, per
+- [x] 2.2 In `skills/mf-integrate/scripts/integrate.py`, drop `change_of` and read branches named by a change id, per
   [D1](design.md#d1).
   Verify: `grep -c 'def change_of' skills/mf-integrate/scripts/integrate.py` prints `0`.
-- [ ] 2.3 Edit `tests/test_conduct.py`'s `_version`, `_fake` and its tests, per [Tests](design.md#tests).
+- [x] 2.3 Edit `tests/test_conduct.py`'s `_version`, `_fake` and its tests, per [Tests](design.md#tests).
   Verify: `grep -c 'v0.1_todo' tests/test_conduct.py` prints `0`.
-- [ ] 2.4 Edit `tests/test_integrate.py`'s `_version` and its tests, per [Tests](design.md#tests).
+- [x] 2.4 Edit `tests/test_integrate.py`'s `_version` and its tests, per [Tests](design.md#tests).
   Verify: `grep -c 'next: 0009-early' tests/test_integrate.py` prints `1`.
 
 ## 3 — Skill text

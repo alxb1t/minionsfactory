@@ -206,25 +206,15 @@ def _agents_values(root: Path, key: str) -> list[str] | None:
 
 @dataclass(frozen=True)
 class Version:
-    """A cut version: its change, branch, declared version and worktree."""
+    """A cut version: its change, which names its branch, and its worktree."""
 
     change: str
-    branch: str
-    version: str
     tree: Path | None
 
     @property
     def number(self) -> int:
         """Return the change id's number, the ship order."""
         return int(self.change.split("-")[0])
-
-    @property
-    def tag(self) -> str:
-        """Return the tag the release makes.
-
-        e.g. "v0.35" → "v0.35.0"; "v0.34.1" → "v0.34.1"
-        """
-        return self.version if self.version.count(".") == 2 else f"{self.version}.0"
 
 
 def _worktrees(primary: Path) -> dict[str, Path]:
@@ -239,65 +229,50 @@ def _worktrees(primary: Path) -> dict[str, Path]:
     return found
 
 
-def _change_on(primary: Path, branch: str) -> tuple[str, str] | None:
-    """Return the change a branch holds and its version, or None.
+def _tag_of(primary: Path, change: str) -> str | None:
+    """Return the tag the branch's tip names, or None before a release."""
+    found = RELEASE.fullmatch(_subject(primary, change))
+    return found[1] if found else None
 
-    The one active change; after a release commit, the change it archived.
-    """
-    listing = _maybe(primary, "ls-tree", "--name-only", f"{branch}:openspec/changes")
-    active = [name for name in (listing or "").split() if CHANGE_ID.fullmatch(name)]
-    if len(active) == 1:
-        change, folder = active[0], f"openspec/changes/{active[0]}"
-    elif not active and RELEASE.fullmatch(_subject(primary, branch)):
-        archive = "openspec/changes/archive"
-        moved = _maybe(primary, "diff", "--name-only", f"{branch}~1", branch, archive)
-        names = {path.split("/")[3] for path in (moved or "").split()}
-        if len(names) != 1:
-            return None
-        change = names.pop()
-        folder = f"{archive}/{change}"
-    else:
-        return None
-    proposal = _show(primary, branch, f"{folder}/proposal.md") or ""
-    version = _frontmatter(proposal, "version")
-    return (change, version) if version else None
+
+def _holds(primary: Path, change: str) -> bool:
+    """Return whether a branch holds its change, active or just released."""
+    folder = f"openspec/changes/{change}"
+    active = _show(primary, change, f"{folder}/proposal.md") is not None
+    return active or _tag_of(primary, change) is not None
 
 
 def open_versions(primary: Path) -> list[Version]:
     """Return the open versions in change-id order.
 
-    Open is a `v*` branch the default branch lacks, in a linked worktree,
-    holding one active change.
+    Open is a branch named by a change id, the default branch lacks, in a linked
+    worktree, holding its change.
     """
     default = default_branch(primary)
     listing = _git(
         primary,
-        *("branch", "--no-merged", default, "--list", "v*"),
+        *("branch", "--no-merged", default, "--list", "[0-9]*"),
         "--format=%(refname:short)",
     )
     trees = _worktrees(primary)
     found = []
-    for branch in listing.split():
-        tree = trees.get(branch)
+    for change in listing.split():
+        tree = trees.get(change)
         if tree is None or tree == primary.resolve():
             continue
-        if (held := _change_on(primary, branch)) is not None:
-            found.append(Version(held[0], branch, held[1], tree))
+        if CHANGE_ID.fullmatch(change) and _holds(primary, change):
+            found.append(Version(change, tree))
     return sorted(found, key=lambda version: version.number)
 
 
 def find_version(primary: Path, change: str) -> Version | None:
     """Return the version of a change, open or merged, or None."""
-    if not (match := CHANGE_ID.fullmatch(change)):
+    ref = f"refs/heads/{change}"
+    if not CHANGE_ID.fullmatch(change) or not _maybe(
+        primary, "rev-parse", "-q", "--verify", ref
+    ):
         return None
-    slug = match[2].replace("-", "_")
-    trees = _worktrees(primary)
-    listing = _git(primary, "branch", "--list", "v*", "--format=%(refname:short)")
-    for branch in listing.split():
-        held = _change_on(primary, branch) if branch.endswith(f"_{slug}") else None
-        if held and held[0] == change:
-            return Version(change, branch, held[1], trees.get(branch))
-    return None
+    return Version(change, _worktrees(primary).get(change))
 
 
 def _progress(tree: Path, change: str) -> list[tuple[str, str, str]]:
@@ -365,10 +340,10 @@ def _dirty(tree: Path) -> bool:
 def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     """Return a version's stage, read in its worktree, and why; the first match wins."""
     tree = version.tree
-    if tree is None:
-        raise Stop(2, f"conduct: cannot run — {version.branch} has no worktree")
-    runs = primary / ".minions"
     change = version.change
+    if tree is None:
+        raise Stop(2, f"conduct: cannot run — {change} has no worktree")
+    runs = primary / ".minions"
     if _merge_open(tree):
         marks = runs / "integrate"
         if (marks / f"{change}.red").is_file():
@@ -381,13 +356,9 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             "integrate",
             "a merge is open and staged, with no note: integrate resumes",
         )
-    if _subject(tree) == f"chore(release): {version.tag}" and _tagged(
-        primary, version.tag
-    ):
-        return (
-            "released",
-            f"{version.tag} is tagged; the release stopped before its merge",
-        )
+    tag = _tag_of(primary, change)
+    if tag is not None and _tagged(primary, tag):
+        return "released", f"{tag} is tagged; the release stopped before its merge"
     if unticked := _unticked(tree, change):
         number, title = unticked
         if "**HUMAN" in title:
@@ -431,7 +402,7 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
         return "a merge is still open"
     default = default_branch(primary)
     subject = _subject(tree)
-    if subject != f"chore(integrate): merge {default} into {version.branch}":
+    if subject != f"chore(integrate): merge {default} into {version.change}":
         return f"HEAD is not the integrate commit: {subject}"
     if not _ancestor(tree, default, "HEAD"):
         return f"{default} is not an ancestor of HEAD"
@@ -441,12 +412,15 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
 def _check_release(primary: Path, version: Version) -> str | None:
     """Return why the release check fails, or None."""
     default = default_branch(primary)
-    if not _ancestor(primary, version.branch, default):
-        return f"{default} does not contain {version.branch}"
-    if not _tagged(primary, version.tag):
-        return f"{version.tag} does not exist"
-    if _pushed(primary, version.tag) is False:
-        return f"{version.tag} is not on origin"
+    if not _ancestor(primary, version.change, default):
+        return f"{default} does not contain {version.change}"
+    tag = _tag_of(primary, version.change)
+    if tag is None:
+        return f"{version.change} has no release commit"
+    if not _tagged(primary, tag):
+        return f"{tag} does not exist"
+    if _pushed(primary, tag) is False:
+        return f"{tag} is not on origin"
     return None
 
 
@@ -472,7 +446,7 @@ def check(primary: Path, stage: str, version: Version) -> str | None:
     if stage == "release":
         return _check_release(primary, version)
     if version.tree is None:
-        return f"{version.branch} has no worktree"
+        return f"{version.change} has no worktree"
     if stage == "build":
         return _check_build(version, version.tree)
     if stage == "converge":
@@ -838,7 +812,7 @@ class Run:
                     return
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
-                    self.halt(version.change, f"{version.branch} has no worktree")
+                    self.halt(version.change, f"{version.change} has no worktree")
                     return
                 minions = self.primary / ".minions"
                 tier = _tier(minions, version.change) if stage == "converge" else ""
@@ -851,7 +825,8 @@ class Run:
                 if not self.judge(version.change, stage, reason, denied):
                     return
                 if stage == "release":
-                    self.released.append(version.tag)
+                    if tag := _tag_of(self.primary, version.change):
+                        self.released.append(tag)
                     return
         except Stop as stop:
             self.halt(version.change, str(stop))
@@ -980,20 +955,19 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 
 
 def status(cwd: Path) -> str:
-    """Return one line per open version: `<change-id> · <branch> · <stage>`."""
+    """Return one line per open version: `<change-id> · <stage>`."""
     primary = primary_of(cwd)
     versions = open_versions(primary)
     if not versions:
         return "status: none — no open version"
     return "\n".join(
-        f"{version.change} · {version.branch} · {stage_of(primary, version)[0]}"
-        for version in versions
+        f"{version.change} · {stage_of(primary, version)[0]}" for version in versions
     )
 
 
 def _merge_commit(primary: Path, version: Version) -> str | None:
     """Return the default branch's merge of the version's tip, or None."""
-    tip = _git(primary, "rev-parse", version.branch).strip()
+    tip = _git(primary, "rev-parse", version.change).strip()
     merges = _git(primary, "log", default_branch(primary), "--merges", "--format=%h %P")
     for line in merges.splitlines():
         short, *parents = line.split()
@@ -1063,8 +1037,10 @@ def report(cwd: Path) -> str:
         if version is None:
             lines.append(f"{change} · no version branch")
             continue
-        tagged = _tagged(primary, version.tag)
-        pushed = _pushed(primary, version.tag) if tagged else False
+        tag = _tag_of(primary, change)
+        if tag is not None and not _tagged(primary, tag):
+            tag = None
+        pushed = _pushed(primary, tag) if tag is not None else False
         review = runs / "findings" / f"{change}_review.md"
         round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
         page = runs / "metrics" / f"{change}.html"
@@ -1072,7 +1048,7 @@ def report(cwd: Path) -> str:
             " · ".join(
                 [
                     change,
-                    version.tag if tagged else "no tag",
+                    tag or "no tag",
                     f"merge {_merge_commit(primary, version) or 'none'}",
                     {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
                     f"round {round_ or 'none'}",

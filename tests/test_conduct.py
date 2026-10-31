@@ -55,14 +55,13 @@ def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
     return root.resolve()
 
 
-def _version(root: Path, change: str, version: str, progress: str) -> Path:
-    """Cut `change` at `version` in a linked worktree, `progress` its list."""
-    branch = f"{version}_{change.split('-', 1)[1].replace('-', '_')}"
-    tree = root.parent / branch
-    _git(root, "worktree", "add", "-q", "-b", branch, str(tree))
+def _version(root: Path, change: str, progress: str) -> Path:
+    """Cut `change` on a branch of that name, linked, `progress` its list."""
+    tree = root.parent / change
+    _git(root, "worktree", "add", "-q", "-b", change, str(tree))
     folder = f"openspec/changes/{change}"
     files = {
-        f"{folder}/proposal.md": f"---\nversion: {version}\n---\n",
+        f"{folder}/proposal.md": "---\nbump: minor\n---\n",
         f"{folder}/tasks.md": f"## Progress\n\n{progress}",
     }
     _commit(tree, files, f"cut {change}")
@@ -117,7 +116,7 @@ def test_status_reads_each_stage_from_disk(
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
-    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — One\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
     tasks = tree / "openspec/changes/0001-todo/tasks.md"
 
     def stage() -> str:
@@ -125,7 +124,11 @@ def test_status_reads_each_stage_from_disk(
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
         return capsys.readouterr().out.strip()
 
-    assert stage() == "0001-todo · v0.1_todo · build"
+    assert stage() == "0001-todo · build"
+    stray = root.parent / "0009-stray"
+    _git(root, "worktree", "add", "-q", "-b", "0009-stray", str(stray))
+    _commit(stray, {"stray.txt": "x\n"}, "not a version")
+    assert stage() == "0001-todo · build"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
     assert stage().endswith(" · human")
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
@@ -153,15 +156,15 @@ def test_status_reads_each_stage_from_disk(
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.red").write_text("gate red\n")
-    assert stage() == "0001-todo · v0.1_todo · integrating"
+    assert stage() == "0001-todo · integrating"
     assert stage_of(root, version)[1].startswith("red gate")
     _git(tree, "checkout", "--theirs", "moved.txt")
     _git(tree, "add", "moved.txt")
-    assert stage() == "0001-todo · v0.1_todo · integrating"
+    assert stage() == "0001-todo · integrating"
     (marks / "0001-todo.red").unlink()
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.md").unlink()
-    assert stage() == "0001-todo · v0.1_todo · integrate"
+    assert stage() == "0001-todo · integrate"
     _git(tree, "merge", "--abort")
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
@@ -174,7 +177,7 @@ def test_each_check_passes_only_on_disk_evidence(
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
-    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — One\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
 
     def check(stage: str, target: str = "0001-todo") -> tuple[int, str]:
         capsys.readouterr()
@@ -236,15 +239,21 @@ def test_each_check_passes_only_on_disk_evidence(
         "-q",
         "--amend",
         "-m",
-        "chore(integrate): merge main into v0.1_todo",
+        "chore(integrate): merge main into 0001-todo",
     )
     assert check("integrate") == (0, "check: integrate · pass")
 
     assert check("release") == (
         1,
-        "check: release · fail — main does not contain v0.1_todo",
+        "check: release · fail — main does not contain 0001-todo",
     )
-    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'v0.1_todo'", "v0.1_todo")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0001-todo'", "0001-todo")
+    assert check("release") == (
+        1,
+        "check: release · fail — 0001-todo has no release commit",
+    )
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge the release", "0001-todo")
     assert check("release") == (1, "check: release · fail — v0.1.0 does not exist")
     _git(root, "tag", "v0.1.0")
     assert check("release") == (0, "check: release · pass")
@@ -327,8 +336,8 @@ def test_run_ships_two_versions_in_cut_order(
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path)
-    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -353,7 +362,7 @@ def test_run_ships_two_versions_in_cut_order(
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
     assert _git(root, "branch", "--no-merged", "main") == ""
     assert _git(root, "log", "-1", "--format=%s", "v0.2.0") == "chore(release): v0.2.0"
-    assert "chore(integrate): merge main into v0.2_marks" in _git(
+    assert "chore(integrate): merge main into 0002-marks" in _git(
         root, "log", "--format=%s", "main"
     )
     lines = _log(root)
@@ -380,8 +389,8 @@ def test_run_halts_on_a_human_phase(
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "v0.1", "- [x] 1 — Todo\n- [ ] 2 — Ship **HUMAN**\n")
-    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    _version(root, "0001-todo", "- [x] 1 — Todo\n- [ ] 2 — Ship **HUMAN**\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -402,7 +411,7 @@ def test_run_halts_on_a_human_phase(
     only = tmp_path / "only"
     only.mkdir()
     lone = _primary(only)
-    _version(lone, "0001-todo", "v0.1", "- [ ] 1 — Ship **HUMAN**\n")
+    _version(lone, "0001-todo", "- [ ] 1 — Ship **HUMAN**\n")
     calls.unlink()
     assert (
         _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -417,7 +426,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     conduct = _conduct()
     calls = fake("deny", "liar")
     root = _primary(tmp_path)
-    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -452,7 +461,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     other = tmp_path / "other"
     other.mkdir()
     second = _primary(other)
-    _version(second, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(second, "0001-todo", "- [ ] 1 — Todo\n")
     calls.unlink()
     fake("liar-probe")
     assert (
@@ -467,8 +476,8 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     third = tmp_path / "third"
     third.mkdir()
     crashed = _primary(third)
-    _version(crashed, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
-    _version(crashed, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(crashed, "0002-marks", "- [ ] 1 — Marks\n")
     models = crashed / ".minions" / "models"
     models.mkdir(parents=True)
     (models / "0001-todo.toml").write_bytes(b"\xff")
@@ -493,8 +502,8 @@ def test_a_later_version_halts_and_the_earlier_ships(
     conduct = _conduct()
     calls = fake("liar-0002-marks")
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
-    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -530,8 +539,8 @@ def test_an_earlier_version_halts_and_the_later_is_held(
     conduct = _conduct()
     calls = fake("liar-0001-todo")
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
-    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -558,7 +567,7 @@ def test_run_halts_on_a_timeout(
     conduct["main"].__globals__["TIMEOUT"] = 2
     fake("sleep")
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     started = time.monotonic()
     assert (
@@ -589,7 +598,7 @@ def test_run_refuses_without_worktrees_declared(
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path, agents="# agents\n")
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -658,7 +667,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         "git -C /r push origin main -f",
         "git -C /r push origin +main",
         "git -C /r push origin main --force-with-lease",
-        "git -C /r branch -D v0.1_todo",
+        "git -C /r branch -D 0001-todo",
         "git -C /r tag -d v0.1.0",
         "git -C /r worktree remove --force /r/wt",
     ):
@@ -668,9 +677,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         "git commit -q -m 'feat: read' -m 'a clean sibling counts' -m 'Change: 0045'",
         "git -C /r push origin main",
         "git -C /r push origin v0.1.0",
-        "git -C /r merge --no-ff -m 'Merge branch v0.1_todo' v0.1_todo",
+        "git -C /r merge --no-ff -m 'Merge branch 0001-todo' 0001-todo",
         "git -C /r worktree remove /r/wt",
-        "git -C /r branch -d v0.1_todo",
+        "git -C /r branch -d 0001-todo",
     ):
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None)
@@ -702,7 +711,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         __file__,
         f"Do it.\n\n{rules}",
     ]
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -787,7 +796,7 @@ def _fake(prompt: str) -> None:
                 return
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
-        tag = f"{branch.split('_')[0]}.0"
+        tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
         (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
         _git(
             here,

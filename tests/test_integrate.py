@@ -43,15 +43,14 @@ def _primary(tmp_path: Path, files: dict[str, str]) -> Path:
     return root
 
 
-def _version(root: Path, change: str, version: str, ticked: bool = True) -> Path:
-    """Cut `change` at `version` on its branch, in a linked worktree; return it."""
-    branch = f"{version}_{change.split('-', 1)[1].replace('-', '_')}"
-    tree = root.parent / branch
-    _git(root, "worktree", "add", "-q", "-b", branch, str(tree))
+def _version(root: Path, change: str, ticked: bool = True) -> Path:
+    """Cut `change` on a branch of that name, in a linked worktree; return it."""
+    tree = root.parent / change
+    _git(root, "worktree", "add", "-q", "-b", change, str(tree))
     box = "x" if ticked else " "
     folder = f"openspec/changes/{change}"
     files = {
-        f"{folder}/proposal.md": f"---\nversion: {version}\n---\n",
+        f"{folder}/proposal.md": "---\nbump: minor\n---\n",
         f"{folder}/tasks.md": f"## Progress\n\n- [{box}] 1 — One\n",
     }
     _commit(tree, files, f"cut {change}")
@@ -68,13 +67,12 @@ def test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
-    # `v0.10` sorts before `v0.9` as text: the queue is the change id's number.
-    _version(root, "0010-later", "v0.10")
-    early = _version(root, "0009-early", "v0.9", ticked=False)
+    _version(root, "0010-later")
+    early = _version(root, "0009-early", ticked=False)
 
     result = _run(root, "next")
     assert result.returncode == 1
-    assert "next: v0.9_early · 0009-early" in result.stdout
+    assert "next: 0009-early · " in result.stdout
     assert "not ready — phase 1 unticked" in result.stdout
 
     _commit(
@@ -105,7 +103,7 @@ def test_changelog_keeps_the_branch_entries_above_the_released_sections(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path, {"CHANGELOG.md": f"{_HEAD}\n{_OLD}"})
-    tree = _version(root, "0003-b", "v0.3")
+    tree = _version(root, "0003-b")
     entries = "- Branch one.\n\n- Branch two,\n  wrapped.\n"
     _commit(tree, {"CHANGELOG.md": f"{_HEAD}\n{entries}\n{_OLD}"}, "phase")
     released = (
@@ -138,7 +136,7 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     root = _primary(
         tmp_path, {"docs/decisions.md": head + old, "docs/shared.md": "## Common\n"}
     )
-    tree = _version(root, "0046-b", "v0.47")
+    tree = _version(root, "0046-b")
     ours = head.replace("D44", "D44, D45") + old + _decision(45, "Branch")
     cite = "Per [D45](decisions.md#d45--branch), and D44 stays.\n"
     _commit(
@@ -207,7 +205,7 @@ def _spec(first: str) -> str:
 
 def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"openspec/specs/sdd/spec.md": _spec("It SHALL hold.")})
-    tree = _version(root, "0005-b", "v0.5")
+    tree = _version(root, "0005-b")
     delta = (
         "## MODIFIED Requirements\n\n### Requirement: First\n\nThe branch's.\n\n"
         "### Requirement: Second\n\nThe branch's.\n"

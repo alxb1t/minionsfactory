@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mf-release/scripts/next_tag.py` computes the next tag from a bump, so a tag is never an agent's arithmetic. A
   proposal with no `version:` reads `unreleased` in `metrics.py`, above every release, so a draft page compares with
   the highest tracked one (change `0047-version-at-merge`, phase 1).
+- `conduct.py` and `integrate.py` find versions by branches named by a change id, and `conduct.py` reads a released
+  tag from the branch tip, so no number exists before the release. `status` prints `<change-id> · <stage>` (change
+  `0047-version-at-merge`, phase 2).
 
 ## [0.40.0] - 2026-10-31
 
