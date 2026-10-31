@@ -37,6 +37,15 @@ CHARTS = {
     "duration": "duration (s)",
     "tokens": "tokens",
 }
+# why: old cards hold free text in that field; mf-converge's card names the list
+CATEGORIES = (
+    "security",
+    "stability",
+    "data integrity",
+    "functional correctness",
+    "performance",
+    "maintainability",
+)
 TOP_CATEGORIES = 3
 GAP = "—"
 
@@ -142,12 +151,14 @@ def _priority(text: str) -> tuple[str, str | None]:
     """Return a `Priority:` value's severity and category.
 
     e.g. "medium · security · stability — why" → ("medium", "stability"),
-    "medium · security (integrity)" → ("medium", "integrity")
+    "medium · security (integrity)" → ("medium", "integrity"),
+    'nit · review · "a quoted clause"' → ("nit", None)
     """
     fields = [field.strip() for field in text.partition(" — ")[0].split("·")]
-    bracket = re.search(r"\(([^)]+)\)", fields[1]) if len(fields) > 1 else None
-    category = fields[2] if len(fields) > 2 else bracket and bracket.group(1)
-    return _word(fields[0]), category.lower() if category else None
+    bracket = re.search(r"\(([a-zA-Z]+)\)", fields[1]) if len(fields) > 1 else None
+    third = fields[2].lower() if len(fields) > 2 else None
+    category = bracket.group(1).lower() if bracket else None
+    return _word(fields[0]), third if third in CATEGORIES else category
 
 
 def _graded(front: dict[str, str], body: str, cards: list[str]) -> Record:

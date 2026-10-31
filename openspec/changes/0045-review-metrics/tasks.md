@@ -8,7 +8,7 @@ word for word.
 - [x] 1 — Read the findings
 - [x] 2 — Draw the page
 - [x] 3 — Ship the station
-- [ ] 4 — Run it on this machine
+- [x] 4 — Run it on this machine
 
 ## 1 — Read the findings
 
@@ -41,12 +41,12 @@ word for word.
 
 [D7](design.md#d7)'s live run, from this worktree under the shell rules: no `cd`, no shell variables.
 
-- [ ] 4.1 **HALT CHECK** The operator's config `../mf_metrics_probe/review-metrics.toml` exists, written before the run.
+- [x] 4.1 **HALT CHECK** The operator's config `../mf_metrics_probe/review-metrics.toml` exists, written before the run.
   Verify: `grep -c '^repos = ' ../mf_metrics_probe/review-metrics.toml` prints `1`.
-- [ ] 4.2 `uv run --script skills/mf-review-metrics/scripts/review_metrics.py --config ../mf_metrics_probe/review-metrics.toml`.
+- [x] 4.2 `uv run --script skills/mf-review-metrics/scripts/review_metrics.py --config ../mf_metrics_probe/review-metrics.toml`.
   Verify: `grep -c '<section class="repo">' ../mf_metrics_probe/page.html` prints `2`, and `grep -c '<script' ../mf_metrics_probe/page.html` prints `0`.
-- [ ] 4.3 Write `openspec/changes/0045-review-metrics/evidence/live_run.md`, with no path and no repo name: the
+- [x] 4.3 Write `openspec/changes/0045-review-metrics/evidence/live_run.md`, with no path and no repo name: the
   `repos: <n> · changes: <n>` and `lacked:` lines the script printed, copied.
   Verify: `grep -c '^repos: 2 · changes: ' openspec/changes/0045-review-metrics/evidence/live_run.md` prints `1`.
-- [ ] 4.4 Delete the probe: `rm -rf ../mf_metrics_probe`.
+- [x] 4.4 Delete the probe: `rm -rf ../mf_metrics_probe`.
   Verify: `test -e ../mf_metrics_probe` fails.

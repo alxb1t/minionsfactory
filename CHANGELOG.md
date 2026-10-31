@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   review tiers are compared on data.
 - `mf-review-metrics` ships as an operator skill, with its `README.md` row; the principle *The repo reaches nothing
   outside itself* gains its exception, and D50 records it.
+- The live run read two repos, and showed free text reading as a category: only `mf-converge`'s list and a bracketed
+  word count now, anything else a gap.
 
 ## [0.37.0] - 2026-10-30
 

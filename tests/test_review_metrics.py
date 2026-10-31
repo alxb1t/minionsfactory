@@ -169,6 +169,13 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     _findings(tmp_path, "0020-half_security.md", _front("changes-requested"))
     assert _record(tmp_path, "0020-half")["findings"] is None
 
+    quoted = _card(1, 'nit · review · "when none is" · why')
+    quoted += _card(2, 'nit · review ("every card … shall carry them")')
+    quoted += _card(3, "nit · review (t4)")
+    _findings(tmp_path, "0021-quoted_review.md", _front("changes-requested") + quoted)
+    prose = _record(tmp_path, "0021-quoted")
+    assert (prose["findings"], prose["categories"]) == (3, {})
+
 
 def test_the_resolution_log_counts_verified_and_reopened(tmp_path: Path) -> None:
     log = """## Resolution log
