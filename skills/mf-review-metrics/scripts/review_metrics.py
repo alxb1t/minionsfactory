@@ -47,6 +47,8 @@ CATEGORIES = (
     "maintainability",
 )
 TOP_CATEGORIES = 3
+VERDICT_FIELDS = ("confirmed", "plausible", "plausible_verified", "refuted")
+RESOLUTION_FIELDS = ("verified", "reopened")
 GAP = "—"
 
 Record = dict[str, Any]
@@ -161,16 +163,20 @@ def _priority(text: str) -> tuple[str, str | None]:
     return _word(fields[0]), third if third in CATEGORIES else category
 
 
-def _graded(front: dict[str, str], body: str, cards: list[str]) -> Record:
-    """Return a file's severity and category counts, and its finding count."""
+def _graded(
+    front: dict[str, str], body: str, cards: list[str], blocking: tuple[str, ...]
+) -> Record:
+    """Return a file's severity and category counts, and its finding counts."""
     priorities = [_priority(text) for card in cards for text in _PRIORITY.findall(card)]
     grades = [grade for grade, _ in priorities] or [
         _word(grade) for grade in _SEVERITY.findall(body)
     ]
+    severity = Counter(grades)
     readable = bool(grades) or front.get("verdict") == "clean"
     return {
         "findings": len(grades) if readable else None,
-        "severity": Counter(grades),
+        "blocking": sum(severity[grade] for grade in blocking) if readable else None,
+        "severity": severity,
         "categories": Counter(c for _, c in priorities if c),
     }
 
@@ -178,14 +184,12 @@ def _graded(front: dict[str, str], body: str, cards: list[str]) -> Record:
 def _verdicts(body: str, cards: list[str]) -> Record:
     """Return a file's verdict states; each a gap when no card carries `Verdict:`."""
     verdicts = [
-        (_word(_VERDICT.findall(card)[0]), _word("".join(_STATUS.findall(card))))
+        (_word(found.group(1)), _word("".join(_STATUS.findall(card))))
         for card in cards
-        if _VERDICT.search(card)
+        if (found := _VERDICT.search(card))
     ]
     if not verdicts:
-        return dict.fromkeys(
-            ("confirmed", "plausible", "plausible_verified", "refuted")
-        )
+        return dict.fromkeys(VERDICT_FIELDS)
     words = [word for word, _ in verdicts]
     refuted = _section(body, "Refuted") or ""
     return {
@@ -200,7 +204,7 @@ def _resolutions(body: str) -> Record:
     """Return a file's `→ verified` and reopening transitions; gaps with no log."""
     log = _section(body, "Resolution log")
     if log is None:
-        return {"verified": None, "reopened": None}
+        return dict.fromkeys(RESOLUTION_FIELDS)
     reopened = re.findall(r"\b(?:fixed|wontfix|accepted) → open\b", log)
     return {
         "verified": len(re.findall(r"→ verified\b", log)),
@@ -219,15 +223,11 @@ def _findings_file(path: Path, blocking: tuple[str, ...]) -> Record | None:
     pieces = re.split(r"^(?=- \*\*|#)", body, flags=re.MULTILINE)
     cards = [piece for piece in pieces if _PRIORITY.search(piece)]
     outside = "".join(piece for piece in pieces if not _PRIORITY.search(piece))
-    graded = _graded(front, body, cards)
-    found = graded["findings"]
-    held = sum(graded["severity"][grade] for grade in blocking)
     return {
         "front": front,
-        **graded,
+        **_graded(front, body, cards, blocking),
         **_verdicts(body, cards),
         **_resolutions(body),
-        "blocking": None if found is None else held,
         "inconclusive": (
             sum("inconclusive" in line for line in outside.splitlines())
             if "tier" in front
@@ -264,13 +264,12 @@ def _status_log(path: Path) -> Record:
     engines = details("start", r"\bengine:? (\w[\w-]*)")
     tokens = details("verdicts", r"\btokens (\d+)(?:\s|$)")
     cards = details("done", r"\b(\d+) cards? to backlog")
-    durations = [seconds for run in runs if (seconds := _run_seconds(run)) is not None]
     return {
         "engine": engines[0] if engines else None,
-        "duration": sum(durations) if durations else None,
-        "tokens": sum(map(int, tokens)) if tokens else None,
+        "duration": _held(_run_seconds(run) for run in runs),
+        "tokens": _held(map(int, tokens)),
         "capped": int(bool(details("halt", r"\b(cap)\b"))),
-        "to_backlog": sum(map(int, cards)) if cards else None,
+        "to_backlog": _held(map(int, cards)),
     }
 
 
@@ -303,16 +302,21 @@ def _first(fronts: list[dict[str, str]], key: str) -> str | None:
 def _total(values: Iterable[int | None]) -> int | None:
     """Return the sum; a gap in any file, or no file, is a gap."""
     held = list(values)
-    return None if not held or None in held else sum(v for v in held if v is not None)
+    return None if None in held else _held(held)
 
 
 def _held(values: Iterable[int | None]) -> int | None:
-    """Return the sum of the files that hold the field, a gap when none does.
+    """Return the sum of the values held, a gap when none is.
 
     Why: a clean file has no card or log, and adds nothing to its sibling's counts.
     """
     known = [value for value in values if value is not None]
     return sum(known) if known else None
+
+
+def _merged(rows: Iterable[Record], key: str) -> Counter[str]:
+    """Return the rows' `key` counters, added up."""
+    return sum((row[key] for row in rows), Counter())
 
 
 def read_change(repo: Path, change: str) -> Record:
@@ -339,20 +343,13 @@ def read_change(repo: Path, change: str) -> Record:
         "packet_included": included,
         "packet_skipped": skipped,
         "rounds": _integer(_first(fronts, "round")),
-        "severity": sum((found["severity"] for found in files), Counter()),
-        "categories": sum((found["categories"] for found in files), Counter()),
+        "severity": _merged(files, "severity"),
+        "categories": _merged(files, "categories"),
         **_status_log(folder / f"{change}_status_log.md"),
     }
     for key in ("findings", "blocking", "inconclusive"):
         record[key] = _total(found[key] for found in files)
-    for key in (
-        "confirmed",
-        "plausible",
-        "plausible_verified",
-        "refuted",
-        "verified",
-        "reopened",
-    ):
+    for key in (*VERDICT_FIELDS, *RESOLUTION_FIELDS):
         record[key] = _held(found[key] for found in files)
     return record
 
@@ -405,11 +402,8 @@ def _summed(records: list[Record], field: str) -> str:
 
 def _top(records: list[Record]) -> str:
     """Return the most found categories; e.g. "maintainability 2, security 1"."""
-    counts: Counter[str] = sum((r["categories"] for r in records), Counter())
-    return (
-        ", ".join(f"{name} {n}" for name, n in counts.most_common(TOP_CATEGORIES))
-        or GAP
-    )
+    counts = _merged(records, "categories").most_common(TOP_CATEGORIES)
+    return ", ".join(f"{name} {n}" for name, n in counts) or GAP
 
 
 def _repo_table(records: list[Record]) -> Table:
@@ -437,10 +431,8 @@ def _repo_table(records: list[Record]) -> Table:
 
 def _severity_table(records: list[Record]) -> Table:
     """Return the findings per grade, a row per grade the repo used."""
-    grades: Counter[str] = sum((r["severity"] for r in records), Counter())
-    return ["grade", "findings"], [
-        [grade, str(count)] for grade, count in grades.most_common()
-    ]
+    grades = _merged(records, "severity").most_common()
+    return ["grade", "findings"], [[grade, str(count)] for grade, count in grades]
 
 
 def tier_table(records: list[Record]) -> Table:
@@ -449,15 +441,7 @@ def tier_table(records: list[Record]) -> Table:
     for record in records:
         key = tuple(record[f] or "unknown" for f in ("tier", "model", "engine"))
         groups.setdefault(key, []).append(record)
-    summed = (
-        "confirmed",
-        "plausible",
-        "plausible_verified",
-        "refuted",
-        "inconclusive",
-        "packet_included",
-        "packet_skipped",
-    )
+    summed = (*VERDICT_FIELDS, "inconclusive", "packet_included", "packet_skipped")
     headers = [
         "tier",
         "model",
@@ -535,9 +519,14 @@ def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
     return [*lines, "</div>", "</section>"]
 
 
+def _every_record(read: list[tuple[str, list[Record]]]) -> list[Record]:
+    """Return the records of every repo read."""
+    return [record for _, held in read for record in held]
+
+
 def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) -> str:
     """Return the page, laid out per 0045-review-metrics design D7."""
-    records = [record for _, held in read for record in held]
+    records = _every_record(read)
     lines = [
         "<!doctype html>",
         '<html lang="en"><head><meta charset="utf-8">',
@@ -556,7 +545,7 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
 
 def summary(out: Path, read: list[tuple[str, list[Record]]]) -> str:
     """Return what a written run prints, per 0045-review-metrics design D2."""
-    records = [record for _, held in read for record in held]
+    records = _every_record(read)
     return "\n".join(
         [
             str(out),

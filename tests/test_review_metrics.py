@@ -4,6 +4,7 @@ Why: 0045-review-metrics design D1…D7.
 """
 
 import importlib.util
+import re
 from pathlib import Path
 from types import ModuleType
 
@@ -175,6 +176,13 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     _findings(tmp_path, "0021-quoted_review.md", _front("changes-requested") + quoted)
     prose = _record(tmp_path, "0021-quoted")
     assert (prose["findings"], prose["categories"]) == (3, {})
+
+    skill = _REPO / "skills" / "mf-converge" / "SKILL.md"
+    listed = re.search(r"category one of (.*?);", skill.read_text(encoding="utf-8"))
+    assert listed
+    assert tuple(re.findall(r"`([^`]+)`", listed.group(1))) == (
+        review_metrics.CATEGORIES
+    )
 
 
 def test_the_resolution_log_counts_verified_and_reopened(tmp_path: Path) -> None:
