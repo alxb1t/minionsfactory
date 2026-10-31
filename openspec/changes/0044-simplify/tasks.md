@@ -8,7 +8,7 @@ word for word.
 - [x] 1 — Write mf-simplify
 - [x] 2 — Run it in the build
 - [x] 3 — Record it
-- [ ] 4 — Calibrate it
+- [x] 4 — Calibrate it
 
 ## 1 — Write mf-simplify
 
@@ -34,15 +34,15 @@ word for word.
 [D4](design.md#d4)'s calibration, from this worktree under the shell rules: no `cd`; `uv run --directory` sets the
 worker's cwd; the key never enters the fixture.
 
-- [ ] 4.1 Build `../mf_simplify_probe/seeded` from [D4](design.md#d4)'s files: `git init -b main`, the base files and
+- [x] 4.1 Build `../mf_simplify_probe/seeded` from [D4](design.md#d4)'s files: `git init -b main`, the base files and
   the `chore: base` commit, `git -C ../mf_simplify_probe/seeded switch -c v0.2_orders`, the change directory, `orders.py`
   and `tests/test_orders.py`, and the `feat: orders` commit with its `Change: 0002-orders` trailer.
   Verify: `make -C ../mf_simplify_probe/seeded gate` exits 0, and `git -C ../mf_simplify_probe/seeded log --oneline | wc -l` prints `2`.
-- [ ] 4.2 `uv run --directory ../mf_simplify_probe/seeded --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.38_simplify/skills/mf-simplify/SKILL.md for change 0002-orders."`.
+- [x] 4.2 `uv run --directory ../mf_simplify_probe/seeded --script ../../minionsfactory/skills/mf-ship/scripts/conduct.py agent --executor claude "Run the skill at ../../v0.38_simplify/skills/mf-simplify/SKILL.md for change 0002-orders."`.
   Verify: `git -C ../mf_simplify_probe/seeded log -1 --format=%s` prints `refactor(0002-orders): simplify`, and `make -C ../mf_simplify_probe/seeded gate` exits 0.
-- [ ] 4.3 Score `../mf_simplify_probe/seeded/orders.py` by [D4](design.md#d4)'s key and the commit's body, and write
+- [x] 4.3 Score `../mf_simplify_probe/seeded/orders.py` by [D4](design.md#d4)'s key and the commit's body, and write
   `openspec/changes/0044-simplify/evidence/calibration.md` in this worktree, no absolute path:
   `pieces: <the applied ids> · traps kept: <the kept ids> · net: <the commit's net line> · tokens <n|unavailable>`.
   Verify: `grep -c '^pieces: P1 P2 P3 P4 P5 · traps kept: T1 T2 T3 T4 · net: -' openspec/changes/0044-simplify/evidence/calibration.md` prints `1`.
-- [ ] 4.4 Delete the probe: `rm -rf ../mf_simplify_probe`.
+- [x] 4.4 Delete the probe: `rm -rf ../mf_simplify_probe`.
   Verify: `test -e ../mf_simplify_probe` fails.
