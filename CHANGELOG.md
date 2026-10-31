@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `conduct.py`: a halt stops its version, not the run; cut order holds at the merge, and a failed probe still stops
+  the run. Each halt is logged when it happens, a run with a halt closes on `halted · held · released`, and `report`
+  prints every halt and marks a held version. The deny glob behind the first such halt was fixed in `23fdf6d`
+  (change `0046-ship-halts`, phase 1).
+
 ## [0.39.0] - 2026-10-31
 
 Gate: local 0m40s · CI 0m28s (CI at 351eeb7) · 0.38.0: local 0m47s · CI 0m23s (CI at 23fdf6d)

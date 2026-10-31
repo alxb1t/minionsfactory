@@ -768,9 +768,22 @@ class Run:
         self.guard = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
-        """Record a halt; no new worker starts after it."""
+        """Record and log a halt; its version starts no new worker."""
         with self.guard:
             self.halts.append((who, reason))
+        self.log.event(who, "halt", reason)
+
+    def stopped(self, change: str) -> bool:
+        """Return whether a halt names `change` or the run."""
+        with self.guard:
+            return any(who in ("run", change) for who, _ in self.halts)
+
+    def closing(self, held: list[str]) -> str:
+        """Return the closing line's detail: what halted, is held and released."""
+        halted = " ".join(dict.fromkeys(who for who, _ in self.halts))
+        waiting = " ".join(held) or "none"
+        released = " ".join(self.released) or "none"
+        return f"halted {halted} · held {waiting} · released {released}"
 
     def spawn(
         self,
@@ -782,7 +795,7 @@ class Run:
     ) -> list[str] | None:
         """Run one worker and log it and its denials.
 
-        Return the denials, or None when a timeout halted the run.
+        Return the denials, or None when a timeout halted `who`.
         """
         model, effort = models
         self.log.event(who, "spawn", f"{station} · model {model or 'default'}")
@@ -816,7 +829,7 @@ class Run:
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt."""
         try:
-            while not self.halts:
+            while not self.stopped(version.change):
                 stage, why = stage_of(self.primary, version)
                 if stage in HALTS:
                     self.halt(version.change, f"{stage} — {why}")
@@ -842,6 +855,17 @@ class Run:
                     return
         except Stop as stop:
             self.halt(version.change, str(stop))
+
+    def deliver(self, versions: list[Version]) -> list[str]:
+        """Run stage B in change-id order; return the versions a halt holds."""
+        for index, version in enumerate(versions):
+            self.advance(version, ())
+            if self.stopped(version.change):
+                behind = versions[index + 1 :]
+                return [
+                    later.change for later in behind if not self.stopped(later.change)
+                ]
+        return []
 
     def probe(self) -> None:
         """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
@@ -893,11 +917,9 @@ class Run:
                 thread.start()
             for thread in threads:
                 thread.join()
-        for version in versions:
-            self.advance(version, ())
-        for who, reason in self.halts:
-            self.log.event(who, "halt", reason)
+        held = self.deliver(versions)
         if self.halts:
+            self.log.event("run", "halt", self.closing(held))
             return 1
         self.log.event("run", "done", f"released {' '.join(self.released)}")
         return 0
@@ -1004,8 +1026,16 @@ def last_log(runs: Path) -> Path | None:
     return max(logs, key=lambda log: (log.stem[:15], len(log.stem), log.stem))
 
 
+def _change_number(change: str) -> int:
+    """Return a change id's number.
+
+    e.g. "0002-marks" → 2
+    """
+    return int(change.split("-")[0])
+
+
 def report(cwd: Path) -> str:
-    """Return the last run's close-out: per version touched, then its last line."""
+    """Return the last run's close-out: per version, its halts, then its last line."""
     primary = primary_of(cwd)
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
@@ -1013,14 +1043,20 @@ def report(cwd: Path) -> str:
     events = [
         found for line in log.read_text().splitlines() if (found := EVENT.match(line))
     ]
-    touched = dict.fromkeys(found[1] for found in events if found[1] != "run")
+    closing = events[-1].string if events else f"{log.name}: no event"
+    listed = re.search(r" · held (.+?) · released ", closing)
+    held = [name for name in listed[1].split() if name != "none"] if listed else []
+    halted = [found[1] for found in events if found[2] == "halt" and found[1] != "run"]
+    touched = dict.fromkeys(
+        [*(found[1] for found in events if found[1] != "run"), *held]
+    )
     denied: dict[str, list[str]] = {}
     for found in events:
         if found[2] == "denied":
             call = found.string[found.end() :].split(" · ", 1)[-1]
             denied.setdefault(found[1], []).append(call)
     lines = [f"run · denied {', '.join(denied['run'])}"] if "run" in denied else []
-    for change in sorted(touched, key=lambda name: int(name.split("-")[0])):
+    for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
             lines.append(f"{change} · no version branch")
@@ -1043,10 +1079,16 @@ def report(cwd: Path) -> str:
                     f".minions/metrics/{change}.html"
                     if page.is_file()
                     else "metrics: none",
+                    *(
+                        [f"held behind {min(halted, key=_change_number)}"]
+                        if change in held and halted
+                        else []
+                    ),
                 ]
             )
         )
-    lines.append(events[-1].string if events else f"{log.name}: no event")
+    lines += [found.string for found in events[:-1] if found[2] == "halt"]
+    lines.append(closing)
     return "\n".join(lines)
 
 
