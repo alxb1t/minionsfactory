@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 ## Progress
 
 - [x] 1 — The cut and I17
-- [ ] 2 — The merge side
+- [x] 2 — The merge side
 - [ ] 3 — The conductor
 - [ ] 4 — The record
 
@@ -20,15 +20,15 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 2 — The merge side
 
-- [ ] 2.1 In `skills/mf-integrate/scripts/integrate.py`, add `_after` and `_shipped`, per [D2](design.md#d2), and give
+- [x] 2.1 In `skills/mf-integrate/scripts/integrate.py`, add `_after` and `_shipped`, per [D2](design.md#d2), and give
   `next` its optional `change`, per [D5](design.md#d5).
   Verify: `grep -c 'def _shipped' skills/mf-integrate/scripts/integrate.py` prints `1`.
-- [ ] 2.2 In `tests/test_integrate.py`, rewrite `test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one` as
+- [x] 2.2 In `tests/test_integrate.py`, rewrite `test_next_picks_the_lowest_open_id_and_halts_on_an_unready_one` as
   `test_next_picks_the_named_or_the_lowest_ready_id`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_integrate.py -k named_or_the_lowest_ready` reports `1 passed`.
-- [ ] 2.3 Edit `skills/mf-integrate/SKILL.md`, per [D5](design.md#d5).
+- [x] 2.3 Edit `skills/mf-integrate/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -c 'Never skip ahead' skills/mf-integrate/SKILL.md` prints `0`.
-- [ ] 2.4 Replace precondition 10 in `skills/mf-release/SKILL.md`, per [D6](design.md#d6).
+- [x] 2.4 Replace precondition 10 in `skills/mf-release/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -c 'Earlier cuts have shipped' skills/mf-release/SKILL.md` prints `0`.
 
 ## 3 — The conductor

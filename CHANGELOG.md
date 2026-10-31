@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The cut takes `after=<id>[,<id>]` and ends on `Next: /mf-ship, in the primary.` in a repo with worktrees. `I17` holds a
   dependency to the build's tree, and `I10` counts a name an `after:` change's design adds (change `0048-merge-queue`,
   phase 1).
+- `mf-integrate` takes a `change-id`; run bare, it picks the lowest-id ready version, so a halted version blocks no other.
+  `I17` replaces `mf-release`'s check for an open lower id (change `0048-merge-queue`, phase 2).
 
 ## [0.41.0] - 2026-10-31
 

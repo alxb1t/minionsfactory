@@ -1,6 +1,6 @@
 ---
 name: mf-integrate
-description: Merge the default branch into the next version — pick the lowest-id open version, merge in its worktree, apply the bundled script's fixed rules to the CHANGELOG, decision ids and spec delta, hand a semantic conflict to the person with the merge open, gate, and commit the merge. Use in the primary checkout when a finished version's base has moved, before its catch-up round and release.
+description: Merge the default branch into the next version — take the named version, or the lowest-id ready one, merge in its worktree, apply the bundled script's fixed rules to the CHANGELOG, decision ids and spec delta, hand a semantic conflict to the person with the merge open, gate, and commit the merge. Use in the primary checkout when a finished version's base has moved, before its catch-up round and release.
 ---
 
 # mf-integrate — bring the next version onto the latest default branch
@@ -13,7 +13,7 @@ Before work, read root `AGENTS.md` and the mandatory context it names. Missing r
 naming it.
 
 ```
-  next version (lowest open id) ─▶ ready? ─ no ─▶ halt, naming it
+  next version (the named id, or the lowest ready id) ─▶ ready? ─ no ─▶ halt, naming it
          │ yes
   merge <default-branch> in its worktree ─▶ the rules ─▶ a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
@@ -25,7 +25,11 @@ decision ids, a requirement both sides changed. Fixed rules settle the exact par
 
 ## Parameters
 
-None. The current directory is the **primary**, the checkout on the default branch.
+| parameter | required | form |
+|---|---|---|
+| `change-id` | no | the version to merge; `mf-ship` always names it |
+
+The current directory is the **primary**, the checkout on the default branch.
 
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails. The **run directory** is `.minions/` beside the primary:
@@ -49,17 +53,17 @@ Every one holds, or **halt** naming the one that failed:
 
 ## Step 2 — Pick the version
 
-Run the script's `next`. It prints one line: `next: <change-id> · <worktree> · ready`, or
+Run the script's `next`, with `<change-id>` when given. It prints one line: `next: <change-id> · <worktree> · ready`, or
 `· not ready — <why>`. The branch is the change id.
 
 | exit | then |
 |---|---|
 | 0 | the version, its change id and its worktree below |
-| 1 | **halt**, copying the line: the lowest open id is not ready, or none is open. Never skip ahead to a later version |
+| 1 | **halt**, copying the line: the named version is not ready, or none is |
 | 2, or `uv` missing | **halt**, naming what it printed |
 
-**Ready** is every `## Progress` box ticked, and both findings files clean, or converge skipped: no findings file
-and no diff patch.
+**Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
+converge skipped: no findings file and no diff patch.
 
 Then, in the worktree:
 
@@ -132,7 +136,6 @@ line: `Next: /mf-converge, then /mf-release`. Converge's catch-up round judges t
 ## Never
 
 - **Never release, tag, push or rebase**, and never merge into the default branch: the release does.
-- **Never skip ahead** to a version past the lowest open id, ready or not.
 - **Never resolve a semantic conflict silently** against either design, and never abort the person's open merge.
 - **Never commit over a red gate**, or weaken it to pass.
 - **Never `git add -A`** — the rules stage what they write; the person stages a hand resolution by name.
