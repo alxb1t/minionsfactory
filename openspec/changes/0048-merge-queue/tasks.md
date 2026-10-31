@@ -4,17 +4,17 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## Progress
 
-- [ ] 1 — The cut and I17
+- [x] 1 — The cut and I17
 - [ ] 2 — The merge side
 - [ ] 3 — The conductor
 - [ ] 4 — The record
 
 ## 1 — The cut and I17
 
-- [ ] 1.1 Edit `skills/mf-cut-change/SKILL.md`: the `after` parameter, per [D2](design.md#d2); `I10` and `I17`, per
+- [x] 1.1 Edit `skills/mf-cut-change/SKILL.md`: the `after` parameter, per [D2](design.md#d2); `I10` and `I17`, per
   [D6](design.md#d6); Steps 1, 6 and 11, per [D7](design.md#d7).
   Verify: `grep -c 'Next: /mf-ship, in the primary.' skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 1.2 Edit `skills/mf-build/SKILL.md`: `I10`, `I17` and Step 1, per [D6](design.md#d6).
+- [x] 1.2 Edit `skills/mf-build/SKILL.md`: `I10`, `I17` and Step 1, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_skills.py -k same_contract_ids` reports `1 passed`, and
   `grep -c 'I17' skills/mf-build/SKILL.md` prints `2`.
 

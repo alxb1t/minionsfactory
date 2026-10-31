@@ -12,7 +12,7 @@ description: Cut a new in-repo change from a settled grilling — create its ver
 ```
   mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
                  │                  ▲
-                 └── I1 … I16 ──────┘   the input contract, owned by mf-build
+                 └── I1 … I17 ──────┘   the input contract, owned by mf-build
 ```
 
 Before work, read root `AGENTS.md`, the mandatory context it names, and the architecture decisions and threat model:
@@ -27,6 +27,7 @@ naming it.
 | `change-id` | yes | `<digits>-<lowercase-slug>`, e.g. `0011-cut-and-gate` |
 | `bump` | yes | `minor`, or `patch` |
 | `brief` | no | a path to a grilling brief |
+| `after` | no | `after=<id>[,<id>]` — the versions this one builds on |
 
 Echo every parameter before anything else. A required one missing → **halt** and ask for it. Never infer one: not
 the id from the highest directory, not the bump from the id.
@@ -52,7 +53,9 @@ Every one holds, or **halt** naming the one that failed:
   `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`;
 - `change-id` is free: its number is higher than every id under `openspec/changes/` and `openspec/changes/archive/`
   on the default branch and on every unmerged version branch — each `git branch --no-merged <default-branch> --list
-  '[0-9]*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`.
+  '[0-9]*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`;
+- each `after` id is an open version, listed by `git branch --no-merged <default-branch> --list '[0-9]*'`, and its
+  number is lower than `change-id`'s.
 
 ## Step 2 — Gather
 
@@ -94,6 +97,7 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 [rules for the artifacts](#rules-for-the-artifacts).
 
 - `proposal.md` opens with `bump: <bump>` frontmatter; the CLI neither emits nor checks it.
+- A version cut with `after` also lists them: `after: [0047-x]`.
 - A paydown change — cut to close cards from `.minions/backlog.md` — also lists their qualified ids there:
   `backlog: [0012·S1, 0012·R4]`. `grep` each in `.minions/backlog.md`; an id not found goes to the human. The cut
   leaves the backlog alone: `mf-release` deletes the cards.
@@ -108,7 +112,7 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 
 ## Step 8 — Self-check
 
-Build a table: each of `I1`…`I16`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
+Build a table: each of `I1`…`I17`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
 - **Read every `Verify:`; run none.** The build runs them, once the human starts it. Rewrite a check you can see
@@ -151,7 +155,7 @@ message is
 
 Your sentences: the branch, the worktree when Step 4 made one, the commit id, and `git status --porcelain` printing
 nothing there. Then suggest models, as [Suggesting models](#suggesting-models) says. The last line:
-`Next: cd <worktree> && /mf-build <change-id>, in a fresh session.` with a worktree, else
+`Next: /mf-ship, in the primary.` when root `AGENTS.md` declares `Worktrees:`, else
 `Next: /mf-build <change-id>, in a fresh session.` Then stop.
 
 ## Input contract
@@ -169,13 +173,14 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
 | **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | reading the phase order |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | comparing each MODIFIED title with `openspec/specs/` |
-| **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | checking each one in Step 3 |
+| **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | checking each one in Step 3; an `after:` change's design read with `git show <id>:…` |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
 | **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | writing it from the `bump` parameter; reading it |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked; reading each sub-task for its commands |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |
+| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | Step 1, for each `after` id; reading `proposal.md` |
 
 ## Prose rules
 

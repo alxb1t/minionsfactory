@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The cut takes `after=<id>[,<id>]` and ends on `Next: /mf-ship, in the primary.` in a repo with worktrees. `I17` holds a
+  dependency to the build's tree, and `I10` counts a name an `after:` change's design adds (change `0048-merge-queue`,
+  phase 1).
+
 ## [0.41.0] - 2026-10-31
 
 Gate: local 0m49s · CI 0m29s (CI at ee008f7) · 0.40.0: local 0m44s · CI 0m26s (CI at 6883d41)
