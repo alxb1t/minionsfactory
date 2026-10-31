@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-31
+
+Gate: local 0m49s · CI 0m29s (CI at ee008f7) · 0.40.0: local 0m44s · CI 0m26s (CI at 6883d41)
+
 - `skills/mf-release/scripts/next_tag.py` computes the next tag from a bump, so a tag is never an agent's arithmetic. A
   proposal with no `version:` reads `unreleased` in `metrics.py`, above every release, so a draft page compares with
   the highest tracked one (change `0047-version-at-merge`, phase 1).
