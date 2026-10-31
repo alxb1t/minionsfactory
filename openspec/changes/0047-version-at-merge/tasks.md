@@ -8,7 +8,7 @@ for word.
 - [x] 1 — next_tag and metrics
 - [x] 2 — Identity
 - [x] 3 — Skill text
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — next_tag and metrics
 
@@ -49,7 +49,7 @@ for word.
 
 ## 4 — The record
 
-- [ ] 4.1 Amend D19, D20 and D44 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 4.1 Amend D19, D20 and D44 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -c 'numbered at its cut' docs/decisions.md` prints `0`.
-- [ ] 4.2 Edit `openspec/config.yaml` and `README.md`, per [D6](design.md#d6).
+- [x] 4.2 Edit `openspec/config.yaml` and `README.md`, per [D6](design.md#d6).
   Verify: `grep -c 'v0.33_<slug>' README.md` prints `0`.

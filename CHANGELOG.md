@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The skills follow: the cut takes `bump=minor|patch`, the branch is the change id, and `mf-release` computes the tag
   and writes `version:` into the proposal it archives. `plan:` in a findings file is the change id, and `mf-ship` says
   a crash stops the run, paying `0046·R3` (change `0047-version-at-merge`, phase 3).
+- D19, D20 and D44, `openspec/config.yaml` and the `README.md` tree say a version takes its number at its release
+  (change `0047-version-at-merge`, phase 4).
 
 ## [0.40.0] - 2026-10-31
 
