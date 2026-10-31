@@ -38,7 +38,8 @@ rounds; a run names what it released, what halted and what waits.
 
 ### D1
 
-`Run` gains `stopped`, and `advance` asks it instead of reading the shared list. `who` is `run` for a failed probe.
+`Run` gains `stopped`, and `advance` asks it instead of reading the shared list. `who` is `run` for a failed probe, and
+for a crash, which `advance` catches as `conduct.py failed: <error>`.
 
 ```python
 def stopped(self, change: str) -> bool:
@@ -163,8 +164,9 @@ the catch-up's count is the spec scenario and converge's review: v0.28 retired p
 | Integration tests | 0 | 0 | 0 | — |
 | End-to-end runs | 0 | 0 | 0 | — |
 
-`T2`: the new tests below reach a state no test reaches: one version halted while another runs on. The existing run
-tests hold one version, or end at a release.
+`T2`: the new tests below reach a state no test reaches: one version halted while another runs on.
+`test_run_halts_on_a_human_phase` holds two versions, but its halt is recorded in `deliver`, after the threads join, so
+no version runs on behind a halt.
 
 | test | holds |
 |---|---|
@@ -177,7 +179,7 @@ Tests edited:
 |---|---|
 | `test_run_halts_on_a_human_phase` | the `halt` line found with `any(…)`, and the last line `… · run · halt — halted 0001-todo · held 0002-marks · released none` |
 | `test_run_halts_on_a_timeout` | the `halt` line found with `any(…)`, and the last line `… · run · halt — halted 0001-todo · held none · released none` |
-| `test_run_halts_when_a_worker_claims_what_disk_does_not_show` | run under `fake("deny", "liar")`; the `halt` line names the denial; then the steps of `test_a_rerun_resumes_from_disk`; then a step with `liar-probe`: `_calls` is `["probe"]`, the last line `… · run · halt — halted run · held none · released none` |
+| `test_run_halts_when_a_worker_claims_what_disk_does_not_show` | run under `fake("deny", "liar")`; the `halt` line names the denial; then the steps of `test_a_rerun_resumes_from_disk`; then a step with `liar-probe`: `_calls` is `["probe"]`, the last line `… · run · halt — halted run · held none · released none`; then a step with two versions and a models file that is not UTF-8: no `converge 0002-marks` call, a `conduct.py failed` halt, the same last line |
 | `test_log_verify_finds_an_unpaired_spawn_and_an_open_end` | takes the `RunLog` and `last_log` steps |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | loses its `fake("deny", "liar")` block |
 

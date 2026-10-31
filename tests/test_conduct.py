@@ -464,6 +464,25 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
         " · run · halt — halted run · held none · released none"
     )
 
+    third = tmp_path / "third"
+    third.mkdir()
+    crashed = _primary(third)
+    _version(crashed, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(crashed, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    models = crashed / ".minions" / "models"
+    models.mkdir(parents=True)
+    (models / "0001-todo.toml").write_bytes(b"\xff")
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "converge 0002-marks" not in _calls(calls)
+    lines = _log(crashed)
+    assert any(" · run · halt — conduct.py failed: " in line for line in lines)
+    assert lines[-1].endswith(" · run · halt — halted run · held none · released none")
+
 
 def test_a_later_version_halts_and_the_earlier_ships(
     tmp_path: Path,

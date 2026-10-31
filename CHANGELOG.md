@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- `conduct.py`: a halt stops its version, not the run; cut order holds at the merge, and a failed probe still stops
-  the run. Each halt is logged when it happens, a run with a halt closes on `halted · held · released`, and `report`
+- `conduct.py`: a halt stops its version, not the run; cut order holds at the merge, and a failed probe or a crash in
+  any version's thread stops the run. Each halt is logged when it happens, a run with a halt closes on `halted · held · released`, and `report`
   prints every halt and marks a held version. The deny glob behind the first such halt was fixed in `23fdf6d`
   (change `0046-ship-halts`, phase 1).
 - `mf-converge`: a catch-up over merges only has its own count, one judge round and at most one fix round, so an

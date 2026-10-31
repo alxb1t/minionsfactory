@@ -855,6 +855,8 @@ class Run:
                     return
         except Stop as stop:
             self.halt(version.change, str(stop))
+        except Exception as error:
+            self.halt("run", f"conduct.py failed: {error}")
 
     def deliver(self, versions: list[Version]) -> list[str]:
         """Run stage B in change-id order; return the versions a halt holds."""
