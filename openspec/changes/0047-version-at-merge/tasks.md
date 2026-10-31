@@ -5,18 +5,18 @@ for word.
 
 ## Progress
 
-- [ ] 1 — next_tag and metrics
+- [x] 1 — next_tag and metrics
 - [ ] 2 — Identity
 - [ ] 3 — Skill text
 - [ ] 4 — The record
 
 ## 1 — next_tag and metrics
 
-- [ ] 1.1 Write `skills/mf-release/scripts/next_tag.py`, per [D2](design.md#d2).
+- [x] 1.1 Write `skills/mf-release/scripts/next_tag.py`, per [D2](design.md#d2).
   Verify: `uv run --script skills/mf-release/scripts/next_tag.py minor` prints `v0.41.0`.
-- [ ] 1.2 Write `tests/test_next_tag.py`'s `test_next_tag_follows_the_bump`, per [Tests](design.md#tests).
+- [x] 1.2 Write `tests/test_next_tag.py`'s `test_next_tag_follows_the_bump`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_next_tag.py` reports `1 passed`.
-- [ ] 1.3 In `skills/mf-build/scripts/metrics.py`, add `UNRELEASED` and use it in `change_version` and `version_key`, per
+- [x] 1.3 In `skills/mf-build/scripts/metrics.py`, add `UNRELEASED` and use it in `change_version` and `version_key`, per
   [D4](design.md#d4); add the step to `tests/test_metrics.py`'s `test_previous_is_the_highest_version_below`.
   Verify: `grep -c 'previous_release(tmp_path, "unreleased")' tests/test_metrics.py` prints `1`.
 

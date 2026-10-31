@@ -290,6 +290,12 @@ def test_previous_is_the_highest_version_below(tmp_path: Path) -> None:
     assert found is not None and found["version"] == "v0.10"
     assert metrics.previous_release(tmp_path, "v0.9") is None
 
+    highest = metrics.previous_release(tmp_path, "unreleased")
+    assert highest is not None and highest["version"] == "v0.11"
+    proposal = tmp_path / "openspec" / "changes" / "0002-x" / "proposal.md"
+    proposal.write_text("---\nbump: minor\n---\n\n# X\n")
+    assert metrics.change_version(tmp_path, "0002-x") == "unreleased"
+
 
 def test_the_page_leads_with_what_moved_and_shows_gaps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
