@@ -393,6 +393,11 @@ def _resource_problems(base: Path) -> list[str]:
 def test_bundled_role_references_resolve() -> None:
     assert _resource_problems(_REPO) == []
 
+    # why: the build's Step 3 links a sibling skill, a target the scan cannot match.
+    build = _REPO / "skills" / "mf-build" / "SKILL.md"
+    assert "](../mf-simplify/SKILL.md)" in build.read_text()
+    assert _file_problem(build.parent / "../mf-simplify/SKILL.md") is None
+
 
 def test_resource_scan_reports_missing_empty_and_escaping_targets(
     tmp_path: Path,

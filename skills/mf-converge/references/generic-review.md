@@ -9,11 +9,11 @@ Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope, T
 card, severity anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and
 red runs.
 
-**The packet**, given up front: base and head ids, the judged range and patch; the change's proposal, design and
-tasks, its spec delta unless it declares `skip_specs: true`, and the living specs the delta touches; the target's
-`AGENTS.md`, its mandatory context, its root standards files, architecture decisions and threat model; a
-subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your tier and mode; your findings
-path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
+**The packet**, given up front: base and head ids, the judged range and patch; the simplify commit's body, when the
+range holds one; the change's proposal, design and tasks, its spec delta unless it declares `skip_specs: true`, and the
+living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root standards files, architecture
+decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your
+tier and mode; your findings path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
 symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
 range. An input missing or unusable → halt, naming it.
 

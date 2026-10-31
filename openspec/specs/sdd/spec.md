@@ -566,40 +566,10 @@ symlink, collision-refusal and checkout-specific uninstall behavior. It SHALL le
 - **WHEN** `SKILLS_DIR` names a different destination
 - **THEN** installation and uninstallation use that destination with their existing safeguards
 
-### Requirement: Engine selection follows the executor
-
-The build SHALL identify and report the executing agent from runtime evidence, not from its model,
-provider or editor. Positively identified Claude Code SHALL retain native `/simplify` and its restrictions. Review
-and security SHALL run MF's method from the bundled references on every executor, Claude Code included; converge
-SHALL invoke no native `/code-review` or `/security-review`. Other and unidentified executors SHALL use the bundled
-generic simplify through the host's instruction-loading facilities.
-
-#### Scenario: Claude Code has its native commands
-- **WHEN** Claude Code runs the build's simplify pass and native `/simplify` is invocable
-- **THEN** the build uses it without replacing its engine with generic instructions
-
-#### Scenario: A native command is unavailable
-- **WHEN** Claude Code cannot invoke native `/simplify`
-- **THEN** the build halts naming that command
-- **AND** generic simplify requires an explicit user instruction to switch that run
-
-#### Scenario: Claude Code converges
-- **WHEN** converge runs on Claude Code
-- **THEN** every review and security worker loads MF's references, and no native review command runs
-
-#### Scenario: A Claude model runs outside Claude Code
-- **WHEN** a Claude model runs in another executor, including a Zed OpenRouter thread
-- **THEN** the build uses the generic simplify path
-
-#### Scenario: The executor is unidentified
-- **WHEN** the session exposes no reliable executor identity
-- **THEN** the build reports and uses the generic path without guessing from the model name
-
 ### Requirement: Generic passes preserve the station boundaries
 
-Generic simplify SHALL inspect the change for unnecessary complexity and duplication, preserve behavior and
-apply improvements before independent checking. The build SHALL retain its gate and separate simplify-commit
-ordering. Review SHALL check correctness, spec, standards, architecture and gate integrity in separate sections,
+`mf-simplify` SHALL edit only the change's own lines, by its angles and closed edit kinds, inside the oracles its
+skill names, before independent checking. The build SHALL retain its gate and separate simplify-commit ordering. Review SHALL check correctness, spec, standards, architecture and gate integrity in separate sections,
 each citing its source document, including the existing stale-claim, test-cost and coverage-trace passes.
 
 Security SHALL read the target's threat model first, then inspect changed behavior and relevant surrounding
@@ -656,8 +626,10 @@ capability.
 ### Requirement: Bundled generic role references resolve
 
 The shipped skills SHALL explicitly load their role resources: converge's review and security references on every
-executor, and the build's generic simplify when that path runs.
-Their `references/` Markdown targets SHALL resolve to nonempty files within the referring skill's package.
+executor, and `mf-simplify` in the build, whose link SHALL resolve from the build's installed package, not the
+target's cwd; a missing target SHALL halt the build, naming it.
+Their `references/` Markdown targets SHALL resolve to nonempty files within the referring skill's package, and the
+build's link to `mf-simplify` to a nonempty file in that skill's package.
 Missing, empty and escaping targets SHALL fail the gate's resource-integrity check.
 
 #### Scenario: The generic instruction package is incomplete
@@ -667,6 +639,10 @@ Missing, empty and escaping targets SHALL fail the gate's resource-integrity che
 #### Scenario: The package contains valid role resources
 - **WHEN** the shipped resource references resolve within their packages to nonempty files
 - **THEN** the resource-integrity check passes without treating illustrative change-document links as resources
+
+#### Scenario: The build cannot load mf-simplify
+- **WHEN** the build's link to `mf-simplify` finds no file from its installed package
+- **THEN** the build halts naming it, and takes no copy of that name from the target
 
 ### Requirement: Model suggestions use exposed capabilities
 
@@ -744,9 +720,9 @@ one starting with `-` — SHALL halt the station, naming the entry.
 
 ### Requirement: The build collects a draft of the metrics after simplify
 
-When the repository has a catalogue, `skills/mf-build/SKILL.md` SHALL, after its simplify commit or no-op, collect
-the metrics into `.minions/metrics/<change-id>.json` and render `.minions/metrics/<change-id>.html`, both
-gitignored. Its close-out SHALL name the page and the count of metrics that crossed their watch in this change or
+When the repository has a catalogue, `skills/mf-build/SKILL.md` SHALL, after its simplify commit, `lean already` or
+`nothing kept`, collect the metrics into `.minions/metrics/<change-id>.json` and render
+`.minions/metrics/<change-id>.html`, both gitignored. Its close-out SHALL name the page and the count of metrics that crossed their watch in this change or
 moved the wrong way. The build SHALL NOT halt on a watch.
 
 #### Scenario: A change crosses a watch
@@ -787,8 +763,8 @@ SHALL be renderable again from any change's data file.
 
 Each data file SHALL record the change, its version, the base and the analyzed revisions, `measured_on`,
 `mf_version`, `executor` and `model`. `mf_version` SHALL come from the collector's own package, or be `unknown`;
-`executor` SHALL be what the station's executor selection reported; `model` SHALL be the station's own report, or
-`unidentified`. None SHALL be guessed from a name.
+`executor` SHALL be what the station reported, worded as the build's *Executor* reports it; `model` SHALL be the
+station's own report, or `unidentified`. None SHALL be guessed from a name.
 
 #### Scenario: The collector runs from a frozen copy
 - **WHEN** the collector's package is not inside a git checkout
@@ -1085,3 +1061,62 @@ the findings file with its counter-evidence, never as a card.
 #### Scenario: A candidate is refuted
 - **WHEN** a checker finds the guard that defeats a candidate
 - **THEN** the candidate appears under `## Refuted` with that guard quoted, and no card is written for it
+
+### Requirement: Every station runs MF's own method
+
+The build SHALL identify and report the executing agent from runtime evidence, not from its model, provider or
+editor, and SHALL choose no engine by it: every station runs MF's own method on every executor. The build SHALL run
+`mf-simplify` and no native `/simplify`; review and security SHALL run MF's method from the bundled references, and
+converge SHALL invoke no native `/code-review` or `/security-review`.
+
+#### Scenario: Claude Code has its native commands
+- **WHEN** Claude Code runs the build's simplify pass and native `/simplify` is invocable
+- **THEN** the build runs `mf-simplify`, not the native command
+
+#### Scenario: A native command is unavailable
+- **WHEN** native `/simplify` is not invocable
+- **THEN** the build runs `mf-simplify` as on any host, and nothing halts for it
+
+#### Scenario: Claude Code converges
+- **WHEN** converge runs on Claude Code
+- **THEN** every review and security worker loads MF's references, and no native review command runs
+
+#### Scenario: A Claude model runs outside Claude Code
+- **WHEN** a Claude model runs in another executor, including a Zed OpenRouter thread
+- **THEN** the build reports that executor and runs `mf-simplify`
+
+#### Scenario: The executor is unidentified
+- **WHEN** the session exposes no reliable executor identity
+- **THEN** the build reports `unidentified` without guessing from the model name, and runs `mf-simplify`
+
+### Requirement: mf-simplify simplifies a change inside its oracles
+
+`skills/mf-simplify/SKILL.md` SHALL take the active change's `<merge-base>..HEAD` and edit only its lines, one angle
+at a time — reuse, simplification, efficiency, altitude, conventions — each edit one of `delete`, `stdlib`, `native`,
+`reuse`, `speculative` or `shrink`, by the kinds the skill gives its angle. It SHALL print the output of `make -n gate`
+before its first gate run, and SHALL halt, naming the root `Makefile`, when that fails or prints no command. It SHALL
+run `make gate` after each angle and revert that angle's edits when the gate is red or the angle adds net lines. It
+SHALL never edit a test or the change's own record, `openspec/changes/<change-id>/` and `CHANGELOG.md`, and SHALL
+never apply an edit that touches a spec requirement or scenario, a public interface, a seam the design names, a
+control the threat model names, a decision in force, or that exceeds 20 lines; such edits SHALL be noted for review
+instead. It SHALL commit what it applied as one `refactor(<change-id>): simplify` commit whose body names the edits
+applied and skipped, the mode, and `net: -N lines`. With nothing to commit it SHALL commit nothing and report
+`nothing kept` with the angles reverted, the skips and the notes, or `lean already` when there are none. It SHALL
+write no findings file and hold no verdict.
+
+#### Scenario: A trap is left alone
+- **WHEN** the change holds a validation the threat model names, which looks redundant
+- **THEN** `mf-simplify` leaves it, and its commit body, or its `nothing kept` report, notes it as skipped with the
+  reason
+
+#### Scenario: An angle turns the gate red
+- **WHEN** an angle's edits fail `make gate`
+- **THEN** `mf-simplify` reverts that angle's edits, keeps the angles that passed, and notes the reverted ones
+
+#### Scenario: Nothing to simplify
+- **WHEN** no angle finds a candidate, so nothing is reverted, skipped or noted
+- **THEN** `mf-simplify` reports `lean already` and makes no commit
+
+#### Scenario: Nothing is kept
+- **WHEN** every edit is reverted or skipped, so nothing is staged
+- **THEN** `mf-simplify` reports `nothing kept` with the angles reverted, the skips and the notes, and makes no commit

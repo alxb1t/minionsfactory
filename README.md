@@ -26,6 +26,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-bootstrap`](skills/mf-bootstrap/SKILL.md) | write a new repo's starting files and commit them, once, before the first cut |
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
+| [`mf-simplify`](skills/mf-simplify/SKILL.md) | simplify a built change's own lines, gated per angle, before review |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
 | [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
@@ -42,13 +43,12 @@ make uninstall-skills    # remove the symlinks into this checkout
 
 ## Execution
 
-Claude Code uses native `/simplify`; review and security run MF's method on every host, at the `standard` or `high`
-tier. Other and unidentified executors load the bundled generic simplify. The host must support instruction loading
-and, for convergence, fresh subagents or fresh agent processes whose completion and findings the conductor can read.
-Workers may run sequentially over the same frozen head and need no remote review service.
+Every host runs MF's own method: `mf-simplify` in the build, review and security at the `standard` or `high` tier.
+The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
+completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
+remote review service.
 
-Use each host's syntax to load the `mf-*` instructions. The editor, provider and model do not identify the
-executor: Codex through Zed ACP, Zed's native agent and a Claude model through OpenRouter take the generic path.
+Use each host's syntax to load the `mf-*` instructions.
 Authentication and provider configuration belong to the operator. Model suggestions use offered menus and
 supported controls; they do not change configuration.
 

@@ -173,7 +173,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | comparing each MODIFIED title with `openspec/specs/` |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | checking each one in Step 3 |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
-| **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `/simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
+| **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
 | **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | writing it from the `version` parameter; reading it |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked; reading each sub-task for its commands |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
@@ -288,7 +288,7 @@ A suggestion, never an instruction: the human chooses.
 ## Never
 
 - Never build, or edit anything outside `openspec/changes/<change-id>/`.
-- Never run `/simplify`, review, converge or release; never push or merge.
+- Never run `mf-simplify`, review, converge or release; never push or merge.
 - Never commit a `## Dependencies` that is not `None.` before the human's OK.
 - Never overturn a settled decision alone, or invent scope the source did not settle.
 - Never write the brief's path, or any absolute path, into the change.
