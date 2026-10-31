@@ -7,7 +7,7 @@ word for word.
 
 - [x] 1 — Write mf-simplify
 - [x] 2 — Run it in the build
-- [ ] 3 — Record it
+- [x] 3 — Record it
 - [ ] 4 — Calibrate it
 
 ## 1 — Write mf-simplify
@@ -24,9 +24,9 @@ word for word.
 
 ## 3 — Record it
 
-- [ ] 3.1 Rewrite D11 and amend D13 in `docs/decisions.md`, per [D3](design.md#d3).
+- [x] 3.1 Rewrite D11 and amend D13 in `docs/decisions.md`, per [D3](design.md#d3).
   Verify: `grep -c 'Every station runs MF.s own method' docs/decisions.md` prints `1`, and `grep -c 'Its engine follows' docs/decisions.md` prints `0`.
-- [ ] 3.2 Edit `AGENTS.md`, `README.md` and `docs/README.md`, per [D3](design.md#d3).
+- [x] 3.2 Edit `AGENTS.md`, `README.md` and `docs/README.md`, per [D3](design.md#d3).
   Verify: `grep -c '/simplify' README.md docs/README.md AGENTS.md` prints `0` for each file, and `grep -c 'skills/mf-simplify/SKILL.md' README.md` prints `1`.
 
 ## 4 — Calibrate it

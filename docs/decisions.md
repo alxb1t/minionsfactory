@@ -128,15 +128,14 @@ What happens between the last phase and the tag.
 
 ### D11 · Engines follow the executor
 
-**Review and security run MF's method from the bundled references on every executor. Claude Code keeps native
-`/simplify`; other and unidentified executors load generic simplify. The build reports the route from executor
-evidence; model, provider and editor names do not select it.**
+**Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
+references in converge. The build reports the executor from runtime evidence; it is recorded, never routed — model,
+provider and editor names select nothing.**
 
-- **Why:** one review method runs on Claude, Codex or any capable host, so a review is comparable across them;
-  native `/simplify` stays useful where it exists.
-- **Accepts:** a missing native `/simplify` halts; switching that run to generic needs explicit user choice.
-- **Rejected:** native review engines in production — host-bound and costly; the person runs them by hand to compare
-  · silent native fallback · provider routing.
+- **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
+- **Accepts:** no native command is used; the person runs them by hand to compare.
+- **Rejected:** native engines in production — host-bound, and `/simplify` never runs the tests · silent native
+  fallback · provider routing.
 
 ### D12 · Review, security and simplify are kept apart
 
@@ -147,8 +146,8 @@ evidence; model, provider and editor names do not select it.**
 ### D13 · Simplify runs inside the build and blocks nothing
 
 **The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
-frozen diff, so review judges them. Its engine follows [D11](#d11--engines-follow-the-executor). Simplify is a
-producer, not a checker: it holds no verdict.**
+frozen diff, so review judges them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
+verdict.**
 
 - **Why:** run last, it would land unreviewed edits after the final check. Given a verdict, taste would spin the
   loop.
