@@ -25,7 +25,7 @@ word for word.
 ## 3 — Record it
 
 - [x] 3.1 Rewrite D11 and amend D13 in `docs/decisions.md`, per [D3](design.md#d3).
-  Verify: `grep -c 'Every station runs MF.s own method' docs/decisions.md` prints `1`, and `grep -c 'Its engine follows' docs/decisions.md` prints `0`.
+  Verify: `grep -c 'Every station runs MF.s own method' docs/decisions.md` prints `2`, and `grep -c 'Its engine follows' docs/decisions.md` prints `0`.
 - [x] 3.2 Edit `AGENTS.md`, `README.md` and `docs/README.md`, per [D3](design.md#d3).
   Verify: `grep -c '/simplify' README.md docs/README.md AGENTS.md` prints `0` for each file, and `grep -c 'skills/mf-simplify/SKILL.md' README.md` prints `1`.
 

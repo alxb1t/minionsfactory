@@ -22,7 +22,7 @@ threat model that say what to keep, and a gate.
 ## What Changes
 
 - **`skills/mf-simplify/SKILL.md`**, a new skill: the angles (reuse, simplification, efficiency, altitude,
-  conventions), the closed edit kinds (`delete`, `stdlib`, `native`, `speculative`, `shrink`), the oracles, the
+  conventions), the closed edit kinds (`delete`, `stdlib`, `native`, `reuse`, `speculative`, `shrink`), the oracles, the
   never-touch list, the gate after each angle, and one commit naming what it applied and skipped, `net: -N lines`.
 - **The build's Step 3 runs `mf-simplify`**; *Executor selection* reports the executor and chooses no engine;
   `references/generic-simplify.md` is deleted.
@@ -38,8 +38,12 @@ None.
 ### Modified Capabilities
 
 - `sdd`:
-  - *Engine selection follows the executor* — MODIFIED: no native `/simplify`; the build reports the executor.
+  - *Engine selection follows the executor* — REMOVED, renamed to *Every station runs MF's own method* — ADDED: no
+    native `/simplify`; the build reports the executor.
   - *Generic passes preserve the station boundaries* — MODIFIED: simplify is `mf-simplify`'s method.
+  - *Bundled generic role references resolve* — MODIFIED: the build's link to `mf-simplify` resolves.
+  - *The build collects a draft of the metrics after simplify* — MODIFIED: worded as `lean already` and `nothing kept`.
+  - *A data file records where its values came from* — MODIFIED: worded as the build's *Executor*.
   - *mf-simplify simplifies a change inside its oracles* — ADDED.
 
 ## Impact

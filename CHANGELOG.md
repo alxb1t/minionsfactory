@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D11 says every station runs MF's own method, and D13 names `mf-simplify`; `AGENTS.md` and the READMEs follow
   (change `0044-simplify`, phase 3).
 
-- A calibration on a seeded fixture applies all five simplifiable pieces and leaves all four traps (change
+- A calibration on a seeded fixture applies every simplifiable piece and leaves every trap (change
   `0044-simplify`, phase 4).
 
 ## [0.37.0] - 2026-10-30

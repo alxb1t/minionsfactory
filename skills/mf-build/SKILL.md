@@ -21,7 +21,7 @@ it → **halt**, naming the decision and the task.
   1 lift
   2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
-  3 mf-simplify ─▶ its commit, or lean already
+  3 mf-simplify ─▶ its commit, lean already or nothing kept
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
   4 report
 ```
@@ -175,10 +175,12 @@ Then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 After the last phase, and only then:
 
-1. Run [`mf-simplify`](../mf-simplify/SKILL.md) for this change: it edits the range's lines, gates each angle, and
-   commits `refactor(<change-id>): simplify`, or reports `lean already`.
+1. Run [`mf-simplify`](../mf-simplify/SKILL.md), resolved from this installed skill package, not the target's cwd;
+   missing → **halt**, naming it. For this change it edits the range's lines, gates each angle, and commits
+   `refactor(<change-id>): simplify`, or reports `lean already` or `nothing kept`.
 2. **Re-run the full gate. Red is a halt**: commit nothing over it, and never repair it by weakening the gate.
-3. Name its commit and `net:` line in your report, or `lean already`. No edits → no commit.
+3. Name its commit and `net:` line in your report, `lean already`, or `nothing kept` with the angles reverted, the
+   skips and the notes. No edits → no commit.
 
 **Why inside the build:** simplify runs **before** the review and security stations `mf-converge` fans out, so
 review reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
@@ -188,8 +190,8 @@ names it excluded (its precondition 4).
 ## Step 3.5 — Collect the metrics
 
 No `metrics/catalogue.toml` → state `metrics: none — no catalogue` in your report, and skip this step. Otherwise,
-after Step 3's commit or `lean already`, from the repository root. Resolve `<draft>` to the run directory's absolute
-`metrics/<change-id>.json` path:
+after Step 3's commit, `lean already` or `nothing kept`, from the repository root. Resolve `<draft>` to the run
+directory's absolute `metrics/<change-id>.json` path:
 
 1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
    --out "<draft>" --executor "<the executor you reported>"
@@ -213,8 +215,8 @@ before converge.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
-did not — the simplify commit id or `lean already`, and the metrics page with the counts line its `page` printed,
-or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
+did not — the simplify commit id, `lean already` or `nothing kept`, and the metrics page with the counts line its
+`page` printed, or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Then **stop** and hand back.
 
 ## Stop-conditions — halt rather than guess

@@ -44,7 +44,8 @@ skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies 
 - **`tests/`** — the suite.
 - **Project inputs and outputs stay inside the repository**, per the principle *The repo reaches nothing outside
   itself*.
-- **Execution follows the host**, per D11 and D40; provider setup is the operator's, per D22.
+- **Workers follow the host**, per D40; **every station runs MF's own method**, per D11; provider setup is the
+  operator's, per D22.
 
 ## Workspaces
 
