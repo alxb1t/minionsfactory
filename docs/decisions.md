@@ -126,7 +126,7 @@ What happens between the last phase and the tag.
                                                             └── verify ◀── fix ◀─┘
 ```
 
-### D11 · Engines follow the executor
+### D11 · Every station runs MF's own method
 
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
 references in converge. The build reports the executor from runtime evidence; it is recorded, never routed — model,

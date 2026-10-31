@@ -13,7 +13,7 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
 ```
 
 Executors load the skills with their own syntax. Convergence needs fresh observable workers with shared-disk
-findings; generic workers can run sequentially. See [execution](../README.md#execution) for routing and evidence.
+findings; workers can run sequentially. See [execution](../README.md#execution) for evidence.
 
 ## The pages
 

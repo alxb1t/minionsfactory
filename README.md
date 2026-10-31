@@ -44,11 +44,11 @@ make uninstall-skills    # remove the symlinks into this checkout
 ## Execution
 
 Every host runs MF's own method: `mf-simplify` in the build, review and security at the `standard` or `high` tier.
-The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose completion and findings the conductor can read.
-Workers may run sequentially over the same frozen head and need no remote review service.
+The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
+completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
+remote review service.
 
-Use each host's syntax to load the `mf-*` instructions. The editor, provider and model do not identify the
-executor.
+Use each host's syntax to load the `mf-*` instructions.
 Authentication and provider configuration belong to the operator. Model suggestions use offered menus and
 supported controls; they do not change configuration.
 

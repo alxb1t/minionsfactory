@@ -188,7 +188,7 @@ names it excluded (its precondition 4).
 ## Step 3.5 — Collect the metrics
 
 No `metrics/catalogue.toml` → state `metrics: none — no catalogue` in your report, and skip this step. Otherwise,
-after Step 3's commit or no-op, from the repository root. Resolve `<draft>` to the run directory's absolute
+after Step 3's commit or `lean already`, from the repository root. Resolve `<draft>` to the run directory's absolute
 `metrics/<change-id>.json` path:
 
 1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
@@ -213,7 +213,7 @@ before converge.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
-did not — the simplify commit id or honest no-op, and the metrics page with the counts line its `page` printed,
+did not — the simplify commit id or `lean already`, and the metrics page with the counts line its `page` printed,
 or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Then **stop** and hand back.
 
