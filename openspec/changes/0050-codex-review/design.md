@@ -70,6 +70,16 @@ executor, and `probe-<executor>` for another, whose `_executor_missing` halts `r
 `argv` keeps Codex's output as it is, so `denials` reads nothing from it. `mf-converge` already writes `tokens unavailable`
 when it has no count.
 
+`argv` starts Codex through `env`, so the worker's commands find a writable cache and an arm64 shell:
+
+```python
+env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", "SHELL=/bin/zsh")
+```
+
+`mf-converge` needs `uv`, and `~/.cache/uv` is outside a worker's reach. Adding it would break [D5](#d5) and let a sandboxed
+worker poison a cache that unsandboxed `uv` trusts. Codex can pick an Intel `bash` from the machine, under which the `git`
+and `make` shims fail. `work` stays as it is. Added after 4.2's first run stopped on both.
+
 ### D5
 
 `edit_root` goes.
