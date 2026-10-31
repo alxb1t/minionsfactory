@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 - [x] 1 — A dead worker
 - [x] 2 — Integrate and release
-- [ ] 3 — The conductor
+- [x] 3 — The conductor
 
 ## 1 — A dead worker
 
@@ -35,16 +35,16 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 3 — The conductor
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py`, add `_unpushed` and `Run.push_left`, the `push` event, and `status`'s
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py`, add `_unpushed` and `Run.push_left`, the `push` event, and `status`'s
   line, per [D5](design.md#d5).
   Verify: `grep -c 'def push_left' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py`, write the pid and the worker groups into the claim, and add `_claim` and
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py`, write the pid and the worker groups into the claim, and add `_claim` and
   `_clear`, per [D6](design.md#d6).
   Verify: `grep -c 'def _clear' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 3.3 In `tests/test_conduct.py`, add `test_a_rerun_pushes_what_a_release_left` and `test_a_stale_claim_is_cleared`, and
+- [x] 3.3 In `tests/test_conduct.py`, add `test_a_rerun_pushes_what_a_release_left` and `test_a_stale_claim_is_cleared`, and
   edit `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py` reports `18 passed`.
-- [ ] 3.4 Edit `skills/mf-ship/SKILL.md`'s Step 2, per [D6](design.md#d6).
+- [x] 3.4 Edit `skills/mf-ship/SKILL.md`'s Step 2, per [D6](design.md#d6).
   Verify: `grep -c 'run · live' skills/mf-ship/SKILL.md` prints `1`.
-- [ ] 3.5 Amend D47 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 3.5 Amend D47 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -c 'only a stage left in' docs/decisions.md` prints `1`.

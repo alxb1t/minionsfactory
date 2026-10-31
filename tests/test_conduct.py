@@ -10,6 +10,7 @@ import os
 import re
 import runpy
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -962,6 +963,116 @@ def test_a_rerun_recovers_a_dead_release(
     )
 
 
+def test_a_rerun_pushes_what_a_release_left(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _commit(root, {"released.txt": "x\n"}, "merge the release")
+    _git(root, "tag", "-a", "-m", "v0.1.0", "v0.1.0")
+    _git(root, "tag", "unrelated")
+
+    def status() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    def run(code: int) -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+
+    assert status() == "run · unpushed main v0.1.0"
+    run(0)
+    assert _calls(calls) == []
+    lines = _log(root)
+    assert [line.split(" · ", 1)[1] for line in lines[1:]] == [
+        "run · push — main",
+        "run · push — v0.1.0",
+        "run · done — nothing to ship",
+    ]
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert (
+        _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
+    )
+    head = _git(root, "rev-parse", "main")
+    assert head in _git(root, "ls-remote", "origin", "refs/heads/main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert status() == "status: none — no open version"
+
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    _commit(root, {"ours.txt": "x\n"}, "main moves")
+    assert status() == "run · unpushed main"
+    run(1)
+    assert _calls(calls) == []
+    lines = _log(root)
+    assert lines[-2].endswith(" · run · halt — git push origin main failed, exit 1")
+    assert lines[-1].endswith(
+        " · run · halt — halted run · blocked none · released none"
+    )
+    assert head in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
+
+
+def test_a_stale_claim_is_cleared(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+
+    def status() -> list[str]:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip().splitlines()
+
+    stale = ["run · stale — a run clears it", "0001-todo · build"]
+    assert status() == stale
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    (active / "pid").write_text(str(dead.pid))
+    assert status() == stale
+
+    (active / "pid").write_text(str(os.getpid()))
+    assert status() == ["run · live", "0001-todo · build"]
+    capsys.readouterr()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert "a run is live" in capsys.readouterr().out
+    assert _calls(calls) == []
+
+    (active / "pid").write_text(str(dead.pid))
+    group = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(group.pid)).touch()
+    (active / "0").touch()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert group.wait(timeout=10) == -signal.SIGKILL
+    assert "release 0001-todo" in _calls(calls)
+    assert not active.exists()
+
+
 def test_a_usage_limit_is_named(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1099,6 +1210,25 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         with pytest.raises(conduct["Stop"]) as stop:
             conduct["_tier"](root / ".minions", "0002-tier")
         assert repr(value) in str(stop.value) and "\n" not in str(stop.value)
+
+    work = conduct["work"]
+    claim = tmp_path / "claim"
+    claim.mkdir()
+    sees_itself = (
+        "import os, sys, time\n"
+        "for _ in range(500):\n"
+        "    if os.listdir(sys.argv[1]) == [str(os.getpid())]:\n"
+        "        sys.exit(0)\n"
+        "    time.sleep(0.01)\n"
+        "sys.exit(1)\n"
+    )
+    command = [sys.executable, "-c", sees_itself, str(claim)]
+    assert work(command, tmp_path, tmp_path / "held.log", claim) == (0, False)
+    assert list(claim.iterdir()) == []
+    assert work([sys.executable, "-c", ""], tmp_path, tmp_path / "w.log", None) == (
+        0,
+        False,
+    )
 
     calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None) == [

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A no-note open merge is stage `integrate`, `tasks.md` is read from `HEAD`, and `released` halts only when the base moved.
   `mf-release` restores its own half-done fold, and re-enters at its merge after its tag (change `0049-ship-resume`,
   phase 2).
+- A run pushes what a release left, and `status` reports it. The claim holds the conductor's pid and worker groups, so a
+  killed conductor clears itself. D47 says what needs the person (change `0049-ship-resume`, phase 3).
 
 ## [0.42.0] - 2026-10-31
 
