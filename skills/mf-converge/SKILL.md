@@ -127,6 +127,9 @@ not `HEAD`:
   judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
                │ yes
                ▼
+  the selection merges only? ── yes ─▶ its own count ─▶ freeze
+               │ no
+               ▼
   round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
                │ yes
                ▼
@@ -136,14 +139,16 @@ not `HEAD`:
 Open the run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
-2. **Cap** — the files' `round:` is the last judged round, and the catch-up round counts against the cap of
-   three. At the cap → halt as drawn.
+2. **Cap** — enumerate the selection as [Catch-up scope](#catch-up-scope) does, once, at the run's start. **Merges
+   only** → the run has **its own count**: one judge round and at most one fix round, and `round:` carries on past
+   three. Any other selection counts against the cap of three: the files' `round:` is the last judged round, and at
+   the cap → halt as drawn.
 3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
    judged by what it decided; the gate judges the combined tree.
-4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the same
-   cap.
+4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
+   count. A blocking finding open at the end of its own count is a `halt — cap reached`, as at the cap.
 
 ### Catch-up scope
 
@@ -374,11 +379,11 @@ parent; it checks that the run is there and fits the scenario.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
-**The cap is three rounds, and the pickup round counts.** At the cap, **halt**: leave every findings file
-**exactly as it stands**, write nothing to the backlog — the findings files hold every card — and report the
-blocking findings still `open`, **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix
-pass, no third opinion: a loop that cannot converge in three rounds is a plan problem, and the halt *is* the
-finding.
+**The cap is three rounds, and the pickup round counts.** A catch-up over merges only has
+[its own count](#catch-up-round). At the cap, **halt**: leave every findings file **exactly as it stands**, write
+nothing to the backlog — the findings files hold every card — and report the blocking findings still `open`,
+**by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third opinion: a loop
+that cannot converge in three rounds is a plan problem, and the halt *is* the finding.
 
 ## Step 8 — Pickup
 

@@ -308,6 +308,15 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
         )
         assert (got, capsys.readouterr().out.strip()) == (code, printed), name
 
+    runs = tmp_path / "runs"
+    first, second = (conduct["RunLog"](runs, "20261029-163000") for _ in "ab")
+    assert (first.path.name, second.path.name) == (
+        "20261029-163000.md",
+        "20261029-163000-2.md",
+    )
+    assert second.stamp == "20261029-163000-2"
+    assert conduct["last_log"](runs) == second.path
+
 
 def test_run_ships_two_versions_in_cut_order(
     tmp_path: Path,
@@ -380,8 +389,13 @@ def test_run_halts_on_a_human_phase(
     )
 
     assert not any(call.startswith("release") for call in _calls(calls))
-    assert _log(root)[-1].endswith(
-        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
+    lines = _log(root)
+    assert any(
+        line.endswith(" · 0001-todo · halt — human — phase 2 — Ship **HUMAN**")
+        for line in lines
+    )
+    assert lines[-1].endswith(
+        " · run · halt — halted 0001-todo · held 0002-marks · released none"
     )
     assert _git(root, "tag", "-l") == ""
 
@@ -401,9 +415,9 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    calls = fake("liar")
+    calls = fake("deny", "liar")
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -413,9 +427,128 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     assert _calls(calls) == ["probe", "build 0001-todo"]
     lines = _log(root)
     assert any(re.search(r" · finish — build · exit 0 · \d+s$", line) for line in lines)
-    assert lines[-1].endswith(
-        " · 0001-todo · halt — build check fail — phase 1 unticked"
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build check fail — phase 1 unticked"
+            " · denied: Bash(rm -rf build)"
+        )
+        for line in lines
     )
+
+    _commit(
+        tree,
+        {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"},
+        "build",
+    )
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    _version(second, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    calls.unlink()
+    fake("liar-probe")
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert _log(second)[-1].endswith(
+        " · run · halt — halted run · held none · released none"
+    )
+
+    third = tmp_path / "third"
+    third.mkdir()
+    crashed = _primary(third)
+    _version(crashed, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(crashed, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+    models = crashed / ".minions" / "models"
+    models.mkdir(parents=True)
+    (models / "0001-todo.toml").write_bytes(b"\xff")
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "converge 0002-marks" not in _calls(calls)
+    lines = _log(crashed)
+    assert any(" · run · halt — conduct.py failed: " in line for line in lines)
+    assert lines[-1].endswith(" · run · halt — halted run · held none · released none")
+
+
+def test_a_later_version_halts_and_the_earlier_ships(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("liar-0002-marks")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "release 0001-todo" in _calls(calls)
+    assert "release 0002-marks" not in _calls(calls)
+    assert _git(root, "tag", "-l") == "v0.1.0"
+    lines = _log(root)
+    halted = next(line for line in lines if " · 0002-marks · halt — " in line)
+    spawned = next(line for line in lines if " · 0001-todo · spawn — release" in line)
+    assert lines.index(halted) < lines.index(spawned)
+    assert lines[-1].endswith(
+        " · run · halt — halted 0002-marks · held none · released v0.1.0"
+    )
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert (
+        _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    report = capsys.readouterr().out.splitlines()
+    assert report[-2:] == [halted, lines[-1]]
+
+
+def test_an_earlier_version_halts_and_the_later_is_held(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("liar-0001-todo")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "v0.2", "- [ ] 1 — Marks\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    seen = _calls(calls)
+    assert "converge 0002-marks" in seen
+    assert not any(call.startswith(("integrate", "release")) for call in seen)
+    assert _log(root)[-1].endswith(
+        " · run · halt — halted 0001-todo · held 0002-marks · released none"
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    report = capsys.readouterr().out.splitlines()
+    assert report[1].startswith("0002-marks · ")
+    assert report[1].endswith(" · held behind 0001-todo")
 
 
 def test_run_halts_on_a_timeout(
@@ -436,45 +569,15 @@ def test_run_halts_on_a_timeout(
     assert time.monotonic() - started < 20
     lines = _log(root)
     assert any(" · 0001-todo · finish — build · exit -9 · " in line for line in lines)
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build timed out after 2s; its group was killed"
+        )
+        for line in lines
+    )
     assert lines[-1].endswith(
-        " · 0001-todo · halt — build timed out after 2s; its group was killed"
+        " · run · halt — halted 0001-todo · held none · released none"
     )
-
-
-def test_a_rerun_resumes_from_disk(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake("liar")
-    root = _primary(tmp_path)
-    tree = _version(root, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
-    _commit(
-        tree,
-        {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"},
-        "build",
-    )
-
-    calls.unlink()
-    fake()
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
-    assert _git(root, "tag", "-l") == "v0.1.0"
-    runs = tmp_path / "runs"
-    first, second = (conduct["RunLog"](runs, "20261029-163000") for _ in "ab")
-    assert (first.path.name, second.path.name) == (
-        "20261029-163000.md",
-        "20261029-163000-2.md",
-    )
-    assert second.stamp == "20261029-163000-2"
-    assert conduct["last_log"](runs) == second.path
 
 
 def test_run_refuses_without_worktrees_declared(
@@ -620,19 +723,6 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
     ) in capsys.readouterr().out
 
-    fake("deny", "liar")
-    other = tmp_path / "other"
-    other.mkdir()
-    second = _primary(other)
-    _version(second, "0001-todo", "v0.1", "- [ ] 1 — Todo\n")
-    assert (
-        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
-    assert _log(second)[-1].endswith(
-        " · halt — build check fail — phase 1 unticked · denied: Bash(rm -rf build)"
-    )
-
 
 def _fake(prompt: str) -> None:
     """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
@@ -668,6 +758,8 @@ def _fake(prompt: str) -> None:
             print(json.dumps({"message": {"content": [block]}}))
     if station == "build" and "sleep" in modes:
         time.sleep(60)
+    if f"liar-{change or station}" in modes:
+        return
     if station == "build" and "liar" in modes:
         return
     common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")

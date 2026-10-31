@@ -75,6 +75,7 @@ without its stale-claim pass is not clean.**
 halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
+- **A merge:** a catch-up over merges only counts its own rounds: one judge round, at most one fix round.
 - **Held by:** `mf-converge` Step 7 and its catch-up round.
 
 ## The gate

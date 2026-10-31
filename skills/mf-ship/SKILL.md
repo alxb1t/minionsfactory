@@ -17,8 +17,10 @@ preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes �
                   probe worker ─▶ check probe
                     │
   A · each version at build or converge, in parallel: spawn ─▶ wait ─▶ check, until integrate or release
+      a halt stops only its version
                     │  every thread joined
   B · each open version, in change-id order: integrate ─▶ converge (catch-up) ─▶ release, by its stage
+      a halt, here or in A, holds every version behind it
                     │
                   done
 ```
@@ -86,7 +88,8 @@ Converge runs MF's method at the tier the cut chose.
 **Close-out:** at most three sentences — the last run's report, or that a run started and its log, the newest
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate` commits the merge; until
-then a run halts on it again. The last line:
+then a run halts on it again. A run with a halt closes on `halted <ids> · held <ids> · released <tags>`:
+what it released stays released, and a re-run resumes the rest. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.
 

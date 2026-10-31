@@ -1,0 +1,49 @@
+{
+  "change": "0046-ship-halts",
+  "version": "v0.40",
+  "base": "6883d41",
+  "analyzed": "b30b932",
+  "measured_on": "local",
+  "collected_at": "2026-10-31T15:02:24+02:00",
+  "mf_version": "v0.39.0-5-gb30b932-dirty",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 12417
+    },
+    "shared-context": {
+      "value": 6586
+    },
+    "rule-ids": {
+      "value": 61
+    },
+    "tests-collected": {
+      "value": 75
+    },
+    "gate-seconds": {
+      "value": 44
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 47
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 9
+    }
+  }
+}
