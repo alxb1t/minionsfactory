@@ -117,13 +117,15 @@ allowed. Every checker of a round finishes before any fixer starts.
 
 Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
+**A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
 
 | latest event | go on at |
 |---|---|
-| `start`, `freeze` | Step 3 |
-| `fan-out` | Step 3, for each role whose findings file has not judged this round's freeze |
+| `start` | Step 2, or a catch-up run's freeze |
+| `freeze` | a verify round → Step 7; else Step 3 |
+| `fan-out` | the same, for each role whose findings file has not judged this round's freeze |
 | `verdicts` | Step 5 |
-| `fix` | a commit since the freeze → Step 7; else Step 6, a fresh fixer continuing a dirty tree |
+| `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
 | `pickup` | Step 8 item 4, the same ids |
 | `backlog` | Step 10 |

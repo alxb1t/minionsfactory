@@ -95,6 +95,13 @@ SCRATCH_IDENTITY = (
 )
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# The keys that let a repo's own config name a program a remote call runs.
+CONFIG_COMMANDS = re.compile(
+    r"core\.(sshcommand|gitproxy|askpass)|ssh\.variant|credential\..*|gpg\..*"
+    r"|protocol\.(.*\.)?allow|url\..*\.(pushinsteadof|insteadof)"
+    r"|remote\..*\.(uploadpack|receivepack|vcs)",
+    re.IGNORECASE,
+)
 
 
 class Stop(Exception):
@@ -353,9 +360,9 @@ def _converge_done(runs: Path, change: str) -> bool:
     return _is_event(_run_end(runs, change) or "", "done")
 
 
-def _unjudged(runs: Path, tree: Path, change: str) -> str | None:
-    """Return why converge is not clean at `HEAD`, or None when it is."""
-    head = _git(tree, "rev-parse", "HEAD").strip()
+def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | None:
+    """Return why converge is not clean at `rev`, or None when it is."""
+    head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
         file = runs / "findings" / f"{change}_{role}.md"
         if not file.is_file():
@@ -366,7 +373,7 @@ def _unjudged(runs: Path, tree: Path, change: str) -> str | None:
         judged = _frontmatter(text, "head") or ""
         resolved = _maybe(tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}")
         if not judged or (resolved or "").strip() != head:
-            return f"{role}: judged {judged or 'no head'}, not HEAD"
+            return f"{role}: judged {judged or 'no head'}, not {rev}"
     return None
 
 
@@ -439,6 +446,43 @@ def _note(tree: Path, change: str, moved: list[str]) -> str:
     return "\n".join(sections)
 
 
+def _release_died(runs: Path, change: str) -> bool:
+    """Return whether the change's newest release worker ended any way but exit 0.
+
+    A person's no ran no worker, and a release that stopped on purpose exits 0.
+    """
+    for log in sorted(runs.glob("*.md"), key=_log_order, reverse=True):
+        for line in reversed(log.read_text().splitlines()):
+            found = EVENT.match(line)
+            detail = line[found.end() :] if found else ""
+            if found and found[1] == change and detail.startswith("release · "):
+                if found[2] == "spawn":
+                    return True
+                if found[2] == "finish":
+                    return not detail.startswith("release · exit 0 · ")
+    return False
+
+
+def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str, str]:
+    """Return the stage of a tip that says it is released; only a death re-enters.
+
+    The re-entry merges and pushes unasked, so it takes a tag on `HEAD` or none, the
+    converge clean at the parent, an unmoved base and a release worker that died.
+    """
+    runs = primary / ".minions"
+    own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
+    if own is not None and own != _git(tree, "rev-parse", "HEAD"):
+        return "released", f"{tag} is tagged on another commit"
+    stated = "is not tagged" if own is None else "is tagged"
+    if (
+        _ancestor(tree, default_branch(primary), "HEAD")
+        and _unjudged(runs, tree, change, "HEAD~1") is None
+        and _release_died(runs / "runs", change)
+    ):
+        return "release", f"{tag} {stated}; the merge is left"
+    return "released", f"{tag} {stated}; the release stopped before its merge"
+
+
 def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     """Return a version's stage, read in its worktree, and why; the first match wins."""
     tree = version.tree
@@ -460,10 +504,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         )
     tag = _tag_of(primary, change)
     default = default_branch(primary)
-    if tag is not None and _tagged(primary, tag):
-        if _ancestor(tree, default, "HEAD"):
-            return "release", f"{tag} is tagged; the merge is left"
-        return "released", f"{tag} is tagged; the release stopped before its merge"
+    if tag is not None:
+        return _release_tip(primary, tree, version.change, tag)
     missing = [
         name
         for name in _dependencies(primary, change)
@@ -544,10 +586,30 @@ def _check_release(primary: Path, version: Version) -> str | None:
     return None
 
 
+def _refuse_config_commands(primary: Path) -> None:
+    """Stop with 1 when the repo's own git config can run a command on a remote call.
+
+    A worker can write that file, and the conductor runs outside its sandbox.
+    """
+    listed = _git(primary, "config", "--list", "--show-scope", "--name-only")
+    held = [
+        name
+        for scope, _, name in (line.partition("\t") for line in listed.splitlines())
+        if scope in ("local", "worktree") and CONFIG_COMMANDS.fullmatch(name)
+    ]
+    if held:
+        raise Stop(
+            1,
+            "conduct: halt — the repo's git config can run a command on a remote"
+            f" call: {' '.join(held)}; move it to the global config",
+        )
+
+
 def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     """Return whether origin's tag is on the branch's tip, or None with no origin."""
     if "origin" not in _git(primary, "remote").split():
         return None
+    _refuse_config_commands(primary)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
     listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
@@ -562,6 +624,7 @@ def _unpushed(primary: Path) -> list[str]:
     """
     if "origin" not in _git(primary, "remote").split():
         return []
+    _refuse_config_commands(primary)
     default = default_branch(primary)
     ahead = _maybe(primary, "rev-list", "--count", f"origin/{default}..{default}")
     found = [default] if (ahead or "").strip() != "0" else []
@@ -788,7 +851,7 @@ def work(
         group = claim / str(worker.pid) if claim else None
         try:
             if group:
-                group.touch()
+                group.write_text(_started(worker.pid))
             return worker.wait(timeout=TIMEOUT), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -897,11 +960,34 @@ def _claim(active: Path) -> str:
     return "live"
 
 
+def _started(pid: int) -> str:
+    """Return the start time `ps` reads for `pid`, or "" when it cannot."""
+    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    try:
+        done = subprocess.run(
+            command,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return done.stdout.strip()
+
+
 def _clear(active: Path) -> None:
-    """Kill the stale claim's worker groups, then remove it."""
+    """Kill the stale claim's worker groups, then remove it.
+
+    A group goes only while its leader keeps the start time the entry holds: after
+    a reboot its number can name any process.
+    """
     for entry in active.iterdir():
         # A worker can write the claim, and group 0 is this process's own.
-        if entry.name.isdecimal() and int(entry.name) > 1:
+        if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
+            held = entry.read_text(errors="replace").strip()
+            if not held or held != _started(int(entry.name)):
+                continue
             try:
                 os.killpg(int(entry.name), signal.SIGKILL)
             except (ProcessLookupError, PermissionError, OverflowError):
@@ -1118,8 +1204,13 @@ class Run:
             shutil.rmtree(scratch, ignore_errors=True)
 
     def push_left(self) -> None:
-        """Push what a release merged and left; a rejection halts the run."""
-        for name in _unpushed(self.primary):
+        """Push what a release merged and left; a refusal or rejection halts the run."""
+        try:
+            unpushed = _unpushed(self.primary)
+        except Stop as stop:
+            self.halt("run", str(stop))
+            return
+        for name in unpushed:
             done = _run(self.primary, "push", "origin", name)
             if done.returncode != 0:
                 self.halt(
@@ -1274,6 +1365,14 @@ def _cards(backlog: Path, change: str) -> list[str]:
     return ids
 
 
+def _log_order(log: Path) -> tuple[str, int, str]:
+    """Return a run log's sort key, oldest first.
+
+    e.g. `20261029-163000.md` sorts before `20261029-163000-2.md`
+    """
+    return log.stem[:15], len(log.stem), log.stem
+
+
 def last_log(runs: Path) -> Path | None:
     """Return the newest run log in `runs`, or None.
 
@@ -1282,7 +1381,7 @@ def last_log(runs: Path) -> Path | None:
     logs = list(runs.glob("*.md"))
     if not logs:
         return None
-    return max(logs, key=lambda log: (log.stem[:15], len(log.stem), log.stem))
+    return max(logs, key=_log_order)
 
 
 def _change_number(change: str) -> int:

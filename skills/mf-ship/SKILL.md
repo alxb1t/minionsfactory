@@ -67,6 +67,7 @@ Run `status` and paste its output.
 | `status` prints | then |
 |---|---|
 | `run · live` | a run is live: report the status and the run log's last lines, then stop |
+| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

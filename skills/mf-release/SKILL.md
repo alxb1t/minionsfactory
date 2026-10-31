@@ -67,9 +67,12 @@ A **version file** may be absent — many repos keep none. That is a **stated sk
 
 Check first. `mf-ship` re-runs a release that died.
 
-- **`HEAD`'s subject is `chore(release): <tag>`, and `<tag>` exists** → that is the tag: go to Step 5.
-- **The tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the version file, or in
-  `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:
+- **`HEAD`'s subject is `chore(release): <tag>`** → that is the tag. When converge ran, both findings files must say
+  `verdict: clean` with `head:` at `HEAD~1`, and `<tag>`, when it exists, must be on `HEAD`; else **halt**. `<tag>`
+  missing → run Step 4.5. Then go to Step 5.
+- **Under `merge=yes`, `git diff --cached --name-status` shows `tasks.md` renamed from `openspec/changes/<change-id>/`
+  to `openspec/changes/archive/<change-id>/`, and the tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the
+  version file, or in `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:
   `git restore --source=HEAD --staged --worktree -- .`, then `rm -rf openspec/changes/archive/<change-id>` and
   `rm -f metrics/changes/<change-id>.json`, then start over. Anything else dirty → precondition 6 halts.
 

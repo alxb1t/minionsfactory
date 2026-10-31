@@ -10,11 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A non-zero worker exit halts its version, naming a usage limit and its reset time, and the converge check needs `done`:
   a dead worker's clean findings prove nothing. An unfinished run is stage `converge`, and `mf-converge` continues it from
   its latest event (change `0049-ship-resume`, phase 1).
-- A no-note open merge is stage `integrate`, `tasks.md` is read from `HEAD`, and `released` halts only when the base moved.
-  `mf-release` restores its own half-done fold, and re-enters at its merge after its tag (change `0049-ship-resume`,
-  phase 2).
+- A no-note open merge is stage `integrate`, `tasks.md` is read from `HEAD`, and a release worker that died re-enters at
+  its merge when the base has not moved. Under `merge=yes`, `mf-release` restores its own half-done fold (change
+  `0049-ship-resume`, phase 2).
 - A run pushes what a release left, and `status` reports it. The claim holds the conductor's pid and worker groups, so a
   killed conductor clears itself. D47 says what needs the person (change `0049-ship-resume`, phase 3).
+- A release that died between its commit and its tag tags and merges on a re-run; a tip no dead worker left stays
+  `released`. A resumed verify round gets Step 7's inputs. A hand release never restores a tree. A group is killed only
+  while its leader keeps its recorded start time, and the conductor makes no remote call while the repo's git config holds
+  a key that runs a command (change `0049-ship-resume`, converge fixes R1, R2, R3, R4, R5, S1, S2 and S3).
 
 ## [0.42.0] - 2026-10-31
 

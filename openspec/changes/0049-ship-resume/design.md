@@ -27,9 +27,11 @@ How `/mf-ship` alone recovers a halt with no decision in it. Verdict at the end:
 | build, mid-phase | a dirty tree | continues, as today |
 | converge, mid-run | a run with neither `halt` nor `done` | `converge`, the same run |
 | integrate, conflicts open, no note | `MERGE_HEAD`, unmerged paths | `integrate` |
-| release, before its commit | a staged fold | `release`, restored, started over |
+| release, before its commit | a staged fold and archive move | `release`, restored, started over |
+| release, after its commit | release commit, no tag | `release`, tagged, then its merge |
 | release, tagged, base unmoved | release commit and tag | `release`, from its merge |
-| release, tagged, base moved | release commit and tag | `released`, a halt |
+| release, base moved | release commit | `released`, a halt |
+| release, stopped on purpose or refused | release commit, the worker's exit 0 or no worker | `released`, a halt |
 | release, merged, before its push | `main` ahead of `origin` | pushed at the run's start |
 | the conductor | a stale claim | groups killed, claim cleared, run starts |
 
@@ -81,13 +83,15 @@ def _converge_done(runs: Path, change: str) -> bool:
 
 Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
+**A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
 
 | latest event | go on at |
 |---|---|
-| `start`, `freeze` | Step 3 |
-| `fan-out` | Step 3, for each role whose findings file has not judged this round's freeze |
+| `start` | Step 2, or a catch-up run's freeze |
+| `freeze` | a verify round → Step 7; else Step 3 |
+| `fan-out` | the same, for each role whose findings file has not judged this round's freeze |
 | `verdicts` | Step 5 |
-| `fix` | a commit since the freeze → Step 7; else Step 6, a fresh fixer continuing a dirty tree |
+| `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
 | `pickup` | Step 8 item 4, the same ids |
 | `backlog` | Step 10 |
@@ -109,8 +113,18 @@ No retry is added: `/mf-ship` is the retry.
 
 ### D4
 
-`stage_of`, the tag branch: a tagged tip with the default branch an ancestor of `HEAD` →
-`("release", f"{tag} is tagged; the merge is left")`; else `released`, as today.
+`stage_of`, a tip whose subject is `chore(release): <tag>`, tagged or not, goes to `_release_tip`. The re-entry merges and
+pushes unasked, so it is `release` only for a death: `<tag>` on `HEAD` or missing, both findings clean at `HEAD~1`, the
+default branch an ancestor of `HEAD`, and `_release_died`. Else `released`.
+
+```python
+def _release_died(runs: Path, change: str) -> bool:
+    """Return whether the change's newest release worker ended any way but exit 0."""
+```
+
+`_release_died` reads the run logs, newest first: a `spawn` with no `finish`, or a `finish` that is not `exit 0`. So a
+person's no, which ran no worker, and a preamble flagged under `merge=yes`, which exits 0, stay halts, with nothing to write:
+absent proof of a death reads as a stop.
 
 `skills/mf-release/SKILL.md`, after *Where the constants come from*, a section:
 
@@ -119,12 +133,18 @@ No retry is added: `/mf-ship` is the retry.
 
 Check first. `mf-ship` re-runs a release that died.
 
-- **`HEAD`'s subject is `chore(release): <tag>`, and `<tag>` exists** → that is the tag: go to Step 5.
-- **The tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the version file, or in
-  `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:
+- **`HEAD`'s subject is `chore(release): <tag>`** → that is the tag. When converge ran, both findings files must say
+  `verdict: clean` with `head:` at `HEAD~1`, and `<tag>`, when it exists, must be on `HEAD`; else **halt**. `<tag>`
+  missing → run Step 4.5. Then go to Step 5.
+- **Under `merge=yes`, `git diff --cached --name-status` shows `tasks.md` renamed from `openspec/changes/<change-id>/`
+  to `openspec/changes/archive/<change-id>/`, and the tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the
+  version file, or in `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:
   `git restore --source=HEAD --staged --worktree -- .`, then `rm -rf openspec/changes/archive/<change-id>` and
   `rm -f metrics/changes/<change-id>.json`, then start over. Anything else dirty → precondition 6 halts.
 ```
+
+A hand release never restores: precondition 6 keeps a person's edits. A release that died before Step 3's move leaves no
+rename, so precondition 6 halts it for the person, as today.
 
 ### D5
 
@@ -144,13 +164,19 @@ with `git push origin <name>`, never forcing, and writes a `push` event, which `
 `ship` calls it after its `start` event, before `if not versions`, and stops on a halt. `status` adds
 `run · unpushed <names>` above its lines, and prints `status: none` only when there is nothing at all.
 
+A worker can write `.git/config`, and `ls-remote` and `push` run outside its sandbox. So `_unpushed` and `_pushed` first run
+`_refuse_config_commands`: a `CONFIG_COMMANDS` key at `local` or `worktree` scope stops with 1, `status` printing it and the
+run halting, and the conductor makes no remote call. Overriding one key would leave the rest, and a snapshot cannot serve:
+`status` and `push_left` run before any worker of their run, and a file under `.minions/` is the worker's to write.
+
 `skills/mf-ship/SKILL.md`, Step 3: `status` prints `status: none — no open version` stays the only stop.
 
 ### D6
 
 `run` writes `active/pid`, its own pid, after `mkdir`, and `shutil.rmtree`s the claim in its `finally`. `work` gains
-`claim: Path | None`: after `Popen`, it touches `claim / str(worker.pid)`, and unlinks it when the worker ends. `Run.spawn`
-passes `self.runs / "active"`, and `agent` passes None.
+`claim: Path | None`: after `Popen`, it writes the worker's `ps -o lstart=` to `claim / str(worker.pid)`, and unlinks it
+when the worker ends. `Run.spawn` passes `self.runs / "active"`, and `agent` passes None. `_clear` kills a group only while
+its leader keeps that start time: after a reboot the number can name anyone's process.
 
 ```python
 def _claim(active: Path) -> str:
@@ -204,9 +230,9 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`: the lowest layer that reache
 | test | holds |
 |---|---|
 | `test_a_dead_converge_halts_and_a_rerun_finishes_it` | with `dies-converge`: exit 1, clean findings, no `done`; the run halts, naming the exit; no `release` call; a re-run spawns `converge`, then `release`, with no `build` call |
-| `test_a_rerun_recovers_a_dead_release` | with `dies-release-fold`: a staged fold; `status` reads `release`; a re-run tags once. With `dies-release-tag`: a re-run merges; a moved default branch reads `released` |
-| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag, and ends on `done` |
-| `test_a_stale_claim_is_cleared` | `active/` with a dead pid and a live `sleep` group: `status` reads `stale`; a run kills the group and starts. A live pid refuses |
+| `test_a_rerun_recovers_a_dead_release` | with `dies-release-fold`: a staged fold; `status` reads `release`; a re-run tags once. With `dies-release-tag`: a re-run merges; a moved default branch reads `released`. With `dies-release-commit`: `release`; a re-run tags and merges. With `stops-release-tag`, exit 0: `released`, and no release worker. A tip forged on an old tag or with no tag, and a tagged tip no worker ran: `released` |
+| `test_a_rerun_pushes_what_a_release_left` | a bare `origin`, a merged tag not pushed, no open version: `status` prints `run · unpushed`; a run pushes the branch and the tag, and ends on `done`. A planted `remote.origin.uploadpack`: `status` exits 1 naming it, a run halts, and the program never runs |
+| `test_a_stale_claim_is_cleared` | `active/` with a dead pid and a live `sleep` group: `status` reads `stale`; a run kills the group and starts. A live pid refuses. A group whose entry holds another start time, or none, lives |
 | `test_a_usage_limit_is_named` | with `dies-limit`, a `result` event with 429: the `halt` line ends ` · stopped by a usage limit · resets 5:50pm (Europe/Athens)` |
 
 Tests edited:
@@ -215,10 +241,10 @@ Tests edited:
 |---|---|
 | `test_status_reads_each_stage_from_disk` | an open merge with no note reads `integrate` |
 | `test_each_check_passes_only_on_disk_evidence` | a step for `the status log has no done` |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `work`'s new argument |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `work`'s new argument, and the start time in its entry |
 
 `_findings` also writes a status log ending on `done`. `_fake` gains `dies-<station>`, leaving that station's state and
-exiting 1. No test is deleted or merged.
+exiting 1, and `stops-release-tag`, leaving a tag and exiting 0. No test is deleted or merged.
 
 ## Dependencies
 
@@ -229,8 +255,13 @@ None.
 - **A hand converge while a run is dead** → it would continue the same run. That is the rule by hand too.
 - **A recycled pid** → `os.kill(pid, 0)` reads it live, so the claim stands until the person looks. A false stale cannot
   happen.
-- **A stale claim's kill** → a worker killed mid-commit leaves what any death leaves, and the table above covers it.
-- **`git restore` over a dirty tree** → only under the paths [D4](#d4) names; anything else still halts.
+- **A stale claim's kill** → a worker killed mid-commit leaves what any death leaves, and the table above covers it. A group
+  whose leader is gone is left alive: nothing proves it is ours.
+- **`git restore` over a dirty tree** → only under `merge=yes`, with the archive move staged, and under the paths
+  [D4](#d4) names; anything else still halts.
+- **A repo-local `core.sshCommand` or credential helper** → an operator who keeps one must move it to the global config, or
+  `mf-ship` halts; `CONFIG_COMMANDS` is a list, so a key git adds later needs adding. `remote.origin.url` stays allowed: a
+  worker pointing it at a local repo still gets that repo's receive hooks run on a push.
 - **`converge-reading-set` is past its watch** → [D2](#d2) adds one short section.
 
 ## Migration Plan

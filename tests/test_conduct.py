@@ -83,6 +83,11 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
+def _lstart(pid: int) -> str:
+    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    return subprocess.run(command, capture_output=True, text=True).stdout.strip()
+
+
 def _conduct() -> dict[str, Any]:
     return runpy.run_path(str(_SCRIPT))
 
@@ -962,6 +967,48 @@ def test_a_rerun_recovers_a_dead_release(
         for line in _log(root)
     )
 
+    def last() -> str:
+        return stage().splitlines()[-1]
+
+    _version(root, "0004-four", "- [ ] 1 — Four\n")
+    fake("dies-release-commit")
+    run(1)
+    assert "v0.4.0" not in _git(root, "tag", "-l").split()
+    assert last() == "0004-four · release"
+    assert stage_of(root, find(root, "0004-four"))[1] == (
+        "v0.4.0 is not tagged; the merge is left"
+    )
+    calls.unlink()
+    fake()
+    run(1)
+    assert "release 0004-four" in _calls(calls)
+    assert "v0.4.0" in _git(root, "tag", "-l").split()
+    assert "0004-four" not in _git(root, "branch", "--no-merged", "main")
+
+    _version(root, "0005-five", "- [ ] 1 — Five\n")
+    calls.unlink()
+    fake("stops-release-tag")
+    run(1)
+    assert "v0.5.0" in _git(root, "tag", "-l").split()
+    assert last() == "0005-five · released"
+    calls.unlink()
+    fake()
+    run(1)
+    assert "release 0005-five" not in _calls(calls)
+
+    forged = _version(root, "0006-six", "- [ ] 1 — Six\n")
+    _git(forged, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    assert last() == "0006-six · released"
+    assert stage_of(root, find(root, "0006-six"))[1] == (
+        "v0.1.0 is tagged on another commit"
+    )
+    subject = "chore(release): v9.0.0"
+    _git(forged, "commit", "-q", "--amend", "--allow-empty", "-m", subject)
+    assert last() == "0006-six · released"
+    _findings(root, "0006-six", _git(forged, "rev-parse", "HEAD~1"))
+    _git(forged, "tag", "v9.0.0")
+    assert last() == "0006-six · released"
+
 
 def test_a_rerun_pushes_what_a_release_left(
     tmp_path: Path,
@@ -1024,6 +1071,22 @@ def test_a_rerun_pushes_what_a_release_left(
     )
     assert head in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
 
+    _git(root, "config", "protocol.version", "2")
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\nexit 1\n")
+    planted.chmod(0o755)
+    _git(root, "config", "remote.origin.uploadpack", str(planted))
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    assert "remote.origin.uploadpack" in capsys.readouterr().out
+    run(1)
+    assert not ran.exists()
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert " · run · halt — conduct: halt — " in log.read_text()
+
 
 def test_a_stale_claim_is_cleared(
     tmp_path: Path,
@@ -1062,13 +1125,22 @@ def test_a_stale_claim_is_cleared(
 
     (active / "pid").write_text(str(dead.pid))
     group = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    (active / str(group.pid)).touch()
+    (active / str(group.pid)).write_text(_lstart(group.pid))
+    recycled = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
+    unstamped = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(unstamped.pid)).touch()
     (active / "0").touch()
+    (active / "7").mkdir()
+    (active / "8").write_bytes(b"\xff")
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
     assert group.wait(timeout=10) == -signal.SIGKILL
+    assert (recycled.poll(), unstamped.poll()) == (None, None)
+    recycled.kill()
+    unstamped.kill()
     assert "release 0001-todo" in _calls(calls)
     assert not active.exists()
 
@@ -1217,8 +1289,10 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     sees_itself = (
         "import os, sys, time\n"
         "for _ in range(500):\n"
-        "    if os.listdir(sys.argv[1]) == [str(os.getpid())]:\n"
-        "        sys.exit(0)\n"
+        "    held = os.listdir(sys.argv[1])\n"
+        "    if held == [str(os.getpid())]:\n"
+        "        if open(os.path.join(sys.argv[1], held[0])).read().strip():\n"
+        "            sys.exit(0)\n"
         "    time.sleep(0.01)\n"
         "sys.exit(1)\n"
     )
@@ -1339,7 +1413,12 @@ def _fake(prompt: str) -> None:
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
         tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        if not _git(here, "log", "-1", "--format=%s").startswith("chore(release): "):
+        subject = _git(here, "log", "-1", "--format=%s")
+        if subject.startswith("chore(release): "):
+            named = subject.removeprefix("chore(release): ")
+            if not _git(here, "tag", "-l", named):
+                _git(here, "tag", named)
+        else:
             _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
             (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
             _git(
@@ -1351,9 +1430,13 @@ def _fake(prompt: str) -> None:
             if "dies-release-fold" in modes:
                 sys.exit(1)
             _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
+            if "dies-release-commit" in modes:
+                sys.exit(1)
             _git(here, "tag", tag)
             if "dies-release-tag" in modes:
                 sys.exit(1)
+            if "stops-release-tag" in modes:
+                return
         _git(
             primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
         )
