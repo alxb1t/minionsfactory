@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `skills/mf-review-metrics/scripts/review_metrics.py` reads the repos a config names into a record per change,
+  across every era of the findings files: an unreadable field is a gap, never a zero.
+
 ## [0.37.0] - 2026-10-30
 
 Gate: local 0m49s · CI 0m23s (CI at 07cc44c) · 0.36.0: local 0m39s · CI 0m27s (CI at 2c138d2)

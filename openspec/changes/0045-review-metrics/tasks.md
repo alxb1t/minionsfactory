@@ -5,20 +5,20 @@ word for word.
 
 ## Progress
 
-- [ ] 1 — Read the findings
+- [x] 1 — Read the findings
 - [ ] 2 — Draw the page
 - [ ] 3 — Ship the station
 - [ ] 4 — Run it on this machine
 
 ## 1 — Read the findings
 
-- [ ] 1.1 Write `skills/mf-review-metrics/scripts/review_metrics.py`'s config loading and reader, per [D1](design.md#d1),
+- [x] 1.1 Write `skills/mf-review-metrics/scripts/review_metrics.py`'s config loading and reader, per [D1](design.md#d1),
   [D2](design.md#d2) and [D4](design.md#d4).
   Verify: `uv run --script skills/mf-review-metrics/scripts/review_metrics.py --help` exits 0.
-- [ ] 1.2 Write `tests/test_review_metrics.py`'s `test_no_config_exits_2_naming_the_path`,
+- [x] 1.2 Write `tests/test_review_metrics.py`'s `test_no_config_exits_2_naming_the_path`,
   `test_each_era_parses_with_gaps` and `test_the_status_log_gives_duration_tokens_and_the_cap`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_review_metrics.py` reports `3 passed`.
-- [ ] 1.3 Add `test_the_resolution_log_counts_verified_and_reopened` to `tests/test_review_metrics.py`.
+- [x] 1.3 Add `test_the_resolution_log_counts_verified_and_reopened` to `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py` reports `4 passed`.
 
 ## 2 — Draw the page
