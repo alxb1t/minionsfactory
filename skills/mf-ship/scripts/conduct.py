@@ -318,8 +318,8 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
     return None
 
 
-def _converge_halt(runs: Path, change: str) -> str | None:
-    """Return the newest converge run's first event when it is a halt, else None."""
+def _run_end(runs: Path, change: str) -> str | None:
+    """Return the newest converge run's top event line, or None with no run."""
     log = runs / "findings" / f"{change}_status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
@@ -327,8 +327,26 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     )
     if heading is None:
         return None
-    first = next((line for line in lines[heading + 1 :] if line.strip()), "")
-    return first.strip() if "· halt" in first else None
+    return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
+
+
+def _is_event(line: str, event: str) -> bool:
+    """Return whether a status-log line holds `event`, its detail aside.
+
+    e.g. "10:00:00 · round 1 · done — ok", "done" → True
+    """
+    return line.split(" — ")[0].endswith(f" · {event}")
+
+
+def _converge_halt(runs: Path, change: str) -> str | None:
+    """Return the newest converge run's top event when it is a halt, else None."""
+    end = _run_end(runs, change)
+    return end if end and _is_event(end, "halt") else None
+
+
+def _converge_done(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run ends on `done`."""
+    return _is_event(_run_end(runs, change) or "", "done")
 
 
 def _unjudged(runs: Path, tree: Path, change: str) -> str | None:
@@ -454,6 +472,9 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         return "build", f"phase {number} unticked"
     if halt := _converge_halt(runs, change):
         return "converge-halted", halt
+    end = _run_end(runs, change)
+    if end is not None and not _converge_done(runs, change):
+        return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):
         return "converge", why
     if not _ancestor(tree, default, "HEAD"):
@@ -473,6 +494,8 @@ def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     runs = primary / ".minions"
     if halt := _converge_halt(runs, version.change):
         return f"the status log halts: {halt}"
+    if not _converge_done(runs, version.change):
+        return "the status log has no done"
     if why := _unjudged(runs, tree, version.change):
         return why
     return "the tree is not clean" if _dirty(tree) else None
@@ -797,6 +820,31 @@ def denials(log: Path) -> list[str]:
     return found
 
 
+def usage_limit(log: Path) -> str:
+    """Return ` · stopped by a usage limit · resets <time>`, or "" for any other exit.
+
+    e.g. a `result` event with `api_error_status: 429`, its text naming `resets 5:50pm`
+    """
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"api_error_status"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "result"
+                and event.get("is_error")
+                and event.get("api_error_status") == 429
+            ):
+                resets = re.search(r"resets (.+)", str(event.get("result")))
+                named = f" · resets {resets[1]}" if resets else ""
+                return f" · stopped by a usage limit{named}"
+    return ""
+
+
 def _executor_missing(executor: str) -> bool:
     """Return whether neither `MF_SHIP_AGENT` nor the executor's CLI is there."""
     return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
@@ -872,7 +920,7 @@ class Run:
     ) -> list[str] | None:
         """Run one worker and log it and its denials.
 
-        Return the denials, or None when a timeout halted `who`.
+        Return the denials, or None when a timeout or a failed exit halted `who`.
         """
         model, effort = models
         self.log.event(who, "spawn", f"{station} · model {model or 'default'}")
@@ -888,6 +936,9 @@ class Run:
             self.halt(
                 who, f"{station} timed out after {TIMEOUT}s; its group was killed"
             )
+            return None
+        if code != 0:
+            self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
             return None
         return denied
 

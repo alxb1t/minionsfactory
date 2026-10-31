@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A non-zero worker exit halts its version, naming a usage limit and its reset time, and the converge check needs `done`:
+  a dead worker's clean findings prove nothing. An unfinished run is stage `converge`, and `mf-converge` continues it from
+  its latest event (change `0049-ship-resume`, phase 1).
+
 ## [0.42.0] - 2026-10-31
 
 Gate: local 1m38s · CI 0m29s (CI at 0abfe5a) · 0.41.0: local 0m49s · CI 0m29s (CI at ee008f7)

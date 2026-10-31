@@ -4,20 +4,20 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## Progress
 
-- [ ] 1 — A dead worker
+- [x] 1 — A dead worker
 - [ ] 2 — Integrate and release
 - [ ] 3 — The conductor
 
 ## 1 — A dead worker
 
-- [ ] 1.1 In `skills/mf-ship/scripts/conduct.py`, halt on a non-zero exit in `Run.spawn`, and add `usage_limit`, `_run_end`
+- [x] 1.1 In `skills/mf-ship/scripts/conduct.py`, halt on a non-zero exit in `Run.spawn`, and add `usage_limit`, `_run_end`
   and `_converge_done`, per [D1](design.md#d1) and [D7](design.md#d7).
   Verify: `grep -c 'def _converge_done' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 1.2 In `skills/mf-ship/scripts/conduct.py`, make an unfinished run stage `converge`, per [D2](design.md#d2).
+- [x] 1.2 In `skills/mf-ship/scripts/conduct.py`, make an unfinished run stage `converge`, per [D2](design.md#d2).
   Verify: `grep -c 'unfinished run' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 1.3 Add `## Resuming a run` to `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
+- [x] 1.3 Add `## Resuming a run` to `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -c '^## Resuming a run' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 1.4 In `tests/test_conduct.py`, make `_findings` write a status log ending on `done`, add `dies-<station>` to `_fake`,
+- [x] 1.4 In `tests/test_conduct.py`, make `_findings` write a status log ending on `done`, add `dies-<station>` to `_fake`,
   add `test_a_dead_converge_halts_and_a_rerun_finishes_it` and `test_a_usage_limit_is_named`, and edit
   `test_each_check_passes_only_on_disk_evidence`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "dead_converge or usage_limit"` reports `2 passed`.

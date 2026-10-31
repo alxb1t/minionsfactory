@@ -78,6 +78,8 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     for role in ("review", "security"):
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
         (folder / f"{change}_{role}.md").write_text(text)
+    log = folder / f"{change}_status_log.md"
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
 def _conduct() -> dict[str, Any]:
@@ -195,18 +197,26 @@ def test_each_check_passes_only_on_disk_evidence(
     _commit(tree, {}, "build")
     assert check("build") == (0, "check: build · pass")
 
+    no_done = (1, "check: converge · fail — the status log has no done")
+    assert check("converge") == no_done
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
     assert check("converge") == (1, "check: converge · fail — no review findings file")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
     assert check("converge")[1].endswith(", not HEAD")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
     assert check("converge") == (
         1,
         "check: converge · fail — the status log halts: 10:00:00 · round 3 · halt"
         " — cap reached",
     )
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1 · done — x\n")
+    assert check("converge") == no_done
     log.unlink()
+    assert check("converge") == no_done
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert check("converge") == (0, "check: converge · pass")
 
     _commit(root, {"moved.txt": "x\n"}, "main moves")
@@ -832,6 +842,72 @@ def test_run_halts_on_a_timeout(
     )
 
 
+def test_a_dead_converge_halts_and_a_rerun_finishes_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-converge")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "release 0001-todo" not in _calls(calls)
+    assert _git(root, "tag", "-l") == ""
+    assert any(
+        line.endswith(" · 0001-todo · halt — converge worker exit 1")
+        for line in _log(root)
+    )
+    head = _git(tree, "rev-parse", "HEAD")
+    findings = root / ".minions" / "findings"
+    assert f"head: {head}\n" in (findings / "0001-todo_review.md").read_text()
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.strip() == "0001-todo · converge"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    assert stage_of(root, find(root, "0001-todo"))[1] == (
+        "unfinished run: 10:00:00 · round 1 · pickup — R1"
+    )
+
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
+def test_a_usage_limit_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("dies-limit")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build worker exit 1 · stopped by a usage limit"
+            " · resets 5:50pm (Europe/Athens)"
+        )
+        for line in _log(root)
+    )
+
+
 def test_run_refuses_without_worktrees_declared(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1008,6 +1084,15 @@ def _fake(prompt: str) -> None:
             ]
         for block in blocks:
             print(json.dumps({"message": {"content": [block]}}))
+    if station == "build" and "dies-limit" in modes:
+        event = {
+            "type": "result",
+            "is_error": True,
+            "api_error_status": 429,
+            "result": "You've hit your limit · resets 5:50pm (Europe/Athens)",
+        }
+        print(json.dumps(event))
+        sys.exit(1)
     if station == "build" and "sleep" in modes:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
@@ -1030,6 +1115,10 @@ def _fake(prompt: str) -> None:
         _commit(here, files, "build")
     elif station == "converge":
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
+        if "dies-converge" in modes:
+            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
+            sys.exit(1)
     elif station == "integrate":
         message = f"chore(integrate): merge main into {change}"
         _git(
