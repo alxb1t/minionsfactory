@@ -131,7 +131,10 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - **the operator's brief**, read and written at the path the operator gives, never named in the repo;
 - `mf-release`'s read-only remote CI lookup for its `Gate:` line;
 - the bundled metrics script's read-only git reads of its own package — `git ls-files` and `git describe`
-  ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).
+  ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
+- the review-metrics station's read-only reads of the `.minions/findings/` of repos the operator names, and its page
+  written to the path the operator gives — neither named in any repo
+  ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page)).
 
 **Installed skills, bundled references and bundled scripts are instruction-package material, not permission to
 read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or tool
