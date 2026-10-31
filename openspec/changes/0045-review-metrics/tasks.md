@@ -7,7 +7,7 @@ word for word.
 
 - [x] 1 — Read the findings
 - [x] 2 — Draw the page
-- [ ] 3 — Ship the station
+- [x] 3 — Ship the station
 - [ ] 4 — Run it on this machine
 
 ## 1 — Read the findings
@@ -32,9 +32,9 @@ word for word.
 
 ## 3 — Ship the station
 
-- [ ] 3.1 Write `skills/mf-review-metrics/SKILL.md` and add its row to `README.md`, per [D6](design.md#d6).
+- [x] 3.1 Write `skills/mf-review-metrics/SKILL.md` and add its row to `README.md`, per [D6](design.md#d6).
   Verify: `grep -c '^name: mf-review-metrics$' skills/mf-review-metrics/SKILL.md` prints `1`, `grep -c 'skills/mf-review-metrics/SKILL.md' README.md` prints `1`, and `grep -c 'mf-review-metrics' AGENTS.md` prints `0`.
-- [ ] 3.2 Add the exception to `docs/principles.md` and D50 after D43 to `docs/decisions.md`, per [D5](design.md#d5).
+- [x] 3.2 Add the exception to `docs/principles.md` and D50 after D43 to `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `grep -c '^### D50 · ' docs/decisions.md` prints `1`, `grep -c 'review-metrics station' docs/principles.md` prints `1`, and `uv run --script scripts/metrics/references.py` prints `0`.
 
 ## 4 — Run it on this machine

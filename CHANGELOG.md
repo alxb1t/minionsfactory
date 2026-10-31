@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   across every era of the findings files: an unreadable field is a gap, never a zero.
 - It writes one page, through `mf-build`'s `chart`: a section per repo, a tier × model table and each field's gaps, so
   review tiers are compared on data.
+- `mf-review-metrics` ships as an operator skill, with its `README.md` row; the principle *The repo reaches nothing
+  outside itself* gains its exception, and D50 records it.
 
 ## [0.37.0] - 2026-10-30
 

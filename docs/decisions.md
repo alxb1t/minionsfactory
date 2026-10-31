@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   grill ───▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38                   D11…D17, D40, D43, D49
+       D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
   The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
 ```
@@ -243,6 +243,15 @@ station says so.**
   a tracked page — a view is regenerable · metrics run on a repo that declared none.
 - **Accepts:** a release's data file sits inside the commit it measures, so its `analyzed` names the last build
   commit, and its values are that commit's tree plus the release's staged fold, archive and changelog.
+
+### D50 · Review metrics are read across repos and drawn on one page
+
+**`mf-review-metrics` reads the findings files and status logs of the repos the operator's config names, leniently —
+every unreadable field a gap — and writes one self-contained page: tables per repo and per tier × model, charts over
+changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
+
+- **Why:** choosing a review tier, and seeing what it costs, needs the record of every past converge in one place.
+- **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
 
 ## The target repo
 
