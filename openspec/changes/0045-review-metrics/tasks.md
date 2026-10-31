@@ -6,7 +6,7 @@ word for word.
 ## Progress
 
 - [x] 1 — Read the findings
-- [ ] 2 — Draw the page
+- [x] 2 — Draw the page
 - [ ] 3 — Ship the station
 - [ ] 4 — Run it on this machine
 
@@ -23,10 +23,10 @@ word for word.
 
 ## 2 — Draw the page
 
-- [ ] 2.1 Add the page to `skills/mf-review-metrics/scripts/review_metrics.py`, `chart` and `_STYLE` loaded per
+- [x] 2.1 Add the page to `skills/mf-review-metrics/scripts/review_metrics.py`, `chart` and `_STYLE` loaded per
   [D3](design.md#d3), the layout per [D7](design.md#d7).
   Verify: `grep -c 'def chart(' skills/mf-review-metrics/scripts/review_metrics.py` prints `0`, and `grep -c 'mf-build/scripts/metrics.py' skills/mf-review-metrics/scripts/review_metrics.py` prints at least `1`.
-- [ ] 2.2 Add `test_the_page_draws_charts_and_lists_gaps` and `test_overrides_win_over_the_config` to
+- [x] 2.2 Add `test_the_page_draws_charts_and_lists_gaps` and `test_overrides_win_over_the_config` to
   `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py` reports `6 passed`.
 

@@ -2,30 +2,50 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Read the review findings and status logs of the repos the operator names.
+"""Draw one page of the review findings and status logs of the repos the operator names.
 
     review_metrics.py [--config <path>] [--repo <path> …] [--out <path>]
 
-Exit 0 read · 2 cannot run · any other a crash.
-Why: 0045-review-metrics design D1, D2 and D4.
+Exit 0 written · 2 cannot run · any other a crash.
+Why: 0045-review-metrics design D1…D4 and D7.
 """
 
 import argparse
+import html
+import importlib.util
 import os
 import re
+import statistics
 import sys
 import tomllib
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
 FINDINGS = Path(".minions/findings")
 FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
 DAY_SECONDS = 86400
+CHARTS = {
+    "rounds": "rounds",
+    "findings": "findings",
+    "blocking": "blocking",
+    "verified": "verified",
+    "reopened": "reopened",
+    "capped": "capped",
+    "to_backlog": "to backlog",
+    "duration": "duration (s)",
+    "tokens": "tokens",
+}
+TOP_CATEGORIES = 3
+GAP = "—"
 
 Record = dict[str, Any]
 Number = int | float
+Chart = Callable[[dict[str, Any], list[tuple[str, Number | None, bool]]], str]
+Table = tuple[list[str], list[list[str]]]
+
+_E = html.escape
 
 
 class CannotRun(Exception):
@@ -337,8 +357,216 @@ def read_repo(repo: Path) -> list[Record]:
     )
 
 
+def load_chart() -> tuple[Chart, str]:
+    """Return `mf-build`'s `chart` and `_STYLE`, loaded from its package."""
+    path = Path(__file__).resolve().parent / "../../mf-build/scripts/metrics.py"
+    spec = importlib.util.spec_from_file_location("mf_build_metrics", path)
+    if spec is None or spec.loader is None or not path.is_file():
+        raise CannotRun(f"no chart: looked for {path.resolve()}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.chart, module._STYLE
+
+
+def _known(records: list[Record], field: str) -> list[Number]:
+    """Return the field's values, gaps left out."""
+    return [record[field] for record in records if record[field] is not None]
+
+
+def _figure(value: Number) -> str:
+    """Return a number for a table; e.g. 1.5 → "1.5", 2.0 → "2", 1234567 → "1234567"."""
+    return f"{value:.1f}".removesuffix(".0")
+
+
+def _counted(
+    stat: Callable[[list[Number]], Number], records: list[Record], field: str
+) -> str:
+    """Return the statistic with its count beside it; e.g. "1.5 (n=2)", a gap "—"."""
+    known = _known(records, field)
+    return f"{_figure(stat(known))} (n={len(known)})" if known else GAP
+
+
+def _summed(records: list[Record], field: str) -> str:
+    """Return the sum of the records holding the field, a gap when none does."""
+    known = _known(records, field)
+    return _figure(sum(known)) if known else GAP
+
+
+def _top(records: list[Record]) -> str:
+    """Return the most found categories; e.g. "maintainability 2, security 1"."""
+    counts: Counter[str] = sum((r["categories"] for r in records), Counter())
+    return (
+        ", ".join(f"{name} {n}" for name, n in counts.most_common(TOP_CATEGORIES))
+        or GAP
+    )
+
+
+def _repo_table(records: list[Record]) -> Table:
+    """Return a repo's table: a column per measure, its one row over every change."""
+    per_change = ("findings", "blocking", "verified", "reopened")
+    return (
+        [
+            "changes",
+            "median rounds",
+            *(f"{field} per change" for field in per_change),
+            "capped",
+            "to backlog",
+        ],
+        [
+            [
+                str(len(records)),
+                _counted(statistics.median, records, "rounds"),
+                *(_counted(statistics.fmean, records, field) for field in per_change),
+                _summed(records, "capped"),
+                _summed(records, "to_backlog"),
+            ]
+        ],
+    )
+
+
+def _severity_table(records: list[Record]) -> Table:
+    """Return the findings per grade, a row per grade the repo used."""
+    grades: Counter[str] = sum((r["severity"] for r in records), Counter())
+    return ["grade", "findings"], [
+        [grade, str(count)] for grade, count in grades.most_common()
+    ]
+
+
+def tier_table(records: list[Record]) -> Table:
+    """Return a row per tier, model and engine, `unknown` for a gap."""
+    groups: dict[tuple[str, ...], list[Record]] = {}
+    for record in records:
+        key = tuple(record[f] or "unknown" for f in ("tier", "model", "engine"))
+        groups.setdefault(key, []).append(record)
+    summed = (
+        "confirmed",
+        "plausible",
+        "plausible_verified",
+        "refuted",
+        "inconclusive",
+        "packet_included",
+        "packet_skipped",
+    )
+    headers = [
+        "tier",
+        "model",
+        "engine",
+        "changes",
+        "median rounds",
+        "findings per change",
+        "blocking per change",
+        "median workers",
+        *(field.replace("_", " ") for field in summed),
+        "top categories",
+        "median duration (s)",
+        "median tokens",
+    ]
+    rows = [
+        [
+            *key,
+            str(len(group)),
+            _counted(statistics.median, group, "rounds"),
+            _counted(statistics.fmean, group, "findings"),
+            _counted(statistics.fmean, group, "blocking"),
+            _counted(statistics.median, group, "workers"),
+            *(_summed(group, field) for field in summed),
+            _top(group),
+            _counted(statistics.median, group, "duration"),
+            _counted(statistics.median, group, "tokens"),
+        ]
+        for key, group in sorted(groups.items())
+    ]
+    return headers, rows
+
+
+def lacked(records: list[Record]) -> str:
+    """Return each gap field and its count; e.g. "tier 2 · tokens 3", else "none"."""
+    gaps = Counter(k for record in records for k, v in record.items() if v is None)
+    return " · ".join(f"{k} {n}" for k, n in sorted(gaps.items())) or "none"
+
+
+def _html_table(table: Table) -> str:
+    """Return a table as escaped HTML."""
+
+    def row(tag: str, cells: Sequence[str]) -> str:
+        return "<tr>" + "".join(f"<{tag}>{_E(c)}</{tag}>" for c in cells) + "</tr>"
+
+    headers, rows = table
+    return "\n".join(
+        ["<table>", row("th", headers), *(row("td", r) for r in rows), "</table>"]
+    )
+
+
+def _markdown_table(table: Table) -> str:
+    """Return a table as markdown."""
+    headers, rows = table
+    lines = [headers, ["---"] * len(headers), *rows]
+    return "\n".join("| " + " | ".join(cells) + " |" for cells in lines)
+
+
+def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
+    """Return a repo's lines: its tables, then a chart per measure over its changes."""
+    lines = [
+        '<section class="repo">',
+        f"<h2>{_E(name)}</h2>",
+        _html_table(_repo_table(records)),
+        "<h3>findings per grade</h3>",
+        _html_table(_severity_table(records)),
+        '<div class="charts">',
+    ]
+    for field, title in CHARTS.items():
+        # why: a whole change id overruns its neighbours on the axis
+        points = [(r["change"].partition("-")[0], r[field], False) for r in records]
+        lines.append(
+            f"<figure><figcaption>{_E(title)}</figcaption>"
+            f"{chart({'title': title}, points)}</figure>"
+        )
+    return [*lines, "</div>", "</section>"]
+
+
+def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) -> str:
+    """Return the page, laid out per 0045-review-metrics design D7."""
+    records = [record for _, held in read for record in held]
+    lines = [
+        "<!doctype html>",
+        '<html lang="en"><head><meta charset="utf-8">',
+        f"<title>Review metrics</title><style>{style}</style></head><body>",
+        "<h1>Review metrics</h1>",
+        f"<p>repos read {len(read)} · changes read {len(records)}</p>",
+    ]
+    for name, held in read:
+        lines += _repo_section(name, held, chart)
+    lines += ["<h2>tier × model</h2>", _html_table(tier_table(records))]
+    lines += ["<h2>lacked</h2>", "<ul>"]
+    lines += [f"<li>{_E(name)}: {_E(lacked(held))}</li>" for name, held in read]
+    lines += ["</ul>", "</body></html>"]
+    return "\n".join(lines) + "\n"
+
+
+def summary(out: Path, read: list[tuple[str, list[Record]]]) -> str:
+    """Return what a written run prints, per 0045-review-metrics design D2."""
+    records = [record for _, held in read for record in held]
+    return "\n".join(
+        [
+            str(out),
+            f"repos: {len(read)} · changes: {len(records)}",
+            _markdown_table(tier_table(records)),
+            f"lacked: {lacked(records)}",
+        ]
+    )
+
+
+def _write(path: Path, text: str) -> None:
+    """Write the page, its folder too."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise CannotRun(f"{path}: cannot write: {exc}") from exc
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Read the repos the config or the flags name; return the exit code."""
+    """Draw the page of the repos the config or the flags name; return the exit code."""
     parser = argparse.ArgumentParser(
         prog="review_metrics.py",
         description=__doc__,
@@ -349,12 +577,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     try:
-        repos, _ = settings(args.config, args.repo, args.out)
+        repos, out = settings(args.config, args.repo, args.out)
+        chart, style = load_chart()
+        read = [(repo.name, read_repo(repo)) for repo in repos]
+        _write(out, render_page(read, chart, style))
     except CannotRun as exc:
         print(exc, file=sys.stderr)
         return 2
-    read = [read_repo(repo) for repo in repos]
-    print(f"repos: {len(read)} · changes: {sum(map(len, read))}")
+    print(summary(out, read))
     return 0
 
 

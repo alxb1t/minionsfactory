@@ -235,3 +235,90 @@ def test_the_status_log_gives_duration_tokens_and_the_cap(tmp_path: Path) -> Non
 
     third = _record(tmp_path, "0032-none")
     assert (third["capped"], third["to_backlog"], third["engine"]) == (0, None, None)
+
+
+def test_the_page_draws_charts_and_lists_gaps(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    alpha, beta = tmp_path / "alpha", tmp_path / "beta"
+    _findings(
+        alpha,
+        "0001-a_review.md",
+        _front(
+            "changes-requested",
+            reviewed="2026-01-01",
+            round=2,
+            tier="high",
+            workers=4,
+            model="<b>m</b>",
+        )
+        + _card(1, "blocking · review · correctness — why", "**Verdict:** confirmed."),
+    )
+    log = """## Run 1 — 2026-01-01 10:00
+10:02:00 · round 1 · done — converged in 1 round · 1 card to backlog
+10:01:00 · round 1 · verdicts — review clean · tokens 1234567
+10:00:00 · round 1 · start — base a · head b · engine generic
+"""
+    _findings(alpha, "0001-a_status_log.md", log)
+    _findings(alpha, "0002-b_review.md", _front(reviewed="2026-01-02"))
+    _findings(beta, "0003-c_review.md", _front(reviewed="2026-02-01", round=3))
+    before = sorted(tmp_path.rglob("*"))
+    out = tmp_path / "site" / "page.html"
+
+    code = review_metrics.main(
+        ["--repo", str(alpha), "--repo", str(beta), "--out", str(out)]
+    )
+
+    assert code == 0
+    assert sorted(path for path in tmp_path.rglob("*") if "site" not in path.parts) == (
+        before
+    )
+    page = out.read_text(encoding="utf-8")
+    assert "repos read 2 · changes read 3" in page
+    assert page.count('\n<section class="repo">\n') == 2
+    assert "1.5 (n=2)" in page
+    assert "<tr><td>blocking</td><td>1</td></tr>" in page
+    assert "<td>unknown</td>" in page
+    assert page.count("<svg") == 2 * len(review_metrics.CHARTS)
+    assert "<li>beta: capped 1 · " in page
+    assert "&lt;b&gt;m&lt;/b&gt;" in page
+    assert "<b>m" not in page
+    assert "<script" not in page
+
+    printed = capsys.readouterr().out.splitlines()
+    assert printed[:2] == [str(out.resolve()), "repos: 2 · changes: 3"]
+    assert printed[2].startswith("| tier | model | engine | changes |")
+    assert "| high | <b>m</b> | generic | 1 | 2 (n=1) |" in "\n".join(printed)
+    assert printed[-1].startswith("lacked: capped 2 · confirmed 2 · ")
+
+
+def test_overrides_win_over_the_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "home"
+    named, other = home / "named", tmp_path / "other"
+    _findings(named, "0001-a_review.md", _front())
+    _findings(other, "0002-b_review.md", _front())
+    _findings(other, "0003-c_review.md", _front())
+    config = home / "config.toml"
+    config.write_text('repos = ["named"]\nout = "page.html"\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert review_metrics.main(["--config", str(config)]) == 0
+    assert (home / "page.html").is_file()
+    assert "repos: 1 · changes: 1" in capsys.readouterr().out
+
+    (home / "page.html").unlink()
+    assert (
+        review_metrics.main(
+            ["--config", str(config), "--repo", "other", "--out", "here.html"]
+        )
+        == 0
+    )
+    assert "repos: 1 · changes: 2" in capsys.readouterr().out
+    assert (tmp_path / "here.html").is_file()
+    assert not (home / "page.html").exists()
+
+    blocked = ["--config", str(config), "--out", str(config / "page.html")]
+    assert review_metrics.main(blocked) == 2
+    assert "cannot write" in capsys.readouterr().err
