@@ -31,13 +31,13 @@ commit trailer, so a wrong one releases against another change's verdicts:
 
 1. The candidates are the directories `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists.
    None → **halt**: `no active change`. Several → **halt**, listing them.
-2. The candidate's branch is `v<its proposal version>_<its slug>` — `0019-inferred-change-id` at `v0.19` →
-   `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+2. The candidate's branch is its change id. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
 
-The release version is the `version:` frontmatter in the change's own `proposal.md`: read it, never invent it or
-derive it from a filename. Below, `<version>` is that value — `vX.Y`, or `vX.Y.Z` for a patch — and `<tag>` is
-`<version>.0` for `vX.Y`, `<version>` itself for `vX.Y.Z`: `v0.31` → `v0.31.0`, `v0.31.1` → `v0.31.1`.
+**The tag** comes from the change's `bump:`, read from the leading frontmatter of its `proposal.md`: anything but
+`minor` or `patch` → **halt**. `uv run --script <this package>/scripts/next_tag.py <bump>` prints `<tag>`,
+`<this package>` resolved from this installed skill, e.g. `minor` after `v0.40.0` → `v0.41.0`. A failure or a missing
+`uv` → **halt**. `<version>` is `<tag>` with a trailing `.0` dropped: `v0.41.0` → `v0.41`, `v0.41.1` → itself.
 
 ## Parameter — merge
 
@@ -119,9 +119,9 @@ precondition 4 says what absence means.
        /mf-release
 
 10. **Earlier cuts have shipped** — inspect every other branch named by `git branch --no-merged
-    <default-branch> --list 'v*'`, reading its own change's proposal with `git show <branch>:<proposal-path>`
-    (match its version and slug to the branch). A branch whose own change id has a lower numeric prefix than this
-    change's → halt before finalization, naming that branch and change id; an unreadable reservation also halts.
+    <default-branch> --list '[0-9]*'`, reading its own change's proposal with `git show <branch>:<proposal-path>`.
+    A branch whose own change id has a lower numeric prefix than this change's → halt before finalization, naming
+    that branch and change id; an unreadable reservation also halts.
 
 ## Step 2 — Fold the delta into the living specs
 
@@ -144,6 +144,8 @@ Under `merge=yes`, a flag halts the release after Step 4 and before Step 5: the 
 other change.
 
 ## Step 3 — Archive — staged, not committed
+
+Write `version: <version>` below `bump:` in `openspec/changes/<change-id>/proposal.md`.
 
 Move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/`, then stage the fold and the move
 **by name** — each capability file Step 2 touched, the old change path and the new archive path. **Commit nothing

@@ -7,7 +7,7 @@ for word.
 
 - [x] 1 — next_tag and metrics
 - [x] 2 — Identity
-- [ ] 3 — Skill text
+- [x] 3 — Skill text
 - [ ] 4 — The record
 
 ## 1 — next_tag and metrics
@@ -35,15 +35,15 @@ for word.
 
 ## 3 — Skill text
 
-- [ ] 3.1 Edit `skills/mf-cut-change/SKILL.md`, per [D5](design.md#d5).
+- [x] 3.1 Edit `skills/mf-cut-change/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -c 'v<version>_' skills/mf-cut-change/SKILL.md` prints `0`.
-- [ ] 3.2 Edit `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md` and `skills/mf-simplify/SKILL.md`, per
+- [x] 3.2 Edit `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md` and `skills/mf-simplify/SKILL.md`, per
   [D5](design.md#d5).
   Verify: `grep -l 'its proposal version' skills/mf-build/SKILL.md skills/mf-converge/SKILL.md skills/mf-simplify/SKILL.md` prints nothing.
-- [ ] 3.3 Edit `skills/mf-release/SKILL.md`, and add its row to `tests/test_skills.py`'s `_METRICS_SCRIPTS`, per
+- [x] 3.3 Edit `skills/mf-release/SKILL.md`, and add its row to `tests/test_skills.py`'s `_METRICS_SCRIPTS`, per
   [D5](design.md#d5).
   Verify: `grep -c 'scripts/next_tag.py' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 3.4 Edit `skills/mf-plan/SKILL.md`, `skills/mf-integrate/SKILL.md` and `skills/mf-ship/SKILL.md`, per
+- [x] 3.4 Edit `skills/mf-plan/SKILL.md`, `skills/mf-integrate/SKILL.md` and `skills/mf-ship/SKILL.md`, per
   [D5](design.md#d5).
   Verify: `grep -c 'a crash stops the run' skills/mf-ship/SKILL.md` prints `1`.
 

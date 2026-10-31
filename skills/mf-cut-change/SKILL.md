@@ -25,11 +25,11 @@ naming it.
 | parameter | required | form |
 |---|---|---|
 | `change-id` | yes | `<digits>-<lowercase-slug>`, e.g. `0011-cut-and-gate` |
-| `version` | yes | `vX.Y`, or `vX.Y.Z` for a patch |
+| `bump` | yes | `minor`, or `patch` |
 | `brief` | no | a path to a grilling brief |
 
 Echo every parameter before anything else. A required one missing → **halt** and ask for it. Never infer one: not
-the id from the highest directory, not the version from the id.
+the id from the highest directory, not the bump from the id.
 
 The **source** is what you write from: the conversation, unless `brief` is given. A `brief` path that does not
 resolve → **halt**; never search for one.
@@ -52,8 +52,7 @@ Every one holds, or **halt** naming the one that failed:
   `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`;
 - `change-id` is free: its number is higher than every id under `openspec/changes/` and `openspec/changes/archive/`
   on the default branch and on every unmerged version branch — each `git branch --no-merged <default-branch> --list
-  'v*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`;
-- the version is free: no branch `v<version>_*` (`git branch --list`) and no tag `<tag>` (`git tag -l`).
+  '[0-9]*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`.
 
 ## Step 2 — Gather
 
@@ -74,14 +73,13 @@ alone, and never record an overturn the human did not make.
 
 ## Step 4 — Branch
 
-The slug is the id without its number, hyphens → underscores: `0011-cut-and-gate` at `v0.11` →
-`v0.11_cut_and_gate`. Root `AGENTS.md` decides where the branch lives:
+The branch is the change id. Root `AGENTS.md` decides where the branch lives:
 
-- **`Worktrees:` declared** → `git worktree add -b v<version>_<slug> <path>/v<version>_<slug> <default-branch>`,
+- **`Worktrees:` declared** → `git worktree add -b <change-id> <path>/<change-id> <default-branch>`,
   `<path>` its value, relative to this checkout. `Workspace setup:` names a command → run it in the new worktree,
   halting on a failure, naming it. Every path in Steps 5–10 is in the new worktree, and the commit is made there
   (`git -C <worktree>`). This checkout stays on the default branch.
-- **No `Worktrees:`** → `git switch -c v<version>_<slug>`, as before.
+- **No `Worktrees:`** → `git switch -c <change-id>`, as before.
 
 ## Step 5 — Scaffold
 
@@ -95,7 +93,7 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 [input contract](#input-contract), the [prose rules](#prose-rules) and the
 [rules for the artifacts](#rules-for-the-artifacts).
 
-- `proposal.md` opens with `version: <version>` frontmatter; the CLI neither emits nor checks it.
+- `proposal.md` opens with `bump: <bump>` frontmatter; the CLI neither emits nor checks it.
 - A paydown change — cut to close cards from `.minions/backlog.md` — also lists their qualified ids there:
   `backlog: [0012·S1, 0012·R4]`. `grep` each in `.minions/backlog.md`; an id not found goes to the human. The cut
   leaves the backlog alone: `mf-release` deletes the cards.
@@ -162,7 +160,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 
 | id | the change must | the cutter meets and checks it by |
 |---|---|---|
-| **I1** | be committed, on its own branch `v<version>_<slug>` cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
+| **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
 | **I3** | leave `make gate` green on the cut commit | running `make gate` in Step 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
@@ -174,7 +172,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, and every line number was re-checked at the cut | checking each one in Step 3 |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
-| **I13** | open `proposal.md` with `version:` frontmatter — `vX.Y`, or `vX.Y.Z` for a patch | writing it from the `version` parameter; reading it |
+| **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | writing it from the `bump` parameter; reading it |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked; reading each sub-task for its commands |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |

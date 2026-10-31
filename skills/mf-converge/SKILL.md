@@ -33,16 +33,14 @@ wrong one converges on **another** change's verdicts:
 
 1. The candidates are the directories `git ls-files openspec/changes/ ':!openspec/changes/archive/'` lists.
    None → **halt**: `no active change`. Several → **halt**, listing them.
-2. The candidate's branch is `v<its proposal version>_<its slug>` — `0019-inferred-change-id` at `v0.19` →
-   `v0.19_inferred_change_id`. The current branch differs → **halt**, naming both.
+2. The candidate's branch is its change id. The current branch differs → **halt**, naming both.
 3. Echo `change-id: <id> (inferred: the one active change; branch <branch> agrees)`, then proceed.
 
 The **run directory** is `.minions/` beside the primary checkout:
 `$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
-The release version is the change's `proposal.md` `version:` frontmatter. **The backlog** is
-`.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
+**The backlog** is `.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
 
 ## Where the constants come from — disk, never a guess
 
@@ -256,7 +254,7 @@ parses it, and it opens with this frontmatter, all fourteen keys:
 ```yaml
 ---
 type: review | security
-plan: vX.Y
+plan: <change-id>
 project: <repository name>
 branch: <branch name>
 head: <the commit this round judged>

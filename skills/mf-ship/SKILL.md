@@ -17,7 +17,7 @@ preconditions ─▶ status ─▶ every open version at a halt stage? ─ yes �
                   probe worker ─▶ check probe
                     │
   A · each version at build or converge, in parallel: spawn ─▶ wait ─▶ check, until integrate or release
-      a halt stops only its version
+      a halt stops only its version; a crash stops the run
                     │  every thread joined
   B · each open version, in change-id order: integrate ─▶ converge (catch-up) ─▶ release, by its stage
       a halt, here or in A, holds every version behind it
@@ -42,7 +42,7 @@ skill. Its exits: 0 done · 1 halt · 2 cannot run.
 
 | command | prints |
 |---|---|
-| `status` | one line per open version: `<change-id> · <branch> · <stage>` |
+| `status` | one line per open version: `<change-id> · <stage>` |
 | `run --executor <executor> --detach` | starts the loop in a new session and returns |
 | `report` | the last run's close-out lines |
 

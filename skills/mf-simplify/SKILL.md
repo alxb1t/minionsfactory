@@ -22,8 +22,8 @@ ones it names, else `docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and 
 ## Parameter — the change id
 
 A given `change-id` is used as given. Without one, take the one directory `git ls-files openspec/changes/
-':!openspec/changes/archive/'` lists; none or several → **halt**, naming them. Its branch is
-`v<its proposal version>_<its slug>`; the current branch differs → **halt**, naming both.
+':!openspec/changes/archive/'` lists; none or several → **halt**, naming them. Its branch is its change id; the
+current branch differs → **halt**, naming both.
 
 ## Step 1 — Preconditions
 
