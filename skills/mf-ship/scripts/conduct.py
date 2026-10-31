@@ -303,8 +303,8 @@ def find_version(primary: Path, change: str) -> Version | None:
 
 def _progress(tree: Path, change: str) -> list[tuple[str, str, str]]:
     """Return the `## Progress` lines as (mark, number, title); none stops with 1."""
-    tasks = tree / "openspec" / "changes" / change / "tasks.md"
-    boxes = PROGRESS.findall(tasks.read_text()) if tasks.is_file() else []
+    tasks = _show(tree, "HEAD", f"openspec/changes/{change}/tasks.md") or ""
+    boxes = PROGRESS.findall(tasks)
     if not boxes:
         raise Stop(1, f"conduct: halt — {change}: tasks.md has no ## Progress list")
     return boxes
@@ -449,15 +449,17 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
         if _unmerged(tree):
-            return "integrating", "interrupted: a merge is open with no note"
+            return "integrate", "interrupted: a merge is open with no note"
         return (
             "integrate",
             "a merge is open and staged, with no note: integrate resumes",
         )
     tag = _tag_of(primary, change)
-    if tag is not None and _tagged(primary, tag):
-        return "released", f"{tag} is tagged; the release stopped before its merge"
     default = default_branch(primary)
+    if tag is not None and _tagged(primary, tag):
+        if _ancestor(tree, default, "HEAD"):
+            return "release", f"{tag} is tagged; the merge is left"
+        return "released", f"{tag} is tagged; the release stopped before its merge"
     missing = [
         name
         for name in _dependencies(primary, change)

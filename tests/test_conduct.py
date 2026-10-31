@@ -135,7 +135,10 @@ def test_status_reads_each_stage_from_disk(
     _git(root, "worktree", "add", "-q", "-b", "0009-stray", str(stray))
     _commit(stray, {"stray.txt": "x\n"}, "not a version")
     assert stage() == "0001-todo · build"
+    tasks.write_text("## Progress\n\n- [x] 1 — One\n")
+    assert stage() == "0001-todo · build"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
+    _commit(tree, {}, "a human phase")
     assert stage().endswith(" · human")
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     _commit(tree, {}, "build")
@@ -158,6 +161,7 @@ def test_status_reads_each_stage_from_disk(
     marks.mkdir(parents=True)
     stage_of, find = conduct["stage_of"], conduct["find_version"]
     version = find(root, "0001-todo")
+    assert stage() == "0001-todo · integrate"
     assert stage_of(root, version)[1].startswith("interrupted")
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
@@ -193,9 +197,12 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("build") == (1, "check: build · fail — phase 1 unticked")
     tasks = tree / "openspec/changes/0001-todo/tasks.md"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
-    assert check("build") == (1, "check: build · fail — the tree is not clean")
+    assert check("build") == (1, "check: build · fail — phase 1 unticked")
     _commit(tree, {}, "build")
     assert check("build") == (0, "check: build · pass")
+    (tree / "stray.txt").write_text("x\n")
+    assert check("build") == (1, "check: build · fail — the tree is not clean")
+    (tree / "stray.txt").unlink()
 
     no_done = (1, "check: converge · fail — the status log has no done")
     assert check("converge") == no_done
@@ -886,6 +893,75 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+def test_a_rerun_recovers_a_dead_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-release-fold")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def run(code: int) -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+
+    def stage() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    run(1)
+    assert _git(tree, "status", "--porcelain")
+    assert _git(root, "tag", "-l") == ""
+    assert stage() == "0001-todo · release"
+    calls.unlink()
+    fake()
+    run(0)
+    assert _calls(calls) == ["probe", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink()
+    fake("dies-release-tag")
+    run(1)
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
+    assert stage() == "0002-marks · release"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    assert stage_of(root, find(root, "0002-marks"))[1] == (
+        "v0.2.0 is tagged; the merge is left"
+    )
+    calls.unlink()
+    fake()
+    run(0)
+    assert _calls(calls) == ["probe", "release 0002-marks"]
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "branch", "--no-merged", "main") == ""
+
+    _version(root, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    fake("dies-release-tag")
+    run(1)
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    assert stage() == "0003-more · released"
+    calls.unlink()
+    fake()
+    run(1)
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(
+            " · 0003-more · halt — released — v0.3.0 is tagged;"
+            " the release stopped before its merge"
+        )
+        for line in _log(root)
+    )
+
+
 def test_a_usage_limit_is_named(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1133,15 +1209,21 @@ def _fake(prompt: str) -> None:
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
         tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
-        _git(
-            here,
-            "mv",
-            f"openspec/changes/{change}",
-            f"openspec/changes/archive/{change}",
-        )
-        _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
-        _git(here, "tag", tag)
+        if not _git(here, "log", "-1", "--format=%s").startswith("chore(release): "):
+            _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
+            (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
+            _git(
+                here,
+                "mv",
+                f"openspec/changes/{change}",
+                f"openspec/changes/archive/{change}",
+            )
+            if "dies-release-fold" in modes:
+                sys.exit(1)
+            _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
+            _git(here, "tag", tag)
+            if "dies-release-tag" in modes:
+                sys.exit(1)
         _git(
             primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
         )

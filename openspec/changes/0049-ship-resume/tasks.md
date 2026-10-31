@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 ## Progress
 
 - [x] 1 — A dead worker
-- [ ] 2 — Integrate and release
+- [x] 2 — Integrate and release
 - [ ] 3 — The conductor
 
 ## 1 — A dead worker
@@ -24,12 +24,12 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 2 — Integrate and release
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py`, make a no-note open merge stage `integrate`, read `tasks.md` from `HEAD`,
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py`, make a no-note open merge stage `integrate`, read `tasks.md` from `HEAD`,
   and narrow `released`, per [D3](design.md#d3) and [D4](design.md#d4).
   Verify: `grep -c 'the merge is left' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 2.2 Add `## A resumed release` to `skills/mf-release/SKILL.md`, per [D4](design.md#d4).
+- [x] 2.2 Add `## A resumed release` to `skills/mf-release/SKILL.md`, per [D4](design.md#d4).
   Verify: `grep -c '^## A resumed release' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 2.3 In `tests/test_conduct.py`, add `test_a_rerun_recovers_a_dead_release`, and edit
+- [x] 2.3 In `tests/test_conduct.py`, add `test_a_rerun_recovers_a_dead_release`, and edit
   `test_status_reads_each_stage_from_disk`, per [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "dead_release or reads_each_stage"` reports `2 passed`.
 
