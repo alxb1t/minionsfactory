@@ -326,11 +326,11 @@ the proposal it archives.
 
 - **Why:** one source of version truth leaves nothing to reconcile.
 
-### D20 · A change id is an identifier, numbered in ship order
+### D20 · A change id is an identifier, numbered in cut order
 
 **`<digits>-<slug>`, never renamed once cut, and the name of its branch. The number is higher than every id on the
-default branch and on every open version branch; the cut takes the id it is given; versions ship in cut order; a
-version is numbered at its release, so work carries a name, then an id, and a number last.**
+default branch and on every open version branch; the cut takes the id it is given; a version is numbered at its
+release, so work carries a name, then an id, and a number last.**
 
 Example: `0011-cut-and-gate`, on the branch `0011-cut-and-gate`.
 
@@ -418,9 +418,8 @@ the bootstrap templates — never that a sentence exists.**
 ### D44 · Versions run side by side in worktrees; one primary merges them
 
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
-primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch,
-and versions ship in cut order. Every worktree shares the primary's `.minions/`; the release merges
-in the primary.**
+primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch.
+Every worktree shares the primary's `.minions/`; the release merges in the primary.**
 
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids
   without a lock file.
@@ -428,9 +427,10 @@ in the primary.**
 
 ### D45 · One station merges the default branch into the next version
 
-**`mf-integrate`, run in the primary, merges the default branch into the lowest-id open version's worktree,
+**`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
 applies fixed rules to the CHANGELOG, decision ids and spec delta, hands a semantic conflict to the person with the
-merge open, gates, and commits the merge; converge's catch-up judges the merge by its remerge-diff.**
+merge open, gates, and commits the merge; converge's catch-up judges the merge by its remerge-diff. `conduct.py` alone
+merges it into a dependent's cut-only branch, which cannot conflict.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
   read, and what the merge decided is exactly what review must see.
@@ -440,10 +440,10 @@ merge open, gates, and commits the merge; converge's catch-up judges the merge b
 ### D47 · `mf-ship` takes cut versions to the default branch unattended
 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
-then integrates, runs the catch-up round and releases each in cut order with `merge=yes`. Each station is a fresh
-agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with
-prompts bypassed, and is judged by a check on disk; a failed check halts its version, a halt holds every version
-behind it at the merge, a failed probe halts the run, and a re-run resumes from disk. Converge runs at the tier the
+then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
+station is a fresh agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex
+— never with prompts bypassed, and is judged by a check on disk; a failed check halts its version, a halt blocks only
+what names it in `after:`, a failed probe halts the run, and a re-run resumes from disk. Converge runs at the tier the
 cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen

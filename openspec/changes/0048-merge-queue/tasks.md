@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 - [x] 1 — The cut and I17
 - [x] 2 — The merge side
 - [x] 3 — The conductor
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The cut and I17
 
@@ -53,7 +53,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 4 — The record
 
-- [ ] 4.1 Edit `skills/mf-plan/SKILL.md`'s *parallel with* row, per [D7](design.md#d7).
+- [x] 4.1 Edit `skills/mf-plan/SKILL.md`'s *parallel with* row, per [D7](design.md#d7).
   Verify: `grep -c 'proposed in an order' skills/mf-plan/SKILL.md` prints `0`.
-- [ ] 4.2 Amend D20, D44, D45 and D47 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 4.2 Amend D20, D44, D45 and D47 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -c 'cut order' docs/decisions.md` prints `1`.

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` runs one thread per version and one lock around integrate, catch-up and release, so the first ready is the
   first merged. A dependent waits for its `after:`, gets the default branch merged in, and is `blocked` when it halts;
   `held` goes (change `0048-merge-queue`, phase 3).
+- `mf-plan`'s *parallel with* warns and proposes no order, and D20, D44, D45 and D47 say versions merge as they are
+  ready (change `0048-merge-queue`, phase 4).
 
 ## [0.41.0] - 2026-10-31
 

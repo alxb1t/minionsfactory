@@ -73,7 +73,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 | a split | a version whose one diff would be too large for review is proposed as two |
 | re-measure | with `from=`: a fact citing a commit other than `<sha>` is checked again at `<sha>` |
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
-| parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is proposed in an order, naming the file |
+| parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file, with `after:` suggested when one needs the other's code |
 
 No `.minions/backlog.md` → say so, and skip the backlog checks.
 
