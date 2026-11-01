@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.44
 backlog: [0040·S2, 0040·S4, 0048·S2, 0048·S3]
 ---
 
