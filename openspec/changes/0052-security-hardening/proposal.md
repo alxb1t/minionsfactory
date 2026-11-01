@@ -44,7 +44,7 @@ None.
 ## Impact
 
 Changes `skills/mf-ship/scripts/conduct.py`, the `mf-ship` and `mf-release` skills, `docs/decisions.md`, `THREAT_MODEL.md`,
-`tests/test_conduct.py` and `tests/fake_worker.py`. Adds `tests/escape_drill.py` and this change's `evidence/`. Amends D47, adds
+`tests/test_conduct.py` and `tests/fake_worker.py`. Adds `tests/escape_drill.py` and this change's `evidence/`. Amends D17 and D47, adds
 D51.
 
 Dependencies: none. The gate recipe stays unchanged.

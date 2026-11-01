@@ -115,7 +115,8 @@ the tagged-merges rule, before it judges the release. A hand release SHALL push 
 
 ### Requirement: A run's plan is read once
 
-`conduct.py` SHALL read every open version's executors, models and efforts once, before the first worker, and SHALL halt a
+`conduct.py` SHALL read every open version's executors, models and efforts, and `AGENTS.md`'s `Ship network:` and `Ship tools:`
+lines, once, before the first worker, and SHALL halt a
 version whose models file later differs. It SHALL halt a version before integrate when the default branch holds a first-parent
 commit past `origin` that merges no release.
 

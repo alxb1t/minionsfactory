@@ -38,7 +38,7 @@ push; both executors have the same boundary.
 
 ### D1
 
-`argv`, for Claude, adds `--settings` with `worker_settings(primary, trees)`, and starts through `env` with `UV_CACHE_DIR`, as Codex
+`argv`, for Claude, adds `--settings` with `worker_settings(primary, trees, common, network)`, and starts through `env` with `UV_CACHE_DIR`, as Codex
 does. `allowlist` stays: the sandbox holds Bash, and the permission rules hold `Read`, `Edit` and `Write`.
 
 ```python
@@ -55,15 +55,16 @@ NETWORK = ("pypi.org", "files.pythonhosted.org", "registry.npmjs.org")
 ```
 
 ```python
-def worker_settings(primary: Path, trees: list[Path], common: Path | None) -> str:
+def worker_settings(
+    primary: Path, trees: list[Path], common: Path | None, network: list[str]
+) -> str:
     """Return the Claude worker's sandbox settings, as JSON."""
-    extra = _agents_values(primary, "Ship network") or []
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
         "enabled": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
-        "network": {"allowedDomains": [*NETWORK, *extra]},
+        "network": {"allowedDomains": [*NETWORK, *network]},
     }
     return json.dumps({"sandbox": sandbox})
 ```
@@ -89,7 +90,8 @@ v0.45's tagged-merges rule. A resume works the same: a run's start pushes what a
 ### D4
 
 `Run.ship`, before its first probe: `self.plan = {(change, station): _models(...)}` for each open version, a refused table left out
-as `executors` does. `Run.advance` takes the plan's triple, and a later `_models` that differs → `Stop(1, "conduct: halt —
+as `executors` does. The plan also holds `AGENTS.md`'s `Ship network:` and `Ship tools:`, read once, and `argv` takes them from it: a worker can write that
+file, so a later edit reaches no worker in this run. `Run.advance` takes the plan's triple, and a later `_models` that differs → `Stop(1, "conduct: halt —
 models/<change>.toml changed during the run")`.
 
 ### D5
@@ -103,6 +105,9 @@ version's `Stop`, naming the commit.
 plain halt.
 
 ### D7
+
+D17, the bold paragraph: "and pushes the default branch and the tag" → "and pushes the default branch and the tag; under
+`merge=yes`, `conduct.py` pushes". Its title stays, so its links hold.
 
 D47, the bold paragraph: "under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex — never with prompts
 bypassed" → "in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed". The **Rejected** clause: ", though `make`,
@@ -162,7 +167,7 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`). `T2`: no test reaches these
 |---|---|
 | `test_a_claude_worker_starts_in_the_sandbox` | `argv`'s `--settings` holds the reach, `SECRETS`, `NETWORK` and a `Ship network:` domain; a wildcard is refused |
 | `test_no_worker_pushes` | a bare `origin`: the fake release pushes nothing, a `push` event follows, and the check passes |
-| `test_the_plan_is_read_once` | a fake worker rewrites `executor`: the version halts, naming the file |
+| `test_the_plan_is_read_once` | a fake worker rewrites `executor`: the version halts, naming the file; a domain it adds to `Ship network:` reaches no later worker's settings |
 | `test_a_commit_during_a_run_halts_before_integrate` | a commit on `main` during a build: no `integrate` call, and the `halt` line names it |
 | `test_a_mixed_key_list_gets_no_lfs_remedy` | an LFS key beside `core.sshCommand`: the plain halt |
 

@@ -39,8 +39,8 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 4 — The record
 
-- [ ] 4.1 Amend D47 and add D51 in `docs/decisions.md`, per [D7](design.md#d7).
-  Verify: `grep -c '^### D51' docs/decisions.md` prints `1`.
+- [ ] 4.1 Amend D17 and D47, and add D51, in `docs/decisions.md`, per [D7](design.md#d7).
+  Verify: `grep -c '^### D51' docs/decisions.md` prints `1`, and `grep -c 'under .merge=yes., .conduct.py. pushes' docs/decisions.md` prints `1`.
 - [ ] 4.2 Edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -c 'A Codex worker can read' THREAT_MODEL.md` prints `1`.
 
