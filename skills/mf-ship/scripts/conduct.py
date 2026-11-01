@@ -123,6 +123,8 @@ HOOKS_OFF = (
 )
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
+# `AGENTS.md`'s `Ship tools:` values, then its `Ship network:` values.
+type ShipLines = tuple[list[str], list[str]]
 # The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
 # and any other halts, so a key git adds later fails closed. `lfs.*` stays off: LFS
 # uploads from a `pre-push` hook, and no hook runs in a run.
@@ -133,6 +135,10 @@ CONFIG_PLAIN = re.compile(
     r"|protocol\.version|pull\.(rebase|ff)"
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
+)
+LFS_KEYS = (
+    *("lfs.repositoryformatversion", "filter.lfs.clean", "filter.lfs.smudge"),
+    *("filter.lfs.process", "filter.lfs.required"),
 )
 # A URL git reaches over a network. Any other form runs a program on this machine: a
 # local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
@@ -682,7 +688,7 @@ def _refuse_config_commands(cwd: Path) -> None:
     """
     if held := _config_held(cwd):
         remedy = "move it to the global config or remove it"
-        if any(name.startswith(("lfs.", "filter.lfs.")) for name in held):
+        if all(name in LFS_KEYS for name in held):
             remedy = (
                 "a run cannot upload LFS objects: keep the key, and release this repo"
                 " by hand"
@@ -745,6 +751,22 @@ def _merges_a_release(primary: Path, sha: str) -> bool:
     return len(set(trees.split())) == 1
 
 
+def _foreign_commit(primary: Path) -> list[str]:
+    """Return the default branch's first-parent commits past `origin`, each a release.
+
+    A commit that merges no tagged release stops with 1. With no `origin`, none.
+    """
+    if "origin" not in _git(primary, "remote").split():
+        return []
+    default = default_branch(primary)
+    ahead = f"origin/{default}..{default}"
+    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
+    for sha in commits:
+        if not _merges_a_release(primary, sha):
+            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
+    return commits
+
+
 def _unpushed(primary: Path) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
@@ -757,12 +779,7 @@ def _unpushed(primary: Path) -> list[str]:
         return []
     _refuse_origin(primary)
     default = default_branch(primary)
-    ahead = f"origin/{default}..{default}"
-    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
-    for sha in commits:
-        if not _merges_a_release(primary, sha):
-            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
-    found = [default] if commits else []
+    found = [default] if _foreign_commit(primary) else []
     listed = _maybe(primary, "ls-remote", "--tags", "origin")
     if listed is None:
         return found
@@ -931,13 +948,27 @@ def reach(primary: Path) -> list[Path]:
     return trees
 
 
-def allowlist(primary: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
+def ship_lines(primary: Path) -> ShipLines:
+    """Return `AGENTS.md`'s `Ship tools:` and `Ship network:` values.
+
+    A `Ship network:` value that is not a plain domain stops with 1.
+    Why: 0052-security-hardening design D2.
+    """
+    network = _agents_values(primary, "Ship network") or []
+    for domain in network:
+        if not DOMAIN.fullmatch(domain):
+            raise Stop(
+                1, f"conduct: halt — AGENTS.md: Ship network {domain!r} is not a domain"
+            )
+    return _agents_values(primary, "Ship tools") or [], network
+
+
+def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]]:
     """Return the Claude worker's allowed and denied rules, editing inside `trees`."""
-    extra = _agents_values(primary, "Ship tools") or []
     allowed = [
         *TOOLS,
         *(f"Edit(/{tree}/**)" for tree in trees),
-        *(f"Bash({command}:*)" for command in (*COMMANDS, *extra)),
+        *(f"Bash({command}:*)" for command in (*COMMANDS, *tools)),
     ]
     denied = [f"Bash({command}:*)" for command in DENIED]
     for sub, flag in FORCED:
@@ -950,24 +981,19 @@ def allowlist(primary: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
     return allowed, denied
 
 
-def worker_settings(primary: Path, trees: list[Path], common: Path | None) -> str:
+def worker_settings(
+    primary: Path, trees: list[Path], common: Path | None, network: list[str]
+) -> str:
     """Return the Claude worker's sandbox settings, as JSON.
 
-    A `Ship network:` value that is not a plain domain stops with 1.
     Why: 0052-security-hardening design D1.
     """
-    extra = _agents_values(primary, "Ship network") or []
-    for domain in extra:
-        if not DOMAIN.fullmatch(domain):
-            raise Stop(
-                1, f"conduct: halt — AGENTS.md: Ship network {domain!r} is not a domain"
-            )
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
         "enabled": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
-        "network": {"allowedDomains": [*NETWORK, *extra]},
+        "network": {"allowedDomains": [*NETWORK, *network]},
     }
     return json.dumps({"sandbox": sandbox})
 
@@ -979,11 +1005,13 @@ def argv(
     model: str | None,
     effort: str | None,
     repo: Repo,
+    lines: ShipLines | None = None,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
     `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
-    `.git` no longer resolves to the common directory in `repo`.
+    `.git` no longer resolves to the common directory in `repo`. A run passes its
+    `lines`; without them, `AGENTS.md` is read here.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
@@ -992,7 +1020,8 @@ def argv(
     trees = reach(primary)
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
-        allowed, denied = allowlist(primary, trees)
+        tools, network = lines or ship_lines(primary)
+        allowed, denied = allowlist(trees, tools)
         return [
             *("env", *HOOKS_OFF, cache),
             *("claude", "-p", prompt),
@@ -1000,7 +1029,7 @@ def argv(
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
-            *("--settings", worker_settings(primary, trees, common)),
+            *("--settings", worker_settings(primary, trees, common, network)),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
@@ -1301,6 +1330,8 @@ class Run:
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
         self.released: list[str] = []
+        self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
+        self.lines: ShipLines = ([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
 
@@ -1342,7 +1373,9 @@ class Run:
         Return the denials, or None when a timeout or a failed exit halted `who`.
         """
         executor, model, effort = models
-        command = argv(executor, prompt, cwd, model, effort, repo or self.repo)
+        command = argv(
+            executor, prompt, cwd, model, effort, repo or self.repo, self.lines
+        )
         other = f" · executor {executor}" if executor != self.executor else ""
         self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
         out = self.runs / self.log.stamp / f"{who}_{station}.log"
@@ -1385,6 +1418,8 @@ class Run:
                     return
                 if stage in stop_at:
                     return
+                if stage == "integrate":
+                    _foreign_commit(self.primary)
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -1397,6 +1432,12 @@ class Run:
                     granted.unlink()
                 prompt = PROMPTS[stage].format(change=version.change, tier=tier)
                 models = _models(minions, version.change, stage, self.executor)
+                if models != self.plan.get((version.change, stage)):
+                    raise Stop(
+                        1,
+                        f"conduct: halt — models/{version.change}.toml changed during"
+                        " the run",
+                    )
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
@@ -1472,22 +1513,25 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
-    def executors(self, versions: list[Version]) -> list[str]:
-        """Return the run's executor, then each other one the versions' tables name.
+    def read_plan(self, versions: list[Version]) -> None:
+        """Read each station's models and `AGENTS.md`'s `Ship` lines, once.
 
-        A table `_models` refuses names none: its version halts in `take`.
+        A worker can write both. A table `_models` refuses stays out of the plan: its
+        version halts in `take`. Why: 0052-security-hardening design D4.
         """
-        found = [self.executor]
+        self.lines = ship_lines(self.primary)
         for version, station in itertools.product(versions, STATIONS):
             try:
-                executor, *_ = _models(
+                self.plan[version.change, station] = _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
             except (Stop, ValueError):
                 continue
-            if executor not in found:
-                found.append(executor)
-        return found
+
+    def executors(self) -> list[str]:
+        """Return the run's executor, then each other one the plan names."""
+        named = (executor for executor, *_ in self.plan.values())
+        return list(dict.fromkeys((self.executor, *named)))
 
     def probe(self, executor: str) -> None:
         """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
@@ -1551,6 +1595,12 @@ class Run:
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
+        try:
+            self.read_plan(versions)
+        except Stop as stop:
+            self.halt("run", str(stop))
+            self.log.event("run", "halt", self.closing())
+            return 1
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }
@@ -1561,7 +1611,7 @@ class Run:
                 else:
                     self.halt(change, f"{stage} — {why}")
         else:
-            for executor in self.executors(versions):
+            for executor in self.executors():
                 self.probe(executor)
                 if self.halts:
                     break

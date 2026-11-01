@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nowhere to send anything (change `0052-security-hardening`, phase 1).
 - No worker pushes: under `merge=yes` the release stops at its merge, and `conduct.py` pushes before it judges the release,
   because a sandboxed worker cannot (change `0052-security-hardening`, phase 2).
+- A run reads its models and `AGENTS.md`'s `Ship` lines once, because a worker can write both. A person's commit during a run
+  halts its version before integrate, and the LFS remedy needs every held key to be LFS's (change `0052-security-hardening`,
+  phase 3).
 
 ## [0.45.0] - 2026-11-01
 

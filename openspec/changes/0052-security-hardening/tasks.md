@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 - [x] 1 — The sandbox
 - [x] 2 — No worker pushes
-- [ ] 3 — The cards
+- [x] 3 — The cards
 - [ ] 4 — The record
 - [ ] 5 — The proof
 
@@ -29,12 +29,12 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 3 — The cards
 
-- [ ] 3.1 Read the plan once, per [D4](design.md#d4), and add `test_the_plan_is_read_once`.
+- [x] 3.1 Read the plan once, per [D4](design.md#d4), and add `test_the_plan_is_read_once`.
   Verify: `uv run pytest -q tests/test_conduct.py -k plan_is_read_once` reports `1 passed`.
-- [ ] 3.2 Halt a person's commit before integrate, per [D5](design.md#d5), and add
+- [x] 3.2 Halt a person's commit before integrate, per [D5](design.md#d5), and add
   `test_a_commit_during_a_run_halts_before_integrate`.
   Verify: `uv run pytest -q tests/test_conduct.py -k halts_before_integrate` reports `1 passed`.
-- [ ] 3.3 Narrow the LFS remedy, per [D6](design.md#d6), and add `test_a_mixed_key_list_gets_no_lfs_remedy`.
+- [x] 3.3 Narrow the LFS remedy, per [D6](design.md#d6), and add `test_a_mixed_key_list_gets_no_lfs_remedy`.
   Verify: `uv run pytest -q tests/test_conduct.py -k mixed_key_list` reports `1 passed`.
 
 ## 4 — The record

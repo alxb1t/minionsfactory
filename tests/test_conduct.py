@@ -1519,6 +1519,96 @@ def test_no_worker_pushes(
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
 
+def test_the_plan_is_read_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("plant-network", "plant-executor")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    started: list[tuple[object, ...]] = []
+    argv = conduct["argv"]
+
+    def spy(*args: object) -> list[str]:
+        started.append(args)
+        return argv(*args)
+
+    conduct["main"].__globals__["argv"] = spy
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo", "converge 0001-todo"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml changed"
+            " during the run"
+        )
+        for line in _log(root)
+    )
+
+    def domains(*args: object) -> list[str]:
+        command = argv(*args)
+        settings = json.loads(command[command.index("--settings") + 1])
+        return settings["sandbox"]["network"]["allowedDomains"]
+
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    assert "later.example" not in domains(*started[-1])
+    assert "later.example" in domains(*started[-1][:6])
+
+    fake()
+    calls.unlink()
+    agents = _WORKTREES + "- **Ship network:** `*.example`\n"
+    _commit(root, {"AGENTS.md": agents}, "a wildcard")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert " · run · halt — conduct: halt — AGENTS.md: Ship network '*.example'" in log
+
+
+def test_a_commit_during_a_run_halts_before_integrate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("person-commits")
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    pushed = _git(root, "rev-parse", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "converge 0001-todo" in _calls(calls)
+    assert "integrate 0001-todo" not in _calls(calls)
+    commit = _git(root, "rev-parse", "main")[:7]
+    said = f" · 0001-todo · halt — conduct: halt — main holds {commit}, not a release"
+    assert any(line.endswith(said) for line in _log(root))
+    assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
+
+
+def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _git(root, "config", "lfs.repositoryformatversion", "0")
+    for key in ("core.sshCommand", "lfs.probe"):
+        _git(root, "config", key, "planted")
+        with pytest.raises(conduct["Stop"], match=key.lower()) as held:
+            conduct["_refuse_config_commands"](root)
+        assert str(held.value).endswith("move it to the global config or remove it")
+        _git(root, "config", "--unset", key)
+
+
 def test_a_stop_survives_a_death(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
