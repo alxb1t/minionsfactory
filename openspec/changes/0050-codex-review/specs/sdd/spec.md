@@ -59,12 +59,17 @@ A station on Codex SHALL report no denial, and converge's tokens SHALL read `una
 ### Requirement: A worker's reach stops at the repository
 
 A Codex worker's writable roots and a Claude worker's `Edit` and `--add-dir` SHALL be the primary and each open worktree,
-from `git worktree list`, and never the directory holding them. `conduct.py` SHALL load `integrate.py` once, before the
+from `git worktree list`, and never the directory holding them. A listed worktree whose `.git` file does not point back to
+its entry under the common directory SHALL be no worktree. `conduct.py` SHALL load `integrate.py` once, before the
 first worker, and SHALL halt a version's merge when the local git config or `info/attributes` changed since then.
 
 #### Scenario: A sibling project
 - **WHEN** a worker runs in a repository whose parent holds other projects
 - **THEN** no writable root and no `--add-dir` names that parent
+
+#### Scenario: A worker forges a worktree entry
+- **WHEN** a worker adds an entry under the common directory's `worktrees/` naming a directory outside the repository
+- **THEN** no writable root and no `--add-dir` names that directory, and no version runs in it
 
 #### Scenario: A worker plants git config
 - **WHEN** a worker changes the common directory's config during a run

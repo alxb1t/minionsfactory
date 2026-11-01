@@ -240,13 +240,30 @@ class Version:
         return int(self.change.split("-")[0])
 
 
+def _points_back(tree: Path, common: Path) -> bool:
+    """Return whether `tree`'s `.git` file names an entry of `common`'s worktrees.
+
+    e.g. "gitdir: <common>/worktrees/0001-todo" → True
+    """
+    link = tree / ".git"
+    text = link.read_text(errors="replace") if link.is_file() else ""
+    found = re.fullmatch(r"gitdir: (.+)\n?", text)
+    return found is not None and (tree / found[1]).resolve().parent == (
+        common / "worktrees"
+    )
+
+
 def _worktrees(primary: Path) -> dict[str, Path]:
     """Map each checked-out branch to its worktree."""
     found: dict[str, Path] = {}
+    main = primary.resolve()
     path = None
     for line in _git(primary, "worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
             path = Path(line.removeprefix("worktree ")).resolve()
+            # Why: 0050-codex-review design D5.
+            if path != main and not _points_back(path, main / ".git"):
+                path = None
         elif line.startswith("branch refs/heads/") and path:
             found[line.removeprefix("branch refs/heads/")] = path
     return found

@@ -1018,7 +1018,28 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     container = root.parent.resolve()
     argv = conduct["argv"]
 
+    outside = tmp_path / "home"
+    outside.mkdir()
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    (sibling / ".git").write_text(f"gitdir: {tmp_path}/other/.git/worktrees/sibling\n")
+    for branch, path in (("0002-forged", outside), ("0003-foreign", sibling)):
+        _git(root, "branch", branch, "0001-todo")
+        entry = root / ".git" / "worktrees" / branch
+        entry.mkdir()
+        (entry / "HEAD").write_text(f"ref: refs/heads/{branch}\n")
+        (entry / "commondir").write_text("../..\n")
+        (entry / "gitdir").write_text(f"{path}/.git\n")
+    listed = _git(root, "worktree", "list", "--porcelain")
+    assert f"worktree {outside.resolve()}\n" in listed
+    assert f"worktree {sibling.resolve()}\n" in listed
     assert conduct["reach"](tree) == [root, tree]
+    assert conduct["find_version"](root, "0002-forged").tree is None
+    pointer = tree / ".git"
+    absolute = pointer.read_text()
+    pointer.write_text("gitdir: ../main/.git/worktrees/0001-todo\n")
+    assert conduct["reach"](tree) == [root, tree]
+    pointer.write_text(absolute)
     assert conduct["reach"](tmp_path) == [tmp_path.resolve()]
     monkeypatch.delenv("MF_SHIP_AGENT")
     claude = argv("claude", "Do it.", root, "opus", "high")

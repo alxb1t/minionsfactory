@@ -105,6 +105,10 @@ def reach(cwd: Path) -> list[Path]:
 `Worktrees:` path widens nothing. A changed `Ship tools:` line is out: `make`, `uv` and `python3` run any code, and D47 says the
 list is a guardrail.
 
+`git worktree list` reads `<common>/worktrees/*/gitdir`, and a worker can write those files: a forged entry would name any
+directory. `_worktrees` keeps a linked path only when its `.git` file points back to `<common>/worktrees/<id>`, a file outside
+a worker's roots, so a forged entry widens no root and makes no version.
+
 ### D6
 
 `Run.__init__` loads the script once, and `_delta` calls it in process:
@@ -176,7 +180,7 @@ Tests edited:
 
 | test | edit |
 |---|---|
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `Edit`, `--add-dir` and `roots` name the primary and worktrees, never `container` |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `Edit`, `--add-dir` and `roots` name the primary and worktrees, never `container`, nor a forged worktree entry |
 | `test_after_waits_for_its_dependency` | `integrate.py` runs in process |
 
 No test is deleted or merged.
