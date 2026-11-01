@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 - [x] 1 — The sandbox
 - [x] 2 — No worker pushes
 - [x] 3 — The cards
-- [ ] 4 — The record
+- [x] 4 — The record
 - [ ] 5 — The proof
 
 ## 1 — The sandbox
@@ -39,9 +39,9 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 4 — The record
 
-- [ ] 4.1 Amend D17 and D47, and add D51, in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 4.1 Amend D17 and D47, and add D51, in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -c '^### D51' docs/decisions.md` prints `1`, and `grep -c 'under .merge=yes., .conduct.py. pushes' docs/decisions.md` prints `1`.
-- [ ] 4.2 Edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
+- [x] 4.2 Edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -c 'A Codex worker can read' THREAT_MODEL.md` prints `1`.
 
 ## 5 — The proof

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A run reads its models and `AGENTS.md`'s `Ship` lines once, because a worker can write both. A person's commit during a run
   halts its version before integrate, and the LFS remedy needs every held key to be LFS's (change `0052-security-hardening`,
   phase 3).
+- D51 records the boundary: an OS sandbox for every worker, and `conduct.py` holds the push. D17, D47, `THREAT_MODEL.md` and
+  `mf-ship` now say so, because the allowlist alone was never a containment (change `0052-security-hardening`, phase 4).
 
 ## [0.45.0] - 2026-11-01
 

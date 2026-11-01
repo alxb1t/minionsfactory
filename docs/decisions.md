@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47
+  The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51
 ```
 
 ## The shape
@@ -198,8 +198,8 @@ paydown change lists the cards it closes and its release deletes them.**
 **It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog with
 one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or `merge=yes`, the yes the person
 gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
-tag. It never forces, never pushes the version branch, never edits feature code. Fold and archive land in one
-commit.**
+tag; under `merge=yes`, `conduct.py` pushes. It never forces, never pushes the version branch, never edits feature
+code. Fold and archive land in one commit.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
   leaves the spec tree and the change disagreeing.
@@ -442,9 +442,9 @@ merge, commits when that passes, and else leaves the merge open with its note.**
 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
-station is a fresh agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex
-— never with prompts bypassed, and is judged by its exit and a check on disk; a failed check halts its version, a halt
-blocks only what names it in `after:`, a failed probe halts the run, and a re-run resumes from
+station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
+judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
+`after:`, a failed probe halts the run, and a re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version
 tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
 needs the person. Converge runs at the tier the cut chose.**
@@ -454,4 +454,13 @@ needs the person. Converge runs at the tier the cut chose.**
 - **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
   worker reaches the primary and the open worktrees alone.
 - **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
-  bypass permission prompts: the list blocks what is off it, though `make`, `uv` and `python3` still run any code.
+  bypass permission prompts: the list blocks what is off it.
+
+### D51 · A worker runs in an OS sandbox, and no worker pushes
+
+**Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no unlisted
+domain. `conduct.py` holds the push. The threat is a confused or prompt-injected agent; a hostile repo needs a container.**
+
+- **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it.
+- **Accepts:** a Codex worker can read `~`, with its network off.
+- **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.
