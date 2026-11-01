@@ -99,6 +99,10 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
 
     # A gate run inside a worker inherits `HOOKS_OFF`, and these fixtures fire hooks.
     monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+    # A remote call's scratch stands in the home folder.
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
 
     def modes(*names: str) -> Path:
         monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, str(_WORKER)]))
@@ -1352,6 +1356,38 @@ def test_a_rerun_pushes_what_a_release_left(
     assert " · run · halt — conduct: halt — " in log.read_text()
     _git(root, "config", "--unset", "remote.origin.uploadpack")
 
+    # A worker's toggle: the refusal reads the file clean, then the key stands. Each
+    # remote call reads no repo's config, and the push keeps the run's first URL.
+    conductor = conduct["Run"](root, "claude")
+    module = conduct["main"].__globals__
+    refuse = module["_refuse_config_commands"]
+    module["_refuse_config_commands"] = lambda _: None
+    for key in ("remote.origin.uploadpack", "remote.origin.receivepack"):
+        _git(root, "config", key, str(planted))
+    conductor.git_state = conduct["_git_state"](root)
+    conductor.push_left()
+    assert not ran.exists()
+    assert conduct["_pushed"](root, "release-v0.2.0", "v0.2.0") is False
+    assert not ran.exists()
+    decoy = tmp_path / "decoy.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(decoy))
+    _git(root, "remote", "set-url", "origin", str(decoy))
+    conductor.git_state = conduct["_git_state"](root)
+    conductor.push_left()
+    assert _git(decoy, "for-each-ref") == ""
+    conductor.log.path.unlink()
+    module["_refuse_config_commands"] = refuse
+    _git(root, "remote", "set-url", "origin", str(origin))
+    for key in ("remote.origin.uploadpack", "remote.origin.receivepack"):
+        _git(root, "config", "--unset", key)
+    # The scratch stands where no worker writes, and a sandboxed `status` still runs.
+    with conduct["_scratch"]() as scratch:
+        assert Path(scratch).parent == Path.home()
+    with monkeypatch.context() as patch:
+        patch.setenv("HOME", str(tmp_path / "absent"))
+        with conduct["_scratch"]() as scratch:
+            assert Path(scratch).is_dir()
+
     def refused(named: str) -> None:
         capsys.readouterr()
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
@@ -1518,6 +1554,28 @@ def test_no_worker_pushes(
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
+    # A worker repoints `origin`, a plain key at a network URL's form: nothing leaves.
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    fake("plant-origin")
+    root = _primary(planted)
+    origin = planted / "origin.git"
+    elsewhere = planted / "elsewhere.git"
+    _git(planted, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(planted, "init", "-q", "--bare", "-b", "main", str(elsewhere))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _git(elsewhere, "for-each-ref") == ""
+    said = " · run · halt — the local git config changed during the run"
+    assert any(line.endswith(said) for line in _log(root))
+
 
 def test_the_plan_is_read_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1607,6 +1665,12 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
             conduct["_refuse_config_commands"](root)
         assert str(held.value).endswith("move it to the global config or remove it")
         _git(root, "config", "--unset", key)
+    # LFS's own key, naming a program LFS never wrote.
+    _git(root, "config", "--unset", "lfs.repositoryformatversion")
+    _git(root, "config", "filter.lfs.clean", "./planted.sh %f")
+    with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
+        conduct["_refuse_config_commands"](root)
+    assert str(held.value).endswith("move it to the global config or remove it")
 
 
 def test_a_stop_survives_a_death(
@@ -2114,9 +2178,24 @@ def test_a_claude_worker_starts_in_the_sandbox(
                 "allowWrite": [str(root), str(tree), str(root / ".git")],
                 "denyRead": list(conduct["SECRETS"]),
             },
+            "credentials": {
+                "envVars": [
+                    {"name": name, "mode": "deny"} for name in conduct["TOKENS"]
+                ],
+            },
             "network": {"allowedDomains": [*conduct["NETWORK"], "ghcr.io"]},
         }
     }
+    # A plain-text store is a credential, and a registry that takes writes is a way out.
+    assert "~/.git-credentials" in conduct["SECRETS"]
+    assert "~/.codex/auth.json" in conduct["SECRETS"]
+    assert "registry.npmjs.org" not in conduct["NETWORK"]
+    assert {"name": "NPM_TOKEN", "mode": "deny"} in (
+        settings()["sandbox"].get("credentials", {}).get("envVars", [])
+    )
+    # A project's settings and `.mcp.json` are worker-written, and run at a start.
+    command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
+    assert command[command.index("--setting-sources") + 1] == "user"
 
     for value in ("*.example.com", "example.com/simple", "https://example.com"):
         (root / "AGENTS.md").write_text(f"- **Ship network:** `{value}`\n")
@@ -2197,6 +2276,20 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert not any(rule.startswith(("Write(", "Bash(cd:")) for rule in allowed)
     denied = claude[claude.index("--disallowedTools") + 1 :]
     assert "Bash(git push --force:*)" in denied
+    # The sandbox holds Bash; the Read tool answers to these rules alone.
+    for secret in conduct["SECRETS"]:
+        assert {f"Read({secret})", f"Read({secret}/**)"} <= set(denied)
+    # The host's own words for a denied `Read`, as a real worker's log holds them.
+    use = {"id": "t1", "type": "tool_use", "name": "Read"}
+    said = "File is in a directory that is denied by your permission settings."
+    result = {"type": "tool_result", "tool_use_id": "t1", "is_error": True}
+    blocks = [
+        {**use, "input": {"file_path": "~/.ssh/key"}},
+        {**result, "content": f"<tool_use_error>{said}</tool_use_error>"},
+    ]
+    worker_log = tmp_path / "read.log"
+    worker_log.write_text(json.dumps({"message": {"content": blocks}}) + "\n")
+    assert conduct["denials"](worker_log) == ["Read(~/.ssh/key)"]
 
     def refused(command: str) -> bool:
         # Claude Code reads a trailing `:*` as ` *`, which also matches the bare prefix.

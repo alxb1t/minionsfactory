@@ -50,7 +50,7 @@ the commands and stop.
 
 #### Scenario: The conductor gives the yes
 - **WHEN** the release is run with `merge=yes` and Step 2 flagged nothing
-- **THEN** it asks nothing, merges, pushes and removes the worktree as on a yes
+- **THEN** it asks nothing, merges and removes the worktree as on a yes, and `conduct.py` pushes
 - **AND WHEN** Step 2 flagged a hand-edit
 - **THEN** it halts after the tag and before the merge, naming the flagged prose
 
@@ -96,22 +96,44 @@ plants does not run at the conductor's rights.
 ### Requirement: A worker runs in an OS sandbox
 
 A Claude worker SHALL run with Claude Code's sandbox on and `allowUnsandboxedCommands` false, writing only to the primary, the
-open worktrees and the common directory, and denied reads of the operator's credential folders. Its network SHALL reach only
-`pypi.org`, `files.pythonhosted.org`, `registry.npmjs.org` and the domains `AGENTS.md`'s `Ship network:` line names. A Codex
-worker SHALL run with its network off. Both SHALL keep `uv`'s cache in the run directory.
+open worktrees and the common directory. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
+and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
+`.mcp.json`, which a worker can write, start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
+domains `AGENTS.md`'s `Ship network:` line names. A Codex worker SHALL run with its network off. Both SHALL keep `uv`'s cache
+in the run directory.
 
 #### Scenario: A script tries to leave
-- **WHEN** a worker or its subagent runs a script that writes outside its reach, reads `~/.ssh` and calls an unlisted domain
+- **WHEN** a worker or its subagent runs a script that writes outside its reach, reads `~/.ssh`, reads a credential variable and
+  calls an unlisted domain, the npm registry among them
 - **THEN** each fails, on Claude; on Codex the read may pass, and that is a stated gap
+
+#### Scenario: A worker uses its Read tool on a credential
+- **WHEN** a Claude worker or its subagent calls `Read` on a path under `~/.ssh`
+- **THEN** the call is denied, and the report lists the denial
+
+#### Scenario: A worker plants a start-up
+- **WHEN** a worker leaves a `SessionStart` hook in `.claude/settings.local.json`, or a server in `.mcp.json`
+- **THEN** neither runs at the next Claude start
 
 ### Requirement: No worker pushes
 
 Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL stop after its merge in the primary, and `conduct.py` SHALL push, through
-the tagged-merges rule, before it judges the release. A hand release SHALL push as today.
+the tagged-merges rule, before it judges the release. A hand release SHALL push as today. `conduct.py` SHALL make each remote
+call from a scratch git directory outside every worker's reach, reading no repo's config, and SHALL push to the URLs it read
+before the first worker. It SHALL halt the run, pushing nothing, when the repo's git config or `info/attributes` differs from
+that first read and there is something to push.
 
 #### Scenario: A release under mf-ship
 - **WHEN** a release worker merges under `merge=yes`
 - **THEN** it pushes nothing, the conductor logs a `push` event, and the release check passes
+
+#### Scenario: A worker repoints origin during a run
+- **WHEN** a worker sets `remote.origin.url` to another network URL
+- **THEN** the run halts naming the changed config, and that host receives nothing
+
+#### Scenario: A worker sets a key after the refusal
+- **WHEN** a key that names a program stands in the repo's config after the refusal read it clean
+- **THEN** the conductor's remote calls and pushes do not run that program
 
 ### Requirement: A run's plan is read once
 

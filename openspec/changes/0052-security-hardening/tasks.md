@@ -9,6 +9,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 - [x] 3 — The cards
 - [x] 4 — The record
 - [x] 5 — The proof
+- [x] 6 — The converge's fixes
 
 ## 1 — The sandbox
 
@@ -57,3 +58,16 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 - [x] 5.4 Write `openspec/changes/0052-security-hardening/evidence/rejudge.md`, and add each moot card to `proposal.md`'s
   `backlog:`, per [D8](design.md#d8).
   Verify: `grep -c '0050·R11' openspec/changes/0052-security-hardening/evidence/rejudge.md` prints `1`.
+
+## 6 — The converge's fixes
+
+- [x] 6.1 Pay `0050·S3`: start a Claude worker with `--setting-sources user`, per [D1](design.md#d1), record the crossing in
+  `THREAT_MODEL.md` and D47, per [D7](design.md#d7), and prove it in the drill, per [D8](design.md#d8).
+  Verify: `grep -c 'setting-sources' skills/mf-ship/scripts/conduct.py` prints `1`, and
+  `grep -c -i 'mixed run' THREAT_MODEL.md` prints `1`.
+- [x] 6.2 Deny `SECRETS` to the `Read` tool, and take `registry.npmjs.org` off `NETWORK`, per [D1](design.md#d1).
+  Verify: `uv run pytest -q tests/test_conduct.py -k starts_in_the_sandbox` reports `1 passed`.
+- [x] 6.3 Take the LFS remedy only on LFS's own values, per [D6](design.md#d6).
+  Verify: `uv run pytest -q tests/test_conduct.py -k mixed_key_list` reports `1 passed`.
+- [x] 6.4 Run the conductor's remote calls from a scratch repo, and keep the run's first URL, per [D9](design.md#d9).
+  Verify: `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or rerun_pushes'` reports `2 passed`.

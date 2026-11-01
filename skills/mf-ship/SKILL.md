@@ -75,7 +75,7 @@ Run `status` and paste its output.
 | `status` prints | then |
 |---|---|
 | `run · live` | a run is live: report the status and the run log's last lines, then stop |
-| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; an LFS key stays, and that repo releases by hand, since a run cannot upload its objects |
+| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

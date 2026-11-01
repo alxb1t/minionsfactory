@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mf-ship` now say so, because the allowlist alone was never a containment (change `0052-security-hardening`, phase 4).
 - `tests/escape_drill.py` proves the boundary on real workers and subagents, on Claude and Codex, and the resume drill passes
   under the sandbox; the cards re-judged against it stay open (change `0052-security-hardening`, phase 5).
+- A Claude worker's `Read` tool is denied the credential paths, its scripts lose the token variables, more plain-text stores are
+  on the list, and the npm registry leaves the default domains, because `denyRead` binds Bash alone and the registry takes
+  writes. A repo that needs it names it in `Ship network:` (change `0052-security-hardening`, phase 6).
+- A Claude worker loads user settings alone, so a hook or a server a worker planted in the project starts nothing outside the
+  sandbox. A repo's `.claude/` no longer reaches a worker (change `0052-security-hardening`, phase 6).
+- `conduct.py`'s remote calls run from a scratch repo that reads no repo's config, and a run pushes to the URLs it read before its
+  first worker, halting on a changed config, because it now pushes with workers alive (change `0052-security-hardening`, phase 6).
+- The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
+  reaches the report (change `0052-security-hardening`, phase 6).
 
 ## [0.45.0] - 2026-11-01
 

@@ -180,6 +180,9 @@ def _fake(prompt: str) -> None:
             _git(primary, "config", "pull.rebase", "true")
         if "plant-held" in modes:
             _git(primary, "config", "mf.planted", "x")
+        if "plant-origin" in modes:
+            elsewhere = str(primary.parent / "elsewhere.git")
+            _git(primary, "remote", "set-url", "origin", elsewhere)
         if "plant-attributes" in modes:
             (Path(common) / "info").mkdir(exist_ok=True)
             (Path(common) / "info" / "attributes").write_text("* filter=x\n")

@@ -35,11 +35,18 @@ push; both executors have the same boundary.
 | [D6](#d6) | The LFS remedy needs every held key to be LFS's | `0051·S9` | — |
 | [D7](#d7) | D47, D51 and `THREAT_MODEL.md` state the boundary | A7 | leaving "a guardrail" in force |
 | [D8](#d8) | An escape test and the drill, on real workers | the design rests on a subagent's Bash being sandboxed | a `**HUMAN` phase |
+| [D9](#d9) | The conductor's remote calls read no repo's config, and its push keeps the run's first URL | `R2`, `R3`, `S3`, `S4`: it now pushes with workers alive, outside their sandbox | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit |
 
 ### D1
 
 `argv`, for Claude, adds `--settings` with `worker_settings(primary, trees, common, network)`, and starts through `env` with `UV_CACHE_DIR`, as Codex
-does. `allowlist` stays: the sandbox holds Bash, and the permission rules hold `Read`, `Edit` and `Write`.
+does. `allowlist` stays: the sandbox holds Bash, and the permission rules hold `Read`, `Edit` and `Write`, so `denied` gains
+`Read(<path>)` and `Read(<path>/**)` for each entry of `SECRETS`: `denyRead` does not bind the `Read` tool, and the rule binds
+`Grep` and `Glob` as far as the host does.
+
+`argv` also passes `--setting-sources user`. A worker can write a project's `.claude/` and `.mcp.json`, and under `-p` the host
+runs their hooks and connects their servers at a start, outside the sandbox. That pays `0050·S3`: what a Codex station wrote
+reaches the next Claude station's sandbox, and never its start-up.
 
 ```python
 SECRETS = (
@@ -50,9 +57,24 @@ SECRETS = (
     "~/.gnupg",
     "~/.kube",
     "~/.docker/config.json",
+    "~/.git-credentials",
+    "~/.config/git/credentials",
+    "~/.npmrc",
+    "~/.pypirc",
+    "~/.codex/auth.json",
+    "~/.claude/.credentials.json",
 )
-NETWORK = ("pypi.org", "files.pythonhosted.org", "registry.npmjs.org")
+TOKENS = (
+    *("GITHUB_TOKEN", "GH_TOKEN", "NPM_TOKEN", "NODE_AUTH_TOKEN"),
+    *("UV_PUBLISH_TOKEN", "TWINE_PASSWORD"),
+    *("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
+    *("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY"),
+)
+NETWORK = ("pypi.org", "files.pythonhosted.org")
 ```
+
+The host has no credential list of its own, so these are the whole of it. `NETWORK` holds hosts that take no write:
+`registry.npmjs.org` takes a publish, and the proxy reads a hostname alone, so a repo that needs it names it in `Ship network:`.
 
 ```python
 def worker_settings(
@@ -64,6 +86,7 @@ def worker_settings(
         "enabled": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
+        "credentials": {"envVars": [{"name": name, "mode": "deny"} for name in TOKENS]},
         "network": {"allowedDomains": [*NETWORK, *network]},
     }
     return json.dumps({"sandbox": sandbox})
@@ -101,8 +124,8 @@ version's `Stop`, naming the commit.
 
 ### D6
 
-`_refuse_config_commands`: the LFS remedy only when every held key is in an exact list of the keys LFS writes. A mixed list gets the
-plain halt.
+`_refuse_config_commands`: the LFS remedy only when every held key holds the exact value LFS writes for it, `LFS_CONFIG`. A mixed
+list, or a planted value under an LFS key, gets the plain halt.
 
 ### D7
 
@@ -117,24 +140,32 @@ bypassed" → "in an OS sandbox, Claude Code's or Codex's, never with prompts by
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no unlisted
-domain. `conduct.py` holds the push. The threat is a confused or prompt-injected agent; a hostile repo needs a container.**
+domain. `conduct.py` holds the push, and its remote calls read no repo's config. The threat is a confused or prompt-injected
+agent; a hostile repo needs a container.**
 
-- **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it.
-- **Accepts:** a Codex worker can read `~`, with its network off.
+- **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it. The
+  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls.
+- **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
+  worker.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.
 ```
 
+D47, **Executors:**, gains "A mixed run's Codex station hands its writes to the next station's sandbox, never to its start: a
+Claude worker loads no project settings." Its halts gain "a git config that changed during the run".
+
 `THREAT_MODEL.md`, *Trust boundaries*, the allowlist bullet, after: "**Unattended workers run in an OS sandbox**
 ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in the repo and its worktrees,
-network on a short list, no push. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and `Write`." *Known
-gaps* gains "A Codex worker can read `~`." and loses the paid cards.
+network on a short list, no push. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and `Write`, each
+of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and `.mcp.json` start nothing."
+Two bullets follow it, for a mixed run and for the conductor. *Known gaps* gains "A Codex worker can read `~`." and what the cards
+leave, and loses the paid cards.
 
 `skills/mf-ship/SKILL.md`, Step 3's *Say once*, after: "every worker runs in an OS sandbox, Claude Code's or Codex's, each station on
 the executor its models file names, with no permission prompt. `conduct.py` holds the push."
 
 ### D8
 
-`tests/escape_drill.py`, a stdlib `uv` script no gate runs, working in `../mf_escape_probe/`. `escape.py`, in that repo, tries four
+`tests/escape_drill.py`, a stdlib `uv` script no gate runs, working in `../mf_escape_probe/`. `escape.py`, in that repo, tries six
 things and writes the results to `results-<label>.json` in the repo:
 
 | try | Claude | Codex |
@@ -143,15 +174,43 @@ things and writes the results to `results-<label>.json` in the repo:
 | list `~/.ssh` | fails | passes, the stated gap |
 | reach `https://example.com` | fails | fails |
 | reach `https://pypi.org/simple/` | passes | fails |
+| reach `https://registry.npmjs.org/` | fails | fails |
+| read `GITHUB_TOKEN`, which the drill sets | fails | not judged |
 
 `conduct.py agent --executor claude`, told to run `python3 escape.py worker`, then start one subagent that runs `python3 escape.py
-subagent` in the foreground. Then `conduct.py agent --executor codex`, the same. A Codex converge on a one-line change follows, with
-its network off, ending in clean findings. It prints one line per label, and any `~/mf-escape-*` it finds fails it, and is deleted.
+subagent` in the foreground. Each also calls `Read` on an absent file under `~/.ssh`: a broken rule answers that it does not exist,
+so no real key reaches a model, and the drill counts the denials. Then `conduct.py agent --executor codex`, the same. A Codex
+converge on a one-line change follows, with its network off, ending in clean findings. It prints one line per label, and any
+`~/mf-escape-*` it finds fails it, and is deleted.
+
+The probe holds a `SessionStart` hook in `.claude/settings.local.json` and a server in `.mcp.json`, each marking `~`. A control
+`claude -p` without the flag first proves both fire, or the drill stops; the workers' runs must then leave no mark.
 
 `tests/drill_resume.py` then runs from this worktree, under the sandbox.
 
 The last task re-judges `0049·S5`, `S7`, `0050·R5`, `R11` and `S7` against the sandbox, in `evidence/rejudge.md`, and adds each one
 the sandbox makes moot to `proposal.md`'s `backlog:`.
+
+### D9
+
+Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks. Since [D3](#d3) `conduct.py` pushes on every release, with other
+versions' workers alive, and a worker can write the common directory. Two gaps follow: `origin`'s URL steers a push, and a key set
+after the refusal runs at the operator's rights.
+
+`Run.__init__` reads `_git_state` and `origin`'s push URLs once, before the first worker. `Run.push_left` halts the run,
+`the local git config changed during the run`, when there is something to push and the state differs, and pushes `<sha>:<ref>` to
+those URLs. With no `origin` nothing leaves, so `merge_in` keeps its own comparison.
+
+Each remote call, `ls-remote` and `push`, goes through `_outside`: a new bare repo, no template, its alternates naming the primary's
+objects, in a folder no worker can write. `git` there reads the operator's global config and that scratch's, and no repo's, so the
+key a worker set is never read. A URL is passed behind `--`, read once by the call that checks it. The push updates
+`refs/remotes/origin/<default>` itself, since a URL updates no remote-tracking ref.
+
+The scratch stands in the home folder: both sandboxes write the temp folders, so a scratch there would stand in a worker's reach.
+Where the home folder refuses it, `conduct.py` is itself in a sandbox, and the temp folder serves.
+
+This leaves `conduct.py`'s local git in the race, as `0049·S7` and `0050·R5` say: `status`, `merge` and `commit` still read the repo's
+config after the refusal. *Known gaps* keeps both cards.
 
 ## Tests
 
@@ -171,8 +230,11 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`). `T2`: no test reaches these
 | `test_a_commit_during_a_run_halts_before_integrate` | a commit on `main` during a build: no `integrate` call, and the `halt` line names it |
 | `test_a_mixed_key_list_gets_no_lfs_remedy` | an LFS key beside `core.sshCommand`: the plain halt |
 
-Edited: `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, for `network_access=false`, `env` and `--settings`. No test is
-deleted or merged.
+Edited: `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, for `network_access=false`, `env`, `--settings`, the `Read` rules
+and the host's words for a denied `Read`. Converge's fixes are steps in the tests they name (`T2`):
+`test_a_claude_worker_starts_in_the_sandbox`, for `TOKENS`, the lists and `--setting-sources`; `test_a_mixed_key_list_gets_no_lfs_remedy`,
+for a planted value; `test_no_worker_pushes`, for a repointed `origin`; `test_a_rerun_pushes_what_a_release_left`, for a key after the
+refusal, the first URL and the scratch's place. No test is deleted or merged.
 
 ## Dependencies
 
@@ -182,6 +244,9 @@ None.
 
 - **A real gate needs a domain or a path the sandbox refuses** → it fails loudly, and `Ship network:` adds a domain.
 - **`gh` is out of reach** → `CI none` in the release's `Gate:` line.
+- **A gate needs a project setting, a project skill or a token** → it fails loudly. `AGENTS.md`'s `Ship tools:` and `Ship network:`
+  are the run's own lines for what a repo needs.
+- **A push needs a repo-local credential helper** → it is already a held key, and that repo releases by hand.
 - **`.claude/` appears in a sandboxed repo** → measured in the probe; the drill shows whether a run minds it.
 - **A subagent's Bash is outside the sandbox** → the escape test is a `**HALT CHECK**`, and the design stops there.
 - **This change's own run is unsandboxed** → its build uses the installed conductor, and the drills use the worktree's.

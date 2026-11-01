@@ -60,6 +60,7 @@ TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
+CONFIG_CHANGED = "the local git config changed during the run"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -79,7 +80,7 @@ FORCED = (
     *(("clean", "-"), ("branch", "-D"), ("tag", "-d"), ("worktree remove", "--force")),
     ("worktree remove", "-f"),
 )
-DENIALS = ("has been denied", "needs approval")
+DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -88,8 +89,22 @@ SECRETS = (
     "~/.gnupg",
     "~/.kube",
     "~/.docker/config.json",
+    "~/.git-credentials",
+    "~/.config/git/credentials",
+    "~/.npmrc",
+    "~/.pypirc",
+    "~/.codex/auth.json",
+    "~/.claude/.credentials.json",
 )
-NETWORK = ("pypi.org", "files.pythonhosted.org", "registry.npmjs.org")
+# Unset before each sandboxed command: the host names no credential of its own.
+TOKENS = (
+    *("GITHUB_TOKEN", "GH_TOKEN", "NPM_TOKEN", "NODE_AUTH_TOKEN"),
+    *("UV_PUBLISH_TOKEN", "TWINE_PASSWORD"),
+    *("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
+    *("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY"),
+)
+# Read-only by host: `upload.pypi.org` takes a package, and it is not here.
+NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
@@ -125,6 +140,8 @@ HOOKS_OFF = (
 type Repo = tuple[Path, Path | None]
 # `AGENTS.md`'s `Ship tools:` values, then its `Ship network:` values.
 type ShipLines = tuple[list[str], list[str]]
+# The URLs git fetches `origin` from, then the ones it pushes to.
+type Urls = tuple[list[str], list[str]]
 # The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
 # and any other halts, so a key git adds later fails closed. `lfs.*` stays off: LFS
 # uploads from a `pre-push` hook, and no hook runs in a run.
@@ -136,10 +153,14 @@ CONFIG_PLAIN = re.compile(
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
 )
-LFS_KEYS = (
-    *("lfs.repositoryformatversion", "filter.lfs.clean", "filter.lfs.smudge"),
-    *("filter.lfs.process", "filter.lfs.required"),
-)
+# What `git lfs install` writes: under these names, any other value is a planted one.
+LFS_CONFIG = {
+    "lfs.repositoryformatversion": "0",
+    "filter.lfs.clean": "git-lfs clean -- %f",
+    "filter.lfs.smudge": "git-lfs smudge -- %f",
+    "filter.lfs.process": "git-lfs filter-process",
+    "filter.lfs.required": "true",
+}
 # A URL git reaches over a network. Any other form runs a program on this machine: a
 # local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
 NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
@@ -154,7 +175,9 @@ class Stop(Exception):
         self.code = code
 
 
-def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run(
+    cwd: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2."""
     try:
         return subprocess.run(
@@ -162,6 +185,7 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
             cwd=cwd,
             capture_output=True,
             encoding="utf-8",
+            env=env,
             errors="replace",
             timeout=GIT_TIMEOUT,
         )
@@ -680,6 +704,13 @@ def _config_held(cwd: Path) -> list[str]:
     ]
 
 
+def _lfs_wrote(cwd: Path, name: str) -> bool:
+    """Return whether `name` holds the value LFS writes for it, and no other."""
+    return name in LFS_CONFIG and set(
+        _git(cwd, "config", "--get-all", name).splitlines()
+    ) == {LFS_CONFIG[name]}
+
+
 def _refuse_config_commands(cwd: Path) -> None:
     """Stop with 1 when the repo's own git config holds a key `CONFIG_PLAIN` lacks.
 
@@ -688,7 +719,7 @@ def _refuse_config_commands(cwd: Path) -> None:
     """
     if held := _config_held(cwd):
         remedy = "move it to the global config or remove it"
-        if all(name in LFS_KEYS for name in held):
+        if all(_lfs_wrote(cwd, name) for name in held):
             remedy = (
                 "a run cannot upload LFS objects: keep the key, and release this repo"
                 " by hand"
@@ -700,34 +731,77 @@ def _refuse_config_commands(cwd: Path) -> None:
         )
 
 
-def _refuse_origin(primary: Path) -> None:
-    """Stop with 1 unless a remote call on `origin` can run only its own git.
+def _urls(primary: Path) -> Urls:
+    """Return the URLs git would fetch and push `origin` with; no `origin`, none."""
+    if "origin" not in _git(primary, "remote").split():
+        return [], []
+    fetch = _git(primary, "remote", "get-url", "--all", "origin")
+    push = _git(primary, "remote", "get-url", "--all", "--push", "origin")
+    return fetch.splitlines(), push.splitlines()
 
-    Reads the URLs git would use. A fake worker's fixtures use a local `origin`, and a
-    worker cannot set the conductor's environment. The halt names no URL: it can hold a
-    key.
+
+def _refuse_origin(primary: Path) -> Urls:
+    """Return `_urls`; stop with 1 unless a remote call can run only its own git.
+
+    A fake worker's fixtures use a local `origin`, and a worker cannot set the
+    conductor's environment. The halt names no URL: it can hold a key.
     """
     _refuse_config_commands(primary)
+    fetch, push = _urls(primary)
     if os.environ.get("MF_SHIP_AGENT"):
-        return
-    for mode in (("--all",), ("--all", "--push")):
-        for url in _git(primary, "remote", "get-url", *mode, "origin").splitlines():
-            if not NETWORK_URL.fullmatch(url):
-                raise Stop(
-                    1,
-                    "conduct: halt — the repo's git config points origin at a local"
-                    " repo, whose hooks would run on a push; repoint it",
-                )
+        return fetch, push
+    for url in (*fetch, *push):
+        if not NETWORK_URL.fullmatch(url):
+            raise Stop(
+                1,
+                "conduct: halt — the repo's git config points origin at a local"
+                " repo, whose hooks would run on a push; repoint it",
+            )
+    return fetch, push
+
+
+def _scratch() -> tempfile.TemporaryDirectory[str]:
+    """Return a scratch folder in the home folder, which no worker can write.
+
+    Where the home folder refuses it, this process is itself in a sandbox, and the
+    temp folder serves.
+    """
+    prefix = ".mf-ship-remote-"
+    try:
+        return tempfile.TemporaryDirectory(dir=Path.home(), prefix=prefix)
+    except OSError:
+        return tempfile.TemporaryDirectory(prefix=prefix)
+
+
+def _outside(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Return a remote git call finished from a scratch repo with `primary`'s objects.
+
+    It reads the operator's global config and no repo's, so a key a worker sets after
+    the refusal starts nothing. The caller passes a URL, not a remote's name, behind
+    `--`. Why: 0052-security-hardening design D9.
+    """
+    with _scratch() as scratch:
+        root = Path(scratch)
+        _git(root, "init", "-q", "--bare", "--template=")
+        alternates = root / "objects" / "info" / "alternates"
+        alternates.write_text(f"{primary / '.git' / 'objects'}\n")
+        return _run(root, *args, env={**os.environ, "GIT_DIR": scratch})
+
+
+def _listed(primary: Path, url: str, *refs: str) -> str | None:
+    """Return what `url` lists of its tags and `refs`, or None if it cannot be read."""
+    done = _outside(primary, "ls-remote", "--tags", "--", url, *refs)
+    return done.stdout if done.returncode == 0 else None
 
 
 def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     """Return whether origin's tag is on the branch's tip, or None with no origin."""
     if "origin" not in _git(primary, "remote").split():
         return None
-    _refuse_origin(primary)
+    fetch, _ = _refuse_origin(primary)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
-    listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
+    listed = _listed(primary, fetch[0], ref, f"{ref}^{{}}")
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
     lines = (listed or "").splitlines()
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
@@ -777,10 +851,10 @@ def _unpushed(primary: Path) -> list[str]:
     _refuse_config_commands(primary)
     if "origin" not in _git(primary, "remote").split():
         return []
-    _refuse_origin(primary)
+    fetch, _ = _refuse_origin(primary)
     default = default_branch(primary)
     found = [default] if _foreign_commit(primary) else []
-    listed = _maybe(primary, "ls-remote", "--tags", "origin")
+    listed = _listed(primary, fetch[0])
     if listed is None:
         return found
     held = listed.split()
@@ -970,7 +1044,11 @@ def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]
         *(f"Edit(/{tree}/**)" for tree in trees),
         *(f"Bash({command}:*)" for command in (*COMMANDS, *tools)),
     ]
-    denied = [f"Bash({command}:*)" for command in DENIED]
+    denied = [
+        *(f"Bash({command}:*)" for command in DENIED),
+        # `denyRead` holds Bash alone: a path and what is under it, for the Read tool.
+        *(f"Read({secret}{tail})" for secret in SECRETS for tail in ("", "/**")),
+    ]
     for sub, flag in FORCED:
         forms = (
             *(f"git {sub} {flag}", f"git {sub} * {flag}"),
@@ -993,6 +1071,9 @@ def worker_settings(
         "enabled": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
+        "credentials": {
+            "envVars": [{"name": name, "mode": "deny"} for name in TOKENS],
+        },
         "network": {"allowedDomains": [*NETWORK, *network]},
     }
     return json.dumps({"sandbox": sandbox})
@@ -1030,6 +1111,10 @@ def argv(
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *("--settings", worker_settings(primary, trees, common, network)),
+            # A worker can write the project's settings and `.mcp.json`, and each
+            # runs at a start, outside the sandbox.
+            # Why: 0052-security-hardening design D1.
+            *("--setting-sources", "user"),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
@@ -1321,7 +1406,8 @@ class Run:
     def __init__(self, primary: Path, executor: str) -> None:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
         self.delta = runpy.run_path(str(INTEGRATE))["delta"]
-        self.git_state: list[str] = []
+        self.git_state = _git_state(primary)
+        self.pushes = _urls(primary)[1]
         self.primary = primary
         self.repo = _repo(primary)
         self.executor = executor
@@ -1480,7 +1566,7 @@ class Run:
         `stage_of` reads as an `integrating` halt.
         """
         if _git_state(self.primary) != self.git_state:
-            raise Stop(1, "the local git config changed during the run")
+            raise Stop(1, CONFIG_CHANGED)
         note = self.primary / ".minions" / "integrate" / f"{change}.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
@@ -1560,24 +1646,38 @@ class Run:
             shutil.rmtree(scratch, ignore_errors=True)
 
     def push_left(self) -> None:
-        """Push what a release merged and left; a refusal or rejection halts the run."""
+        """Push what a release merged and left; a refusal or rejection halts the run.
+
+        A changed config halts it too, and the URLs are the ones read before the first
+        worker, so a worker steers no push. Why: 0052-security-hardening design D9.
+        """
         try:
             unpushed = _unpushed(self.primary)
         except Stop as stop:
             self.halt("run", str(stop))
             return
+        if unpushed and _git_state(self.primary) != self.git_state:
+            self.halt("run", CONFIG_CHANGED)
+            return
         for name in unpushed:
-            done = _run(self.primary, "push", "--no-verify", "origin", name)
-            if done.returncode != 0:
-                self.halt(
-                    "run", f"git push origin {name} failed, exit {done.returncode}"
+            kind = "tags" if TAG.fullmatch(name) else "heads"
+            ref = f"refs/{kind}/{name}"
+            sha = _git(self.primary, "rev-parse", ref).strip()
+            for url in self.pushes:
+                done = _outside(
+                    self.primary, "push", "--no-verify", "--", url, f"{sha}:{ref}"
                 )
-                return
+                if done.returncode != 0:
+                    self.halt(
+                        "run", f"git push origin {name} failed, exit {done.returncode}"
+                    )
+                    return
+            if kind == "heads":
+                _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
             self.log.event("run", "push", name)
 
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
-        self.git_state = _git_state(self.primary)
         versions = open_versions(self.primary)
         permissions = "allowlist" if self.executor == "claude" else "workspace-write"
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""

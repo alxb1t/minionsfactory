@@ -18,10 +18,12 @@ Codex has a sandbox, with its network on and no deny list. Every worker can push
 
 ## What Changes
 
-- **Every Claude worker runs in Claude Code's sandbox**: writes to the repo alone, listed domains, no credential reads.
+- **Every Claude worker runs in Claude Code's sandbox**: writes to the repo alone, listed domains, no credential reads by a
+  script or the `Read` tool, and no project settings or `.mcp.json` at its start.
 - **`Ship network:`** in `AGENTS.md` adds domains.
 - **A Codex worker's network is off.**
-- **No worker pushes**: under `merge=yes` the release stops at its merge, and `conduct.py` pushes.
+- **No worker pushes**: under `merge=yes` the release stops at its merge, and `conduct.py` pushes, to the URLs read before the
+  first worker, from a scratch repo that reads no repo's config.
 - **A run's plan is read once**, and a person's commit during a run halts before integrate.
 - **The record states the boundary**: D47, a new decision, and `THREAT_MODEL.md`.
 - **An escape test** runs on a real worker and a real subagent, and the drill runs under the sandbox.

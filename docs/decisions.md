@@ -445,22 +445,26 @@ then integrates, runs the catch-up round and releases each as it is ready, one a
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
 `after:`, a failed probe halts the run, and a re-run resumes from
-disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version
-tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
+disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
+run, a default-branch commit or version tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
 needs the person. Converge runs at the tier the cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
 - **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
-  worker reaches the primary and the open worktrees alone.
+  worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
+  sandbox, never to its start: a Claude worker loads no project settings.
 - **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no unlisted
-domain. `conduct.py` holds the push. The threat is a confused or prompt-injected agent; a hostile repo needs a container.**
+domain. `conduct.py` holds the push, and its remote calls read no repo's config. The threat is a confused or prompt-injected
+agent; a hostile repo needs a container.**
 
-- **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it.
-- **Accepts:** a Codex worker can read `~`, with its network off.
+- **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it. The
+  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls.
+- **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
+  worker.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.
