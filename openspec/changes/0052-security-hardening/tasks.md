@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 - [x] 2 — No worker pushes
 - [x] 3 — The cards
 - [x] 4 — The record
-- [ ] 5 — The proof
+- [x] 5 — The proof
 
 ## 1 — The sandbox
 
@@ -46,14 +46,14 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 5 — The proof
 
-- [ ] 5.1 Write `tests/escape_drill.py`, per [D8](design.md#d8).
+- [x] 5.1 Write `tests/escape_drill.py`, per [D8](design.md#d8).
   Verify: `uv run --script tests/escape_drill.py --help` exits 0.
-- [ ] 5.2 **HALT CHECK** Run it, and write `openspec/changes/0052-security-hardening/evidence/escape.md`, per [D8](design.md#d8).
+- [x] 5.2 **HALT CHECK** Run it, and write `openspec/changes/0052-security-hardening/evidence/escape.md`, per [D8](design.md#d8).
   Verify: `grep -c '^claude subagent: held' openspec/changes/0052-security-hardening/evidence/escape.md` prints `1`,
   `grep -c '^claude worker: held' openspec/changes/0052-security-hardening/evidence/escape.md` prints `1`, and
   `grep -c '^codex converge: clean' openspec/changes/0052-security-hardening/evidence/escape.md` prints `1`.
-- [ ] 5.3 **HALT CHECK** Run `tests/drill_resume.py`, and write `openspec/changes/0052-security-hardening/evidence/drill.md`.
+- [x] 5.3 **HALT CHECK** Run `tests/drill_resume.py`, and write `openspec/changes/0052-security-hardening/evidence/drill.md`.
   Verify: `grep -c 'killed: done' openspec/changes/0052-security-hardening/evidence/drill.md` prints `2`.
-- [ ] 5.4 Write `openspec/changes/0052-security-hardening/evidence/rejudge.md`, and add each moot card to `proposal.md`'s
+- [x] 5.4 Write `openspec/changes/0052-security-hardening/evidence/rejudge.md`, and add each moot card to `proposal.md`'s
   `backlog:`, per [D8](design.md#d8).
   Verify: `grep -c '0050·R11' openspec/changes/0052-security-hardening/evidence/rejudge.md` prints `1`.

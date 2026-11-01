@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phase 3).
 - D51 records the boundary: an OS sandbox for every worker, and `conduct.py` holds the push. D17, D47, `THREAT_MODEL.md` and
   `mf-ship` now say so, because the allowlist alone was never a containment (change `0052-security-hardening`, phase 4).
+- `tests/escape_drill.py` proves the boundary on real workers and subagents, on Claude and Codex, and the resume drill passes
+  under the sandbox; the cards re-judged against it stay open (change `0052-security-hardening`, phase 5).
 
 ## [0.45.0] - 2026-11-01
 
