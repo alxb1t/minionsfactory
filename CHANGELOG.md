@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependent's merge (change `0050-codex-review`, phase 2).
 - D47, `mf-ship` and `mf-cut-change` name the station's `executor` and the worker's reach (change `0050-codex-review`,
   phase 3).
+- `conduct.py` starts Codex with a writable `uv` cache, system tools first on `PATH` and login shells off, which the first
+  calibration stopped on. A converge on Codex met the calibration's bar, and a Claude build, Codex converge and Claude
+  release ran to `done` (change `0050-codex-review`, phase 4).
 
 ## [0.42.0] - 2026-10-31
 

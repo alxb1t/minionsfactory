@@ -1084,7 +1084,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     roots = json.dumps(
         [str(root / ".minions"), str(root / ".git"), str(root), str(tree)]
     )
-    assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
+    cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
+    assert codex[:2] == ["env", cache]
+    assert codex[2].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
+    assert codex[3:7] == ["codex", "exec", "-s", "workspace-write"]
+    assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
 

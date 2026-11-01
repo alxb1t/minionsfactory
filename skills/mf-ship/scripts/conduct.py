@@ -719,11 +719,17 @@ def argv(
         *([str(common)] if common else []),
         *(str(tree) for tree in trees),
     ]
+    # Why: 0050-codex-review design D4.
+    system = "/usr/bin:/bin:/usr/sbin:/sbin"
+    path = f"PATH={system}:{os.environ.get('PATH', '')}"
+    env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", path)
     return [
+        *env,
         *("codex", "exec"),
         *(("-m", model) if model else ()),
         *(("-c", f"model_reasoning_effort={effort}") if effort else ()),
         *("-s", "workspace-write"),
+        *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         *("-c", "sandbox_workspace_write.network_access=true"),
         *("-C", str(cwd), prompt),

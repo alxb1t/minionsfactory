@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 - [x] 1 — The executor
 - [x] 2 — The reach
 - [x] 3 — The record
-- [ ] 4 — The proof
+- [x] 4 — The proof
 
 ## 1 — The executor
 
@@ -39,18 +39,18 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 4 — The proof
 
-- [ ] 4.0 In `skills/mf-ship/scripts/conduct.py`, start Codex through `env` with `-c allow_login_shell=false`, per
+- [x] 4.0 In `skills/mf-ship/scripts/conduct.py`, start Codex through `env` with `-c allow_login_shell=false`, per
   [D4](design.md#d4), dropping `SHELL`, edit `tests/test_conduct.py`'s
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, and delete `../mf_codex_probe/seeded/.minions` and
   `../mf_codex_probe/clean/.minions`.
   Verify: `grep -c 'allow_login_shell=false' skills/mf-ship/scripts/conduct.py` prints `1`.
 - [x] 4.1 Under `../mf_codex_probe/`, build `seeded` and `clean` per [D7](design.md#d7).
   Verify: `make -C ../mf_codex_probe/seeded gate` exits 0, and `make -C ../mf_codex_probe/clean gate` exits 0.
-- [ ] 4.2 **HALT CHECK** Run the calibration on `seeded` and `clean`, score them, and write
+- [x] 4.2 **HALT CHECK** Run the calibration on `seeded` and `clean`, score them, and write
   `openspec/changes/0050-codex-review/evidence/calibration.md`, per [D7](design.md#d7).
   Verify: `grep -c '^seeded: 5 of 5' openspec/changes/0050-codex-review/evidence/calibration.md` prints `1`, and
   `grep -c '^clean: no blocker' openspec/changes/0050-codex-review/evidence/calibration.md` prints `1`.
-- [ ] 4.3 **HALT CHECK** Build `cross` and run it, per [D7](design.md#d7), adding its line to the evidence file.
+- [x] 4.3 **HALT CHECK** Build `cross` and run it, per [D7](design.md#d7), adding its line to the evidence file.
   Verify: `grep -c '^cross: done · build claude · converge codex · release claude' openspec/changes/0050-codex-review/evidence/calibration.md` prints `1`.
-- [ ] 4.4 Delete `../mf_codex_probe/`.
+- [x] 4.4 Delete `../mf_codex_probe/`.
   Verify: `test ! -e ../mf_codex_probe` exits 0.
