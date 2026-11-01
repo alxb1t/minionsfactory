@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 ## Progress
 
 - [x] 1 — The sandbox
-- [ ] 2 — No worker pushes
+- [x] 2 — No worker pushes
 - [ ] 3 — The cards
 - [ ] 4 — The record
 - [ ] 5 — The proof
@@ -21,10 +21,10 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 2 — No worker pushes
 
-- [ ] 2.1 Edit `skills/mf-release/SKILL.md` and `Run.advance`, and stop `tests/fake_worker.py`'s `release` pushing, per
+- [x] 2.1 Edit `skills/mf-release/SKILL.md` and `Run.advance`, and stop `tests/fake_worker.py`'s `release` pushing, per
   [D3](design.md#d3).
   Verify: `grep -c 'skip this: `conduct.py` pushes' skills/mf-release/SKILL.md` prints `2`.
-- [ ] 2.2 Add `test_no_worker_pushes` to `tests/test_conduct.py`.
+- [x] 2.2 Add `test_no_worker_pushes` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k no_worker_pushes` reports `1 passed`.
 
 ## 3 — The cards

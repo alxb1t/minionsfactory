@@ -528,7 +528,7 @@ def _release_died(runs: Path, change: str) -> bool:
 def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str, str]:
     """Return the stage of a tip that says it is released; only a death re-enters.
 
-    The re-entry merges and pushes unasked, so it takes no person's no, a tag on `HEAD`
+    The re-entry merges unasked, so it takes no person's no, a tag on `HEAD`
     or none, the converge clean at the parent, an unmoved base and a release worker
     that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
@@ -1400,6 +1400,8 @@ class Run:
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
+                if stage == "release":
+                    self.push_left()
                 reason = check(self.primary, stage, version)
                 if not self.judge(version.change, stage, reason, denied):
                     return

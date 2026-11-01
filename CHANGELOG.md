@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Claude worker runs in Claude Code's sandbox: writes to the repo and its worktrees, no credential reads, and a short domain
   list that `AGENTS.md`'s `Ship network:` extends. A Codex worker's network is off, because a worker's script should have
   nowhere to send anything (change `0052-security-hardening`, phase 1).
+- No worker pushes: under `merge=yes` the release stops at its merge, and `conduct.py` pushes before it judges the release,
+  because a sandboxed worker cannot (change `0052-security-hardening`, phase 2).
 
 ## [0.45.0] - 2026-11-01
 

@@ -1008,7 +1008,16 @@ def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    for mode in ("plant-config", "plant-attributes"):
+    merge_in = " · 0002-marks · halt — the local git config changed during the run"
+    held = (
+        " · run · halt — conduct: halt — the repo's git config holds a key that could"
+        " name a program: mf.planted; move it to the global config or remove it"
+    )
+    for mode, said in (
+        ("plant-config", merge_in),
+        ("plant-attributes", merge_in),
+        ("plant-held", held),
+    ):
         scratch = tmp_path / mode
         scratch.mkdir()
         root = _primary(scratch)
@@ -1023,12 +1032,7 @@ def test_a_changed_git_config_halts_a_merge_in(
 
         assert "release 0001-todo" in _calls(calls)
         assert "build 0002-marks" not in _calls(calls)
-        assert any(
-            line.endswith(
-                " · 0002-marks · halt — the local git config changed during the run"
-            )
-            for line in _log(root)
-        )
+        assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
 
@@ -1481,6 +1485,37 @@ def test_a_run_pushes_only_tagged_merges(
         == 0
     )
     assert on_origin() == _git(root, "rev-parse", "main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+
+def test_no_worker_pushes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    lines = [line.split(" · ", 1)[1] for line in _log(root)]
+    finish = next(
+        i for i, line in enumerate(lines) if line.startswith("0001-todo · finish — rel")
+    )
+    assert lines[finish + 1 :] == [
+        "run · push — main",
+        "run · push — v0.1.0",
+        "0001-todo · check — release · pass",
+        "run · done — released v0.1.0",
+    ]
+    assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
 
