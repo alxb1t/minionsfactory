@@ -39,11 +39,12 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 4 — The proof
 
-- [ ] 4.0 In `skills/mf-ship/scripts/conduct.py`, start Codex through `env`, per [D4](design.md#d4), edit
-  `tests/test_conduct.py`'s `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, and delete
-  `../mf_codex_probe/seeded/.minions` and `../mf_codex_probe/clean/.minions`, the first run's leavings.
-  Verify: `grep -c 'SHELL=/bin/zsh' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 4.1 Under `../mf_codex_probe/`, build `seeded` and `clean` per [D7](design.md#d7).
+- [ ] 4.0 In `skills/mf-ship/scripts/conduct.py`, start Codex through `env` with `-c allow_login_shell=false`, per
+  [D4](design.md#d4), dropping `SHELL`, edit `tests/test_conduct.py`'s
+  `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, and delete `../mf_codex_probe/seeded/.minions` and
+  `../mf_codex_probe/clean/.minions`.
+  Verify: `grep -c 'allow_login_shell=false' skills/mf-ship/scripts/conduct.py` prints `1`.
+- [x] 4.1 Under `../mf_codex_probe/`, build `seeded` and `clean` per [D7](design.md#d7).
   Verify: `make -C ../mf_codex_probe/seeded gate` exits 0, and `make -C ../mf_codex_probe/clean gate` exits 0.
 - [ ] 4.2 **HALT CHECK** Run the calibration on `seeded` and `clean`, score them, and write
   `openspec/changes/0050-codex-review/evidence/calibration.md`, per [D7](design.md#d7).

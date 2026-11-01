@@ -70,15 +70,21 @@ executor, and `probe-<executor>` for another, whose `_executor_missing` halts `r
 `argv` keeps Codex's output as it is, so `denials` reads nothing from it. `mf-converge` already writes `tokens unavailable`
 when it has no count.
 
-`argv` starts Codex through `env`, so the worker's commands find a writable cache and an arm64 shell:
+`argv` starts Codex through `env`, with login shells off, so the worker's commands find a writable cache and system tools:
 
 ```python
-env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", "SHELL=/bin/zsh")
+system = "/usr/bin:/bin:/usr/sbin:/sbin"
+path = f"PATH={system}:{os.environ.get('PATH', '')}"
+env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", path)
 ```
 
+`argv` adds `-c allow_login_shell=false`: a login shell re-reads the person's profile, and puts `PATH` back. Measured in a
+scratch repo: `PATH` alone left `which bash` on an Intel build; both together ran `git`, `make`, `uv`, `codex` and `openspec`,
+each through `bash` too, with no `xcrun` error. `SHELL` did nothing, so it goes.
+
 `mf-converge` needs `uv`, and `~/.cache/uv` is outside a worker's reach. Adding it would break [D5](#d5) and let a sandboxed
-worker poison a cache that unsandboxed `uv` trusts. Codex can pick an Intel `bash` from the machine, under which the `git`
-and `make` shims fail. `work` stays as it is. Added after 4.2's first run stopped on both.
+worker poison a cache that unsandboxed `uv` trusts. Codex can reach an Intel `bash` through the person's `PATH`, under which the
+`git` and `make` shims fail. `work` stays as it is. Added after 4.2's first run stopped on both.
 
 ### D5
 
