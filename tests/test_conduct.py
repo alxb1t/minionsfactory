@@ -1,7 +1,7 @@
 """The ship script: stages and checks from disk, the run log, the loop, the workers.
 
-Real git in scratch repositories with linked worktrees; this file, run as a script,
-is the fake agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
+Real git in scratch repositories with linked worktrees; `fake_worker.py` is the fake
+agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import fnmatch
@@ -20,32 +20,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fake_worker import _IDENTITY, _commit, _findings, _git
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
-_IDENTITY = ["-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
-_IDENTITY += ["-c", "commit.gpgsign=false"]
+_WORKER = Path(__file__).with_name("fake_worker.py")
 _WORKTREES = (
     "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
 )
-
-
-def _git(root: Path, *args: str, check: bool = True) -> str:
-    return subprocess.run(
-        ["git", *_IDENTITY, *args],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=check,
-    ).stdout.strip()
-
-
-def _commit(root: Path, files: dict[str, str], message: str) -> None:
-    for name, text in files.items():
-        (root / name).parent.mkdir(parents=True, exist_ok=True)
-        (root / name).write_text(text)
-    _git(root, "add", ".")
-    _git(root, "commit", "-q", "-m", message)
 
 
 def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
@@ -74,25 +56,29 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     return tree.resolve()
 
 
-def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> None:
-    folder = root / ".minions" / "findings"
-    folder.mkdir(parents=True, exist_ok=True)
-    for role in ("review", "security"):
-        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
-        (folder / f"{change}_{role}.md").write_text(text)
-    log = folder / f"{change}_status_log.md"
-    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
-
-
-def _allow_origin(origin: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Name a fixture's local `origin` in the operator's global config."""
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(origin.parent / "operator.gitconfig"))
-    _git(origin.parent, "config", "--global", "mf-ship.localorigin", str(origin))
+def _released(root: Path, tag: str) -> None:
+    """Merge a branch into `main` whose tip is `tag`'s annotated release commit."""
+    branch = f"release-{tag}"
+    _git(root, "switch", "-q", "-c", branch)
+    _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {tag}")
+    _git(root, "tag", "-a", "-m", tag, tag)
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch)
 
 
 def _lstart(pid: int) -> str:
-    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    command = ["env", "LC_ALL=C", "TZ=UTC0", "ps", "-o", "lstart=", "-p", str(pid)]
     return subprocess.run(command, capture_output=True, text=True).stdout.strip()
+
+
+def _no_ps(tmp_path: Path) -> str:
+    """Return a folder whose `ps` prints nothing, to put first on `PATH`."""
+    folder = tmp_path / "no-ps"
+    folder.mkdir()
+    ps = folder / "ps"
+    ps.write_text("#!/bin/sh\nexit 1\n")
+    ps.chmod(0o755)
+    return str(folder)
 
 
 def _conduct() -> dict[str, Any]:
@@ -108,11 +94,14 @@ def _main(
 
 @pytest.fixture
 def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
-    """Point `MF_SHIP_AGENT` at this file; return a setter of its modes."""
+    """Point `MF_SHIP_AGENT` at `fake_worker.py`; return a setter of its modes."""
     calls = tmp_path / "calls.txt"
 
+    # A gate run inside a worker inherits `HOOKS_OFF`, and these fixtures fire hooks.
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+
     def modes(*names: str) -> Path:
-        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, __file__]))
+        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, str(_WORKER)]))
         monkeypatch.setenv("FAKE_CALLS", str(calls))
         monkeypatch.setenv("FAKE_MODE", ",".join(names))
         return calls
@@ -325,7 +314,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("release") == (0, "check: release · pass")
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
-    _allow_origin(origin, monkeypatch)
+    monkeypatch.setenv("MF_SHIP_AGENT", "true")
     _git(root, "remote", "add", "origin", str(origin))
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
@@ -340,6 +329,9 @@ def test_each_check_passes_only_on_disk_evidence(
     _git(root, "push", "-q", "origin", "main~1:refs/tags/v0.1.0")
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     assert pushed() == "not pushed"
+    _git(root, "push", "-q", "origin", "0001-todo:refs/tags/refs/tags/v0.1.0")
+    assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
+    _git(root, "push", "-q", "origin", ":refs/tags/refs/tags/v0.1.0")
     _git(root, "push", "-q", "-f", "origin", "v0.1.0")
     assert check("release") == (0, "check: release · pass")
     assert pushed() == "pushed"
@@ -904,6 +896,15 @@ def test_a_station_runs_on_its_executor(
     (minions / "models").mkdir(parents=True)
     table = '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\n'
     (minions / "models" / "0001-todo.toml").write_text(table)
+    started: list[tuple[str, str]] = []
+    argv = conduct["argv"]
+
+    def spy(executor: str, prompt: str, *rest: object) -> list[str]:
+        found = re.search(r"Run the mf-(\w+) skill", prompt)
+        started.append((found[1] if found else "probe", executor))
+        return argv(executor, prompt, *rest)
+
+    conduct["main"].__globals__["argv"] = spy
     models = conduct["_models"]
     assert models(minions, "0001-todo", "converge", "claude") == ("codex", None, None)
     assert models(minions, "0001-todo", "build", "claude") == ("claude", None, None)
@@ -929,6 +930,13 @@ def test_a_station_runs_on_its_executor(
     assert "build · model default" in spawned
     assert "converge · model default · executor codex" in spawned
     assert "release · model opus" in spawned
+    assert started == [
+        ("probe", "claude"),
+        ("probe", "codex"),
+        ("build", "claude"),
+        ("converge", "codex"),
+        ("release", "claude"),
+    ]
 
     other = tmp_path / "other"
     other.mkdir()
@@ -1223,6 +1231,40 @@ def test_a_rerun_recovers_a_dead_release(
     _git(forged, "tag", "v9.0.0")
     assert last() == "0006-six · released"
 
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    moved = _version(second, "0001-todo", "- [x] 1 — Todo\n")
+    _commit(moved, {"moved.txt": "theirs\n"}, "the version")
+    _findings(second, "0001-todo", _git(moved, "rev-parse", "HEAD"))
+    _commit(second, {"moved.txt": "ours\n"}, "main moves")
+    calls.unlink(missing_ok=True)
+    fake("dies-integrate")
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "integrate 0001-todo"]
+    assert stage_of(second, find(second, "0001-todo")) == (
+        "integrate",
+        "interrupted: a merge is open with no note",
+    )
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == [
+        "probe",
+        "integrate 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert "chore(integrate): merge main into 0001-todo" in _git(
+        second, "log", "--format=%s", "main"
+    )
+
 
 def test_a_rerun_pushes_what_a_release_left(
     tmp_path: Path,
@@ -1235,11 +1277,10 @@ def test_a_rerun_pushes_what_a_release_left(
     root = _primary(tmp_path)
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
-    _allow_origin(origin, monkeypatch)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
-    _commit(root, {"released.txt": "x\n"}, "merge the release")
-    _git(root, "tag", "-a", "-m", "v0.1.0", "v0.1.0")
+    _released(root, "v0.1.0")
     _git(root, "tag", "unrelated")
 
     def status() -> str:
@@ -1278,8 +1319,8 @@ def test_a_rerun_pushes_what_a_release_left(
     _git(tmp_path, "clone", "-q", str(origin), str(other))
     _commit(other, {"theirs.txt": "x\n"}, "origin moves")
     _git(other, "push", "-q", "origin", "main")
-    _commit(root, {"ours.txt": "x\n"}, "main moves")
-    assert status() == "run · unpushed main"
+    _released(root, "v0.2.0")
+    assert status() == "run · unpushed main v0.2.0"
     run(1)
     assert _calls(calls) == []
     lines = _log(root)
@@ -1287,7 +1328,8 @@ def test_a_rerun_pushes_what_a_release_left(
     assert lines[-1].endswith(
         " · run · halt — halted run · blocked none · released none"
     )
-    assert head in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
+    tagged = _git(root, "rev-parse", "v0.1.0^{commit}")
+    assert tagged in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
 
     _git(root, "config", "protocol.version", "2")
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
@@ -1341,14 +1383,23 @@ def test_a_rerun_pushes_what_a_release_left(
     _git(root, "config", "remote.origin.pushurl", str(elsewhere))
     refused("remote.origin.pushurl")
     _git(root, "config", "--unset", "remote.origin.pushurl")
-    for url in (
-        str(elsewhere),
-        f"file://{elsewhere}",
-        "./elsewhere.git",
-        f"ext::{command}",
-    ):
-        _git(root, "remote", "set-url", "origin", url)
-        refused("origin")
+    with monkeypatch.context() as patch:
+        patch.delenv("MF_SHIP_AGENT")
+        for url in (
+            str(elsewhere),
+            f"file://{elsewhere}",
+            "./elsewhere.git",
+            f"ext::{command}",
+        ):
+            _git(root, "remote", "set-url", "origin", url)
+            capsys.readouterr()
+            assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+            assert "points origin at a local repo" in capsys.readouterr().out
+            conductor = conduct["Run"](root, "claude")
+            conductor.push_left()
+            assert [who for who, _ in conductor.halts] == ["run"]
+            conductor.log.path.unlink()
+            assert not ran.exists()
     for url in ("https://example.invalid/r.git", "git@example.invalid:r.git"):
         assert conduct["NETWORK_URL"].fullmatch(url)
 
@@ -1357,6 +1408,398 @@ def test_a_rerun_pushes_what_a_release_left(
     refused("hook.probe.event")
     log = conduct["last_log"](root / ".minions" / "runs")
     assert "hook.probe.event" in log.read_text()
+
+
+def test_a_run_pushes_only_tagged_merges(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    pushed = _git(root, "rev-parse", "main")
+
+    def on_origin() -> str:
+        return _git(root, "ls-remote", "origin", "refs/heads/main").split()[0]
+
+    def halts_on(name: str) -> None:
+        said = f"conduct: halt — main holds {name}, not a release"
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+        assert capsys.readouterr().out.strip() == said
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+        log = conduct["last_log"](root / ".minions" / "runs").read_text()
+        assert f" · run · halt — {said}\n" in log
+        assert on_origin() == pushed
+        assert _calls(calls) == []
+
+    _commit(root, {"mine.txt": "x\n"}, "a person's commit")
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+
+    _git(root, "switch", "-q", "-c", "side")
+    _git(root, "commit", "-q", "--allow-empty", "-m", "feat: side")
+    _git(root, "tag", "v0.9.0")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'side'", "side")
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+    _git(root, "tag", "-d", "v0.9.0")
+
+    refused = ("v0.7.0", "v0.8.0")
+    for tag in refused:
+        _git(root, "switch", "-q", "-c", f"release-{tag}", "main")
+        _commit(root, {tag: "x\n"}, f"chore(release): {tag}")
+        _git(root, "tag", "-a", "-m", tag, tag)
+    _git(root, "switch", "-q", "main")
+    for tag in refused:
+        _git(root, "merge", "-q", "--no-ff", "-m", "a merge", f"release-{tag}")
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~2")
+    _git(root, "tag", "-d", *refused)
+
+    _git(root, "tag", "v0.45.0")
+    halts_on("v0.45.0")
+    assert _git(root, "ls-remote", "--tags", "origin") == ""
+    _git(root, "tag", "-d", "v0.45.0")
+
+    _released(root, "v0.1.0")
+    _git(root, "tag", "v0.2.0", "release-v0.1.0")
+    halts_on("v0.2.0")
+    _git(root, "tag", "-d", "v0.2.0")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert on_origin() == _git(root, "rev-parse", "main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+
+def test_a_stop_survives_a_death(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-release-tag")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def run() -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+
+    run()
+    version = conduct["find_version"](root, "0001-todo")
+    assert conduct["stage_of"](root, version)[0] == "release"
+
+    held = root / ".minions" / "release" / "0001-todo.held"
+    held.parent.mkdir()
+    held.write_text("no: the preamble needs reading\n")
+    said = (
+        "v0.1.0: .minions/release/0001-todo.held holds a person's no:"
+        " /mf-release 0001-todo merges it on their yes"
+    )
+    assert conduct["stage_of"](root, version) == ("released", said)
+
+    calls.unlink()
+    fake()
+    run()
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(f" · 0001-todo · halt — released — {said}") for line in _log(root)
+    )
+    assert _git(root, "branch", "--no-merged", "main").endswith(" 0001-todo")
+
+
+def test_no_hook_runs_in_a_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    marker = tmp_path / "hook-ran"
+    tooling = tmp_path / "tooling"
+    for folder in (root / ".git" / "hooks", tooling):
+        folder.mkdir(exist_ok=True)
+        hook = folder / "pre-commit"
+        hook.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(marker))}\n")
+        hook.chmod(0o755)
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    size = len(conduct["HOOKS_OFF"])
+
+    def commit(extra: dict[str, str]) -> None:
+        subprocess.run(
+            ["git", *_IDENTITY, "commit", "-q", "--allow-empty", "-m", "worker"],
+            cwd=root,
+            env={**os.environ, **extra},
+            check=True,
+        )
+
+    def fires(extra: dict[str, str]) -> bool:
+        marker.unlink(missing_ok=True)
+        commit(extra)
+        return marker.exists()
+
+    repo = (root, root / ".git")
+    for executor in conduct["EXECUTORS"]:
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+        assert command[0] == "env"
+        pairs = dict(arg.split("=", 1) for arg in command[1 : size + 1])
+        assert not fires(pairs)
+        assert fires({})
+
+    _git(root, "config", "core.hooksPath", str(tooling))
+    conduct["_refuse_config_commands"](root)
+    assert not fires(pairs)
+    assert fires({})
+
+    _git(root, "config", "lfs.repositoryformatversion", "0")
+    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion") as held:
+        conduct["_refuse_config_commands"](root)
+    assert "a run cannot upload LFS objects" in str(held.value)
+    assert "remove it" not in str(held.value)
+    _git(root, "config", "--unset", "lfs.repositoryformatversion")
+    _git(root, "config", "filter.lfs.clean", "git-lfs clean -- %f")
+    with pytest.raises(conduct["Stop"], match="filter.lfs.clean.*cannot upload LFS"):
+        conduct["_refuse_config_commands"](root)
+
+
+def test_stop_ends_a_live_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    runs = root / ".minions" / "runs"
+    active = runs / "active"
+    runs.mkdir(parents=True)
+
+    def stop() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "stop", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    assert stop() == "stop: none — no run is live"
+
+    active.mkdir()
+    (active / "start").write_text(_lstart(1))
+    signalled: list[tuple[int, int]] = []
+    with monkeypatch.context() as patch:
+        # On a stop with no guard, -1 would reach every process the operator owns.
+        patch.setattr(os, "kill", lambda pid, sig: signalled.append((pid, sig)))
+        for pid in ("-1", "0", "1"):
+            (active / "pid").write_text(pid)
+            assert stop() == "stop: none — no run is live"
+    assert signalled == []
+    shutil.rmtree(active)
+
+    log = runs / "20261101-120000.md"
+    opening = (
+        "# Ship run 20261101-120000\n\n"
+        "10:00:00 · run · start — executor claude\n"
+        "10:00:01 · 0001-todo · spawn — build · model default\n"
+    )
+    log.write_text(opening)
+    sleep = shutil.which("sleep")
+    assert sleep
+    executor = tmp_path / "claude"
+    executor.symlink_to(sleep)
+    conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    worker = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    active.mkdir()
+    (active / "pid").write_text(str(conductor.pid))
+    (active / str(worker.pid)).write_text(_lstart(worker.pid))
+
+    (active / "start").write_text("Thu Jan  1 00:00:00 1970\n")
+    assert stop() == "stop: none — no run is live"
+    assert (conductor.poll(), worker.poll()) == (None, None)
+    assert (active / "pid").is_file()
+
+    (active / "start").write_text(_lstart(conductor.pid))
+    no_ps = _no_ps(tmp_path)
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", no_ps, prepend=os.pathsep)
+        for command in (("status",), ("stop",), ("run", "--executor", "claude")):
+            capsys.readouterr()
+            assert _main(conduct, root, *command, monkeypatch=patch) == 2
+            assert f"ps cannot read pid {conductor.pid}" in capsys.readouterr().out
+    assert (conductor.poll(), worker.poll()) == (None, None)
+    assert (active / "pid").is_file()
+
+    with monkeypatch.context() as patch:
+        patch.setenv("LC_ALL", "C")
+        patch.setenv("TZ", "Asia/Tokyo")
+        (active / "start").write_text(conduct["_ps"](conductor.pid, "lstart="))
+        patch.setenv("TZ", "America/New_York")
+        assert conduct["_claim"](active) == "live"
+
+    (active / "start").write_text(_lstart(conductor.pid))
+    assert stop() == f"stop: stopped · .minions/runs/{log.name}"
+
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert worker.wait(timeout=10) == -signal.SIGKILL
+    assert not active.exists()
+    assert (
+        log.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · halt — stopped by the person")
+    )
+    verify = ("log", "--verify", str(log))
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 0
+
+    log.write_text(log.read_text().replace("stopped by the person", "a crash"))
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 1
+
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", no_ps, prepend=os.pathsep)
+        capsys.readouterr()
+        run = ("run", "--executor", "claude")
+        assert _main(conduct, root, *run, monkeypatch=patch) == 2
+        assert "start time" in capsys.readouterr().out
+    assert not active.exists()
+
+    log.write_text(opening)
+    conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    active.mkdir()
+    (active / "pid").write_text(str(conductor.pid))
+    (active / "start").write_text(_lstart(conductor.pid))
+    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
+    capsys.readouterr()
+    assert _main(conduct, root, "stop", monkeypatch=monkeypatch) == 2
+    said = capsys.readouterr().out
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert foreign.poll() is None
+    assert (active / "pid").is_file()
+    assert (
+        log.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · halt — stopped by the person")
+    )
+    assert said.startswith("stop: ") and f"group {foreign.pid} " in said
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 0
+    assert stop() == "stop: none — no run is live"
+    foreign.kill()
+    foreign.wait(timeout=10)
+
+
+def test_a_grant_buys_one_round(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("grant-halts")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    version = conduct["find_version"](root, "0001-todo")
+    grants = root / ".minions" / "grants" / "0001-todo"
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    runner = conduct["main"].__globals__["run"]
+    started: list[tuple[Path, str, bool]] = []
+
+    def spy(cwd: Path, executor: str, detach: bool) -> int:
+        started.append((cwd, executor, detach))
+        return 0
+
+    conduct["main"].__globals__["run"] = spy
+
+    def grant() -> tuple[int, str]:
+        capsys.readouterr()
+        args = ("grant", "0001-todo", "--executor", "claude")
+        code = _main(conduct, root, *args, monkeypatch=monkeypatch)
+        return code, capsys.readouterr().out.strip()
+
+    refused = "grant: cannot run — 0001-todo is at {}, not a cap halt"
+    assert grant() == (2, refused.format("converge"))
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 2 · halt — a scope failure\n")
+    assert grant() == (2, refused.format("converge-halted"))
+    assert started == [] and not grants.exists()
+
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    assert conduct["stage_of"](root, version)[0] == "converge-halted"
+    assert grant() == (0, "")
+    assert started == [(root, "claude", True)]
+    assert conduct["stage_of"](root, version) == ("converge", "granted")
+
+    conduct["main"].__globals__["run"] = runner
+
+    def run() -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+
+    run()
+    assert "converge 0001-todo and grant=yes" in _calls(calls)
+    assert not grants.exists()
+    assert conduct["stage_of"](root, version)[0] == "converge-halted"
+    assert _git(tree, "status", "--porcelain") == ""
+
+    calls.unlink()
+    run()
+    assert _calls(calls) == []
+
+
+def test_a_missing_skill_stops_a_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    conduct["main"].__globals__["_executor_missing"] = lambda name: False
+    names = sorted(path.name for path in (_REPO / "skills").glob("mf-*"))
+    assert "mf-ship" in names
+    for folder in conduct["SKILLS"].values():
+        (home / folder).mkdir(parents=True)
+        for name in names:
+            (home / folder / name).symlink_to(_REPO / "skills" / name)
+
+    (home / conduct["SKILLS"]["claude"] / "mf-ship").unlink()
+    capsys.readouterr()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert capsys.readouterr().out.strip() == (
+        "run: cannot run — mf-ship is not linked; make install-skills"
+    )
+    assert not (root / ".minions" / "runs").exists()
+
+    conduct["_unlinked"]("codex")
+    (home / conduct["SKILLS"]["codex"] / "mf-build").unlink()
+    with pytest.raises(conduct["Stop"], match="mf-build is not linked"):
+        conduct["_unlinked"]("codex")
+    conductor = conduct["Run"](root, "claude")
+    conductor.probe("codex")
+    assert conductor.halts == [
+        (
+            "run",
+            "probe-codex — run: cannot run — mf-build is not linked;"
+            " make install-skills",
+        )
+    ]
 
 
 def test_a_stale_claim_is_cleared(
@@ -1377,7 +1820,7 @@ def test_a_stale_claim_is_cleared(
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
         return capsys.readouterr().out.strip().splitlines()
 
-    stale = ["run · stale — a run clears it", "0001-todo · build"]
+    stale = ["run · stale — a run clears it, or stops naming why", "0001-todo · build"]
     assert status() == stale
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
@@ -1385,6 +1828,12 @@ def test_a_stale_claim_is_cleared(
     assert status() == stale
 
     (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text("Thu Jan  1 00:00:00 1970\n")
+    assert status() == stale
+    (active / "pid").write_text("9" * 30)
+    assert status() == stale
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text(_lstart(os.getpid()))
     assert status() == ["run · live", "0001-todo · build"]
     capsys.readouterr()
     assert (
@@ -1395,25 +1844,83 @@ def test_a_stale_claim_is_cleared(
     assert _calls(calls) == []
 
     (active / "pid").write_text(str(dead.pid))
-    group = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    executor = tmp_path / "claude"
+    sleep = shutil.which("sleep")
+    assert sleep
+    executor.symlink_to(sleep)
+    group = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(group.pid)).write_text(_lstart(group.pid))
-    recycled = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    recycled = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
-    unstamped = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    unstamped = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(unstamped.pid)).touch()
     (active / "0").touch()
     (active / "7").mkdir()
     (active / "8").write_bytes(b"\xff")
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    claims: list[str] = []
+    ship = conduct["Run"].ship
+
+    def spy(conductor: object) -> int:
+        claims.append(conduct["_claim"](active))
+        return ship(conductor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(conduct["Run"], "ship", spy)
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=patch) == 0
+        )
+    assert claims == ["live"]
     assert group.wait(timeout=10) == -signal.SIGKILL
     assert (recycled.poll(), unstamped.poll()) == (None, None)
     recycled.kill()
     unstamped.kill()
     assert "release 0001-todo" in _calls(calls)
     assert not active.exists()
+
+    active.mkdir()
+    (active / "pid").write_text(str(dead.pid))
+    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
+    sibling = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    (active / str(sibling.pid)).write_text(_lstart(sibling.pid))
+    with pytest.raises(conduct["Stop"], match=f"group {foreign.pid} .*no executor"):
+        conduct["_clear"](active)
+    assert sibling.wait(timeout=10) == -signal.SIGKILL
+    assert foreign.poll() is None
+    assert (active / str(foreign.pid)).is_file()
+    capsys.readouterr()
+    detach = ("run", "--executor", "claude", "--detach")
+    assert _main(conduct, root, *detach, monkeypatch=monkeypatch) == 2
+    assert f"group {foreign.pid} " in capsys.readouterr().out
+    assert foreign.poll() is None
+    assert (active / str(foreign.pid)).is_file()
+    foreign.kill()
+    foreign.wait(timeout=10)
+    conduct["_clear"](active)
+    assert not active.exists()
+
+    active.mkdir()
+    (active / "pid").write_text(str(dead.pid))
+    refusing = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    (active / str(refusing.pid)).write_text(_lstart(refusing.pid))
+    held = (active / "pid", active / str(refusing.pid))
+
+    def refuse(group: int, _: int) -> None:
+        raise PermissionError(1, "not permitted", str(group))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "killpg", refuse)
+        with pytest.raises(conduct["Stop"], match=f"group {refusing.pid} survives"):
+            conduct["_clear"](active)
+    assert all(path.exists() for path in held)
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
+        with pytest.raises(conduct["Stop"], match=f"read pid {refusing.pid},"):
+            conduct["_clear"](active)
+    assert all(path.exists() for path in held)
+    refusing.kill()
+    for process in (recycled, unstamped, refusing):
+        process.wait(timeout=10)
 
 
 def test_a_usage_limit_is_named(
@@ -1469,6 +1976,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
 ) -> None:
     conduct = _conduct()
     rules = conduct["SHELL_RULES"]
+    assert rules.endswith(
+        "Give these rules, word for word, to every subagent you start."
+    )
     root = _primary(tmp_path, agents=_WORKTREES + "- **Ship tools:** `npm`, `pnpm`\n")
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     container = root.parent.resolve()
@@ -1491,6 +2001,16 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"worktree {sibling.resolve()}\n" in listed
     assert conduct["reach"](root) == [root, tree]
     assert conduct["find_version"](root, "0002-forged").tree is None
+    forged = root / ".git" / "worktrees" / "zz"
+    forged.mkdir()
+    (forged / "HEAD").write_text("ref: refs/heads/0002-forged\n")
+    (forged / "commondir").write_text("../..\n")
+    (forged / "gitdir").write_text(f"{tree}/.git\n")
+    listed = _git(root, "worktree", "list", "--porcelain")
+    assert listed.count(f"worktree {tree}\n") == 2
+    assert conduct["find_version"](root, "0002-forged").tree is None
+    assert conduct["find_version"](root, "0001-todo").tree == tree
+    shutil.rmtree(forged)
     pointer = tree / ".git"
     absolute = pointer.read_text()
     pointer.write_text("gitdir: ../main/.git/worktrees/0001-todo\n")
@@ -1499,7 +2019,10 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert conduct["reach"](tmp_path) == [tmp_path.resolve()]
     repo = (root, root / ".git")
     monkeypatch.delenv("MF_SHIP_AGENT")
+    hooks_off = list(conduct["HOOKS_OFF"])
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
+    assert claude[: len(hooks_off) + 1] == ["env", *hooks_off]
+    claude = claude[len(hooks_off) + 1 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
@@ -1561,9 +2084,10 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
-    assert codex[:2] == ["env", cache]
-    assert codex[2].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
-    assert codex[3:7] == ["codex", "exec", "-s", "workspace-write"]
+    assert codex[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
+    codex = codex[len(hooks_off) + 2 :]
+    assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
+    assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
@@ -1687,7 +2211,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None, repo) == [
         sys.executable,
-        __file__,
+        str(_WORKER),
         f"Do it.\n\n{rules}",
     ]
     assert (
@@ -1709,125 +2233,3 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert (
         ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
     ) in capsys.readouterr().out
-
-
-def _fake(prompt: str) -> None:
-    """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
-    modes = set(os.environ["FAKE_MODE"].split(","))
-    here = Path.cwd()
-    found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
-    station, change = (found[1], found[2]) if found else ("probe", None)
-    tier = re.search(r" with tier=\w+", prompt)
-    with open(os.environ["FAKE_CALLS"], "a") as calls:
-        called = f"{station} {change}" if change else station
-        calls.write(f"{called}{tier[0] if tier else ''}\n")
-    if station == "build" and "deny" in modes:
-        use = {
-            "type": "tool_use",
-            "id": "t1",
-            "name": "Bash",
-            "input": {"command": "rm -rf build"},
-        }
-        result = {
-            "type": "tool_result",
-            "tool_use_id": "t1",
-            "is_error": True,
-            "content": "Bash has been denied.",
-        }
-        blocks = [use, result]
-        if "heredoc" in modes:
-            command = 'git commit -m "$(cat <<EOF\nbuild\nEOF\n)"'
-            blocks += [
-                {**use, "id": "t2", "input": {"command": command}},
-                {**result, "tool_use_id": "t2"},
-            ]
-        for block in blocks:
-            print(json.dumps({"message": {"content": [block]}}))
-    if station == "build" and "dies-limit" in modes:
-        event = {
-            "type": "result",
-            "is_error": True,
-            "api_error_status": 429,
-            "result": "You've hit your limit · resets 5:50pm (Europe/Athens)",
-        }
-        print(json.dumps(event))
-        sys.exit(1)
-    if station == "build" and "sleep" in modes:
-        time.sleep(60)
-    if station == "build" and f"slow-{change}" in modes:
-        time.sleep(2)
-    if station == "build" and (script := os.environ.get("FAKE_SCRIPT")):
-        Path(script).write_text("raise OSError('planted')\n")
-    if f"liar-{change or station}" in modes:
-        return
-    if station == "build" and "liar" in modes:
-        return
-    common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    primary = Path(common).parent
-    if station == "probe":
-        _commit(here, {"probe.txt": "ok\n"}, "probe")
-        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=True)
-    elif station == "build":
-        tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
-        files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}
-        if f"after-self-{change}" in modes:
-            proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
-            files[str(tasks.with_name("proposal.md"))] = proposal
-        _commit(here, files, "build")
-    elif station == "converge":
-        _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
-        if "dies-converge" in modes:
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
-            log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
-            sys.exit(1)
-    elif station == "integrate":
-        message = f"chore(integrate): merge main into {change}"
-        _git(
-            primary.parent / str(change),
-            "merge",
-            "-q",
-            "--no-ff",
-            "-m",
-            message,
-            "main",
-        )
-    elif station == "release":
-        branch = _git(here, "branch", "--show-current")
-        tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        subject = _git(here, "log", "-1", "--format=%s")
-        if subject.startswith("chore(release): "):
-            named = subject.removeprefix("chore(release): ")
-            if not _git(here, "tag", "-l", named):
-                _git(here, "tag", named)
-        else:
-            _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
-            (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
-            _git(
-                here,
-                "mv",
-                f"openspec/changes/{change}",
-                f"openspec/changes/archive/{change}",
-            )
-            if "dies-release-fold" in modes:
-                sys.exit(1)
-            _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
-            if "dies-release-commit" in modes:
-                sys.exit(1)
-            _git(here, "tag", tag)
-            if "dies-release-tag" in modes:
-                sys.exit(1)
-            if "stops-release-tag" in modes:
-                return
-        _git(
-            primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
-        )
-        _git(primary, "worktree", "remove", str(here))
-        if "plant-config" in modes:
-            _git(primary, "config", "mf.planted", "x")
-        if "plant-attributes" in modes:
-            (Path(common) / "info").mkdir(exist_ok=True)
-            (Path(common) / "info" / "attributes").write_text("* filter=x\n")
-
-
-if __name__ == "__main__":
-    _fake(sys.argv[1])

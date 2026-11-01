@@ -129,13 +129,13 @@ What happens between the last phase and the tag.
 ### D11 · Every station runs MF's own method
 
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
-references in converge. The build reports the executor from runtime evidence; it is recorded, never routed — model,
-provider and editor names select nothing.**
+references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
+nothing. Workers follow the host, or the models file's `executor`.**
 
 - **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
 - **Accepts:** no native command is used; the person runs them by hand to compare.
 - **Rejected:** native engines in production — host-bound, and `/simplify` never runs the tests · silent native
-  fallback · provider routing.
+  fallback · routing by a model or provider name.
 
 ### D12 · Review, security and simplify are kept apart
 
@@ -445,7 +445,9 @@ then integrates, runs the catch-up round and releases each as it is ready, one a
 station is a fresh agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex
 — never with prompts bypassed, and is judged by its exit and a check on disk; a failed check halts its version, a halt
 blocks only what names it in `after:`, a failed probe halts the run, and a re-run resumes from
-disk: only a stage left in `HALTS` needs the person. Converge runs at the tier the cut chose.**
+disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version
+tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
+needs the person. Converge runs at the tier the cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.

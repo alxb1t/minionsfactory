@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-01
+
+Gate: local 3m00s · CI 0m42s (CI at d897227) · 0.44.0: local 2m46s · CI 0m42s (CI at d897227)
+
+- The drift cards are paid: `THREAT_MODEL.md` lists its open gaps, `_clear` kills only an executor's group and stops on a
+  refused kill, `_pushed` compares the ref beside the id, and `_points_back` ties a path to its entry's branch. `0044·R12`
+  closes here: the archive is frozen (change `0051-reliability-paydown`, phase 1).
+- A run pushes only merges of tagged releases, and a `.held` mark or a preamble flag stops a resumed release. No hook runs in
+  a worker, `core.hookspath` is allowed, and `mf-ship.localorigin` goes (change `0051-reliability-paydown`, phase 2).
+- `/mf-ship stop` ends a live run, and `/mf-ship grant <change-id>` gives a capped version one more round. A run stops at its
+  start on a skill with no link, and converge dispatches in the foreground (change `0051-reliability-paydown`, phase 3).
+- The fake worker moves to `tests/fake_worker.py`, so a worker no longer imports pytest, and a dead integrate has its recovery
+  test (change `0051-reliability-paydown`, phase 4).
+- A drill kills a real worker and a real conductor in a scratch repo, and a re-run finishes both. The shell rules now reach
+  every subagent a worker starts, which the drill's first run lacked (change `0051-reliability-paydown`, phase 5).
+- The claim holds the conductor's start time, so `/mf-ship stop` kills only that process, never a reused number, 0 or -1. A
+  claimed group that names no executor stops the run rather than being left to race it. A run halts on a release merge that
+  lost its tree and on a person's version-shaped tag, a hand `/mf-release` passes a flag, an LFS repo still halts because a run
+  cannot upload, and `THREAT_MODEL.md` keeps `0049·S5`'s hostile route and `0049·R15`'s LFS route open (change
+  `0051-reliability-paydown`, converge fixes R1, R2, R3, R4, R5, R6, R7, S1, S2 and S3).
+- A start time reads the same in any zone or locale, a running process `ps` cannot read exits 2 rather than reading stale, and
+  a run clears a stale claim before it detaches, so its stop reaches `/mf-ship`. `/mf-ship stop` closes the log when a group
+  stays, an LFS key's halt sends the repo to a hand release, and a hand `/mf-release` names a flag beside its ask (change
+  `0051-reliability-paydown`, converge fixes R7, R15, R16, R17, R18, R19 and S7).
+
 ## [0.44.0] - 2026-11-01
 
 Gate: local 2m46s · CI 0m42s (CI at d897227) · 0.43.0: local 2m06s · CI 0m42s (CI at d897227)
@@ -216,7 +241,7 @@ Gate: local 0m26s · CI 0m23s (CI at 193a550) · 0.33.0: local 0m26s · CI 0m17s
   `0038-worktree-cleanup`, phase 1).
 
 - README's container tree and runbook name the primary `<repo>/`, after the repository; the 0034 proposal and the
-  `[0.31.2]` entry claim only what the gate check reads, per its design's D7 (change `0038-worktree-cleanup`,
+  `[0.31.2]` entry claim only what the gate check reads, per 0034's D7 (change `0038-worktree-cleanup`,
   phase 2).
 
 ## [0.33.0] - 2026-10-28

@@ -30,4 +30,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 ## Known gaps
 
-Carded in `.minions/backlog.md`, accepted until paid down: none.
+Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7`, `0049·R15`, `0050·R5`, `0050·R6`, `0050·R11`,
+`0050·S2`, `0050·S3`, `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
+
+- `0049·S5`, its hostile route: a worker writes the claim, so it can name a process, with that process's start time, for
+  `/mf-ship stop` or a stale clear to kill, or make a live run read stale. A pid at or below 1 is refused, and a group's
+  leader must name an executor.
+- `0049·R15`, the LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.

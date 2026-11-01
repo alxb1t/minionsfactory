@@ -8,6 +8,8 @@
     conduct.py check <stage> <change-id>
     conduct.py log --verify <run-log>
     conduct.py run --executor claude|codex [--detach]
+    conduct.py stop
+    conduct.py grant <change-id> --executor claude|codex
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
 
@@ -56,6 +58,8 @@ STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
 TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
+SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
+STOPPED = "stopped by the person"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -86,7 +90,8 @@ SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
     " or loops — run the inner command first and use its output literally; use"
     " `git -C <dir>`, never `cd`; never retry a denied command in a rewritten form"
-    " to get past the list."
+    " to get past the list. Give these rules, word for word,"
+    " to every subagent you start."
 )
 PROBE = (
     "In this directory, write the word ok to probe.txt, commit it with the"
@@ -99,13 +104,20 @@ SCRATCH_IDENTITY = (
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 # These stop a directory's hooks only; `CONFIG_PLAIN` stops a `hook.*` key's.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# The same, for a worker's git: `make gate` is the one check in a run.
+HOOKS_OFF = (
+    "GIT_CONFIG_COUNT=2",
+    *("GIT_CONFIG_KEY_0=core.hooksPath", "GIT_CONFIG_VALUE_0=/dev/null"),
+    *("GIT_CONFIG_KEY_1=core.fsmonitor", "GIT_CONFIG_VALUE_1=false"),
+)
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
-# The only keys a repo's own config may hold: each names no program, and any other
-# halts, so a key git adds later fails closed.
+# The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
+# and any other halts, so a key git adds later fails closed. `lfs.*` stays off: LFS
+# uploads from a `pre-push` hook, and no hook runs in a run.
 CONFIG_PLAIN = re.compile(
     r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
-    r"|precomposeunicode|symlinks)"
+    r"|precomposeunicode|symlinks|hookspath)"
     r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
     r"|protocol\.version|pull\.(rebase|ff)"
     r"|remote\..+\.(url|fetch|gh-resolved)"
@@ -114,7 +126,6 @@ CONFIG_PLAIN = re.compile(
 # A URL git reaches over a network. Any other form runs a program on this machine: a
 # local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
 NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
-LOCAL_ORIGIN = "mf-ship.localorigin"
 
 
 class Stop(Exception):
@@ -259,16 +270,22 @@ class Version:
         return int(self.change.split("-")[0])
 
 
-def _points_back(tree: Path, common: Path) -> bool:
-    """Return whether `tree`'s `.git` file names an entry of `common`'s worktrees.
+def _points_back(tree: Path, common: Path, branch: str) -> bool:
+    """Return whether `tree`'s `.git` file names `common`'s entry holding `branch`.
 
-    e.g. "gitdir: <common>/worktrees/0001-todo" → True
+    e.g. "gitdir: <common>/worktrees/0001-todo", its `HEAD` on 0001-todo → True
     """
     link = tree / ".git"
     text = link.read_text(errors="replace") if link.is_file() else ""
     found = re.fullmatch(r"gitdir: (.+)\n?", text)
-    return found is not None and (tree / found[1]).resolve().parent == (
-        common / "worktrees"
+    if found is None:
+        return False
+    entry = (tree / found[1]).resolve()
+    head = entry / "HEAD"
+    return (
+        entry.parent == common / "worktrees"
+        and head.is_file()
+        and head.read_text(errors="replace").strip() == f"ref: refs/heads/{branch}"
     )
 
 
@@ -280,11 +297,11 @@ def _worktrees(primary: Path) -> dict[str, Path]:
     for line in _git(primary, "worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
             path = Path(line.removeprefix("worktree ")).resolve()
-            # Why: 0050-codex-review design D5.
-            if path != main and not _points_back(path, main / ".git"):
-                path = None
         elif line.startswith("branch refs/heads/") and path:
-            found[line.removeprefix("branch refs/heads/")] = path
+            branch = line.removeprefix("branch refs/heads/")
+            # Why: 0050-codex-review design D5.
+            if path == main or _points_back(path, main / ".git", branch):
+                found[branch] = path
     return found
 
 
@@ -500,11 +517,16 @@ def _release_died(runs: Path, change: str) -> bool:
 def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str, str]:
     """Return the stage of a tip that says it is released; only a death re-enters.
 
-    The re-entry merges and pushes unasked, so it takes a tag on `HEAD` or none, the
-    converge clean at the parent, an unmoved base and a release worker that died.
-    Every other reason names the person's way out, per `mf-release` Step 5.1.
+    The re-entry merges and pushes unasked, so it takes no person's no, a tag on `HEAD`
+    or none, the converge clean at the parent, an unmoved base and a release worker
+    that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
     runs = primary / ".minions"
+    if (runs / "release" / f"{change}.held").is_file():
+        return "released", (
+            f"{tag}: .minions/release/{change}.held holds a person's no:"
+            f" /mf-release {change} merges it on their yes"
+        )
     own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own is not None and own != _git(tree, "rev-parse", "HEAD"):
         return "released", f"{tag} is tagged on another commit: a person reads this tip"
@@ -562,6 +584,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
     if halt := _converge_halt(runs, change):
+        if "cap reached" in halt and (runs / "grants" / change).is_file():
+            return "converge", "granted"
         return "converge-halted", halt
     end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
@@ -642,33 +666,40 @@ def _config_held(cwd: Path) -> list[str]:
 def _refuse_config_commands(cwd: Path) -> None:
     """Stop with 1 when the repo's own git config holds a key `CONFIG_PLAIN` lacks.
 
-    A worker can write that file, and the conductor runs outside its sandbox.
+    A worker can write that file, and the conductor runs outside its sandbox. An LFS
+    key stays where it is: with it gone, a run's push would send pointers alone.
     """
     if held := _config_held(cwd):
+        remedy = "move it to the global config or remove it"
+        if any(name.startswith(("lfs.", "filter.lfs.")) for name in held):
+            remedy = (
+                "a run cannot upload LFS objects: keep the key, and release this repo"
+                " by hand"
+            )
         raise Stop(
             1,
             "conduct: halt — the repo's git config holds a key that could name a"
-            f" program: {' '.join(dict.fromkeys(held))}; move it to the global config"
-            " or remove it",
+            f" program: {' '.join(dict.fromkeys(held))}; {remedy}",
         )
 
 
 def _refuse_origin(primary: Path) -> None:
     """Stop with 1 unless a remote call on `origin` can run only its own git.
 
-    Reads the URLs git would use. A local one needs naming in the operator's global
-    `LOCAL_ORIGIN`, which no worker can write. The halt names no URL: it can hold a key.
+    Reads the URLs git would use. A fake worker's fixtures use a local `origin`, and a
+    worker cannot set the conductor's environment. The halt names no URL: it can hold a
+    key.
     """
     _refuse_config_commands(primary)
-    allowed = _maybe(primary, "config", "--global", "--get-all", LOCAL_ORIGIN) or ""
+    if os.environ.get("MF_SHIP_AGENT"):
+        return
     for mode in (("--all",), ("--all", "--push")):
         for url in _git(primary, "remote", "get-url", *mode, "origin").splitlines():
-            if not NETWORK_URL.fullmatch(url) and url not in allowed.splitlines():
+            if not NETWORK_URL.fullmatch(url):
                 raise Stop(
                     1,
                     "conduct: halt — the repo's git config points origin at a local"
-                    " repo, whose hooks would run on a push; repoint it, or name it"
-                    f" in the global {LOCAL_ORIGIN}",
+                    " repo, whose hooks would run on a push; repoint it",
                 )
 
 
@@ -681,29 +712,58 @@ def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
     listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
-    return tip in (listed or "").split()
+    lines = (listed or "").splitlines()
+    return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
+
+
+def _release_merge(primary: Path, tip: str) -> bool:
+    """Return whether `tip` says `chore(release): <tag>` and that tag points at it."""
+    subject = _subject(primary, tip)
+    return any(
+        TAG.fullmatch(tag) and subject == f"chore(release): {tag}"
+        for tag in _git(primary, "tag", "--points-at", tip).split()
+    )
+
+
+def _merges_a_release(primary: Path, sha: str) -> bool:
+    """Return whether `sha` merges a tagged release and holds that release's tree."""
+    parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
+    if len(parents) != 3 or not _release_merge(primary, parents[2]):
+        return False
+    trees = _git(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
+    return len(set(trees.split())) == 1
 
 
 def _unpushed(primary: Path) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
-    An `origin` that cannot be read lacks no tag. The config refusal needs no `origin`.
+    A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
+    release commit of that name, stops with 1. An `origin` that cannot be read lacks
+    no tag. The config refusal needs no `origin`.
     """
     _refuse_config_commands(primary)
     if "origin" not in _git(primary, "remote").split():
         return []
     _refuse_origin(primary)
     default = default_branch(primary)
-    ahead = _maybe(primary, "rev-list", "--count", f"origin/{default}..{default}")
-    found = [default] if (ahead or "").strip() != "0" else []
+    ahead = f"origin/{default}..{default}"
+    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
+    for sha in commits:
+        if not _merges_a_release(primary, sha):
+            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
+    found = [default] if commits else []
     listed = _maybe(primary, "ls-remote", "--tags", "origin")
     if listed is None:
         return found
     held = listed.split()
     merged = _git(primary, "tag", "--merged", default).split()
-    return found + [
+    tags = [
         tag for tag in merged if TAG.fullmatch(tag) and f"refs/tags/{tag}" not in held
     ]
+    for tag in tags:
+        if _subject(primary, f"refs/tags/{tag}") != f"chore(release): {tag}":
+            raise Stop(1, f"conduct: halt — {default} holds {tag}, not a release")
+    return found + tags
 
 
 def check_probe(scratch: Path) -> str | None:
@@ -737,19 +797,20 @@ def verify_log(path: Path) -> str | None:
         if line.strip() and not line.startswith("# ")
     ]
     spawned: dict[tuple[str, str], int] = {}
-    last = ""
+    last = detail = ""
     for line in lines:
         match = EVENT.match(line)
         if not match or match[2] not in EVENTS:
             return f"unknown event: {line}"
         who, last = match[1], match[2]
-        station = line[match.end() :].split(" · ")[0]
+        detail = line[match.end() :]
+        station = detail.split(" · ")[0]
         if last == "spawn":
             spawned[who, station] = spawned.get((who, station), 0) + 1
         elif last == "finish" and spawned.get((who, station)):
             spawned[who, station] -= 1
     for (who, station), count in spawned.items():
-        if count:
+        if count and detail != STOPPED:
             return f"a spawn with no finish: {who} {station}"
     if last not in ("halt", "done"):
         return "the run ends on neither halt nor done"
@@ -899,6 +960,7 @@ def argv(
     if executor == "claude":
         allowed, denied = allowlist(primary, trees)
         return [
+            *("env", *HOOKS_OFF),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -913,7 +975,8 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}", path)
+    cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    env = ("env", *HOOKS_OFF, cache, path)
     return [
         *env,
         *("codex", "exec"),
@@ -950,7 +1013,7 @@ def work(
         group = claim / str(worker.pid) if claim else None
         try:
             if group:
-                group.write_text(_started(worker.pid))
+                group.write_text(_ps(worker.pid, "lstart="))
             return worker.wait(timeout=TIMEOUT), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -1046,27 +1109,20 @@ def _executor_missing(executor: str) -> bool:
     return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
 
 
-def _claim(active: Path) -> str:
-    """Return `none`, `live` or `stale`: stale has no pid file, or a dead pid."""
-    if not active.exists():
-        return "none"
-    try:
-        os.kill(int((active / "pid").read_text()), 0)
-    except PermissionError:
-        return "live"
-    except (OSError, OverflowError, ValueError):
-        return "stale"
-    return "live"
+def _ps(pid: int, field: str) -> str:
+    """Return the `ps` field for `pid`, or "" when it cannot.
 
-
-def _started(pid: int) -> str:
-    """Return the start time `ps` reads for `pid`, or "" when it cannot."""
-    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    A claim compares start times across processes, and `lstart` follows the caller's
+    zone and locale, so both are fixed here.
+    e.g. 501, "comm=" → "claude"
+    """
+    command = ["ps", "-o", field, "-p", str(pid)]
     try:
         done = subprocess.run(
             command,
             capture_output=True,
             encoding="utf-8",
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC0"},
             errors="replace",
             timeout=GIT_TIMEOUT,
         )
@@ -1075,23 +1131,96 @@ def _started(pid: int) -> str:
     return done.stdout.strip()
 
 
+def _started(pid: int) -> str:
+    """Return the start time of `pid`, above 1, or "" when it is gone.
+
+    A failed `ps` is not a dead process: one still running stops with 2.
+    """
+    if started := _ps(pid, "lstart="):
+        return started
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, OverflowError):
+        return ""
+    except PermissionError:
+        pass
+    raise Stop(2, f"conduct: cannot run — ps cannot read pid {pid}, which is running")
+
+
+def _conductor(active: Path) -> int | None:
+    """Return the claim's pid while it keeps the claim's start time, else None.
+
+    After a reboot the number can name any process, and a worker can write the claim:
+    to `kill`, 0 is the caller's group and -1 every process the operator owns.
+    """
+    try:
+        pid = int((active / "pid").read_text())
+        held = (active / "start").read_text().strip()
+    except (OSError, ValueError):
+        return None
+    return pid if pid > 1 and held and held == _started(pid) else None
+
+
+def _claim(active: Path) -> str:
+    """Return `none`, `live` or `stale`: stale names no conductor still running."""
+    if not active.exists():
+        return "none"
+    return "stale" if _conductor(active) is None else "live"
+
+
 def _clear(active: Path) -> None:
     """Kill the stale claim's worker groups, then remove it.
 
-    A group goes only while its leader keeps the start time the entry holds: after
-    a reboot its number can name any process.
+    A group goes only while its leader keeps the start time the entry holds and is
+    an executor: after a reboot its number can name any process. A group that keeps
+    its start time and names no executor, or refuses the kill, stops the run and
+    leaves the claim, so no worker races the next one.
     """
+    foreign = []
     for entry in active.iterdir():
         # A worker can write the claim, and group 0 is this process's own.
         if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
+            group = int(entry.name)
             held = entry.read_text(errors="replace").strip()
-            if not held or held != _started(int(entry.name)):
+            if not held or held != _started(group):
+                continue
+            leader = _ps(group, "comm=")
+            if not any(executor in leader for executor in EXECUTORS):
+                foreign.append(f"{group} ({leader})")
                 continue
             try:
-                os.killpg(int(entry.name), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OverflowError):
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
                 continue
+            except (OSError, OverflowError) as error:
+                raise Stop(
+                    2,
+                    f"conduct: cannot clear the claim — worker group {group}"
+                    f" survives: {error}",
+                ) from None
+    if foreign:
+        raise Stop(
+            2,
+            f"conduct: cannot clear the claim — worker group {', '.join(foreign)}"
+            " names no executor: read it, then kill it or remove its entry in"
+            " .minions/runs/active",
+        )
     shutil.rmtree(active)
+
+
+def _unlinked(executor: str) -> None:
+    """Stop with 2 when a skill beside this one is not linked where `executor` looks.
+
+    A fake worker loads no skill.
+    """
+    if os.environ.get("MF_SHIP_AGENT"):
+        return
+    linked = Path.home() / SKILLS[executor]
+    for skill in sorted(Path(__file__).resolve().parents[1].parent.glob("mf-*")):
+        if skill.is_dir() and not (linked / skill.name).exists():
+            raise Stop(
+                2, f"run: cannot run — {skill.name} is not linked; make install-skills"
+            )
 
 
 def preconditions(cwd: Path, executor: str) -> Path:
@@ -1117,6 +1246,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
         raise Stop(2, "run: cannot run — AGENTS.md declares no **Worktrees:**")
     if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
+    _unlinked(executor)
     if _claim(primary / ".minions" / "runs" / "active") == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
     return primary
@@ -1227,6 +1357,10 @@ class Run:
                     return
                 minions = self.primary / ".minions"
                 tier = _tier(minions, version.change) if stage == "converge" else ""
+                granted = minions / "grants" / version.change
+                if stage == "converge" and granted.is_file():
+                    tier += " and grant=yes"
+                    granted.unlink()
                 prompt = PROMPTS[stage].format(change=version.change, tier=tier)
                 models = _models(minions, version.change, stage, self.executor)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
@@ -1325,6 +1459,11 @@ class Run:
         if _executor_missing(executor):
             self.halt("run", f"{station} — {executor} is not on PATH")
             return
+        try:
+            _unlinked(executor)
+        except Stop as stop:
+            self.halt("run", f"{station} — {stop}")
+            return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         try:
             _git(scratch, "init", "-q", "-b", "main")
@@ -1408,10 +1547,18 @@ class Run:
 
 
 def run(cwd: Path, executor: str, detach: bool) -> int:
-    """Start the loop, claimed by `.minions/runs/active`; detached, return at once."""
+    """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
+
+    A stale claim is cleared before the detach, so what stops that reaches the caller.
+    """
     primary = preconditions(cwd, executor)
+    if not (started := _ps(os.getpid(), "lstart=")):
+        raise Stop(2, "run: cannot run — ps cannot read this run's start time")
     runs = primary / ".minions" / "runs"
     runs.mkdir(parents=True, exist_ok=True)
+    active = runs / "active"
+    if _claim(active) == "stale":
+        _clear(active)
     if detach:
         with (runs / "detached.log").open("a") as sink:
             child = subprocess.Popen(
@@ -1425,9 +1572,6 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             )
         print(f"run: started · pid {child.pid}")
         return 0
-    active = runs / "active"
-    if _claim(active) == "stale":
-        _clear(active)
     try:
         active.mkdir()
     except FileExistsError:
@@ -1435,6 +1579,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
     try:
+        (active / "start").write_text(started)
         (active / "pid").write_text(str(os.getpid()))
         conductor = Run(primary, executor)
         try:
@@ -1447,6 +1592,57 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         return code
     finally:
         shutil.rmtree(active)
+
+
+def stop_run(cwd: Path) -> str:
+    """End the live run: the conductor first, so it spawns nothing more.
+
+    The claim's groups go next, then a last line in the newest run log. Return that
+    log. A group `_clear` cannot end stops with its exit, the claim kept and the line
+    written: with the conductor dead, a second stop could not write it. Why:
+    0051-reliability-paydown design D5.
+    """
+    runs = primary_of(cwd) / ".minions" / "runs"
+    active = runs / "active"
+    if (pid := _conductor(active)) is None:
+        return "stop: none — no run is live"
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError as error:
+        raise Stop(2, f"stop: cannot run — the conductor survives: {error}") from None
+    try:
+        _clear(active)
+    except Stop as stop:
+        _log_stop(runs)
+        raise Stop(stop.code, f"stop: conductor stopped · {stop}") from None
+    if (log := _log_stop(runs)) is None:
+        return "stop: stopped · no run log"
+    return f"stop: stopped · .minions/runs/{log.name}"
+
+
+def _log_stop(runs: Path) -> Path | None:
+    """Append the stop to the newest run log; return that log, or None with none."""
+    if (log := last_log(runs)) is not None:
+        with log.open("a") as file:
+            file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
+    return log
+
+
+def grant(cwd: Path, change: str, executor: str) -> int:
+    """Record one more round for a version halted at the cap, then start a run."""
+    primary = primary_of(cwd)
+    if (version := find_version(primary, change)) is None:
+        raise Stop(2, f"grant: cannot run — no version branch holds {change}")
+    stage, why = stage_of(primary, version)
+    if stage != "converge-halted" or "cap reached" not in why:
+        raise Stop(2, f"grant: cannot run — {change} is at {stage}, not a cap halt")
+    preconditions(cwd, executor)
+    grants = primary / ".minions" / "grants"
+    grants.mkdir(parents=True, exist_ok=True)
+    (grants / change).touch()
+    return run(cwd, executor, True)
 
 
 def agent(cwd: Path, executor: str, prompt: str) -> int:
@@ -1470,7 +1666,7 @@ def status(cwd: Path) -> str:
     lines = {
         "none": [],
         "live": ["run · live"],
-        "stale": ["run · stale — a run clears it"],
+        "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
     if unpushed := _unpushed(primary):
         lines.append(f"run · unpushed {' '.join(unpushed)}")
@@ -1598,7 +1794,9 @@ def main(argv_: list[str] | None = None) -> int:
         description="Take every cut version to the default branch, unattended.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("status", help="one line per open version, with its stage")
+    commands.add_parser(
+        "status", help="the claim, what is unpushed, and each open version's stage"
+    )
     checking = commands.add_parser("check", help="exit 0 when disk proves the stage")
     checking.add_argument("stage", choices=(*STATIONS, "probe"))
     checking.add_argument("change_id", metavar="change-id")
@@ -1607,6 +1805,10 @@ def main(argv_: list[str] | None = None) -> int:
     running = commands.add_parser("run", help="the loop")
     running.add_argument("--executor", required=True, choices=("claude", "codex"))
     running.add_argument("--detach", action="store_true")
+    commands.add_parser("stop", help="end the live run")
+    granting = commands.add_parser("grant", help="one more round past the cap")
+    granting.add_argument("change_id", metavar="change-id")
+    granting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -1625,6 +1827,10 @@ def main(argv_: list[str] | None = None) -> int:
             print("log: complete")
         elif args.command == "run":
             return run(cwd, args.executor, args.detach)
+        elif args.command == "stop":
+            print(stop_run(cwd))
+        elif args.command == "grant":
+            return grant(cwd, args.change_id, args.executor)
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         else:

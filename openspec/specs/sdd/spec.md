@@ -1293,18 +1293,24 @@ heading, the round unchanged, and a pickup whose fix was never committed sent ag
 
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
 `integrate`. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
-archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge,
+archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
-worker died, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
-a run, push the default branch and each merged tag `origin` lacks, never forcing, a rejected push halting the run; `status`
+worker died and the person left no `.minions/release/<change-id>.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
+a run, push the default branch and each merged tag `origin` lacks, only when every first-parent commit `origin` lacks is a
+merge of a tagged release holding that release's tree, and every such tag is on the release commit of its name, and SHALL
+else halt, naming the commit or the tag; it SHALL never force, a rejected push halting the run; `status`
 SHALL report that work, so a run starts for it. It SHALL make no remote call, merge nothing into a dependent, and read no
 tree's status or diff, while the repo's own git config holds a key off its list of keys that name no program, with an
 `origin` or without one. It SHALL make no remote call while `origin`'s
-fetch or push URL is not a network URL, unless the operator's global `mf-ship.localorigin` names it. The claim
-`.minions/runs/active` SHALL hold the conductor's pid and each worker's process
-group with its leader's start time: a dead pid is a stale claim, whose groups a run kills, each only while its leader
-keeps that start time, before it clears the claim and starts, and `status` SHALL name it.
+fetch or push URL is not a network URL. The claim
+`.minions/runs/active` SHALL hold the conductor's pid with its start time, and each worker's process
+group with its leader's start time: a pid at or below 1, a dead pid or one that lost its start time is a stale claim, whose
+groups a run kills, each only while its leader keeps that start time and names an executor, before it clears the claim and
+starts, and `status` SHALL name it. A group that keeps its start time and names no executor SHALL stop the run, naming the
+group and keeping the claim, and a run SHALL clear a stale claim before it detaches, so that stop reaches its caller. A start
+time SHALL read the same in any zone or locale. A pid `ps` cannot read that still runs is no stale claim: `status`, `run` and
+`/mf-ship stop` SHALL exit 2, naming it, and signal nothing, and a run that cannot read its own start time SHALL stop.
 
 #### Scenario: A release dies before its commit
 - **WHEN** a release worker dies with its fold staged and the change's folder moved
@@ -1332,6 +1338,10 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 - **WHEN** a person runs `mf-release` with edits uncommitted under `openspec/` or in `CHANGELOG.md`
 - **THEN** the clean-tree precondition halts, and nothing is restored
 
+#### Scenario: A person takes a flagged release
+- **WHEN** a person runs `mf-release` on a release tip whose preamble is flagged
+- **THEN** it reads the flag, does not halt on it, and names it beside the ask before the merge
+
 #### Scenario: A release dies before its push
 - **WHEN** the default branch is ahead of `origin` and no version is open
 - **THEN** `status` names the unpushed work, and a run pushes it and ends on `done`
@@ -1349,7 +1359,7 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 - **THEN** the check that follows halts its version naming the key, and the filter never runs
 
 #### Scenario: A worker repoints origin at a local repo
-- **WHEN** `origin`'s URL is a local path or a `file://` URL the operator's global config does not name
+- **WHEN** `origin`'s URL is a local path or a `file://` URL
 - **THEN** `status` exits 1, a run halts, the conductor makes no remote call, and that repo's hooks do not run
 
 #### Scenario: The conductor is killed
@@ -1359,6 +1369,34 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 #### Scenario: A claim outlives a reboot
 - **WHEN** a stale claim names a group whose leader's start time is not the one the entry holds
 - **THEN** a run leaves that group alive, and clears the claim
+
+#### Scenario: A claimed group names no executor
+- **WHEN** a stale claim names a group that keeps its start time, and whose leader names no executor
+- **THEN** a run, detached or not, kills the claim's executors, stops naming that group, and keeps the claim
+
+#### Scenario: A running conductor cannot be read
+- **WHEN** `ps` prints nothing for the claim's pid, and that process still runs
+- **THEN** `status`, `run` and `/mf-ship stop` exit 2 naming the pid, nothing is signalled, and the claim stays
+
+#### Scenario: The time zone changes during a run
+- **WHEN** `TZ` differs between the run's write of its start time and a later read
+- **THEN** `status` still reads `live`
+
+#### Scenario: A person's local commit on the default branch
+- **WHEN** `main` holds a commit that is no merge of a tagged release, and `origin` lacks it
+- **THEN** a run halts naming the commit, and pushes nothing
+
+#### Scenario: A merge a release check refused
+- **WHEN** `main` holds a merge of a tagged release whose tree is not that release's, and `origin` lacks it
+- **THEN** a run halts naming the merge, and pushes nothing
+
+#### Scenario: A person's version-shaped tag
+- **WHEN** `main` reaches a `vX.Y.Z` tag `origin` lacks, on no `chore(release): vX.Y.Z` commit
+- **THEN** a run halts naming the tag, and pushes nothing
+
+#### Scenario: A flagged release dies
+- **WHEN** a release flags its preamble, commits and dies
+- **THEN** a re-run halts on the flag before its merge
 
 ### Requirement: A station's executor comes from the models file
 
@@ -1402,3 +1440,71 @@ first worker, and SHALL halt a version's merge when the local git config or `inf
 #### Scenario: A worker plants git config
 - **WHEN** a worker changes the common directory's config during a run
 - **THEN** the conductor merges nothing for a dependent, and that version halts, naming the change
+
+### Requirement: A person can stop a run
+
+`/mf-ship stop` SHALL end the live run: the conductor, then each worker group in the claim, then a `halt — stopped by the
+person` line in the run log, then the claim. A group it cannot end SHALL keep the claim, and it SHALL still write that line and
+exit 2, naming the group. A re-run SHALL resume from disk, and `conduct.py log --verify` SHALL pass the stopped run. With no live
+run it SHALL say so and exit 0.
+
+#### Scenario: A run is stopped
+- **WHEN** a person runs `/mf-ship stop` with a worker live
+- **THEN** the worker's group is gone, the log's last line is the stop, and `.minions/runs/active` is gone
+
+#### Scenario: A stop meets a group it cannot end
+- **WHEN** a person runs `/mf-ship stop`, and a claimed group names no executor or refuses the kill
+- **THEN** the conductor is gone, the log's last line is the stop, the command exits 2 naming the group, and the claim stays
+
+#### Scenario: A claim names another process
+- **WHEN** the claim's pid is at or below 1, or its process lacks the claim's start time
+- **THEN** `status` reads `stale`, and `/mf-ship stop` says no run is live, signals nothing and leaves the claim
+
+### Requirement: A person can grant one more round
+
+`/mf-ship grant <change-id>` SHALL work only on a version whose status log halted at the cap. It SHALL record the grant and
+start a run. `conduct.py` SHALL spend the grant when it spawns converge, with `grant=yes`. `skills/mf-converge/SKILL.md`
+SHALL open a run marked as the grant, send the open blockers to a fixer, verify one round, and on clean write the rest to
+the backlog with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
+
+#### Scenario: A grant on a version not at the cap
+- **WHEN** a person grants a version at any other stage
+- **THEN** it refuses, naming the stage, and no run starts
+
+#### Scenario: A grant is spent once
+- **WHEN** a granted round ends on a blocker
+- **THEN** the stage is `converge-halted`, and a run spends no second round
+
+### Requirement: A run needs its skills linked
+
+At a run's start, `conduct.py` SHALL find each `skills/mf-*` beside itself linked where its executor looks,
+`~/.claude/skills` for `claude` and `~/.agents/skills` for `codex`, and SHALL else stop, naming the skill and
+`make install-skills`.
+
+#### Scenario: A skill added by a release
+- **WHEN** a release adds a skill and nobody installs it
+- **THEN** the next run stops at its start, naming it
+
+### Requirement: No hook runs in a run
+
+Every worker SHALL run with `core.hooksPath` set to `/dev/null` and `core.fsmonitor` off through git's environment, as the
+conductor's own git does. `make gate` SHALL be the only check. `core.hookspath` SHALL be allowed in a repo's own git config.
+`lfs.repositoryformatversion` SHALL stay refused: with no hook, a run's push uploads no LFS object. Its halt SHALL say to keep
+the key and release by hand.
+
+#### Scenario: A repo with a pre-commit hook
+- **WHEN** a repo's hook would run on a worker's `git commit`
+- **THEN** it does not run, and a repo whose tooling set `core.hooksPath` does not halt
+
+#### Scenario: An LFS repo
+- **WHEN** the repo's own git config holds `lfs.repositoryformatversion`
+- **THEN** `status` exits 1 naming the key and a hand release, and a run halts
+
+### Requirement: Converge never ends a turn with a worker running
+
+`skills/mf-converge/SKILL.md` SHALL dispatch its checkers and its fixer in the foreground, and SHALL NOT end a turn while one
+runs.
+
+#### Scenario: A long fix
+- **WHEN** a fixer runs for longer than the host waits on background work
+- **THEN** the converge worker stays until the fixer returns

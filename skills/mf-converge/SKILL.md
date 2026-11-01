@@ -113,6 +113,15 @@ can start workers, wait for them, and read their named outputs on shared disk; i
 capability, never review inline. Prefer parallel dispatch; sequential workers over the same frozen head are
 allowed. Every checker of a round finishes before any fixer starts.
 
+Dispatch in the foreground, and wait: never end your turn with a worker running. A host can end its background work
+with your turn.
+
+## A granted round
+
+`grant=yes`, from `mf-ship grant`: the person's one more round past the cap. Open a run marked `· grant`, naming it in its
+first event. Send the open blocking findings to a fresh Step 6 fixer by id, then verify in one Step 7 round. Both `clean` →
+Step 9, never Step 8. A blocker left → halt with `cap reached`.
+
 ## Resuming a run
 
 Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
@@ -127,7 +136,7 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 | `verdicts` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
-| `pickup` | Step 8 item 4, the same ids |
+| `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
 
@@ -349,9 +358,9 @@ Step 9, so pickup can fix them first. Both `clean`, both scopes matching → con
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode of `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch a **fresh worker** to clear every **open blocking** finding across both files — in the pickup round,
-exactly the cards Step 8 names — to a **green gate**. Write `fix` to the status log at dispatch and again at its
-commit. The fixer:
+Dispatch a **fresh worker**, in the foreground, to clear every **open blocking** finding across both files — in the
+pickup round, exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at
+dispatch and again at its commit. The fixer:
 
 - fixes test-first where there is logic, to the [rules for tests](#rules-for-tests): a finding's regression test
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`);
