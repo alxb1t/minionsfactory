@@ -90,7 +90,8 @@ SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
     " or loops — run the inner command first and use its output literally; use"
     " `git -C <dir>`, never `cd`; never retry a denied command in a rewritten form"
-    " to get past the list."
+    " to get past the list. Give these rules, word for word,"
+    " to every subagent you start."
 )
 PROBE = (
     "In this directory, write the word ok to probe.txt, commit it with the"

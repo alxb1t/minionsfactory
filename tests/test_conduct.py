@@ -1825,6 +1825,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
 ) -> None:
     conduct = _conduct()
     rules = conduct["SHELL_RULES"]
+    assert rules.endswith(
+        "Give these rules, word for word, to every subagent you start."
+    )
     root = _primary(tmp_path, agents=_WORKTREES + "- **Ship tools:** `npm`, `pnpm`\n")
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     container = root.parent.resolve()

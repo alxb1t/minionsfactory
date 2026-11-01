@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start on a skill with no link, and converge dispatches in the foreground (change `0051-reliability-paydown`, phase 3).
 - The fake worker moves to `tests/fake_worker.py`, so a worker no longer imports pytest, and a dead integrate has its recovery
   test (change `0051-reliability-paydown`, phase 4).
+- A drill kills a real worker and a real conductor in a scratch repo, and a re-run finishes both. The shell rules now reach
+  every subagent a worker starts, which the drill's first run lacked (change `0051-reliability-paydown`, phase 5).
 
 ## [0.44.0] - 2026-11-01
 

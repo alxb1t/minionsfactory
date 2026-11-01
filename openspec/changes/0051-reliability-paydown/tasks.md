@@ -9,7 +9,7 @@ word.
 - [x] 2 — What a run may do
 - [x] 3 — The features
 - [x] 4 — Gate speed
-- [ ] 5 — The drill
+- [x] 5 — The drill
 
 ## 1 — The drift sweep
 
@@ -57,15 +57,15 @@ word.
 
 ## 5 — The drill
 
-- [ ] 5.0 In `skills/mf-ship/scripts/conduct.py`, add the sentence to `SHELL_RULES`, per [D10](design.md#d10), assert it in
+- [x] 5.0 In `skills/mf-ship/scripts/conduct.py`, add the sentence to `SHELL_RULES`, per [D10](design.md#d10), assert it in
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, and delete `../mf_resume_probe/` and the first run's
   `openspec/changes/0051-reliability-paydown/evidence/drill.md`.
   Verify: `grep -c 'to every subagent you start' skills/mf-ship/scripts/conduct.py` prints `1`.
 - [x] 5.1 Write `tests/drill_resume.py`, per [D10](design.md#d10).
   Verify: `uv run --script tests/drill_resume.py --help` exits 0.
-- [ ] 5.2 **HALT CHECK** Run it, and write `openspec/changes/0051-reliability-paydown/evidence/drill.md`, per
+- [x] 5.2 **HALT CHECK** Run it, and write `openspec/changes/0051-reliability-paydown/evidence/drill.md`, per
   [D10](design.md#d10).
   Verify: `grep -c '^worker killed: done' openspec/changes/0051-reliability-paydown/evidence/drill.md` prints `1`, and
   `grep -c '^conductor killed: done' openspec/changes/0051-reliability-paydown/evidence/drill.md` prints `1`.
-- [ ] 5.3 Confirm the drill deleted its probe.
+- [x] 5.3 Confirm the drill deleted its probe.
   Verify: `test ! -e ../mf_resume_probe` exits 0.
