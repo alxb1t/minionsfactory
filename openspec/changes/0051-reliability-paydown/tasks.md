@@ -8,7 +8,7 @@ word.
 - [x] 1 — The drift sweep
 - [x] 2 — What a run may do
 - [x] 3 — The features
-- [ ] 4 — Gate speed
+- [x] 4 — Gate speed
 - [ ] 5 — The drill
 
 ## 1 — The drift sweep
@@ -49,10 +49,10 @@ word.
 
 ## 4 — Gate speed
 
-- [ ] 4.1 Move `_fake` to `tests/fake_worker.py`, and add its `dies-integrate` mode with `0049·R9`'s step, per
+- [x] 4.1 Move `_fake` to `tests/fake_worker.py`, and add its `dies-integrate` mode with `0049·R9`'s step, per
   [D9](design.md#d9) and [D11](design.md#d11).
   Verify: `grep -c 'def _fake' tests/test_conduct.py` prints `0`.
-- [ ] 4.2 Write `openspec/changes/0051-reliability-paydown/evidence/gate.md`, per [D9](design.md#d9).
+- [x] 4.2 Write `openspec/changes/0051-reliability-paydown/evidence/gate.md`, per [D9](design.md#d9).
   Verify: `grep -c '^after: ' openspec/changes/0051-reliability-paydown/evidence/gate.md` prints `1`.
 
 ## 5 — The drill

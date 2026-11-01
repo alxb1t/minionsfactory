@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0051-reliability-paydown`, phase 2).
 - `/mf-ship stop` ends a live run, and `/mf-ship grant <change-id>` gives a capped version one more round. A run stops at its
   start on a skill with no link, and converge dispatches in the foreground (change `0051-reliability-paydown`, phase 3).
+- The fake worker moves to `tests/fake_worker.py`, so a worker no longer imports pytest, and a dead integrate has its recovery
+  test (change `0051-reliability-paydown`, phase 4).
 
 ## [0.44.0] - 2026-11-01
 

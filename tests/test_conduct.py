@@ -1,7 +1,7 @@
 """The ship script: stages and checks from disk, the run log, the loop, the workers.
 
-Real git in scratch repositories with linked worktrees; this file, run as a script,
-is the fake agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
+Real git in scratch repositories with linked worktrees; `fake_worker.py` is the fake
+agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import fnmatch
@@ -20,32 +20,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fake_worker import _IDENTITY, _commit, _findings, _git
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
-_IDENTITY = ["-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
-_IDENTITY += ["-c", "commit.gpgsign=false"]
+_WORKER = Path(__file__).with_name("fake_worker.py")
 _WORKTREES = (
     "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
 )
-
-
-def _git(root: Path, *args: str, check: bool = True) -> str:
-    return subprocess.run(
-        ["git", *_IDENTITY, *args],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=check,
-    ).stdout.strip()
-
-
-def _commit(root: Path, files: dict[str, str], message: str) -> None:
-    for name, text in files.items():
-        (root / name).parent.mkdir(parents=True, exist_ok=True)
-        (root / name).write_text(text)
-    _git(root, "add", ".")
-    _git(root, "commit", "-q", "-m", message)
 
 
 def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
@@ -72,16 +54,6 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     }
     _commit(tree, files, f"cut {change}")
     return tree.resolve()
-
-
-def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> None:
-    folder = root / ".minions" / "findings"
-    folder.mkdir(parents=True, exist_ok=True)
-    for role in ("review", "security"):
-        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
-        (folder / f"{change}_{role}.md").write_text(text)
-    log = folder / f"{change}_status_log.md"
-    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
 def _released(root: Path, tag: str) -> None:
@@ -112,14 +84,14 @@ def _main(
 
 @pytest.fixture
 def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
-    """Point `MF_SHIP_AGENT` at this file; return a setter of its modes."""
+    """Point `MF_SHIP_AGENT` at `fake_worker.py`; return a setter of its modes."""
     calls = tmp_path / "calls.txt"
 
     # A gate run inside a worker inherits `HOOKS_OFF`, and these fixtures fire hooks.
     monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
 
     def modes(*names: str) -> Path:
-        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, __file__]))
+        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, str(_WORKER)]))
         monkeypatch.setenv("FAKE_CALLS", str(calls))
         monkeypatch.setenv("FAKE_MODE", ",".join(names))
         return calls
@@ -1249,6 +1221,40 @@ def test_a_rerun_recovers_a_dead_release(
     _git(forged, "tag", "v9.0.0")
     assert last() == "0006-six · released"
 
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    moved = _version(second, "0001-todo", "- [x] 1 — Todo\n")
+    _commit(moved, {"moved.txt": "theirs\n"}, "the version")
+    _findings(second, "0001-todo", _git(moved, "rev-parse", "HEAD"))
+    _commit(second, {"moved.txt": "ours\n"}, "main moves")
+    calls.unlink(missing_ok=True)
+    fake("dies-integrate")
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "integrate 0001-todo"]
+    assert stage_of(second, find(second, "0001-todo")) == (
+        "integrate",
+        "interrupted: a merge is open with no note",
+    )
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == [
+        "probe",
+        "integrate 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert "chore(integrate): merge main into 0001-todo" in _git(
+        second, "log", "--format=%s", "main"
+    )
+
 
 def test_a_rerun_pushes_what_a_release_left(
     tmp_path: Path,
@@ -2051,7 +2057,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None, repo) == [
         sys.executable,
-        __file__,
+        str(_WORKER),
         f"Do it.\n\n{rules}",
     ]
     assert (
@@ -2073,131 +2079,3 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert (
         ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
     ) in capsys.readouterr().out
-
-
-def _fake(prompt: str) -> None:
-    """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
-    modes = set(os.environ["FAKE_MODE"].split(","))
-    here = Path.cwd()
-    found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
-    station, change = (found[1], found[2]) if found else ("probe", None)
-    clauses = "".join(re.findall(r" with tier=\w+| and grant=yes", prompt))
-    with open(os.environ["FAKE_CALLS"], "a") as calls:
-        called = f"{station} {change}" if change else station
-        calls.write(f"{called}{clauses}\n")
-    if station == "build" and "deny" in modes:
-        use = {
-            "type": "tool_use",
-            "id": "t1",
-            "name": "Bash",
-            "input": {"command": "rm -rf build"},
-        }
-        result = {
-            "type": "tool_result",
-            "tool_use_id": "t1",
-            "is_error": True,
-            "content": "Bash has been denied.",
-        }
-        blocks = [use, result]
-        if "heredoc" in modes:
-            command = 'git commit -m "$(cat <<EOF\nbuild\nEOF\n)"'
-            blocks += [
-                {**use, "id": "t2", "input": {"command": command}},
-                {**result, "tool_use_id": "t2"},
-            ]
-        for block in blocks:
-            print(json.dumps({"message": {"content": [block]}}))
-    if station == "build" and "dies-limit" in modes:
-        event = {
-            "type": "result",
-            "is_error": True,
-            "api_error_status": 429,
-            "result": "You've hit your limit · resets 5:50pm (Europe/Athens)",
-        }
-        print(json.dumps(event))
-        sys.exit(1)
-    if station == "build" and "sleep" in modes:
-        time.sleep(60)
-    if station == "build" and f"slow-{change}" in modes:
-        time.sleep(2)
-    if station == "build" and (script := os.environ.get("FAKE_SCRIPT")):
-        Path(script).write_text("raise OSError('planted')\n")
-    if f"liar-{change or station}" in modes:
-        return
-    if station == "build" and "liar" in modes:
-        return
-    common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    primary = Path(common).parent
-    if station == "probe":
-        _commit(here, {"probe.txt": "ok\n"}, "probe")
-        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=True)
-    elif station == "build":
-        tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
-        files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}
-        if f"after-self-{change}" in modes:
-            proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
-            files[str(tasks.with_name("proposal.md"))] = proposal
-        _commit(here, files, "build")
-    elif station == "converge":
-        if "grant-halts" in modes:
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
-            log.write_text(
-                "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
-            )
-            return
-        _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
-        if "dies-converge" in modes:
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
-            log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
-            sys.exit(1)
-    elif station == "integrate":
-        message = f"chore(integrate): merge main into {change}"
-        _git(
-            primary.parent / str(change),
-            "merge",
-            "-q",
-            "--no-ff",
-            "-m",
-            message,
-            "main",
-        )
-    elif station == "release":
-        branch = _git(here, "branch", "--show-current")
-        tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        subject = _git(here, "log", "-1", "--format=%s")
-        if subject.startswith("chore(release): "):
-            named = subject.removeprefix("chore(release): ")
-            if not _git(here, "tag", "-l", named):
-                _git(here, "tag", named)
-        else:
-            _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
-            (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
-            _git(
-                here,
-                "mv",
-                f"openspec/changes/{change}",
-                f"openspec/changes/archive/{change}",
-            )
-            if "dies-release-fold" in modes:
-                sys.exit(1)
-            _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
-            if "dies-release-commit" in modes:
-                sys.exit(1)
-            _git(here, "tag", tag)
-            if "dies-release-tag" in modes:
-                sys.exit(1)
-            if "stops-release-tag" in modes:
-                return
-        _git(
-            primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
-        )
-        _git(primary, "worktree", "remove", str(here))
-        if "plant-config" in modes:
-            _git(primary, "config", "mf.planted", "x")
-        if "plant-attributes" in modes:
-            (Path(common) / "info").mkdir(exist_ok=True)
-            (Path(common) / "info" / "attributes").write_text("* filter=x\n")
-
-
-if __name__ == "__main__":
-    _fake(sys.argv[1])
