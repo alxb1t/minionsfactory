@@ -197,7 +197,8 @@ It SHALL make no remote call, in a run or in `status`, `check` or `report`, whil
 person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
 when the repo's git config or `info/attributes` differs from its first read, a key off the list naming itself. `status`, `check`,
 `report`, `stop` and `grant` SHALL halt, making no remote call, when git names a repo outside the folder they run in and no run
-kept that repo's URLs.
+kept that repo's URLs. `status`, `check` and `report` SHALL make no remote call for a repo no run kept, wherever they run: a first
+read SHALL be a run's alone.
 
 #### Scenario: A release under mf-ship
 - **WHEN** a release worker merges under `merge=yes`
@@ -218,10 +219,19 @@ kept that repo's URLs.
 - **THEN** the next run goes on, and a removed file keeps what that run reads
 
 #### Scenario: A worker redirects git to another repo
-- **WHEN** a `commondir` file, or a swapped `.git`, leaves git naming a repo no run kept, its `origin` on another host
+- **WHEN** a `commondir` file, or a swapped `.git`, leaves git naming a repo no run kept, outside the folder they run in, its
+  `origin` on another host
 - **THEN** `status`, `check` and `report` halt, and that host receives nothing
 - **AND WHEN** a person removes the redirect
 - **THEN** each reads the primary again
+- **AND WHEN** a `commondir` file, a `.git` file, or a whole repo at `.git`, leaves git naming a repo inside a linked worktree
+- **THEN** that host receives nothing
+
+#### Scenario: No run kept the repo
+- **WHEN** `status`, `check` or `report` runs in a repo with an `origin` no run kept
+- **THEN** none makes a remote call: `status` names no tag, and `check` and `report` read a tag as not on `origin`
+- **AND WHEN** a run starts there, even where the home folder refuses the file
+- **THEN** it reads `origin` itself, for its pushes and its release check
 
 #### Scenario: A worker sets a key after the refusal
 - **WHEN** a key that names a program stands in the repo's config after the refusal read it clean

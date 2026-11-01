@@ -35,7 +35,7 @@ push; both executors have the same boundary.
 | [D6](#d6) | The LFS remedy needs every held key to be LFS's | `0051·S9` | — |
 | [D7](#d7) | D47, D51 and `THREAT_MODEL.md` state the boundary | A7 | leaving "a guardrail" in force |
 | [D8](#d8) | An escape test and the drill, on real workers | the design rests on a subagent's Bash being sandboxed | a `**HUMAN` phase |
-| [D9](#d9) | The conductor's remote calls read no repo's config, and go only to the URLs a run kept in the home folder | `R2`, `R3`, `R9`, `S3`, `S4`, `S10`, `S11`, `S13`: it now pushes with workers alive, outside their sandbox, and a repo's config outlasts a run | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit · a person accepting a re-run's first read |
+| [D9](#d9) | The conductor's remote calls read no repo's config, and go only to the URLs a run kept in the home folder | `R2`, `R3`, `R9`, `R15`, `S3`, `S4`, `S10`, `S11`, `S13`, `S14`: it now pushes with workers alive, outside their sandbox, and a repo's config outlasts a run | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit · a person accepting a re-run's first read |
 
 ### D1
 
@@ -194,8 +194,8 @@ the sandbox makes moot to `proposal.md`'s `backlog:`.
 
 ### D9
 
-Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks, and for `R9`, `S10`, `S11` and `S13`. Since [D3](#d3) `conduct.py` pushes
-on every release, with other versions' workers alive, and a worker can write the common directory. Three gaps follow: `origin`'s URL
+Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks, and for `R9`, `R15`, `S10`, `S11`, `S13` and `S14`. Since [D3](#d3)
+`conduct.py` pushes on every release, with other versions' workers alive, and a worker can write the common directory. Three gaps follow: `origin`'s URL
 steers a push, it carries what a worker put in it to the host it names on any remote call, and a key set after the refusal runs at
 the operator's rights.
 
@@ -212,11 +212,17 @@ second step.
 `_refuse_origin` stands before every remote call, a run's or `status`'s, `check`'s and `report`'s, and halts while `origin` differs
 from the kept URLs, naming the file and no URL. Nothing clears it but a person: they read `git remote -v`, then repoint `origin`, or
 remove the file, and the next run keeps what it reads. The value compared is the value the call uses, so a worker's toggle steers
-nothing. Before a repo's first run nothing is kept, and `status` takes the URL it reads, as that first run will.
+nothing.
 
 `_refuse_origin` compares only what a run kept for the repo it is handed, and `status`, `check` and `report` take that repo from
 git, whose answer a worker steers with a `commondir` file or a swapped `.git`. So `primary_of` halts when `cwd` lies outside the repo
 git names and no run kept that repo's URLs, and no worker can write a kept file.
+
+A repo a worker puts inside a linked worktree passes that test: the worktree becomes its folder, and nothing is kept for it. So a
+first read is a run's alone: `_read_url` gives `status`, `check` and `report` no URL for a repo no run kept, wherever they run, and
+only `Run` passes `first_read`, at its `push_left` and its release check. Before a repo's first run `status` names what the local
+refs show, and no tag, as for an `origin` it cannot read, and `check` and `report` read a tag as not on `origin`. Where nothing is
+kept in a run, because the home folder refuses the file, the run's own reads stand.
 
 A real linked worktree lies outside its repo too, and a worker writes the `.git` that would tell it from a forged one. So it needs
 the kept file as well: it halts until its repo's first run, and `mf-ship` runs in the primary. Rejected: stopping only where the
@@ -256,9 +262,12 @@ Edited: `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, for `networ
 and the host's words for a denied `Read`. Converge's fixes are steps in the tests they name (`T2`):
 `test_a_claude_worker_starts_in_the_sandbox`, for `TOKENS`, the lists and `--setting-sources`; `test_a_mixed_key_list_gets_no_lfs_remedy`,
 for a planted value; `test_no_worker_pushes`, for a repointed `origin`, the URL each remote call receives, a re-run, a person's
-remedy, and git redirected by `commondir` or a swapped `.git`; `test_a_rerun_pushes_what_a_release_left`, for a key after the refusal,
-the first URL and the place of the scratch and the kept URLs; `test_a_changed_git_config_halts_a_merge_in`, for a held key in a repo
-with an `origin`. No test is deleted or merged.
+remedy, git redirected by `commondir` or a swapped `.git`, past the folder or inside a linked worktree, no remote call for a repo no
+run kept, and a run the home folder refuses; `test_a_rerun_pushes_what_a_release_left`, for a key after the refusal, the first URL,
+`status` before a first run and that run's own read, and the place of the scratch and the kept URLs;
+`test_a_changed_git_config_halts_a_merge_in`, for a held key in a repo with an `origin`. `test_each_check_passes_only_on_disk_evidence`
+and `test_a_run_pushes_only_tagged_merges` now keep `origin`'s URLs first, as a run would, so `check`, `report` and `status` read it.
+No test is deleted or merged.
 
 ## Dependencies
 

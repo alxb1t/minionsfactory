@@ -319,7 +319,11 @@ def test_each_check_passes_only_on_disk_evidence(
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     monkeypatch.setenv("MF_SHIP_AGENT", "true")
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
     _git(root, "remote", "add", "origin", str(origin))
+    conduct["_keep_origin"](root)
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
     runs.mkdir()
@@ -1308,7 +1312,8 @@ def test_a_rerun_pushes_what_a_release_left(
             == code
         )
 
-    assert status() == "run · unpushed main v0.1.0"
+    # Before a first run `status` calls nothing, and the run's own read finds the tag.
+    assert status() == "run · unpushed main"
     _git(root, "config", "--global", "hook.operator.event", "pre-push")
     _git(root, "config", "--global", "hook.operator.command", "exit 1")
     run(0)
@@ -1327,6 +1332,7 @@ def test_a_rerun_pushes_what_a_release_left(
     head = _git(root, "rev-parse", "main")
     assert head in _git(root, "ls-remote", "origin", "refs/heads/main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    conduct["_keep_origin"](root)
     assert status() == "status: none — no open version"
 
     other = tmp_path / "other"
@@ -1375,6 +1381,7 @@ def test_a_rerun_pushes_what_a_release_left(
     assert not ran.exists()
     assert conduct["_pushed"](root, "release-v0.2.0", "v0.2.0") is False
     assert not ran.exists()
+    conduct["_kept_file"](root).unlink()
     decoy = tmp_path / "decoy.git"
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(decoy))
     _git(root, "remote", "set-url", "origin", str(decoy))
@@ -1471,6 +1478,7 @@ def test_a_run_pushes_only_tagged_merges(
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
     pushed = _git(root, "rev-parse", "main")
 
     def on_origin() -> str:
@@ -1533,7 +1541,10 @@ def test_a_run_pushes_only_tagged_merges(
 
 
 def test_no_worker_pushes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     fake()
@@ -1658,6 +1669,45 @@ def test_no_worker_pushes(
     assert not any(str(elsewhere) in args for args in reached)
     entry.write_text(held)
 
+    # A repo a worker puts inside that worktree makes it the primary, and no run kept
+    # that folder: each reads what is local, and calls nothing.
+    inside = tree / ".x"
+    _git(planted, "clone", "-q", "--bare", str(origin), str(inside))
+    _git(inside, "remote", "set-url", "origin", str(elsewhere))
+    _git(inside, "update-ref", "refs/remotes/origin/main", "main")
+    _git(inside, "update-ref", "refs/heads/0001-todo", "v0.1.0^{commit}")
+    (tree / ".minions" / "runs").mkdir(parents=True)
+    (tree / ".minions" / "runs" / "1.md").write_text(
+        "10:00:00 · 0001-todo · finish — release · exit 0 · 1s\n"
+    )
+
+    def unkept() -> None:
+        capsys.readouterr()
+        codes = [
+            _main(conduct, tree, *command, monkeypatch=monkeypatch)
+            for command in commands
+        ]
+        said = capsys.readouterr().out
+        assert not any(str(elsewhere) in args for args in reached)
+        assert codes == [0, 1, 0]
+        assert said.startswith("status: none — no open version\n")
+        assert "check: release · fail — v0.1.0 is not on origin\n" in said
+        assert " · not pushed · " in said
+
+    entry.write_text(f"{inside}\n")
+    unkept()
+    entry.write_text(held)
+
+    link = (tree / ".git").read_text()
+    (tree / ".git").write_text(f"gitdir: {inside}\n")
+    unkept()
+    (tree / ".git").unlink()
+    inside.rename(tree / ".git")
+    _git(tree, "config", "core.bare", "false")
+    unkept()
+    shutil.rmtree(tree / ".git")
+    (tree / ".git").write_text(link)
+
     _git(root, "remote", "set-url", "origin", str(elsewhere))
     conductor = conduct["Run"](root, "claude")
     assert conductor.pushes == [str(origin)]
@@ -1668,7 +1718,25 @@ def test_no_worker_pushes(
     assert kept.stat().st_mode & 0o777 == 0o600
     kept.unlink()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert not any(str(elsewhere) in args for args in reached)
     assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 1
+
+    # Where the home folder refuses the file, a run still reads its own `origin`.
+    refused = tmp_path / "refused"
+    refused.mkdir()
+    root = _primary(refused)
+    origin = refused / "origin.git"
+    _git(refused, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    monkeypatch.setenv("HOME", str(refused / "absent"))
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert conduct["_kept_origin"](root) is None
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
 
 def test_the_plan_is_read_once(

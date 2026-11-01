@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `status`, `check`, `report`, `stop` and `grant` halt when git names a repo outside their folder that no run kept, because a
   worker's `commondir` or swapped `.git` would dodge the kept URLs; a linked worktree therefore needs a repo's first run. A release
   worker's held key now halts a run naming the key, in a repo with an `origin` (change `0052-security-hardening`, phase 6).
+- `status`, `check` and `report` make no remote call for a repo no run kept, wherever they run, so a first read is a run's alone,
+  because a repo a worker puts inside a linked worktree passes the folder test. Until a repo's first run with a version, `status`
+  names no unpushed tag, and `check` and `report` read a tag as not on `origin` (change `0052-security-hardening`, phase 6).
 - The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
   reaches the report (change `0052-security-hardening`, phase 6).
 

@@ -25,7 +25,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   repo in the home folder and read no repo's config. A run keeps `origin`'s URLs in the home folder before its first worker: while
   `origin` differs from them, no remote call runs, in that run or a later one, until a person repoints it or removes the file. A
   changed config halts a run before its next remote call. A worker can redirect git with `commondir` or a swapped `.git`, so
-  `conduct.py` halts when git names a repo outside the folder it runs in and no run kept that repo's URLs.
+  `conduct.py` halts when git names a repo outside the folder it runs in and no run kept that repo's URLs, and `status`, `check` and
+  `report` make no remote call for a repo no run kept, wherever they run: a first read is a run's alone.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points
@@ -51,8 +52,9 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
   `.env`, and `conduct.py` pushes to `origin` what a worker commits.
 - A run compares the git config with its own first read, so a plain key a run that stopped left is that read, and it steers no
   remote call.
-- A repo's first run with a version keeps the URLs it reads, so a URL set before it stands. Where the home folder refuses the
-  file, `conduct.py` is itself in a sandbox and keeps none.
+- A repo's first run with a version keeps the URLs it reads, so a URL set before it stands. A repo a worker puts inside a
+  linked worktree reads as a new one there, so a person who starts `run` in that worktree gives it that first read. Where the
+  home folder refuses the file, `conduct.py` is itself in a sandbox and keeps none.
 - Whether a Codex start reads a worker-written `.codex/config.toml` is not read from its docs.
 - `0049·S5`, its hostile route: a worker writes the claim, so it can name a process, with that process's start time, for
   `/mf-ship stop` or a stale clear to kill, or make a live run read stale. A pid at or below 1 is refused, and a group's

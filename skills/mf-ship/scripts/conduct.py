@@ -690,7 +690,7 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     return None
 
 
-def _check_release(primary: Path, version: Version) -> str | None:
+def _check_release(primary: Path, version: Version, first_read: bool) -> str | None:
     """Return why the release check fails, or None."""
     default = default_branch(primary)
     if not _ancestor(primary, version.change, default):
@@ -704,7 +704,7 @@ def _check_release(primary: Path, version: Version) -> str | None:
     own = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own != tip:
         return f"{tag} is not the tip of {version.change}"
-    if _pushed(primary, version.change, tag) is False:
+    if _pushed(primary, version.change, tag, first_read) is False:
         return f"{tag} is not on origin"
     return None
 
@@ -819,6 +819,18 @@ def _refuse_origin(primary: Path) -> Urls:
     return fetch, push
 
 
+def _read_url(primary: Path, first_read: bool) -> str | None:
+    """Return the URL a remote read goes to; None with no `origin`, or none it may read.
+
+    A first read is a run's alone: `status`, `check` and `report` take the repo from
+    git, which a worker steers, and a repo it puts inside a worktree no run kept.
+    Why: 0052-security-hardening design D9.
+    """
+    fetch, _ = _refuse_origin(primary)
+    readable = first_read or _kept_file(primary).is_file()
+    return fetch[0] if fetch and readable else None
+
+
 def _scratch() -> tempfile.TemporaryDirectory[str]:
     """Return a scratch folder in the home folder, which no worker can write.
 
@@ -853,14 +865,19 @@ def _listed(primary: Path, url: str, *refs: str) -> str | None:
     return done.stdout if done.returncode == 0 else None
 
 
-def _pushed(primary: Path, change: str, tag: str) -> bool | None:
-    """Return whether origin's tag is on the branch's tip, or None with no origin."""
+def _pushed(
+    primary: Path, change: str, tag: str, first_read: bool = False
+) -> bool | None:
+    """Return whether origin's tag is on the branch's tip, or None with no origin.
+
+    An `origin` this may not read lacks the tag, as one that cannot be read does.
+    """
     if "origin" not in _git(primary, "remote").split():
         return None
-    fetch, _ = _refuse_origin(primary)
+    url = _read_url(primary, first_read)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
-    listed = _listed(primary, fetch[0], ref, f"{ref}^{{}}")
+    listed = _listed(primary, url, ref, f"{ref}^{{}}") if url else None
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
     lines = (listed or "").splitlines()
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
@@ -900,19 +917,18 @@ def _foreign_commit(primary: Path) -> list[str]:
     return commits
 
 
-def _unpushed(primary: Path) -> list[str]:
+def _unpushed(primary: Path, first_read: bool = False) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
     A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
-    release commit of that name, stops with 1. An `origin` that cannot be read lacks
-    no tag. The refusal needs no `origin`: a run with none keeps that too.
+    release commit of that name, stops with 1. An `origin` that cannot be read, or
+    that this may not read, lacks no tag. The refusal needs no `origin`: a run with
+    none keeps that too.
     """
-    fetch, _ = _refuse_origin(primary)
-    if not fetch:
-        return []
+    url = _read_url(primary, first_read)
     default = default_branch(primary)
     found = [default] if _foreign_commit(primary) else []
-    listed = _listed(primary, fetch[0])
+    listed = _listed(primary, url) if url else None
     if listed is None:
         return found
     held = listed.split()
@@ -936,10 +952,12 @@ def check_probe(scratch: Path) -> str | None:
     return None if (scratch / ".gated").is_file() else "make gate left no .gated"
 
 
-def check(primary: Path, stage: str, version: Version) -> str | None:
+def check(
+    primary: Path, stage: str, version: Version, first_read: bool = False
+) -> str | None:
     """Return why a station's check on disk fails, or None when it passes."""
     if stage == "release":
-        return _check_release(primary, version)
+        return _check_release(primary, version, first_read)
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
@@ -1587,7 +1605,7 @@ class Run:
                     return
                 if stage == "release" and not self.push_left():
                     return
-                reason = check(self.primary, stage, version)
+                reason = check(self.primary, stage, version, first_read=True)
                 if not self.judge(version.change, stage, reason, denied):
                     return
                 if stage == "release":
@@ -1715,7 +1733,7 @@ class Run:
             _refuse_config_commands(self.primary)
             if self.pushes and _git_state(self.primary) != self.git_state:
                 raise Stop(1, CONFIG_CHANGED)
-            unpushed = _unpushed(self.primary)
+            unpushed = _unpushed(self.primary, first_read=True)
         except Stop as stop:
             self.halt("run", str(stop))
             return False

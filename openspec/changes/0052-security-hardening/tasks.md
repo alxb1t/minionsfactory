@@ -79,3 +79,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
   [D9](design.md#d9), and fold the kept URLs into the delta's *A halt stops only its version, and a re-run resumes*.
   Verify: `grep -c 'A halt stops only its version' openspec/changes/0052-security-hardening/specs/sdd/spec.md` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or changed_git_config'` reports `2 passed`.
+- [x] 6.7 Leave a first read to `Run`: `status`, `check` and `report` make no remote call for a repo no run kept, per
+  [D9](design.md#d9).
+  Verify: `grep -c 'def _read_url' skills/mf-ship/scripts/conduct.py` prints `1`, and
+  `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or rerun_pushes'` reports `2 passed`.
