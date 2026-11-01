@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-01
+
+Gate: local 3m00s · CI 0m42s (CI at d897227) · 0.44.0: local 2m46s · CI 0m42s (CI at d897227)
+
 - The drift cards are paid: `THREAT_MODEL.md` lists its open gaps, `_clear` kills only an executor's group and stops on a
   refused kill, `_pushed` compares the ref beside the id, and `_points_back` ties a path to its entry's branch. `0044·R12`
   closes here: the archive is frozen (change `0051-reliability-paydown`, phase 1).
