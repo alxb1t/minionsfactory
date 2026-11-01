@@ -1529,6 +1529,161 @@ def test_no_hook_runs_in_a_worker(
     assert fires({})
 
 
+def test_stop_ends_a_live_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    runs = root / ".minions" / "runs"
+    active = runs / "active"
+    runs.mkdir(parents=True)
+
+    def stop() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "stop", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    assert stop() == "stop: none — no run is live"
+
+    log = runs / "20261101-120000.md"
+    log.write_text(
+        "# Ship run 20261101-120000\n\n"
+        "10:00:00 · run · start — executor claude\n"
+        "10:00:01 · 0001-todo · spawn — build · model default\n"
+    )
+    sleep = shutil.which("sleep")
+    assert sleep
+    executor = tmp_path / "claude"
+    executor.symlink_to(sleep)
+    conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    worker = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    active.mkdir()
+    (active / "pid").write_text(str(conductor.pid))
+    (active / str(worker.pid)).write_text(_lstart(worker.pid))
+
+    assert stop() == f"stop: stopped · .minions/runs/{log.name}"
+
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert worker.wait(timeout=10) == -signal.SIGKILL
+    assert not active.exists()
+    assert (
+        log.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · halt — stopped by the person")
+    )
+    verify = ("log", "--verify", str(log))
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 0
+
+    log.write_text(log.read_text().replace("stopped by the person", "a crash"))
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 1
+
+
+def test_a_grant_buys_one_round(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("grant-halts")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    version = conduct["find_version"](root, "0001-todo")
+    grants = root / ".minions" / "grants" / "0001-todo"
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    runner = conduct["main"].__globals__["run"]
+    started: list[tuple[Path, str, bool]] = []
+
+    def spy(cwd: Path, executor: str, detach: bool) -> int:
+        started.append((cwd, executor, detach))
+        return 0
+
+    conduct["main"].__globals__["run"] = spy
+
+    def grant() -> tuple[int, str]:
+        capsys.readouterr()
+        args = ("grant", "0001-todo", "--executor", "claude")
+        code = _main(conduct, root, *args, monkeypatch=monkeypatch)
+        return code, capsys.readouterr().out.strip()
+
+    refused = "grant: cannot run — 0001-todo is at {}, not a cap halt"
+    assert grant() == (2, refused.format("converge"))
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 2 · halt — a scope failure\n")
+    assert grant() == (2, refused.format("converge-halted"))
+    assert started == [] and not grants.exists()
+
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    assert conduct["stage_of"](root, version)[0] == "converge-halted"
+    assert grant() == (0, "")
+    assert started == [(root, "claude", True)]
+    assert conduct["stage_of"](root, version) == ("converge", "granted")
+
+    conduct["main"].__globals__["run"] = runner
+
+    def run() -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+
+    run()
+    assert "converge 0001-todo and grant=yes" in _calls(calls)
+    assert not grants.exists()
+    assert conduct["stage_of"](root, version)[0] == "converge-halted"
+    assert _git(tree, "status", "--porcelain") == ""
+
+    calls.unlink()
+    run()
+    assert _calls(calls) == []
+
+
+def test_a_missing_skill_stops_a_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    conduct["main"].__globals__["_executor_missing"] = lambda name: False
+    names = sorted(path.name for path in (_REPO / "skills").glob("mf-*"))
+    assert "mf-ship" in names
+    for folder in conduct["SKILLS"].values():
+        (home / folder).mkdir(parents=True)
+        for name in names:
+            (home / folder / name).symlink_to(_REPO / "skills" / name)
+
+    (home / conduct["SKILLS"]["claude"] / "mf-ship").unlink()
+    capsys.readouterr()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert capsys.readouterr().out.strip() == (
+        "run: cannot run — mf-ship is not linked; make install-skills"
+    )
+    assert not (root / ".minions" / "runs").exists()
+
+    conduct["_unlinked"]("codex")
+    (home / conduct["SKILLS"]["codex"] / "mf-build").unlink()
+    with pytest.raises(conduct["Stop"], match="mf-build is not linked"):
+        conduct["_unlinked"]("codex")
+    conductor = conduct["Run"](root, "claude")
+    conductor.probe("codex")
+    assert conductor.halts == [
+        (
+            "run",
+            "probe-codex — run: cannot run — mf-build is not linked;"
+            " make install-skills",
+        )
+    ]
+
+
 def test_a_stale_claim_is_cleared(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1926,10 +2081,10 @@ def _fake(prompt: str) -> None:
     here = Path.cwd()
     found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
-    tier = re.search(r" with tier=\w+", prompt)
+    clauses = "".join(re.findall(r" with tier=\w+| and grant=yes", prompt))
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
-        calls.write(f"{called}{tier[0] if tier else ''}\n")
+        calls.write(f"{called}{clauses}\n")
     if station == "build" and "deny" in modes:
         use = {
             "type": "tool_use",
@@ -1984,6 +2139,12 @@ def _fake(prompt: str) -> None:
             files[str(tasks.with_name("proposal.md"))] = proposal
         _commit(here, files, "build")
     elif station == "converge":
+        if "grant-halts" in modes:
+            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log.write_text(
+                "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
+            )
+            return
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
         if "dies-converge" in modes:
             log = primary / ".minions" / "findings" / f"{change}_status_log.md"

@@ -7,7 +7,7 @@ word.
 
 - [x] 1 — The drift sweep
 - [x] 2 — What a run may do
-- [ ] 3 — The features
+- [x] 3 — The features
 - [ ] 4 — Gate speed
 - [ ] 5 — The drill
 
@@ -36,14 +36,14 @@ word.
 
 ## 3 — The features
 
-- [ ] 3.1 Add `conduct.py stop`, per [D5](design.md#d5), and `test_stop_ends_a_live_run`.
+- [x] 3.1 Add `conduct.py stop`, per [D5](design.md#d5), and `test_stop_ends_a_live_run`.
   Verify: `uv run pytest -q tests/test_conduct.py -k stop_ends` reports `1 passed`.
-- [ ] 3.2 Add `conduct.py grant` and `## A granted round` to `skills/mf-converge/SKILL.md`, per [D6](design.md#d6), and
+- [x] 3.2 Add `conduct.py grant` and `## A granted round` to `skills/mf-converge/SKILL.md`, per [D6](design.md#d6), and
   `test_a_grant_buys_one_round`.
   Verify: `uv run pytest -q tests/test_conduct.py -k grant_buys` reports `1 passed`.
-- [ ] 3.3 Add `_unlinked`, per [D7](design.md#d7), and `test_a_missing_skill_stops_a_run`.
+- [x] 3.3 Add `_unlinked`, per [D7](design.md#d7), and `test_a_missing_skill_stops_a_run`.
   Verify: `uv run pytest -q tests/test_conduct.py -k missing_skill` reports `1 passed`.
-- [ ] 3.4 Add the foreground rule to `skills/mf-converge/SKILL.md`, per [D8](design.md#d8), and the forms to
+- [x] 3.4 Add the foreground rule to `skills/mf-converge/SKILL.md`, per [D8](design.md#d8), and the forms to
   `skills/mf-ship/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -c 'never end' skills/mf-converge/SKILL.md` prints `1`.
 

@@ -8,6 +8,8 @@
     conduct.py check <stage> <change-id>
     conduct.py log --verify <run-log>
     conduct.py run --executor claude|codex [--detach]
+    conduct.py stop
+    conduct.py grant <change-id> --executor claude|codex
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
 
@@ -56,6 +58,8 @@ STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
 TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
+SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
+STOPPED = "stopped by the person"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -578,6 +582,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
     if halt := _converge_halt(runs, change):
+        if "cap reached" in halt and (runs / "grants" / change).is_file():
+            return "converge", "granted"
         return "converge-halted", halt
     end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
@@ -770,19 +776,20 @@ def verify_log(path: Path) -> str | None:
         if line.strip() and not line.startswith("# ")
     ]
     spawned: dict[tuple[str, str], int] = {}
-    last = ""
+    last = detail = ""
     for line in lines:
         match = EVENT.match(line)
         if not match or match[2] not in EVENTS:
             return f"unknown event: {line}"
         who, last = match[1], match[2]
-        station = line[match.end() :].split(" · ")[0]
+        detail = line[match.end() :]
+        station = detail.split(" · ")[0]
         if last == "spawn":
             spawned[who, station] = spawned.get((who, station), 0) + 1
         elif last == "finish" and spawned.get((who, station)):
             spawned[who, station] -= 1
     for (who, station), count in spawned.items():
-        if count:
+        if count and detail != STOPPED:
             return f"a spawn with no finish: {who} {station}"
     if last not in ("halt", "done"):
         return "the run ends on neither halt nor done"
@@ -1141,6 +1148,21 @@ def _clear(active: Path) -> None:
     shutil.rmtree(active)
 
 
+def _unlinked(executor: str) -> None:
+    """Stop with 2 when a skill beside this one is not linked where `executor` looks.
+
+    A fake worker loads no skill.
+    """
+    if os.environ.get("MF_SHIP_AGENT"):
+        return
+    linked = Path.home() / SKILLS[executor]
+    for skill in sorted(Path(__file__).resolve().parents[1].parent.glob("mf-*")):
+        if skill.is_dir() and not (linked / skill.name).exists():
+            raise Stop(
+                2, f"run: cannot run — {skill.name} is not linked; make install-skills"
+            )
+
+
 def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
     top = _maybe(cwd, "rev-parse", "--show-toplevel")
@@ -1164,6 +1186,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
         raise Stop(2, "run: cannot run — AGENTS.md declares no **Worktrees:**")
     if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
+    _unlinked(executor)
     if _claim(primary / ".minions" / "runs" / "active") == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
     return primary
@@ -1274,6 +1297,10 @@ class Run:
                     return
                 minions = self.primary / ".minions"
                 tier = _tier(minions, version.change) if stage == "converge" else ""
+                granted = minions / "grants" / version.change
+                if stage == "converge" and granted.is_file():
+                    tier += " and grant=yes"
+                    granted.unlink()
                 prompt = PROMPTS[stage].format(change=version.change, tier=tier)
                 models = _models(minions, version.change, stage, self.executor)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
@@ -1371,6 +1398,11 @@ class Run:
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
             self.halt("run", f"{station} — {executor} is not on PATH")
+            return
+        try:
+            _unlinked(executor)
+        except Stop as stop:
+            self.halt("run", f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         try:
@@ -1494,6 +1526,45 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         return code
     finally:
         shutil.rmtree(active)
+
+
+def stop_run(cwd: Path) -> str:
+    """End the live run: the conductor first, so it spawns nothing more.
+
+    The claim's groups go next, then a last line in the newest run log. Return that
+    log. Why: 0051-reliability-paydown design D5.
+    """
+    runs = primary_of(cwd) / ".minions" / "runs"
+    active = runs / "active"
+    if _claim(active) != "live":
+        return "stop: none — no run is live"
+    try:
+        os.kill(int((active / "pid").read_text()), signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError as error:
+        raise Stop(2, f"stop: cannot run — the conductor survives: {error}") from None
+    _clear(active)
+    if (log := last_log(runs)) is None:
+        return "stop: stopped · no run log"
+    with log.open("a") as file:
+        file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
+    return f"stop: stopped · .minions/runs/{log.name}"
+
+
+def grant(cwd: Path, change: str, executor: str) -> int:
+    """Record one more round for a version halted at the cap, then start a run."""
+    primary = primary_of(cwd)
+    if (version := find_version(primary, change)) is None:
+        raise Stop(2, f"grant: cannot run — no version branch holds {change}")
+    stage, why = stage_of(primary, version)
+    if stage != "converge-halted" or "cap reached" not in why:
+        raise Stop(2, f"grant: cannot run — {change} is at {stage}, not a cap halt")
+    preconditions(cwd, executor)
+    grants = primary / ".minions" / "grants"
+    grants.mkdir(parents=True, exist_ok=True)
+    (grants / change).touch()
+    return run(cwd, executor, True)
 
 
 def agent(cwd: Path, executor: str, prompt: str) -> int:
@@ -1656,6 +1727,10 @@ def main(argv_: list[str] | None = None) -> int:
     running = commands.add_parser("run", help="the loop")
     running.add_argument("--executor", required=True, choices=("claude", "codex"))
     running.add_argument("--detach", action="store_true")
+    commands.add_parser("stop", help="end the live run")
+    granting = commands.add_parser("grant", help="one more round past the cap")
+    granting.add_argument("change_id", metavar="change-id")
+    granting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -1674,6 +1749,10 @@ def main(argv_: list[str] | None = None) -> int:
             print("log: complete")
         elif args.command == "run":
             return run(cwd, args.executor, args.detach)
+        elif args.command == "stop":
+            print(stop_run(cwd))
+        elif args.command == "grant":
+            return grant(cwd, args.change_id, args.executor)
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         else:
