@@ -61,7 +61,7 @@ keeps that start time, before it clears the claim and starts, and `status` SHALL
 - **THEN** the check that follows halts its version naming the key, and the filter never runs
 
 #### Scenario: A worker repoints origin at a local repo
-- **WHEN** `origin`'s URL is a local path or a `file://` URL the operator's global config does not name
+- **WHEN** `origin`'s URL is a local path or a `file://` URL
 - **THEN** `status` exits 1, a run halts, the conductor makes no remote call, and that repo's hooks do not run
 
 #### Scenario: The conductor is killed

@@ -69,7 +69,8 @@ Check first. `mf-ship` re-runs a release that died.
 
 - **`HEAD`'s subject is `chore(release): <tag>`** → that is the tag. When converge ran, both findings files must say
   `verdict: clean` with `head:` at `HEAD~1`, and `<tag>`, when it exists, must be on `HEAD`; else **halt**. `<tag>`
-  missing → run Step 4.5. Then go to Step 4.6, then Step 5.
+  missing → run Step 4.5. Read the preamble against the archived delta, as Step 2 does. A flag → **halt**, before
+  Step 5. Then go to Step 4.6, then Step 5.
 - **Under `merge=yes`, `git diff --cached --name-status` shows `tasks.md` renamed from `openspec/changes/<change-id>/`
   to `openspec/changes/archive/<change-id>/`, and the tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the
   version file, or in `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:
@@ -232,8 +233,9 @@ binding check covers it, and a gate without one gives a separate step nothing to
 The **primary** is the worktree `git worktree list --porcelain` shows on `branch refs/heads/<default-branch>`, or
 this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
-Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → Step 6. In a
-linked worktree, ask the form below instead. Under `merge=yes`, print the ask and take it as yes.
+Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → write
+`.minions/release/<change-id>.held` holding the reason, then Step 6; a yes deletes it. In a linked worktree, ask the
+form below instead. Under `merge=yes`, print the ask and take it as yes.
 
 When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its
 ignored paths by name, never reading a file:

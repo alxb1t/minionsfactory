@@ -6,7 +6,7 @@ word.
 ## Progress
 
 - [x] 1 — The drift sweep
-- [ ] 2 — What a run may do
+- [x] 2 — What a run may do
 - [ ] 3 — The features
 - [ ] 4 — Gate speed
 - [ ] 5 — The drill
@@ -22,16 +22,16 @@ word.
 
 ## 2 — What a run may do
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py`, push only tagged merges, per [D1](design.md#d1), and add
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py`, push only tagged merges, per [D1](design.md#d1), and add
   `test_a_run_pushes_only_tagged_merges` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k pushes_only_tagged` reports `1 passed`.
-- [ ] 2.2 Add the mark to `conduct.py` and `skills/mf-release/SKILL.md`, per [D2](design.md#d2), and add
+- [x] 2.2 Add the mark to `conduct.py` and `skills/mf-release/SKILL.md`, per [D2](design.md#d2), and add
   `test_a_stop_survives_a_death`.
   Verify: `uv run pytest -q tests/test_conduct.py -k stop_survives` reports `1 passed`.
-- [ ] 2.3 Start both executors with `HOOKS_OFF`, per [D3](design.md#d3), add `test_no_hook_runs_in_a_worker`, and edit
+- [x] 2.3 Start both executors with `HOOKS_OFF`, per [D3](design.md#d3), add `test_no_hook_runs_in_a_worker`, and edit
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named`.
   Verify: `uv run pytest -q tests/test_conduct.py -k no_hook_runs` reports `1 passed`.
-- [ ] 2.4 Grow `CONFIG_PLAIN`, drop `LOCAL_ORIGIN`, and drop `_allow_origin` from `tests/test_conduct.py`, per [D4](design.md#d4).
+- [x] 2.4 Grow `CONFIG_PLAIN`, drop `LOCAL_ORIGIN`, and drop `_allow_origin` from `tests/test_conduct.py`, per [D4](design.md#d4).
   Verify: `grep -c 'localorigin' skills/mf-ship/scripts/conduct.py` prints `0`.
 
 ## 3 — The features

@@ -99,22 +99,27 @@ SCRATCH_IDENTITY = (
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 # These stop a directory's hooks only; `CONFIG_PLAIN` stops a `hook.*` key's.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# The same, for a worker's git: `make gate` is the one check in a run.
+HOOKS_OFF = (
+    "GIT_CONFIG_COUNT=2",
+    *("GIT_CONFIG_KEY_0=core.hooksPath", "GIT_CONFIG_VALUE_0=/dev/null"),
+    *("GIT_CONFIG_KEY_1=core.fsmonitor", "GIT_CONFIG_VALUE_1=false"),
+)
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
-# The only keys a repo's own config may hold: each names no program, and any other
-# halts, so a key git adds later fails closed.
+# The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
+# and any other halts, so a key git adds later fails closed.
 CONFIG_PLAIN = re.compile(
     r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
-    r"|precomposeunicode|symlinks)"
+    r"|precomposeunicode|symlinks|hookspath)"
     r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
-    r"|protocol\.version|pull\.(rebase|ff)"
+    r"|protocol\.version|pull\.(rebase|ff)|lfs\.repositoryformatversion"
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
 )
 # A URL git reaches over a network. Any other form runs a program on this machine: a
 # local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
 NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
-LOCAL_ORIGIN = "mf-ship.localorigin"
 
 
 class Stop(Exception):
@@ -506,11 +511,16 @@ def _release_died(runs: Path, change: str) -> bool:
 def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str, str]:
     """Return the stage of a tip that says it is released; only a death re-enters.
 
-    The re-entry merges and pushes unasked, so it takes a tag on `HEAD` or none, the
-    converge clean at the parent, an unmoved base and a release worker that died.
-    Every other reason names the person's way out, per `mf-release` Step 5.1.
+    The re-entry merges and pushes unasked, so it takes no person's no, a tag on `HEAD`
+    or none, the converge clean at the parent, an unmoved base and a release worker
+    that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
     runs = primary / ".minions"
+    if (runs / "release" / f"{change}.held").is_file():
+        return "released", (
+            f"{tag}: .minions/release/{change}.held holds a person's no:"
+            f" /mf-release {change} merges it on their yes"
+        )
     own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own is not None and own != _git(tree, "rev-parse", "HEAD"):
         return "released", f"{tag} is tagged on another commit: a person reads this tip"
@@ -662,19 +672,20 @@ def _refuse_config_commands(cwd: Path) -> None:
 def _refuse_origin(primary: Path) -> None:
     """Stop with 1 unless a remote call on `origin` can run only its own git.
 
-    Reads the URLs git would use. A local one needs naming in the operator's global
-    `LOCAL_ORIGIN`, which no worker can write. The halt names no URL: it can hold a key.
+    Reads the URLs git would use. A fake worker's fixtures use a local `origin`, and a
+    worker cannot set the conductor's environment. The halt names no URL: it can hold a
+    key.
     """
     _refuse_config_commands(primary)
-    allowed = _maybe(primary, "config", "--global", "--get-all", LOCAL_ORIGIN) or ""
+    if os.environ.get("MF_SHIP_AGENT"):
+        return
     for mode in (("--all",), ("--all", "--push")):
         for url in _git(primary, "remote", "get-url", *mode, "origin").splitlines():
-            if not NETWORK_URL.fullmatch(url) and url not in allowed.splitlines():
+            if not NETWORK_URL.fullmatch(url):
                 raise Stop(
                     1,
                     "conduct: halt — the repo's git config points origin at a local"
-                    " repo, whose hooks would run on a push; repoint it, or name it"
-                    f" in the global {LOCAL_ORIGIN}",
+                    " repo, whose hooks would run on a push; repoint it",
                 )
 
 
@@ -691,18 +702,33 @@ def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
 
 
+def _release_merge(primary: Path, tip: str) -> bool:
+    """Return whether `tip` says `chore(release): <tag>` and that tag points at it."""
+    subject = _subject(primary, tip)
+    return any(
+        TAG.fullmatch(tag) and subject == f"chore(release): {tag}"
+        for tag in _git(primary, "tag", "--points-at", tip).split()
+    )
+
+
 def _unpushed(primary: Path) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
-    An `origin` that cannot be read lacks no tag. The config refusal needs no `origin`.
+    A commit `origin` lacks that merges no tagged release stops with 1. An `origin`
+    that cannot be read lacks no tag. The config refusal needs no `origin`.
     """
     _refuse_config_commands(primary)
     if "origin" not in _git(primary, "remote").split():
         return []
     _refuse_origin(primary)
     default = default_branch(primary)
-    ahead = _maybe(primary, "rev-list", "--count", f"origin/{default}..{default}")
-    found = [default] if (ahead or "").strip() != "0" else []
+    ahead = f"origin/{default}..{default}"
+    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
+    for sha in commits:
+        parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
+        if len(parents) != 3 or not _release_merge(primary, parents[2]):
+            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
+    found = [default] if commits else []
     listed = _maybe(primary, "ls-remote", "--tags", "origin")
     if listed is None:
         return found
@@ -906,6 +932,7 @@ def argv(
     if executor == "claude":
         allowed, denied = allowlist(primary, trees)
         return [
+            *("env", *HOOKS_OFF),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -920,7 +947,8 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}", path)
+    cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    env = ("env", *HOOKS_OFF, cache, path)
     return [
         *env,
         *("codex", "exec"),
