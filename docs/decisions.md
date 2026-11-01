@@ -460,11 +460,12 @@ needs the person. Converge runs at the tier the cut chose.**
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no unlisted
-domain. `conduct.py` holds the push, and its remote calls read no repo's config. The threat is a confused or prompt-injected
-agent; a hostile repo needs a container.**
+domain. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home
+folder. The threat is a confused or prompt-injected agent; a hostile repo needs a container.**
 
 - **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it. The
-  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls.
+  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls, and a repo's config outlasts
+  the run that wrote it, so the URLs stand where no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.

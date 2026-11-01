@@ -1387,6 +1387,8 @@ def test_a_rerun_pushes_what_a_release_left(
         patch.setenv("HOME", str(tmp_path / "absent"))
         with conduct["_scratch"]() as scratch:
             assert Path(scratch).is_dir()
+        conduct["_keep_origin"](root)
+        assert conduct["_kept_origin"](root) is None
 
     def refused(named: str) -> None:
         capsys.readouterr()
@@ -1566,6 +1568,15 @@ def test_no_worker_pushes(
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    module = conduct["main"].__globals__
+    outside = module["_outside"]
+    reached: list[tuple[str, ...]] = []
+
+    def spy(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        reached.append(args)
+        return outside(primary, *args)
+
+    module["_outside"] = spy
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -1575,6 +1586,41 @@ def test_no_worker_pushes(
     assert _git(elsewhere, "for-each-ref") == ""
     said = " · run · halt — the local git config changed during the run"
     assert any(line.endswith(said) for line in _log(root))
+    # An `ls-remote` leaves no ref there: the URL itself is what would leave.
+    assert not any(str(elsewhere) in args for args in reached)
+    for command in (("status",), ("check", "release", "0001-todo"), ("report",)):
+        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 1
+    assert not any(str(elsewhere) in args for args in reached)
+
+    # A re-run is no first read: the URLs a run kept stand until a person acts.
+    fake()
+
+    def rerun(code: int) -> str:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return conduct["last_log"](root / ".minions" / "runs").read_text()
+
+    log = rerun(1)
+    assert _git(elsewhere, "for-each-ref") == ""
+    assert " · run · halt — conduct: halt — the repo's git config points origin" in log
+    assert str(elsewhere) not in log
+
+    _git(root, "remote", "set-url", "origin", str(origin))
+    assert " · run · done — " in rerun(0)
+    assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
+
+    _git(root, "remote", "set-url", "origin", str(elsewhere))
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.pushes == [str(origin)]
+    conductor.log.path.unlink()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    kept = conduct["_kept_file"](root)
+    assert kept.parent == Path.home() / ".mf-ship-origin"
+    assert kept.stat().st_mode & 0o777 == 0o600
+    kept.unlink()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
 
 
 def test_the_plan_is_read_once(

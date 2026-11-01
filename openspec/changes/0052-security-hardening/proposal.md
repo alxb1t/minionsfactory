@@ -22,8 +22,9 @@ Codex has a sandbox, with its network on and no deny list. Every worker can push
   script or the `Read` tool, and no project settings or `.mcp.json` at its start.
 - **`Ship network:`** in `AGENTS.md` adds domains.
 - **A Codex worker's network is off.**
-- **No worker pushes**: under `merge=yes` the release stops at its merge, and `conduct.py` pushes, to the URLs read before the
-  first worker, from a scratch repo that reads no repo's config.
+- **No worker pushes**: under `merge=yes` the release stops at its merge, and `conduct.py` pushes, from a scratch repo that reads
+  no repo's config, to the URLs a run kept in the home folder before its first worker. A repointed `origin` halts every remote
+  call until a person clears it.
 - **A run's plan is read once**, and a person's commit during a run halts before integrate.
 - **The record states the boundary**: D47, a new decision, and `THREAT_MODEL.md`.
 - **An escape test** runs on a real worker and a real subagent, and the drill runs under the sandbox.
@@ -45,8 +46,8 @@ None.
 
 ## Impact
 
-Changes `skills/mf-ship/scripts/conduct.py`, the `mf-ship` and `mf-release` skills, `docs/decisions.md`, `THREAT_MODEL.md`,
-`tests/test_conduct.py` and `tests/fake_worker.py`. Adds `tests/escape_drill.py` and this change's `evidence/`. Amends D17 and D47, adds
+Changes `skills/mf-ship/scripts/conduct.py`, the `mf-ship` and `mf-release` skills, `docs/decisions.md`, `docs/principles.md`,
+`THREAT_MODEL.md`, `tests/test_conduct.py` and `tests/fake_worker.py`. Adds `tests/escape_drill.py` and this change's `evidence/`. Amends D17 and D47, adds
 D51.
 
 Dependencies: none. The gate recipe stays unchanged.

@@ -71,3 +71,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
   Verify: `uv run pytest -q tests/test_conduct.py -k mixed_key_list` reports `1 passed`.
 - [x] 6.4 Run the conductor's remote calls from a scratch repo, and keep the run's first URL, per [D9](design.md#d9).
   Verify: `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or rerun_pushes'` reports `2 passed`.
+- [x] 6.5 Keep `origin`'s URLs in the home folder, and compare before any remote call, per [D9](design.md#d9), and record the
+  exception to *The repo reaches nothing outside itself*.
+  Verify: `grep -c 'def _keep_origin' skills/mf-ship/scripts/conduct.py` prints `1`, and
+  `uv run pytest -q tests/test_conduct.py -k no_worker_pushes` reports `1 passed`.

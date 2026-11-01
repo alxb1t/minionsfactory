@@ -19,6 +19,7 @@ Why: 0040-mf-ship design D2.
 """
 
 import argparse
+import hashlib
 import itertools
 import json
 import os
@@ -61,6 +62,7 @@ EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run"
+KEPT_ORIGINS = ".mf-ship-origin"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -740,14 +742,58 @@ def _urls(primary: Path) -> Urls:
     return fetch.splitlines(), push.splitlines()
 
 
+def _kept_file(primary: Path) -> Path:
+    """Return the file holding the URLs a run kept for `primary`, in the home folder.
+
+    No worker can write there, and a repo's config lasts past the run that wrote it.
+    Why: 0052-security-hardening design D9.
+    """
+    digest = hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+    return Path.home() / KEPT_ORIGINS / digest
+
+
+def _kept_origin(primary: Path) -> Urls | None:
+    """Return the URLs a run kept for `primary`, or None before its first."""
+    file = _kept_file(primary)
+    if not file.is_file():
+        return None
+    fetch, push = json.loads(file.read_text())
+    return fetch, push
+
+
+def _keep_origin(primary: Path) -> None:
+    """Keep `origin`'s URLs before a repo's first worker; a file that stands stays.
+
+    Owner-only: a URL can hold a key. Where the home folder refuses it, this process
+    is itself in a sandbox, and nothing is kept.
+    """
+    file = _kept_file(primary)
+    try:
+        file.parent.mkdir(mode=0o700, exist_ok=True)
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        with os.fdopen(os.open(file, flags, 0o600), "w") as kept:
+            json.dump(_urls(primary), kept)
+    except OSError:
+        return
+
+
 def _refuse_origin(primary: Path) -> Urls:
     """Return `_urls`; stop with 1 unless a remote call can run only its own git.
 
-    A fake worker's fixtures use a local `origin`, and a worker cannot set the
-    conductor's environment. The halt names no URL: it can hold a key.
+    The URLs returned are the ones a run kept, once a run has: the comparison is on
+    the value the caller uses, so a worker's toggle steers nothing. A fake worker's
+    fixtures use a local `origin`, and a worker cannot set the conductor's
+    environment. A halt names no URL: it can hold a key.
     """
     _refuse_config_commands(primary)
     fetch, push = _urls(primary)
+    if _kept_origin(primary) not in (None, (fetch, push)):
+        raise Stop(
+            1,
+            "conduct: halt — the repo's git config points origin away from the URLs a"
+            " run kept: read `git remote -v`, then repoint it, or remove"
+            f" ~/{KEPT_ORIGINS}/{_kept_file(primary).name} to keep what it reads now",
+        )
     if os.environ.get("MF_SHIP_AGENT"):
         return fetch, push
     for url in (*fetch, *push):
@@ -846,12 +892,11 @@ def _unpushed(primary: Path) -> list[str]:
 
     A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
     release commit of that name, stops with 1. An `origin` that cannot be read lacks
-    no tag. The config refusal needs no `origin`.
+    no tag. The refusal needs no `origin`: a run with none keeps that too.
     """
-    _refuse_config_commands(primary)
-    if "origin" not in _git(primary, "remote").split():
-        return []
     fetch, _ = _refuse_origin(primary)
+    if not fetch:
+        return []
     default = default_branch(primary)
     found = [default] if _foreign_commit(primary) else []
     listed = _listed(primary, fetch[0])
@@ -1407,7 +1452,7 @@ class Run:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
         self.delta = runpy.run_path(str(INTEGRATE))["delta"]
         self.git_state = _git_state(primary)
-        self.pushes = _urls(primary)[1]
+        self.pushes = (_kept_origin(primary) or _urls(primary))[1]
         self.primary = primary
         self.repo = _repo(primary)
         self.executor = executor
@@ -1527,8 +1572,8 @@ class Run:
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
-                if stage == "release":
-                    self.push_left()
+                if stage == "release" and not self.push_left():
+                    return
                 reason = check(self.primary, stage, version)
                 if not self.judge(version.change, stage, reason, denied):
                     return
@@ -1645,20 +1690,21 @@ class Run:
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 
-    def push_left(self) -> None:
-        """Push what a release merged and left; a refusal or rejection halts the run.
+    def push_left(self) -> bool:
+        """Push what a release merged and left; return False when that halted the run.
 
-        A changed config halts it too, and the URLs are the ones read before the first
-        worker, so a worker steers no push. Why: 0052-security-hardening design D9.
+        A refusal or a rejection halts it, and so does a changed config, before any
+        remote call: the URLs are the ones read before the first worker, so a worker
+        steers none. Why: 0052-security-hardening design D9.
         """
+        if self.pushes and _git_state(self.primary) != self.git_state:
+            self.halt("run", CONFIG_CHANGED)
+            return False
         try:
             unpushed = _unpushed(self.primary)
         except Stop as stop:
             self.halt("run", str(stop))
-            return
-        if unpushed and _git_state(self.primary) != self.git_state:
-            self.halt("run", CONFIG_CHANGED)
-            return
+            return False
         for name in unpushed:
             kind = "tags" if TAG.fullmatch(name) else "heads"
             ref = f"refs/{kind}/{name}"
@@ -1671,10 +1717,11 @@ class Run:
                     self.halt(
                         "run", f"git push origin {name} failed, exit {done.returncode}"
                     )
-                    return
+                    return False
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
             self.log.event("run", "push", name)
+        return True
 
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
@@ -1695,6 +1742,7 @@ class Run:
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
+        _keep_origin(self.primary)
         try:
             self.read_plan(versions)
         except Stop as stop:

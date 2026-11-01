@@ -119,9 +119,11 @@ in the run directory.
 
 Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL stop after its merge in the primary, and `conduct.py` SHALL push, through
 the tagged-merges rule, before it judges the release. A hand release SHALL push as today. `conduct.py` SHALL make each remote
-call from a scratch git directory outside every worker's reach, reading no repo's config, and SHALL push to the URLs it read
-before the first worker. It SHALL halt the run, pushing nothing, when the repo's git config or `info/attributes` differs from
-that first read and there is something to push.
+call from a scratch git directory outside every worker's reach, reading no repo's config. Before a run's first worker it SHALL
+keep `origin`'s URLs in the home folder, outside every worker's reach, a file that stands staying, and SHALL push only to them.
+It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
+person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
+when the repo's git config or `info/attributes` differs from its first read.
 
 #### Scenario: A release under mf-ship
 - **WHEN** a release worker merges under `merge=yes`
@@ -130,6 +132,12 @@ that first read and there is something to push.
 #### Scenario: A worker repoints origin during a run
 - **WHEN** a worker sets `remote.origin.url` to another network URL
 - **THEN** the run halts naming the changed config, and that host receives nothing
+
+#### Scenario: A repoint outlasts the run
+- **WHEN** a run stopped with `origin` repointed, and `status`, `check`, `report` or a new run follows
+- **THEN** each halts naming the file that keeps the URLs, and that host receives nothing
+- **AND WHEN** a person repoints `origin`, or removes that file
+- **THEN** the next run goes on, and a removed file keeps what that run reads
 
 #### Scenario: A worker sets a key after the refusal
 - **WHEN** a key that names a program stands in the repo's config after the refusal read it clean

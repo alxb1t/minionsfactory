@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sandbox. A repo's `.claude/` no longer reaches a worker (change `0052-security-hardening`, phase 6).
 - `conduct.py`'s remote calls run from a scratch repo that reads no repo's config, and a run pushes to the URLs it read before its
   first worker, halting on a changed config, because it now pushes with workers alive (change `0052-security-hardening`, phase 6).
+- A run keeps `origin`'s URLs in the home folder before its first worker, and a repointed `origin` halts every remote call,
+  `status`, `check`, `report` and any re-run among them, until a person repoints it or removes the file, because a URL carries
+  what a worker put in it, and a repo's config outlasts the run (change `0052-security-hardening`, phase 6).
 - The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
   reaches the report (change `0052-security-hardening`, phase 6).
 

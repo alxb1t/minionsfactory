@@ -35,7 +35,7 @@ push; both executors have the same boundary.
 | [D6](#d6) | The LFS remedy needs every held key to be LFS's | `0051·S9` | — |
 | [D7](#d7) | D47, D51 and `THREAT_MODEL.md` state the boundary | A7 | leaving "a guardrail" in force |
 | [D8](#d8) | An escape test and the drill, on real workers | the design rests on a subagent's Bash being sandboxed | a `**HUMAN` phase |
-| [D9](#d9) | The conductor's remote calls read no repo's config, and its push keeps the run's first URL | `R2`, `R3`, `S3`, `S4`: it now pushes with workers alive, outside their sandbox | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit |
+| [D9](#d9) | The conductor's remote calls read no repo's config, and go only to the URLs a run kept in the home folder | `R2`, `R3`, `R9`, `S3`, `S4`, `S10`, `S11`: it now pushes with workers alive, outside their sandbox, and a repo's config outlasts a run | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit · a person accepting a re-run's first read |
 
 ### D1
 
@@ -140,11 +140,12 @@ bypassed" → "in an OS sandbox, Claude Code's or Codex's, never with prompts by
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no unlisted
-domain. `conduct.py` holds the push, and its remote calls read no repo's config. The threat is a confused or prompt-injected
-agent; a hostile repo needs a container.**
+domain. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home
+folder. The threat is a confused or prompt-injected agent; a hostile repo needs a container.**
 
 - **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it. The
-  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls.
+  conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls, and a repo's config outlasts
+  the run that wrote it, so the URLs stand where no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.
@@ -193,21 +194,34 @@ the sandbox makes moot to `proposal.md`'s `backlog:`.
 
 ### D9
 
-Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks. Since [D3](#d3) `conduct.py` pushes on every release, with other
-versions' workers alive, and a worker can write the common directory. Two gaps follow: `origin`'s URL steers a push, and a key set
-after the refusal runs at the operator's rights.
+Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks, and for `R9`, `S10` and `S11`. Since [D3](#d3) `conduct.py` pushes
+on every release, with other versions' workers alive, and a worker can write the common directory. Three gaps follow: `origin`'s URL
+steers a push, it carries what a worker put in it to the host it names on any remote call, and a key set after the refusal runs at
+the operator's rights.
 
-`Run.__init__` reads `_git_state` and `origin`'s push URLs once, before the first worker. `Run.push_left` halts the run,
-`the local git config changed during the run`, when there is something to push and the state differs, and pushes `<sha>:<ref>` to
-those URLs. With no `origin` nothing leaves, so `merge_in` keeps its own comparison.
+`Run.__init__` reads `_git_state` once, before the first worker, and `origin`'s push URLs, the kept ones where a run kept them.
+`Run.push_left` halts the run, `the local git config changed during the run`, before any remote call, when `origin` stood at that
+read and the state differs, and pushes `<sha>:<ref>` to those URLs. With no `origin` nothing leaves, so `merge_in` keeps its own
+comparison. `Run.advance` skips the release's `check` when `push_left` halted the run.
+
+`Run.ship`, once it has a version and past its first `push_left`, calls `_keep_origin`: `origin`'s fetch and push URLs, none being a
+value too, go to `~/.mf-ship-origin/<digest>`, the digest of the primary's path, owner-only, since a URL can hold a key. A file that
+stands stays, so a re-run is no first read. A first run that halts at the refusal keeps nothing, so a person's repoint needs no
+second step.
+
+`_refuse_origin` stands before every remote call, a run's or `status`'s, `check`'s and `report`'s, and halts while `origin` differs
+from the kept URLs, naming the file and no URL. Nothing clears it but a person: they read `git remote -v`, then repoint `origin`, or
+remove the file, and the next run keeps what it reads. The value compared is the value the call uses, so a worker's toggle steers
+nothing. Before a repo's first run nothing is kept, and `status` takes the URL it reads, as that first run will.
 
 Each remote call, `ls-remote` and `push`, goes through `_outside`: a new bare repo, no template, its alternates naming the primary's
 objects, in a folder no worker can write. `git` there reads the operator's global config and that scratch's, and no repo's, so the
-key a worker set is never read. A URL is passed behind `--`, read once by the call that checks it. The push updates
-`refs/remotes/origin/<default>` itself, since a URL updates no remote-tracking ref.
+key a worker set is never read. A URL is passed behind `--`. The push updates `refs/remotes/origin/<default>` itself, since a URL
+updates no remote-tracking ref.
 
 The scratch stands in the home folder: both sandboxes write the temp folders, so a scratch there would stand in a worker's reach.
-Where the home folder refuses it, `conduct.py` is itself in a sandbox, and the temp folder serves.
+Where the home folder refuses it, `conduct.py` is itself in a sandbox, and the temp folder serves. There it keeps no URLs either: its
+sandbox holds its network, and a run's own comparison stands.
 
 This leaves `conduct.py`'s local git in the race, as `0049·S7` and `0050·R5` say: `status`, `merge` and `commit` still read the repo's
 config after the refusal. *Known gaps* keeps both cards.
@@ -233,8 +247,9 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`). `T2`: no test reaches these
 Edited: `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, for `network_access=false`, `env`, `--settings`, the `Read` rules
 and the host's words for a denied `Read`. Converge's fixes are steps in the tests they name (`T2`):
 `test_a_claude_worker_starts_in_the_sandbox`, for `TOKENS`, the lists and `--setting-sources`; `test_a_mixed_key_list_gets_no_lfs_remedy`,
-for a planted value; `test_no_worker_pushes`, for a repointed `origin`; `test_a_rerun_pushes_what_a_release_left`, for a key after the
-refusal, the first URL and the scratch's place. No test is deleted or merged.
+for a planted value; `test_no_worker_pushes`, for a repointed `origin`, the URL each remote call receives, a re-run and a person's
+remedy; `test_a_rerun_pushes_what_a_release_left`, for a key after the refusal, the first URL and the place of the scratch and the kept
+URLs. No test is deleted or merged.
 
 ## Dependencies
 
@@ -247,6 +262,7 @@ None.
 - **A gate needs a project setting, a project skill or a token** → it fails loudly. `AGENTS.md`'s `Ship tools:` and `Ship network:`
   are the run's own lines for what a repo needs.
 - **A push needs a repo-local credential helper** → it is already a held key, and that repo releases by hand.
+- **A person moves `origin` on purpose** → the next run halts, naming the file; they remove it, and that run keeps the new URLs.
 - **`.claude/` appears in a sandboxed repo** → measured in the probe; the drill shows whether a run minds it.
 - **A subagent's Bash is outside the sandbox** → the escape test is a `**HALT CHECK**`, and the design stops there.
 - **This change's own run is unsandboxed** → its build uses the installed conductor, and the drills use the worktree's.

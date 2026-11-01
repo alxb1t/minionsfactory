@@ -75,7 +75,7 @@ Run `status` and paste its output.
 | `status` prints | then |
 |---|---|
 | `run · live` | a run is live: report the status and the run log's last lines, then stop |
-| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects |
+| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects. When it says `origin` left the URLs a run kept, no re-run clears it: a person reads `git remote -v`, then repoints `origin`, or removes the file the halt names to keep the new URLs |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start
@@ -110,3 +110,4 @@ Then **stop**.
 - **Never start a second run** while one is live.
 - **Never edit or delete a run log.**
 - **Never pass `merge=yes`** anywhere but through the script.
+- **Never remove the file that keeps `origin`'s URLs** — that is the person's yes to a new URL.
