@@ -1,0 +1,49 @@
+{
+  "change": "0049-ship-resume",
+  "version": "v0.43",
+  "base": "d897227",
+  "analyzed": "5286d22",
+  "measured_on": "local",
+  "collected_at": "2026-11-01T08:06:20+02:00",
+  "mf_version": "v0.42.0-1-gd897227",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 12659
+    },
+    "shared-context": {
+      "value": 6656
+    },
+    "rule-ids": {
+      "value": 62
+    },
+    "tests-collected": {
+      "value": 83
+    },
+    "gate-seconds": {
+      "value": 126
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 48
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 24
+    }
+  }
+}

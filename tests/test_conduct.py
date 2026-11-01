@@ -10,6 +10,7 @@ import os
 import re
 import runpy
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -78,6 +79,19 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     for role in ("review", "security"):
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
         (folder / f"{change}_{role}.md").write_text(text)
+    log = folder / f"{change}_status_log.md"
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
+
+
+def _allow_origin(origin: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Name a fixture's local `origin` in the operator's global config."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(origin.parent / "operator.gitconfig"))
+    _git(origin.parent, "config", "--global", "mf-ship.localorigin", str(origin))
+
+
+def _lstart(pid: int) -> str:
+    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    return subprocess.run(command, capture_output=True, text=True).stdout.strip()
 
 
 def _conduct() -> dict[str, Any]:
@@ -133,7 +147,10 @@ def test_status_reads_each_stage_from_disk(
     _git(root, "worktree", "add", "-q", "-b", "0009-stray", str(stray))
     _commit(stray, {"stray.txt": "x\n"}, "not a version")
     assert stage() == "0001-todo · build"
+    tasks.write_text("## Progress\n\n- [x] 1 — One\n")
+    assert stage() == "0001-todo · build"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
+    _commit(tree, {}, "a human phase")
     assert stage().endswith(" · human")
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     _commit(tree, {}, "build")
@@ -156,7 +173,19 @@ def test_status_reads_each_stage_from_disk(
     marks.mkdir(parents=True)
     stage_of, find = conduct["stage_of"], conduct["find_version"]
     version = find(root, "0001-todo")
+    assert stage() == "0001-todo · integrate"
     assert stage_of(root, version)[1].startswith("interrupted")
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\ncat\n")
+    planted.chmod(0o755)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+    _git(root, "config", "filter.probe.clean", str(planted))
+    os.utime(tree / "AGENTS.md", (1, 1))
+    with pytest.raises(conduct["Stop"], match="filter.probe.clean"):
+        stage_of(root, version)
+    assert not ran.exists()
+    _git(root, "config", "--unset", "filter.probe.clean")
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.red").write_text("gate red\n")
@@ -191,23 +220,50 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("build") == (1, "check: build · fail — phase 1 unticked")
     tasks = tree / "openspec/changes/0001-todo/tasks.md"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
-    assert check("build") == (1, "check: build · fail — the tree is not clean")
+    assert check("build") == (1, "check: build · fail — phase 1 unticked")
     _commit(tree, {}, "build")
     assert check("build") == (0, "check: build · pass")
+    (tree / "stray.txt").write_text("x\n")
+    assert check("build") == (1, "check: build · fail — the tree is not clean")
+    (tree / "stray.txt").unlink()
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\ncat\n")
+    planted.chmod(0o755)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
 
+    def filtered(stage: str, seconds: int) -> None:
+        _git(tree, "config", "filter.probe.clean", str(planted))
+        os.utime(tasks, (seconds, seconds))
+        code, out = check(stage)
+        assert (code, "filter.probe.clean" in out) == (1, True)
+        assert not ran.exists()
+        _git(tree, "config", "--unset", "filter.probe.clean")
+
+    filtered("build", 1)
+
+    no_done = (1, "check: converge · fail — the status log has no done")
+    assert check("converge") == no_done
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
     assert check("converge") == (1, "check: converge · fail — no review findings file")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
     assert check("converge")[1].endswith(", not HEAD")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
     assert check("converge") == (
         1,
         "check: converge · fail — the status log halts: 10:00:00 · round 3 · halt"
         " — cap reached",
     )
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1 · done — x\n")
+    assert check("converge") == no_done
     log.unlink()
+    assert check("converge") == no_done
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert check("converge") == (0, "check: converge · pass")
+    filtered("converge", 2)
 
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert check("integrate")[1].startswith("check: integrate · fail — HEAD is not")
@@ -268,6 +324,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("release") == (0, "check: release · pass")
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _allow_origin(origin, monkeypatch)
     _git(root, "remote", "add", "origin", str(origin))
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
@@ -528,6 +585,19 @@ def test_after_waits_for_its_dependency(
     assert "chore(integrate): merge main into 0002-marks" in _git(
         crashed, "log", "--format=%s", "0002-marks"
     )
+
+    fourth = tmp_path / "fourth"
+    fourth.mkdir()
+    hooked = _primary(fourth)
+    waiting = _version(hooked, "0002-marks", "- [ ] 1 — Marks\n")
+    _commit(hooked, {"moved.txt": "x\n"}, "main moves")
+    ran = tmp_path / "merge-hook-ran.txt"
+    _git(hooked, "config", "hook.probe.event", "pre-commit")
+    _git(hooked, "config", "hook.probe.command", f"touch {shlex.quote(str(ran))}")
+    with pytest.raises(conduct["Stop"], match="hook.probe.event"):
+        conduct["Run"](hooked, "claude").merge_in(waiting, "0002-marks", "main")
+    assert not ran.exists()
+    assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
 
 def test_a_halted_dependency_blocks_a_chain(
@@ -832,6 +902,390 @@ def test_run_halts_on_a_timeout(
     )
 
 
+def test_a_dead_converge_halts_and_a_rerun_finishes_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-converge")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "release 0001-todo" not in _calls(calls)
+    assert _git(root, "tag", "-l") == ""
+    assert any(
+        line.endswith(" · 0001-todo · halt — converge worker exit 1")
+        for line in _log(root)
+    )
+    head = _git(tree, "rev-parse", "HEAD")
+    findings = root / ".minions" / "findings"
+    assert f"head: {head}\n" in (findings / "0001-todo_review.md").read_text()
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.strip() == "0001-todo · converge"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    assert stage_of(root, find(root, "0001-todo"))[1] == (
+        "unfinished run: 10:00:00 · round 1 · pickup — R1"
+    )
+
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
+def test_a_rerun_recovers_a_dead_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-release-fold")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def run(code: int) -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+
+    def stage() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    run(1)
+    assert _git(tree, "status", "--porcelain")
+    assert _git(root, "tag", "-l") == ""
+    assert stage() == "0001-todo · release"
+    calls.unlink()
+    fake()
+    run(0)
+    assert _calls(calls) == ["probe", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink()
+    fake("dies-release-tag")
+    run(1)
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
+    assert stage() == "0002-marks · release"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    assert stage_of(root, find(root, "0002-marks"))[1] == (
+        "v0.2.0 is tagged; the merge is left"
+    )
+    calls.unlink()
+    fake()
+    run(0)
+    assert _calls(calls) == ["probe", "release 0002-marks"]
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "branch", "--no-merged", "main") == ""
+
+    _version(root, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    fake("dies-release-tag")
+    run(1)
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    assert stage() == "0003-more · released"
+    calls.unlink()
+    fake()
+    run(1)
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(
+            " · 0003-more · halt — released — v0.3.0 is tagged; main moved, so recover"
+            " by hand: git tag -d v0.3.0, git reset --hard HEAD~1, then"
+            " /mf-integrate 0003-more, /mf-converge, /mf-release"
+        )
+        for line in _log(root)
+    )
+    _git(root, "tag", "-d", "v0.3.0")
+    assert stage_of(root, find(root, "0003-more")) == (
+        "released",
+        "v0.3.0 is not tagged; main moved, so recover by hand: git reset --hard HEAD~1,"
+        " then /mf-integrate 0003-more, /mf-converge, /mf-release",
+    )
+    _git(root, "tag", "v0.3.0", "0003-more")
+
+    def last() -> str:
+        return stage().splitlines()[-1]
+
+    _version(root, "0004-four", "- [ ] 1 — Four\n")
+    fake("dies-release-commit")
+    run(1)
+    assert "v0.4.0" not in _git(root, "tag", "-l").split()
+    assert last() == "0004-four · release"
+    assert stage_of(root, find(root, "0004-four"))[1] == (
+        "v0.4.0 is not tagged; the merge is left"
+    )
+    calls.unlink()
+    fake()
+    run(1)
+    assert "release 0004-four" in _calls(calls)
+    assert "v0.4.0" in _git(root, "tag", "-l").split()
+    assert "0004-four" not in _git(root, "branch", "--no-merged", "main")
+
+    _version(root, "0005-five", "- [ ] 1 — Five\n")
+    calls.unlink()
+    fake("stops-release-tag")
+    run(1)
+    assert "v0.5.0" in _git(root, "tag", "-l").split()
+    assert last() == "0005-five · released"
+    assert stage_of(root, find(root, "0005-five"))[1] == (
+        "v0.5.0 is tagged; the release stopped before its merge:"
+        " /mf-release 0005-five merges it on a person's yes"
+    )
+    calls.unlink()
+    fake()
+    run(1)
+    assert "release 0005-five" not in _calls(calls)
+
+    forged = _version(root, "0006-six", "- [ ] 1 — Six\n")
+    _git(forged, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    assert last() == "0006-six · released"
+    assert stage_of(root, find(root, "0006-six"))[1] == (
+        "v0.1.0 is tagged on another commit: a person reads this tip"
+    )
+    subject = "chore(release): v9.0.0"
+    _git(forged, "commit", "-q", "--amend", "--allow-empty", "-m", subject)
+    assert last() == "0006-six · released"
+    assert stage_of(root, find(root, "0006-six"))[1] == (
+        "v9.0.0 is not tagged; no review findings file: a person reads this tip"
+    )
+    _findings(root, "0006-six", _git(forged, "rev-parse", "HEAD~1"))
+    _git(forged, "tag", "v9.0.0")
+    assert last() == "0006-six · released"
+
+
+def test_a_rerun_pushes_what_a_release_left(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _allow_origin(origin, monkeypatch)
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _commit(root, {"released.txt": "x\n"}, "merge the release")
+    _git(root, "tag", "-a", "-m", "v0.1.0", "v0.1.0")
+    _git(root, "tag", "unrelated")
+
+    def status() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
+    def run(code: int) -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+
+    assert status() == "run · unpushed main v0.1.0"
+    _git(root, "config", "--global", "hook.operator.event", "pre-push")
+    _git(root, "config", "--global", "hook.operator.command", "exit 1")
+    run(0)
+    _git(root, "config", "--global", "--remove-section", "hook.operator")
+    assert _calls(calls) == []
+    lines = _log(root)
+    assert [line.split(" · ", 1)[1] for line in lines[1:]] == [
+        "run · push — main",
+        "run · push — v0.1.0",
+        "run · done — nothing to ship",
+    ]
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert (
+        _main(conduct, root, "log", "--verify", str(log), monkeypatch=monkeypatch) == 0
+    )
+    head = _git(root, "rev-parse", "main")
+    assert head in _git(root, "ls-remote", "origin", "refs/heads/main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert status() == "status: none — no open version"
+
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    _commit(root, {"ours.txt": "x\n"}, "main moves")
+    assert status() == "run · unpushed main"
+    run(1)
+    assert _calls(calls) == []
+    lines = _log(root)
+    assert lines[-2].endswith(" · run · halt — git push origin main failed, exit 1")
+    assert lines[-1].endswith(
+        " · run · halt — halted run · blocked none · released none"
+    )
+    assert head in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
+
+    _git(root, "config", "protocol.version", "2")
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+
+    ran = tmp_path / "ran.txt"
+    planted = tmp_path / "planted.sh"
+    planted.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(ran))}\nexit 1\n")
+    planted.chmod(0o755)
+    _git(root, "config", "remote.origin.uploadpack", str(planted))
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    assert "remote.origin.uploadpack" in capsys.readouterr().out
+    run(1)
+    assert not ran.exists()
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert " · run · halt — conduct: halt — " in log.read_text()
+    _git(root, "config", "--unset", "remote.origin.uploadpack")
+
+    def refused(named: str) -> None:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+        assert named in capsys.readouterr().out
+        run(1)
+        assert not ran.exists()
+
+    command = str(planted)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+    os.utime(root / "AGENTS.md", (1, 1))
+    _git(root, "config", "filter.probe.clean", command)
+    refused("filter.probe.clean")
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert "filter.probe.clean" in log.read_text()
+    _git(root, "config", "--unset", "filter.probe.clean")
+    for key, value in (
+        ("hook.probe.event", "pre-push"),
+        ("hook.probe.command", command),
+        ("filter.probe.clean", command),
+        ("merge.probe.driver", command),
+        ("include.path", "absent.gitconfig"),
+        ("a.key.git.adds.later", command),
+    ):
+        _git(root, "config", key, value)
+        refused(key)
+        _git(root, "config", "--unset", key)
+
+    elsewhere = tmp_path / "elsewhere.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(elsewhere))
+    hook = elsewhere / "hooks" / "pre-receive"
+    hook.write_text(planted.read_text())
+    hook.chmod(0o755)
+    _git(root, "config", "remote.origin.pushurl", str(elsewhere))
+    refused("remote.origin.pushurl")
+    _git(root, "config", "--unset", "remote.origin.pushurl")
+    for url in (
+        str(elsewhere),
+        f"file://{elsewhere}",
+        "./elsewhere.git",
+        f"ext::{command}",
+    ):
+        _git(root, "remote", "set-url", "origin", url)
+        refused("origin")
+    for url in ("https://example.invalid/r.git", "git@example.invalid:r.git"):
+        assert conduct["NETWORK_URL"].fullmatch(url)
+
+    _git(root, "remote", "remove", "origin")
+    _git(root, "config", "hook.probe.event", "pre-push")
+    refused("hook.probe.event")
+    log = conduct["last_log"](root / ".minions" / "runs")
+    assert "hook.probe.event" in log.read_text()
+
+
+def test_a_stale_claim_is_cleared(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+
+    def status() -> list[str]:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip().splitlines()
+
+    stale = ["run · stale — a run clears it", "0001-todo · build"]
+    assert status() == stale
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    (active / "pid").write_text(str(dead.pid))
+    assert status() == stale
+
+    (active / "pid").write_text(str(os.getpid()))
+    assert status() == ["run · live", "0001-todo · build"]
+    capsys.readouterr()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert "a run is live" in capsys.readouterr().out
+    assert _calls(calls) == []
+
+    (active / "pid").write_text(str(dead.pid))
+    group = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(group.pid)).write_text(_lstart(group.pid))
+    recycled = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
+    unstamped = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(unstamped.pid)).touch()
+    (active / "0").touch()
+    (active / "7").mkdir()
+    (active / "8").write_bytes(b"\xff")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert group.wait(timeout=10) == -signal.SIGKILL
+    assert (recycled.poll(), unstamped.poll()) == (None, None)
+    recycled.kill()
+    unstamped.kill()
+    assert "release 0001-todo" in _calls(calls)
+    assert not active.exists()
+
+
+def test_a_usage_limit_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("dies-limit")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build worker exit 1 · stopped by a usage limit"
+            " · resets 5:50pm (Europe/Athens)"
+        )
+        for line in _log(root)
+    )
+
+
 def test_run_refuses_without_worktrees_declared(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -948,6 +1402,27 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
             conduct["_tier"](root / ".minions", "0002-tier")
         assert repr(value) in str(stop.value) and "\n" not in str(stop.value)
 
+    work = conduct["work"]
+    claim = tmp_path / "claim"
+    claim.mkdir()
+    sees_itself = (
+        "import os, sys, time\n"
+        "for _ in range(500):\n"
+        "    held = os.listdir(sys.argv[1])\n"
+        "    if held == [str(os.getpid())]:\n"
+        "        if open(os.path.join(sys.argv[1], held[0])).read().strip():\n"
+        "            sys.exit(0)\n"
+        "    time.sleep(0.01)\n"
+        "sys.exit(1)\n"
+    )
+    command = [sys.executable, "-c", sees_itself, str(claim)]
+    assert work(command, tmp_path, tmp_path / "held.log", claim) == (0, False)
+    assert list(claim.iterdir()) == []
+    assert work([sys.executable, "-c", ""], tmp_path, tmp_path / "w.log", None) == (
+        0,
+        False,
+    )
+
     calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None) == [
         sys.executable,
@@ -1008,6 +1483,15 @@ def _fake(prompt: str) -> None:
             ]
         for block in blocks:
             print(json.dumps({"message": {"content": [block]}}))
+    if station == "build" and "dies-limit" in modes:
+        event = {
+            "type": "result",
+            "is_error": True,
+            "api_error_status": 429,
+            "result": "You've hit your limit · resets 5:50pm (Europe/Athens)",
+        }
+        print(json.dumps(event))
+        sys.exit(1)
     if station == "build" and "sleep" in modes:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
@@ -1030,6 +1514,10 @@ def _fake(prompt: str) -> None:
         _commit(here, files, "build")
     elif station == "converge":
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
+        if "dies-converge" in modes:
+            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
+            sys.exit(1)
     elif station == "integrate":
         message = f"chore(integrate): merge main into {change}"
         _git(
@@ -1044,15 +1532,30 @@ def _fake(prompt: str) -> None:
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
         tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
-        _git(
-            here,
-            "mv",
-            f"openspec/changes/{change}",
-            f"openspec/changes/archive/{change}",
-        )
-        _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
-        _git(here, "tag", tag)
+        subject = _git(here, "log", "-1", "--format=%s")
+        if subject.startswith("chore(release): "):
+            named = subject.removeprefix("chore(release): ")
+            if not _git(here, "tag", "-l", named):
+                _git(here, "tag", named)
+        else:
+            _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
+            (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
+            _git(
+                here,
+                "mv",
+                f"openspec/changes/{change}",
+                f"openspec/changes/archive/{change}",
+            )
+            if "dies-release-fold" in modes:
+                sys.exit(1)
+            _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
+            if "dies-release-commit" in modes:
+                sys.exit(1)
+            _git(here, "tag", tag)
+            if "dies-release-tag" in modes:
+                sys.exit(1)
+            if "stops-release-tag" in modes:
+                return
         _git(
             primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
         )

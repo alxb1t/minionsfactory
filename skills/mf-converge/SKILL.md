@@ -61,7 +61,7 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
 
 - **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from `date '+%H:%M:%S'`,
   run through Bash, never by hand: a stale time is how a dead run shows.
-- **A run** is one invocation. Open it once you have the change id and have checked for a catch-up round, so a
+- **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
   catch-up run's heading ends `· catch-up`: `mkdir -p .minions/findings`, create the file with a
   `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
   under the title.
@@ -112,6 +112,24 @@ build transcript: never a resumed worker or a fork of the producer's conversatio
 can start workers, wait for them, and read their named outputs on shared disk; it cannot → halt naming the
 capability, never review inline. Prefer parallel dispatch; sequential workers over the same frozen head are
 allowed. Every checker of a round finishes before any fixer starts.
+
+## Resuming a run
+
+Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
+`## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
+**A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
+
+| latest event | go on at |
+|---|---|
+| `start` | Step 2, or a catch-up run's freeze |
+| `freeze` | a verify round → Step 7; else Step 3 |
+| `fan-out` | the same, for each role whose findings file has not judged this round's freeze |
+| `verdicts` | Step 5 |
+| `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
+| `verify` | Step 7 |
+| `pickup` | Step 8 item 4, the same ids |
+| `backlog` | Step 10 |
+| `catch-up` | [Catch-up round](#catch-up-round) |
 
 ## Catch-up round
 
