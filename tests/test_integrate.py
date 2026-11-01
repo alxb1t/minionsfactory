@@ -78,6 +78,30 @@ def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     assert result.stdout.startswith("next: 0010-later · ")
     assert result.stdout.endswith(" · ready\n")
 
+    forged = tmp_path / "zz-forged"
+    forged.mkdir()
+    entry = root / ".git" / "worktrees" / "zz-forged"
+    entry.mkdir()
+    (entry / "HEAD").write_text("ref: refs/heads/0010-later\n")
+    (entry / "commondir").write_text("../..\n")
+    (entry / "gitdir").write_text(f"{forged}/.git\n")
+    assert f"worktree {forged.resolve()}\n" in _git(
+        root, "worktree", "list", "--porcelain"
+    )
+    result = _run(root, "next", "0010-later")
+    assert f" · {later.resolve()} · " in result.stdout
+    (forged / ".git").mkdir()
+    assert f" · {later.resolve()} · " in _run(root, "next", "0010-later").stdout
+    (forged / ".git").rmdir()
+    (forged / ".git").write_text(f"gitdir: {tmp_path}/other/.git/worktrees/x\n")
+    assert f" · {later.resolve()} · " in _run(root, "next", "0010-later").stdout
+
+    pointer = later / ".git"
+    absolute = pointer.read_text()
+    pointer.write_text("gitdir: ../main/.git/worktrees/0010-later\n")
+    assert f" · {later.resolve()} · " in _run(root, "next", "0010-later").stdout
+    pointer.write_text(absolute)
+
     result = _run(root, "next", "009-early")
     assert result.returncode == 1
     assert "next: 009-early · " in result.stdout

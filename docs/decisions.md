@@ -449,5 +449,7 @@ disk: only a stage left in `HALTS` needs the person. Converge runs at the tier t
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
+- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
+  worker reaches the primary and the open worktrees alone.
 - **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it, though `make`, `uv` and `python3` still run any code.

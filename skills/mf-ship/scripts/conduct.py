@@ -21,6 +21,7 @@ import itertools
 import json
 import os
 import re
+import runpy
 import shlex
 import shutil
 import signal
@@ -30,6 +31,7 @@ import tempfile
 import threading
 import time
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,6 +55,7 @@ STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
 TIERS = ("standard", "high")
+EXECUTORS = ("claude", "codex")
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -96,6 +99,8 @@ SCRATCH_IDENTITY = (
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 # These stop a directory's hooks only; `CONFIG_PLAIN` stops a `hook.*` key's.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# A primary checkout and its common directory, None outside a repo.
+type Repo = tuple[Path, Path | None]
 # The only keys a repo's own config may hold: each names no program, and any other
 # halts, so a key git adds later fails closed.
 CONFIG_PLAIN = re.compile(
@@ -199,15 +204,13 @@ def primary_of(cwd: Path) -> Path:
     return common.parent
 
 
-def _root(cwd: Path) -> Path:
-    """Return the primary checkout of the repo holding `cwd`, or `cwd` outside one."""
+def _repo(cwd: Path) -> Repo:
+    """Return the primary checkout and common directory; outside a repo, `cwd`, None.
+
+    Taken once, before the first worker: git's answer in a tree is worker-written.
+    """
     common = _common_dir(cwd)
-    return common.parent if common else cwd.resolve()
-
-
-def run_dir(cwd: Path) -> Path:
-    """Return `.minions/` beside the primary checkout, or in `cwd` outside a repo."""
-    return _root(cwd) / ".minions"
+    return (common.parent, common) if common else (cwd.resolve(), None)
 
 
 def _frontmatter(text: str, key: str) -> str | None:
@@ -256,13 +259,30 @@ class Version:
         return int(self.change.split("-")[0])
 
 
+def _points_back(tree: Path, common: Path) -> bool:
+    """Return whether `tree`'s `.git` file names an entry of `common`'s worktrees.
+
+    e.g. "gitdir: <common>/worktrees/0001-todo" → True
+    """
+    link = tree / ".git"
+    text = link.read_text(errors="replace") if link.is_file() else ""
+    found = re.fullmatch(r"gitdir: (.+)\n?", text)
+    return found is not None and (tree / found[1]).resolve().parent == (
+        common / "worktrees"
+    )
+
+
 def _worktrees(primary: Path) -> dict[str, Path]:
     """Map each checked-out branch to its worktree."""
     found: dict[str, Path] = {}
+    main = primary.resolve()
     path = None
     for line in _git(primary, "worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
             path = Path(line.removeprefix("worktree ")).resolve()
+            # Why: 0050-codex-review design D5.
+            if path != main and not _points_back(path, main / ".git"):
+                path = None
         elif line.startswith("branch refs/heads/") and path:
             found[line.removeprefix("branch refs/heads/")] = path
     return found
@@ -408,29 +428,27 @@ def _dirty(tree: Path) -> bool:
     return bool(_git(tree, "status", "--porcelain").strip())
 
 
-def _delta(tree: Path) -> list[str]:
-    """Return the lines `integrate.py delta` names; a crash of it stops with exit 2."""
+def _delta(delta: Callable[[Path], str], tree: Path) -> list[str]:
+    """Return the lines `integrate.py`'s `delta` names; a crash stops with exit 2."""
     try:
-        done = subprocess.run(
-            [sys.executable, str(INTEGRATE), "delta", str(tree)],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        raise Stop(2, "conduct: cannot run — integrate.py delta timed out") from None
-    if done.returncode == 0:
-        return []
-    moved = [line for line in done.stdout.splitlines() if line.startswith(MOVED)]
-    if done.returncode == 1 and moved:
-        return moved
-    said = (done.stdout or done.stderr).strip().splitlines()
-    raise Stop(
-        2,
-        "conduct: cannot run — integrate.py delta: "
-        + (said[-1] if said else f"exit {done.returncode}"),
-    )
+        delta(tree)
+    except Exception as error:
+        code = getattr(error, "code", None)
+        said = str(error).splitlines() if code else [f"{type(error).__name__}: {error}"]
+        moved = [line for line in said if line.startswith(MOVED)]
+        if code == 1 and moved:
+            return moved
+        raise Stop(2, f"conduct: cannot run — integrate.py delta: {said[-1]}") from None
+    return []
+
+
+def _git_state(primary: Path) -> list[str]:
+    """Return the common directory's `config` and `info/attributes`, or "" if none."""
+    common = primary / ".git"
+    files = (common / "config", common / "info" / "attributes")
+    return [
+        file.read_text(errors="replace") if file.is_file() else "" for file in files
+    ]
 
 
 def _note(tree: Path, change: str, moved: list[str]) -> str:
@@ -789,17 +807,24 @@ def _table(runs: Path, change: str, name: str) -> dict[str, object]:
     return table if isinstance(table, dict) else {}
 
 
-def _models(runs: Path, change: str, station: str) -> tuple[str | None, str | None]:
-    """Return the station's model and effort from the cut's models file, or Nones.
+def _models(
+    runs: Path, change: str, station: str, run: str
+) -> tuple[str, str | None, str | None]:
+    """Return the station's executor, model and effort from the cut's models file.
 
-    Integrate uses the `[release]` table.
+    Integrate uses the `[release]` table. An absent executor is the run's, `run`;
+    an absent model or effort is None. A table no executor can run halts the version.
     """
     table = _table(runs, change, "release" if station == "integrate" else station)
+    executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
-    return (
-        model if isinstance(model, str) else None,
-        effort if isinstance(effort, str) else None,
-    )
+    model = model if isinstance(model, str) else None
+    file = f"models/{change}.toml"
+    if executor not in EXECUTORS:
+        raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
+    if executor == "codex" and (model or "").startswith("claude"):
+        raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
+    return str(executor), model, effort if isinstance(effort, str) else None
 
 
 def _tier(runs: Path, change: str) -> str:
@@ -818,19 +843,28 @@ def _tier(runs: Path, change: str) -> str:
     return f" with tier={tier}"
 
 
-def edit_root(cwd: Path) -> Path:
-    """Return the directory a worker may edit: `Worktrees:`, resolved, else `cwd`."""
-    root = _root(cwd)
-    values = _agents_values(root, "Worktrees")
-    return (root / values[0]).resolve() if values else cwd.resolve()
+def reach(primary: Path) -> list[Path]:
+    """Return what a worker may edit: the primary and each linked worktree.
+
+    A path inside another stays covered and unlisted, so no listed path can be
+    swapped for a symlink by a worker. Why: 0050-codex-review design D5.
+    """
+    root = primary.resolve()
+    if _common_dir(root) is None:
+        return [root]
+    trees = [root]
+    for path in sorted(_worktrees(root).values()):
+        if not any(path.is_relative_to(tree) for tree in trees):
+            trees.append(path)
+    return trees
 
 
-def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
-    """Return the Claude worker's allowed and denied rules, editing inside `tree`."""
-    extra = _agents_values(_root(cwd), "Ship tools") or []
+def allowlist(primary: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
+    """Return the Claude worker's allowed and denied rules, editing inside `trees`."""
+    extra = _agents_values(primary, "Ship tools") or []
     allowed = [
         *TOOLS,
-        f"Edit(/{tree}/**)",
+        *(f"Edit(/{tree}/**)" for tree in trees),
         *(f"Bash({command}:*)" for command in (*COMMANDS, *extra)),
     ]
     denied = [f"Bash({command}:*)" for command in DENIED]
@@ -845,33 +879,48 @@ def allowlist(cwd: Path, tree: Path) -> tuple[list[str], list[str]]:
 
 
 def argv(
-    executor: str, prompt: str, cwd: Path, model: str | None, effort: str | None
+    executor: str,
+    prompt: str,
+    cwd: Path,
+    model: str | None,
+    effort: str | None,
+    repo: Repo,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
-    `MF_SHIP_AGENT` replaces the executor.
+    `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
+    `.git` no longer resolves to the common directory in `repo`.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
+    primary, common = repo
+    trees = reach(primary)
     if executor == "claude":
-        tree = edit_root(cwd)
-        allowed, denied = allowlist(cwd, tree)
+        allowed, denied = allowlist(primary, trees)
         return [
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
-            *("--add-dir", str(tree)),
+            *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
-    common = _common_dir(cwd)
-    roots = [str(run_dir(cwd)), *([str(common)] if common else []), str(edit_root(cwd))]
+    # Why: 0050-codex-review design D5.
+    if common and _common_dir(primary) != common:
+        raise Stop(1, "conduct: halt — the primary's .git moved during the run")
+    roots = [*([str(common)] if common else []), *(str(tree) for tree in trees)]
+    # Why: 0050-codex-review design D4.
+    system = "/usr/bin:/bin:/usr/sbin:/sbin"
+    path = f"PATH={system}:{os.environ.get('PATH', '')}"
+    env = ("env", f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}", path)
     return [
+        *env,
         *("codex", "exec"),
         *(("-m", model) if model else ()),
         *(("-c", f"model_reasoning_effort={effort}") if effort else ()),
         *("-s", "workspace-write"),
+        *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         *("-c", "sandbox_workspace_write.network_access=true"),
         *("-C", str(cwd), prompt),
@@ -1047,9 +1096,15 @@ def _clear(active: Path) -> None:
 
 def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
-    git_dir = _maybe(cwd, "rev-parse", "--path-format=absolute", "--git-dir")
+    top = _maybe(cwd, "rev-parse", "--show-toplevel")
     common = _common_dir(cwd)
-    if git_dir is None or common is None or Path(git_dir.strip()).resolve() != common:
+    # Why: 0050-codex-review design D5.
+    if (
+        top is None
+        or common is None
+        or Path(top.strip()).resolve() != common.parent
+        or not cwd.resolve().is_relative_to(common.parent)
+    ):
         raise Stop(2, "run: cannot run — the cwd is not the primary checkout")
     primary = common.parent
     default = default_branch(primary)
@@ -1071,8 +1126,11 @@ class Run:
     """One ship run: the probe, then every open version to the default branch."""
 
     def __init__(self, primary: Path, executor: str) -> None:
-        """Open the run log under the primary's run directory."""
+        """Load `integrate.py`, and open the run log in the primary's run directory."""
+        self.delta = runpy.run_path(str(INTEGRATE))["delta"]
+        self.git_state: list[str] = []
         self.primary = primary
+        self.repo = _repo(primary)
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -1112,22 +1170,20 @@ class Run:
         station: str,
         cwd: Path,
         prompt: str,
-        models: tuple[str | None, str | None] = (None, None),
+        models: tuple[str, str | None, str | None],
+        repo: Repo | None = None,
     ) -> list[str] | None:
-        """Run one worker and log it and its denials.
+        """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout or a failed exit halted `who`.
         """
-        model, effort = models
-        self.log.event(who, "spawn", f"{station} · model {model or 'default'}")
+        executor, model, effort = models
+        command = argv(executor, prompt, cwd, model, effort, repo or self.repo)
+        other = f" · executor {executor}" if executor != self.executor else ""
+        self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
         out = self.runs / self.log.stamp / f"{who}_{station}.log"
         started = time.monotonic()
-        code, killed = work(
-            argv(self.executor, prompt, cwd, model, effort),
-            cwd,
-            out,
-            self.runs / "active",
-        )
+        code, killed = work(command, cwd, out, self.runs / "active")
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         denied = denials(out)
@@ -1172,7 +1228,7 @@ class Run:
                 minions = self.primary / ".minions"
                 tier = _tier(minions, version.change) if stage == "converge" else ""
                 prompt = PROMPTS[stage].format(change=version.change, tier=tier)
-                models = _models(minions, version.change, stage)
+                models = _models(minions, version.change, stage, self.executor)
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
@@ -1212,6 +1268,8 @@ class Run:
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
         """
+        if _git_state(self.primary) != self.git_state:
+            raise Stop(1, "the local git config changed during the run")
         note = self.primary / ".minions" / "integrate" / f"{change}.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
@@ -1219,7 +1277,7 @@ class Run:
         _refuse_config_commands(tree)
         if not opened:
             _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
-        if moved := _delta(tree):
+        if moved := _delta(self.delta, tree):
             note.parent.mkdir(parents=True, exist_ok=True)
             note.write_text(_note(tree, change, moved))
             return
@@ -1229,6 +1287,10 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
+            for station in STATIONS:
+                _models(
+                    self.primary / ".minions", version.change, station, self.executor
+                )
             if not self.ready(version, threads):
                 return
             self.advance(version, ("integrate", "release"))
@@ -1240,8 +1302,29 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
-    def probe(self) -> None:
+    def executors(self, versions: list[Version]) -> list[str]:
+        """Return the run's executor, then each other one the versions' tables name.
+
+        A table `_models` refuses names none: its version halts in `take`.
+        """
+        found = [self.executor]
+        for version, station in itertools.product(versions, STATIONS):
+            try:
+                executor, *_ = _models(
+                    self.primary / ".minions", version.change, station, self.executor
+                )
+            except (Stop, ValueError):
+                continue
+            if executor not in found:
+                found.append(executor)
+        return found
+
+    def probe(self, executor: str) -> None:
         """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
+        station = "probe" if executor == self.executor else f"probe-{executor}"
+        if _executor_missing(executor):
+            self.halt("run", f"{station} — {executor} is not on PATH")
+            return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         try:
             _git(scratch, "init", "-q", "-b", "main")
@@ -1249,9 +1332,11 @@ class Run:
             (scratch / ".gitignore").write_text(".gated\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
-            denied = self.spawn("run", "probe", scratch, PROBE)
+            models = (executor, None, None)
+            repo = _repo(scratch)
+            denied = self.spawn("run", station, scratch, PROBE, models, repo)
             if denied is not None:
-                self.judge("run", "probe", check_probe(scratch), denied)
+                self.judge("run", station, check_probe(scratch), denied)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 
@@ -1273,6 +1358,7 @@ class Run:
 
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
+        self.git_state = _git_state(self.primary)
         versions = open_versions(self.primary)
         permissions = "allowlist" if self.executor == "claude" else "workspace-write"
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
@@ -1300,7 +1386,10 @@ class Run:
                 else:
                     self.halt(change, f"{stage} — {why}")
         else:
-            self.probe()
+            for executor in self.executors(versions):
+                self.probe(executor)
+                if self.halts:
+                    break
         if not (self.halts or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:
@@ -1365,8 +1454,9 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
     if _executor_missing(executor):
         raise Stop(2, f"agent: cannot run — {executor} is not on PATH")
     stamp = time.strftime(STAMP)
-    out = run_dir(cwd) / "runs" / f"agent-{stamp}.log"
-    code, killed = work(argv(executor, prompt, cwd, None, None), cwd, out, None)
+    repo = _repo(cwd)
+    out = repo[0] / ".minions" / "runs" / f"agent-{stamp}.log"
+    code, killed = work(argv(executor, prompt, cwd, None, None, repo), cwd, out, None)
     for denied in denials(out):
         print(f"agent: denied — {denied}")
     print(f"agent: exit {code}{' · timed out' if killed else ''} · {out}")

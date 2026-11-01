@@ -282,6 +282,7 @@ effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
 tier = "standard"     # "high" when the change touches auth, the gate, migrations, CI or the review skills
+executor = "codex"  # optional, per table; absent, the run's. A cross-host pairing is usually the person's edit
 [release]
 model = "<offered model>"
 ```
