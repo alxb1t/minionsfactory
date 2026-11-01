@@ -128,6 +128,11 @@ Under `../mf_codex_probe/`, from this worktree, under the shell rules, per
   ../../0050-codex-review/skills/mf-ship/scripts/conduct.py agent --executor codex "Run the skill at
   ../../0050-codex-review/skills/mf-converge/SKILL.md for change 0002-discount with tier=standard."`
 - **The bar** — Claude's: `seeded` 5 of 5, `clean` no blocker.
+- **The score, settled by the person.** D10's pass reads a card in the findings files, whatever its role, so `seeded` is 5 of 5:
+  review's `R4` carries the traversal row, and Codex's security role refuted it. Do not re-run the fixtures. Write
+  `seeded: 5 of 5 · R4 carries row 5 · Codex's security role refuted it · gpt-6.1-sol, medium` and
+  `clean: no blocker · gpt-6.1-sol, medium`. One sample at `medium` proves a converge runs on Codex, and does not rank it
+  against Claude: `mf-review-metrics` does that over time.
 - **`cross`** — a repo with `Worktrees: ../` and a one-line `make gate`, one cut change `0001-note` with one phase, and
   `.minions/models/0001-note.toml` naming `executor = "codex"` under `[converge]`. `uv run --directory ../mf_codex_probe/cross
   --script ../../0050-codex-review/skills/mf-ship/scripts/conduct.py run --executor claude`. The worktree's script, since the
