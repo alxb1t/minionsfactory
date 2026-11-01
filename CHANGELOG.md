@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lost its tree and on a person's version-shaped tag, a hand `/mf-release` passes a flag, an LFS repo still halts because a run
   cannot upload, and `THREAT_MODEL.md` keeps `0049·S5`'s hostile route and `0049·R15`'s LFS route open (change
   `0051-reliability-paydown`, converge fixes R1, R2, R3, R4, R5, R6, R7, S1, S2 and S3).
+- A start time reads the same in any zone or locale, a running process `ps` cannot read exits 2 rather than reading stale, and
+  a run clears a stale claim before it detaches, so its stop reaches `/mf-ship`. `/mf-ship stop` closes the log when a group
+  stays, an LFS key's halt sends the repo to a hand release, and a hand `/mf-release` names a flag beside its ask (change
+  `0051-reliability-paydown`, converge fixes R7, R15, R16, R17, R18, R19 and S7).
 
 ## [0.44.0] - 2026-11-01
 

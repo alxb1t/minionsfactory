@@ -666,14 +666,20 @@ def _config_held(cwd: Path) -> list[str]:
 def _refuse_config_commands(cwd: Path) -> None:
     """Stop with 1 when the repo's own git config holds a key `CONFIG_PLAIN` lacks.
 
-    A worker can write that file, and the conductor runs outside its sandbox.
+    A worker can write that file, and the conductor runs outside its sandbox. An LFS
+    key stays where it is: with it gone, a run's push would send pointers alone.
     """
     if held := _config_held(cwd):
+        remedy = "move it to the global config or remove it"
+        if any(name.startswith(("lfs.", "filter.lfs.")) for name in held):
+            remedy = (
+                "a run cannot upload LFS objects: keep the key, and release this repo"
+                " by hand"
+            )
         raise Stop(
             1,
             "conduct: halt — the repo's git config holds a key that could name a"
-            f" program: {' '.join(dict.fromkeys(held))}; move it to the global config"
-            " or remove it",
+            f" program: {' '.join(dict.fromkeys(held))}; {remedy}",
         )
 
 
@@ -1106,6 +1112,8 @@ def _executor_missing(executor: str) -> bool:
 def _ps(pid: int, field: str) -> str:
     """Return the `ps` field for `pid`, or "" when it cannot.
 
+    A claim compares start times across processes, and `lstart` follows the caller's
+    zone and locale, so both are fixed here.
     e.g. 501, "comm=" → "claude"
     """
     command = ["ps", "-o", field, "-p", str(pid)]
@@ -1114,12 +1122,29 @@ def _ps(pid: int, field: str) -> str:
             command,
             capture_output=True,
             encoding="utf-8",
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC0"},
             errors="replace",
             timeout=GIT_TIMEOUT,
         )
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return done.stdout.strip()
+
+
+def _started(pid: int) -> str:
+    """Return the start time of `pid`, above 1, or "" when it is gone.
+
+    A failed `ps` is not a dead process: one still running stops with 2.
+    """
+    if started := _ps(pid, "lstart="):
+        return started
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, OverflowError):
+        return ""
+    except PermissionError:
+        pass
+    raise Stop(2, f"conduct: cannot run — ps cannot read pid {pid}, which is running")
 
 
 def _conductor(active: Path) -> int | None:
@@ -1133,7 +1158,7 @@ def _conductor(active: Path) -> int | None:
         held = (active / "start").read_text().strip()
     except (OSError, ValueError):
         return None
-    return pid if pid > 1 and held and held == _ps(pid, "lstart=") else None
+    return pid if pid > 1 and held and held == _started(pid) else None
 
 
 def _claim(active: Path) -> str:
@@ -1157,7 +1182,7 @@ def _clear(active: Path) -> None:
         if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
             group = int(entry.name)
             held = entry.read_text(errors="replace").strip()
-            if not held or held != _ps(group, "lstart="):
+            if not held or held != _started(group):
                 continue
             leader = _ps(group, "comm=")
             if not any(executor in leader for executor in EXECUTORS):
@@ -1169,13 +1194,16 @@ def _clear(active: Path) -> None:
                 continue
             except (OSError, OverflowError) as error:
                 raise Stop(
-                    2, f"run: cannot run — worker group {group} survives: {error}"
+                    2,
+                    f"conduct: cannot clear the claim — worker group {group}"
+                    f" survives: {error}",
                 ) from None
     if foreign:
         raise Stop(
             2,
-            f"run: cannot run — worker group {', '.join(foreign)} names no executor:"
-            " read it, then kill it or remove its entry in .minions/runs/active",
+            f"conduct: cannot clear the claim — worker group {', '.join(foreign)}"
+            " names no executor: read it, then kill it or remove its entry in"
+            " .minions/runs/active",
         )
     shutil.rmtree(active)
 
@@ -1519,10 +1547,18 @@ class Run:
 
 
 def run(cwd: Path, executor: str, detach: bool) -> int:
-    """Start the loop, claimed by `.minions/runs/active`; detached, return at once."""
+    """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
+
+    A stale claim is cleared before the detach, so what stops that reaches the caller.
+    """
     primary = preconditions(cwd, executor)
+    if not (started := _ps(os.getpid(), "lstart=")):
+        raise Stop(2, "run: cannot run — ps cannot read this run's start time")
     runs = primary / ".minions" / "runs"
     runs.mkdir(parents=True, exist_ok=True)
+    active = runs / "active"
+    if _claim(active) == "stale":
+        _clear(active)
     if detach:
         with (runs / "detached.log").open("a") as sink:
             child = subprocess.Popen(
@@ -1536,9 +1572,6 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             )
         print(f"run: started · pid {child.pid}")
         return 0
-    active = runs / "active"
-    if _claim(active) == "stale":
-        _clear(active)
     try:
         active.mkdir()
     except FileExistsError:
@@ -1546,7 +1579,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
     try:
-        (active / "start").write_text(_ps(os.getpid(), "lstart="))
+        (active / "start").write_text(started)
         (active / "pid").write_text(str(os.getpid()))
         conductor = Run(primary, executor)
         try:
@@ -1565,7 +1598,9 @@ def stop_run(cwd: Path) -> str:
     """End the live run: the conductor first, so it spawns nothing more.
 
     The claim's groups go next, then a last line in the newest run log. Return that
-    log. Why: 0051-reliability-paydown design D5.
+    log. A group `_clear` cannot end stops with its exit, the claim kept and the line
+    written: with the conductor dead, a second stop could not write it. Why:
+    0051-reliability-paydown design D5.
     """
     runs = primary_of(cwd) / ".minions" / "runs"
     active = runs / "active"
@@ -1577,12 +1612,22 @@ def stop_run(cwd: Path) -> str:
         pass
     except PermissionError as error:
         raise Stop(2, f"stop: cannot run — the conductor survives: {error}") from None
-    _clear(active)
-    if (log := last_log(runs)) is None:
+    try:
+        _clear(active)
+    except Stop as stop:
+        _log_stop(runs)
+        raise Stop(stop.code, f"stop: conductor stopped · {stop}") from None
+    if (log := _log_stop(runs)) is None:
         return "stop: stopped · no run log"
-    with log.open("a") as file:
-        file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
     return f"stop: stopped · .minions/runs/{log.name}"
+
+
+def _log_stop(runs: Path) -> Path | None:
+    """Append the stop to the newest run log; return that log, or None with none."""
+    if (log := last_log(runs)) is not None:
+        with log.open("a") as file:
+            file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
+    return log
 
 
 def grant(cwd: Path, change: str, executor: str) -> int:
@@ -1621,7 +1666,7 @@ def status(cwd: Path) -> str:
     lines = {
         "none": [],
         "live": ["run · live"],
-        "stale": ["run · stale — a run clears it"],
+        "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
     if unpushed := _unpushed(primary):
         lines.append(f"run · unpushed {' '.join(unpushed)}")

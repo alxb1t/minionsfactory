@@ -69,8 +69,8 @@ Check first. `mf-ship` re-runs a release that died.
 
 - **`HEAD`'s subject is `chore(release): <tag>`** → that is the tag. When converge ran, both findings files must say
   `verdict: clean` with `head:` at `HEAD~1`, and `<tag>`, when it exists, must be on `HEAD`; else **halt**. `<tag>`
-  missing → run Step 4.5. Under `merge=yes`, read the preamble against the archived delta, as Step 2 does. A flag →
-  **halt**, before Step 5. Then go to Step 4.6, then Step 5.
+  missing → run Step 4.5. Read the preamble against the archived delta, as Step 2 does. Under `merge=yes`, a flag →
+  **halt**, before Step 5; by hand, name it beside the ask. Then go to Step 4.6, then Step 5.
 - **Under `merge=yes`, `git diff --cached --name-status` shows `tasks.md` renamed from `openspec/changes/<change-id>/`
   to `openspec/changes/archive/<change-id>/`, and the tree is dirty only under `openspec/`, in `CHANGELOG.md`, in the
   version file, or in `metrics/changes/<change-id>.json`** → a dead release's own work, all of it derived:

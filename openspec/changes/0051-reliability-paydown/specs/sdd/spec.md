@@ -4,7 +4,7 @@
 
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
 `integrate`. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
-archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge, under `merge=yes` after reading its preamble against the archived delta and halting on a flag,
+archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
 worker died and the person left no `.minions/release/<change-id>.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
@@ -19,7 +19,9 @@ fetch or push URL is not a network URL. The claim
 group with its leader's start time: a pid at or below 1, a dead pid or one that lost its start time is a stale claim, whose
 groups a run kills, each only while its leader keeps that start time and names an executor, before it clears the claim and
 starts, and `status` SHALL name it. A group that keeps its start time and names no executor SHALL stop the run, naming the
-group and keeping the claim.
+group and keeping the claim, and a run SHALL clear a stale claim before it detaches, so that stop reaches its caller. A start
+time SHALL read the same in any zone or locale. A pid `ps` cannot read that still runs is no stale claim: `status`, `run` and
+`/mf-ship stop` SHALL exit 2, naming it, and signal nothing, and a run that cannot read its own start time SHALL stop.
 
 #### Scenario: A release dies before its commit
 - **WHEN** a release worker dies with its fold staged and the change's folder moved
@@ -49,7 +51,7 @@ group and keeping the claim.
 
 #### Scenario: A person takes a flagged release
 - **WHEN** a person runs `mf-release` on a release tip whose preamble is flagged
-- **THEN** it reads the flag, does not halt on it, and asks before the merge
+- **THEN** it reads the flag, does not halt on it, and names it beside the ask before the merge
 
 #### Scenario: A release dies before its push
 - **WHEN** the default branch is ahead of `origin` and no version is open
@@ -81,7 +83,15 @@ group and keeping the claim.
 
 #### Scenario: A claimed group names no executor
 - **WHEN** a stale claim names a group that keeps its start time, and whose leader names no executor
-- **THEN** a run kills the claim's executors, stops naming that group, and keeps the claim
+- **THEN** a run, detached or not, kills the claim's executors, stops naming that group, and keeps the claim
+
+#### Scenario: A running conductor cannot be read
+- **WHEN** `ps` prints nothing for the claim's pid, and that process still runs
+- **THEN** `status`, `run` and `/mf-ship stop` exit 2 naming the pid, nothing is signalled, and the claim stays
+
+#### Scenario: The time zone changes during a run
+- **WHEN** `TZ` differs between the run's write of its start time and a later read
+- **THEN** `status` still reads `live`
 
 #### Scenario: A person's local commit on the default branch
 - **WHEN** `main` holds a commit that is no merge of a tagged release, and `origin` lacks it
@@ -104,12 +114,17 @@ group and keeping the claim.
 ### Requirement: A person can stop a run
 
 `/mf-ship stop` SHALL end the live run: the conductor, then each worker group in the claim, then a `halt — stopped by the
-person` line in the run log, then the claim. A re-run SHALL resume from disk, and `conduct.py log --verify` SHALL pass the
-stopped run. With no live run it SHALL say so and exit 0.
+person` line in the run log, then the claim. A group it cannot end SHALL keep the claim, and it SHALL still write that line and
+exit 2, naming the group. A re-run SHALL resume from disk, and `conduct.py log --verify` SHALL pass the stopped run. With no live
+run it SHALL say so and exit 0.
 
 #### Scenario: A run is stopped
 - **WHEN** a person runs `/mf-ship stop` with a worker live
 - **THEN** the worker's group is gone, the log's last line is the stop, and `.minions/runs/active` is gone
+
+#### Scenario: A stop meets a group it cannot end
+- **WHEN** a person runs `/mf-ship stop`, and a claimed group names no executor or refuses the kill
+- **THEN** the conductor is gone, the log's last line is the stop, the command exits 2 naming the group, and the claim stays
 
 #### Scenario: A claim names another process
 - **WHEN** the claim's pid is at or below 1, or its process lacks the claim's start time
@@ -144,7 +159,8 @@ At a run's start, `conduct.py` SHALL find each `skills/mf-*` beside itself linke
 
 Every worker SHALL run with `core.hooksPath` set to `/dev/null` and `core.fsmonitor` off through git's environment, as the
 conductor's own git does. `make gate` SHALL be the only check. `core.hookspath` SHALL be allowed in a repo's own git config.
-`lfs.repositoryformatversion` SHALL stay refused: with no hook, a run's push uploads no LFS object.
+`lfs.repositoryformatversion` SHALL stay refused: with no hook, a run's push uploads no LFS object. Its halt SHALL say to keep
+the key and release by hand.
 
 #### Scenario: A repo with a pre-commit hook
 - **WHEN** a repo's hook would run on a worker's `git commit`
@@ -152,7 +168,7 @@ conductor's own git does. `make gate` SHALL be the only check. `core.hookspath` 
 
 #### Scenario: An LFS repo
 - **WHEN** the repo's own git config holds `lfs.repositoryformatversion`
-- **THEN** `status` exits 1 naming the key, and a run halts
+- **THEN** `status` exits 1 naming the key and a hand release, and a run halts
 
 ### Requirement: Converge never ends a turn with a worker running
 

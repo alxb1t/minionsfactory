@@ -446,8 +446,8 @@ station is a fresh agent process under `conduct.py`'s allowlist — Claude Code 
 — never with prompts bypassed, and is judged by its exit and a check on disk; a failed check halts its version, a halt
 blocks only what names it in `after:`, a failed probe halts the run, and a re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version
-tag no release made, or a claimed group that keeps its start time and names no executor, needs the person. Converge runs
-at the tier the cut chose.**
+tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
+needs the person. Converge runs at the tier the cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.

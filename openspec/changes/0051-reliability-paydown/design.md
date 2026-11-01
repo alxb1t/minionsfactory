@@ -61,9 +61,9 @@ way, naming the tag, unless its commit's subject is `chore(release): <tag>`.
 `_release_tip`: a `.minions/release/<change>.held` file → `released`, naming the mark. `mf-release`:
 
 - Step 5, a person's anything but yes: "write `.minions/release/<change-id>.held` holding the reason"; a yes deletes it.
-- `## A resumed release`, the first bullet, adds before "Then go to Step 5": "Under `merge=yes`, read the preamble against the
-  archived delta, as Step 2 does. A flag → **halt**, before Step 5." A hand release reads the flag and asks: it is the way out
-  the halt names.
+- `## A resumed release`, the first bullet, adds before "Then go to Step 5": "Read the preamble against the archived delta, as
+  Step 2 does. Under `merge=yes`, a flag → **halt**, before Step 5; by hand, name it beside the ask." A hand release is the way
+  out the halt names, so it reads the flag and asks.
 
 ### D3
 
@@ -81,7 +81,8 @@ and no hook sits in it. `AGENTS.md`'s template stays silent: a repo's hook is si
 ### D4
 
 `CONFIG_PLAIN` gains `core\.hookspath`. `lfs\.repositoryformatversion` stays off it: LFS uploads from a `pre-push` hook, D3 turns
-hooks off, and a push would then send pointers with no objects, so the key's halt stands until a run uploads. `LOCAL_ORIGIN`
+hooks off, and a push would then send pointers with no objects, so the key's halt stands until a run uploads, and an `lfs.*` or
+`filter.lfs.*` key's halt says keep it and release by hand, not move or remove it. `LOCAL_ORIGIN`
 goes, and `_refuse_origin` halts on any URL `NETWORK_URL` refuses. A fake worker's fixtures use a local `origin`, so `_refuse_origin` returns at once when
 `MF_SHIP_AGENT` is set: a worker cannot set the conductor's environment. `_allow_origin` in `tests/test_conduct.py` goes.
 
@@ -90,13 +91,19 @@ goes, and `_refuse_origin` halts on any URL `NETWORK_URL` refuses. A fake worker
 `run` writes the conductor's `ps -o lstart=` to `active/start`, beside `active/pid`. `_conductor(active)` returns the pid while it
 is above 1 and keeps that start time, else None; `_claim` reads None as `stale`. A reused number, 0 and -1 are then no run.
 
+`_ps` fixes `TZ` and `LC_ALL`, since `lstart` follows both and a run outlives a clock change. `_started(pid)` reads the start
+time, and a process `ps` cannot read that `kill -0` still finds stops with exit 2 in `status`, `run`, `stop` and `_clear`: a
+failed read is not a stale claim. `run` stops the same way when it cannot read its own, before it clears or claims anything.
+
 `conduct.py stop`: `_conductor` None → `stop: none — no run is live`, exit 0, and the claim stays. Else SIGKILL that pid, first,
 so it spawns nothing more; `_clear` the groups; append `run · halt — stopped by the person` to the newest run log; print the log.
 `verify_log` passes unpaired spawns when the last event's detail is that text. Q1's order is reversed, conductor first, for that
-reason.
+reason. When `_clear` stops, `stop` still appends the line, then exits 2 naming the group, the claim kept: the conductor is
+dead, so a second `stop` could not write it.
 
 `_clear` stops with exit 2, naming the group and keeping the claim, when a group keeps its start time and its leader names no
-executor, after killing the groups it can: a launcher's `node` is such a leader, and it may be a live worker.
+executor, after killing the groups it can: a launcher's `node` is such a leader, and it may be a live worker. `run` clears before
+it detaches, so that exit reaches `mf-ship` Step 3, which halts on it, and `status` says a run may stop there.
 
 `skills/mf-ship/SKILL.md`, `## Parameters`, the table:
 
@@ -175,7 +182,7 @@ impossible because that worker invented them, so a drill asserts nothing about t
 | `0049·R9` | `dies-integrate` in `tests/fake_worker.py`, and a step in `test_a_rerun_recovers_a_dead_release` |
 | `0049·R10` | `mf-ship` Step 3: missing `active` and a new `run: done` or `run: halt` line in `detached.log` → Step 4 |
 | `0049·R11` | `status`'s help: "the claim, what is unpushed, and each open version's stage" |
-| `0049·R13` | D47: "only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version tag no release made, or a claimed group that keeps its start time and names no executor, needs the person" |
+| `0049·R13` | D47: "only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a default-branch commit or version tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them, needs the person" |
 | `0050·R1` | `test_a_station_runs_on_its_executor` spies on `argv`, and asserts the executor per station |
 | `0050·R2` | D11, and `AGENTS.md`: "Workers follow the host, or the models file's `executor`" |
 | `0050·R4` | `mf-cut-change`'s models template: `# executor = "codex"`, commented out |
@@ -200,12 +207,12 @@ Fake-worker tests in `tests/test_conduct.py` (`T1`). `T2`: no test reaches these
 |---|---|
 | `test_a_run_pushes_only_tagged_merges` | a bare `origin`: a local commit on `main`, a release's merge with another tree, or a version tag on no release of that name halts naming it, nothing pushed; a release's merge is pushed |
 | `test_a_stop_survives_a_death` | `dies-release-tag` with a `.held` mark reads `released`, and no merge happens |
-| `test_no_hook_runs_in_a_worker` | a `pre-commit` hook's marker stays absent after a fake worker commits under `argv`'s environment; `core.hookspath` in a repo's config does not halt, and `lfs.repositoryformatversion` does |
-| `test_stop_ends_a_live_run` | a pid at or below 1, or one with another start time, is no run and nothing is signalled; a sleeping worker's group is gone, the last line is the stop, the claim is gone, `log --verify` exits 0 |
+| `test_no_hook_runs_in_a_worker` | a `pre-commit` hook's marker stays absent after a fake worker commits under `argv`'s environment; `core.hookspath` in a repo's config does not halt, and `lfs.repositoryformatversion` does, its halt naming a hand release |
+| `test_stop_ends_a_live_run` | a pid at or below 1, or one with another start time, is no run and nothing is signalled; a running conductor `ps` cannot read exits 2 and signals nothing, and a changed `TZ` still reads `live`; a sleeping worker's group is gone, the last line is the stop, the claim is gone, `log --verify` exits 0; a group it cannot end exits 2 with the last line written and the claim kept |
 | `test_a_grant_buys_one_round` | refused off the cap; a granted run spawns converge with `grant=yes`, and a second spends nothing |
 | `test_a_missing_skill_stops_a_run` | a scratch `HOME` with one link gone: exit 2, naming it |
 
-Tests edited: `test_a_rerun_recovers_a_dead_release`, `test_a_station_runs_on_its_executor`,
+Tests edited: `test_a_rerun_recovers_a_dead_release`, `test_a_station_runs_on_its_executor`, `test_a_stale_claim_is_cleared`,
 `test_a_worker_carries_the_allowlist_and_a_denial_is_named` for `env`, and every test using `_allow_origin`. No test is deleted or
 merged. `_fake` moves with its modes intact.
 
@@ -219,7 +226,9 @@ None.
   theirs halts the same way, until they push or delete it.
 - **A real repo's hooks stop running in a run** → the gate must hold what they enforced.
 - **An LFS repo whose key is gone passes the config check** → its push uploads nothing, so a person does not remove the key to
-  get a run through; `0049·R15` stays open for it.
+  get a run through, and the halt says so; `0049·R15` stays open for it.
+- **Liveness rests on `ps`** → a read that fails on a running process exits 2, so a person waits on a broken `ps` rather than a
+  second conductor starting beside the first.
 - **The size** → five phases on recovery code, so converge may need a grant. The drill runs before converge, so it can fail first.
 - **The drill spends Claude tokens** → two short converges on a one-line change.
 - **`git`'s environment overrides** → they need git 2.31 or later.

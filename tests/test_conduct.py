@@ -67,8 +67,18 @@ def _released(root: Path, tag: str) -> None:
 
 
 def _lstart(pid: int) -> str:
-    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+    command = ["env", "LC_ALL=C", "TZ=UTC0", "ps", "-o", "lstart=", "-p", str(pid)]
     return subprocess.run(command, capture_output=True, text=True).stdout.strip()
+
+
+def _no_ps(tmp_path: Path) -> str:
+    """Return a folder whose `ps` prints nothing, to put first on `PATH`."""
+    folder = tmp_path / "no-ps"
+    folder.mkdir()
+    ps = folder / "ps"
+    ps.write_text("#!/bin/sh\nexit 1\n")
+    ps.chmod(0o755)
+    return str(folder)
 
 
 def _conduct() -> dict[str, Any]:
@@ -1554,14 +1564,24 @@ def test_no_hook_runs_in_a_worker(
     assert fires({})
 
     _git(root, "config", "lfs.repositoryformatversion", "0")
-    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion"):
+    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion") as held:
+        conduct["_refuse_config_commands"](root)
+    assert "a run cannot upload LFS objects" in str(held.value)
+    assert "remove it" not in str(held.value)
+    _git(root, "config", "--unset", "lfs.repositoryformatversion")
+    _git(root, "config", "filter.lfs.clean", "git-lfs clean -- %f")
+    with pytest.raises(conduct["Stop"], match="filter.lfs.clean.*cannot upload LFS"):
         conduct["_refuse_config_commands"](root)
 
 
 def test_stop_ends_a_live_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
+    fake()
     root = _primary(tmp_path)
     runs = root / ".minions" / "runs"
     active = runs / "active"
@@ -1587,11 +1607,12 @@ def test_stop_ends_a_live_run(
     shutil.rmtree(active)
 
     log = runs / "20261101-120000.md"
-    log.write_text(
+    opening = (
         "# Ship run 20261101-120000\n\n"
         "10:00:00 · run · start — executor claude\n"
         "10:00:01 · 0001-todo · spawn — build · model default\n"
     )
+    log.write_text(opening)
     sleep = shutil.which("sleep")
     assert sleep
     executor = tmp_path / "claude"
@@ -1606,6 +1627,24 @@ def test_stop_ends_a_live_run(
     assert stop() == "stop: none — no run is live"
     assert (conductor.poll(), worker.poll()) == (None, None)
     assert (active / "pid").is_file()
+
+    (active / "start").write_text(_lstart(conductor.pid))
+    no_ps = _no_ps(tmp_path)
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", no_ps, prepend=os.pathsep)
+        for command in (("status",), ("stop",), ("run", "--executor", "claude")):
+            capsys.readouterr()
+            assert _main(conduct, root, *command, monkeypatch=patch) == 2
+            assert f"ps cannot read pid {conductor.pid}" in capsys.readouterr().out
+    assert (conductor.poll(), worker.poll()) == (None, None)
+    assert (active / "pid").is_file()
+
+    with monkeypatch.context() as patch:
+        patch.setenv("LC_ALL", "C")
+        patch.setenv("TZ", "Asia/Tokyo")
+        (active / "start").write_text(conduct["_ps"](conductor.pid, "lstart="))
+        patch.setenv("TZ", "America/New_York")
+        assert conduct["_claim"](active) == "live"
 
     (active / "start").write_text(_lstart(conductor.pid))
     assert stop() == f"stop: stopped · .minions/runs/{log.name}"
@@ -1623,6 +1662,38 @@ def test_stop_ends_a_live_run(
 
     log.write_text(log.read_text().replace("stopped by the person", "a crash"))
     assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 1
+
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", no_ps, prepend=os.pathsep)
+        capsys.readouterr()
+        run = ("run", "--executor", "claude")
+        assert _main(conduct, root, *run, monkeypatch=patch) == 2
+        assert "start time" in capsys.readouterr().out
+    assert not active.exists()
+
+    log.write_text(opening)
+    conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    active.mkdir()
+    (active / "pid").write_text(str(conductor.pid))
+    (active / "start").write_text(_lstart(conductor.pid))
+    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
+    capsys.readouterr()
+    assert _main(conduct, root, "stop", monkeypatch=monkeypatch) == 2
+    said = capsys.readouterr().out
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert foreign.poll() is None
+    assert (active / "pid").is_file()
+    assert (
+        log.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · halt — stopped by the person")
+    )
+    assert said.startswith("stop: ") and f"group {foreign.pid} " in said
+    assert _main(conduct, root, *verify, monkeypatch=monkeypatch) == 0
+    assert stop() == "stop: none — no run is live"
+    foreign.kill()
+    foreign.wait(timeout=10)
 
 
 def test_a_grant_buys_one_round(
@@ -1749,7 +1820,7 @@ def test_a_stale_claim_is_cleared(
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
         return capsys.readouterr().out.strip().splitlines()
 
-    stale = ["run · stale — a run clears it", "0001-todo · build"]
+    stale = ["run · stale — a run clears it, or stops naming why", "0001-todo · build"]
     assert status() == stale
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
@@ -1759,6 +1830,9 @@ def test_a_stale_claim_is_cleared(
     (active / "pid").write_text(str(os.getpid()))
     (active / "start").write_text("Thu Jan  1 00:00:00 1970\n")
     assert status() == stale
+    (active / "pid").write_text("9" * 30)
+    assert status() == stale
+    (active / "pid").write_text(str(os.getpid()))
     (active / "start").write_text(_lstart(os.getpid()))
     assert status() == ["run · live", "0001-todo · build"]
     capsys.readouterr()
@@ -1814,6 +1888,12 @@ def test_a_stale_claim_is_cleared(
     assert sibling.wait(timeout=10) == -signal.SIGKILL
     assert foreign.poll() is None
     assert (active / str(foreign.pid)).is_file()
+    capsys.readouterr()
+    detach = ("run", "--executor", "claude", "--detach")
+    assert _main(conduct, root, *detach, monkeypatch=monkeypatch) == 2
+    assert f"group {foreign.pid} " in capsys.readouterr().out
+    assert foreign.poll() is None
+    assert (active / str(foreign.pid)).is_file()
     foreign.kill()
     foreign.wait(timeout=10)
     conduct["_clear"](active)
@@ -1831,6 +1911,11 @@ def test_a_stale_claim_is_cleared(
     with monkeypatch.context() as patch:
         patch.setattr(os, "killpg", refuse)
         with pytest.raises(conduct["Stop"], match=f"group {refusing.pid} survives"):
+            conduct["_clear"](active)
+    assert all(path.exists() for path in held)
+    with monkeypatch.context() as patch:
+        patch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
+        with pytest.raises(conduct["Stop"], match=f"read pid {refusing.pid},"):
             conduct["_clear"](active)
     assert all(path.exists() for path in held)
     refusing.kill()
