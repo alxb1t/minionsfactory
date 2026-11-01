@@ -1164,6 +1164,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     (root / ".git").write_text(f"gitdir: {neighbour}/.git\n")
     with pytest.raises(conduct["Stop"]):
         conduct["preconditions"](root, "codex")
+    with pytest.raises(conduct["Stop"]) as stop:
+        next_roots()
+    assert "the primary's .git moved" in str(stop.value)
+    (root / ".git").write_text("gitdir: nowhere\n")
+    with pytest.raises(conduct["Stop"]) as stop:
+        next_roots()
+    assert "the primary's .git moved" in str(stop.value)
     planted = root / ".minions" / "planted"
     planted.mkdir()
     _git(planted, "init", "-q", "-b", "main")

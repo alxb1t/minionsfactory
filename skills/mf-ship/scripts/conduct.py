@@ -745,7 +745,7 @@ def argv(
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
-    if common and (primary / ".git").resolve() != common:
+    if common and _common_dir(primary) != common:
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     roots = [*([str(common)] if common else []), *(str(tree) for tree in trees)]
     # Why: 0050-codex-review design D4.
