@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## Progress
 
-- [ ] 1 — The sandbox
+- [x] 1 — The sandbox
 - [ ] 2 — No worker pushes
 - [ ] 3 — The cards
 - [ ] 4 — The record
@@ -12,10 +12,10 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
 
 ## 1 — The sandbox
 
-- [ ] 1.1 In `skills/mf-ship/scripts/conduct.py`, add `worker_settings`, `SECRETS` and `NETWORK`, per [D1](design.md#d1), and
+- [x] 1.1 In `skills/mf-ship/scripts/conduct.py`, add `worker_settings`, `SECRETS` and `NETWORK`, per [D1](design.md#d1), and
   `Ship network:` and Codex's network off, per [D2](design.md#d2).
   Verify: `grep -c 'def worker_settings' skills/mf-ship/scripts/conduct.py` prints `1`.
-- [ ] 1.2 Add `test_a_claude_worker_starts_in_the_sandbox` to `tests/test_conduct.py`, and edit
+- [x] 1.2 Add `test_a_claude_worker_starts_in_the_sandbox` to `tests/test_conduct.py`, and edit
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named`.
   Verify: `uv run pytest -q tests/test_conduct.py -k starts_in_the_sandbox` reports `1 passed`.
 

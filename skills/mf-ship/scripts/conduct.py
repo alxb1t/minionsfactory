@@ -80,6 +80,17 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval")
+SECRETS = (
+    "~/.ssh",
+    "~/.aws",
+    "~/.config/gh",
+    "~/.netrc",
+    "~/.gnupg",
+    "~/.kube",
+    "~/.docker/config.json",
+)
+NETWORK = ("pypi.org", "files.pythonhosted.org", "registry.npmjs.org")
+DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
     "converge": "Run the mf-converge skill for change {change}{tier}.",
@@ -939,6 +950,28 @@ def allowlist(primary: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
     return allowed, denied
 
 
+def worker_settings(primary: Path, trees: list[Path], common: Path | None) -> str:
+    """Return the Claude worker's sandbox settings, as JSON.
+
+    A `Ship network:` value that is not a plain domain stops with 1.
+    Why: 0052-security-hardening design D1.
+    """
+    extra = _agents_values(primary, "Ship network") or []
+    for domain in extra:
+        if not DOMAIN.fullmatch(domain):
+            raise Stop(
+                1, f"conduct: halt — AGENTS.md: Ship network {domain!r} is not a domain"
+            )
+    writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
+    sandbox = {
+        "enabled": True,
+        "allowUnsandboxedCommands": False,
+        "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
+        "network": {"allowedDomains": [*NETWORK, *extra]},
+    }
+    return json.dumps({"sandbox": sandbox})
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -957,15 +990,17 @@ def argv(
         return [*shlex.split(agent), prompt]
     primary, common = repo
     trees = reach(primary)
+    cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
         allowed, denied = allowlist(primary, trees)
         return [
-            *("env", *HOOKS_OFF),
+            *("env", *HOOKS_OFF, cache),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
+            *("--settings", worker_settings(primary, trees, common)),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
@@ -975,7 +1010,6 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     env = ("env", *HOOKS_OFF, cache, path)
     return [
         *env,
@@ -985,7 +1019,7 @@ def argv(
         *("-s", "workspace-write"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
-        *("-c", "sandbox_workspace_write.network_access=true"),
+        *("-c", "sandbox_workspace_write.network_access=false"),
         *("-C", str(cwd), prompt),
     ]
 

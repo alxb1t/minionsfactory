@@ -1968,6 +1968,39 @@ def test_run_refuses_without_worktrees_declared(
     assert not (root / ".minions" / "runs").exists()
 
 
+def test_a_claude_worker_starts_in_the_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path, agents=_WORKTREES + "- **Ship network:** `ghcr.io`\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+
+    def settings() -> dict[str, Any]:
+        command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
+        return json.loads(command[command.index("--settings") + 1])
+
+    assert settings() == {
+        "sandbox": {
+            "enabled": True,
+            "allowUnsandboxedCommands": False,
+            "filesystem": {
+                "allowWrite": [str(root), str(tree), str(root / ".git")],
+                "denyRead": list(conduct["SECRETS"]),
+            },
+            "network": {"allowedDomains": [*conduct["NETWORK"], "ghcr.io"]},
+        }
+    }
+
+    for value in ("*.example.com", "example.com/simple", "https://example.com"):
+        (root / "AGENTS.md").write_text(f"- **Ship network:** `{value}`\n")
+        with pytest.raises(conduct["Stop"]) as stop:
+            settings()
+        assert stop.value.code == 1
+        assert value in str(stop.value)
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2020,11 +2053,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     repo = (root, root / ".git")
     monkeypatch.delenv("MF_SHIP_AGENT")
     hooks_off = list(conduct["HOOKS_OFF"])
+    cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
-    assert claude[: len(hooks_off) + 1] == ["env", *hooks_off]
-    claude = claude[len(hooks_off) + 1 :]
+    assert claude[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
+    claude = claude[len(hooks_off) + 2 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
+    assert "--settings" in claude
     added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
     assert added == [str(root), str(tree)]
     allowed = claude[
@@ -2083,13 +2118,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     assert codex[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
     codex = codex[len(hooks_off) + 2 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
 
     neighbour = tmp_path / "neighbour"
