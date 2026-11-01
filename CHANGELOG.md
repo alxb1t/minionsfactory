@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The drift cards are paid: `THREAT_MODEL.md` lists its open gaps, `_clear` kills only an executor's group and stops on a
+  refused kill, `_pushed` compares the ref beside the id, and `_points_back` ties a path to its entry's branch. `0044·R12`
+  closes here: the archive is frozen (change `0051-reliability-paydown`, phase 1).
+
 ## [0.44.0] - 2026-11-01
 
 Gate: local 2m46s · CI 0m42s (CI at d897227) · 0.43.0: local 2m06s · CI 0m42s (CI at d897227)
@@ -216,7 +220,7 @@ Gate: local 0m26s · CI 0m23s (CI at 193a550) · 0.33.0: local 0m26s · CI 0m17s
   `0038-worktree-cleanup`, phase 1).
 
 - README's container tree and runbook name the primary `<repo>/`, after the repository; the 0034 proposal and the
-  `[0.31.2]` entry claim only what the gate check reads, per its design's D7 (change `0038-worktree-cleanup`,
+  `[0.31.2]` entry claim only what the gate check reads, per 0034's D7 (change `0038-worktree-cleanup`,
   phase 2).
 
 ## [0.33.0] - 2026-10-28

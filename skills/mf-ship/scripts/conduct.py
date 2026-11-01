@@ -259,16 +259,22 @@ class Version:
         return int(self.change.split("-")[0])
 
 
-def _points_back(tree: Path, common: Path) -> bool:
-    """Return whether `tree`'s `.git` file names an entry of `common`'s worktrees.
+def _points_back(tree: Path, common: Path, branch: str) -> bool:
+    """Return whether `tree`'s `.git` file names `common`'s entry holding `branch`.
 
-    e.g. "gitdir: <common>/worktrees/0001-todo" → True
+    e.g. "gitdir: <common>/worktrees/0001-todo", its `HEAD` on 0001-todo → True
     """
     link = tree / ".git"
     text = link.read_text(errors="replace") if link.is_file() else ""
     found = re.fullmatch(r"gitdir: (.+)\n?", text)
-    return found is not None and (tree / found[1]).resolve().parent == (
-        common / "worktrees"
+    if found is None:
+        return False
+    entry = (tree / found[1]).resolve()
+    head = entry / "HEAD"
+    return (
+        entry.parent == common / "worktrees"
+        and head.is_file()
+        and head.read_text(errors="replace").strip() == f"ref: refs/heads/{branch}"
     )
 
 
@@ -280,11 +286,11 @@ def _worktrees(primary: Path) -> dict[str, Path]:
     for line in _git(primary, "worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
             path = Path(line.removeprefix("worktree ")).resolve()
-            # Why: 0050-codex-review design D5.
-            if path != main and not _points_back(path, main / ".git"):
-                path = None
         elif line.startswith("branch refs/heads/") and path:
-            found[line.removeprefix("branch refs/heads/")] = path
+            branch = line.removeprefix("branch refs/heads/")
+            # Why: 0050-codex-review design D5.
+            if path == main or _points_back(path, main / ".git", branch):
+                found[branch] = path
     return found
 
 
@@ -681,7 +687,8 @@ def _pushed(primary: Path, change: str, tag: str) -> bool | None:
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
     listed = _maybe(primary, "ls-remote", "--tags", "origin", ref, f"{ref}^{{}}")
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
-    return tip in (listed or "").split()
+    lines = (listed or "").splitlines()
+    return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
 
 
 def _unpushed(primary: Path) -> list[str]:
@@ -950,7 +957,7 @@ def work(
         group = claim / str(worker.pid) if claim else None
         try:
             if group:
-                group.write_text(_started(worker.pid))
+                group.write_text(_ps(worker.pid, "lstart="))
             return worker.wait(timeout=TIMEOUT), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -1059,9 +1066,12 @@ def _claim(active: Path) -> str:
     return "live"
 
 
-def _started(pid: int) -> str:
-    """Return the start time `ps` reads for `pid`, or "" when it cannot."""
-    command = ["ps", "-o", "lstart=", "-p", str(pid)]
+def _ps(pid: int, field: str) -> str:
+    """Return the `ps` field for `pid`, or "" when it cannot.
+
+    e.g. 501, "comm=" → "claude"
+    """
+    command = ["ps", "-o", field, "-p", str(pid)]
     try:
         done = subprocess.run(
             command,
@@ -1078,19 +1088,28 @@ def _started(pid: int) -> str:
 def _clear(active: Path) -> None:
     """Kill the stale claim's worker groups, then remove it.
 
-    A group goes only while its leader keeps the start time the entry holds: after
-    a reboot its number can name any process.
+    A group goes only while its leader keeps the start time the entry holds and is
+    an executor: after a reboot its number can name any process. A group that
+    refuses the kill stops the run, so no worker races the next one.
     """
     for entry in active.iterdir():
         # A worker can write the claim, and group 0 is this process's own.
         if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
+            group = int(entry.name)
             held = entry.read_text(errors="replace").strip()
-            if not held or held != _started(int(entry.name)):
+            if not held or held != _ps(group, "lstart="):
+                continue
+            leader = _ps(group, "comm=")
+            if not any(executor in leader for executor in EXECUTORS):
                 continue
             try:
-                os.killpg(int(entry.name), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OverflowError):
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
                 continue
+            except (OSError, OverflowError) as error:
+                raise Stop(
+                    2, f"run: cannot run — worker group {group} survives: {error}"
+                ) from None
     shutil.rmtree(active)
 
 
@@ -1598,7 +1617,9 @@ def main(argv_: list[str] | None = None) -> int:
         description="Take every cut version to the default branch, unattended.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("status", help="one line per open version, with its stage")
+    commands.add_parser(
+        "status", help="the claim, what is unpushed, and each open version's stage"
+    )
     checking = commands.add_parser("check", help="exit 0 when disk proves the stage")
     checking.add_argument("stage", choices=(*STATIONS, "probe"))
     checking.add_argument("change_id", metavar="change-id")

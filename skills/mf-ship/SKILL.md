@@ -76,8 +76,8 @@ Run `status` and paste its output.
 
 Else start the run, detached:
 `uv run --script <this package>/scripts/conduct.py run --executor <executor> --detach`. Then confirm
-`.minions/runs/active` exists within 10 seconds; missing → **halt**, pasting `.minions/runs/detached.log`'s last
-lines.
+`.minions/runs/active` exists within 10 seconds. Missing, and a new `run: done` or `run: halt` line in
+`.minions/runs/detached.log` → Step 4; missing with no new line → **halt**, pasting that log's last lines.
 
 Say once: every worker acts under the script's allowlist (Claude Code) or the workspace-write sandbox (Codex),
 each station on the executor its models file names, with no permission prompt. The list is a guardrail, not a containment: `make`, `uv` and `python3` run any code.

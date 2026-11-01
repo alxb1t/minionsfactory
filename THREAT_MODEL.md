@@ -30,4 +30,5 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 ## Known gaps
 
-Carded in `.minions/backlog.md`, accepted until paid down: none.
+Carded in `.minions/backlog.md`, accepted until paid down: `0049·S7`, `0050·R5`, `0050·R6`, `0050·R11`, `0050·S2`, `0050·S3`,
+`0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.

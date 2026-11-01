@@ -340,6 +340,9 @@ def test_each_check_passes_only_on_disk_evidence(
     _git(root, "push", "-q", "origin", "main~1:refs/tags/v0.1.0")
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     assert pushed() == "not pushed"
+    _git(root, "push", "-q", "origin", "0001-todo:refs/tags/refs/tags/v0.1.0")
+    assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
+    _git(root, "push", "-q", "origin", ":refs/tags/refs/tags/v0.1.0")
     _git(root, "push", "-q", "-f", "origin", "v0.1.0")
     assert check("release") == (0, "check: release · pass")
     assert pushed() == "pushed"
@@ -904,6 +907,15 @@ def test_a_station_runs_on_its_executor(
     (minions / "models").mkdir(parents=True)
     table = '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\n'
     (minions / "models" / "0001-todo.toml").write_text(table)
+    started: list[tuple[str, str]] = []
+    argv = conduct["argv"]
+
+    def spy(executor: str, prompt: str, *rest: object) -> list[str]:
+        found = re.search(r"Run the mf-(\w+) skill", prompt)
+        started.append((found[1] if found else "probe", executor))
+        return argv(executor, prompt, *rest)
+
+    conduct["main"].__globals__["argv"] = spy
     models = conduct["_models"]
     assert models(minions, "0001-todo", "converge", "claude") == ("codex", None, None)
     assert models(minions, "0001-todo", "build", "claude") == ("claude", None, None)
@@ -929,6 +941,13 @@ def test_a_station_runs_on_its_executor(
     assert "build · model default" in spawned
     assert "converge · model default · executor codex" in spawned
     assert "release · model opus" in spawned
+    assert started == [
+        ("probe", "claude"),
+        ("probe", "codex"),
+        ("build", "claude"),
+        ("converge", "codex"),
+        ("release", "claude"),
+    ]
 
     other = tmp_path / "other"
     other.mkdir()
@@ -1395,12 +1414,18 @@ def test_a_stale_claim_is_cleared(
     assert _calls(calls) == []
 
     (active / "pid").write_text(str(dead.pid))
-    group = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    executor = tmp_path / "claude"
+    sleep = shutil.which("sleep")
+    assert sleep
+    executor.symlink_to(sleep)
+    group = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(group.pid)).write_text(_lstart(group.pid))
-    recycled = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    recycled = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
-    unstamped = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    unstamped = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(unstamped.pid)).touch()
+    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
     (active / "0").touch()
     (active / "7").mkdir()
     (active / "8").write_bytes(b"\xff")
@@ -1409,11 +1434,30 @@ def test_a_stale_claim_is_cleared(
         == 0
     )
     assert group.wait(timeout=10) == -signal.SIGKILL
-    assert (recycled.poll(), unstamped.poll()) == (None, None)
+    assert (recycled.poll(), unstamped.poll(), foreign.poll()) == (None, None, None)
     recycled.kill()
     unstamped.kill()
     assert "release 0001-todo" in _calls(calls)
     assert not active.exists()
+
+    active.mkdir()
+    (active / "pid").write_text(str(dead.pid))
+    refusing = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    (active / str(refusing.pid)).write_text(_lstart(refusing.pid))
+    held = (active / "pid", active / str(refusing.pid))
+
+    def refuse(group: int, _: int) -> None:
+        raise PermissionError(1, "not permitted", str(group))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "killpg", refuse)
+        with pytest.raises(conduct["Stop"], match=f"group {refusing.pid} survives"):
+            conduct["_clear"](active)
+    assert all(path.exists() for path in held)
+    refusing.kill()
+    foreign.kill()
+    for process in (recycled, unstamped, refusing, foreign):
+        process.wait(timeout=10)
 
 
 def test_a_usage_limit_is_named(
@@ -1491,6 +1535,16 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"worktree {sibling.resolve()}\n" in listed
     assert conduct["reach"](root) == [root, tree]
     assert conduct["find_version"](root, "0002-forged").tree is None
+    forged = root / ".git" / "worktrees" / "zz"
+    forged.mkdir()
+    (forged / "HEAD").write_text("ref: refs/heads/0002-forged\n")
+    (forged / "commondir").write_text("../..\n")
+    (forged / "gitdir").write_text(f"{tree}/.git\n")
+    listed = _git(root, "worktree", "list", "--porcelain")
+    assert listed.count(f"worktree {tree}\n") == 2
+    assert conduct["find_version"](root, "0002-forged").tree is None
+    assert conduct["find_version"](root, "0001-todo").tree == tree
+    shutil.rmtree(forged)
     pointer = tree / ".git"
     absolute = pointer.read_text()
     pointer.write_text("gitdir: ../main/.git/worktrees/0001-todo\n")

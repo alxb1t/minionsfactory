@@ -5,7 +5,7 @@ word.
 
 ## Progress
 
-- [ ] 1 — The drift sweep
+- [x] 1 — The drift sweep
 - [ ] 2 — What a run may do
 - [ ] 3 — The features
 - [ ] 4 — Gate speed
@@ -13,10 +13,10 @@ word.
 
 ## 1 — The drift sweep
 
-- [ ] 1.1 Apply [D11](design.md#d11)'s rows for `CHANGELOG.md`, `THREAT_MODEL.md`, `AGENTS.md`, `skills/mf-cut-change/SKILL.md`,
+- [x] 1.1 Apply [D11](design.md#d11)'s rows for `CHANGELOG.md`, `THREAT_MODEL.md`, `AGENTS.md`, `skills/mf-cut-change/SKILL.md`,
   `skills/mf-release/SKILL.md`, `skills/mf-ship/SKILL.md`, `skills/mf-converge/SKILL.md` and `docs/decisions.md`.
   Verify: `grep -c '0050·S7' THREAT_MODEL.md` prints `1`.
-- [ ] 1.2 Apply [D11](design.md#d11)'s rows for `skills/mf-ship/scripts/conduct.py`: `0047·S3`, `0049·R8`, `0049·R11`, `0049·S5`,
+- [x] 1.2 Apply [D11](design.md#d11)'s rows for `skills/mf-ship/scripts/conduct.py`: `0047·S3`, `0049·R8`, `0049·R11`, `0049·S5`,
   `0050·R9`, and `tests/test_conduct.py`'s `0050·R1`.
   Verify: `grep -c 'the claim, what is unpushed' skills/mf-ship/scripts/conduct.py` prints `1`.
 

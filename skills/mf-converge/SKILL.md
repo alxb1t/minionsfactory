@@ -127,7 +127,7 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 | `verdicts` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
-| `pickup` | Step 8 item 4, the same ids |
+| `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
 
