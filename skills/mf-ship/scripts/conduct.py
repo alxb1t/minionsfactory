@@ -94,6 +94,8 @@ SCRATCH_IDENTITY = (
 )
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# A primary checkout and its common directory, None outside a repo.
+type Repo = tuple[Path, Path | None]
 
 
 class Stop(Exception):
@@ -183,15 +185,13 @@ def primary_of(cwd: Path) -> Path:
     return common.parent
 
 
-def _root(cwd: Path) -> Path:
-    """Return the primary checkout of the repo holding `cwd`, or `cwd` outside one."""
+def _repo(cwd: Path) -> Repo:
+    """Return the primary checkout and common directory; outside a repo, `cwd`, None.
+
+    Taken once, before the first worker: git's answer in a tree is worker-written.
+    """
     common = _common_dir(cwd)
-    return common.parent if common else cwd.resolve()
-
-
-def run_dir(cwd: Path) -> Path:
-    """Return `.minions/` beside the primary checkout, or in `cwd` outside a repo."""
-    return _root(cwd) / ".minions"
+    return (common.parent, common) if common else (cwd.resolve(), None)
 
 
 def _frontmatter(text: str, key: str) -> str | None:
@@ -681,18 +681,25 @@ def _tier(runs: Path, change: str) -> str:
     return f" with tier={tier}"
 
 
-def reach(cwd: Path) -> list[Path]:
-    """Return what a worker may edit: the primary and each linked worktree."""
-    root = _root(cwd)
-    if _common_dir(cwd) is None:
-        return [cwd.resolve()]
-    linked = [path for path in _worktrees(root).values() if path != root]
-    return [root, *linked]
+def reach(primary: Path) -> list[Path]:
+    """Return what a worker may edit: the primary and each linked worktree.
+
+    A path inside another stays covered and unlisted, so no listed path can be
+    swapped for a symlink by a worker. Why: 0050-codex-review design D5.
+    """
+    root = primary.resolve()
+    if _common_dir(root) is None:
+        return [root]
+    trees = [root]
+    for path in sorted(_worktrees(root).values()):
+        if not any(path.is_relative_to(tree) for tree in trees):
+            trees.append(path)
+    return trees
 
 
-def allowlist(cwd: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
+def allowlist(primary: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
     """Return the Claude worker's allowed and denied rules, editing inside `trees`."""
-    extra = _agents_values(_root(cwd), "Ship tools") or []
+    extra = _agents_values(primary, "Ship tools") or []
     allowed = [
         *TOOLS,
         *(f"Edit(/{tree}/**)" for tree in trees),
@@ -710,18 +717,25 @@ def allowlist(cwd: Path, trees: list[Path]) -> tuple[list[str], list[str]]:
 
 
 def argv(
-    executor: str, prompt: str, cwd: Path, model: str | None, effort: str | None
+    executor: str,
+    prompt: str,
+    cwd: Path,
+    model: str | None,
+    effort: str | None,
+    repo: Repo,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
-    `MF_SHIP_AGENT` replaces the executor.
+    `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
+    `.git` no longer resolves to the common directory in `repo`.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
-    trees = reach(cwd)
+    primary, common = repo
+    trees = reach(primary)
     if executor == "claude":
-        allowed, denied = allowlist(cwd, trees)
+        allowed, denied = allowlist(primary, trees)
         return [
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
@@ -730,16 +744,14 @@ def argv(
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
-    common = _common_dir(cwd)
-    roots = [
-        str(run_dir(cwd)),
-        *([str(common)] if common else []),
-        *(str(tree) for tree in trees),
-    ]
+    # Why: 0050-codex-review design D5.
+    if common and (primary / ".git").resolve() != common:
+        raise Stop(1, "conduct: halt — the primary's .git moved during the run")
+    roots = [*([str(common)] if common else []), *(str(tree) for tree in trees)]
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", path)
+    env = ("env", f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}", path)
     return [
         *env,
         *("codex", "exec"),
@@ -841,9 +853,15 @@ def _executor_missing(executor: str) -> bool:
 
 def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
-    git_dir = _maybe(cwd, "rev-parse", "--path-format=absolute", "--git-dir")
+    top = _maybe(cwd, "rev-parse", "--show-toplevel")
     common = _common_dir(cwd)
-    if git_dir is None or common is None or Path(git_dir.strip()).resolve() != common:
+    # Why: 0050-codex-review design D5.
+    if (
+        top is None
+        or common is None
+        or Path(top.strip()).resolve() != common.parent
+        or not cwd.resolve().is_relative_to(common.parent)
+    ):
         raise Stop(2, "run: cannot run — the cwd is not the primary checkout")
     primary = common.parent
     default = default_branch(primary)
@@ -868,6 +886,7 @@ class Run:
         self.delta = runpy.run_path(str(INTEGRATE))["delta"]
         self.git_state: list[str] = []
         self.primary = primary
+        self.repo = _repo(primary)
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -908,17 +927,19 @@ class Run:
         cwd: Path,
         prompt: str,
         models: tuple[str, str | None, str | None],
+        repo: Repo | None = None,
     ) -> list[str] | None:
-        """Run one worker and log it and its denials.
+        """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout halted `who`.
         """
         executor, model, effort = models
+        command = argv(executor, prompt, cwd, model, effort, repo or self.repo)
         other = f" · executor {executor}" if executor != self.executor else ""
         self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
         out = self.runs / self.log.stamp / f"{who}_{station}.log"
         started = time.monotonic()
-        code, killed = work(argv(executor, prompt, cwd, model, effort), cwd, out)
+        code, killed = work(command, cwd, out)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         denied = denials(out)
@@ -1063,7 +1084,9 @@ class Run:
             (scratch / ".gitignore").write_text(".gated\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
-            denied = self.spawn("run", station, scratch, PROBE, (executor, None, None))
+            models = (executor, None, None)
+            repo = _repo(scratch)
+            denied = self.spawn("run", station, scratch, PROBE, models, repo)
             if denied is not None:
                 self.judge("run", station, check_probe(scratch), denied)
         finally:
@@ -1160,8 +1183,9 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
     if _executor_missing(executor):
         raise Stop(2, f"agent: cannot run — {executor} is not on PATH")
     stamp = time.strftime(STAMP)
-    out = run_dir(cwd) / "runs" / f"agent-{stamp}.log"
-    code, killed = work(argv(executor, prompt, cwd, None, None), cwd, out)
+    repo = _repo(cwd)
+    out = repo[0] / ".minions" / "runs" / f"agent-{stamp}.log"
+    code, killed = work(argv(executor, prompt, cwd, None, None, repo), cwd, out)
     for denied in denials(out):
         print(f"agent: denied — {denied}")
     print(f"agent: exit {code}{' · timed out' if killed else ''} · {out}")

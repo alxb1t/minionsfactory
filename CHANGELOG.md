@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `codex` with a `claude-*` model, halts that version before its first worker, and each executor gets its own probe
   (change `0050-codex-review`, phase 1).
 - A worker's reach is the primary and the open worktrees, on Claude and Codex, never the directory holding them. A
-  listed worktree whose `.git` file does not point back to its entry is ignored. `integrate.py` loads once, before the first worker, and a change to the local git config or `info/attributes` halts a
+  listed worktree whose `.git` file does not point back to an entry is ignored, by `conduct.py` and `integrate.py`, and the
+  primary and common directory are taken once, before the first worker, so a redirected `.git` or `commondir` widens nothing.
+  `integrate.py` loads once, before the first worker, and a change to the local git config or `info/attributes` halts a
   dependent's merge (change `0050-codex-review`, phase 2).
 - D47, `mf-ship` and `mf-cut-change` name the station's `executor` and the worker's reach (change `0050-codex-review`,
   phase 3).

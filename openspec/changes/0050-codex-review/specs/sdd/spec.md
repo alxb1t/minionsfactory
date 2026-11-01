@@ -60,7 +60,10 @@ A station on Codex SHALL report no denial, and converge's tokens SHALL read `una
 
 A Codex worker's writable roots and a Claude worker's `Edit` and `--add-dir` SHALL be the primary and each open worktree,
 from `git worktree list`, and never the directory holding them. A listed worktree whose `.git` file does not point back to
-its entry under the common directory SHALL be no worktree. `conduct.py` SHALL load `integrate.py` once, before the
+an entry under the common directory SHALL be no worktree. `conduct.py` SHALL take the primary and its common directory once,
+before the first worker, and SHALL never take a worker's reach from git's answer in a worktree. It SHALL refuse a run in a
+checkout whose `.git` names another repository, and SHALL halt a Codex worker when the primary's `.git` no longer resolves to
+that common directory. `conduct.py` SHALL load `integrate.py` once, before the
 first worker, and SHALL halt a version's merge when the local git config or `info/attributes` changed since then.
 
 #### Scenario: A sibling project
@@ -70,6 +73,10 @@ first worker, and SHALL halt a version's merge when the local git config or `inf
 #### Scenario: A worker forges a worktree entry
 - **WHEN** a worker adds an entry under the common directory's `worktrees/` naming a directory outside the repository
 - **THEN** no writable root and no `--add-dir` names that directory, and no version runs in it
+
+#### Scenario: A worker repoints a worktree
+- **WHEN** a worker rewrites a worktree's `.git` file or its entry's `commondir` to name another repository
+- **THEN** no writable root and no `--add-dir` of the next worker names that repository
 
 #### Scenario: A worker plants git config
 - **WHEN** a worker changes the common directory's config during a run

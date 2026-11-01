@@ -10,6 +10,7 @@ import os
 import re
 import runpy
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -1033,16 +1034,17 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     listed = _git(root, "worktree", "list", "--porcelain")
     assert f"worktree {outside.resolve()}\n" in listed
     assert f"worktree {sibling.resolve()}\n" in listed
-    assert conduct["reach"](tree) == [root, tree]
+    assert conduct["reach"](root) == [root, tree]
     assert conduct["find_version"](root, "0002-forged").tree is None
     pointer = tree / ".git"
     absolute = pointer.read_text()
     pointer.write_text("gitdir: ../main/.git/worktrees/0001-todo\n")
-    assert conduct["reach"](tree) == [root, tree]
+    assert conduct["reach"](root) == [root, tree]
     pointer.write_text(absolute)
     assert conduct["reach"](tmp_path) == [tmp_path.resolve()]
+    repo = (root, root / ".git")
     monkeypatch.delenv("MF_SHIP_AGENT")
-    claude = argv("claude", "Do it.", root, "opus", "high")
+    claude = argv("claude", "Do it.", root, "opus", "high", repo)
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
@@ -1101,10 +1103,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         "git -C /r branch -d 0001-todo",
     ):
         assert not refused(command), command
-    codex = argv("codex", "Do it.", root, None, None)
-    roots = json.dumps(
-        [str(root / ".minions"), str(root / ".git"), str(root), str(tree)]
-    )
+    codex = argv("codex", "Do it.", root, None, None, repo)
+    roots = json.dumps([str(root / ".git"), str(root), str(tree)])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     assert codex[:2] == ["env", cache]
     assert codex[2].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
@@ -1112,6 +1112,75 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
+
+    neighbour = tmp_path / "neighbour"
+    neighbour.mkdir()
+    _git(neighbour, "init", "-q", "-b", "main")
+    _commit(neighbour, {"x.txt": "x\n"}, "base")
+    spawned: list[list[str]] = []
+
+    def worker(command: list[str], cwd: Path, out: Path) -> tuple[int, bool]:
+        spawned.append(command)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.touch()
+        return 0, False
+
+    started = conduct["main"].__globals__["work"]
+    conduct["main"].__globals__["work"] = worker
+    conductor = conduct["Run"](root, "codex")
+
+    def next_roots() -> list[str]:
+        models = ("codex", None, None)
+        conductor.spawn("0001-todo", "build", tree, "Do it.", models)
+        key = "sandbox_workspace_write.writable_roots="
+        found = next(arg for arg in spawned[-1] if arg.startswith(key))
+        return json.loads(found.removeprefix(key))
+
+    pointer.write_text(f"gitdir: {neighbour}/.git\n")
+    assert next_roots() == [str(root / ".git"), str(root)]
+    pointer.write_text(absolute)
+    inner = root / ".minions" / "inner"
+    inner.mkdir()
+    entry = root / ".git" / "worktrees" / "0004-inner"
+    entry.mkdir()
+    (entry / "HEAD").write_text("ref: refs/heads/0002-forged\n")
+    (entry / "commondir").write_text("../..\n")
+    (entry / "gitdir").write_text(f"{inner}/.git\n")
+    (inner / ".git").write_text(f"gitdir: {entry}\n")
+    assert conduct["reach"](root) == [root, tree]
+    shutil.rmtree(entry)
+    shutil.rmtree(inner)
+    aside = root / ".git-aside"
+    (root / ".git").rename(aside)
+    (root / ".git").symlink_to(neighbour / ".git")
+    with pytest.raises(conduct["Stop"]) as stop:
+        conduct["preconditions"](root, "codex")
+    assert "not the primary checkout" in str(stop.value)
+    assert conduct["reach"](root) == [root]
+    with pytest.raises(conduct["Stop"]) as stop:
+        next_roots()
+    assert "the primary's .git moved" in str(stop.value)
+    (root / ".git").unlink()
+    (root / ".git").write_text(f"gitdir: {neighbour}/.git\n")
+    with pytest.raises(conduct["Stop"]):
+        conduct["preconditions"](root, "codex")
+    planted = root / ".minions" / "planted"
+    planted.mkdir()
+    _git(planted, "init", "-q", "-b", "main")
+    _git(planted, "config", "core.worktree", str(planted))
+    (root / ".git").write_text(f"gitdir: {planted}/.git\n")
+    with pytest.raises(conduct["Stop"]):
+        conduct["preconditions"](root, "codex")
+    (root / ".git").unlink()
+    aside.rename(root / ".git")
+    shutil.rmtree(planted)
+    commondir = root / ".git" / "worktrees" / "0001-todo" / "commondir"
+    kept = commondir.read_text()
+    commondir.write_text(f"{neighbour}/.git\n")
+    assert next_roots() == [str(root / ".git"), str(root), str(tree)]
+    commondir.write_text(kept)
+    conduct["main"].__globals__["work"] = started
+    conductor.log.path.unlink()
 
     assert conduct["PROMPTS"]["converge"].format(change="0001-todo", tier="") == (
         "Run the mf-converge skill for change 0001-todo."
@@ -1131,7 +1200,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert repr(value) in str(stop.value) and "\n" not in str(stop.value)
 
     calls = fake("deny", "heredoc")
-    assert argv("claude", "Do it.", root, None, None) == [
+    assert argv("claude", "Do it.", root, None, None, repo) == [
         sys.executable,
         __file__,
         f"Do it.\n\n{rules}",

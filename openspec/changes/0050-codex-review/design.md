@@ -40,7 +40,7 @@ project; a converge on Codex finds what Claude's found.
 ### D1
 
 `_models(runs, change, station, run)` returns `(executor, model, effort)`, `run` being the run's executor when the table
-names none. `Run.spawn`'s `models` becomes that triple, and its worker is `argv(executor, prompt, cwd, model, effort)`.
+names none. `Run.spawn`'s `models` becomes that triple, and its worker is `argv(executor, prompt, cwd, model, effort, repo)`.
 
 The `spawn` event adds ` · executor <name>` only when it differs from the run's, so a run on one executor logs as today.
 
@@ -75,7 +75,7 @@ when it has no count.
 ```python
 system = "/usr/bin:/bin:/usr/sbin:/sbin"
 path = f"PATH={system}:{os.environ.get('PATH', '')}"
-env = ("env", f"UV_CACHE_DIR={run_dir(cwd) / 'uv-cache'}", path)
+env = ("env", f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}", path)
 ```
 
 `argv` adds `-c allow_login_shell=false`: a login shell re-reads the person's profile, and puts `PATH` back. Measured in a
@@ -91,23 +91,39 @@ worker poison a cache that unsandboxed `uv` trusts. Codex can reach an Intel `ba
 `edit_root` goes.
 
 ```python
-def reach(cwd: Path) -> list[Path]:
-    """Return the directories a worker may edit: the primary and each linked worktree."""
-    root = _root(cwd)
-    if _common_dir(cwd) is None:
-        return [cwd.resolve()]
-    linked = [path for path in _worktrees(root).values() if path != root]
-    return [root, *linked]
+def reach(primary: Path) -> list[Path]:
+    """Return what a worker may edit: the primary and each linked worktree."""
+    root = primary.resolve()
+    if _common_dir(root) is None:
+        return [root]
+    trees = [root]
+    for path in sorted(_worktrees(root).values()):
+        if not any(path.is_relative_to(tree) for tree in trees):
+            trees.append(path)
+    return trees
 ```
 
-`allowlist(cwd, trees)` gives one `Edit(/{tree}/**)` per tree. `argv` gives `--add-dir` once per tree, and Codex's `roots` are
-`run_dir`, the common directory, then `reach`. The second half of `0040·S2`'s fix falls away: with `edit_root` gone, a
-`Worktrees:` path widens nothing. A changed `Ship tools:` line is out: `make`, `uv` and `python3` run any code, and D47 says the
-list is a guardrail.
+`allowlist(primary, trees)` gives one `Edit(/{tree}/**)` per tree. `argv` gives `--add-dir` once per tree, and Codex's `roots`
+are the common directory, then `reach`; `.minions/` lies inside the primary. The second half of `0040·S2`'s fix falls away:
+with `edit_root` gone, a `Worktrees:` path widens nothing. A changed `Ship tools:` line is out: `make`, `uv` and `python3` run
+any code, and D47 says the list is a guardrail.
 
 `git worktree list` reads `<common>/worktrees/*/gitdir`, and a worker can write those files: a forged entry would name any
-directory. `_worktrees` keeps a linked path only when its `.git` file points back to `<common>/worktrees/<id>`, a file outside
-a worker's roots, so a forged entry widens no root and makes no version.
+directory. `_worktrees`, in `conduct.py` and `integrate.py` alike, keeps a linked path only when its `.git` file points back to
+`<common>/worktrees/<id>`. A forged target outside a worker's roots cannot hold that file, so a forged entry widens no root and
+makes no version.
+
+A worktree's `.git` file and its `commondir` are inside a worker's roots, so git's answer in a tree proves nothing. `Run` takes
+`repo`, the primary and its resolved common directory, once before the first worker, and `reach`, `allowlist` and `argv` read
+that, never git in `cwd`; the probe's scratch repo is its own `repo`. A worktree whose `.git` file a worker rewrites stops
+pointing back and leaves the list. The primary's `.git` is in reach too, so `preconditions` refuses a checkout whose `.git`
+names another repository, which a re-run would take for the primary, and `argv` halts a Codex worker when `.git` no longer
+resolves to `repo`'s common directory.
+
+Codex resolves a root's symlinks when it starts, so a listed path must not be one a worker can swap. A linked path inside another
+root stays unlisted and covered, as `.minions/` does, so every listed tree's parent is outside the roots. The common directory
+is the one exception: it must be listed, as Codex holds a root's `.git` read-only, and `argv`'s check leaves a window of the
+moments before Codex starts, in which a concurrent worker could swap it.
 
 ### D6
 
@@ -180,8 +196,9 @@ Tests edited:
 
 | test | edit |
 |---|---|
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `Edit`, `--add-dir` and `roots` name the primary and worktrees, never `container`, nor a forged worktree entry |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | `Edit`, `--add-dir` and `roots` name the primary and worktrees, never `container`, nor a forged worktree entry, nor the repository a redirected `.git` or `commondir` names |
 | `test_after_waits_for_its_dependency` | `integrate.py` runs in process |
+| `test_next_picks_the_named_or_the_lowest_ready_id` | a forged entry naming an open version's branch changes no printed worktree |
 
 No test is deleted or merged.
 
