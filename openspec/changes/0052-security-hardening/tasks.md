@@ -83,3 +83,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
   [D9](design.md#d9).
   Verify: `grep -c 'def _read_url' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or rerun_pushes'` reports `2 passed`.
+- [x] 6.8 Fetch no missing object in `_run`, print `run · unread` where a merged tag has no run's read, and keep the URLs in a run
+  with no version, per [D9](design.md#d9).
+  Verify: `grep -c 'GIT_NO_LAZY_FETCH' skills/mf-ship/scripts/conduct.py` prints `1`, `grep -c 'run · unread' skills/mf-ship/SKILL.md`
+  prints `2`, and `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or rerun_pushes'` reports `2 passed`.

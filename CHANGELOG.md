@@ -33,8 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worker's `commondir` or swapped `.git` would dodge the kept URLs; a linked worktree therefore needs a repo's first run. A release
   worker's held key now halts a run naming the key, in a repo with an `origin` (change `0052-security-hardening`, phase 6).
 - `status`, `check` and `report` make no remote call for a repo no run kept, wherever they run, so a first read is a run's alone,
-  because a repo a worker puts inside a linked worktree passes the folder test. Until a repo's first run with a version, `status`
-  names no unpushed tag, and `check` and `report` read a tag as not on `origin` (change `0052-security-hardening`, phase 6).
+  because a repo a worker puts inside a linked worktree passes the folder test. Until a repo's first run, `status` names no
+  unpushed tag, and `check` and `report` read a tag as not on `origin` (change `0052-security-hardening`, phase 6).
+- `status` prints `run · unread` for a repo no run kept with a merged version tag, and a run keeps `origin`'s URLs even with no
+  version, because a tag alone would otherwise read as nothing to ship and stay local (change `0052-security-hardening`, phase 6).
+- `conduct.py`'s local git fetches no missing object, because a promisor remote a worker plants would carry its URL past every
+  refusal (change `0052-security-hardening`, phase 6).
 - The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
   reaches the report (change `0052-security-hardening`, phase 6).
 

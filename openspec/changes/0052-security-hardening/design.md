@@ -35,7 +35,7 @@ push; both executors have the same boundary.
 | [D6](#d6) | The LFS remedy needs every held key to be LFS's | `0051·S9` | — |
 | [D7](#d7) | D47, D51 and `THREAT_MODEL.md` state the boundary | A7 | leaving "a guardrail" in force |
 | [D8](#d8) | An escape test and the drill, on real workers | the design rests on a subagent's Bash being sandboxed | a `**HUMAN` phase |
-| [D9](#d9) | The conductor's remote calls read no repo's config, and go only to the URLs a run kept in the home folder | `R2`, `R3`, `R9`, `R15`, `S3`, `S4`, `S10`, `S11`, `S13`, `S14`: it now pushes with workers alive, outside their sandbox, and a repo's config outlasts a run | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit · a person accepting a re-run's first read |
+| [D9](#d9) | The conductor's remote calls read no repo's config, and go only to the URLs a run kept in the home folder | `R2`, `R3`, `R9`, `R15`, `R16`, `R17`, `S3`, `S4`, `S10`, `S11`, `S13`, `S14`: it now pushes with workers alive, outside their sandbox, and a repo's config outlasts a run | holding the push until no worker lives: a release's check needs it, and a worker's background process outlives its exit · a person accepting a re-run's first read |
 
 ### D1
 
@@ -198,7 +198,7 @@ the sandbox makes moot to `proposal.md`'s `backlog:`.
 
 ### D9
 
-Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks, and for `R9`, `R15`, `S10`, `S11`, `S13` and `S14`. Since [D3](#d3)
+Added at converge, for `R2`, `R3`, `S3` and `S4`, as `0049·S7` asks, and for `R9`, `R15`, `R16`, `R17`, `S10`, `S11`, `S13` and `S14`. Since [D3](#d3)
 `conduct.py` pushes on every release, with other versions' workers alive, and a worker can write the common directory. Three gaps follow: `origin`'s URL
 steers a push, it carries what a worker put in it to the host it names on any remote call, and a key set after the refusal runs at
 the operator's rights.
@@ -208,7 +208,7 @@ the operator's rights.
 any remote call, when `origin` stood at that read and the state differs, and pushes `<sha>:<ref>` to those URLs. With no `origin`
 nothing leaves, so `merge_in` keeps its own comparison. `Run.advance` skips the release's `check` when `push_left` halted the run.
 
-`Run.ship`, once it has a version and past its first `push_left`, calls `_keep_origin`: `origin`'s fetch and push URLs, none being a
+`Run.ship`, past its first `push_left`, with a version or none, calls `_keep_origin`: `origin`'s fetch and push URLs, none being a
 value too, go to `~/.mf-ship-origin/<digest>`, the digest of the primary's path, owner-only, since a URL can hold a key. A file that
 stands stays, so a re-run is no first read. A first run that halts at the refusal keeps nothing, so a person's repoint needs no
 second step.
@@ -228,6 +228,12 @@ only `Run` passes `first_read`, at its `push_left` and its release check. Before
 refs show, and no tag, as for an `origin` it cannot read, and `check` and `report` read a tag as not on `origin`. Where nothing is
 kept in a run, because the home folder refuses the file, the run's own reads stand.
 
+So a tag alone cannot read as nothing to ship: for a repo with an `origin`, no kept file and a merged version tag, `status` prints
+`run · unread`, and `mf-ship` Step 3 starts the run whose own read finds the tag. That run keeps the URLs even with no version, so
+the line comes once, and a first run that halts keeps nothing, so a person's repoint needs no second step. A repo with no merged
+tag gets no line and no run. Where the home folder refuses the file the line stands: each `/mf-ship` costs that one read, and no
+worker.
+
 A real linked worktree lies outside its repo too, and a worker writes the `.git` that would tell it from a forged one. So it needs
 the kept file as well: it halts until its repo's first run, and `mf-ship` runs in the primary. Rejected: stopping only where the
 toplevel's `.git` is a directory, which a swapped `.git` passes.
@@ -236,6 +242,13 @@ Each remote call, `ls-remote` and `push`, goes through `_outside`: a new bare re
 objects, in a folder no worker can write. `git` there reads the operator's global config and that scratch's, and no repo's, so the
 key a worker set is never read. A URL is passed behind `--`. The push updates `refs/remotes/origin/<default>` itself, since a URL
 updates no remote-tracking ref.
+
+A local read can turn into a remote call: git fetches a missing object from a promisor remote, and a worker can plant one and delete
+a blob, past `_outside` and every refusal. So `_run` sets `GIT_NO_LAZY_FETCH=1`, and no git it starts fetches one: measured, `_show`
+returned a deleted blob from a planted promisor, and returns None with it set. The key still halts where any key off the list does.
+A run needs no lazy fetch, since a partial clone's `extensions.partialclone` is off the list too. `integrate.py`'s `delta` starts its
+own git and takes no such setting, since a person's `/mf-integrate` in a partial clone may need the fetch: it runs right after
+`merge_in`'s refusal, so it stands in the race *Known gaps* keeps, below.
 
 The scratch stands in the home folder: both sandboxes write the temp folders, so a scratch there would stand in a worker's reach.
 Where the home folder refuses it, `conduct.py` is itself in a sandbox, and the temp folder serves. There it keeps no URLs either: its
@@ -267,8 +280,9 @@ and the host's words for a denied `Read`. Converge's fixes are steps in the test
 `test_a_claude_worker_starts_in_the_sandbox`, for `TOKENS`, the lists and `--setting-sources`; `test_a_mixed_key_list_gets_no_lfs_remedy`,
 for a planted value; `test_no_worker_pushes`, for a repointed `origin`, the URL each remote call receives, a re-run, a person's
 remedy, git redirected by `commondir` or a swapped `.git`, past the folder or inside a linked worktree, no remote call for a repo no
-run kept, and a run the home folder refuses; `test_a_rerun_pushes_what_a_release_left`, for a key after the refusal, the first URL,
-`status` before a first run and that run's own read, and the place of the scratch and the kept URLs;
+run kept, a run the home folder refuses, and a planted promisor; `test_a_rerun_pushes_what_a_release_left`, for a key after the
+refusal, the first URL, `status` before a first run and that run's own read, a tag alone in a repo no run kept, a repo with no merged
+tag, and the place of the scratch and the kept URLs;
 `test_a_changed_git_config_halts_a_merge_in`, for a held key in a repo with an `origin`. `test_each_check_passes_only_on_disk_evidence`
 and `test_a_run_pushes_only_tagged_merges` now keep `origin`'s URLs first, as a run would, so `check`, `report` and `status` read it.
 No test is deleted or merged.

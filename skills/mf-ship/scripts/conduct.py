@@ -180,14 +180,19 @@ class Stop(Exception):
 def _run(
     cwd: Path, *args: str, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    """Return a finished git command run in `cwd`; a missing git stops with exit 2."""
+    """Return a finished git command run in `cwd`; a missing git stops with exit 2.
+
+    No local git reaches a network: a missing object read here would otherwise fetch
+    from a promisor remote a worker planted, past every refusal.
+    Why: 0052-security-hardening design D9.
+    """
     try:
         return subprocess.run(
             ["git", *NO_HOOKS, *args],
             cwd=cwd,
             capture_output=True,
             encoding="utf-8",
-            env=env,
+            env={**(os.environ if env is None else env), "GIT_NO_LAZY_FETCH": "1"},
             errors="replace",
             timeout=GIT_TIMEOUT,
         )
@@ -940,6 +945,23 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[str]:
         if _subject(primary, f"refs/tags/{tag}") != f"chore(release): {tag}":
             raise Stop(1, f"conduct: halt — {default} holds {tag}, not a release")
     return found + tags
+
+
+def _unread(primary: Path) -> bool:
+    """Return whether `origin` could lack a merged tag only a run may read for.
+
+    Nothing kept, so `status` read no `origin`. A merged tag makes a run worth starting,
+    and that run keeps the URLs, so this holds once. Why: 0052-security-hardening
+    design D9.
+    """
+    return (
+        "origin" in _git(primary, "remote").split()
+        and not _kept_file(primary).is_file()
+        and any(
+            TAG.fullmatch(tag)
+            for tag in _git(primary, "tag", "--merged", default_branch(primary)).split()
+        )
+    )
 
 
 def check_probe(scratch: Path) -> str | None:
@@ -1771,10 +1793,10 @@ class Run:
         if self.halts:
             self.log.event("run", "halt", self.closing())
             return 1
+        _keep_origin(self.primary)
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
-        _keep_origin(self.primary)
         try:
             self.read_plan(versions)
         except Stop as stop:
@@ -1936,6 +1958,8 @@ def status(cwd: Path) -> str:
     }[claim]
     if unpushed := _unpushed(primary):
         lines.append(f"run · unpushed {' '.join(unpushed)}")
+    if _unread(primary):
+        lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     lines += [
         f"{version.change} · {stage_of(primary, version)[0]}"
         for version in open_versions(primary)

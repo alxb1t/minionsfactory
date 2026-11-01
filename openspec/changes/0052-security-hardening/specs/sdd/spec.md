@@ -198,7 +198,9 @@ person SHALL clear that, repointing `origin` or removing the file. A run that re
 when the repo's git config or `info/attributes` differs from its first read, a key off the list naming itself. `status`, `check`,
 `report`, `stop` and `grant` SHALL halt, making no remote call, when git names a repo outside the folder they run in and no run
 kept that repo's URLs. `status`, `check` and `report` SHALL make no remote call for a repo no run kept, wherever they run: a first
-read SHALL be a run's alone.
+read SHALL be a run's alone. For such a repo with a merged version tag, `status` SHALL print `run · unread`, so a run starts for what
+it cannot read, and a run past its first pushes SHALL keep the URLs, with a version or none. The git `conduct.py` runs itself SHALL
+fetch no missing object from a promisor remote.
 
 #### Scenario: A release under mf-ship
 - **WHEN** a release worker merges under `merge=yes`
@@ -233,9 +235,22 @@ read SHALL be a run's alone.
 - **AND WHEN** a run starts there, even where the home folder refuses the file
 - **THEN** it reads `origin` itself, for its pushes and its release check
 
+#### Scenario: A tag alone in a repo no run kept
+- **WHEN** `main` is level with `origin`, a merged tag is not on it, and no run kept the repo
+- **THEN** `status` prints `run · unread`, and `mf-ship` starts a run, which pushes the tag and keeps the URLs
+- **AND WHEN** `status` runs again
+- **THEN** it reads `origin` itself, and prints no such line
+- **AND WHEN** a repo with an `origin` no run kept holds no merged version tag
+- **THEN** `status` prints `status: none — no open version`, and no run starts
+
 #### Scenario: A worker sets a key after the refusal
 - **WHEN** a key that names a program stands in the repo's config after the refusal read it clean
 - **THEN** the conductor's remote calls and pushes do not run that program
+
+#### Scenario: A worker plants a promisor remote
+- **WHEN** a worker sets `remote.<name>.promisor`, and deletes a blob `conduct.py` reads
+- **THEN** that read fails, and the remote's URL receives nothing
+- **AND** the key halts the run where any key off the list does
 
 ### Requirement: A run's plan is read once
 

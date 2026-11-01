@@ -1313,7 +1313,8 @@ def test_a_rerun_pushes_what_a_release_left(
         )
 
     # Before a first run `status` calls nothing, and the run's own read finds the tag.
-    assert status() == "run · unpushed main"
+    unread = "run · unread — a run reads origin's tags, and keeps its URLs"
+    assert status() == f"run · unpushed main\n{unread}"
     _git(root, "config", "--global", "hook.operator.event", "pre-push")
     _git(root, "config", "--global", "hook.operator.command", "exit 1")
     run(0)
@@ -1332,7 +1333,6 @@ def test_a_rerun_pushes_what_a_release_left(
     head = _git(root, "rev-parse", "main")
     assert head in _git(root, "ls-remote", "origin", "refs/heads/main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
-    conduct["_keep_origin"](root)
     assert status() == "status: none — no open version"
 
     other = tmp_path / "other"
@@ -1463,6 +1463,25 @@ def test_a_rerun_pushes_what_a_release_left(
     refused("hook.probe.event")
     log = conduct["last_log"](root / ".minions" / "runs")
     assert "hook.probe.event" in log.read_text()
+
+    # No run kept this repo, and it merged no tag to read for: no line, so no run.
+    alone = tmp_path / "alone"
+    alone.mkdir()
+    root = _primary(alone)
+    origin = alone / "origin.git"
+    _git(alone, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    assert status() == "status: none — no open version"
+
+    # A tag alone: `status` calls nothing, its line starts the run, and that run's own
+    # read finds the tag. It keeps the URLs, so no second run starts.
+    _released(root, "v0.3.0")
+    _git(root, "push", "-q", "origin", "main")
+    assert status() == unread
+    run(0)
+    assert "refs/tags/v0.3.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert status() == "status: none — no open version"
 
 
 def test_a_run_pushes_only_tagged_merges(
@@ -1690,7 +1709,7 @@ def test_no_worker_pushes(
         said = capsys.readouterr().out
         assert not any(str(elsewhere) in args for args in reached)
         assert codes == [0, 1, 0]
-        assert said.startswith("status: none — no open version\n")
+        assert said.startswith("run · unread — ")
         assert "check: release · fail — v0.1.0 is not on origin\n" in said
         assert " · not pushed · " in said
 
@@ -1737,6 +1756,22 @@ def test_no_worker_pushes(
     )
     assert conduct["_kept_origin"](root) is None
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+    # A worker plants a promisor and deletes a blob: git reads the blob from no URL,
+    # and the key halts where any off-list key does.
+    lazy = tmp_path / "lazy"
+    lazy.mkdir()
+    root = _primary(lazy)
+    holder = lazy / "holder.git"
+    _git(lazy, "clone", "-q", "--bare", str(root), str(holder))
+    _git(root, "config", "remote.x.url", str(holder))
+    _git(root, "config", "remote.x.promisor", "true")
+    blob = _git(root, "rev-parse", "HEAD:AGENTS.md").strip()
+    (root / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+    assert conduct["_show"](root, "HEAD", "AGENTS.md") is None
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    assert "remote.x.promisor" in capsys.readouterr().out
 
 
 def test_the_plan_is_read_once(
