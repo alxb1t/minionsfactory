@@ -443,9 +443,9 @@ merge, commits when that passes, and else leaves the merge open with its note.**
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process under `conduct.py`'s allowlist — Claude Code — or the workspace-write sandbox — Codex
-— never with prompts bypassed, and is judged by a check on disk; a failed check halts its version, a halt blocks only
-what names it in `after:`, a failed probe halts the run, and a re-run resumes from disk. Converge runs at the tier the
-cut chose.**
+— never with prompts bypassed, and is judged by its exit and a check on disk; a failed check halts its version, a halt
+blocks only what names it in `after:`, a failed probe halts the run, and a re-run resumes from
+disk: only a stage left in `HALTS` needs the person. Converge runs at the tier the cut chose.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.

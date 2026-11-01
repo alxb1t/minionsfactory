@@ -41,7 +41,7 @@ skill. Its exits: 0 done · 1 halt · 2 cannot run.
 
 | command | prints |
 |---|---|
-| `status` | one line per open version: `<change-id> · <stage>` |
+| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>` |
 | `run --executor <executor> --detach` | starts the loop in a new session and returns |
 | `report` | the last run's close-out lines |
 
@@ -64,10 +64,11 @@ Every one holds, or **halt** naming the one that failed:
 
 Run `status` and paste its output.
 
-| `.minions/runs/active` | then |
+| `status` prints | then |
 |---|---|
-| exists | a run is live: report the status and the run log's last lines, then stop |
-| missing | run `report` and keep its lines for Step 4 |
+| `run · live` | a run is live: report the status and the run log's last lines, then stop |
+| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin` or names it in the global `mf-ship.localorigin` |
+| anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start
 
@@ -97,6 +98,6 @@ Then **stop**.
 ## Never
 
 - **Never run a station, merge or push yourself** — the script starts each station as a fresh agent process.
-- **Never start a second run** while `.minions/runs/active` exists.
+- **Never start a second run** while one is live.
 - **Never edit or delete a run log.**
 - **Never pass `merge=yes`** anywhere but through the script.
