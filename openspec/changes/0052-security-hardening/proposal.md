@@ -40,6 +40,8 @@ None.
 - `sdd`:
   - *The release merges and pushes on the person's yes* — MODIFIED: under `merge=yes`, the conductor pushes.
   - *The ship station takes cut versions to the default branch* — MODIFIED: an OS sandbox on both executors.
+  - *A halt stops only its version, and a re-run resumes* — MODIFIED: the kept URLs, and what they need of a person.
+  - *Every worktree shares the primary's run directory* — MODIFIED: `conduct.py` halts on a repo it cannot trust.
   - *A worker runs in an OS sandbox* — ADDED.
   - *No worker pushes* — ADDED.
   - *A run's plan is read once* — ADDED.

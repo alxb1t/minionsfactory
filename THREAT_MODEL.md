@@ -24,7 +24,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a scratch
   repo in the home folder and read no repo's config. A run keeps `origin`'s URLs in the home folder before its first worker: while
   `origin` differs from them, no remote call runs, in that run or a later one, until a person repoints it or removes the file. A
-  changed config halts a run before its next remote call.
+  changed config halts a run before its next remote call. A worker can redirect git with `commondir` or a swapped `.git`, so
+  `conduct.py` halts when git names a repo outside the folder it runs in and no run kept that repo's URLs.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points

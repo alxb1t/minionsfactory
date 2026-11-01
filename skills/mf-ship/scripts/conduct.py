@@ -252,10 +252,23 @@ def _common_dir(cwd: Path) -> Path | None:
 
 
 def primary_of(cwd: Path) -> Path:
-    """Return the primary checkout of the repo holding `cwd`; outside one, exit 2."""
+    """Return the primary checkout of the repo holding `cwd`; outside one, exit 2.
+
+    A worker can write `commondir` and `.git`, so git can name a repo `_refuse_origin`
+    has no kept URLs for: past that repo's own folder, kept URLs must stand, or stop
+    with 1. Why: 0052-security-hardening design D9.
+    """
     if (common := _common_dir(cwd)) is None:
         raise Stop(2, "conduct: cannot run — not in a git repository")
-    return common.parent
+    primary = common.parent
+    if not cwd.resolve().is_relative_to(primary) and not _kept_file(primary).is_file():
+        raise Stop(
+            1,
+            "conduct: halt — git names a repo outside this folder, and no run kept its"
+            " URLs: run this in the primary, and if it halts there, remove the"
+            " `commondir` file in `.git`, or restore `.git`",
+        )
+    return primary
 
 
 def _repo(cwd: Path) -> Repo:
@@ -1695,12 +1708,13 @@ class Run:
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. Why: 0052-security-hardening design D9.
+        steers none. A held key is refused first, so the halt names it.
+        Why: 0052-security-hardening design D9.
         """
-        if self.pushes and _git_state(self.primary) != self.git_state:
-            self.halt("run", CONFIG_CHANGED)
-            return False
         try:
+            _refuse_config_commands(self.primary)
+            if self.pushes and _git_state(self.primary) != self.git_state:
+                raise Stop(1, CONFIG_CHANGED)
             unpushed = _unpushed(self.primary)
         except Stop as stop:
             self.halt("run", str(stop))

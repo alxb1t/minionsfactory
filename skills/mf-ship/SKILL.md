@@ -76,6 +76,7 @@ Run `status` and paste its output.
 |---|---|
 | `run · live` | a run is live: report the status and the run log's last lines, then stop |
 | `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects. When it says `origin` left the URLs a run kept, no re-run clears it: a person reads `git remote -v`, then repoints `origin`, or removes the file the halt names to keep the new URLs |
+| `conduct: halt — git names a repo outside this folder …` | report it in full, then stop: a worker may have redirected git, and a person removes the `commondir` file in `.git`, or restores `.git` |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A run keeps `origin`'s URLs in the home folder before its first worker, and a repointed `origin` halts every remote call,
   `status`, `check`, `report` and any re-run among them, until a person repoints it or removes the file, because a URL carries
   what a worker put in it, and a repo's config outlasts the run (change `0052-security-hardening`, phase 6).
+- `status`, `check`, `report`, `stop` and `grant` halt when git names a repo outside their folder that no run kept, because a
+  worker's `commondir` or swapped `.git` would dodge the kept URLs; a linked worktree therefore needs a repo's first run. A release
+  worker's held key now halts a run naming the key, in a repo with an `origin` (change `0052-security-hardening`, phase 6).
 - The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
   reaches the report (change `0052-security-hardening`, phase 6).
 

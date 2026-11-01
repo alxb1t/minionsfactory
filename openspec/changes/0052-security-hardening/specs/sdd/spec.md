@@ -91,6 +91,78 @@ plants does not run at the conductor's rights.
 - **WHEN** `mf-ship` starts in a repo whose `AGENTS.md` declares no `Worktrees:`
 - **THEN** it halts, naming the missing declaration, and starts no worker
 
+### Requirement: A halt stops only its version, and a re-run resumes
+
+A failed check SHALL halt its version alone: that version SHALL start no new worker, and every other version SHALL go on
+to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
+probe and a conductor crash SHALL stop the run. A run with every open version at a halt stage or `waiting` SHALL start
+no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
+converge's cap, an open integrate merge, a red gate, a release stopped before its merge, and a worker past its timeout
+SHALL each halt their version.
+
+Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
+close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
+`halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
+outside git and the run directory, except the claim and `origin`'s URLs in the home folder: a re-run derives every stage again
+and continues. A halt SHALL need
+the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted, a release whose
+base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
+changed during the run, or an `origin` that left the kept URLs. A worker stopped by a usage
+limit SHALL be halted with its reset time named.
+
+#### Scenario: A HUMAN phase halts its version
+- **WHEN** a version's first unticked phase is marked `**HUMAN`
+- **THEN** that version halts, naming the phase, and every other version goes on
+
+#### Scenario: A later version halts, and the earlier ships
+- **WHEN** two versions run and the later one's build check fails
+- **THEN** the earlier is released, merged and pushed
+- **AND** the run closes naming the later as halted and the earlier's tag as released, and exits 1
+
+#### Scenario: A later version ships past a halted one
+- **WHEN** two versions run and the earlier one's build check fails
+- **THEN** the later is released, merged and pushed
+- **AND** the run closes naming the earlier as halted and the later's tag as released, and exits 1
+
+#### Scenario: A halted dependency blocks a chain
+- **WHEN** a version halts, a second has it in `after:`, and a third has the second in `after:`
+- **THEN** neither starts a worker, each logs `blocked — by <id>`, and the closing line names both as blocked
+
+#### Scenario: No open version can start
+- **WHEN** one version sits at a `**HUMAN` phase, and every other is `waiting`
+- **THEN** the run starts no worker, and closes naming the first as halted and the others as blocked
+
+#### Scenario: A failed probe stops the run
+- **WHEN** the probe's check fails
+- **THEN** no version starts a worker, and the run closes naming `run` as halted
+
+#### Scenario: The person re-runs after a halt
+- **WHEN** the person handles the halt and runs `mf-ship` again
+- **THEN** each version continues from its stage on disk, and the finished stations do not run again
+
+#### Scenario: The person resolves a semantic conflict
+- **WHEN** integrate halted on a semantic conflict or a red gate, with the merge open and its note under
+  `.minions/integrate/`
+- **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` runs the catch-up round, then the release
+
+### Requirement: Every worktree shares the primary's run directory
+
+Every station and bundled script SHALL resolve the run directory as `.minions/` beside the primary checkout's git
+directory — `git rev-parse --path-format=absolute --git-common-dir`, its parent — from any worktree of the
+repository. `conduct.py` alone SHALL halt on that answer outside the repo it names until a run has kept that repo's URLs: a worker
+can write what steers it. Converge and the release SHALL write `.minions/backlog.md` only while holding `.minions/backlog.lock`,
+created with `mkdir`, halting after two minutes of waiting and naming the lock.
+
+#### Scenario: A release in a linked worktree after a converge in another
+- **WHEN** converge ran in one worktree of a change and the release runs in another worktree of the same repository
+- **THEN** the release reads the same findings files, and does not read converge as skipped
+
+#### Scenario: Two converges write the backlog
+- **WHEN** a converge reaches Step 9 while another holds `.minions/backlog.lock`
+- **THEN** it waits, writes once the lock is free, and removes the lock after its write
+
 ## ADDED Requirements
 
 ### Requirement: A worker runs in an OS sandbox
@@ -123,7 +195,9 @@ call from a scratch git directory outside every worker's reach, reading no repo'
 keep `origin`'s URLs in the home folder, outside every worker's reach, a file that stands staying, and SHALL push only to them.
 It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
 person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
-when the repo's git config or `info/attributes` differs from its first read.
+when the repo's git config or `info/attributes` differs from its first read, a key off the list naming itself. `status`, `check`,
+`report`, `stop` and `grant` SHALL halt, making no remote call, when git names a repo outside the folder they run in and no run
+kept that repo's URLs.
 
 #### Scenario: A release under mf-ship
 - **WHEN** a release worker merges under `merge=yes`
@@ -133,11 +207,21 @@ when the repo's git config or `info/attributes` differs from its first read.
 - **WHEN** a worker sets `remote.origin.url` to another network URL
 - **THEN** the run halts naming the changed config, and that host receives nothing
 
+#### Scenario: A release worker plants a key off the list
+- **WHEN** a release worker leaves such a key in a repo with an `origin`
+- **THEN** the run halts naming the key, and makes no remote call
+
 #### Scenario: A repoint outlasts the run
 - **WHEN** a run stopped with `origin` repointed, and `status`, `check`, `report` or a new run follows
-- **THEN** each halts naming the file that keeps the URLs, and that host receives nothing
+- **THEN** each that would make a remote call halts naming the file that keeps the URLs, and that host receives nothing
 - **AND WHEN** a person repoints `origin`, or removes that file
 - **THEN** the next run goes on, and a removed file keeps what that run reads
+
+#### Scenario: A worker redirects git to another repo
+- **WHEN** a `commondir` file, or a swapped `.git`, leaves git naming a repo no run kept, its `origin` on another host
+- **THEN** `status`, `check` and `report` halt, and that host receives nothing
+- **AND WHEN** a person removes the redirect
+- **THEN** each reads the primary again
 
 #### Scenario: A worker sets a key after the refusal
 - **WHEN** a key that names a program stands in the repo's config after the refusal read it clean

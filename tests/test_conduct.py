@@ -1017,14 +1017,20 @@ def test_a_changed_git_config_halts_a_merge_in(
         " · run · halt — conduct: halt — the repo's git config holds a key that could"
         " name a program: mf.planted; move it to the global config or remove it"
     )
-    for mode, said in (
-        ("plant-config", merge_in),
-        ("plant-attributes", merge_in),
-        ("plant-held", held),
+    for mode, said, remote in (
+        ("plant-config", merge_in, False),
+        ("plant-attributes", merge_in, False),
+        ("plant-held", held, False),
+        ("plant-held", held, True),
     ):
-        scratch = tmp_path / mode
+        scratch = tmp_path / f"{mode}-{remote}"
         scratch.mkdir()
         root = _primary(scratch)
+        if remote:
+            origin = scratch / "origin.git"
+            _git(scratch, "init", "-q", "--bare", "-b", "main", str(origin))
+            _git(root, "remote", "add", "origin", str(origin))
+            _git(root, "push", "-q", "origin", "main")
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
         calls = fake(mode)
@@ -1588,7 +1594,8 @@ def test_no_worker_pushes(
     assert any(line.endswith(said) for line in _log(root))
     # An `ls-remote` leaves no ref there: the URL itself is what would leave.
     assert not any(str(elsewhere) in args for args in reached)
-    for command in (("status",), ("check", "release", "0001-todo"), ("report",)):
+    commands = (("status",), ("check", "release", "0001-todo"), ("report",))
+    for command in commands:
         assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 1
     assert not any(str(elsewhere) in args for args in reached)
 
@@ -1611,6 +1618,46 @@ def test_no_worker_pushes(
     assert " · run · done — " in rerun(0)
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
 
+    # A worker redirects git to a repo of its own, which no kept URLs guard.
+    aside = planted / "aside"
+    _git(planted, "clone", "-q", str(origin), str(aside))
+    _git(aside, "remote", "set-url", "origin", str(elsewhere))
+
+    def redirected() -> None:
+        codes = [
+            _main(conduct, root, *command, monkeypatch=monkeypatch)
+            for command in commands
+        ]
+        assert not any(str(elsewhere) in args for args in reached)
+        assert codes == [1, 1, 1]
+
+    commondir = root / ".git" / "commondir"
+    commondir.write_text(f"{aside / '.git'}\n")
+    redirected()
+    commondir.unlink()
+
+    _git(aside, "worktree", "add", "-q", "-b", "forged", str(planted / "forged"))
+    moved = root / ".git-moved"
+    (root / ".git").rename(moved)
+    (root / ".git").symlink_to(aside / ".git")
+    redirected()
+    (root / ".git").unlink()
+    for target in (aside / ".git", aside / ".git" / "worktrees" / "forged"):
+        (root / ".git").write_text(f"gitdir: {target}\n")
+        redirected()
+        (root / ".git").unlink()
+    moved.rename(root / ".git")
+
+    # A linked worktree stands once a run kept its repo, and not redirected.
+    tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 0
+    entry = root / ".git" / "worktrees" / "0002-marks" / "commondir"
+    held = entry.read_text()
+    entry.write_text(f"{aside / '.git'}\n")
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 1
+    assert not any(str(elsewhere) in args for args in reached)
+    entry.write_text(held)
+
     _git(root, "remote", "set-url", "origin", str(elsewhere))
     conductor = conduct["Run"](root, "claude")
     assert conductor.pushes == [str(origin)]
@@ -1621,6 +1668,7 @@ def test_no_worker_pushes(
     assert kept.stat().st_mode & 0o777 == 0o600
     kept.unlink()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 1
 
 
 def test_the_plan_is_read_once(

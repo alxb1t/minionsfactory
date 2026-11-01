@@ -75,3 +75,7 @@ Build the settled [design](design.md), one phase at a time. The skill, decision 
   exception to *The repo reaches nothing outside itself*.
   Verify: `grep -c 'def _keep_origin' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k no_worker_pushes` reports `1 passed`.
+- [x] 6.6 Halt `primary_of` on a repo git names past its folder, refuse a held key before the config comparison, per
+  [D9](design.md#d9), and fold the kept URLs into the delta's *A halt stops only its version, and a re-run resumes*.
+  Verify: `grep -c 'A halt stops only its version' openspec/changes/0052-security-hardening/specs/sdd/spec.md` prints `1`, and
+  `uv run pytest -q tests/test_conduct.py -k 'no_worker_pushes or changed_git_config'` reports `2 passed`.
