@@ -1,6 +1,6 @@
 ---
 bump: minor
-backlog: [0049·S4, 0049·S5, 0049·S8, 0049·S10, 0049·R6, 0049·R7, 0049·R8, 0049·R9, 0049·R10, 0049·R11, 0049·R13, 0049·R15, 0049·R16, 0047·S3, 0048·R8, 0038·N2, 0044·R12, 0050·R1, 0050·R2, 0050·R3, 0050·R4, 0050·R9, 0050·S4]
+backlog: [0049·S4, 0049·S8, 0049·S10, 0049·R6, 0049·R7, 0049·R8, 0049·R9, 0049·R10, 0049·R11, 0049·R13, 0049·R16, 0047·S3, 0048·R8, 0038·N2, 0044·R12, 0050·R1, 0050·R2, 0050·R3, 0050·R4, 0050·R9, 0050·S4]
 ---
 
 # Reliability paydown
@@ -22,8 +22,9 @@ Stopping a run takes hand commands, and each extra round has taken a hand-writte
 - **A run pushes only merges of tagged releases**, and halts naming anything else.
 - **A stop survives a death** — a resumed release re-reads its flag, and a person's refusal leaves a mark.
 - **No hook runs in a run**, and `make gate` is the only check.
-- **`core.hookspath` and `lfs.repositoryformatversion` are allowed**, and `mf-ship.localorigin` goes.
-- **`/mf-ship stop`** ends a live run, and **`/mf-ship grant <change-id>`** gives a capped version one more round.
+- **`core.hookspath` is allowed**, `lfs.repositoryformatversion` still halts, and `mf-ship.localorigin` goes.
+- **`/mf-ship stop`** ends a live run, killing only a conductor that keeps its start time, and
+  **`/mf-ship grant <change-id>`** gives a capped version one more round.
 - **A run stops at its start on a skill with no link.**
 - **Converge dispatches in the foreground.**
 - **The fake worker moves out of the test file**, for the gate's speed.
@@ -56,4 +57,5 @@ Dependencies: none. The gate recipe stays unchanged.
 
 ## Not in this change
 
-The hostile-worker cards left for Codex hardening; `0034·R9`; a run that waits out a usage limit; conflict resolve.
+The hostile-worker cards left for Codex hardening, `0049·S5`'s hostile route among them; an LFS repo, whose objects a run
+cannot upload, which is what stays of `0049·R15`; `0034·R9`; a run that waits out a usage limit; conflict resolve.

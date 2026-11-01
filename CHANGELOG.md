@@ -11,14 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused kill, `_pushed` compares the ref beside the id, and `_points_back` ties a path to its entry's branch. `0044·R12`
   closes here: the archive is frozen (change `0051-reliability-paydown`, phase 1).
 - A run pushes only merges of tagged releases, and a `.held` mark or a preamble flag stops a resumed release. No hook runs in
-  a worker, `core.hookspath` and `lfs.repositoryformatversion` are allowed, and `mf-ship.localorigin` goes (change
-  `0051-reliability-paydown`, phase 2).
+  a worker, `core.hookspath` is allowed, and `mf-ship.localorigin` goes (change `0051-reliability-paydown`, phase 2).
 - `/mf-ship stop` ends a live run, and `/mf-ship grant <change-id>` gives a capped version one more round. A run stops at its
   start on a skill with no link, and converge dispatches in the foreground (change `0051-reliability-paydown`, phase 3).
 - The fake worker moves to `tests/fake_worker.py`, so a worker no longer imports pytest, and a dead integrate has its recovery
   test (change `0051-reliability-paydown`, phase 4).
 - A drill kills a real worker and a real conductor in a scratch repo, and a re-run finishes both. The shell rules now reach
   every subagent a worker starts, which the drill's first run lacked (change `0051-reliability-paydown`, phase 5).
+- The claim holds the conductor's start time, so `/mf-ship stop` kills only that process, never a reused number, 0 or -1. A
+  claimed group that names no executor stops the run rather than being left to race it. A run halts on a release merge that
+  lost its tree and on a person's version-shaped tag, a hand `/mf-release` passes a flag, an LFS repo still halts because a run
+  cannot upload, and `THREAT_MODEL.md` keeps `0049·S5`'s hostile route and `0049·R15`'s LFS route open (change
+  `0051-reliability-paydown`, converge fixes R1, R2, R3, R4, R5, R6, R7, S1, S2 and S3).
 
 ## [0.44.0] - 2026-11-01
 

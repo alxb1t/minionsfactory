@@ -1418,8 +1418,8 @@ def test_a_run_pushes_only_tagged_merges(
     def on_origin() -> str:
         return _git(root, "ls-remote", "origin", "refs/heads/main").split()[0]
 
-    def halts_on(sha: str) -> None:
-        said = f"conduct: halt — main holds {sha[:7]}, not a release"
+    def halts_on(name: str) -> None:
+        said = f"conduct: halt — main holds {name}, not a release"
         capsys.readouterr()
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
         assert capsys.readouterr().out.strip() == said
@@ -1433,7 +1433,7 @@ def test_a_run_pushes_only_tagged_merges(
         assert _calls(calls) == []
 
     _commit(root, {"mine.txt": "x\n"}, "a person's commit")
-    halts_on(_git(root, "rev-parse", "main"))
+    halts_on(_git(root, "rev-parse", "main")[:7])
     _git(root, "reset", "-q", "--hard", "HEAD~1")
 
     _git(root, "switch", "-q", "-c", "side")
@@ -1441,11 +1441,31 @@ def test_a_run_pushes_only_tagged_merges(
     _git(root, "tag", "v0.9.0")
     _git(root, "switch", "-q", "main")
     _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'side'", "side")
-    halts_on(_git(root, "rev-parse", "main"))
+    halts_on(_git(root, "rev-parse", "main")[:7])
     _git(root, "reset", "-q", "--hard", "HEAD~1")
     _git(root, "tag", "-d", "v0.9.0")
 
+    refused = ("v0.7.0", "v0.8.0")
+    for tag in refused:
+        _git(root, "switch", "-q", "-c", f"release-{tag}", "main")
+        _commit(root, {tag: "x\n"}, f"chore(release): {tag}")
+        _git(root, "tag", "-a", "-m", tag, tag)
+    _git(root, "switch", "-q", "main")
+    for tag in refused:
+        _git(root, "merge", "-q", "--no-ff", "-m", "a merge", f"release-{tag}")
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~2")
+    _git(root, "tag", "-d", *refused)
+
+    _git(root, "tag", "v0.45.0")
+    halts_on("v0.45.0")
+    assert _git(root, "ls-remote", "--tags", "origin") == ""
+    _git(root, "tag", "-d", "v0.45.0")
+
     _released(root, "v0.1.0")
+    _git(root, "tag", "v0.2.0", "release-v0.1.0")
+    halts_on("v0.2.0")
+    _git(root, "tag", "-d", "v0.2.0")
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -1529,10 +1549,13 @@ def test_no_hook_runs_in_a_worker(
         assert fires({})
 
     _git(root, "config", "core.hooksPath", str(tooling))
-    _git(root, "config", "lfs.repositoryformatversion", "0")
     conduct["_refuse_config_commands"](root)
     assert not fires(pairs)
     assert fires({})
+
+    _git(root, "config", "lfs.repositoryformatversion", "0")
+    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion"):
+        conduct["_refuse_config_commands"](root)
 
 
 def test_stop_ends_a_live_run(
@@ -1551,6 +1574,18 @@ def test_stop_ends_a_live_run(
 
     assert stop() == "stop: none — no run is live"
 
+    active.mkdir()
+    (active / "start").write_text(_lstart(1))
+    signalled: list[tuple[int, int]] = []
+    with monkeypatch.context() as patch:
+        # On a stop with no guard, -1 would reach every process the operator owns.
+        patch.setattr(os, "kill", lambda pid, sig: signalled.append((pid, sig)))
+        for pid in ("-1", "0", "1"):
+            (active / "pid").write_text(pid)
+            assert stop() == "stop: none — no run is live"
+    assert signalled == []
+    shutil.rmtree(active)
+
     log = runs / "20261101-120000.md"
     log.write_text(
         "# Ship run 20261101-120000\n\n"
@@ -1567,6 +1602,12 @@ def test_stop_ends_a_live_run(
     (active / "pid").write_text(str(conductor.pid))
     (active / str(worker.pid)).write_text(_lstart(worker.pid))
 
+    (active / "start").write_text("Thu Jan  1 00:00:00 1970\n")
+    assert stop() == "stop: none — no run is live"
+    assert (conductor.poll(), worker.poll()) == (None, None)
+    assert (active / "pid").is_file()
+
+    (active / "start").write_text(_lstart(conductor.pid))
     assert stop() == f"stop: stopped · .minions/runs/{log.name}"
 
     assert conductor.wait(timeout=10) == -signal.SIGKILL
@@ -1716,6 +1757,9 @@ def test_a_stale_claim_is_cleared(
     assert status() == stale
 
     (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text("Thu Jan  1 00:00:00 1970\n")
+    assert status() == stale
+    (active / "start").write_text(_lstart(os.getpid()))
     assert status() == ["run · live", "0001-todo · build"]
     capsys.readouterr()
     assert (
@@ -1736,20 +1780,43 @@ def test_a_stale_claim_is_cleared(
     (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
     unstamped = subprocess.Popen([str(executor), "60"], start_new_session=True)
     (active / str(unstamped.pid)).touch()
-    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
     (active / "0").touch()
     (active / "7").mkdir()
     (active / "8").write_bytes(b"\xff")
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    claims: list[str] = []
+    ship = conduct["Run"].ship
+
+    def spy(conductor: object) -> int:
+        claims.append(conduct["_claim"](active))
+        return ship(conductor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(conduct["Run"], "ship", spy)
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=patch) == 0
+        )
+    assert claims == ["live"]
     assert group.wait(timeout=10) == -signal.SIGKILL
-    assert (recycled.poll(), unstamped.poll(), foreign.poll()) == (None, None, None)
+    assert (recycled.poll(), unstamped.poll()) == (None, None)
     recycled.kill()
     unstamped.kill()
     assert "release 0001-todo" in _calls(calls)
+    assert not active.exists()
+
+    active.mkdir()
+    (active / "pid").write_text(str(dead.pid))
+    foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
+    sibling = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    (active / str(sibling.pid)).write_text(_lstart(sibling.pid))
+    with pytest.raises(conduct["Stop"], match=f"group {foreign.pid} .*no executor"):
+        conduct["_clear"](active)
+    assert sibling.wait(timeout=10) == -signal.SIGKILL
+    assert foreign.poll() is None
+    assert (active / str(foreign.pid)).is_file()
+    foreign.kill()
+    foreign.wait(timeout=10)
+    conduct["_clear"](active)
     assert not active.exists()
 
     active.mkdir()
@@ -1767,8 +1834,7 @@ def test_a_stale_claim_is_cleared(
             conduct["_clear"](active)
     assert all(path.exists() for path in held)
     refusing.kill()
-    foreign.kill()
-    for process in (recycled, unstamped, refusing, foreign):
+    for process in (recycled, unstamped, refusing):
         process.wait(timeout=10)
 
 

@@ -113,12 +113,13 @@ HOOKS_OFF = (
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
 # The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
-# and any other halts, so a key git adds later fails closed.
+# and any other halts, so a key git adds later fails closed. `lfs.*` stays off: LFS
+# uploads from a `pre-push` hook, and no hook runs in a run.
 CONFIG_PLAIN = re.compile(
     r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
     r"|precomposeunicode|symlinks|hookspath)"
     r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
-    r"|protocol\.version|pull\.(rebase|ff)|lfs\.repositoryformatversion"
+    r"|protocol\.version|pull\.(rebase|ff)"
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
 )
@@ -718,11 +719,21 @@ def _release_merge(primary: Path, tip: str) -> bool:
     )
 
 
+def _merges_a_release(primary: Path, sha: str) -> bool:
+    """Return whether `sha` merges a tagged release and holds that release's tree."""
+    parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
+    if len(parents) != 3 or not _release_merge(primary, parents[2]):
+        return False
+    trees = _git(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
+    return len(set(trees.split())) == 1
+
+
 def _unpushed(primary: Path) -> list[str]:
     """Return the default branch when `origin` lacks it, and each merged tag it lacks.
 
-    A commit `origin` lacks that merges no tagged release stops with 1. An `origin`
-    that cannot be read lacks no tag. The config refusal needs no `origin`.
+    A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
+    release commit of that name, stops with 1. An `origin` that cannot be read lacks
+    no tag. The config refusal needs no `origin`.
     """
     _refuse_config_commands(primary)
     if "origin" not in _git(primary, "remote").split():
@@ -732,8 +743,7 @@ def _unpushed(primary: Path) -> list[str]:
     ahead = f"origin/{default}..{default}"
     commits = _git(primary, "rev-list", "--first-parent", ahead).split()
     for sha in commits:
-        parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
-        if len(parents) != 3 or not _release_merge(primary, parents[2]):
+        if not _merges_a_release(primary, sha):
             raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
     found = [default] if commits else []
     listed = _maybe(primary, "ls-remote", "--tags", "origin")
@@ -741,9 +751,13 @@ def _unpushed(primary: Path) -> list[str]:
         return found
     held = listed.split()
     merged = _git(primary, "tag", "--merged", default).split()
-    return found + [
+    tags = [
         tag for tag in merged if TAG.fullmatch(tag) and f"refs/tags/{tag}" not in held
     ]
+    for tag in tags:
+        if _subject(primary, f"refs/tags/{tag}") != f"chore(release): {tag}":
+            raise Stop(1, f"conduct: halt — {default} holds {tag}, not a release")
+    return found + tags
 
 
 def check_probe(scratch: Path) -> str | None:
@@ -1089,19 +1103,6 @@ def _executor_missing(executor: str) -> bool:
     return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
 
 
-def _claim(active: Path) -> str:
-    """Return `none`, `live` or `stale`: stale has no pid file, or a dead pid."""
-    if not active.exists():
-        return "none"
-    try:
-        os.kill(int((active / "pid").read_text()), 0)
-    except PermissionError:
-        return "live"
-    except (OSError, OverflowError, ValueError):
-        return "stale"
-    return "live"
-
-
 def _ps(pid: int, field: str) -> str:
     """Return the `ps` field for `pid`, or "" when it cannot.
 
@@ -1121,13 +1122,36 @@ def _ps(pid: int, field: str) -> str:
     return done.stdout.strip()
 
 
+def _conductor(active: Path) -> int | None:
+    """Return the claim's pid while it keeps the claim's start time, else None.
+
+    After a reboot the number can name any process, and a worker can write the claim:
+    to `kill`, 0 is the caller's group and -1 every process the operator owns.
+    """
+    try:
+        pid = int((active / "pid").read_text())
+        held = (active / "start").read_text().strip()
+    except (OSError, ValueError):
+        return None
+    return pid if pid > 1 and held and held == _ps(pid, "lstart=") else None
+
+
+def _claim(active: Path) -> str:
+    """Return `none`, `live` or `stale`: stale names no conductor still running."""
+    if not active.exists():
+        return "none"
+    return "stale" if _conductor(active) is None else "live"
+
+
 def _clear(active: Path) -> None:
     """Kill the stale claim's worker groups, then remove it.
 
     A group goes only while its leader keeps the start time the entry holds and is
-    an executor: after a reboot its number can name any process. A group that
-    refuses the kill stops the run, so no worker races the next one.
+    an executor: after a reboot its number can name any process. A group that keeps
+    its start time and names no executor, or refuses the kill, stops the run and
+    leaves the claim, so no worker races the next one.
     """
+    foreign = []
     for entry in active.iterdir():
         # A worker can write the claim, and group 0 is this process's own.
         if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
@@ -1137,6 +1161,7 @@ def _clear(active: Path) -> None:
                 continue
             leader = _ps(group, "comm=")
             if not any(executor in leader for executor in EXECUTORS):
+                foreign.append(f"{group} ({leader})")
                 continue
             try:
                 os.killpg(group, signal.SIGKILL)
@@ -1146,6 +1171,12 @@ def _clear(active: Path) -> None:
                 raise Stop(
                     2, f"run: cannot run — worker group {group} survives: {error}"
                 ) from None
+    if foreign:
+        raise Stop(
+            2,
+            f"run: cannot run — worker group {', '.join(foreign)} names no executor:"
+            " read it, then kill it or remove its entry in .minions/runs/active",
+        )
     shutil.rmtree(active)
 
 
@@ -1515,6 +1546,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
     try:
+        (active / "start").write_text(_ps(os.getpid(), "lstart="))
         (active / "pid").write_text(str(os.getpid()))
         conductor = Run(primary, executor)
         try:
@@ -1537,10 +1569,10 @@ def stop_run(cwd: Path) -> str:
     """
     runs = primary_of(cwd) / ".minions" / "runs"
     active = runs / "active"
-    if _claim(active) != "live":
+    if (pid := _conductor(active)) is None:
         return "stop: none — no run is live"
     try:
-        os.kill(int((active / "pid").read_text()), signal.SIGKILL)
+        os.kill(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
     except PermissionError as error:
