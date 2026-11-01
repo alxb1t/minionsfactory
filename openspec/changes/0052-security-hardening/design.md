@@ -164,6 +164,10 @@ leave, and loses the paid cards.
 `skills/mf-ship/SKILL.md`, Step 3's *Say once*, after: "every worker runs in an OS sandbox, Claude Code's or Codex's, each station on
 the executor its models file names, with no permission prompt. `conduct.py` holds the push."
 
+**The person's ruling, 2026-11-01, after round 5:** the class in `THREAT_MODEL.md`'s *Out of scope* is accepted. `S15` is settled by
+it: the fixer marks it `wontfix`, naming this ruling, and fixes `R16` and `R17` alone. `R17`'s fix is `GIT_NO_LAZY_FETCH=1` in `_run`'s
+environment; `R16`'s is its card's second option, a `status` line when nothing is kept.
+
 ### D8
 
 `tests/escape_drill.py`, a stdlib `uv` script no gate runs, working in `../mf_escape_probe/`. `escape.py`, in that repo, tries six

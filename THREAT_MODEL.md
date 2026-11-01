@@ -39,6 +39,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 ## Out of scope
 
 - A malicious operator, and the host CLI's own security.
+- **A worker steering the conductor through what it may write.** A worker must write `.git`, its worktree and the run directory,
+  and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
+  this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with credentials denied and the
+  network closed. A review cards a new route in this class and does not block on it. Only a new class blocks.
 
 ## Known gaps
 
@@ -46,6 +50,7 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
+- A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
 - `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
   still read the repo's config after the refusal.
 - A credential outside `SECRETS` and `TOKENS` stays readable by a script: the host has no list of its own. So does a repo's
