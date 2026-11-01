@@ -146,6 +146,11 @@ one-line gate, no `origin`, and one cut change with its phase ticked, at stage `
 
 It prints one line per drill, and the build writes them to `evidence/drill.md`. The probe is deleted at its end.
 
+The first run, read from its worker logs: both resumes worked, the re-run continuing at the fan-out. The conductor drill then
+failed because a review subagent's shell variable was denied, and review gave up. `SHELL_RULES` reaches the converge worker
+and stops there, so it gains: "Give these rules, word for word, to every subagent you start." The status log's later times look
+impossible because that worker invented them, so a drill asserts nothing about times.
+
 ### D11
 
 | card | edit |
