@@ -9,7 +9,7 @@ threat-model text is the design's, word for word.
 - [x] 2 — The sandbox fails closed
 - [x] 3 — The release ledger
 - [x] 4 — The stale lock
-- [ ] 5 — The cards
+- [x] 5 — The cards
 - [ ] 6 — The record
 - [ ] 7 — The proof
 
@@ -57,17 +57,17 @@ threat-model text is the design's, word for word.
 
 ## 5 — The cards
 
-- [ ] 5.1 Pay `0052·R6`, `R8`, `R13` and `R14` in `conduct.py`, add `unkept` to `EVENTS`, and add `R13`'s step to
+- [x] 5.1 Pay `0052·R6`, `R8`, `R13` and `R14` in `conduct.py`, add `unkept` to `EVENTS`, and add `R13`'s step to
   `test_no_worker_pushes`, per [D4](design.md#d4).
   Verify: `grep -c 'permissions = "allowlist"' skills/mf-ship/scripts/conduct.py` prints `0`, and
   `grep -c 'json.dump(_urls(primary), kept)' skills/mf-ship/scripts/conduct.py` prints `0`.
-- [ ] 5.2 Pay `0052·R10` in `conduct.py` and `skills/mf-ship/SKILL.md` Step 4, and edit `test_a_changed_git_config_halts_a_merge_in`
+- [x] 5.2 Pay `0052·R10` in `conduct.py` and `skills/mf-ship/SKILL.md` Step 4, and edit `test_a_changed_git_config_halts_a_merge_in`
   and `test_no_worker_pushes`, per [D4](design.md#d4).
   Verify: `grep -c 'changed git config is the person' skills/mf-ship/SKILL.md` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k 'changed_git_config_halts_a_merge_in or no_worker_pushes'` reports `2 passed`.
-- [ ] 5.3 Pay `0052·R7` in `skills/mf-release/SKILL.md`, per [D4](design.md#d4).
+- [x] 5.3 Pay `0052·R7` in `skills/mf-release/SKILL.md`, per [D4](design.md#d4).
   Verify: `grep -c 'leave the push to conduct.py' skills/mf-release/SKILL.md` prints `1`.
-- [ ] 5.4 Merge `test_a_stop_survives_a_death` into `test_a_rerun_recovers_a_dead_release`, per [Tests](design.md#tests).
+- [x] 5.4 Merge `test_a_stop_survives_a_death` into `test_a_rerun_recovers_a_dead_release`, per [Tests](design.md#tests).
   Verify: `grep -c 'def test_a_stop_survives_a_death' tests/test_conduct.py` prints `0`, and
   `uv run pytest -q tests/test_conduct.py -k rerun_recovers_a_dead_release` reports `1 passed`.
 

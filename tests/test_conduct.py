@@ -1041,14 +1041,14 @@ def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    merge_in = " · 0002-marks · halt — the local git config changed during the run"
+    changed = " · 0002-marks · halt — the local git config changed during the run:"
     held = (
         " · run · halt — conduct: halt — the repo's git config holds a key that could"
         " name a program: mf.planted; move it to the global config or remove it"
     )
     for mode, said, remote in (
-        ("plant-config", merge_in, False),
-        ("plant-attributes", merge_in, False),
+        ("plant-config", f"{changed} .git/config differs", False),
+        ("plant-attributes", f"{changed} .git/info/attributes differs", False),
         ("plant-held", held, False),
         ("plant-held", held, True),
     ):
@@ -1239,8 +1239,25 @@ def test_a_rerun_recovers_a_dead_release(
     assert stage_of(root, find(root, "0002-marks"))[1] == (
         "v0.2.0 is tagged; the merge is left"
     )
+    # A person's no outlasts the death: the stage reads `released`, and nothing merges.
+    held = root / ".minions" / "release" / "0002-marks.held"
+    held.parent.mkdir()
+    held.write_text("no: the preamble needs reading\n")
+    said = (
+        "v0.2.0: .minions/release/0002-marks.held holds a person's no:"
+        " /mf-release 0002-marks merges it on their yes"
+    )
+    assert stage_of(root, find(root, "0002-marks")) == ("released", said)
     calls.unlink()
     fake()
+    run(1)
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(f" · 0002-marks · halt — released — {said}")
+        for line in _log(root)
+    )
+    assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
+    held.unlink()
     run(0)
     assert _calls(calls) == ["probe", "release 0002-marks"]
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
@@ -1721,6 +1738,8 @@ def test_no_worker_pushes(
     )
 
     lines = [line.split(" · ", 1)[1] for line in _log(root)]
+    # Twin: a home folder that takes the file logs no `unkept`.
+    assert not any(line.startswith("run · unkept") for line in lines)
     finish = next(
         i for i, line in enumerate(lines) if line.startswith("0001-todo · finish — rel")
     )
@@ -1749,9 +1768,11 @@ def test_no_worker_pushes(
     outside = module["_outside"]
     reached: list[tuple[str, ...]] = []
 
-    def spy(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def spy(
+        primary: Path, *args: str, timeout: int = 60
+    ) -> subprocess.CompletedProcess[str]:
         reached.append(args)
-        return outside(primary, *args)
+        return outside(primary, *args, timeout=timeout)
 
     module["_outside"] = spy
 
@@ -1761,8 +1782,8 @@ def test_no_worker_pushes(
     )
 
     assert _git(elsewhere, "for-each-ref") == ""
-    said = " · run · halt — the local git config changed during the run"
-    assert any(line.endswith(said) for line in _log(root))
+    said = " · run · halt — the local git config changed during the run: .git/config"
+    assert any(line.endswith(f"{said} differs") for line in _log(root))
     # An `ls-remote` leaves no ref there: the URL itself is what would leave.
     assert not any(str(elsewhere) in args for args in reached)
     commands = (("status",), ("check", "release", "0001-todo"), ("report",))
@@ -1896,6 +1917,8 @@ def test_no_worker_pushes(
         == 0
     )
     assert conduct["_kept_origin"](root) is None
+    refusal = " · run · unkept — No such file or directory"
+    assert sum(line.endswith(refusal) for line in _log(root)) == 1
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
     # A worker plants a promisor and deletes a blob: git reads the blob from no URL,
@@ -2012,43 +2035,6 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
     with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
         conduct["_refuse_config_commands"](root)
     assert str(held.value).endswith("move it to the global config or remove it")
-
-
-def test_a_stop_survives_a_death(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake("dies-release-tag")
-    root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-
-    def run() -> None:
-        assert (
-            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-            == 1
-        )
-
-    run()
-    version = conduct["find_version"](root, "0001-todo")
-    assert conduct["stage_of"](root, version)[0] == "release"
-
-    held = root / ".minions" / "release" / "0001-todo.held"
-    held.parent.mkdir()
-    held.write_text("no: the preamble needs reading\n")
-    said = (
-        "v0.1.0: .minions/release/0001-todo.held holds a person's no:"
-        " /mf-release 0001-todo merges it on their yes"
-    )
-    assert conduct["stage_of"](root, version) == ("released", said)
-
-    calls.unlink()
-    fake()
-    run()
-    assert _calls(calls) == []
-    assert any(
-        line.endswith(f" · 0001-todo · halt — released — {said}") for line in _log(root)
-    )
-    assert _git(root, "branch", "--no-merged", "main").endswith(" 0001-todo")
 
 
 def test_no_hook_runs_in_a_worker(

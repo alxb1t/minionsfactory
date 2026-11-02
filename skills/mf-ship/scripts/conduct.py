@@ -41,6 +41,7 @@ from pathlib import Path
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
+PUSH_TIMEOUT = 1800
 LOCK_SECONDS = 30
 LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
@@ -51,7 +52,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock"),
+    *("push", "ledger", "unlock", "unkept"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -62,7 +63,8 @@ TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
-CONFIG_CHANGED = "the local git config changed during the run"
+CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
+GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
@@ -179,7 +181,7 @@ class Stop(Exception):
 
 
 def _run(
-    cwd: Path, *args: str, env: dict[str, str] | None = None
+    cwd: Path, *args: str, env: dict[str, str] | None = None, timeout: int = GIT_TIMEOUT
 ) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2.
 
@@ -195,7 +197,7 @@ def _run(
             encoding="utf-8",
             env={**(os.environ if env is None else env), "GIT_NO_LAZY_FETCH": "1"},
             errors="replace",
-            timeout=GIT_TIMEOUT,
+            timeout=timeout,
         )
     except FileNotFoundError:
         raise Stop(2, "conduct: cannot run — git is missing") from None
@@ -540,12 +542,22 @@ def _delta(delta: Callable[[Path], str], tree: Path) -> list[str]:
 
 
 def _git_state(primary: Path) -> list[str]:
-    """Return the common directory's `config` and `info/attributes`, or "" if none."""
-    common = primary / ".git"
-    files = (common / "config", common / "info" / "attributes")
+    """Return each of `GIT_FILES` under `primary`, or "" if none."""
+    files = (primary / name for name in GIT_FILES)
     return [
         file.read_text(errors="replace") if file.is_file() else "" for file in files
     ]
+
+
+def _config_changed(primary: Path, state: list[str]) -> Stop | None:
+    """Return the halt naming the first of `GIT_FILES` that differs from `state`.
+
+    It names no URL: one can hold a key. Why: 0053-sandbox-patch design D4.
+    """
+    for name, held, now in zip(GIT_FILES, state, _git_state(primary), strict=True):
+        if held != now:
+            return Stop(1, CONFIG_CHANGED.format(file=name))
+    return None
 
 
 def _note(tree: Path, change: str, moved: list[str]) -> str:
@@ -847,20 +859,24 @@ def _kept_origin(primary: Path) -> Urls | None:
     return fetch, push
 
 
-def _keep_origin(primary: Path) -> None:
-    """Keep `origin`'s URLs before a repo's first worker; a file that stands stays.
+def _keep_origin(primary: Path) -> str | None:
+    """Keep `origin`'s URLs before a repo's first worker; return why it could not.
 
-    Owner-only: a URL can hold a key. Where the home folder refuses it, this process
-    is itself in a sandbox, and nothing is kept.
+    A file that stands stays. Owner-only: a URL can hold a key. Where the home folder
+    refuses it, this process is itself in a sandbox, and nothing is kept.
     """
     file = _kept_file(primary)
+    urls = _urls(primary)
     try:
         file.parent.mkdir(mode=0o700, exist_ok=True)
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         with os.fdopen(os.open(file, flags, 0o600), "w") as kept:
-            json.dump(_urls(primary), kept)
-    except OSError:
-        return
+            json.dump(urls, kept)
+    except FileExistsError:
+        return None
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    return None
 
 
 def _refuse_origin(primary: Path) -> Urls:
@@ -917,7 +933,9 @@ def _scratch() -> tempfile.TemporaryDirectory[str]:
         return tempfile.TemporaryDirectory(prefix=prefix)
 
 
-def _outside(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _outside(
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
     It reads the operator's global config and no repo's, so a key a worker sets after
@@ -929,7 +947,8 @@ def _outside(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
         _git(root, "init", "-q", "--bare", "--template=")
         alternates = root / "objects" / "info" / "alternates"
         alternates.write_text(f"{primary / '.git' / 'objects'}\n")
-        return _run(root, *args, env={**os.environ, "GIT_DIR": scratch})
+        env = {**os.environ, "GIT_DIR": scratch}
+        return _run(root, *args, env=env, timeout=timeout)
 
 
 def _listed(primary: Path, url: str, *refs: str) -> str | None:
@@ -1813,8 +1832,8 @@ class Run:
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
         """
-        if _git_state(self.primary) != self.git_state:
-            raise Stop(1, CONFIG_CHANGED)
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
         note = self.primary / ".minions" / "integrate" / f"{change}.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
@@ -1914,8 +1933,10 @@ class Run:
         """
         try:
             _refuse_config_commands(self.primary)
-            if self.pushes and _git_state(self.primary) != self.git_state:
-                raise Stop(1, CONFIG_CHANGED)
+            if self.pushes and (
+                changed := _config_changed(self.primary, self.git_state)
+            ):
+                raise changed
             unpushed = _unpushed(self.primary, first_read=True)
         except Stop as stop:
             self.halt("run", str(stop))
@@ -1924,7 +1945,9 @@ class Run:
             kind, name = ref.split("/", 2)[1:]
             for url in self.pushes:
                 done = _outside(
-                    self.primary, "push", "--no-verify", "--", url, f"{sha}:{ref}"
+                    self.primary,
+                    *("push", "--no-verify", "--", url, f"{sha}:{ref}"),
+                    timeout=PUSH_TIMEOUT,
                 )
                 if done.returncode != 0:
                     self.halt(
@@ -1940,20 +1963,20 @@ class Run:
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
         versions = open_versions(self.primary)
-        permissions = "allowlist" if self.executor == "claude" else "workspace-write"
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
         self.log.event(
             "run",
             "start",
-            f"executor {self.executor} · permissions: {permissions}{worker}"
+            f"executor {self.executor} · permissions: sandbox{worker}"
             f" · versions {names}",
         )
         self.push_left()
         if self.halts:
             self.log.event("run", "halt", self.closing())
             return 1
-        _keep_origin(self.primary)
+        if unkept := _keep_origin(self.primary):
+            self.log.event("run", "unkept", unkept)
         if (age := _clear_stale_lock(self.primary)) is not None:
             self.log.event("run", "unlock", f".minions/backlog.lock, {age}s old")
         if not versions:

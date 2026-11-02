@@ -99,7 +99,8 @@ Converge runs MF's method at the tier the cut chose.
 **Close-out:** at most three sentences — the last run's report, or that a run started and its log, the newest
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate <change-id>` commits the merge;
-until then a run halts on it again. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
+until then a run halts on it again. A halt naming a changed git config is the person's: read that file, and repoint
+`origin` if a worker moved it, before a re-run. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
 what it released stays released, and a re-run resumes the rest. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.

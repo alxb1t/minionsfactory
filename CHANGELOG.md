@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phase 3).
 - A run clears a `backlog.lock` older than ten minutes, and a converge halted on the lock resumes at Step 9, because a
   dead worker's lock cost a whole new round (change `0053-sandbox-patch`, phase 4).
+- The run's start line says `permissions: sandbox`, a push waits 30 minutes, a changed git config names its file, a
+  home folder that refuses the kept URLs is logged, and `mf-release` says `conduct.py` pushes under `merge=yes`: the
+  `0052` cards whose triggers fire here (change `0053-sandbox-patch`, phase 5).
 
 ## [0.46.0] - 2026-11-02
 
