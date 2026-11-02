@@ -16,8 +16,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   comments, commit messages.
 - **Unattended workers run in an OS sandbox**
   ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in the repo and its
-  worktrees, network on a short list, no push. A Claude worker whose sandbox cannot start does not run, and each run's probe
-  proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
+  worktrees, network on a short list and loopback only where a repo opts in, no push. A Claude worker whose sandbox cannot
+  start does not run, and each run's probe proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
   `.mcp.json` start nothing.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
@@ -49,6 +49,12 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with
   credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a new
   class blocks, anchors included.
+- **A loopback repo's local services.** In a repo that declares `Ship loopback: yes`, a Claude worker reaches every service
+  listening on the Mac's loopback, and an unauthenticated one acts for it outside the sandbox: one that fetches what it is
+  asked, a model pull or a dev proxy, carries what the worker reads past the domain list. The person accepts this class per
+  repo, by declaring the line (D51); a route in it is carded, anchors included. Each run logs what the operator's own
+  processes listen on there: `lsof` without root names no other user's, so a root daemon's listener goes unlogged. A Linux
+  container, where loopback is private, is the way out.
 
 ## Known gaps
 
@@ -77,6 +83,3 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
-- In a repo that declares `Ship loopback: yes`, a Claude worker reaches every service listening on the Mac's loopback — an
-  unauthenticated one acts for it outside the sandbox; each run logs what was listening. A Linux container, where loopback is
-  private, is the way out.

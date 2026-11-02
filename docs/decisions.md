@@ -462,7 +462,7 @@ needs the person. Converge runs at the tier the cut chose.**
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no
-unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
+unlisted domain, save through a local service where a repo opts into loopback. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
 `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a
 hostile repo needs a container.**

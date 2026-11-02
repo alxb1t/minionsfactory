@@ -7,8 +7,9 @@ only to the primary, the open worktrees and the common directory: a sandbox that
 it unsandboxed. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
 and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
 `.mcp.json`, which a worker can write, start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
-domains `AGENTS.md`'s `Ship network:` line names. It SHALL bind loopback only in a repo whose `AGENTS.md` declares
-`Ship loopback: yes`, where its sandbox has `allowLocalBinding` true. A Codex worker SHALL run with its network off, and SHALL
+domains `AGENTS.md`'s `Ship network:` line names, and loopback only in a repo whose `AGENTS.md` declares
+`Ship loopback: yes`, where its sandbox has `allowLocalBinding` true; there a local service may reach further for it, a class
+the threat model's *Out of scope* accepts by name. A Codex worker SHALL run with its network off, and SHALL
 start with its working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a
 project's `.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache
 in the run directory, and neither SHALL inherit the conductor's `VIRTUAL_ENV`.
@@ -52,9 +53,9 @@ in the run directory, and neither SHALL inherit the conductor's `VIRTUAL_ENV`.
 and `Ship loopback:` lines, once, before the first worker, and SHALL halt a
 version whose models file later differs. A `Ship loopback:` value other than `yes` SHALL halt the run, naming it. In a repo
 that declares `Ship loopback: yes`, a version with a station on Codex SHALL halt before its first worker, naming the station,
-and the run SHALL log, after its `start`, one `loopback` event per process listening on loopback, naming the process and its
-address. It SHALL halt a version before integrate when the default branch holds a first-parent
-commit past `origin` that merges no release.
+and the run SHALL log, after its `start`, one `loopback` event per process of the operator's listening on loopback, naming the
+process and its address; another user's listener, root's among them, is not logged. It SHALL halt a version before
+integrate when the default branch holds a first-parent commit past `origin` that merges no release.
 
 #### Scenario: A worker edits the models file
 - **WHEN** a worker changes a later station's `executor`
@@ -73,7 +74,7 @@ commit past `origin` that merges no release.
 - **THEN** that version halts before its first worker, naming the station, and every other version goes on
 
 #### Scenario: A run in a loopback repo
-- **WHEN** a run starts in a repo that declares `Ship loopback: yes`, with a process listening on `127.0.0.1`
+- **WHEN** a run starts in a repo that declares `Ship loopback: yes`, with a process of the operator's listening on `127.0.0.1`
 - **THEN** its log holds a `loopback` event naming that process and address
 - **AND WHEN** the repo declares no `Ship loopback:`
 - **THEN** its log holds no `loopback` event

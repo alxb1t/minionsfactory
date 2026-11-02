@@ -1458,10 +1458,13 @@ def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]
 
 
 def _loopback_listeners() -> list[tuple[str, str]]:
-    """Return each process listening on loopback, with its address, once each.
+    """Return each of the operator's processes listening on loopback, with its address.
 
     e.g. "ollama 101 … TCP 127.0.0.1:11434 (LISTEN)" → [("ollama", "127.0.0.1:11434")]
-    An `lsof` that fails, or prints what does not parse, gives ("lsof", "unavailable").
+    `lsof` without root names no other user's process, so a root daemon's listener is
+    not in the list; `netstat -v` names it, but prints no socket to a Python that is not
+    Apple's. Each pair comes once. An `lsof` that fails, or prints what does not parse,
+    gives ("lsof", "unavailable"). Why: 0054-loopback design D3.
     """
     unavailable = [("lsof", "unavailable")]
     try:

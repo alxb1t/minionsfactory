@@ -23,7 +23,7 @@ on the Mac's loopback, so it is a person's choice per repo, not a default.
 - **`- **Ship loopback:** yes`** in `AGENTS.md` turns on `allowLocalBinding` for that repo's Claude workers; any other value
   halts the run.
 - **A Codex station is refused** in such a repo: Codex cannot bind with its network off.
-- **Each run's log names what listens on loopback** at its start, in such a repo.
+- **Each run's log names what the operator's own processes listen on loopback** at its start, in such a repo.
 - **No worker inherits the conductor's `VIRTUAL_ENV`.**
 - **The record states the exposure**: D51, `THREAT_MODEL.md`, `mf-ship` Step 3; D15 states the anchor exception (`0053·R1`).
 - **The drill** proves a loopback bind, and fails when Codex writes a trust entry (`0053·R2`).

@@ -73,6 +73,11 @@ it keeps a refused table out, and records the station. `take` halts that version
 `read_plan`, when `self.lines.loopback` is true, logs `self.log.event("run", "loopback", f"{process} {address}")` per entry.
 `EVENTS` gains `loopback`. Nothing halts.
 
+`lsof` without root names the operator's processes alone, so a root daemon's listener, Tailscale's on the measuring machine,
+goes unlogged, and the record says so. `netstat -anv -p tcp` names every owner's listener, but measured 2026-11-02 it printed
+every TCP socket under Apple's `/usr/bin/python3` and none under Homebrew's or the repo's `.venv` Python: under `conduct.py`'s
+`uv` Python it would log nothing (converge round 1, `R1`).
+
 ### D4
 
 Both executors' `env` prefixes become `("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache)` and the Codex one keeps its `path`.
@@ -80,16 +85,23 @@ Both executors' `env` prefixes become `("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, 
 ### D5
 
 - **D51**, *Accepts*: after "a domain `Ship network:` lists", add "· in a repo whose `AGENTS.md` declares `Ship loopback: yes`,
-  a Claude worker reaches every service on the Mac's loopback; on Linux the flag does nothing".
+  a Claude worker reaches every service on the Mac's loopback; on Linux the flag does nothing". Its rule: "its scripts reach
+  no unlisted domain" gains ", save through a local service where a repo opts into loopback" (converge round 1, `S1`).
 - **D15**: after "- **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong
   output.", add "Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors
   included." (`0053·R1`).
 - **`THREAT_MODEL.md`**, *Entry points*: "`Ship tools:` and `Ship network:` lines" → "`Ship tools:`, `Ship network:` and
-  `Ship loopback:` lines". *Known gaps* gains "In a repo that declares `Ship loopback: yes`, a Claude worker reaches every
-  service listening on the Mac's loopback — an unauthenticated one acts for it outside the sandbox; each run logs what was
-  listening. A Linux container, where loopback is private, is the way out."
+  `Ship loopback:` lines". *Trust boundaries*: "network on a short list" → "network on a short list and loopback only where a
+  repo opts in". *Out of scope* gains the class by name, so D15 cards a route in it (converge round 1, `S1`):
+  "**A loopback repo's local services.** In a repo that declares `Ship loopback: yes`, a Claude worker reaches every service
+  listening on the Mac's loopback, and an unauthenticated one acts for it outside the sandbox: one that fetches what it is
+  asked, a model pull or a dev proxy, carries what the worker reads past the domain list. The person accepts this class per
+  repo, by declaring the line (D51); a route in it is carded, anchors included. Each run logs what the operator's own
+  processes listen on there: `lsof` without root names no other user's, so a root daemon's listener goes unlogged. A Linux
+  container, where loopback is private, is the way out."
 - **`skills/mf-ship/SKILL.md`** Step 3, after "`conduct.py` holds the push.": "In a repo that declares `Ship loopback: yes`,
-  its Claude workers reach every service on the Mac's loopback, and the run's log names them."
+  its Claude workers reach every service on the Mac's loopback, and the run's log names those the operator's own processes
+  hold; a root daemon's goes unlogged."
 
 ### D6
 
@@ -128,7 +140,8 @@ None.
 ## Risks / Trade-offs
 
 - **A loopback repo's workers reach every local service on the Mac**, Ollama, Docker and Redis among them on the measuring
-  machine. Stated in D51 and `THREAT_MODEL.md`, and logged per run.
+  machine, and one that fetches a URL carries what a worker read past the domain list. Stated in D51 and accepted by name in
+  `THREAT_MODEL.md`'s *Out of scope*, and the operator's own listeners logged per run.
 - **`lsof`'s output can change across macOS releases.** A parse failure logs `lsof unavailable`, so the run goes on.
 - **Linux**: the flag does nothing there, and loopback is already private.
 
