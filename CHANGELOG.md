@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and uv warned on every run (change `0054-loopback`, phase 3).
 - D51, `THREAT_MODEL.md` and `mf-ship` Step 3 state what `Ship loopback: yes` exposes, and D15 carries the
   accepted-class exception converge already holds (change `0054-loopback`, phase 4).
+- The escape drill proves a Claude worker binds loopback in a `Ship loopback: yes` repo, and fails when Codex writes
+  a trust entry, which it ignored before (change `0054-loopback`, phase 5).
 
 ## [0.46.1] - 2026-11-02
 

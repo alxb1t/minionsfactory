@@ -9,7 +9,7 @@ threat-model text is the design's, word for word.
 - [x] 2 — The log
 - [x] 3 — The environment
 - [x] 4 — The record
-- [ ] 5 — The proof
+- [x] 5 — The proof
 
 ## 1 — The line
 
@@ -45,11 +45,11 @@ threat-model text is the design's, word for word.
 
 ## 5 — The proof
 
-- [ ] 5.1 Add the loopback row and `_codex_held` to `tests/escape_drill.py`, and add `tests/test_escape_drill.py`, per
+- [x] 5.1 Add the loopback row and `_codex_held` to `tests/escape_drill.py`, and add `tests/test_escape_drill.py`, per
   [D6](design.md#d6).
   Verify: `grep -c 'claude loopback' tests/escape_drill.py` prints a number above `0`, and
   `uv run pytest -q tests/test_escape_drill.py` reports `1 passed`.
-- [ ] 5.2 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output to
+- [x] 5.2 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output to
   `openspec/changes/0054-loopback/evidence/escape.md`, per [D6](design.md#d6).
   Verify: `grep -c -E '^(claude loopback: bound|codex trust written: no)' openspec/changes/0054-loopback/evidence/escape.md`
   prints `2`.
