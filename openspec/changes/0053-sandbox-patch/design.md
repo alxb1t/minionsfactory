@@ -93,8 +93,11 @@ The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per c
   `Stop(1, "… origin's <default> is at <sha7>, which this repo lacks: a person fetches")`. An `origin` with no default
   branch → `Stop(1, "… origin has no <default>: a person pushes it first")`.
 - **Tags** — a merged tag `origin` lacks passes when its commit says `chore(release): <tag>` and its parent is a ledger head.
-- **Push** — `_unpushed` returns `(ref, sha)` pairs; `push_left` pushes those shas, re-reading nothing.
-- **Close** — after `push_left`'s pushes succeed, each entry whose release's tag is now on `origin` is removed.
+- **Push** — `_unpushed` returns `(ref, sha)` pairs and the refs `origin` already holds; `push_left` pushes those shas,
+  re-reading nothing, and records each ref after all its push URLs succeed.
+- **Close** — the confirmed default-branch and tag shas identify each delivered release commit and its parent head. Entries
+  holding those heads are removed after each successful push, regardless of a moved or deleted version ref. A run also retires
+  entries already consumed on `origin` before checking new commits, recovering a death between push and cleanup.
 
 The integrate-time call (`conduct.py:1606`) keeps the local base and gains the ledger check. A hand release pushes itself on the
 person's yes; one left unpushed now halts a run, where today a run pushes it.
@@ -232,7 +235,7 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | added | D1: mode `unsandboxed` → the run halts naming the executor, the mark is gone; the default run passes |
-| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing |
+| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing; a moved or deleted version ref and a death after push leave no consumed authorization |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command carries `codex_trust` once, its table keyed by the resolved working directory and each reached tree, each `untrusted`; its twin is the drill's trusted plant, which loads |

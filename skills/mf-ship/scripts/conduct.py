@@ -834,19 +834,36 @@ def _ledger_heads(primary: Path) -> set[str]:
     return {entry.read_text().strip() for entry in folder.iterdir()}
 
 
-def _close_releases(primary: Path) -> None:
-    """Remove each ledger entry whose release's tag the default branch merged.
+def _close_releases(primary: Path, held: dict[str, str]) -> None:
+    """Remove each ledger entry whose release `origin` holds, read from its refs.
 
-    The caller has pushed every merged version tag, so `origin` holds each.
+    `held` maps each ref on `origin` to its sha. A tag there whose commit says
+    `chore(release): <tag>` and is in `origin`'s default branch retires that commit's
+    parent. No version branch is read: a worker can move or delete one.
+    Why: 0053-sandbox-patch design D2.
     """
     folder = _ledger(primary)
-    if not folder.is_dir():
+    base = held.get(f"refs/heads/{default_branch(primary)}")
+    entries = list(folder.iterdir()) if folder.is_dir() else []
+    if base is None or not entries:
         return
-    merged = _git(primary, "tag", "--merged", default_branch(primary)).split()
-    for entry in folder.iterdir():
-        tip = _maybe(primary, "log", "-1", "--format=%s", f"refs/heads/{entry.name}")
-        found = RELEASE.fullmatch((tip or "").strip())
-        if found and found[1] in merged:
+    heads = set()
+    for ref, sha in held.items():
+        # Origin lists an annotated tag's commit on `^{}`, and its own id on the tag.
+        tag = ref.removeprefix("refs/tags/").removesuffix("^{}")
+        if ref == tag or not TAG.fullmatch(tag):
+            continue
+        commit = _maybe(primary, "rev-parse", "--verify", f"{sha}^{{commit}}")
+        if commit is None:
+            continue
+        commit = commit.strip()
+        if _subject(primary, commit) == f"chore(release): {tag}" and _ancestor(
+            primary, commit, base
+        ):
+            if head := _maybe(primary, "rev-parse", "--verify", f"{commit}^"):
+                heads.add(head.strip())
+    for entry in entries:
+        if entry.read_text().strip() in heads:
             entry.unlink()
 
 
@@ -1025,16 +1042,19 @@ def _foreign_commit(primary: Path, base: str) -> list[str]:
     return commits
 
 
-def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
-    """Return each `(ref, sha)` to push: the default branch and the tags `origin` lacks.
+def _unpushed(
+    primary: Path, first_read: bool = False
+) -> tuple[list[tuple[str, str]], dict[str, str]]:
+    """Return each `(ref, sha)` to push, and each ref `origin` holds with its sha.
 
     The base is `origin`'s own head; with no read allowed, the local remote ref, and
     no tag. A run's read that fails stops with 1, and so does a commit or a tag no run
-    released. The refusal needs no `origin`: a run with none keeps that too.
+    released. The refusal needs no `origin`: a run with none keeps that too. A run's
+    read first retires each ledger entry whose release `origin` holds.
     """
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
-        return []
+        return [], {}
     default = default_branch(primary)
     done = (
         _outside(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
@@ -1043,7 +1063,7 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
         if done is not None and first_read:
             raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
         commits = _foreign_commit(primary, f"origin/{default}")
-        return [(f"refs/heads/{default}", commits[0])] if commits else []
+        return ([(f"refs/heads/{default}", commits[0])] if commits else []), {}
     held = {
         ref: sha
         for sha, ref in (
@@ -1061,6 +1081,8 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
             f"conduct: halt — origin's {default} is at {base[:7]}, which this repo"
             " lacks: a person fetches",
         )
+    if first_read:
+        _close_releases(primary, held)
     commits = _foreign_commit(primary, base)
     found = [(f"refs/heads/{default}", commits[0])] if commits else []
     heads = _ledger_heads(primary)
@@ -1074,7 +1096,7 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
         ):
             raise _no_release(default, tag)
         found.append((ref, sha))
-    return found
+    return found, held
 
 
 def _unread(primary: Path) -> bool:
@@ -1928,8 +1950,9 @@ class Run:
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it.
-        Why: 0052-security-hardening design D9.
+        steers none. A held key is refused first, so the halt names it. Each push
+        retires the ledger entries whose release `origin` then holds.
+        Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
             _refuse_config_commands(self.primary)
@@ -1937,7 +1960,7 @@ class Run:
                 changed := _config_changed(self.primary, self.git_state)
             ):
                 raise changed
-            unpushed = _unpushed(self.primary, first_read=True)
+            unpushed, pushed = _unpushed(self.primary, first_read=True)
         except Stop as stop:
             self.halt("run", str(stop))
             return False
@@ -1957,7 +1980,8 @@ class Run:
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
             self.log.event("run", "push", name)
-        _close_releases(self.primary)
+            pushed[ref] = sha
+            _close_releases(self.primary, pushed)
         return True
 
     def ship(self) -> int:
@@ -2141,7 +2165,8 @@ def status(cwd: Path) -> str:
         "live": ["run · live"],
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
-    if unpushed := _unpushed(primary):
+    unpushed, _ = _unpushed(primary)
+    if unpushed:
         names = (ref.split("/", 2)[2] for ref, _ in unpushed)
         lines.append(f"run · unpushed {' '.join(names)}")
     if _unread(primary):

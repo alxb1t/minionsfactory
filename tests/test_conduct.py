@@ -1705,16 +1705,54 @@ def test_a_forged_release_is_not_pushed(
     halts_on_main()
     _git(root, "reset", "-q", "--hard", "HEAD~1")
 
-    # A release on a head a pushed release's entry once held.
-    _released(root, "v0.1.0")
-    assert run() == 0
-    assert conduct["_ledger_heads"](root) == set()
-    _git(root, "switch", "-q", "-c", "forged", "release-v0.1.0~1")
-    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.2.0")
-    _git(root, "tag", "-a", "-m", "v0.2.0", "v0.2.0")
-    _git(root, "switch", "-q", "main")
-    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
-    halts_on_main()
+    # A pushed head is retired even if a concurrent worker moves its version ref.
+    module = conduct["main"].__globals__
+    outside = module["_outside"]
+    close = module["_close_releases"]
+    for number, mutation in enumerate(("keep", "move", "delete", "resume"), start=1):
+        tag = f"v0.{number}.0"
+        branch = f"refs/heads/release-{tag}"
+        head = _git(root, "rev-parse", "main")
+        _released(root, tag)
+
+        def push(
+            cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
+        ) -> subprocess.CompletedProcess[str]:
+            done = outside(cwd, *args, timeout=timeout)
+            if (
+                args[0] == "push"
+                and args[-1].endswith(f":refs/tags/{tag}")
+                and done.returncode == 0
+            ):
+                if mutation == "move":
+                    _git(root, "update-ref", branch, head)
+                elif mutation == "delete":
+                    _git(root, "update-ref", "-d", branch)
+            return done
+
+        module["_outside"] = push
+        if mutation == "resume":
+            # The conductor died after both pushes, before retiring the entry.
+            module["_close_releases"] = lambda *_: None
+        assert run() == 0
+        module["_outside"] = outside
+        module["_close_releases"] = close
+        assert tag in _git(root, "ls-remote", "--tags", "origin")
+        assert conduct["_ledger_heads"](root) == (
+            {head} if mutation == "resume" else set()
+        ), mutation
+
+        forged = f"v9.{number}.0"
+        _git(root, "switch", "-q", "-c", "forged", head)
+        _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {forged}")
+        _git(root, "tag", "-a", "-m", forged, forged)
+        _git(root, "switch", "-q", "main")
+        _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+        halts_on_main()
+        assert conduct["_ledger_heads"](root) == set()
+        _git(root, "reset", "-q", "--hard", "HEAD~1")
+        _git(root, "tag", "-d", forged)
+        _git(root, "branch", "-D", "forged")
 
 
 def test_no_worker_pushes(

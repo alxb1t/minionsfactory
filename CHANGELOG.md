@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0053-sandbox-patch`, phase 6).
 - `tests/escape_drill.py` runs a run's probe on Claude and Codex, and both held on real workers, because the fake worker
   cannot hold a sandbox (change `0053-sandbox-patch`, phase 7).
+- A release's ledger entry goes once `origin` holds its tag and default branch, read from `origin`'s refs and not the version
+  branch, and a run's first read retires one a dead push left, because a worker that moved the branch kept a pushed head able
+  to back a forged release (change `0053-sandbox-patch`, converge fix S1).
 
 ## [0.46.0] - 2026-11-02
 
