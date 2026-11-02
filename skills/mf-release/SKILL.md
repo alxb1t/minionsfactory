@@ -1,6 +1,6 @@
 ---
 name: mf-release
-description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag, then on the person's yes, or merge=yes from mf-ship, merge into the default branch and push. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
+description: Finalize a built change — verify every release precondition, fold the spec delta into the living specs, archive the change, cut the changelog and tag, then on the person's yes merge into the default branch and push; under merge=yes from mf-ship, merge and leave the push to conduct.py. Use when the build is done and, if `mf-converge` ran, its verdicts are clean.
 ---
 
 # mf-release — verify, fold, archive, tag, then merge and push on a yes
@@ -280,7 +280,7 @@ Your sentences: the release commit and the tag, with the Step 4.3 gate's exit co
 `converge ran`, or `converge: skipped — no findings files`; the converge tier and each `inconclusive` section, from
 the findings files' frontmatter and Summaries; the paid-down cards, or `backlog: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
-and the push, or that there is no `origin`; and the worktree removed, kept or refused. A preamble flagged for a
+and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.
 
 The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`

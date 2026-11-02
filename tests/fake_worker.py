@@ -111,8 +111,13 @@ def _fake(prompt: str) -> None:
     common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
     primary = Path(common).parent
     if station == "probe":
+        sandboxed = "unsandboxed" not in modes
+        # The sandbox's stand-in: a read-only mark refuses the gate's write out.
+        if sandboxed:
+            for mark in Path(os.environ["HOME"], ".mf-ship-origin").glob("probe-*"):
+                mark.chmod(0o400)
         _commit(here, {"probe.txt": "ok\n"}, "probe")
-        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=True)
+        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=sandboxed)
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
         files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}

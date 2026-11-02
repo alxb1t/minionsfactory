@@ -56,10 +56,17 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     return tree.resolve()
 
 
-def _released(root: Path, tag: str) -> None:
-    """Merge a branch into `main` whose tip is `tag`'s annotated release commit."""
+def _released(root: Path, tag: str, by_hand: bool = False) -> None:
+    """Merge a branch into `main` whose tip is `tag`'s annotated release commit.
+
+    A run's release is in the release ledger; one by hand is not.
+    """
     branch = f"release-{tag}"
     _git(root, "switch", "-q", "-c", branch)
+    _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
+    if not by_hand:
+        head = _git(root, "rev-parse", "HEAD").strip()
+        _conduct()["_record_release"](root, branch, head)
     _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {tag}")
     _git(root, "tag", "-a", "-m", tag, tag)
     _git(root, "switch", "-q", "main")
@@ -357,8 +364,10 @@ def test_each_check_passes_only_on_disk_evidence(
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
+    mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
+    mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    _commit(scratch, {"Makefile": "gate:\n\ttouch .gated\n"}, "init")
+    _commit(scratch, {"Makefile": conduct["probe_gate"](mark)}, "init")
     assert check("probe", str(scratch)) == (
         1,
         "check: probe · fail — HEAD holds no probe.txt",
@@ -368,8 +377,25 @@ def test_each_check_passes_only_on_disk_evidence(
         1,
         "check: probe · fail — make gate left no .gated",
     )
-    (scratch / ".gated").touch()
+
+    def gate() -> int:
+        return subprocess.run(
+            ["make", "gate"], cwd=scratch, capture_output=True
+        ).returncode
+
+    mark.chmod(0o400)
+    assert gate() == 0
     assert check("probe", str(scratch)) == (0, "check: probe · pass")
+    assert conduct["check_probe"](scratch, mark) is None
+    # Twin: a mark the gate can write is written, and the gate fails.
+    escaped = "codex wrote outside its reach: it runs unsandboxed"
+    mark.chmod(0o600)
+    (scratch / ".gated").unlink()
+    assert gate() != 0
+    assert not (scratch / ".gated").exists()
+    assert conduct["check_probe"](scratch, mark) == escaped
+    mark.unlink()
+    assert conduct["check_probe"](scratch, mark) == escaped
 
 
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
@@ -1016,14 +1042,14 @@ def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    merge_in = " · 0002-marks · halt — the local git config changed during the run"
+    changed = " · 0002-marks · halt — the local git config changed during the run:"
     held = (
         " · run · halt — conduct: halt — the repo's git config holds a key that could"
         " name a program: mf.planted; move it to the global config or remove it"
     )
     for mode, said, remote in (
-        ("plant-config", merge_in, False),
-        ("plant-attributes", merge_in, False),
+        ("plant-config", f"{changed} .git/config differs", False),
+        ("plant-attributes", f"{changed} .git/info/attributes differs", False),
         ("plant-held", held, False),
         ("plant-held", held, True),
     ):
@@ -1124,6 +1150,53 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+def test_a_stale_lock_is_cleared_and_converge_resumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+
+    def halted(why: str) -> tuple[str, str]:
+        log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — {why}\n")
+        return stage_of(root, find(root, "0001-todo"))
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    # Twin: a halt on anything else is the person's.
+    assert halted("cap reached")[0] == "converge-halted"
+    assert halted("waited 2 minutes for .minions/backlog.lock") == (
+        "converge",
+        "halted on the backlog lock: resumes at Step 9",
+    )
+    lock = root / ".minions" / "backlog.lock"
+    lock.mkdir()
+    stale = time.time() - 601
+    os.utime(lock, (stale, stale))
+
+    assert run() == 0
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert not lock.exists()
+    assert any(
+        re.search(r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old$", line)
+        for line in _log(root)
+    )
+
+    lock.mkdir()
+    young = time.time() - 599
+    os.utime(lock, (young, young))
+    assert run() == 0
+    assert lock.is_dir()
+    assert not any(" · unlock — " in line for line in _log(root))
+
+
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1167,8 +1240,25 @@ def test_a_rerun_recovers_a_dead_release(
     assert stage_of(root, find(root, "0002-marks"))[1] == (
         "v0.2.0 is tagged; the merge is left"
     )
+    # A person's no outlasts the death: the stage reads `released`, and nothing merges.
+    held = root / ".minions" / "release" / "0002-marks.held"
+    held.parent.mkdir()
+    held.write_text("no: the preamble needs reading\n")
+    said = (
+        "v0.2.0: .minions/release/0002-marks.held holds a person's no:"
+        " /mf-release 0002-marks merges it on their yes"
+    )
+    assert stage_of(root, find(root, "0002-marks")) == ("released", said)
     calls.unlink()
     fake()
+    run(1)
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(f" · 0002-marks · halt — released — {said}")
+        for line in _log(root)
+    )
+    assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
+    held.unlink()
     run(0)
     assert _calls(calls) == ["probe", "release 0002-marks"]
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
@@ -1340,6 +1430,14 @@ def test_a_rerun_pushes_what_a_release_left(
     _commit(other, {"theirs.txt": "x\n"}, "origin moves")
     _git(other, "push", "-q", "origin", "main")
     _released(root, "v0.2.0")
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    moved = _git(other, "rev-parse", "--short=7", "main").strip()
+    assert capsys.readouterr().out.strip() == (
+        f"conduct: halt — origin's main is at {moved}, which this repo lacks:"
+        " a person fetches"
+    )
+    _git(root, "fetch", "-q", "origin")
     assert status() == "run · unpushed main v0.2.0"
     run(1)
     assert _calls(calls) == []
@@ -1503,8 +1601,11 @@ def test_a_run_pushes_only_tagged_merges(
     def on_origin() -> str:
         return _git(root, "ls-remote", "origin", "refs/heads/main").split()[0]
 
-    def halts_on(name: str) -> None:
-        said = f"conduct: halt — main holds {name}, not a release"
+    def halts_on(name: str, push: str = "main") -> None:
+        said = (
+            f"conduct: halt — main holds {name}, no run's release: a person reads it,"
+            f" then git push origin {push}"
+        )
         capsys.readouterr()
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
         assert capsys.readouterr().out.strip() == said
@@ -1543,20 +1644,254 @@ def test_a_run_pushes_only_tagged_merges(
     _git(root, "tag", "-d", *refused)
 
     _git(root, "tag", "v0.45.0")
-    halts_on("v0.45.0")
+    halts_on("v0.45.0", "v0.45.0")
     assert _git(root, "ls-remote", "--tags", "origin") == ""
     _git(root, "tag", "-d", "v0.45.0")
 
+    # A hand release is the person's to push.
+    _released(root, "v0.3.0", by_hand=True)
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+    _git(root, "tag", "-d", "v0.3.0")
+
     _released(root, "v0.1.0")
     _git(root, "tag", "v0.2.0", "release-v0.1.0")
-    halts_on("v0.2.0")
+    halts_on("v0.2.0", "v0.2.0")
     _git(root, "tag", "-d", "v0.2.0")
+    assert conduct["_ledger_heads"](root) == {
+        _git(root, "rev-parse", "v0.1.0^{commit}^")
+    }
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
     assert on_origin() == _git(root, "rev-parse", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert conduct["_ledger_heads"](root) == set()
+
+
+def test_a_forged_release_is_not_pushed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    def halts_on_main() -> None:
+        listed = _git(root, "ls-remote", "origin")
+        name = _git(root, "rev-parse", "main")[:7]
+        assert run() == 1
+        log = conduct["last_log"](root / ".minions" / "runs").read_text()
+        assert f" · run · halt — conduct: halt — main holds {name}, no run's" in log
+        assert _git(root, "ls-remote", "origin") == listed
+        assert _calls(calls) == []
+
+    # A worker writes the shape of a release, tagged, holding its tree.
+    _released(root, "v9.9.9", by_hand=True)
+    halts_on_main()
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+    _git(root, "tag", "-d", "v9.9.9")
+
+    # A worker moves the local remote ref: the base is origin's own head.
+    _commit(root, {"mine.txt": "x\n"}, "a plain commit")
+    _git(root, "update-ref", "refs/remotes/origin/main", "main")
+    halts_on_main()
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+
+    # A pushed head is retired even if a concurrent worker moves its version ref, or
+    # rewrites the release commit's history with a replace ref, a graft or `shallow`.
+    module = conduct["main"].__globals__
+    outside = module["_outside"]
+    close = module["_close_releases"]
+    git_dir = root / ".git"
+    views = ("replace", "graft", "shallow")
+    cases = (
+        ("keep",),
+        ("move",),
+        ("delete",),
+        ("resume",),
+        *((view,) for view in views),
+        ("resume", *views),
+        ("hand-finished",),
+        ("failed-push",),
+    )
+    for number, mutation in enumerate(cases, start=1):
+        tag = f"v0.{number}.0"
+        branch = f"refs/heads/release-{tag}"
+        _released(root, tag)
+        commit = _git(root, "rev-parse", f"{tag}^{{commit}}")
+        head = _git(root, "rev-parse", f"{commit}^")
+
+        def push(
+            cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
+        ) -> subprocess.CompletedProcess[str]:
+            if (
+                "failed-push" in mutation
+                and args[0] == "push"
+                and args[-1].endswith(":refs/heads/main")
+            ):
+                return subprocess.CompletedProcess(args, 1, "", "rejected")
+            done = outside(cwd, *args, timeout=timeout)
+            if (
+                args[0] == "push"
+                and args[-1].endswith(f":refs/tags/{tag}")
+                and done.returncode == 0
+            ):
+                if "move" in mutation:
+                    _git(root, "update-ref", branch, head)
+                if "delete" in mutation:
+                    _git(root, "update-ref", "-d", branch)
+                # Each makes the release commit read as a root, its head gone.
+                if "replace" in mutation:
+                    _git(root, "replace", "--graft", commit)
+                if "graft" in mutation:
+                    (git_dir / "info").mkdir(exist_ok=True)
+                    (git_dir / "info" / "grafts").write_text(f"{commit}\n")
+                if "shallow" in mutation:
+                    (git_dir / "shallow").write_text(f"{commit}\n")
+            return done
+
+        module["_outside"] = push
+        if "resume" in mutation:
+            # The conductor died after both pushes, before retiring the entry.
+            module["_close_releases"] = lambda *_: None
+        if "hand-finished" not in mutation:
+            assert run() == (1 if "failed-push" in mutation else 0)
+        module["_outside"] = outside
+        module["_close_releases"] = close
+        if "failed-push" in mutation or "hand-finished" in mutation:
+            # A person lands a halted run's release or finishes a release by hand.
+            _git(root, "push", "-q", "origin", "main", tag)
+        assert tag in _git(root, "ls-remote", "--tags", "origin")
+        assert conduct["_ledger_heads"](root) == (
+            {head}
+            if any(
+                case in mutation for case in ("resume", "failed-push", "hand-finished")
+            )
+            else set()
+        ), mutation
+
+        forged = f"v9.{number}.0"
+        _git(root, "switch", "-q", "-c", "forged", head)
+        _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {forged}")
+        _git(root, "tag", "-a", "-m", forged, forged)
+        _git(root, "switch", "-q", "main")
+        _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+        if "failed-push" in mutation or "hand-finished" in mutation:
+            # Retirement is only cleanup: a landed head refuses even with it absent.
+            module["_close_releases"] = lambda *_: None
+            with pytest.raises(conduct["Stop"], match="no run's release"):
+                conduct["_unpushed"](root, first_read=True)
+            assert conduct["_ledger_heads"](root) == {head}, mutation
+            module["_close_releases"] = close
+        halts_on_main()
+        assert conduct["_ledger_heads"](root) == set(), mutation
+        _git(root, "reset", "-q", "--hard", "HEAD~1")
+        _git(root, "tag", "-d", forged)
+        _git(root, "branch", "-D", "forged")
+        if "replace" in mutation:
+            _git(root, "replace", "-d", commit)
+        (git_dir / "info" / "grafts").unlink(missing_ok=True)
+        (git_dir / "shallow").unlink(missing_ok=True)
+
+    # Local history must not turn an unauthorized release into a recorded one.
+    for number, view in enumerate(views, start=20):
+        tag = f"v9.{number}.0"
+        base = _git(root, "rev-parse", "main")
+        _released(root, tag, by_hand=True)
+        commit = _git(root, "rev-parse", f"{tag}^{{commit}}")
+        if view == "shallow":
+            # A shallow base hides a ledger head that has already landed.
+            head = _git(root, "rev-parse", f"{base}^2^")
+            _git(root, "replace", "--graft", commit, head)
+            replacement = _git(root, "rev-parse", f"refs/replace/{commit}")
+            _git(root, "replace", "-d", commit)
+            _git(root, "tag", "-f", tag, replacement)
+            _git(root, "reset", "-q", "--hard", base)
+            _git(root, "merge", "-q", "--no-ff", "-m", "forged", replacement)
+            (git_dir / "shallow").write_text(f"{base}\n")
+        else:
+            head = _git(
+                root, "commit-tree", f"{base}^{{tree}}", "-p", base, "-m", "recorded"
+            )
+            if view == "replace":
+                _git(root, "replace", "--graft", commit, head)
+            else:
+                (git_dir / "info" / "grafts").write_text(f"{commit} {head}\n")
+        conduct["_record_release"](root, "recorded", head)
+        listed = _git(root, "ls-remote", "origin")
+        with pytest.raises(conduct["Stop"], match="no run's release"):
+            conduct["_unpushed"](root, first_read=True)
+        assert _git(root, "ls-remote", "origin") == listed
+        if view == "replace":
+            _git(root, "replace", "-d", commit)
+        (git_dir / "info" / "grafts").unlink(missing_ok=True)
+        (git_dir / "shallow").unlink(missing_ok=True)
+        _git(root, "reset", "-q", "--hard", base)
+        _git(root, "tag", "-d", tag)
+        conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
+
+    # A worker points `origin/HEAD` at an older origin branch and forges a release
+    # there, on a head that landed on origin's own default: the push judges `main`.
+    older = _git(root, "rev-parse", "main")
+    _git(root, "push", "-q", "origin", "main:refs/heads/maintenance")
+    _released(root, "v0.30.0")
+    head = _git(root, "rev-parse", "v0.30.0^{commit}^")
+    _git(root, "push", "-q", "origin", "main", "v0.30.0")
+    _git(root, "update-ref", "refs/remotes/origin/maintenance", older)
+    _git(
+        root,
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/maintenance",
+    )
+    _git(root, "switch", "-q", "-c", "forged", head)
+    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v9.30.0")
+    _git(root, "tag", "-a", "-m", "v9.30.0", "v9.30.0")
+    _git(root, "switch", "-q", "-c", "maintenance", older)
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+    listed = _git(root, "ls-remote", "origin")
+    assert run() == 0
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert " · run · push — " not in log
+    assert _git(root, "ls-remote", "origin") == listed
+    assert _calls(calls) == []
+    _git(root, "switch", "-q", "main")
+    _git(root, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+    _git(root, "branch", "-D", "maintenance", "forged")
+    _git(root, "tag", "-d", "v9.30.0")
+
+    # Origin's own HEAD leaves the name the run kept: a run's release is not pushed.
+    _released(root, "v0.31.0")
+    kept = conduct["_kept_file"](root)
+    named = kept.with_name(f"{kept.name}.default")
+    _git(origin, "symbolic-ref", "HEAD", "refs/heads/maintenance")
+    listed = _git(root, "ls-remote", "origin")
+    assert run() == 1
+    said = (
+        "conduct: halt — origin's HEAD names maintenance, and the run kept main: a"
+        f" person decides, then removes ~/.mf-ship-origin/{named.name}"
+    )
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert f" · run · halt — {said}\n" in log
+    assert _git(root, "ls-remote", "origin") == listed
+    # Twin: a person restores it and removes the kept name; the run keeps it anew.
+    _git(origin, "symbolic-ref", "HEAD", "refs/heads/main")
+    named.unlink()
+    assert run() == 0
+    assert "refs/tags/v0.31.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert named.read_text() == "main"
+    assert _calls(calls) == []
 
 
 def test_no_worker_pushes(
@@ -1580,6 +1915,8 @@ def test_no_worker_pushes(
     )
 
     lines = [line.split(" · ", 1)[1] for line in _log(root)]
+    # Twin: a home folder that takes the file logs no `unkept`.
+    assert not any(line.startswith("run · unkept") for line in lines)
     finish = next(
         i for i, line in enumerate(lines) if line.startswith("0001-todo · finish — rel")
     )
@@ -1591,6 +1928,7 @@ def test_no_worker_pushes(
     ]
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert conduct["_ledger_heads"](root) == set()
 
     # A worker repoints `origin`, a plain key at a network URL's form: nothing leaves.
     planted = tmp_path / "planted"
@@ -1608,9 +1946,11 @@ def test_no_worker_pushes(
     outside = module["_outside"]
     reached: list[tuple[str, ...]] = []
 
-    def spy(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def spy(
+        primary: Path, *args: str, timeout: int = 60
+    ) -> subprocess.CompletedProcess[str]:
         reached.append(args)
-        return outside(primary, *args)
+        return outside(primary, *args, timeout=timeout)
 
     module["_outside"] = spy
 
@@ -1620,8 +1960,8 @@ def test_no_worker_pushes(
     )
 
     assert _git(elsewhere, "for-each-ref") == ""
-    said = " · run · halt — the local git config changed during the run"
-    assert any(line.endswith(said) for line in _log(root))
+    said = " · run · halt — the local git config changed during the run: .git/config"
+    assert any(line.endswith(f"{said} differs") for line in _log(root))
     # An `ls-remote` leaves no ref there: the URL itself is what would leave.
     assert not any(str(elsewhere) in args for args in reached)
     commands = (("status",), ("check", "release", "0001-todo"), ("report",))
@@ -1755,6 +2095,8 @@ def test_no_worker_pushes(
         == 0
     )
     assert conduct["_kept_origin"](root) is None
+    refusal = " · run · unkept — No such file or directory"
+    assert sum(line.endswith(refusal) for line in _log(root)) == 1
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
     # A worker plants a promisor and deletes a blob: git reads the blob from no URL,
@@ -1847,7 +2189,10 @@ def test_a_commit_during_a_run_halts_before_integrate(
     assert "converge 0001-todo" in _calls(calls)
     assert "integrate 0001-todo" not in _calls(calls)
     commit = _git(root, "rev-parse", "main")[:7]
-    said = f" · 0001-todo · halt — conduct: halt — main holds {commit}, not a release"
+    said = (
+        f" · 0001-todo · halt — conduct: halt — main holds {commit}, no run's release:"
+        " a person reads it, then git push origin main"
+    )
     assert any(line.endswith(said) for line in _log(root))
     assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
 
@@ -1868,43 +2213,6 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
     with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
         conduct["_refuse_config_commands"](root)
     assert str(held.value).endswith("move it to the global config or remove it")
-
-
-def test_a_stop_survives_a_death(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake("dies-release-tag")
-    root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-
-    def run() -> None:
-        assert (
-            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-            == 1
-        )
-
-    run()
-    version = conduct["find_version"](root, "0001-todo")
-    assert conduct["stage_of"](root, version)[0] == "release"
-
-    held = root / ".minions" / "release" / "0001-todo.held"
-    held.parent.mkdir()
-    held.write_text("no: the preamble needs reading\n")
-    said = (
-        "v0.1.0: .minions/release/0001-todo.held holds a person's no:"
-        " /mf-release 0001-todo merges it on their yes"
-    )
-    assert conduct["stage_of"](root, version) == ("released", said)
-
-    calls.unlink()
-    fake()
-    run()
-    assert _calls(calls) == []
-    assert any(
-        line.endswith(f" · 0001-todo · halt — released — {said}") for line in _log(root)
-    )
-    assert _git(root, "branch", "--no-merged", "main").endswith(" 0001-todo")
 
 
 def test_no_hook_runs_in_a_worker(
@@ -2370,6 +2678,7 @@ def test_a_claude_worker_starts_in_the_sandbox(
     assert settings() == {
         "sandbox": {
             "enabled": True,
+            "failIfUnavailable": True,
             "allowUnsandboxedCommands": False,
             "filesystem": {
                 "allowWrite": [str(root), str(tree), str(root / ".git")],
@@ -2400,6 +2709,44 @@ def test_a_claude_worker_starts_in_the_sandbox(
             settings()
         assert stop.value.code == 1
         assert value in str(stop.value)
+
+
+def test_a_probe_halts_on_a_write_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("unsandboxed")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    marks = Path.home() / conduct["KEPT_ORIGINS"]
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run() == 1
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · run · halt — probe check fail — claude wrote outside its reach:"
+            " it runs unsandboxed"
+        )
+        for line in _log(root)
+    )
+    assert not list(marks.glob("probe-*"))
+
+    # Twin: a sandbox refuses the write, and the run ships.
+    calls.unlink()
+    fake()
+    assert run() == 0
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert not list(marks.glob("probe-*"))
 
 
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
@@ -2541,6 +2888,15 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
+    # Twin: the drill's trusted plant, the same table trusted, loads the plant.
+    table = ",".join(
+        f'{json.dumps(str(path.resolve()))}={{trust_level="untrusted"}}'
+        for path in (root, tree)
+    )
+    trust = f"projects={{{table}}}"
+    assert sum(arg.startswith("projects") for arg in codex) == 1
+    start = codex.index("sandbox_workspace_write.network_access=false") + 1
+    assert codex[start:-3] == ["-c", trust]
 
     neighbour = tmp_path / "neighbour"
     neighbour.mkdir()

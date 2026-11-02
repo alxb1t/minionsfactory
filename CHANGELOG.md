@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-11-02
+
+Gate: local 3m53s · CI 0m42s (CI at d897227) · 0.46.0: local 3m25s · CI 0m42s (CI at d897227)
+
+- A Codex worker starts with its trees untrusted, so a `.codex/config.toml` a worker planted starts nothing: the drill showed
+  its server running, and Codex trusting the tree on its first start (change `0053-sandbox-patch`, phase 1).
+- A Claude worker whose sandbox cannot start does not run, and the probe's gate needs a write outside its reach refused,
+  because a sandbox that fails open runs every command unsandboxed, unnoticed (change `0053-sandbox-patch`, phase 2).
+- `conduct.py` pushes only a release a run took to its release, by a ledger in the home folder, judged against `origin`'s
+  own head and pushing the sha it checked, because any worker could write a release's shape (change `0053-sandbox-patch`,
+  phase 3).
+- A run clears a `backlog.lock` older than ten minutes, and a converge halted on the lock resumes at Step 9, because a
+  dead worker's lock cost a whole new round (change `0053-sandbox-patch`, phase 4).
+- The run's start line says `permissions: sandbox`, a push waits 30 minutes, a changed git config names its file, a
+  home folder that refuses the kept URLs is logged, and `mf-release` says `conduct.py` pushes under `merge=yes`: the
+  `0052` cards whose triggers fire here (change `0053-sandbox-patch`, phase 5).
+- `THREAT_MODEL.md`, D47 and D51 state the boundary a run holds, and a route in the threat model's accepted class is carded
+  without blocking, anchors included, because the anchor rule had blocked on what the person accepted (change
+  `0053-sandbox-patch`, phase 6).
+- `tests/escape_drill.py` runs a run's probe on Claude and Codex, and both held on real workers, because the fake worker
+  cannot hold a sandbox (change `0053-sandbox-patch`, phase 7).
+- A release ledger head authorizes nothing once it lands on `origin`'s default branch, whether the run or a person pushes it,
+  and cleanup only removes spent entries. The push check reads raw history in a clean scratch repo, so a moved branch,
+  replace ref, graft or `shallow` file cannot keep a landed head authorized or make a forged release pass. This closes the
+  hand-push and hand-finished landings that tag-based cleanup missed. The push takes the default branch from `origin`'s own
+  `HEAD`, kept beside the URLs at a repo's first read, and halts when `origin`'s `HEAD` names another, because a worker writes
+  the local `origin/HEAD` and could judge a landed head against an older branch (change `0053-sandbox-patch`, converge fixes
+  R4, S3 and S4).
+
 ## [0.46.0] - 2026-11-02
 
 Gate: local 3m25s · CI 0m42s (CI at d897227) · 0.45.0: local 3m00s · CI 0m42s (CI at d897227)

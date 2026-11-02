@@ -41,7 +41,9 @@ from pathlib import Path
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
+PUSH_TIMEOUT = 1800
 LOCK_SECONDS = 30
+LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
@@ -50,7 +52,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    "push",
+    *("push", "ledger", "unlock", "unkept"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -61,7 +63,8 @@ TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
-CONFIG_CHANGED = "the local git config changed during the run"
+CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
+GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
@@ -178,7 +181,7 @@ class Stop(Exception):
 
 
 def _run(
-    cwd: Path, *args: str, env: dict[str, str] | None = None
+    cwd: Path, *args: str, env: dict[str, str] | None = None, timeout: int = GIT_TIMEOUT
 ) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2.
 
@@ -194,7 +197,7 @@ def _run(
             encoding="utf-8",
             env={**(os.environ if env is None else env), "GIT_NO_LAZY_FETCH": "1"},
             errors="replace",
-            timeout=GIT_TIMEOUT,
+            timeout=timeout,
         )
     except FileNotFoundError:
         raise Stop(2, "conduct: cannot run — git is missing") from None
@@ -455,6 +458,24 @@ def _is_event(line: str, event: str) -> bool:
     return line.split(" — ")[0].endswith(f" · {event}")
 
 
+def _clear_stale_lock(primary: Path) -> int | None:
+    """Remove a `backlog.lock` older than `LOCK_STALE`; return its age in seconds.
+
+    A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
+    """
+    lock = primary / ".minions" / "backlog.lock"
+    if not lock.is_dir():
+        return None
+    age = round(time.time() - lock.stat().st_mtime)
+    if age <= LOCK_STALE:
+        return None
+    try:
+        lock.rmdir()
+    except OSError:
+        return None
+    return age
+
+
 def _converge_halt(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event when it is a halt, else None."""
     end = _run_end(runs, change)
@@ -521,12 +542,22 @@ def _delta(delta: Callable[[Path], str], tree: Path) -> list[str]:
 
 
 def _git_state(primary: Path) -> list[str]:
-    """Return the common directory's `config` and `info/attributes`, or "" if none."""
-    common = primary / ".git"
-    files = (common / "config", common / "info" / "attributes")
+    """Return each of `GIT_FILES` under `primary`, or "" if none."""
+    files = (primary / name for name in GIT_FILES)
     return [
         file.read_text(errors="replace") if file.is_file() else "" for file in files
     ]
+
+
+def _config_changed(primary: Path, state: list[str]) -> Stop | None:
+    """Return the halt naming the first of `GIT_FILES` that differs from `state`.
+
+    It names no URL: one can hold a key. Why: 0053-sandbox-patch design D4.
+    """
+    for name, held, now in zip(GIT_FILES, state, _git_state(primary), strict=True):
+        if held != now:
+            return Stop(1, CONFIG_CHANGED.format(file=name))
+    return None
 
 
 def _note(tree: Path, change: str, moved: list[str]) -> str:
@@ -647,6 +678,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if halt := _converge_halt(runs, change):
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
+        if ".minions/backlog.lock" in halt:
+            return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
     end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
@@ -766,8 +799,54 @@ def _kept_file(primary: Path) -> Path:
     No worker can write there, and a repo's config lasts past the run that wrote it.
     Why: 0052-security-hardening design D9.
     """
-    digest = hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
-    return Path.home() / KEPT_ORIGINS / digest
+    return Path.home() / KEPT_ORIGINS / _digest(primary)
+
+
+def _digest(primary: Path) -> str:
+    """Return the name `primary`'s files take in the home folder, from its path."""
+    return hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+
+
+def _ledger(primary: Path) -> Path:
+    """Return the release ledger's folder: one file per change, holding its head.
+
+    Why: 0053-sandbox-patch design D2.
+    """
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.released"
+
+
+def _record_release(primary: Path, change: str, head: str) -> None:
+    """Record `head` as the change's in the release ledger, over an older entry."""
+    folder = _ledger(primary)
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    entry = folder / change
+    entry.unlink(missing_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    with os.fdopen(os.open(entry, flags, 0o600), "w") as file:
+        file.write(f"{head}\n")
+
+
+def _ledger_entries(primary: Path) -> list[Path]:
+    """Return the release ledger's entry files."""
+    folder = _ledger(primary)
+    return list(folder.iterdir()) if folder.is_dir() else []
+
+
+def _ledger_heads(primary: Path) -> set[str]:
+    """Return the heads the release ledger holds: each entry's first line."""
+    return {entry.read_text().partition("\n")[0] for entry in _ledger_entries(primary)}
+
+
+def _close_releases(primary: Path, base: str) -> None:
+    """Remove ledger entries whose heads have landed on `base`, origin's default.
+
+    This is cleanup alone: the push check independently excludes landed heads.
+    Read ancestry in the clean scratch repo. Why: 0053-sandbox-patch design D2.
+    """
+    for entry in _ledger_entries(primary):
+        head = entry.read_text().partition("\n")[0]
+        if _history_ancestor(primary, head, base):
+            entry.unlink()
 
 
 def _kept_origin(primary: Path) -> Urls | None:
@@ -779,20 +858,83 @@ def _kept_origin(primary: Path) -> Urls | None:
     return fetch, push
 
 
-def _keep_origin(primary: Path) -> None:
-    """Keep `origin`'s URLs before a repo's first worker; a file that stands stays.
+def _keep_origin(primary: Path) -> str | None:
+    """Keep `origin`'s URLs before a repo's first worker; return why it could not.
 
-    Owner-only: a URL can hold a key. Where the home folder refuses it, this process
-    is itself in a sandbox, and nothing is kept.
+    A file that stands stays. Owner-only: a URL can hold a key. Where the home folder
+    refuses it, this process is itself in a sandbox, and nothing is kept. Beside the
+    URLs it keeps the branch origin's own HEAD names, once, read through a kept URL;
+    a repo kept before gains it here. Why: 0053-sandbox-patch design D2.
     """
     file = _kept_file(primary)
+    urls = _urls(primary)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     try:
         file.parent.mkdir(mode=0o700, exist_ok=True)
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         with os.fdopen(os.open(file, flags, 0o600), "w") as kept:
-            json.dump(_urls(primary), kept)
-    except OSError:
-        return
+            json.dump(urls, kept)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    fetch = (_kept_origin(primary) or ([], []))[0]
+    named = _default_file(primary)
+    try:
+        name = _origin_head(primary, fetch[0]) if fetch and not named.exists() else None
+        if name is not None:
+            with os.fdopen(os.open(named, flags, 0o600), "w") as kept:
+                kept.write(name)
+    except (FileExistsError, Stop):
+        pass
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    return None
+
+
+def _default_file(primary: Path) -> Path:
+    """Return the file holding the default branch's name a run kept for `primary`."""
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.default"
+
+
+def _origin_head(primary: Path, url: str) -> str | None:
+    """Return the branch `url`'s own HEAD names, or None when it names none.
+
+    A read that fails stops with 1, nothing pushed.
+    """
+    done = _outside(primary, "ls-remote", "--symref", "--", url, "HEAD")
+    if done.returncode != 0:
+        raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
+    for line in done.stdout.splitlines():
+        ref, _, name = line.partition("\t")
+        if name == "HEAD" and ref.startswith("ref: refs/heads/"):
+            return ref.removeprefix("ref: refs/heads/")
+    return None
+
+
+def _push_default(primary: Path, url: str) -> str:
+    """Return the default branch a push judges and pushes: the one origin's HEAD names.
+
+    Never the local `refs/remotes/origin/HEAD`, which a worker writes. Once a run kept
+    the name, origin's HEAD naming another halts, for a person to decide.
+    Why: 0053-sandbox-patch design D2.
+    """
+    name = _origin_head(primary, url)
+    file = _default_file(primary)
+    kept = file.read_text() if file.is_file() else None
+    if kept is not None and name != kept:
+        remedy = f"a person decides, then removes ~/{KEPT_ORIGINS}/{file.name}"
+        raise Stop(
+            1,
+            f"conduct: halt — origin's HEAD names {name or 'no branch'}, and the run"
+            f" kept {kept}: {remedy}",
+        )
+    if name is None:
+        raise Stop(
+            1,
+            "conduct: halt — origin's HEAD names no branch: a person pushes the default"
+            " branch, or points origin's HEAD at it",
+        )
+    return name
 
 
 def _refuse_origin(primary: Path) -> Urls:
@@ -849,7 +991,9 @@ def _scratch() -> tempfile.TemporaryDirectory[str]:
         return tempfile.TemporaryDirectory(prefix=prefix)
 
 
-def _outside(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _outside(
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
     It reads the operator's global config and no repo's, so a key a worker sets after
@@ -860,8 +1004,12 @@ def _outside(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
         alternates = root / "objects" / "info" / "alternates"
-        alternates.write_text(f"{primary / '.git' / 'objects'}\n")
-        return _run(root, *args, env={**os.environ, "GIT_DIR": scratch})
+        objects = _git(
+            primary, "rev-parse", "--path-format=absolute", "--git-path", "objects"
+        )
+        alternates.write_text(objects)
+        env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
+        return _run(root, *args, env=env, timeout=timeout)
 
 
 def _listed(primary: Path, url: str, *refs: str) -> str | None:
@@ -888,63 +1036,166 @@ def _pushed(
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
 
 
-def _release_merge(primary: Path, tip: str) -> bool:
-    """Return whether `tip` says `chore(release): <tag>` and that tag points at it."""
-    subject = _subject(primary, tip)
+def _history(primary: Path, *args: str) -> str:
+    """Read raw object history in the conductor's clean scratch repo.
+
+    Only alternates reach the primary: no ref, graft or shallow file does, and
+    replacement is disabled. Why: 0053-sandbox-patch design D2.
+    """
+    done = _outside(primary, *args)
+    if done.returncode != 0:
+        raise Stop(2, f"conduct: cannot read release history: git {args[0]} failed")
+    return done.stdout.strip()
+
+
+def _history_ancestor(primary: Path, older: str, newer: str) -> bool:
+    """Return whether raw object history places `older` at or before `newer`."""
+    done = _outside(primary, "merge-base", "--is-ancestor", older, newer)
+    if done.returncode not in (0, 1):
+        raise Stop(2, "conduct: cannot read release history: git merge-base failed")
+    return done.returncode == 0
+
+
+def _release_tags(primary: Path) -> dict[str, tuple[str, str]]:
+    """Snapshot version tags as `(ref sha, commit sha)`, peeling in scratch."""
+    refs = _git(
+        primary,
+        "for-each-ref",
+        "--format=%(refname:strip=2) %(objectname)",
+        "refs/tags",
+    )
+    tags = {}
+    for line in refs.splitlines():
+        name, sha = line.split()
+        if TAG.fullmatch(name):
+            done = _outside(primary, "rev-parse", "--verify", f"{sha}^{{commit}}")
+            if done.returncode == 0:
+                tags[name] = (sha, done.stdout.strip())
+    return tags
+
+
+def _release_merge(primary: Path, tip: str, tags: dict[str, tuple[str, str]]) -> bool:
+    """Return whether raw `tip` says `chore(release): <tag>` and holds that tag."""
+    subject = _history(primary, "log", "-1", "--format=%s", tip)
     return any(
-        TAG.fullmatch(tag) and subject == f"chore(release): {tag}"
-        for tag in _git(primary, "tag", "--points-at", tip).split()
+        tip == commit and subject == f"chore(release): {tag}"
+        for tag, (_, commit) in tags.items()
     )
 
 
-def _merges_a_release(primary: Path, sha: str) -> bool:
-    """Return whether `sha` merges a tagged release and holds that release's tree."""
-    parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
-    if len(parents) != 3 or not _release_merge(primary, parents[2]):
+def _merges_a_release(
+    primary: Path, sha: str, tags: dict[str, tuple[str, str]]
+) -> bool:
+    """Return whether raw `sha` merges a tagged release with that release's tree."""
+    parents = _history(primary, "rev-list", "--parents", "-n", "1", sha).split()
+    if len(parents) != 3 or not _release_merge(primary, parents[2], tags):
         return False
-    trees = _git(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
+    trees = _history(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
     return len(set(trees.split())) == 1
 
 
-def _foreign_commit(primary: Path) -> list[str]:
-    """Return the default branch's first-parent commits past `origin`, each a release.
+def _has_origin(primary: Path) -> bool:
+    """Return whether the repo has a remote named `origin`."""
+    return "origin" in _git(primary, "remote").split()
 
-    A commit that merges no tagged release stops with 1. With no `origin`, none.
+
+def _no_release(default: str, name: str) -> Stop:
+    """Return the halt for a commit or tag on the default branch no run released."""
+    return Stop(
+        1,
+        f"conduct: halt — {default} holds {name}, no run's release: a person reads it,"
+        f" then git push origin {name if TAG.fullmatch(name) else default}",
+    )
+
+
+def _foreign_commit(
+    primary: Path,
+    base: str,
+    default: str,
+    tip: str | None = None,
+    tags: dict[str, tuple[str, str]] | None = None,
+) -> list[str]:
+    """Return the `default` branch's first-parent release merges past raw `base`.
+
+    Each release's parent must be a ledger head not yet reachable from `base`.
+    Only ref snapshots come from the primary; all history comes from scratch.
+    Why: 0053-sandbox-patch design D2.
     """
-    if "origin" not in _git(primary, "remote").split():
-        return []
-    default = default_branch(primary)
-    ahead = f"origin/{default}..{default}"
-    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
+    base = _git(primary, "rev-parse", "--verify", base).strip()
+    tip = tip or _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    tags = _release_tags(primary) if tags is None else tags
+    heads = {
+        head
+        for head in _ledger_heads(primary)
+        if not _history_ancestor(primary, head, base)
+    }
+    commits = _history(primary, "rev-list", "--first-parent", f"{base}..{tip}").split()
     for sha in commits:
-        if not _merges_a_release(primary, sha):
-            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
+        if not (
+            _merges_a_release(primary, sha, tags)
+            and _history(primary, "rev-parse", f"{sha}^2^") in heads
+        ):
+            raise _no_release(default, sha[:7])
     return commits
 
 
-def _unpushed(primary: Path, first_read: bool = False) -> list[str]:
-    """Return the default branch when `origin` lacks it, and each merged tag it lacks.
+def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
+    """Return each `(ref, sha)` to push.
 
-    A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
-    release commit of that name, stops with 1. An `origin` that cannot be read, or
-    that this may not read, lacks no tag. The refusal needs no `origin`: a run with
-    none keeps that too.
+    Judge history in scratch against origin's listed default sha. A run's read takes
+    the default's name from origin's own HEAD; `status` takes it from git. With no
+    read allowed, use the local remote ref and no tags. Cleanup has no security
+    weight: landed ledger heads never authorize another release, however they landed.
+    Why: 0053-sandbox-patch design D2.
     """
     url = _read_url(primary, first_read)
-    default = default_branch(primary)
-    found = [default] if _foreign_commit(primary) else []
-    listed = _listed(primary, url) if url else None
-    if listed is None:
-        return found
-    held = listed.split()
-    merged = _git(primary, "tag", "--merged", default).split()
-    tags = [
-        tag for tag in merged if TAG.fullmatch(tag) and f"refs/tags/{tag}" not in held
-    ]
-    for tag in tags:
-        if _subject(primary, f"refs/tags/{tag}") != f"chore(release): {tag}":
-            raise Stop(1, f"conduct: halt — {default} holds {tag}, not a release")
-    return found + tags
+    if not _has_origin(primary):
+        return []
+    default = (
+        _push_default(primary, url) if first_read and url else default_branch(primary)
+    )
+    done = (
+        _outside(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
+    )
+    if done is None or done.returncode != 0:
+        if done is not None and first_read:
+            raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
+        commits = _foreign_commit(primary, f"origin/{default}", default)
+        return [(f"refs/heads/{default}", commits[0])] if commits else []
+    held = {
+        ref: sha
+        for sha, ref in (
+            line.split("\t", 1) for line in done.stdout.split("\n") if line
+        )
+    }
+    base = held.get(f"refs/heads/{default}")
+    if base is None:
+        raise Stop(
+            1, f"conduct: halt — origin has no {default}: a person pushes it first"
+        )
+    if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
+        raise Stop(
+            1,
+            f"conduct: halt — origin's {default} is at {base[:7]}, which this repo"
+            " lacks: a person fetches",
+        )
+    if first_read:
+        _close_releases(primary, base)
+    tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    tags = _release_tags(primary)
+    commits = _foreign_commit(primary, base, default, tip, tags)
+    found = [(f"refs/heads/{default}", tip)] if commits else []
+    released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    for tag, (sha, commit) in tags.items():
+        ref = f"refs/tags/{tag}"
+        if ref in held or not _history_ancestor(primary, commit, tip):
+            continue
+        if not _release_merge(primary, commit, {tag: (sha, commit)}) or (
+            commit not in released and not _history_ancestor(primary, commit, base)
+        ):
+            raise _no_release(default, tag)
+        found.append((ref, sha))
+    return found
 
 
 def _unread(primary: Path) -> bool:
@@ -964,8 +1215,24 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def check_probe(scratch: Path) -> str | None:
-    """Return why the probe check fails, or None; the scratch gate leaves `.gated`."""
+def probe_gate(mark: Path) -> str:
+    """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
+
+    Why: 0053-sandbox-patch design D1.
+    """
+    target = shlex.quote(str(mark)).replace("$", "$$")
+    return f"gate:\n\t! echo escaped >> {target}\n\ttouch .gated\n"
+
+
+def check_probe(scratch: Path, mark: Path | None) -> str | None:
+    """Return why the probe check fails, or None; the scratch gate leaves `.gated`.
+
+    A `mark` gone or written fails, naming its executor: `probe-codex-41` → `codex`.
+    `check probe` has no mark, and skips it. Why: 0053-sandbox-patch design D1.
+    """
+    if mark is not None and (not mark.is_file() or mark.stat().st_size):
+        executor = mark.name.split("-")[1]
+        return f"{executor} wrote outside its reach: it runs unsandboxed"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
@@ -1162,11 +1429,13 @@ def worker_settings(
 ) -> str:
     """Return the Claude worker's sandbox settings, as JSON.
 
-    Why: 0052-security-hardening design D1.
+    A sandbox that cannot start ends the worker. Why: 0052-security-hardening design
+    D1 and 0053-sandbox-patch design D1.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
         "enabled": True,
+        "failIfUnavailable": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
         "credentials": {
@@ -1232,8 +1501,24 @@ def argv(
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         *("-c", "sandbox_workspace_write.network_access=false"),
+        # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
+        # Why: 0053-sandbox-patch design D6.
+        *codex_trust([cwd, *trees], "untrusted"),
         *("-C", str(cwd), prompt),
     ]
+
+
+def codex_trust(paths: list[Path], level: str) -> list[str]:
+    """Return the `-c` that sets each path's Codex trust, as one `projects` table.
+
+    e.g. `[/r], "untrusted"` → `["-c", 'projects={"/r"={trust_level="untrusted"}}']`.
+    Why: 0053-sandbox-patch design D6.
+    """
+    keys = dict.fromkeys(str(path.resolve()) for path in paths)
+    table = ",".join(
+        f"{json.dumps(key)}={{trust_level={json.dumps(level)}}}" for key in keys
+    )
+    return ["-c", f"projects={{{table}}}"]
 
 
 def work(
@@ -1602,8 +1887,9 @@ class Run:
                     return
                 if stage in stop_at:
                     return
-                if stage == "integrate":
-                    _foreign_commit(self.primary)
+                if stage == "integrate" and _has_origin(self.primary):
+                    default = default_branch(self.primary)
+                    _foreign_commit(self.primary, f"origin/{default}", default)
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -1622,6 +1908,10 @@ class Run:
                         f"conduct: halt — models/{version.change}.toml changed during"
                         " the run",
                     )
+                if stage == "release" and _tag_of(self.primary, version.change) is None:
+                    head = _git(cwd, "rev-parse", "HEAD").strip()
+                    _record_release(self.primary, version.change, head)
+                    self.log.event(version.change, "ledger", f"{version.change} {head}")
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
@@ -1663,8 +1953,8 @@ class Run:
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
         """
-        if _git_state(self.primary) != self.git_state:
-            raise Stop(1, CONFIG_CHANGED)
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
         note = self.primary / ".minions" / "integrate" / f"{change}.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
@@ -1718,7 +2008,7 @@ class Run:
         return list(dict.fromkeys((self.executor, *named)))
 
     def probe(self, executor: str) -> None:
-        """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
+        """Prove a sandboxed worker edits, commits and gates a scratch repo, or halt."""
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
             self.halt("run", f"{station} — {executor} is not on PATH")
@@ -1729,9 +2019,19 @@ class Run:
             self.halt("run", f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
+        mark = Path.home() / KEPT_ORIGINS / f"probe-{executor}-{os.getpid()}"
         try:
+            try:
+                mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                mark.unlink(missing_ok=True)
+                os.close(os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            except OSError as error:
+                self.halt(
+                    "run", f"{station} — cannot write the probe mark: {error.strerror}"
+                )
+                return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text("gate:\n\ttouch .gated\n")
+            (scratch / "Makefile").write_text(probe_gate(mark))
             (scratch / ".gitignore").write_text(".gated\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
@@ -1739,61 +2039,70 @@ class Run:
             repo = _repo(scratch)
             denied = self.spawn("run", station, scratch, PROBE, models, repo)
             if denied is not None:
-                self.judge("run", station, check_probe(scratch), denied)
+                self.judge("run", station, check_probe(scratch, mark), denied)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
+            mark.unlink(missing_ok=True)
 
     def push_left(self) -> bool:
         """Push what a release merged and left; return False when that halted the run.
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it.
-        Why: 0052-security-hardening design D9.
+        steers none. A held key is refused first, so the halt names it. The default
+        branch is the one origin's HEAD names, and the one a run kept. Its push
+        removes entries whose heads are now on it; a head already there authorizes
+        nothing even when cleanup did not run.
+        Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
             _refuse_config_commands(self.primary)
-            if self.pushes and _git_state(self.primary) != self.git_state:
-                raise Stop(1, CONFIG_CHANGED)
+            if self.pushes and (
+                changed := _config_changed(self.primary, self.git_state)
+            ):
+                raise changed
             unpushed = _unpushed(self.primary, first_read=True)
         except Stop as stop:
             self.halt("run", str(stop))
             return False
-        for name in unpushed:
-            kind = "tags" if TAG.fullmatch(name) else "heads"
-            ref = f"refs/{kind}/{name}"
-            sha = _git(self.primary, "rev-parse", ref).strip()
+        for ref, sha in unpushed:
+            kind, name = ref.split("/", 2)[1:]
             for url in self.pushes:
                 done = _outside(
-                    self.primary, "push", "--no-verify", "--", url, f"{sha}:{ref}"
+                    self.primary,
+                    *("push", "--no-verify", "--", url, f"{sha}:{ref}"),
+                    timeout=PUSH_TIMEOUT,
                 )
                 if done.returncode != 0:
                     self.halt(
                         "run", f"git push origin {name} failed, exit {done.returncode}"
                     )
                     return False
+            self.log.event("run", "push", name)
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
-            self.log.event("run", "push", name)
+                _close_releases(self.primary, sha)
         return True
 
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1."""
         versions = open_versions(self.primary)
-        permissions = "allowlist" if self.executor == "claude" else "workspace-write"
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
         self.log.event(
             "run",
             "start",
-            f"executor {self.executor} · permissions: {permissions}{worker}"
+            f"executor {self.executor} · permissions: sandbox{worker}"
             f" · versions {names}",
         )
         self.push_left()
         if self.halts:
             self.log.event("run", "halt", self.closing())
             return 1
-        _keep_origin(self.primary)
+        if unkept := _keep_origin(self.primary):
+            self.log.event("run", "unkept", unkept)
+        if (age := _clear_stale_lock(self.primary)) is not None:
+            self.log.event("run", "unlock", f".minions/backlog.lock, {age}s old")
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
@@ -1956,8 +2265,10 @@ def status(cwd: Path) -> str:
         "live": ["run · live"],
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
-    if unpushed := _unpushed(primary):
-        lines.append(f"run · unpushed {' '.join(unpushed)}")
+    unpushed = _unpushed(primary)
+    if unpushed:
+        names = (ref.split("/", 2)[2] for ref, _ in unpushed)
+        lines.append(f"run · unpushed {' '.join(names)}")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     lines += [
@@ -2137,7 +2448,7 @@ def _check_command(cwd: Path, stage: str, target: str) -> int:
     `probe` takes the scratch repo's path instead of a change id.
     """
     if stage == "probe":
-        reason = check_probe(Path(target))
+        reason = check_probe(Path(target), None)
     else:
         primary = primary_of(cwd)
         if (version := find_version(primary, target)) is None:
