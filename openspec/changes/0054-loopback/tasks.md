@@ -5,7 +5,7 @@ threat-model text is the design's, word for word.
 
 ## Progress
 
-- [ ] 1 — The line
+- [x] 1 — The line
 - [ ] 2 — The log
 - [ ] 3 — The environment
 - [ ] 4 — The record
@@ -13,11 +13,11 @@ threat-model text is the design's, word for word.
 
 ## 1 — The line
 
-- [ ] 1.1 Read `Ship loopback:` into `ShipLines` with `_agents_flag`, and set `allowLocalBinding` in `worker_settings`, in
+- [x] 1.1 Read `Ship loopback:` into `ShipLines` with `_agents_flag`, and set `allowLocalBinding` in `worker_settings`, in
   `skills/mf-ship/scripts/conduct.py`; edit `test_a_claude_worker_starts_in_the_sandbox`, per [D1](design.md#d1).
   Verify: `grep -c 'allowLocalBinding' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
   `uv run pytest -q tests/test_conduct.py -k starts_in_the_sandbox` reports `1 passed`.
-- [ ] 1.2 Halt a version with a Codex station in a loopback repo, in `read_plan` and `take`; edit `test_the_plan_is_read_once`,
+- [x] 1.2 Halt a version with a Codex station in a loopback repo, in `read_plan` and `take`; edit `test_the_plan_is_read_once`,
   per [D2](design.md#d2).
   Verify: `grep -c 'Ship loopback needs Claude workers' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k plan_is_read_once` reports `1 passed`.

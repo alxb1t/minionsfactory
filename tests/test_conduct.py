@@ -2167,6 +2167,38 @@ def test_the_plan_is_read_once(
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
     assert " · run · halt — conduct: halt — AGENTS.md: Ship network '*.example'" in log
 
+    # Codex cannot bind with its network off, so a loopback repo holds its stations.
+    other = tmp_path / "loopback"
+    other.mkdir()
+    loopback = _primary(other, agents=_WORKTREES + "- **Ship loopback:** yes\n")
+    _version(loopback, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(loopback, "0002-marks", "- [ ] 1 — Marks\n")
+    (loopback / ".minions" / "models").mkdir(parents=True)
+    table = '[converge]\nexecutor = "codex"\n'
+    (loopback / ".minions" / "models" / "0002-marks.toml").write_text(table)
+    calls = fake()
+    assert (
+        _main(conduct, loopback, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    seen = _calls(calls)
+    assert seen.count("probe") == 1
+    assert "release 0001-todo" in seen
+    assert not [call for call in seen if call.endswith("0002-marks")]
+    held = "conduct: halt — AGENTS.md: Ship loopback needs Claude workers"
+    log = _log(loopback)
+    assert f" · 0002-marks · halt — {held}: converge names codex" in "\n".join(log)
+    assert log[-1].endswith(
+        " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
+    )
+    calls.unlink()
+    assert (
+        _main(conduct, loopback, "run", "--executor", "codex", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    assert f" · run · halt — {held}: the run names codex" in "\n".join(_log(loopback))
+
 
 def test_a_commit_during_a_run_halts_before_integrate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -2702,6 +2734,17 @@ def test_a_claude_worker_starts_in_the_sandbox(
     # A project's settings and `.mcp.json` are worker-written, and run at a start.
     command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
     assert command[command.index("--setting-sources") + 1] == "user"
+
+    # Loopback reaches every local service, so a repo opts in by name.
+    (root / "AGENTS.md").write_text("- **Ship loopback:** yes — the gate serves\n")
+    assert settings()["sandbox"]["network"]["allowLocalBinding"] is True
+    (root / "AGENTS.md").write_text("- **Ship loopback:** maybe\n")
+    with pytest.raises(conduct["Stop"]) as stop:
+        settings()
+    assert stop.value.code == 1
+    assert (
+        str(stop.value) == "conduct: halt — AGENTS.md: Ship loopback 'maybe' is not yes"
+    )
 
     for value in ("*.example.com", "example.com/simple", "https://example.com"):
         (root / "AGENTS.md").write_text(f"- **Ship network:** `{value}`\n")
