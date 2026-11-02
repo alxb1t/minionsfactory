@@ -99,6 +99,10 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
 
     # A gate run inside a worker inherits `HOOKS_OFF`, and these fixtures fire hooks.
     monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+    # A remote call's scratch stands in the home folder.
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
 
     def modes(*names: str) -> Path:
         monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, str(_WORKER)]))
@@ -315,7 +319,11 @@ def test_each_check_passes_only_on_disk_evidence(
     origin = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
     monkeypatch.setenv("MF_SHIP_AGENT", "true")
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
     _git(root, "remote", "add", "origin", str(origin))
+    conduct["_keep_origin"](root)
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
     runs.mkdir()
@@ -1008,10 +1016,25 @@ def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    for mode in ("plant-config", "plant-attributes"):
-        scratch = tmp_path / mode
+    merge_in = " · 0002-marks · halt — the local git config changed during the run"
+    held = (
+        " · run · halt — conduct: halt — the repo's git config holds a key that could"
+        " name a program: mf.planted; move it to the global config or remove it"
+    )
+    for mode, said, remote in (
+        ("plant-config", merge_in, False),
+        ("plant-attributes", merge_in, False),
+        ("plant-held", held, False),
+        ("plant-held", held, True),
+    ):
+        scratch = tmp_path / f"{mode}-{remote}"
         scratch.mkdir()
         root = _primary(scratch)
+        if remote:
+            origin = scratch / "origin.git"
+            _git(scratch, "init", "-q", "--bare", "-b", "main", str(origin))
+            _git(root, "remote", "add", "origin", str(origin))
+            _git(root, "push", "-q", "origin", "main")
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
         calls = fake(mode)
@@ -1023,12 +1046,7 @@ def test_a_changed_git_config_halts_a_merge_in(
 
         assert "release 0001-todo" in _calls(calls)
         assert "build 0002-marks" not in _calls(calls)
-        assert any(
-            line.endswith(
-                " · 0002-marks · halt — the local git config changed during the run"
-            )
-            for line in _log(root)
-        )
+        assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
 
@@ -1294,7 +1312,9 @@ def test_a_rerun_pushes_what_a_release_left(
             == code
         )
 
-    assert status() == "run · unpushed main v0.1.0"
+    # Before a first run `status` calls nothing, and the run's own read finds the tag.
+    unread = "run · unread — a run reads origin's tags, and keeps its URLs"
+    assert status() == f"run · unpushed main\n{unread}"
     _git(root, "config", "--global", "hook.operator.event", "pre-push")
     _git(root, "config", "--global", "hook.operator.command", "exit 1")
     run(0)
@@ -1347,6 +1367,41 @@ def test_a_rerun_pushes_what_a_release_left(
     log = conduct["last_log"](root / ".minions" / "runs")
     assert " · run · halt — conduct: halt — " in log.read_text()
     _git(root, "config", "--unset", "remote.origin.uploadpack")
+
+    # A worker's toggle: the refusal reads the file clean, then the key stands. Each
+    # remote call reads no repo's config, and the push keeps the run's first URL.
+    conductor = conduct["Run"](root, "claude")
+    module = conduct["main"].__globals__
+    refuse = module["_refuse_config_commands"]
+    module["_refuse_config_commands"] = lambda _: None
+    for key in ("remote.origin.uploadpack", "remote.origin.receivepack"):
+        _git(root, "config", key, str(planted))
+    conductor.git_state = conduct["_git_state"](root)
+    conductor.push_left()
+    assert not ran.exists()
+    assert conduct["_pushed"](root, "release-v0.2.0", "v0.2.0") is False
+    assert not ran.exists()
+    conduct["_kept_file"](root).unlink()
+    decoy = tmp_path / "decoy.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(decoy))
+    _git(root, "remote", "set-url", "origin", str(decoy))
+    conductor.git_state = conduct["_git_state"](root)
+    conductor.push_left()
+    assert _git(decoy, "for-each-ref") == ""
+    conductor.log.path.unlink()
+    module["_refuse_config_commands"] = refuse
+    _git(root, "remote", "set-url", "origin", str(origin))
+    for key in ("remote.origin.uploadpack", "remote.origin.receivepack"):
+        _git(root, "config", "--unset", key)
+    # The scratch stands where no worker writes, and a sandboxed `status` still runs.
+    with conduct["_scratch"]() as scratch:
+        assert Path(scratch).parent == Path.home()
+    with monkeypatch.context() as patch:
+        patch.setenv("HOME", str(tmp_path / "absent"))
+        with conduct["_scratch"]() as scratch:
+            assert Path(scratch).is_dir()
+        conduct["_keep_origin"](root)
+        assert conduct["_kept_origin"](root) is None
 
     def refused(named: str) -> None:
         capsys.readouterr()
@@ -1409,6 +1464,25 @@ def test_a_rerun_pushes_what_a_release_left(
     log = conduct["last_log"](root / ".minions" / "runs")
     assert "hook.probe.event" in log.read_text()
 
+    # No run kept this repo, and it merged no tag to read for: no line, so no run.
+    alone = tmp_path / "alone"
+    alone.mkdir()
+    root = _primary(alone)
+    origin = alone / "origin.git"
+    _git(alone, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    assert status() == "status: none — no open version"
+
+    # A tag alone: `status` calls nothing, its line starts the run, and that run's own
+    # read finds the tag. It keeps the URLs, so no second run starts.
+    _released(root, "v0.3.0")
+    _git(root, "push", "-q", "origin", "main")
+    assert status() == unread
+    run(0)
+    assert "refs/tags/v0.3.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert status() == "status: none — no open version"
+
 
 def test_a_run_pushes_only_tagged_merges(
     tmp_path: Path,
@@ -1423,6 +1497,7 @@ def test_a_run_pushes_only_tagged_merges(
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
     pushed = _git(root, "rev-parse", "main")
 
     def on_origin() -> str:
@@ -1482,6 +1557,317 @@ def test_a_run_pushes_only_tagged_merges(
     )
     assert on_origin() == _git(root, "rev-parse", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+
+def test_no_worker_pushes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    lines = [line.split(" · ", 1)[1] for line in _log(root)]
+    finish = next(
+        i for i, line in enumerate(lines) if line.startswith("0001-todo · finish — rel")
+    )
+    assert lines[finish + 1 :] == [
+        "run · push — main",
+        "run · push — v0.1.0",
+        "0001-todo · check — release · pass",
+        "run · done — released v0.1.0",
+    ]
+    assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+    # A worker repoints `origin`, a plain key at a network URL's form: nothing leaves.
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    fake("plant-origin")
+    root = _primary(planted)
+    origin = planted / "origin.git"
+    elsewhere = planted / "elsewhere.git"
+    _git(planted, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(planted, "init", "-q", "--bare", "-b", "main", str(elsewhere))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    module = conduct["main"].__globals__
+    outside = module["_outside"]
+    reached: list[tuple[str, ...]] = []
+
+    def spy(primary: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        reached.append(args)
+        return outside(primary, *args)
+
+    module["_outside"] = spy
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _git(elsewhere, "for-each-ref") == ""
+    said = " · run · halt — the local git config changed during the run"
+    assert any(line.endswith(said) for line in _log(root))
+    # An `ls-remote` leaves no ref there: the URL itself is what would leave.
+    assert not any(str(elsewhere) in args for args in reached)
+    commands = (("status",), ("check", "release", "0001-todo"), ("report",))
+    for command in commands:
+        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 1
+    assert not any(str(elsewhere) in args for args in reached)
+
+    # A re-run is no first read: the URLs a run kept stand until a person acts.
+    fake()
+
+    def rerun(code: int) -> str:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return conduct["last_log"](root / ".minions" / "runs").read_text()
+
+    log = rerun(1)
+    assert _git(elsewhere, "for-each-ref") == ""
+    assert " · run · halt — conduct: halt — the repo's git config points origin" in log
+    assert str(elsewhere) not in log
+
+    _git(root, "remote", "set-url", "origin", str(origin))
+    assert " · run · done — " in rerun(0)
+    assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
+
+    # A worker redirects git to a repo of its own, which no kept URLs guard.
+    aside = planted / "aside"
+    _git(planted, "clone", "-q", str(origin), str(aside))
+    _git(aside, "remote", "set-url", "origin", str(elsewhere))
+
+    def redirected() -> None:
+        codes = [
+            _main(conduct, root, *command, monkeypatch=monkeypatch)
+            for command in commands
+        ]
+        assert not any(str(elsewhere) in args for args in reached)
+        assert codes == [1, 1, 1]
+
+    commondir = root / ".git" / "commondir"
+    commondir.write_text(f"{aside / '.git'}\n")
+    redirected()
+    commondir.unlink()
+
+    _git(aside, "worktree", "add", "-q", "-b", "forged", str(planted / "forged"))
+    moved = root / ".git-moved"
+    (root / ".git").rename(moved)
+    (root / ".git").symlink_to(aside / ".git")
+    redirected()
+    (root / ".git").unlink()
+    for target in (aside / ".git", aside / ".git" / "worktrees" / "forged"):
+        (root / ".git").write_text(f"gitdir: {target}\n")
+        redirected()
+        (root / ".git").unlink()
+    moved.rename(root / ".git")
+
+    # A linked worktree stands once a run kept its repo, and not redirected.
+    tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 0
+    entry = root / ".git" / "worktrees" / "0002-marks" / "commondir"
+    held = entry.read_text()
+    entry.write_text(f"{aside / '.git'}\n")
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 1
+    assert not any(str(elsewhere) in args for args in reached)
+    entry.write_text(held)
+
+    # A repo a worker puts inside that worktree makes it the primary, and no run kept
+    # that folder: each reads what is local, and calls nothing.
+    inside = tree / ".x"
+    _git(planted, "clone", "-q", "--bare", str(origin), str(inside))
+    _git(inside, "remote", "set-url", "origin", str(elsewhere))
+    _git(inside, "update-ref", "refs/remotes/origin/main", "main")
+    _git(inside, "update-ref", "refs/heads/0001-todo", "v0.1.0^{commit}")
+    (tree / ".minions" / "runs").mkdir(parents=True)
+    (tree / ".minions" / "runs" / "1.md").write_text(
+        "10:00:00 · 0001-todo · finish — release · exit 0 · 1s\n"
+    )
+
+    def unkept() -> None:
+        capsys.readouterr()
+        codes = [
+            _main(conduct, tree, *command, monkeypatch=monkeypatch)
+            for command in commands
+        ]
+        said = capsys.readouterr().out
+        assert not any(str(elsewhere) in args for args in reached)
+        assert codes == [0, 1, 0]
+        assert said.startswith("run · unread — ")
+        assert "check: release · fail — v0.1.0 is not on origin\n" in said
+        assert " · not pushed · " in said
+
+    entry.write_text(f"{inside}\n")
+    unkept()
+    entry.write_text(held)
+
+    link = (tree / ".git").read_text()
+    (tree / ".git").write_text(f"gitdir: {inside}\n")
+    unkept()
+    (tree / ".git").unlink()
+    inside.rename(tree / ".git")
+    _git(tree, "config", "core.bare", "false")
+    unkept()
+    shutil.rmtree(tree / ".git")
+    (tree / ".git").write_text(link)
+
+    _git(root, "remote", "set-url", "origin", str(elsewhere))
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.pushes == [str(origin)]
+    conductor.log.path.unlink()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    kept = conduct["_kept_file"](root)
+    assert kept.parent == Path.home() / ".mf-ship-origin"
+    assert kept.stat().st_mode & 0o777 == 0o600
+    kept.unlink()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert not any(str(elsewhere) in args for args in reached)
+    assert _main(conduct, tree, "status", monkeypatch=monkeypatch) == 1
+
+    # Where the home folder refuses the file, a run still reads its own `origin`.
+    refused = tmp_path / "refused"
+    refused.mkdir()
+    root = _primary(refused)
+    origin = refused / "origin.git"
+    _git(refused, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    monkeypatch.setenv("HOME", str(refused / "absent"))
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert conduct["_kept_origin"](root) is None
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+
+    # A worker plants a promisor and deletes a blob: git reads the blob from no URL,
+    # and the key halts where any off-list key does.
+    lazy = tmp_path / "lazy"
+    lazy.mkdir()
+    root = _primary(lazy)
+    holder = lazy / "holder.git"
+    _git(lazy, "clone", "-q", "--bare", str(root), str(holder))
+    _git(root, "config", "remote.x.url", str(holder))
+    _git(root, "config", "remote.x.promisor", "true")
+    blob = _git(root, "rev-parse", "HEAD:AGENTS.md").strip()
+    (root / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+    assert conduct["_show"](root, "HEAD", "AGENTS.md") is None
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    assert "remote.x.promisor" in capsys.readouterr().out
+
+
+def test_the_plan_is_read_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("plant-network", "plant-executor")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    started: list[tuple[object, ...]] = []
+    argv = conduct["argv"]
+
+    def spy(*args: object) -> list[str]:
+        started.append(args)
+        return argv(*args)
+
+    conduct["main"].__globals__["argv"] = spy
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo", "converge 0001-todo"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml changed"
+            " during the run"
+        )
+        for line in _log(root)
+    )
+
+    def domains(*args: object) -> list[str]:
+        command = argv(*args)
+        settings = json.loads(command[command.index("--settings") + 1])
+        return settings["sandbox"]["network"]["allowedDomains"]
+
+    monkeypatch.delenv("MF_SHIP_AGENT")
+    assert "later.example" not in domains(*started[-1])
+    assert "later.example" in domains(*started[-1][:6])
+
+    fake()
+    calls.unlink()
+    agents = _WORKTREES + "- **Ship network:** `*.example`\n"
+    _commit(root, {"AGENTS.md": agents}, "a wildcard")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert " · run · halt — conduct: halt — AGENTS.md: Ship network '*.example'" in log
+
+
+def test_a_commit_during_a_run_halts_before_integrate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("person-commits")
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    pushed = _git(root, "rev-parse", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert "converge 0001-todo" in _calls(calls)
+    assert "integrate 0001-todo" not in _calls(calls)
+    commit = _git(root, "rev-parse", "main")[:7]
+    said = f" · 0001-todo · halt — conduct: halt — main holds {commit}, not a release"
+    assert any(line.endswith(said) for line in _log(root))
+    assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
+
+
+def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _git(root, "config", "lfs.repositoryformatversion", "0")
+    for key in ("core.sshCommand", "lfs.probe"):
+        _git(root, "config", key, "planted")
+        with pytest.raises(conduct["Stop"], match=key.lower()) as held:
+            conduct["_refuse_config_commands"](root)
+        assert str(held.value).endswith("move it to the global config or remove it")
+        _git(root, "config", "--unset", key)
+    # LFS's own key, naming a program LFS never wrote.
+    _git(root, "config", "--unset", "lfs.repositoryformatversion")
+    _git(root, "config", "filter.lfs.clean", "./planted.sh %f")
+    with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
+        conduct["_refuse_config_commands"](root)
+    assert str(held.value).endswith("move it to the global config or remove it")
 
 
 def test_a_stop_survives_a_death(
@@ -1968,6 +2354,54 @@ def test_run_refuses_without_worktrees_declared(
     assert not (root / ".minions" / "runs").exists()
 
 
+def test_a_claude_worker_starts_in_the_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path, agents=_WORKTREES + "- **Ship network:** `ghcr.io`\n")
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+
+    def settings() -> dict[str, Any]:
+        command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
+        return json.loads(command[command.index("--settings") + 1])
+
+    assert settings() == {
+        "sandbox": {
+            "enabled": True,
+            "allowUnsandboxedCommands": False,
+            "filesystem": {
+                "allowWrite": [str(root), str(tree), str(root / ".git")],
+                "denyRead": list(conduct["SECRETS"]),
+            },
+            "credentials": {
+                "envVars": [
+                    {"name": name, "mode": "deny"} for name in conduct["TOKENS"]
+                ],
+            },
+            "network": {"allowedDomains": [*conduct["NETWORK"], "ghcr.io"]},
+        }
+    }
+    # A plain-text store is a credential, and a registry that takes writes is a way out.
+    assert "~/.git-credentials" in conduct["SECRETS"]
+    assert "~/.codex/auth.json" in conduct["SECRETS"]
+    assert "registry.npmjs.org" not in conduct["NETWORK"]
+    assert {"name": "NPM_TOKEN", "mode": "deny"} in (
+        settings()["sandbox"].get("credentials", {}).get("envVars", [])
+    )
+    # A project's settings and `.mcp.json` are worker-written, and run at a start.
+    command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
+    assert command[command.index("--setting-sources") + 1] == "user"
+
+    for value in ("*.example.com", "example.com/simple", "https://example.com"):
+        (root / "AGENTS.md").write_text(f"- **Ship network:** `{value}`\n")
+        with pytest.raises(conduct["Stop"]) as stop:
+            settings()
+        assert stop.value.code == 1
+        assert value in str(stop.value)
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2020,11 +2454,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     repo = (root, root / ".git")
     monkeypatch.delenv("MF_SHIP_AGENT")
     hooks_off = list(conduct["HOOKS_OFF"])
+    cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
-    assert claude[: len(hooks_off) + 1] == ["env", *hooks_off]
-    claude = claude[len(hooks_off) + 1 :]
+    assert claude[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
+    claude = claude[len(hooks_off) + 2 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
+    assert "--settings" in claude
     added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
     assert added == [str(root), str(tree)]
     allowed = claude[
@@ -2037,6 +2473,20 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert not any(rule.startswith(("Write(", "Bash(cd:")) for rule in allowed)
     denied = claude[claude.index("--disallowedTools") + 1 :]
     assert "Bash(git push --force:*)" in denied
+    # The sandbox holds Bash; the Read tool answers to these rules alone.
+    for secret in conduct["SECRETS"]:
+        assert {f"Read({secret})", f"Read({secret}/**)"} <= set(denied)
+    # The host's own words for a denied `Read`, as a real worker's log holds them.
+    use = {"id": "t1", "type": "tool_use", "name": "Read"}
+    said = "File is in a directory that is denied by your permission settings."
+    result = {"type": "tool_result", "tool_use_id": "t1", "is_error": True}
+    blocks = [
+        {**use, "input": {"file_path": "~/.ssh/key"}},
+        {**result, "content": f"<tool_use_error>{said}</tool_use_error>"},
+    ]
+    worker_log = tmp_path / "read.log"
+    worker_log.write_text(json.dumps({"message": {"content": blocks}}) + "\n")
+    assert conduct["denials"](worker_log) == ["Read(~/.ssh/key)"]
 
     def refused(command: str) -> bool:
         # Claude Code reads a trailing `:*` as ` *`, which also matches the bare prefix.
@@ -2083,13 +2533,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     assert codex[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
     codex = codex[len(hooks_off) + 2 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
 
     neighbour = tmp_path / "neighbour"

@@ -135,7 +135,9 @@ is done on a commit and a ticked box together; a round number lives in the findi
   ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
 - the review-metrics station's read-only reads of the `.minions/findings/` of repos the operator names, and its page
   written to the path the operator gives — neither named in any repo
-  ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page)).
+  ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
+- `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
+  ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)).
 
 **Installed skills, bundled references and bundled scripts are instruction-package material, not permission to
 read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or tool

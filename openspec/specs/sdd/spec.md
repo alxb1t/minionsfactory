@@ -385,7 +385,7 @@ worktree and the ignored paths it holds, listed by name without reading file con
 default branch is not an ancestor of the branch, naming the person's
 recovery — the tag deleted and the release commit reset, by the person — then merge with `--no-ff` in the worktree
 that holds the default branch, halting when that worktree's tree is not clean, check that the merged tree equals the
-branch's, and push the default branch and the tag to `origin`. After the merge it SHALL remove the worktree the ask
+branch's, and push the default branch and the tag to `origin`, except under `merge=yes`, where `conduct.py` pushes. After the merge it SHALL remove the worktree the ask
 named, without `--force`, keeping its branch. A listing that fails SHALL be named in the ask, and the worktree
 retained. A worktree that refuses removal is reported, not forced. Its close-out SHALL name the worktree removed,
 kept or refused. It SHALL never force a push, never push
@@ -422,7 +422,7 @@ the commands and stop.
 
 #### Scenario: The conductor gives the yes
 - **WHEN** the release is run with `merge=yes` and Step 2 flagged nothing
-- **THEN** it asks nothing, merges, pushes and removes the worktree as on a yes
+- **THEN** it asks nothing, merges and removes the worktree as on a yes, and `conduct.py` pushes
 - **AND WHEN** Step 2 flagged a hand-edit
 - **THEN** it halts after the tag and before the merge, naming the flagged prose
 
@@ -861,7 +861,8 @@ switch in place.
 
 Every station and bundled script SHALL resolve the run directory as `.minions/` beside the primary checkout's git
 directory — `git rev-parse --path-format=absolute --git-common-dir`, its parent — from any worktree of the
-repository. Converge and the release SHALL write `.minions/backlog.md` only while holding `.minions/backlog.lock`,
+repository. `conduct.py` alone SHALL halt on that answer outside the repo it names until a run has kept that repo's URLs: a worker
+can write what steers it. Converge and the release SHALL write `.minions/backlog.md` only while holding `.minions/backlog.lock`,
 created with `mkdir`, halting after two minutes of waiting and naming the lock.
 
 #### Scenario: A release in a linked worktree after a converge in another
@@ -963,9 +964,9 @@ every open version to the default branch: build, then converge, for every open v
 at a time, in the order they are ready, integrate when its base moved, converge's catch-up round, and release with
 `merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor the models
 file names for it, or of the executor running `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
-names for it, or the executor's default. A worker SHALL act under `conduct.py`'s allowlist on Claude Code — extended by
-`AGENTS.md`'s `Ship tools:` line, with forced pushes, hard resets and cleans denied, its edits and shell reaching the
-primary and each open worktree and nothing outside them, its prompt carrying the shell rules — or the workspace-write sandbox on Codex, and SHALL never run with permission prompts bypassed. A denial SHALL
+names for it, or the executor's default. A worker SHALL run in an OS sandbox, Claude Code's or Codex's workspace-write, its writes reaching the primary and
+each open worktree and nothing outside them, under `conduct.py`'s allowlist on Claude Code, extended by `AGENTS.md`'s `Ship
+tools:` line, its prompt carrying the shell rules, and SHALL never run with permission prompts bypassed. A denial SHALL
 not halt a version by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
 merge and push of the run. `conduct.py` SHALL run its own git with hooks and `core.fsmonitor` off, so a hook a worker
 plants does not run at the conductor's rights.
@@ -1196,9 +1197,11 @@ SHALL each halt their version.
 Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
 close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
-outside git and the run directory, except the claim: a re-run derives every stage again and continues. A halt SHALL need
+outside git and the run directory, except the claim and `origin`'s URLs in the home folder: a re-run derives every stage again
+and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted, a release whose
-base moved, a release stopped on purpose or refused, or a repo git config key or local `origin` the run refuses. A worker stopped by a usage
+base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
+changed during the run, or an `origin` that left the kept URLs. A worker stopped by a usage
 limit SHALL be halted with its reset time named.
 
 #### Scenario: A HUMAN phase halts its version
@@ -1508,3 +1511,105 @@ runs.
 #### Scenario: A long fix
 - **WHEN** a fixer runs for longer than the host waits on background work
 - **THEN** the converge worker stays until the fixer returns
+
+### Requirement: A worker runs in an OS sandbox
+
+A Claude worker SHALL run with Claude Code's sandbox on and `allowUnsandboxedCommands` false, writing only to the primary, the
+open worktrees and the common directory. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
+and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
+`.mcp.json`, which a worker can write, start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
+domains `AGENTS.md`'s `Ship network:` line names. A Codex worker SHALL run with its network off. Both SHALL keep `uv`'s cache
+in the run directory.
+
+#### Scenario: A script tries to leave
+- **WHEN** a worker or its subagent runs a script that writes outside its reach, reads `~/.ssh`, reads a credential variable and
+  calls an unlisted domain, the npm registry among them
+- **THEN** each fails, on Claude; on Codex the read may pass, and that is a stated gap
+
+#### Scenario: A worker uses its Read tool on a credential
+- **WHEN** a Claude worker or its subagent calls `Read` on a path under `~/.ssh`
+- **THEN** the call is denied, and the report lists the denial
+
+#### Scenario: A worker plants a start-up
+- **WHEN** a worker leaves a `SessionStart` hook in `.claude/settings.local.json`, or a server in `.mcp.json`
+- **THEN** neither runs at the next Claude start
+
+### Requirement: No worker pushes
+
+Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL stop after its merge in the primary, and `conduct.py` SHALL push, through
+the tagged-merges rule, before it judges the release. A hand release SHALL push as today. `conduct.py` SHALL make each remote
+call from a scratch git directory outside every worker's reach, reading no repo's config. Before a run's first worker it SHALL
+keep `origin`'s URLs in the home folder, outside every worker's reach, a file that stands staying, and SHALL push only to them.
+It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
+person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
+when the repo's git config or `info/attributes` differs from its first read, a key off the list naming itself. `status`, `check`,
+`report`, `stop` and `grant` SHALL halt, making no remote call, when git names a repo outside the folder they run in and no run
+kept that repo's URLs. `status`, `check` and `report` SHALL make no remote call for a repo no run kept, wherever they run: a first
+read SHALL be a run's alone. For such a repo with a merged version tag, `status` SHALL print `run · unread`, so a run starts for what
+it cannot read, and a run past its first pushes SHALL keep the URLs, with a version or none. The git `conduct.py` runs itself SHALL
+fetch no missing object from a promisor remote.
+
+#### Scenario: A release under mf-ship
+- **WHEN** a release worker merges under `merge=yes`
+- **THEN** it pushes nothing, the conductor logs a `push` event, and the release check passes
+
+#### Scenario: A worker repoints origin during a run
+- **WHEN** a worker sets `remote.origin.url` to another network URL
+- **THEN** the run halts naming the changed config, and that host receives nothing
+
+#### Scenario: A release worker plants a key off the list
+- **WHEN** a release worker leaves such a key in a repo with an `origin`
+- **THEN** the run halts naming the key, and makes no remote call
+
+#### Scenario: A repoint outlasts the run
+- **WHEN** a run stopped with `origin` repointed, and `status`, `check`, `report` or a new run follows
+- **THEN** each that would make a remote call halts naming the file that keeps the URLs, and that host receives nothing
+- **AND WHEN** a person repoints `origin`, or removes that file
+- **THEN** the next run goes on, and a removed file keeps what that run reads
+
+#### Scenario: A worker redirects git to another repo
+- **WHEN** a `commondir` file, or a swapped `.git`, leaves git naming a repo no run kept, outside the folder they run in, its
+  `origin` on another host
+- **THEN** `status`, `check` and `report` halt, and that host receives nothing
+- **AND WHEN** a person removes the redirect
+- **THEN** each reads the primary again
+- **AND WHEN** a `commondir` file, a `.git` file, or a whole repo at `.git`, leaves git naming a repo inside a linked worktree
+- **THEN** that host receives nothing
+
+#### Scenario: No run kept the repo
+- **WHEN** `status`, `check` or `report` runs in a repo with an `origin` no run kept
+- **THEN** none makes a remote call: `status` names no tag, and `check` and `report` read a tag as not on `origin`
+- **AND WHEN** a run starts there, even where the home folder refuses the file
+- **THEN** it reads `origin` itself, for its pushes and its release check
+
+#### Scenario: A tag alone in a repo no run kept
+- **WHEN** `main` is level with `origin`, a merged tag is not on it, and no run kept the repo
+- **THEN** `status` prints `run · unread`, and `mf-ship` starts a run, which pushes the tag and keeps the URLs
+- **AND WHEN** `status` runs again
+- **THEN** it reads `origin` itself, and prints no such line
+- **AND WHEN** a repo with an `origin` no run kept holds no merged version tag
+- **THEN** `status` prints `status: none — no open version`, and no run starts
+
+#### Scenario: A worker sets a key after the refusal
+- **WHEN** a key that names a program stands in the repo's config after the refusal read it clean
+- **THEN** the conductor's remote calls and pushes do not run that program
+
+#### Scenario: A worker plants a promisor remote
+- **WHEN** a worker sets `remote.<name>.promisor`, and deletes a blob `conduct.py` reads
+- **THEN** that read fails, and the remote's URL receives nothing
+- **AND** the key halts the run where any key off the list does
+
+### Requirement: A run's plan is read once
+
+`conduct.py` SHALL read every open version's executors, models and efforts, and `AGENTS.md`'s `Ship network:` and `Ship tools:`
+lines, once, before the first worker, and SHALL halt a
+version whose models file later differs. It SHALL halt a version before integrate when the default branch holds a first-parent
+commit past `origin` that merges no release.
+
+#### Scenario: A worker edits the models file
+- **WHEN** a worker changes a later station's `executor`
+- **THEN** that version halts, and no worker starts on the new executor
+
+#### Scenario: A person commits to main during a run
+- **WHEN** the default branch gains a person's commit while a version builds
+- **THEN** that version halts before integrate, naming the commit

@@ -258,10 +258,11 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
    <branch>` with the message `Merge branch '<branch>'`, ending with the trailer block — `Co-Authored-By:` and
    `Change: <change-id>`, contiguous.
 3. **The merged tree is the tagged tree:** `git -C <primary> diff --quiet <branch> <default-branch>` exits 0.
-4. **No `origin`:** `git remote get-url origin` fails → push nothing, and say so in your sentences.
-5. **Push, from the primary:** `git -C <primary> push origin <default-branch>`, then
-   `git -C <primary> push origin <tag>`. A rejected push halts; the default branch stays merged locally. Never
-   pull, never `--force`, never push the version branch.
+4. Under `merge=yes`, skip this: `conduct.py` pushes. **No `origin`:** `git remote get-url origin` fails → push
+   nothing, and say so in your sentences.
+5. Under `merge=yes`, skip this: `conduct.py` pushes. **Push, from the primary:**
+   `git -C <primary> push origin <default-branch>`, then `git -C <primary> push origin <tag>`. A rejected push
+   halts; the default branch stays merged locally. Never pull, never `--force`, never push the version branch.
 6. **Remove the version's worktree**, when the ask said it goes: `git -C <primary> worktree remove
    <this worktree>`, keeping the branch; git deletes the ignored paths the ask named. A refusal is reported, never
    forced.

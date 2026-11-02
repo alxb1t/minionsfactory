@@ -120,7 +120,17 @@ def _fake(prompt: str) -> None:
             proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
             files[str(tasks.with_name("proposal.md"))] = proposal
         _commit(here, files, "build")
+        if "person-commits" in modes:
+            _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
+        if "plant-network" in modes:
+            agents = primary / "AGENTS.md"
+            line = "- **Ship network:** `later.example`\n"
+            agents.write_text(agents.read_text() + line)
     elif station == "converge":
+        if "plant-executor" in modes:
+            table = primary / ".minions" / "models" / f"{change}.toml"
+            table.parent.mkdir(parents=True, exist_ok=True)
+            table.write_text('[release]\nexecutor = "codex"\n')
         if "grant-halts" in modes:
             log = primary / ".minions" / "findings" / f"{change}_status_log.md"
             log.write_text(
@@ -167,7 +177,12 @@ def _fake(prompt: str) -> None:
         )
         _git(primary, "worktree", "remove", str(here))
         if "plant-config" in modes:
+            _git(primary, "config", "pull.rebase", "true")
+        if "plant-held" in modes:
             _git(primary, "config", "mf.planted", "x")
+        if "plant-origin" in modes:
+            elsewhere = str(primary.parent / "elsewhere.git")
+            _git(primary, "remote", "set-url", "origin", elsewhere)
         if "plant-attributes" in modes:
             (Path(common) / "info").mkdir(exist_ok=True)
             (Path(common) / "info" / "attributes").write_text("* filter=x\n")

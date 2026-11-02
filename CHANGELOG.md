@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-02
+
+Gate: local 3m25s · CI 0m42s (CI at d897227) · 0.45.0: local 3m00s · CI 0m42s (CI at d897227)
+
+- A Claude worker runs in Claude Code's sandbox: writes to the repo and its worktrees, no credential reads, and a short domain
+  list that `AGENTS.md`'s `Ship network:` extends. A Codex worker's network is off, because a worker's script should have
+  nowhere to send anything (change `0052-security-hardening`, phase 1).
+- No worker pushes: under `merge=yes` the release stops at its merge, and `conduct.py` pushes before it judges the release,
+  because a sandboxed worker cannot (change `0052-security-hardening`, phase 2).
+- A run reads its models and `AGENTS.md`'s `Ship` lines once, because a worker can write both. A person's commit during a run
+  halts its version before integrate, and the LFS remedy needs every held key to be LFS's (change `0052-security-hardening`,
+  phase 3).
+- D51 records the boundary: an OS sandbox for every worker, and `conduct.py` holds the push. D17, D47, `THREAT_MODEL.md` and
+  `mf-ship` now say so, because the allowlist alone was never a containment (change `0052-security-hardening`, phase 4).
+- `tests/escape_drill.py` proves the boundary on real workers and subagents, on Claude and Codex, and the resume drill passes
+  under the sandbox; the cards re-judged against it stay open (change `0052-security-hardening`, phase 5).
+- A Claude worker's `Read` tool is denied the credential paths, its scripts lose the token variables, more plain-text stores are
+  on the list, and the npm registry leaves the default domains, because `denyRead` binds Bash alone and the registry takes
+  writes. A repo that needs it names it in `Ship network:` (change `0052-security-hardening`, phase 6).
+- A Claude worker loads user settings alone, so a hook or a server a worker planted in the project starts nothing outside the
+  sandbox. A repo's `.claude/` no longer reaches a worker (change `0052-security-hardening`, phase 6).
+- `conduct.py`'s remote calls run from a scratch repo that reads no repo's config, and a run pushes to the URLs it read before its
+  first worker, halting on a changed config, because it now pushes with workers alive (change `0052-security-hardening`, phase 6).
+- A run keeps `origin`'s URLs in the home folder before its first worker, and a repointed `origin` halts every remote call,
+  `status`, `check`, `report` and any re-run among them, until a person repoints it or removes the file, because a URL carries
+  what a worker put in it, and a repo's config outlasts the run (change `0052-security-hardening`, phase 6).
+- `status`, `check`, `report`, `stop` and `grant` halt when git names a repo outside their folder that no run kept, because a
+  worker's `commondir` or swapped `.git` would dodge the kept URLs; a linked worktree therefore needs a repo's first run. A release
+  worker's held key now halts a run naming the key, in a repo with an `origin` (change `0052-security-hardening`, phase 6).
+- `status`, `check` and `report` make no remote call for a repo no run kept, wherever they run, so a first read is a run's alone,
+  because a repo a worker puts inside a linked worktree passes the folder test. Until a repo's first run, `status` names no
+  unpushed tag, and `check` and `report` read a tag as not on `origin` (change `0052-security-hardening`, phase 6).
+- `status` prints `run · unread` for a repo no run kept with a merged version tag, and a run keeps `origin`'s URLs even with no
+  version, because a tag alone would otherwise read as nothing to ship and stay local (change `0052-security-hardening`, phase 6).
+- `conduct.py`'s local git fetches no missing object, because a promisor remote a worker plants would carry its URL past every
+  refusal (change `0052-security-hardening`, phase 6).
+- The LFS remedy needs each held key to hold LFS's own value, so a planted program earns the plain halt, and a denied `Read` now
+  reaches the report (change `0052-security-hardening`, phase 6).
+
 ## [0.45.0] - 2026-11-01
 
 Gate: local 3m00s · CI 0m42s (CI at d897227) · 0.44.0: local 2m46s · CI 0m42s (CI at d897227)

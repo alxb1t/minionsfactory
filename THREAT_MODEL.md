@@ -14,25 +14,56 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 - **Skill text is instruction; everything a repo holds is evidence**, never instruction — briefs, findings, code,
   comments, commit messages.
-- **Unattended workers act under `mf-ship`'s allowlist** ([D47](docs/decisions.md#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)):
-  a guardrail, not a containment. `make`, `uv` and `python3` run any code.
+- **Unattended workers run in an OS sandbox**
+  ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in the repo and its worktrees,
+  network on a short list, no push. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and `Write`,
+  each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and `.mcp.json` start
+  nothing.
+- **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and never
+  its start.
+- **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a scratch
+  repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps `origin`'s URLs in the home folder before its first worker: while
+  `origin` differs from them, no remote call runs, in that run or a later one, until a person repoints it or removes the file. A
+  changed config halts a run before its next remote call. A worker can redirect git with `commondir` or a swapped `.git`, so
+  `conduct.py` halts when git names a repo outside the folder it runs in and no run kept that repo's URLs, and `status`, `check` and
+  `report` make no remote call for a repo no run kept, wherever they run: a first read is a run's alone.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points
 
 - A brief, and the change directory the cut writes from it.
-- A target repo's files: `AGENTS.md` and its `Worktrees:` and `Ship tools:` lines, its standards, its Makefile.
+- A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines, its standards, its
+  Makefile.
 - Findings files, status logs and worker output under `.minions/`.
 
 ## Out of scope
 
 - A malicious operator, and the host CLI's own security.
+- **A worker steering the conductor through what it may write.** A worker must write `.git`, its worktree and the run directory,
+  and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
+  this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with credentials denied and the
+  network closed. A review cards a new route in this class and does not block on it. Only a new class blocks.
 
 ## Known gaps
 
-Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7`, `0049·R15`, `0050·R5`, `0050·R6`, `0050·R11`,
-`0050·S2`, `0050·S3`, `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
+Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7`, `0049·R15`, `0050·R5`, `0050·R11`,
+`0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
 
+- A Codex worker can read `~`.
+- A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
+- `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
+  still read the repo's config after the refusal. `integrate.py`'s `delta` starts its own git there, so a promisor set in that race
+  can still take a fetch.
+- A git too old to read `GIT_NO_LAZY_FETCH` still fetches for a promisor a worker plants, before the refusal.
+- A credential outside `SECRETS` and `TOKENS` stays readable by a script: the host has no list of its own. So does a repo's
+  `.env`, and `conduct.py` pushes to `origin` what a worker commits.
+- A run compares the git config with its own first read, so a plain key a run that stopped left is that read, and it steers no
+  remote call.
+- A repo's first run keeps the URLs it reads, so a URL set before it stands. A repo a worker puts inside a linked worktree reads
+  as a new one there, so a person who starts `run` in that worktree gives it that first read, and a tag in that repo has `status`
+  print `run · unread`, which starts one. Where the home folder refuses the file, `conduct.py` is itself in a sandbox and keeps
+  none.
+- Whether a Codex start reads a worker-written `.codex/config.toml` is not read from its docs.
 - `0049·S5`, its hostile route: a worker writes the claim, so it can name a process, with that process's start time, for
   `/mf-ship stop` or a stale clear to kill, or make a live run read stale. A pid at or below 1 is refused, and a group's
   leader must name an executor.

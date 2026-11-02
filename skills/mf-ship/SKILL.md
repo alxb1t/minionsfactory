@@ -47,7 +47,7 @@ skill. Its exits: 0 done · 1 halt · 2 cannot run.
 
 | command | prints |
 |---|---|
-| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>` |
+| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>`. Until a run keeps `origin`'s URLs it makes no remote call and names no tag, and a merged version tag leaves `run · unread` |
 | `run --executor <executor> --detach` | starts the loop in a new session and returns |
 | `stop` | ends the live run, or says none is live; the run log it closed. A worker group it cannot end exits 2, naming the group, with the log closed and the claim kept |
 | `grant <change-id> --executor <executor>` | records one more round past the cap, and starts the loop; any other stage exits 2, naming it |
@@ -75,12 +75,14 @@ Run `status` and paste its output.
 | `status` prints | then |
 |---|---|
 | `run · live` | a run is live: report the status and the run log's last lines, then stop |
-| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; an LFS key stays, and that repo releases by hand, since a run cannot upload its objects |
+| `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects. When it says `origin` left the URLs a run kept, no re-run clears it: a person reads `git remote -v`, then repoints `origin`, or removes the file the halt names to keep the new URLs |
+| `conduct: halt — git names a repo outside this folder …` | report it in full, then stop: a worker may have redirected git, and a person removes the `commondir` file in `.git`, or restores `.git` |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start
 
-`status` prints `status: none — no open version` → report `nothing to ship`, and stop.
+`status` prints `status: none — no open version` → report `nothing to ship`, and stop. `run · unread` alone is no such
+line: the run reads `origin`, pushes what it lacks and keeps its URLs, so the line comes once.
 
 Else start the run, detached:
 `uv run --script <this package>/scripts/conduct.py run --executor <executor> --detach`. Exit 2 → **halt**, pasting
@@ -88,8 +90,8 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 `.minions/runs/active` exists within 10 seconds. Missing, and a new `run: done` or `run: halt` line in
 `.minions/runs/detached.log` → Step 4; missing with no new line → **halt**, pasting that log's last lines.
 
-Say once: every worker acts under the script's allowlist (Claude Code) or the workspace-write sandbox (Codex),
-each station on the executor its models file names, with no permission prompt. The list is a guardrail, not a containment: `make`, `uv` and `python3` run any code.
+Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
+names, with no permission prompt. `conduct.py` holds the push.
 Converge runs MF's method at the tier the cut chose.
 
 ## Step 4 — Report, then stop
@@ -110,3 +112,4 @@ Then **stop**.
 - **Never start a second run** while one is live.
 - **Never edit or delete a run log.**
 - **Never pass `merge=yes`** anywhere but through the script.
+- **Never remove the file that keeps `origin`'s URLs** — that is the person's yes to a new URL.
