@@ -105,7 +105,8 @@ fetch no missing object from a promisor remote.
 #### Scenario: A worker points the default branch elsewhere
 - **WHEN** a worker points `refs/remotes/origin/HEAD` at an older `origin` branch, and merges there a forged release on a head
   that landed on `origin`'s default branch
-- **THEN** the run judges against the branch `origin`'s `HEAD` names, halts naming the merge, and `origin` receives nothing
+- **THEN** the run judges against the branch `origin`'s `HEAD` names, pushes only that branch, and exits clean, and `origin`
+  receives nothing
 - **AND WHEN** `origin`'s own `HEAD` names a branch other than the kept one
 - **THEN** a push halts naming both, and `origin` receives nothing
 
