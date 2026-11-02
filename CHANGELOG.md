@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-02
+
+Gate: local 3m25s · CI 0m42s (CI at d897227) · 0.45.0: local 3m00s · CI 0m42s (CI at d897227)
+
 - A Claude worker runs in Claude Code's sandbox: writes to the repo and its worktrees, no credential reads, and a short domain
   list that `AGENTS.md`'s `Ship network:` extends. A Codex worker's network is off, because a worker's script should have
   nowhere to send anything (change `0052-security-hardening`, phase 1).
