@@ -24,6 +24,13 @@ Read at `136aa1e`. `conduct.py` is `skills/mf-ship/scripts/conduct.py`.
   takes only `cap reached` (`:1927`), and a hand `/mf-converge` refuses to resume a halt (`skills/mf-converge/SKILL.md:127`).
 - The anchor rule, "Anchors always block", is in `skills/mf-converge/SKILL.md:314`; `generic-security.md` defers to it (`:10`).
   `THREAT_MODEL.md:44-45` accepts a class, then says "A review cards a new route in this class and does not block on it".
+- **Phase 1's first run, 2026-11-02:** a Codex worker started through `argv` loaded an `[mcp_servers]` entry planted in its
+  tree's `.codex/config.toml`, and the server ran; the planted `notify` did not. `~/.codex/config.toml` trusts that path, and
+  MF scratch paths besides, among them a `mf-ship-probe-*` scratch no person opened. Codex's
+  [config reference](https://learn.chatgpt.com/docs/config-file/config-reference), read 2026-11-02: "Codex loads
+  project-scoped config files only when you trust the project", "Untrusted projects skip project-scoped `.codex/` layers,
+  including project-local config, hooks, and rules", and `projects.<path>.trust_level` marks a path either way; a project file
+  cannot set notification keys. Codex 0.163 has no flag that skips project config.
 - A sandboxed worker's network is `pypi.org` and `files.pythonhosted.org` (`NETWORK`, `:109`), so no `mf-ship` worker can run
   `tests/escape_drill.py`, which starts real Claude and Codex workers.
 
@@ -44,7 +51,7 @@ converge halt but the lock's.
 | [D3](#d3) | A run clears a lock older than ten minutes; a lock halt resumes at Step 9 | the incident needed nothing more | a pid in the lock · `grant` for every halt |
 | [D4](#d4) | The cards | their triggers fire here | — |
 | [D5](#d5) | The record: `THREAT_MODEL.md`, D47, D51, the anchor rule | A7; `S9`, `R18`, `0051·R11` | deleting the reviewer sentence alone: it brings back blocking on anchors |
-| [D6](#d6) | `S12` is settled by a planted `.codex/config.toml`, first | its answer may change the plan | a `**HUMAN` phase: the person's 2026-11-02 call |
+| [D6](#d6) | `S12` is settled by a planted `.codex/config.toml`, first; it loaded, so a Codex worker starts with its trees untrusted | Codex skips an untrusted project's `.codex/` layers; it mirrors Claude's `--setting-sources user` | a `**HUMAN` phase: the person's 2026-11-02 call · refusing a repo the operator trusts: it halts on every repo used with Codex · refusing a `.codex/` in a tree: a race on worker-written state · accepting the gap |
 | [D7](#d7) | The proof: the drill and a real probe on each executor | the fake worker cannot hold a sandbox | — |
 | [D8](#d8) | Built by hand: `/mf-build`, `/mf-converge`, `/mf-release` | a sandboxed worker cannot run the drill; a change to the push guard does not run under it | `/mf-ship` |
 
@@ -134,8 +141,10 @@ there halts on it again: the person removes it when no converge or release runs.
 - *Out of scope*, its last two sentences → "The person accepted this class on 2026-11-01, for confused and prompt-injected
   agents, with credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a
   new class blocks, anchors included."
-- *Known gaps*: "stays readable by a script" → "stays readable by a script or the `Read` tool"; the `.codex/config.toml` line
-  → D6's result; add "Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone." and "A
+- *Trust boundaries*, the mixed-run bullet: add "A Codex worker starts with its trees untrusted, so a worker-written `.codex/`
+  starts nothing."
+- *Known gaps*: "stays readable by a script" → "stays readable by a script or the `Read` tool"; the line "Whether a Codex start
+  reads a worker-written `.codex/config.toml` is not read from its docs." is deleted; add "Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone." and "A
   worker can forge a release on a head while that head's release runs: the ledger holds the head until its push."
 
 `docs/decisions.md`:
@@ -158,12 +167,24 @@ proves a write out refused."
 
 `tests/escape_drill.py` gains a Codex step, run before anything else is built. A **control** passes, with `-c`, a `notify`
 program and an `[mcp_servers]` entry, each touching its own mark in the probe folder, and must see both marks. The **plant**
-writes the same entries to `.codex/config.toml` in the worker's tree and starts a Codex worker there through `argv`. The drill
-prints `codex control: fired` and `codex project config: not loaded` or `codex project config: loaded`, and
-`openspec/changes/0053-sandbox-patch/evidence/escape.md` records them.
+writes the same entries to `.codex/config.toml` in the worker's tree and starts a Codex worker there. The first run loaded the
+plant's server (see [Context](#context)): the person's call, 2026-11-02, is the fix below, inside this patch.
 
-Not loaded → `0052·S12` closes, and `THREAT_MODEL.md`'s line says so. Loaded → the build halts on the `**HALT CHECK**`, and the
-person decides before phase 2.
+**The fix.** `argv`, for Codex, passes `-c 'projects."<path>".trust_level="untrusted"'` for its working directory and each tree
+it reaches, after the sandbox keys. The operator's own Codex config still loads.
+
+**The drill**, after the fix, starts the plant three ways and prints a line each:
+
+| run | how | must print |
+|---|---|---|
+| the trusted twin | `argv`'s command with `trust_level="trusted"` in place of `untrusted` for the tree | `codex trusted plant: loaded` |
+| the plant | `conduct.py agent --executor codex`, the production `argv` | `codex project config: not loaded` |
+| the trust write | `~/.codex/config.toml` read before and after the runs, comparing only whether a `[projects."<tree>"]` header appeared | `codex trust written: yes` or `codex trust written: no` |
+
+The drill edits no Codex config, and prints no line of it. `openspec/changes/0053-sandbox-patch/evidence/escape.md` records the
+lines. The plant loaded under the production `argv` → the build halts on the `**HALT CHECK**`, and the person decides.
+
+The stale MF trust entries in `~/.codex/config.toml` are the operator's to remove; no task edits that file.
 
 ### D7
 
@@ -186,6 +207,7 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command marks its working directory and each reached tree untrusted; its twin is the drill's trusted plant, which loads |
 | `test_a_run_pushes_only_tagged_merges` | edited | D2: its releases recorded in the ledger; a hand release left unpushed halts naming `git push` |
 | `test_a_rerun_recovers_a_dead_release` | edited | `0051·R14`: carries `test_a_stop_survives_a_death`'s `.held` steps |
 | `test_a_changed_git_config_halts_a_merge_in` | edited | `0052·R10`: the file named |
@@ -208,6 +230,8 @@ None.
 - **The window** — a release forged on a head during that head's release passes. Stated in `THREAT_MODEL.md` and D51.
 - **A hand release left unpushed now halts a run.** The halt names `git push`.
 - **A lock younger than ten minutes** is left: a re-run right after the halt halts again, until the lock ages.
+- **`-c` may not reach a `projects` entry** the operator's config holds. The plant through the production `argv` then still
+  loads, and 1.3's `**HALT CHECK**` stops the build for the person.
 - **Linux is unproven.** `failIfUnavailable`'s `-p` behaviour is undocumented; the probe holds the run either way.
 - **The fake worker stands in for the sandbox** by a read-only mark: the gate proves the conductor's logic, and the drill
   proves the sandbox.

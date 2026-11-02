@@ -25,7 +25,8 @@ converge inside the backlog lock left a halt with no way out but a whole new rou
   head, pushing the sha it checked.
 - **A stale `backlog.lock` is cleared** at a run's start, and a converge halted on it resumes at Step 9 with no new round.
 - **The record states the boundary**: `THREAT_MODEL.md`, D47, D51, and the anchor rule's exception for the accepted class.
-- **`0052·S12` is settled** by a planted `.codex/config.toml` in `tests/escape_drill.py`.
+- **A Codex worker starts with its trees untrusted**, so a worker-written `.codex/` starts nothing: a planted
+  `.codex/config.toml` in `tests/escape_drill.py` showed its MCP server running (`0052·S12`).
 - **The cards** `0052·R6`, `R7`, `R8`, `R10`, `R13`, `R14` and `0051·R14` are paid; `0051·R13` and `0051·S8` close as moot.
 
 ## Capabilities
@@ -37,7 +38,8 @@ None.
 ### Modified Capabilities
 
 - `sdd`:
-  - *A worker runs in an OS sandbox* — MODIFIED: a sandbox that cannot start ends the worker.
+  - *A worker runs in an OS sandbox* — MODIFIED: a sandbox that cannot start ends the worker; a Codex worker's trees are
+    untrusted.
   - *The ship station judges every station from disk* — MODIFIED: the probe's gate needs a write out refused.
   - *No worker pushes* — MODIFIED: only a release a run took to its release is pushed.
   - *A re-run recovers what a dead station left* — MODIFIED: the push rule reads the release ledger and `origin`'s real head.

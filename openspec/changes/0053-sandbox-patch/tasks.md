@@ -15,12 +15,17 @@ threat-model text is the design's, word for word.
 
 ## 1 — The Codex project config
 
-- [ ] 1.1 Add the Codex control and plant to `tests/escape_drill.py`, per [D6](design.md#d6).
-  Verify: `grep -c 'codex project config' tests/escape_drill.py` prints a number above `0`.
-- [ ] 1.2 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output to
+- [ ] 1.1 Add the Codex control, the trusted twin, the plant and the trust-write check to `tests/escape_drill.py`, per
+  [D6](design.md#d6).
+  Verify: `grep -c -E 'codex (trusted plant|trust written)' tests/escape_drill.py` prints a number above `1`.
+- [ ] 1.2 Mark the Codex worker's working directory and each reached tree untrusted in `argv`, in
+  `skills/mf-ship/scripts/conduct.py`, and edit `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, per [D6](design.md#d6).
+  Verify: `grep -c 'trust_level=' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
+  `uv run pytest -q tests/test_conduct.py -k carries_the_allowlist` reports `1 passed`.
+- [ ] 1.3 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output over
   `openspec/changes/0053-sandbox-patch/evidence/escape.md`, per [D6](design.md#d6).
-  Verify: `grep -c '^codex control: fired' openspec/changes/0053-sandbox-patch/evidence/escape.md` prints `1`, and
-  `grep -c '^codex project config: not loaded' openspec/changes/0053-sandbox-patch/evidence/escape.md` prints `1`.
+  Verify: `grep -c -E '^codex (control: fired|trusted plant: loaded|project config: not loaded|trust written: (yes|no))' openspec/changes/0053-sandbox-patch/evidence/escape.md`
+  prints `4`.
 
 ## 2 — The sandbox fails closed
 
@@ -68,7 +73,7 @@ threat-model text is the design's, word for word.
 
 ## 6 — The record
 
-- [ ] 6.1 Edit `THREAT_MODEL.md` per [D5](design.md#d5), its `.codex/config.toml` line from phase 1's result.
+- [ ] 6.1 Edit `THREAT_MODEL.md` per [D5](design.md#d5).
   Verify: `grep -c 'credentials denied on Claude' THREAT_MODEL.md` prints `1`, `grep -c 'anchors included' THREAT_MODEL.md`
   prints `1`, and `grep -c 'does not block on it' THREAT_MODEL.md` prints `0`.
 - [ ] 6.2 Amend D51 and D47 in `docs/decisions.md`, per [D5](design.md#d5).

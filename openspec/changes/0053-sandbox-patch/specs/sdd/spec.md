@@ -7,7 +7,9 @@ only to the primary, the open worktrees and the common directory: a sandbox that
 it unsandboxed. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
 and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
 `.mcp.json`, which a worker can write, start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
-domains `AGENTS.md`'s `Ship network:` line names. A Codex worker SHALL run with its network off. Both SHALL keep `uv`'s cache
+domains `AGENTS.md`'s `Ship network:` line names. A Codex worker SHALL run with its network off, and SHALL start with its
+working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a project's
+`.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache
 in the run directory.
 
 #### Scenario: A script tries to leave
@@ -22,6 +24,10 @@ in the run directory.
 #### Scenario: A worker plants a start-up
 - **WHEN** a worker leaves a `SessionStart` hook in `.claude/settings.local.json`, or a server in `.mcp.json`
 - **THEN** neither runs at the next Claude start
+
+#### Scenario: A worker plants a Codex project config
+- **WHEN** a worker leaves an `[mcp_servers]` entry in `.codex/config.toml`, in a tree the operator's Codex config trusts
+- **THEN** it does not run at the next Codex worker's start
 
 #### Scenario: The sandbox cannot start
 - **WHEN** a Claude worker starts on a machine where Claude Code's sandbox cannot start
