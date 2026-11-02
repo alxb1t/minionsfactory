@@ -178,7 +178,9 @@ an inline table, a key per path:
 def codex_trust(paths: list[Path], level: str) -> list[str]:
     """Return the `-c` that sets each path's Codex trust, as one `projects` table."""
     keys = dict.fromkeys(str(path.resolve()) for path in paths)
-    table = ",".join(f"{json.dumps(key)}={{trust_level={json.dumps(level)}}}" for key in keys)
+    table = ",".join(
+        f"{json.dumps(key)}={{trust_level={json.dumps(level)}}}" for key in keys
+    )
     return ["-c", f"projects={{{table}}}"]
 ```
 
