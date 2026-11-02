@@ -78,7 +78,8 @@ in for the sandbox; a new mode, `unsandboxed`, leaves it writable.
 
 ### D2
 
-The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per change holding its head; `<digest>` is
+The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per change holding its head, then the tag shas a run
+pushes for it; `<digest>` is
 `_kept_file`'s, through a shared `_digest(primary)`. Directory `0o700`, files `0o600`.
 
 - **Write** — `Run.advance`, at `release`, before `self.spawn`, when `_tag_of` finds no tag: `_record_release(primary, change,
@@ -95,14 +96,17 @@ The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per c
 - **Tags** — a merged tag `origin` lacks passes when its commit says `chore(release): <tag>` and its parent is a ledger head.
 - **Push** — `_unpushed` returns `(ref, sha)` pairs and the refs `origin` already holds; `push_left` pushes those shas,
   re-reading nothing, and records each ref after all its push URLs succeed.
-- **Close** — the confirmed default-branch and tag shas identify each delivered release commit and its parent head. Entries
-  holding those heads are removed after each successful push, regardless of a moved or deleted version ref. A run also retires
-  entries already consumed on `origin` before checking new commits, recovering a death between push and cleanup.
+- **Close** — before each tag's push, `push_left` writes its sha into the releasing version's entry, or, at a run's start, into
+  every entry. An entry holding a sha `origin` lists under `refs/tags/` goes, after each successful push and at a run's first
+  read, recovering a death between push and cleanup. Nothing local is read: a worker moves a version ref, and rewrites a
+  commit's parents with a replace ref, a graft or `shallow`. A dead run's release a person pushes by hand carries no sha, and
+  its entry stays until the person removes it.
 
 The integrate-time call (`conduct.py:1606`) keeps the local base and gains the ledger check. A hand release pushes itself on the
 person's yes; one left unpushed now halts a run, where today a run pushes it.
 
 **The window**, a stated gap: from the entry's write to its push, another worker could merge a forged release on that head.
+The check reads local history, which a worker rewrites, but passes only a ledger head, so the window bounds it.
 
 ### D3
 
@@ -148,7 +152,8 @@ there halts on it again: the person removes it when no converge or release runs.
   starts nothing."
 - *Known gaps*: "stays readable by a script" → "stays readable by a script or the `Read` tool"; the line "Whether a Codex start
   reads a worker-written `.codex/config.toml` is not read from its docs." is deleted; add "Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone." and "A
-  worker can forge a release on a head while that head's release runs: the ledger holds the head until its push." and "A
+  worker can forge a release on a head while that head's release runs: the ledger holds the head until its push. A dead run's
+  release a person pushes by hand keeps its entry until the person removes it." and "A
   Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade."
 
 `docs/decisions.md`:
@@ -235,14 +240,14 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | added | D1: mode `unsandboxed` → the run halts naming the executor, the mark is gone; the default run passes |
-| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing; a moved or deleted version ref and a death after push leave no consumed authorization |
+| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing; a moved or deleted version ref, a replace ref, a graft, a `shallow` entry and a death after push leave no consumed authorization |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command carries `codex_trust` once, its table keyed by the resolved working directory and each reached tree, each `untrusted`; its twin is the drill's trusted plant, which loads |
 | `test_a_run_pushes_only_tagged_merges` | edited | D2: its releases recorded in the ledger; a hand release left unpushed halts naming `git push` |
 | `test_a_rerun_recovers_a_dead_release` | edited | `0051·R14`: carries `test_a_stop_survives_a_death`'s `.held` steps |
 | `test_a_changed_git_config_halts_a_merge_in` | edited | `0052·R10`: the file named |
-| `test_no_worker_pushes` | edited | `0052·R10`: the file named; `0052·R13`: a refused home folder logs `unkept` |
+| `test_no_worker_pushes` | edited | `0052·R10`: the file named; `0052·R13`: a refused home folder logs `unkept`; D2: a release's push leaves no ledger entry |
 | `test_each_check_passes_only_on_disk_evidence` | edited | D1: its scratch `Makefile` takes the new recipe, and `check_probe` the mark |
 | `test_a_stop_survives_a_death` | merged | per the table below |
 

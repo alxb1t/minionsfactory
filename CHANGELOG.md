@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A release's ledger entry goes once `origin` holds its tag and default branch, read from `origin`'s refs and not the version
   branch, and a run's first read retires one a dead push left, because a worker that moved the branch kept a pushed head able
   to back a forged release (change `0053-sandbox-patch`, converge fix S1).
+- A release's ledger entry goes once `origin` lists a tag sha the run wrote into it before that push, reading no local history,
+  because a worker's replace ref, graft or `shallow` entry kept a pushed head able to back a forged release (change
+  `0053-sandbox-patch`, converge fix S2 and R3).
 
 ## [0.46.0] - 2026-11-02
 

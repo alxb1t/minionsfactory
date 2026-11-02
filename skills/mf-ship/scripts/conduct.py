@@ -826,44 +826,41 @@ def _record_release(primary: Path, change: str, head: str) -> None:
         file.write(f"{head}\n")
 
 
-def _ledger_heads(primary: Path) -> set[str]:
-    """Return the heads the release ledger holds."""
+def _ledger_entries(primary: Path) -> list[Path]:
+    """Return the release ledger's entry files."""
     folder = _ledger(primary)
-    if not folder.is_dir():
-        return set()
-    return {entry.read_text().strip() for entry in folder.iterdir()}
+    return list(folder.iterdir()) if folder.is_dir() else []
+
+
+def _ledger_heads(primary: Path) -> set[str]:
+    """Return the heads the release ledger holds: each entry's first line."""
+    return {entry.read_text().partition("\n")[0] for entry in _ledger_entries(primary)}
+
+
+def _mark_releases(primary: Path, sha: str, change: str | None) -> None:
+    """Add `sha` to `change`'s ledger entry, or to every entry when `change` is None.
+
+    A run calls it just before it pushes `sha` as a tag. Why: 0053-sandbox-patch
+    design D2.
+    """
+    for entry in _ledger_entries(primary):
+        if change in (None, entry.name):
+            with entry.open("a") as file:
+                file.write(f"{sha}\n")
 
 
 def _close_releases(primary: Path, held: dict[str, str]) -> None:
-    """Remove each ledger entry whose release `origin` holds, read from its refs.
+    """Remove each ledger entry holding a sha `origin` lists under a tag.
 
-    `held` maps each ref on `origin` to its sha. A tag there whose commit says
-    `chore(release): <tag>` and is in `origin`'s default branch retires that commit's
-    parent. No version branch is read: a worker can move or delete one.
+    `held` maps each ref on `origin` to its sha. Before a run pushes a tag, it writes
+    the tag's sha into the releasing version's entry, or into every entry at its start.
+    Nothing local is read: a worker rewrites a commit's parents and subject with a
+    replace ref, a graft, `shallow` or the object files, and moves any ref.
     Why: 0053-sandbox-patch design D2.
     """
-    folder = _ledger(primary)
-    base = held.get(f"refs/heads/{default_branch(primary)}")
-    entries = list(folder.iterdir()) if folder.is_dir() else []
-    if base is None or not entries:
-        return
-    heads = set()
-    for ref, sha in held.items():
-        # Origin lists an annotated tag's commit on `^{}`, and its own id on the tag.
-        tag = ref.removeprefix("refs/tags/").removesuffix("^{}")
-        if ref == tag or not TAG.fullmatch(tag):
-            continue
-        commit = _maybe(primary, "rev-parse", "--verify", f"{sha}^{{commit}}")
-        if commit is None:
-            continue
-        commit = commit.strip()
-        if _subject(primary, commit) == f"chore(release): {tag}" and _ancestor(
-            primary, commit, base
-        ):
-            if head := _maybe(primary, "rev-parse", "--verify", f"{commit}^"):
-                heads.add(head.strip())
-    for entry in entries:
-        if entry.read_text().strip() in heads:
+    tags = {sha for ref, sha in held.items() if ref.startswith("refs/tags/")}
+    for entry in _ledger_entries(primary):
+        if tags.intersection(entry.read_text().split()[1:]):
             entry.unlink()
 
 
@@ -1050,7 +1047,7 @@ def _unpushed(
     The base is `origin`'s own head; with no read allowed, the local remote ref, and
     no tag. A run's read that fails stops with 1, and so does a commit or a tag no run
     released. The refusal needs no `origin`: a run with none keeps that too. A run's
-    read first retires each ledger entry whose release `origin` holds.
+    read first retires each ledger entry holding a tag sha `origin` lists.
     """
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
@@ -1816,7 +1813,7 @@ class Run:
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
-                if stage == "release" and not self.push_left():
+                if stage == "release" and not self.push_left(version.change):
                     return
                 reason = check(self.primary, stage, version, first_read=True)
                 if not self.judge(version.change, stage, reason, denied):
@@ -1945,13 +1942,14 @@ class Run:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
 
-    def push_left(self) -> bool:
+    def push_left(self, change: str | None = None) -> bool:
         """Push what a release merged and left; return False when that halted the run.
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it. Each push
-        retires the ledger entries whose release `origin` then holds.
+        steers none. A held key is refused first, so the halt names it. A tag's sha goes
+        into `change`'s ledger entry before its push, with no change into every entry,
+        and each push retires the entries holding a tag sha `origin` then holds.
         Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
@@ -1966,6 +1964,8 @@ class Run:
             return False
         for ref, sha in unpushed:
             kind, name = ref.split("/", 2)[1:]
+            if kind == "tags":
+                _mark_releases(self.primary, sha, change)
             for url in self.pushes:
                 done = _outside(
                     self.primary,

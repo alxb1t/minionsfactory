@@ -1705,15 +1705,27 @@ def test_a_forged_release_is_not_pushed(
     halts_on_main()
     _git(root, "reset", "-q", "--hard", "HEAD~1")
 
-    # A pushed head is retired even if a concurrent worker moves its version ref.
+    # A pushed head is retired even if a concurrent worker moves its version ref, or
+    # rewrites the release commit's history with a replace ref, a graft or `shallow`.
     module = conduct["main"].__globals__
     outside = module["_outside"]
     close = module["_close_releases"]
-    for number, mutation in enumerate(("keep", "move", "delete", "resume"), start=1):
+    git_dir = root / ".git"
+    views = ("replace", "graft", "shallow")
+    cases = (
+        ("keep",),
+        ("move",),
+        ("delete",),
+        ("resume",),
+        *((view,) for view in views),
+        ("resume", *views),
+    )
+    for number, mutation in enumerate(cases, start=1):
         tag = f"v0.{number}.0"
         branch = f"refs/heads/release-{tag}"
         head = _git(root, "rev-parse", "main")
         _released(root, tag)
+        commit = _git(root, "rev-parse", f"{tag}^{{commit}}")
 
         def push(
             cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
@@ -1724,14 +1736,22 @@ def test_a_forged_release_is_not_pushed(
                 and args[-1].endswith(f":refs/tags/{tag}")
                 and done.returncode == 0
             ):
-                if mutation == "move":
+                if "move" in mutation:
                     _git(root, "update-ref", branch, head)
-                elif mutation == "delete":
+                if "delete" in mutation:
                     _git(root, "update-ref", "-d", branch)
+                # Each makes the release commit read as a root, its head gone.
+                if "replace" in mutation:
+                    _git(root, "replace", "--graft", commit)
+                if "graft" in mutation:
+                    (git_dir / "info").mkdir(exist_ok=True)
+                    (git_dir / "info" / "grafts").write_text(f"{commit}\n")
+                if "shallow" in mutation:
+                    (git_dir / "shallow").write_text(f"{commit}\n")
             return done
 
         module["_outside"] = push
-        if mutation == "resume":
+        if "resume" in mutation:
             # The conductor died after both pushes, before retiring the entry.
             module["_close_releases"] = lambda *_: None
         assert run() == 0
@@ -1739,7 +1759,7 @@ def test_a_forged_release_is_not_pushed(
         module["_close_releases"] = close
         assert tag in _git(root, "ls-remote", "--tags", "origin")
         assert conduct["_ledger_heads"](root) == (
-            {head} if mutation == "resume" else set()
+            {head} if "resume" in mutation else set()
         ), mutation
 
         forged = f"v9.{number}.0"
@@ -1749,10 +1769,14 @@ def test_a_forged_release_is_not_pushed(
         _git(root, "switch", "-q", "main")
         _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
         halts_on_main()
-        assert conduct["_ledger_heads"](root) == set()
+        assert conduct["_ledger_heads"](root) == set(), mutation
         _git(root, "reset", "-q", "--hard", "HEAD~1")
         _git(root, "tag", "-d", forged)
         _git(root, "branch", "-D", "forged")
+        if "replace" in mutation:
+            _git(root, "replace", "-d", commit)
+        (git_dir / "info" / "grafts").unlink(missing_ok=True)
+        (git_dir / "shallow").unlink(missing_ok=True)
 
 
 def test_no_worker_pushes(
@@ -1789,6 +1813,7 @@ def test_no_worker_pushes(
     ]
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert conduct["_ledger_heads"](root) == set()
 
     # A worker repoints `origin`, a plain key at a network URL's form: nothing leaves.
     planted = tmp_path / "planted"

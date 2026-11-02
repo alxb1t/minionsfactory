@@ -69,7 +69,8 @@ call from a scratch git directory outside every worker's reach, reading no repo'
 keep `origin`'s URLs in the home folder, outside every worker's reach, a file that stands staying, and SHALL push only to them.
 Before it starts a version's release worker, it SHALL record that version's head in a **release ledger** in the same folder, and
 SHALL push a release only when its release commit's parent is a head the ledger holds. An entry SHALL go once the default branch
-and the release's tag are on `origin`. It SHALL log each entry in the run log, and no check SHALL read that copy.
+and the release's tag the run pushed are on `origin`, judged from `origin`'s refs alone. It SHALL log each entry in the run log,
+and no check SHALL read that copy.
 It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
 person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
 when the repo's git config or `info/attributes` differs from its first read, naming the file and a key off the list naming itself.

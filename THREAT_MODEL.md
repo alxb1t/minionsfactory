@@ -73,5 +73,6 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
   leader must name an executor.
 - `0049·R15`, the LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
 - Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone.
-- A worker can forge a release on a head while that head's release runs: the ledger holds the head until its push.
+- A worker can forge a release on a head while that head's release runs: the ledger holds the head until its push. A dead
+  run's release a person pushes by hand keeps its entry until the person removes it.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
