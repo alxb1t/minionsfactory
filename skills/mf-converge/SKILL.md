@@ -128,6 +128,9 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
 **A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
 
+The top line is a `halt` naming `.minions/backlog.lock` → continue that run at Step 9 when both findings files are clean
+at `HEAD`; else halt, naming the file.
+
 | latest event | go on at |
 |---|---|
 | `start` | Step 2, or a catch-up run's freeze |

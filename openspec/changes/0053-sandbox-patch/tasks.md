@@ -8,7 +8,7 @@ threat-model text is the design's, word for word.
 - [x] 1 — The Codex project config
 - [x] 2 — The sandbox fails closed
 - [x] 3 — The release ledger
-- [ ] 4 — The stale lock
+- [x] 4 — The stale lock
 - [ ] 5 — The cards
 - [ ] 6 — The record
 - [ ] 7 — The proof
@@ -48,11 +48,11 @@ threat-model text is the design's, word for word.
 
 ## 4 — The stale lock
 
-- [ ] 4.1 Clear a stale lock in `Run.ship`, read a lock halt as `converge` in `stage_of`, add `unlock` to `EVENTS`, and add
+- [x] 4.1 Clear a stale lock in `Run.ship`, read a lock halt as `converge` in `stage_of`, add `unlock` to `EVENTS`, and add
   the resume line to `skills/mf-converge/SKILL.md`'s *Resuming a run*, per [D3](design.md#d3).
   Verify: `grep -c 'LOCK_STALE' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
   `grep -c 'Step 9 when both findings files are clean' skills/mf-converge/SKILL.md` prints `1`.
-- [ ] 4.2 Add `test_a_stale_lock_is_cleared_and_converge_resumes`, per [D3](design.md#d3) and [Tests](design.md#tests).
+- [x] 4.2 Add `test_a_stale_lock_is_cleared_and_converge_resumes`, per [D3](design.md#d3) and [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k stale_lock_is_cleared` reports `1 passed`.
 
 ## 5 — The cards

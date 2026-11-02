@@ -42,6 +42,7 @@ TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
 LOCK_SECONDS = 30
+LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
@@ -50,7 +51,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger"),
+    *("push", "ledger", "unlock"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -455,6 +456,24 @@ def _is_event(line: str, event: str) -> bool:
     return line.split(" — ")[0].endswith(f" · {event}")
 
 
+def _clear_stale_lock(primary: Path) -> int | None:
+    """Remove a `backlog.lock` older than `LOCK_STALE`; return its age in seconds.
+
+    A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
+    """
+    lock = primary / ".minions" / "backlog.lock"
+    if not lock.is_dir():
+        return None
+    age = round(time.time() - lock.stat().st_mtime)
+    if age <= LOCK_STALE:
+        return None
+    try:
+        lock.rmdir()
+    except OSError:
+        return None
+    return age
+
+
 def _converge_halt(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event when it is a halt, else None."""
     end = _run_end(runs, change)
@@ -647,6 +666,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if halt := _converge_halt(runs, change):
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
+        if ".minions/backlog.lock" in halt:
+            return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
     end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
@@ -1933,6 +1954,8 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         _keep_origin(self.primary)
+        if (age := _clear_stale_lock(self.primary)) is not None:
+            self.log.event("run", "unlock", f".minions/backlog.lock, {age}s old")
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0

@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` pushes only a release a run took to its release, by a ledger in the home folder, judged against `origin`'s
   own head and pushing the sha it checked, because any worker could write a release's shape (change `0053-sandbox-patch`,
   phase 3).
+- A run clears a `backlog.lock` older than ten minutes, and a converge halted on the lock resumes at Step 9, because a
+  dead worker's lock cost a whole new round (change `0053-sandbox-patch`, phase 4).
 
 ## [0.46.0] - 2026-11-02
 

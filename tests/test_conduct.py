@@ -1149,6 +1149,53 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+def test_a_stale_lock_is_cleared_and_converge_resumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+
+    def halted(why: str) -> tuple[str, str]:
+        log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — {why}\n")
+        return stage_of(root, find(root, "0001-todo"))
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    # Twin: a halt on anything else is the person's.
+    assert halted("cap reached")[0] == "converge-halted"
+    assert halted("waited 2 minutes for .minions/backlog.lock") == (
+        "converge",
+        "halted on the backlog lock: resumes at Step 9",
+    )
+    lock = root / ".minions" / "backlog.lock"
+    lock.mkdir()
+    stale = time.time() - 601
+    os.utime(lock, (stale, stale))
+
+    assert run() == 0
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert not lock.exists()
+    assert any(
+        re.search(r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old$", line)
+        for line in _log(root)
+    )
+
+    lock.mkdir()
+    young = time.time() - 599
+    os.utime(lock, (young, young))
+    assert run() == 0
+    assert lock.is_dir()
+    assert not any(" · unlock — " in line for line in _log(root))
+
+
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
