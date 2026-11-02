@@ -6,7 +6,7 @@ threat-model text is the design's, word for word.
 ## Progress
 
 - [x] 1 — The line
-- [ ] 2 — The log
+- [x] 2 — The log
 - [ ] 3 — The environment
 - [ ] 4 — The record
 - [ ] 5 — The proof
@@ -24,7 +24,7 @@ threat-model text is the design's, word for word.
 
 ## 2 — The log
 
-- [ ] 2.1 Add `_loopback_listeners`, the `loopback` event and `loopback` in `EVENTS`, and its step in
+- [x] 2.1 Add `_loopback_listeners`, the `loopback` event and `loopback` in `EVENTS`, and its step in
   `test_the_plan_is_read_once`, per [D3](design.md#d3).
   Verify: `grep -c 'def _loopback_listeners' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k plan_is_read_once` reports `1 passed`.

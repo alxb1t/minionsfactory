@@ -53,7 +53,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept"),
+    *("push", "ledger", "unlock", "unkept", "loopback"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -1457,6 +1457,40 @@ def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]
     return allowed, denied
 
 
+def _loopback_listeners() -> list[tuple[str, str]]:
+    """Return each process listening on loopback, with its address, once each.
+
+    e.g. "ollama 101 … TCP 127.0.0.1:11434 (LISTEN)" → [("ollama", "127.0.0.1:11434")]
+    An `lsof` that fails, or prints what does not parse, gives ("lsof", "unavailable").
+    """
+    unavailable = [("lsof", "unavailable")]
+    try:
+        done = subprocess.run(
+            ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return unavailable
+    rows = done.stdout.splitlines()
+    if done.returncode == 1 and not rows:
+        return []
+    if done.returncode != 0 or not rows[0].startswith("COMMAND"):
+        return unavailable
+    found: list[tuple[str, str]] = []
+    for row in rows[1:]:
+        fields = row.split()
+        if len(fields) < 3 or fields[-1] != "(LISTEN)":
+            return unavailable
+        process, address = fields[0], fields[-2]
+        host = address.rpartition(":")[0]
+        if host in ("*", "[::1]") or host.startswith("127."):
+            found.append((process, address))
+    return list(dict.fromkeys(found))
+
+
 def worker_settings(
     primary: Path,
     trees: list[Path],
@@ -2165,6 +2199,9 @@ class Run:
             self.halt("run", str(stop))
             self.log.event("run", "halt", self.closing())
             return 1
+        if self.lines.loopback:
+            for process, address in _loopback_listeners():
+                self.log.event("run", "loopback", f"{process} {address}")
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }

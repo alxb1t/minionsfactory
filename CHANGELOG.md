@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `- **Ship loopback:** yes` in `AGENTS.md` lets a repo's Claude workers bind loopback, and a Codex station there
   halts its version, because a gate that serves on `127.0.0.1` was red under every worker (change `0054-loopback`,
   phase 1).
+- A loopback repo's run logs a `loopback` event per process listening on loopback, from `lsof`, so the exposure
+  each run carries is on record (change `0054-loopback`, phase 2).
 
 ## [0.46.1] - 2026-11-02
 
