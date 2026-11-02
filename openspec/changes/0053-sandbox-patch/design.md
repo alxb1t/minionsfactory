@@ -78,35 +78,40 @@ in for the sandbox; a new mode, `unsandboxed`, leaves it writable.
 
 ### D2
 
-The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per change holding its head, then the tag shas a run
-pushes for it; `<digest>` is
+The **release ledger** is `~/.mf-ship-origin/<digest>.released/`, one file per change holding its head; `<digest>` is
 `_kept_file`'s, through a shared `_digest(primary)`. Directory `0o700`, files `0o600`.
+
+**The rule** (the person, 2026-11-02, after converge's cap): a ledger head authorizes a release only while it is **not yet
+reachable from `origin`'s default branch**. Once a release lands — by a run, a hand push or a hand release — its head is on
+`origin` and authorizes nothing more, with no one needing to see it land. Rounds 1–3 removed entries instead, and each way a
+release can land unseen left one live: a moved branch (`S1`), rewritten local history (`S2`), a hand push after a failed push
+(`R4`), a hand-finished release (`S3`).
 
 - **Write** — `Run.advance`, at `release`, before `self.spawn`, when `_tag_of` finds no tag: `_record_release(primary, change,
   head)`, `head` the version tree's `HEAD`, overwriting any older entry for the change. Log event `ledger`, detail
   `<change> <head>`. A dead release's re-entry writes nothing: its entry stands.
-- **Check** — `_foreign_commit(primary, base)` walks `base..<default>`, first-parent. Each commit passes `_merges_a_release`, and
-  its second parent's first parent is a ledger head. Else `Stop(1, "conduct: halt — <default> holds <sha7>, no run's release:
-  a person reads it, then git push origin <default>")`.
-- **Base** — `_unpushed(primary, first_read)` reads `origin`'s `refs/heads/<default>` with `_listed`, and passes that sha. With
-  no read allowed (`status` in a repo no run kept), the local `origin/<default>`, as today. A push read that fails →
-  `Stop(1, "conduct: halt — cannot read origin: nothing pushed")`. A sha `origin` lists that is not in this repo →
-  `Stop(1, "… origin's <default> is at <sha7>, which this repo lacks: a person fetches")`. An `origin` with no default
-  branch → `Stop(1, "… origin has no <default>: a person pushes it first")`.
-- **Tags** — a merged tag `origin` lacks passes when its commit says `chore(release): <tag>` and its parent is a ledger head.
-- **Push** — `_unpushed` returns `(ref, sha)` pairs and the refs `origin` already holds; `push_left` pushes those shas,
-  re-reading nothing, and records each ref after all its push URLs succeed.
-- **Close** — before each tag's push, `push_left` writes its sha into the releasing version's entry, or, at a run's start, into
-  every entry. An entry holding a sha `origin` lists under `refs/tags/` goes, after each successful push and at a run's first
-  read, recovering a death between push and cleanup. Nothing local is read: a worker moves a version ref, and rewrites a
-  commit's parents with a replace ref, a graft or `shallow`. A dead run's release a person pushes by hand carries no sha, and
-  its entry stays until the person removes it.
+- **Where the check reads** — every history read of the push check runs in the conductor's scratch repo, which reaches the
+  primary's objects through `alternates` alone, with `GIT_NO_REPLACE_OBJECTS=1`: no ref, replace ref, graft or `shallow` file a
+  worker writes reaches it. The primary gives only the default branch's sha and its tags' names and shas.
+- **Base** — `origin`'s `refs/heads/<default>`, read with `_listed`. With no read allowed (`status` in a repo no run kept), the
+  local `origin/<default>`, as today. A push read that fails → `Stop(1, "conduct: halt — cannot read origin: nothing pushed")`.
+  A sha `origin` lists that is not in this repo → `Stop(1, "… origin's <default> is at <sha7>, which this repo lacks: a person
+  fetches")`. An `origin` with no default branch → `Stop(1, "… origin has no <default>: a person pushes it first")`.
+- **Check** — `_foreign_commit` walks `base..<sha>`, first-parent, in the scratch repo. Each commit passes `_merges_a_release`,
+  and its second parent's first parent is a ledger head that is not an ancestor of `base`. Else `Stop(1, "conduct: halt —
+  <default> holds <sha7>, no run's release: a person reads it, then git push origin <default>")`.
+- **Tags** — a merged tag `origin` lacks passes when its commit says `chore(release): <tag>` and is the second parent of a
+  commit the walk passed, or is already an ancestor of `base`.
+- **Push** — `_unpushed` returns `(ref, sha)` pairs; `push_left` pushes those shas, re-reading nothing.
+- **Cleanup** — at a run's first read and after each push, an entry whose head is an ancestor of `origin`'s default branch is
+  removed. It carries no security weight: such an entry authorizes nothing already.
 
 The integrate-time call (`conduct.py:1606`) keeps the local base and gains the ledger check. A hand release pushes itself on the
 person's yes; one left unpushed now halts a run, where today a run pushes it.
 
-**The window**, a stated gap: from the entry's write to its push, another worker could merge a forged release on that head.
-The check reads local history, which a worker rewrites, but passes only a ledger head, so the window bounds it.
+**The window**, a stated gap: from an entry's write until its head lands on `origin`, a worker can merge a forged release on
+that head. A release that never lands keeps its entry until a person removes
+`~/.mf-ship-origin/<digest>.released/<change>`.
 
 ### D3
 
@@ -143,7 +148,8 @@ there halts on it again: the person removes it when no converge or release runs.
   each run's probe proves a write out refused, per executor."
 - The conductor bullet: "no remote call runs" → "no remote call of `conduct.py` runs"; "A changed config halts a run before its
   next remote call." → "A changed config halts a run before its next push."; and add "It pushes only a release a run took to its
-  release: the release ledger in the home folder holds each version's head from its release worker's start until its push."
+  release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
+  authorizes nothing once it is on `origin`."
 - *Entry points*: after `Ship network:`, add "(D51 accepts it: every worker of the repo reaches what it lists)".
 - *Out of scope*, its last two sentences → "The person accepted this class on 2026-11-01, for confused and prompt-injected
   agents, with credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a
@@ -152,16 +158,16 @@ there halts on it again: the person removes it when no converge or release runs.
   starts nothing."
 - *Known gaps*: "stays readable by a script" → "stays readable by a script or the `Read` tool"; the line "Whether a Codex start
   reads a worker-written `.codex/config.toml` is not read from its docs." is deleted; add "Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone." and "A
-  worker can forge a release on a head while that head's release runs: the ledger holds the head until its push. A dead run's
-  release a person pushes by hand keeps its entry until the person removes it." and "A
+  worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands keeps
+  its entry until a person removes it." and "A
   Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade."
 
 `docs/decisions.md`:
 
 - **D51**, its statement: after "reach no unlisted domain.", add "A Claude worker whose sandbox cannot start does not run, and
   each run's probe proves a write out refused."; after "kept in the home folder.", add "It pushes only a release a run took to
-  its release, by a ledger there." **Accepts** gains "a domain `Ship network:` lists · a release forged on a head during that
-  head's release".
+  its release, by a ledger there." **Accepts** gains "a domain `Ship network:` lists · a release forged on a head before that
+  head lands on `origin`".
 - **D47** gains "- **Accepts:** what a command `Ship tools:` names runs, inside the sandbox." (`0051·R11`).
 
 `skills/mf-converge/SKILL.md:314`, after "Outside the anchors, the grade is the station's.": "Save one class: a route in a class
@@ -240,7 +246,7 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | added | D1: mode `unsandboxed` → the run halts naming the executor, the mark is gone; the default run passes |
-| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing; a moved or deleted version ref, a replace ref, a graft, a `shallow` entry and a death after push leave no consumed authorization |
+| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a replace ref, a graft and a `shallow` entry each halt and `origin` receives nothing; after a release lands by the run, by a hand push after a failed push, and by a hand-finished release, a forged release on its head halts |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command carries `codex_trust` once, its table keyed by the resolved working directory and each reached tree, each `untrusted`; its twin is the drill's trusted plant, which loads |

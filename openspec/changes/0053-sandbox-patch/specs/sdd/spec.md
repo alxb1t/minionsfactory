@@ -68,9 +68,9 @@ the tagged-merges rule, before it judges the release. A hand release SHALL push 
 call from a scratch git directory outside every worker's reach, reading no repo's config. Before a run's first worker it SHALL
 keep `origin`'s URLs in the home folder, outside every worker's reach, a file that stands staying, and SHALL push only to them.
 Before it starts a version's release worker, it SHALL record that version's head in a **release ledger** in the same folder, and
-SHALL push a release only when its release commit's parent is a head the ledger holds. An entry SHALL go once the default branch
-and the release's tag the run pushed are on `origin`, judged from `origin`'s refs alone. It SHALL log each entry in the run log,
-and no check SHALL read that copy.
+SHALL push a release only when its release commit's parent is a head the ledger holds that is not yet reachable from `origin`'s
+default branch, as `origin` lists it. It SHALL judge that from the commits alone, reading no ref, replace ref, graft or `shallow`
+file a worker writes. It SHALL log each entry in the run log, and no check SHALL read that copy.
 It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
 person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
 when the repo's git config or `info/attributes` differs from its first read, naming the file and a key off the list naming itself.
@@ -95,8 +95,13 @@ fetch no missing object from a promisor remote.
 - **WHEN** a worker points `refs/remotes/origin/<default>` at a plain commit on the default branch
 - **THEN** the run reads `origin`'s head from `origin`, halts naming that commit, and `origin` receives nothing
 
-#### Scenario: A worker forges a release on a pushed head
-- **WHEN** a worker merges a release whose parent is a head a pushed release's entry once held
+#### Scenario: A worker forges a release on a landed head
+- **WHEN** a release landed on `origin` — pushed by a run, pushed by a person after a failed push, or finished by a person by
+  hand — and a worker merges a forged release whose parent is that release's head
+- **THEN** the run halts naming the merge, and `origin` receives nothing
+
+#### Scenario: A worker rewrites local history
+- **WHEN** a worker adds a replace ref, a graft or a `shallow` entry that gives a forged merge a ledger head as its parent
 - **THEN** the run halts naming the merge, and `origin` receives nothing
 
 #### Scenario: A worker repoints origin during a run
@@ -155,7 +160,7 @@ default branch has not moved. `conduct.py` SHALL read that stage as `release` on
 worker died and the person left no `.minions/release/<change-id>.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
 a run, push the default branch and each merged tag `origin` lacks, only when every first-parent commit past `origin`'s default
 branch, as `origin` lists it, is a merge of a tagged release holding that release's tree, whose release commit's parent is a
-head the release ledger holds, and every such tag is on such a release commit, and SHALL else halt, naming the commit or the
+head the release ledger holds that is not yet on `origin`, and every such tag is on such a release commit, and SHALL else halt, naming the commit or the
 tag; an `origin` it cannot read SHALL halt the push. It SHALL push the sha it checked, never force, a rejected push halting the
 run; `status`
 SHALL report that work, so a run starts for it. It SHALL make no remote call, merge nothing into a dependent, and read no
