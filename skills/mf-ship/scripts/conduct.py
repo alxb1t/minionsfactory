@@ -50,7 +50,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    "push",
+    *("push", "ledger"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -766,8 +766,55 @@ def _kept_file(primary: Path) -> Path:
     No worker can write there, and a repo's config lasts past the run that wrote it.
     Why: 0052-security-hardening design D9.
     """
-    digest = hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
-    return Path.home() / KEPT_ORIGINS / digest
+    return Path.home() / KEPT_ORIGINS / _digest(primary)
+
+
+def _digest(primary: Path) -> str:
+    """Return the name `primary`'s files take in the home folder, from its path."""
+    return hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+
+
+def _ledger(primary: Path) -> Path:
+    """Return the release ledger's folder: one file per change, holding its head.
+
+    Why: 0053-sandbox-patch design D2.
+    """
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.released"
+
+
+def _record_release(primary: Path, change: str, head: str) -> None:
+    """Record `head` as the change's in the release ledger, over an older entry."""
+    folder = _ledger(primary)
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    entry = folder / change
+    entry.unlink(missing_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    with os.fdopen(os.open(entry, flags, 0o600), "w") as file:
+        file.write(f"{head}\n")
+
+
+def _ledger_heads(primary: Path) -> set[str]:
+    """Return the heads the release ledger holds."""
+    folder = _ledger(primary)
+    if not folder.is_dir():
+        return set()
+    return {entry.read_text().strip() for entry in folder.iterdir()}
+
+
+def _close_releases(primary: Path) -> None:
+    """Remove each ledger entry whose release's tag the default branch merged.
+
+    The caller has pushed every merged version tag, so `origin` holds each.
+    """
+    folder = _ledger(primary)
+    if not folder.is_dir():
+        return
+    merged = _git(primary, "tag", "--merged", default_branch(primary)).split()
+    for entry in folder.iterdir():
+        tip = _maybe(primary, "log", "-1", "--format=%s", f"refs/heads/{entry.name}")
+        found = RELEASE.fullmatch((tip or "").strip())
+        if found and found[1] in merged:
+            entry.unlink()
 
 
 def _kept_origin(primary: Path) -> Urls | None:
@@ -906,45 +953,88 @@ def _merges_a_release(primary: Path, sha: str) -> bool:
     return len(set(trees.split())) == 1
 
 
-def _foreign_commit(primary: Path) -> list[str]:
-    """Return the default branch's first-parent commits past `origin`, each a release.
+def _has_origin(primary: Path) -> bool:
+    """Return whether the repo has a remote named `origin`."""
+    return "origin" in _git(primary, "remote").split()
 
-    A commit that merges no tagged release stops with 1. With no `origin`, none.
+
+def _no_release(default: str, name: str) -> Stop:
+    """Return the halt for a commit or tag on the default branch no run released."""
+    return Stop(
+        1,
+        f"conduct: halt — {default} holds {name}, no run's release: a person reads it,"
+        f" then git push origin {name if TAG.fullmatch(name) else default}",
+    )
+
+
+def _foreign_commit(primary: Path, base: str) -> list[str]:
+    """Return the default branch's first-parent commits past `base`, the tip first.
+
+    Each must merge a tagged release whose release commit's parent is a head the
+    release ledger holds, or this stops with 1. Why: 0053-sandbox-patch design D2.
     """
-    if "origin" not in _git(primary, "remote").split():
-        return []
     default = default_branch(primary)
-    ahead = f"origin/{default}..{default}"
-    commits = _git(primary, "rev-list", "--first-parent", ahead).split()
+    heads = _ledger_heads(primary)
+    commits = _git(primary, "rev-list", "--first-parent", f"{base}..{default}").split()
     for sha in commits:
-        if not _merges_a_release(primary, sha):
-            raise Stop(1, f"conduct: halt — {default} holds {sha[:7]}, not a release")
+        if not (
+            _merges_a_release(primary, sha)
+            and _git(primary, "rev-parse", f"{sha}^2^").strip() in heads
+        ):
+            raise _no_release(default, sha[:7])
     return commits
 
 
-def _unpushed(primary: Path, first_read: bool = False) -> list[str]:
-    """Return the default branch when `origin` lacks it, and each merged tag it lacks.
+def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
+    """Return each `(ref, sha)` to push: the default branch and the tags `origin` lacks.
 
-    A commit `origin` lacks that merges no tagged release, or a tag it lacks on no
-    release commit of that name, stops with 1. An `origin` that cannot be read, or
-    that this may not read, lacks no tag. The refusal needs no `origin`: a run with
-    none keeps that too.
+    The base is `origin`'s own head; with no read allowed, the local remote ref, and
+    no tag. A run's read that fails stops with 1, and so does a commit or a tag no run
+    released. The refusal needs no `origin`: a run with none keeps that too.
     """
     url = _read_url(primary, first_read)
+    if not _has_origin(primary):
+        return []
     default = default_branch(primary)
-    found = [default] if _foreign_commit(primary) else []
-    listed = _listed(primary, url) if url else None
-    if listed is None:
-        return found
-    held = listed.split()
-    merged = _git(primary, "tag", "--merged", default).split()
-    tags = [
-        tag for tag in merged if TAG.fullmatch(tag) and f"refs/tags/{tag}" not in held
-    ]
-    for tag in tags:
-        if _subject(primary, f"refs/tags/{tag}") != f"chore(release): {tag}":
-            raise Stop(1, f"conduct: halt — {default} holds {tag}, not a release")
-    return found + tags
+    done = (
+        _outside(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
+    )
+    if done is None or done.returncode != 0:
+        if done is not None and first_read:
+            raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
+        commits = _foreign_commit(primary, f"origin/{default}")
+        return [(f"refs/heads/{default}", commits[0])] if commits else []
+    held = {
+        ref: sha
+        for sha, ref in (
+            line.split("\t", 1) for line in done.stdout.split("\n") if line
+        )
+    }
+    base = held.get(f"refs/heads/{default}")
+    if base is None:
+        raise Stop(
+            1, f"conduct: halt — origin has no {default}: a person pushes it first"
+        )
+    if _maybe(primary, "cat-file", "-e", f"{base}^{{commit}}") is None:
+        raise Stop(
+            1,
+            f"conduct: halt — origin's {default} is at {base[:7]}, which this repo"
+            " lacks: a person fetches",
+        )
+    commits = _foreign_commit(primary, base)
+    found = [(f"refs/heads/{default}", commits[0])] if commits else []
+    heads = _ledger_heads(primary)
+    for tag in _git(primary, "tag", "--merged", default).split():
+        ref = f"refs/tags/{tag}"
+        if not TAG.fullmatch(tag) or ref in held:
+            continue
+        sha = _git(primary, "rev-parse", ref).strip()
+        if _subject(primary, sha) != f"chore(release): {tag}" or (
+            _git(primary, "rev-parse", f"{sha}^{{commit}}^").strip() not in heads
+        ):
+            raise _no_release(default, tag)
+        found.append((ref, sha))
+    return found
 
 
 def _unread(primary: Path) -> bool:
@@ -1636,8 +1726,9 @@ class Run:
                     return
                 if stage in stop_at:
                     return
-                if stage == "integrate":
-                    _foreign_commit(self.primary)
+                if stage == "integrate" and _has_origin(self.primary):
+                    default = default_branch(self.primary)
+                    _foreign_commit(self.primary, f"origin/{default}")
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -1656,6 +1747,10 @@ class Run:
                         f"conduct: halt — models/{version.change}.toml changed during"
                         " the run",
                     )
+                if stage == "release" and _tag_of(self.primary, version.change) is None:
+                    head = _git(cwd, "rev-parse", "HEAD").strip()
+                    _record_release(self.primary, version.change, head)
+                    self.log.event(version.change, "ledger", f"{version.change} {head}")
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
@@ -1804,10 +1899,8 @@ class Run:
         except Stop as stop:
             self.halt("run", str(stop))
             return False
-        for name in unpushed:
-            kind = "tags" if TAG.fullmatch(name) else "heads"
-            ref = f"refs/{kind}/{name}"
-            sha = _git(self.primary, "rev-parse", ref).strip()
+        for ref, sha in unpushed:
+            kind, name = ref.split("/", 2)[1:]
             for url in self.pushes:
                 done = _outside(
                     self.primary, "push", "--no-verify", "--", url, f"{sha}:{ref}"
@@ -1820,6 +1913,7 @@ class Run:
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
             self.log.event("run", "push", name)
+        _close_releases(self.primary)
         return True
 
     def ship(self) -> int:
@@ -2002,7 +2096,8 @@ def status(cwd: Path) -> str:
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
     if unpushed := _unpushed(primary):
-        lines.append(f"run · unpushed {' '.join(unpushed)}")
+        names = (ref.split("/", 2)[2] for ref, _ in unpushed)
+        lines.append(f"run · unpushed {' '.join(names)}")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     lines += [

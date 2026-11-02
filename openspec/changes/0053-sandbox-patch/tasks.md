@@ -7,7 +7,7 @@ threat-model text is the design's, word for word.
 
 - [x] 1 — The Codex project config
 - [x] 2 — The sandbox fails closed
-- [ ] 3 — The release ledger
+- [x] 3 — The release ledger
 - [ ] 4 — The stale lock
 - [ ] 5 — The cards
 - [ ] 6 — The record
@@ -39,11 +39,11 @@ threat-model text is the design's, word for word.
 
 ## 3 — The release ledger
 
-- [ ] 3.1 Add the release ledger to `conduct.py` — write, check, base, tags, push and close — and `ledger` to `EVENTS`, and edit
+- [x] 3.1 Add the release ledger to `conduct.py` — write, check, base, tags, push and close — and `ledger` to `EVENTS`, and edit
   `test_a_run_pushes_only_tagged_merges`, per [D2](design.md#d2).
   Verify: `grep -c 'def _record_release' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k run_pushes_only_tagged_merges` reports `1 passed`.
-- [ ] 3.2 Add `test_a_forged_release_is_not_pushed`, per [D2](design.md#d2) and [Tests](design.md#tests).
+- [x] 3.2 Add `test_a_forged_release_is_not_pushed`, per [D2](design.md#d2) and [Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k forged_release_is_not_pushed` reports `1 passed`.
 
 ## 4 — The stale lock

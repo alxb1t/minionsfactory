@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its server running, and Codex trusting the tree on its first start (change `0053-sandbox-patch`, phase 1).
 - A Claude worker whose sandbox cannot start does not run, and the probe's gate needs a write outside its reach refused,
   because a sandbox that fails open runs every command unsandboxed, unnoticed (change `0053-sandbox-patch`, phase 2).
+- `conduct.py` pushes only a release a run took to its release, by a ledger in the home folder, judged against `origin`'s
+  own head and pushing the sha it checked, because any worker could write a release's shape (change `0053-sandbox-patch`,
+  phase 3).
 
 ## [0.46.0] - 2026-11-02
 

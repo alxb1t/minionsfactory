@@ -56,9 +56,15 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     return tree.resolve()
 
 
-def _released(root: Path, tag: str) -> None:
-    """Merge a branch into `main` whose tip is `tag`'s annotated release commit."""
+def _released(root: Path, tag: str, by_hand: bool = False) -> None:
+    """Merge a branch into `main` whose tip is `tag`'s annotated release commit.
+
+    A run's release is in the release ledger; one by hand is not.
+    """
     branch = f"release-{tag}"
+    if not by_hand:
+        head = _git(root, "rev-parse", "HEAD").strip()
+        _conduct()["_record_release"](root, branch, head)
     _git(root, "switch", "-q", "-c", branch)
     _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {tag}")
     _git(root, "tag", "-a", "-m", tag, tag)
@@ -1359,6 +1365,14 @@ def test_a_rerun_pushes_what_a_release_left(
     _commit(other, {"theirs.txt": "x\n"}, "origin moves")
     _git(other, "push", "-q", "origin", "main")
     _released(root, "v0.2.0")
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    moved = _git(other, "rev-parse", "--short=7", "main").strip()
+    assert capsys.readouterr().out.strip() == (
+        f"conduct: halt — origin's main is at {moved}, which this repo lacks:"
+        " a person fetches"
+    )
+    _git(root, "fetch", "-q", "origin")
     assert status() == "run · unpushed main v0.2.0"
     run(1)
     assert _calls(calls) == []
@@ -1522,8 +1536,11 @@ def test_a_run_pushes_only_tagged_merges(
     def on_origin() -> str:
         return _git(root, "ls-remote", "origin", "refs/heads/main").split()[0]
 
-    def halts_on(name: str) -> None:
-        said = f"conduct: halt — main holds {name}, not a release"
+    def halts_on(name: str, push: str = "main") -> None:
+        said = (
+            f"conduct: halt — main holds {name}, no run's release: a person reads it,"
+            f" then git push origin {push}"
+        )
         capsys.readouterr()
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
         assert capsys.readouterr().out.strip() == said
@@ -1562,20 +1579,78 @@ def test_a_run_pushes_only_tagged_merges(
     _git(root, "tag", "-d", *refused)
 
     _git(root, "tag", "v0.45.0")
-    halts_on("v0.45.0")
+    halts_on("v0.45.0", "v0.45.0")
     assert _git(root, "ls-remote", "--tags", "origin") == ""
     _git(root, "tag", "-d", "v0.45.0")
 
+    # A hand release is the person's to push.
+    _released(root, "v0.3.0", by_hand=True)
+    halts_on(_git(root, "rev-parse", "main")[:7])
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+    _git(root, "tag", "-d", "v0.3.0")
+
     _released(root, "v0.1.0")
     _git(root, "tag", "v0.2.0", "release-v0.1.0")
-    halts_on("v0.2.0")
+    halts_on("v0.2.0", "v0.2.0")
     _git(root, "tag", "-d", "v0.2.0")
+    assert conduct["_ledger_heads"](root) == {pushed}
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
     assert on_origin() == _git(root, "rev-parse", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert conduct["_ledger_heads"](root) == set()
+
+
+def test_a_forged_release_is_not_pushed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    def halts_on_main() -> None:
+        listed = _git(root, "ls-remote", "origin")
+        name = _git(root, "rev-parse", "main")[:7]
+        assert run() == 1
+        log = conduct["last_log"](root / ".minions" / "runs").read_text()
+        assert f" · run · halt — conduct: halt — main holds {name}, no run's" in log
+        assert _git(root, "ls-remote", "origin") == listed
+        assert _calls(calls) == []
+
+    # A worker writes the shape of a release, tagged, holding its tree.
+    _released(root, "v9.9.9", by_hand=True)
+    halts_on_main()
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+    _git(root, "tag", "-d", "v9.9.9")
+
+    # A worker moves the local remote ref: the base is origin's own head.
+    _commit(root, {"mine.txt": "x\n"}, "a plain commit")
+    _git(root, "update-ref", "refs/remotes/origin/main", "main")
+    halts_on_main()
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+
+    # A release on a head a pushed release's entry once held.
+    _released(root, "v0.1.0")
+    assert run() == 0
+    assert conduct["_ledger_heads"](root) == set()
+    _git(root, "switch", "-q", "-c", "forged", "release-v0.1.0~1")
+    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.2.0")
+    _git(root, "tag", "-a", "-m", "v0.2.0", "v0.2.0")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+    halts_on_main()
 
 
 def test_no_worker_pushes(
@@ -1866,7 +1941,10 @@ def test_a_commit_during_a_run_halts_before_integrate(
     assert "converge 0001-todo" in _calls(calls)
     assert "integrate 0001-todo" not in _calls(calls)
     commit = _git(root, "rev-parse", "main")[:7]
-    said = f" · 0001-todo · halt — conduct: halt — main holds {commit}, not a release"
+    said = (
+        f" · 0001-todo · halt — conduct: halt — main holds {commit}, no run's release:"
+        " a person reads it, then git push origin main"
+    )
     assert any(line.endswith(said) for line in _log(root))
     assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
 
