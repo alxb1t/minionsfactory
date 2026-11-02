@@ -2541,6 +2541,15 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
+    # Twin: the drill's trusted plant, the same table trusted, loads the plant.
+    table = ",".join(
+        f'{json.dumps(str(path.resolve()))}={{trust_level="untrusted"}}'
+        for path in (root, tree)
+    )
+    trust = f"projects={{{table}}}"
+    assert sum(arg.startswith("projects") for arg in codex) == 1
+    start = codex.index("sandbox_workspace_write.network_access=false") + 1
+    assert codex[start:-3] == ["-c", trust]
 
     neighbour = tmp_path / "neighbour"
     neighbour.mkdir()

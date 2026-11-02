@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A Codex worker starts with its trees untrusted, so a `.codex/config.toml` a worker planted starts nothing: the drill showed
+  its server running, and Codex trusting the tree on its first start (change `0053-sandbox-patch`, phase 1).
+
 ## [0.46.0] - 2026-11-02
 
 Gate: local 3m25s · CI 0m42s (CI at d897227) · 0.45.0: local 3m00s · CI 0m42s (CI at d897227)

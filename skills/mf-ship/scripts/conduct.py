@@ -1232,8 +1232,24 @@ def argv(
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         *("-c", "sandbox_workspace_write.network_access=false"),
+        # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
+        # Why: 0053-sandbox-patch design D6.
+        *codex_trust([cwd, *trees], "untrusted"),
         *("-C", str(cwd), prompt),
     ]
+
+
+def codex_trust(paths: list[Path], level: str) -> list[str]:
+    """Return the `-c` that sets each path's Codex trust, as one `projects` table.
+
+    e.g. `[/r], "untrusted"` → `["-c", 'projects={"/r"={trust_level="untrusted"}}']`.
+    Why: 0053-sandbox-patch design D6.
+    """
+    keys = dict.fromkeys(str(path.resolve()) for path in paths)
+    table = ",".join(
+        f"{json.dumps(key)}={{trust_level={json.dumps(level)}}}" for key in keys
+    )
+    return ["-c", f"projects={{{table}}}"]
 
 
 def work(
