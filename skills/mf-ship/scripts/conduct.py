@@ -837,18 +837,16 @@ def _ledger_heads(primary: Path) -> set[str]:
     return {entry.read_text().partition("\n")[0] for entry in _ledger_entries(primary)}
 
 
-def _close_releases(primary: Path, held: dict[str, str]) -> None:
-    """Remove ledger entries whose heads have landed on origin's default branch.
+def _close_releases(primary: Path, base: str) -> None:
+    """Remove ledger entries whose heads have landed on `base`, origin's default.
 
     This is cleanup alone: the push check independently excludes landed heads.
     Read ancestry in the clean scratch repo. Why: 0053-sandbox-patch design D2.
     """
-    base = held.get(f"refs/heads/{default_branch(primary)}")
-    if base:
-        for entry in _ledger_entries(primary):
-            head = entry.read_text().partition("\n")[0]
-            if _history_ancestor(primary, head, base):
-                entry.unlink()
+    for entry in _ledger_entries(primary):
+        head = entry.read_text().partition("\n")[0]
+        if _history_ancestor(primary, head, base):
+            entry.unlink()
 
 
 def _kept_origin(primary: Path) -> Urls | None:
@@ -864,20 +862,79 @@ def _keep_origin(primary: Path) -> str | None:
     """Keep `origin`'s URLs before a repo's first worker; return why it could not.
 
     A file that stands stays. Owner-only: a URL can hold a key. Where the home folder
-    refuses it, this process is itself in a sandbox, and nothing is kept.
+    refuses it, this process is itself in a sandbox, and nothing is kept. Beside the
+    URLs it keeps the branch origin's own HEAD names, once, read through a kept URL;
+    a repo kept before gains it here. Why: 0053-sandbox-patch design D2.
     """
     file = _kept_file(primary)
     urls = _urls(primary)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     try:
         file.parent.mkdir(mode=0o700, exist_ok=True)
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         with os.fdopen(os.open(file, flags, 0o600), "w") as kept:
             json.dump(urls, kept)
     except FileExistsError:
-        return None
+        pass
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    fetch = (_kept_origin(primary) or ([], []))[0]
+    named = _default_file(primary)
+    try:
+        name = _origin_head(primary, fetch[0]) if fetch and not named.exists() else None
+        if name is not None:
+            with os.fdopen(os.open(named, flags, 0o600), "w") as kept:
+                kept.write(name)
+    except (FileExistsError, Stop):
+        pass
     except OSError as error:
         return error.strerror or type(error).__name__
     return None
+
+
+def _default_file(primary: Path) -> Path:
+    """Return the file holding the default branch's name a run kept for `primary`."""
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.default"
+
+
+def _origin_head(primary: Path, url: str) -> str | None:
+    """Return the branch `url`'s own HEAD names, or None when it names none.
+
+    A read that fails stops with 1, nothing pushed.
+    """
+    done = _outside(primary, "ls-remote", "--symref", "--", url, "HEAD")
+    if done.returncode != 0:
+        raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
+    for line in done.stdout.splitlines():
+        ref, _, name = line.partition("\t")
+        if name == "HEAD" and ref.startswith("ref: refs/heads/"):
+            return ref.removeprefix("ref: refs/heads/")
+    return None
+
+
+def _push_default(primary: Path, url: str) -> str:
+    """Return the default branch a push judges and pushes: the one origin's HEAD names.
+
+    Never the local `refs/remotes/origin/HEAD`, which a worker writes. Once a run kept
+    the name, origin's HEAD naming another halts, for a person to decide.
+    Why: 0053-sandbox-patch design D2.
+    """
+    name = _origin_head(primary, url)
+    file = _default_file(primary)
+    kept = file.read_text() if file.is_file() else None
+    if kept is not None and name != kept:
+        remedy = f"a person decides, then removes ~/{KEPT_ORIGINS}/{file.name}"
+        raise Stop(
+            1,
+            f"conduct: halt — origin's HEAD names {name or 'no branch'}, and the run"
+            f" kept {kept}: {remedy}",
+        )
+    if name is None:
+        raise Stop(
+            1,
+            "conduct: halt — origin's HEAD names no branch: a person pushes the default"
+            " branch, or points origin's HEAD at it",
+        )
+    return name
 
 
 def _refuse_origin(primary: Path) -> Urls:
@@ -1054,16 +1111,16 @@ def _no_release(default: str, name: str) -> Stop:
 def _foreign_commit(
     primary: Path,
     base: str,
+    default: str,
     tip: str | None = None,
     tags: dict[str, tuple[str, str]] | None = None,
 ) -> list[str]:
-    """Return the default branch's first-parent release merges past raw `base`.
+    """Return the `default` branch's first-parent release merges past raw `base`.
 
     Each release's parent must be a ledger head not yet reachable from `base`.
     Only ref snapshots come from the primary; all history comes from scratch.
     Why: 0053-sandbox-patch design D2.
     """
-    default = default_branch(primary)
     base = _git(primary, "rev-parse", "--verify", base).strip()
     tip = tip or _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary) if tags is None else tags
@@ -1082,28 +1139,29 @@ def _foreign_commit(
     return commits
 
 
-def _unpushed(
-    primary: Path, first_read: bool = False
-) -> tuple[list[tuple[str, str]], dict[str, str]]:
-    """Return each `(ref, sha)` to push, and each ref origin holds with its sha.
+def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
+    """Return each `(ref, sha)` to push.
 
-    Judge history in scratch against origin's listed default sha. With no read
-    allowed, use the local remote ref and no tags. Cleanup has no security weight:
-    landed ledger heads never authorize another release, however they landed.
+    Judge history in scratch against origin's listed default sha. A run's read takes
+    the default's name from origin's own HEAD; `status` takes it from git. With no
+    read allowed, use the local remote ref and no tags. Cleanup has no security
+    weight: landed ledger heads never authorize another release, however they landed.
     Why: 0053-sandbox-patch design D2.
     """
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
-        return [], {}
-    default = default_branch(primary)
+        return []
+    default = (
+        _push_default(primary, url) if first_read and url else default_branch(primary)
+    )
     done = (
         _outside(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
     )
     if done is None or done.returncode != 0:
         if done is not None and first_read:
             raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
-        commits = _foreign_commit(primary, f"origin/{default}")
-        return ([(f"refs/heads/{default}", commits[0])] if commits else []), {}
+        commits = _foreign_commit(primary, f"origin/{default}", default)
+        return [(f"refs/heads/{default}", commits[0])] if commits else []
     held = {
         ref: sha
         for sha, ref in (
@@ -1122,10 +1180,10 @@ def _unpushed(
             " lacks: a person fetches",
         )
     if first_read:
-        _close_releases(primary, held)
+        _close_releases(primary, base)
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
-    commits = _foreign_commit(primary, base, tip, tags)
+    commits = _foreign_commit(primary, base, default, tip, tags)
     found = [(f"refs/heads/{default}", tip)] if commits else []
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     for tag, (sha, commit) in tags.items():
@@ -1137,7 +1195,7 @@ def _unpushed(
         ):
             raise _no_release(default, tag)
         found.append((ref, sha))
-    return found, held
+    return found
 
 
 def _unread(primary: Path) -> bool:
@@ -1831,7 +1889,7 @@ class Run:
                     return
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
-                    _foreign_commit(self.primary, f"origin/{default}")
+                    _foreign_commit(self.primary, f"origin/{default}", default)
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -1991,9 +2049,10 @@ class Run:
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it. Each push
-        removes entries whose heads are now on origin's default branch; a head
-        already there authorizes nothing even when cleanup did not run.
+        steers none. A held key is refused first, so the halt names it. The default
+        branch is the one origin's HEAD names, and the one a run kept. Its push
+        removes entries whose heads are now on it; a head already there authorizes
+        nothing even when cleanup did not run.
         Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
@@ -2002,7 +2061,7 @@ class Run:
                 changed := _config_changed(self.primary, self.git_state)
             ):
                 raise changed
-            unpushed, pushed = _unpushed(self.primary, first_read=True)
+            unpushed = _unpushed(self.primary, first_read=True)
         except Stop as stop:
             self.halt("run", str(stop))
             return False
@@ -2019,11 +2078,10 @@ class Run:
                         "run", f"git push origin {name} failed, exit {done.returncode}"
                     )
                     return False
+            self.log.event("run", "push", name)
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
-            self.log.event("run", "push", name)
-            pushed[ref] = sha
-            _close_releases(self.primary, pushed)
+                _close_releases(self.primary, sha)
         return True
 
     def ship(self) -> int:
@@ -2207,7 +2265,7 @@ def status(cwd: Path) -> str:
         "live": ["run · live"],
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
-    unpushed, _ = _unpushed(primary)
+    unpushed = _unpushed(primary)
     if unpushed:
         names = (ref.split("/", 2)[2] for ref, _ in unpushed)
         lines.append(f"run · unpushed {' '.join(names)}")

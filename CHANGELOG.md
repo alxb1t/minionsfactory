@@ -27,7 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A release ledger head authorizes nothing once it lands on `origin`'s default branch, whether the run or a person pushes it,
   and cleanup only removes spent entries. The push check reads raw history in a clean scratch repo, so a moved branch,
   replace ref, graft or `shallow` file cannot keep a landed head authorized or make a forged release pass. This closes the
-  hand-push and hand-finished landings that tag-based cleanup missed (change `0053-sandbox-patch`, converge fixes R4 and S3).
+  hand-push and hand-finished landings that tag-based cleanup missed. The push takes the default branch from `origin`'s own
+  `HEAD`, kept beside the URLs at a repo's first read, and halts when `origin`'s `HEAD` names another, because a worker writes
+  the local `origin/HEAD` and could judge a landed head against an older branch (change `0053-sandbox-patch`, converge fixes
+  R4, S3 and S4).
 
 ## [0.46.0] - 2026-11-02
 

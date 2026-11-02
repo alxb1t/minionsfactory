@@ -1841,6 +1841,58 @@ def test_a_forged_release_is_not_pushed(
         _git(root, "tag", "-d", tag)
         conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
 
+    # A worker points `origin/HEAD` at an older origin branch and forges a release
+    # there, on a head that landed on origin's own default: the push judges `main`.
+    older = _git(root, "rev-parse", "main")
+    _git(root, "push", "-q", "origin", "main:refs/heads/maintenance")
+    _released(root, "v0.30.0")
+    head = _git(root, "rev-parse", "v0.30.0^{commit}^")
+    _git(root, "push", "-q", "origin", "main", "v0.30.0")
+    _git(root, "update-ref", "refs/remotes/origin/maintenance", older)
+    _git(
+        root,
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/maintenance",
+    )
+    _git(root, "switch", "-q", "-c", "forged", head)
+    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v9.30.0")
+    _git(root, "tag", "-a", "-m", "v9.30.0", "v9.30.0")
+    _git(root, "switch", "-q", "-c", "maintenance", older)
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+    listed = _git(root, "ls-remote", "origin")
+    assert run() == 0
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert " · run · push — " not in log
+    assert _git(root, "ls-remote", "origin") == listed
+    assert _calls(calls) == []
+    _git(root, "switch", "-q", "main")
+    _git(root, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+    _git(root, "branch", "-D", "maintenance", "forged")
+    _git(root, "tag", "-d", "v9.30.0")
+
+    # Origin's own HEAD leaves the name the run kept: a run's release is not pushed.
+    _released(root, "v0.31.0")
+    kept = conduct["_kept_file"](root)
+    named = kept.with_name(f"{kept.name}.default")
+    _git(origin, "symbolic-ref", "HEAD", "refs/heads/maintenance")
+    listed = _git(root, "ls-remote", "origin")
+    assert run() == 1
+    said = (
+        "conduct: halt — origin's HEAD names maintenance, and the run kept main: a"
+        f" person decides, then removes ~/.mf-ship-origin/{named.name}"
+    )
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert f" · run · halt — {said}\n" in log
+    assert _git(root, "ls-remote", "origin") == listed
+    # Twin: a person restores it and removes the kept name; the run keeps it anew.
+    _git(origin, "symbolic-ref", "HEAD", "refs/heads/main")
+    named.unlink()
+    assert run() == 0
+    assert "refs/tags/v0.31.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert named.read_text() == "main"
+    assert _calls(calls) == []
+
 
 def test_no_worker_pushes(
     tmp_path: Path,
