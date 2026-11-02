@@ -15,16 +15,16 @@ threat-model text is the design's, word for word.
 
 ## 1 — The Codex project config
 
-- [ ] 1.1 Add the Codex control, the trusted twin, the plant and the trust-write check to `tests/escape_drill.py`, per
-  [D6](design.md#d6).
-  Verify: `grep -c -E 'codex (trusted plant|trust written)' tests/escape_drill.py` prints a number above `1`.
-- [ ] 1.2 Mark the Codex worker's working directory and each reached tree untrusted in `argv`, in
-  `skills/mf-ship/scripts/conduct.py`, and edit `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, per [D6](design.md#d6).
-  Verify: `grep -c 'trust_level=' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
+- [ ] 1.1 Add `codex_trust` to `skills/mf-ship/scripts/conduct.py`, pass it in `argv` for Codex in place of the dotted
+  entries, and edit `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, per [D6](design.md#d6).
+  Verify: `grep -c 'def codex_trust' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k carries_the_allowlist` reports `1 passed`.
+- [ ] 1.2 Start the drill's Codex control, trusted twin and plant with `codex_trust` in `tests/escape_drill.py`, per
+  [D6](design.md#d6)'s drill table.
+  Verify: `grep -c -E '[^_]codex_trust\b' tests/escape_drill.py` prints a number above `0`.
 - [ ] 1.3 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output over
   `openspec/changes/0053-sandbox-patch/evidence/escape.md`, per [D6](design.md#d6).
-  Verify: `grep -c -E '^codex (control: fired|trusted plant: loaded|project config: not loaded|trust written: (yes|no))' openspec/changes/0053-sandbox-patch/evidence/escape.md`
+  Verify: `grep -c -E '^codex (control: fired|trusted plant: loaded|project config: not loaded|trust written: no)' openspec/changes/0053-sandbox-patch/evidence/escape.md`
   prints `4`.
 
 ## 2 — The sandbox fails closed

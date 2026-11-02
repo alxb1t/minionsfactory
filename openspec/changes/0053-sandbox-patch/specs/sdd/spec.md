@@ -28,6 +28,7 @@ in the run directory.
 #### Scenario: A worker plants a Codex project config
 - **WHEN** a worker leaves an `[mcp_servers]` entry in `.codex/config.toml`, in a tree the operator's Codex config trusts
 - **THEN** it does not run at the next Codex worker's start
+- **AND** no Codex worker's start writes a trust entry to the operator's Codex config
 
 #### Scenario: The sandbox cannot start
 - **WHEN** a Claude worker starts on a machine where Claude Code's sandbox cannot start

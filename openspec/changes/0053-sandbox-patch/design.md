@@ -145,7 +145,8 @@ there halts on it again: the person removes it when no converge or release runs.
   starts nothing."
 - *Known gaps*: "stays readable by a script" → "stays readable by a script or the `Read` tool"; the line "Whether a Codex start
   reads a worker-written `.codex/config.toml` is not read from its docs." is deleted; add "Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone." and "A
-  worker can forge a release on a head while that head's release runs: the ledger holds the head until its push."
+  worker can forge a release on a head while that head's release runs: the ledger holds the head until its push." and "A
+  Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade."
 
 `docs/decisions.md`:
 
@@ -170,19 +171,44 @@ program and an `[mcp_servers]` entry, each touching its own mark in the probe fo
 writes the same entries to `.codex/config.toml` in the worker's tree and starts a Codex worker there. The first run loaded the
 plant's server (see [Context](#context)): the person's call, 2026-11-02, is the fix below, inside this patch.
 
-**The fix.** `argv`, for Codex, passes `-c 'projects."<path>".trust_level="untrusted"'` for its working directory and each tree
-it reaches, after the sandbox keys. The operator's own Codex config still loads.
+**The fix.** `codex_trust(paths, level)` in `conduct.py` returns one override whose key is `projects` alone and whose value is
+an inline table, a key per path:
 
-**The drill**, after the fix, starts the plant three ways and prints a line each:
+```python
+def codex_trust(paths: list[Path], level: str) -> list[str]:
+    """Return the `-c` that sets each path's Codex trust, as one `projects` table."""
+    keys = dict.fromkeys(str(path.resolve()) for path in paths)
+    table = ",".join(f"{json.dumps(key)}={{trust_level={json.dumps(level)}}}" for key in keys)
+    return ["-c", f"projects={{{table}}}"]
+```
+
+`argv`, for Codex, passes `codex_trust([cwd, *trees], "untrusted")` after the sandbox keys. The table merges over the
+operator's `projects`, so their own entries still hold outside MF.
+
+**Why not the dotted form.** Phase 1's second run passed `-c 'projects."<path>".trust_level="untrusted"'`, and the plant loaded
+again, and Codex wrote `trust_level = "trusted"` for the tree. Read in Codex's source (`openai/codex`, `main`, 2026-11-02):
+
+- `apply_toml_override` (`codex-rs/config/src/overrides.rs`) splits a key on every `.`, quotes kept, so that key names no
+  project, and the trust stays unset.
+- With a `-C` cwd, no trust set, and a sandbox that can write the cwd, a thread start writes the project trusted to
+  `~/.codex/config.toml` and reloads with its project config (`codex-rs/app-server/src/request_processors/thread_processor.rs`).
+  So every earlier MF Codex run trusted its repo on first start.
+- A trust lookup is exact: the directory, then its project root, then its repo root — the main checkout, for a linked worktree
+  (`decision_for_dir`, `codex-rs/config/src/loader/mod.rs`), canonical path first. `-c` merges before trust is decided.
+
+With the trust set, Codex neither trusts nor writes.
+
+**The drill** starts each Codex run with `codex_trust`, and prints a line each:
 
 | run | how | must print |
 |---|---|---|
-| the trusted twin | `argv`'s command with `trust_level="trusted"` in place of `untrusted` for the tree | `codex trusted plant: loaded` |
+| the control | `-c` `notify` and `[mcp_servers]` entries, with `codex_trust(<tree>, "untrusted")` | `codex control: fired` |
+| the trusted twin | `argv`'s command with `codex_trust(<tree>, "trusted")` in place of the untrusted one | `codex trusted plant: loaded` |
 | the plant | `conduct.py agent --executor codex`, the production `argv` | `codex project config: not loaded` |
-| the trust write | `~/.codex/config.toml` read before and after the runs, comparing only whether a `[projects."<tree>"]` header appeared | `codex trust written: yes` or `codex trust written: no` |
+| the trust write | `~/.codex/config.toml` read before and after the runs, comparing only whether a `[projects."<tree>"]` header appeared | `codex trust written: no` |
 
 The drill edits no Codex config, and prints no line of it. `openspec/changes/0053-sandbox-patch/evidence/escape.md` records the
-lines. The plant loaded under the production `argv` → the build halts on the `**HALT CHECK**`, and the person decides.
+lines. Any other line → the build halts on the `**HALT CHECK**`, and the person decides.
 
 The stale MF trust entries in `~/.codex/config.toml` are the operator's to remove; no task edits that file.
 
@@ -207,7 +233,7 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a release on a pushed head — each halts and `origin` receives nothing |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
-| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command marks its working directory and each reached tree untrusted; its twin is the drill's trusted plant, which loads |
+| `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command carries `codex_trust` once, its table keyed by the resolved working directory and each reached tree, each `untrusted`; its twin is the drill's trusted plant, which loads |
 | `test_a_run_pushes_only_tagged_merges` | edited | D2: its releases recorded in the ledger; a hand release left unpushed halts naming `git push` |
 | `test_a_rerun_recovers_a_dead_release` | edited | `0051·R14`: carries `test_a_stop_survives_a_death`'s `.held` steps |
 | `test_a_changed_git_config_halts_a_merge_in` | edited | `0052·R10`: the file named |
@@ -230,8 +256,10 @@ None.
 - **The window** — a release forged on a head during that head's release passes. Stated in `THREAT_MODEL.md` and D51.
 - **A hand release left unpushed now halts a run.** The halt names `git push`.
 - **A lock younger than ten minutes** is left: a re-run right after the halt halts again, until the lock ages.
-- **`-c` may not reach a `projects` entry** the operator's config holds. The plant through the production `argv` then still
-  loads, and 1.3's `**HALT CHECK**` stops the build for the person.
+- **The fix rests on Codex's override and trust code**, read at `main`. A Codex upgrade can move either: the drill re-proves it,
+  and 1.3's `**HALT CHECK**` stops the build on any other line.
+- **Repos an earlier Codex run trusted** keep that entry in the operator's config. The fix overrides it for a worker's paths;
+  outside MF it stands.
 - **Linux is unproven.** `failIfUnavailable`'s `-p` behaviour is undocumented; the probe holds the run either way.
 - **The fake worker stands in for the sandbox** by a read-only mark: the gate proves the conductor's logic, and the drill
   proves the sandbox.
