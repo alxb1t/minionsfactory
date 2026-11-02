@@ -70,7 +70,9 @@ keep `origin`'s URLs in the home folder, outside every worker's reach, a file th
 Before it starts a version's release worker, it SHALL record that version's head in a **release ledger** in the same folder, and
 SHALL push a release only when its release commit's parent is a head the ledger holds that is not yet reachable from `origin`'s
 default branch, as `origin` lists it. It SHALL judge that from the commits alone, reading no ref, replace ref, graft or `shallow`
-file a worker writes. It SHALL log each entry in the run log, and no check SHALL read that copy.
+file a worker writes. The default branch it pushes and judges against SHALL be the one `origin`'s own `HEAD` names, read
+through the kept URLs and kept beside them at a repo's first read; a push SHALL halt when `origin`'s `HEAD` names another.
+It SHALL log each entry in the run log, and no check SHALL read that copy.
 It SHALL make no remote call, in a run or in `status`, `check` or `report`, while `origin` differs from the kept URLs, and only a
 person SHALL clear that, repointing `origin` or removing the file. A run that read an `origin` SHALL halt, making no remote call,
 when the repo's git config or `info/attributes` differs from its first read, naming the file and a key off the list naming itself.
@@ -99,6 +101,13 @@ fetch no missing object from a promisor remote.
 - **WHEN** a release landed on `origin` — pushed by a run, pushed by a person after a failed push, or finished by a person by
   hand — and a worker merges a forged release whose parent is that release's head
 - **THEN** the run halts naming the merge, and `origin` receives nothing
+
+#### Scenario: A worker points the default branch elsewhere
+- **WHEN** a worker points `refs/remotes/origin/HEAD` at an older `origin` branch, and merges there a forged release on a head
+  that landed on `origin`'s default branch
+- **THEN** the run judges against the branch `origin`'s `HEAD` names, halts naming the merge, and `origin` receives nothing
+- **AND WHEN** `origin`'s own `HEAD` names a branch other than the kept one
+- **THEN** a push halts naming both, and `origin` receives nothing
 
 #### Scenario: A worker rewrites local history
 - **WHEN** a worker adds a replace ref, a graft or a `shallow` entry that gives a forged merge a ledger head as its parent

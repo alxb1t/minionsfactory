@@ -93,6 +93,15 @@ release can land unseen left one live: a moved branch (`S1`), rewritten local hi
 - **Where the check reads** — every history read of the push check runs in the conductor's scratch repo, which reaches the
   primary's objects through `alternates` alone, with `GIT_NO_REPLACE_OBJECTS=1`: no ref, replace ref, graft or `shallow` file a
   worker writes reaches it. The primary gives only the default branch's sha and its tags' names and shas.
+- **The default branch** (the person, 2026-11-02, after the granted round's `S4`) — the push path never takes the name from
+  the local `refs/remotes/origin/HEAD`, which a worker writes. At a repo's first read, `_keep_origin` also keeps
+  `~/.mf-ship-origin/<digest>.default`, `0o600`, written once like the URLs: the branch `origin`'s own `HEAD` names, read with
+  `ls-remote --symref <url> HEAD` from the scratch repo through a kept URL. A repo kept before this patch gains the file at its
+  next run's first read. Before each push, `push_left` reads `origin`'s `HEAD` the same way; a name that differs from the kept
+  one → `Stop(1, "conduct: halt — origin's HEAD names <name>, and the run kept <kept>: a person decides, then removes
+  ~/.mf-ship-origin/<digest>.default")`. The base, the walk, the tags, cleanup and the push all use the kept name. Elsewhere —
+  stages, integrate, `status` — `default_branch` stays as it is: a worker steering those is the accepted class, and only the
+  push cannot be withdrawn.
 - **Base** — `origin`'s `refs/heads/<default>`, read with `_listed`. With no read allowed (`status` in a repo no run kept), the
   local `origin/<default>`, as today. A push read that fails → `Stop(1, "conduct: halt — cannot read origin: nothing pushed")`.
   A sha `origin` lists that is not in this repo → `Stop(1, "… origin's <default> is at <sha7>, which this repo lacks: a person
@@ -246,7 +255,7 @@ through `fake_worker.py`; none is end-to-end, and none runs on an engine.
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | added | D1: mode `unsandboxed` → the run halts naming the executor, the mark is gone; the default run passes |
-| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a replace ref, a graft and a `shallow` entry each halt and `origin` receives nothing; after a release lands by the run, by a hand push after a failed push, and by a hand-finished release, a forged release on its head halts |
+| `test_a_forged_release_is_not_pushed` | added | D2: a forged tagged merge, a moved `refs/remotes/origin/main`, a replace ref, a graft and a `shallow` entry each halt and `origin` receives nothing; after a release lands by the run, by a hand push after a failed push, and by a hand-finished release, a forged release on its head halts; a worker that points `refs/remotes/origin/HEAD` at an older `origin` branch and forges a release there on a landed head halts, and so does an `origin` whose `HEAD` left the kept name |
 | `test_a_stale_lock_is_cleared_and_converge_resumes` | added | D3: a lock older than ten minutes is removed and logged; a lock halt resumes at Step 9 with no new round; a younger lock stays |
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: `failIfUnavailable` |
 | `test_a_worker_carries_the_allowlist_and_a_denial_is_named` | edited | D6: the Codex command carries `codex_trust` once, its table keyed by the resolved working directory and each reached tree, each `untrusted`; its twin is the drill's trusted plant, which loads |
