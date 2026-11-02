@@ -174,6 +174,7 @@ be clean.**
 | security | `critical` · `high` · `medium` · `low` | `critical` · `high` |
 
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
+  Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts.
 - **A repeat goes up one level:** a finding that repeats a backlog card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
@@ -470,5 +471,7 @@ hostile repo needs a container.**
   conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls, and a repo's config outlasts
   the run that wrote it, so the URLs stand where no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
-  worker · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin`.
+  worker · a domain `Ship network:` lists · in a repo whose `AGENTS.md` declares `Ship loopback: yes`, a Claude worker reaches
+  every service on the Mac's loopback; on Linux the flag does nothing · a release forged on a head before that head lands
+  on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.

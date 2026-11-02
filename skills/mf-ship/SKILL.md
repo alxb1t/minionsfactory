@@ -92,7 +92,8 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
-out refused. `conduct.py` holds the push.
+out refused. `conduct.py` holds the push. In a repo that declares `Ship loopback: yes`, its Claude workers reach every
+service on the Mac's loopback, and the run's log names them.
 Converge runs MF's method at the tier the cut chose.
 
 ## Step 4 — Report, then stop

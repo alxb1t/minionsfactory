@@ -37,8 +37,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 ## Entry points
 
 - A brief, and the change directory the cut writes from it.
-- A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines (D51 accepts it: every
-  worker of the repo reaches what it lists), its standards, its Makefile.
+- A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:`, `Ship network:` and `Ship loopback:` lines
+  (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/`.
 
 ## Out of scope
@@ -77,3 +77,6 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
+- In a repo that declares `Ship loopback: yes`, a Claude worker reaches every service listening on the Mac's loopback — an
+  unauthenticated one acts for it outside the sandbox; each run logs what was listening. A Linux container, where loopback is
+  private, is the way out.

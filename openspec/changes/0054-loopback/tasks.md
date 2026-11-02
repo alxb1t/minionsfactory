@@ -8,7 +8,7 @@ threat-model text is the design's, word for word.
 - [x] 1 — The line
 - [x] 2 — The log
 - [x] 3 — The environment
-- [ ] 4 — The record
+- [x] 4 — The record
 - [ ] 5 — The proof
 
 ## 1 — The line
@@ -38,9 +38,9 @@ threat-model text is the design's, word for word.
 
 ## 4 — The record
 
-- [ ] 4.1 Amend D51 and D15 in `docs/decisions.md`, per [D5](design.md#d5).
+- [x] 4.1 Amend D51 and D15 in `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `grep -c 'Ship loopback: yes' docs/decisions.md` prints `1`, and `grep -c 'Save one class' docs/decisions.md` prints `1`.
-- [ ] 4.2 Edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` Step 3, per [D5](design.md#d5).
+- [x] 4.2 Edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` Step 3, per [D5](design.md#d5).
   Verify: `grep -c 'Ship loopback' THREAT_MODEL.md` prints `2`, and `grep -c 'Ship loopback: yes' skills/mf-ship/SKILL.md` prints `1`.
 
 ## 5 — The proof

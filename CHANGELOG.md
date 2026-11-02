@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each run carries is on record (change `0054-loopback`, phase 2).
 - Every worker starts with `VIRTUAL_ENV` unset, because the conductor's uv environment is not the worker's `.venv`,
   and uv warned on every run (change `0054-loopback`, phase 3).
+- D51, `THREAT_MODEL.md` and `mf-ship` Step 3 state what `Ship loopback: yes` exposes, and D15 carries the
+  accepted-class exception converge already holds (change `0054-loopback`, phase 4).
 
 ## [0.46.1] - 2026-11-02
 
