@@ -964,8 +964,24 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def check_probe(scratch: Path) -> str | None:
-    """Return why the probe check fails, or None; the scratch gate leaves `.gated`."""
+def probe_gate(mark: Path) -> str:
+    """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
+
+    Why: 0053-sandbox-patch design D1.
+    """
+    target = shlex.quote(str(mark)).replace("$", "$$")
+    return f"gate:\n\t! echo escaped >> {target}\n\ttouch .gated\n"
+
+
+def check_probe(scratch: Path, mark: Path | None) -> str | None:
+    """Return why the probe check fails, or None; the scratch gate leaves `.gated`.
+
+    A `mark` gone or written fails, naming its executor: `probe-codex-41` → `codex`.
+    `check probe` has no mark, and skips it. Why: 0053-sandbox-patch design D1.
+    """
+    if mark is not None and (not mark.is_file() or mark.stat().st_size):
+        executor = mark.name.split("-")[1]
+        return f"{executor} wrote outside its reach: it runs unsandboxed"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
@@ -1162,11 +1178,13 @@ def worker_settings(
 ) -> str:
     """Return the Claude worker's sandbox settings, as JSON.
 
-    Why: 0052-security-hardening design D1.
+    A sandbox that cannot start ends the worker. Why: 0052-security-hardening design
+    D1 and 0053-sandbox-patch design D1.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
         "enabled": True,
+        "failIfUnavailable": True,
         "allowUnsandboxedCommands": False,
         "filesystem": {"allowWrite": writes, "denyRead": list(SECRETS)},
         "credentials": {
@@ -1734,7 +1752,7 @@ class Run:
         return list(dict.fromkeys((self.executor, *named)))
 
     def probe(self, executor: str) -> None:
-        """Prove a worker can edit, commit and gate in a scratch repo, or halt."""
+        """Prove a sandboxed worker edits, commits and gates a scratch repo, or halt."""
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
             self.halt("run", f"{station} — {executor} is not on PATH")
@@ -1745,9 +1763,19 @@ class Run:
             self.halt("run", f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
+        mark = Path.home() / KEPT_ORIGINS / f"probe-{executor}-{os.getpid()}"
         try:
+            try:
+                mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                mark.unlink(missing_ok=True)
+                os.close(os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            except OSError as error:
+                self.halt(
+                    "run", f"{station} — cannot write the probe mark: {error.strerror}"
+                )
+                return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text("gate:\n\ttouch .gated\n")
+            (scratch / "Makefile").write_text(probe_gate(mark))
             (scratch / ".gitignore").write_text(".gated\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
@@ -1755,9 +1783,10 @@ class Run:
             repo = _repo(scratch)
             denied = self.spawn("run", station, scratch, PROBE, models, repo)
             if denied is not None:
-                self.judge("run", station, check_probe(scratch), denied)
+                self.judge("run", station, check_probe(scratch, mark), denied)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
+            mark.unlink(missing_ok=True)
 
     def push_left(self) -> bool:
         """Push what a release merged and left; return False when that halted the run.
@@ -2153,7 +2182,7 @@ def _check_command(cwd: Path, stage: str, target: str) -> int:
     `probe` takes the scratch repo's path instead of a change id.
     """
     if stage == "probe":
-        reason = check_probe(Path(target))
+        reason = check_probe(Path(target), None)
     else:
         primary = primary_of(cwd)
         if (version := find_version(primary, target)) is None:

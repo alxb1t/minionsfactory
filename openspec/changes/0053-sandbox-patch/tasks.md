@@ -6,7 +6,7 @@ threat-model text is the design's, word for word.
 ## Progress
 
 - [x] 1 — The Codex project config
-- [ ] 2 — The sandbox fails closed
+- [x] 2 — The sandbox fails closed
 - [ ] 3 — The release ledger
 - [ ] 4 — The stale lock
 - [ ] 5 — The cards
@@ -29,11 +29,11 @@ threat-model text is the design's, word for word.
 
 ## 2 — The sandbox fails closed
 
-- [ ] 2.1 Add `failIfUnavailable` to `worker_settings` in `skills/mf-ship/scripts/conduct.py`, and to
+- [x] 2.1 Add `failIfUnavailable` to `worker_settings` in `skills/mf-ship/scripts/conduct.py`, and to
   `test_a_claude_worker_starts_in_the_sandbox`, per [D1](design.md#d1).
   Verify: `grep -c 'failIfUnavailable' skills/mf-ship/scripts/conduct.py` prints `1`, and
   `uv run pytest -q tests/test_conduct.py -k starts_in_the_sandbox` reports `1 passed`.
-- [ ] 2.2 Add the probe mark, the scratch recipe and `check_probe`'s mark to `conduct.py`, the `unsandboxed` mode to
+- [x] 2.2 Add the probe mark, the scratch recipe and `check_probe`'s mark to `conduct.py`, the `unsandboxed` mode to
   `tests/fake_worker.py`, edit `test_each_check_passes_only_on_disk_evidence`, and add `test_a_probe_halts_on_a_write_out`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k 'probe_halts_on_a_write_out or only_on_disk_evidence'` reports `2 passed`.
 

@@ -357,8 +357,10 @@ def test_each_check_passes_only_on_disk_evidence(
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
+    mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
+    mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    _commit(scratch, {"Makefile": "gate:\n\ttouch .gated\n"}, "init")
+    _commit(scratch, {"Makefile": conduct["probe_gate"](mark)}, "init")
     assert check("probe", str(scratch)) == (
         1,
         "check: probe · fail — HEAD holds no probe.txt",
@@ -368,8 +370,25 @@ def test_each_check_passes_only_on_disk_evidence(
         1,
         "check: probe · fail — make gate left no .gated",
     )
-    (scratch / ".gated").touch()
+
+    def gate() -> int:
+        return subprocess.run(
+            ["make", "gate"], cwd=scratch, capture_output=True
+        ).returncode
+
+    mark.chmod(0o400)
+    assert gate() == 0
     assert check("probe", str(scratch)) == (0, "check: probe · pass")
+    assert conduct["check_probe"](scratch, mark) is None
+    # Twin: a mark the gate can write is written, and the gate fails.
+    escaped = "codex wrote outside its reach: it runs unsandboxed"
+    mark.chmod(0o600)
+    (scratch / ".gated").unlink()
+    assert gate() != 0
+    assert not (scratch / ".gated").exists()
+    assert conduct["check_probe"](scratch, mark) == escaped
+    mark.unlink()
+    assert conduct["check_probe"](scratch, mark) == escaped
 
 
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
@@ -2370,6 +2389,7 @@ def test_a_claude_worker_starts_in_the_sandbox(
     assert settings() == {
         "sandbox": {
             "enabled": True,
+            "failIfUnavailable": True,
             "allowUnsandboxedCommands": False,
             "filesystem": {
                 "allowWrite": [str(root), str(tree), str(root / ".git")],
@@ -2400,6 +2420,44 @@ def test_a_claude_worker_starts_in_the_sandbox(
             settings()
         assert stop.value.code == 1
         assert value in str(stop.value)
+
+
+def test_a_probe_halts_on_a_write_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("unsandboxed")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    marks = Path.home() / conduct["KEPT_ORIGINS"]
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run() == 1
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · run · halt — probe check fail — claude wrote outside its reach:"
+            " it runs unsandboxed"
+        )
+        for line in _log(root)
+    )
+    assert not list(marks.glob("probe-*"))
+
+    # Twin: a sandbox refuses the write, and the run ships.
+    calls.unlink()
+    fake()
+    assert run() == 0
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert not list(marks.glob("probe-*"))
 
 
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
