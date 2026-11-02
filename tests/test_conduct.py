@@ -2303,8 +2303,8 @@ def test_no_hook_runs_in_a_worker(
     repo = (root, root / ".git")
     for executor in conduct["EXECUTORS"]:
         command = conduct["argv"](executor, "Do it.", root, None, None, repo)
-        assert command[0] == "env"
-        pairs = dict(arg.split("=", 1) for arg in command[1 : size + 1])
+        assert command[:3] == ["env", "-u", "VIRTUAL_ENV"]
+        pairs = dict(arg.split("=", 1) for arg in command[3 : size + 3])
         assert not fires(pairs)
         assert fires({})
 
@@ -2759,6 +2759,15 @@ def test_a_claude_worker_starts_in_the_sandbox(
     command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
     assert command[command.index("--setting-sources") + 1] == "user"
 
+    # The conductor's uv environment is not the worker's `.venv`.
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
+    for executor in ("claude", "codex"):
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+        prefix = command[: command.index(executor)]
+        shown = subprocess.run([*prefix, "env"], capture_output=True, text=True)
+        assert "UV_CACHE_DIR=" in shown.stdout
+        assert "VIRTUAL_ENV=" not in shown.stdout
+
     # Loopback reaches every local service, so a repo opts in by name.
     (root / "AGENTS.md").write_text("- **Ship loopback:** yes — the gate serves\n")
     assert settings()["sandbox"]["network"]["allowLocalBinding"] is True
@@ -2870,8 +2879,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     hooks_off = list(conduct["HOOKS_OFF"])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
-    assert claude[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
-    claude = claude[len(hooks_off) + 2 :]
+    unset = ["env", "-u", "VIRTUAL_ENV"]
+    assert claude[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
+    claude = claude[len(hooks_off) + 4 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -2947,8 +2957,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    assert codex[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
-    codex = codex[len(hooks_off) + 2 :]
+    assert codex[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
+    codex = codex[len(hooks_off) + 4 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex

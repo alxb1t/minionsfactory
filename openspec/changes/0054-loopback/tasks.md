@@ -7,7 +7,7 @@ threat-model text is the design's, word for word.
 
 - [x] 1 — The line
 - [x] 2 — The log
-- [ ] 3 — The environment
+- [x] 3 — The environment
 - [ ] 4 — The record
 - [ ] 5 — The proof
 
@@ -31,7 +31,7 @@ threat-model text is the design's, word for word.
 
 ## 3 — The environment
 
-- [ ] 3.1 Start both executors with `env -u VIRTUAL_ENV` in `argv`, and add its step to
+- [x] 3.1 Start both executors with `env -u VIRTUAL_ENV` in `argv`, and add its step to
   `test_a_claude_worker_starts_in_the_sandbox`, per [D4](design.md#d4).
   Verify: `grep -c '"-u", "VIRTUAL_ENV"' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
   `uv run pytest -q tests/test_conduct.py -k starts_in_the_sandbox` reports `1 passed`.

@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phase 1).
 - A loopback repo's run logs a `loopback` event per process listening on loopback, from `lsof`, so the exposure
   each run carries is on record (change `0054-loopback`, phase 2).
+- Every worker starts with `VIRTUAL_ENV` unset, because the conductor's uv environment is not the worker's `.venv`,
+  and uv warned on every run (change `0054-loopback`, phase 3).
 
 ## [0.46.1] - 2026-11-02
 

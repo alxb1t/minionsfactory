@@ -1546,7 +1546,7 @@ def argv(
         tools, network, loopback = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         return [
-            *("env", *HOOKS_OFF, cache),
+            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -1566,7 +1566,7 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", *HOOKS_OFF, cache, path)
+    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, path)
     return [
         *env,
         *("codex", "exec"),
