@@ -837,31 +837,18 @@ def _ledger_heads(primary: Path) -> set[str]:
     return {entry.read_text().partition("\n")[0] for entry in _ledger_entries(primary)}
 
 
-def _mark_releases(primary: Path, sha: str, change: str | None) -> None:
-    """Add `sha` to `change`'s ledger entry, or to every entry when `change` is None.
-
-    A run calls it just before it pushes `sha` as a tag. Why: 0053-sandbox-patch
-    design D2.
-    """
-    for entry in _ledger_entries(primary):
-        if change in (None, entry.name):
-            with entry.open("a") as file:
-                file.write(f"{sha}\n")
-
-
 def _close_releases(primary: Path, held: dict[str, str]) -> None:
-    """Remove each ledger entry holding a sha `origin` lists under a tag.
+    """Remove ledger entries whose heads have landed on origin's default branch.
 
-    `held` maps each ref on `origin` to its sha. Before a run pushes a tag, it writes
-    the tag's sha into the releasing version's entry, or into every entry at its start.
-    Nothing local is read: a worker rewrites a commit's parents and subject with a
-    replace ref, a graft, `shallow` or the object files, and moves any ref.
-    Why: 0053-sandbox-patch design D2.
+    This is cleanup alone: the push check independently excludes landed heads.
+    Read ancestry in the clean scratch repo. Why: 0053-sandbox-patch design D2.
     """
-    tags = {sha for ref, sha in held.items() if ref.startswith("refs/tags/")}
-    for entry in _ledger_entries(primary):
-        if tags.intersection(entry.read_text().split()[1:]):
-            entry.unlink()
+    base = held.get(f"refs/heads/{default_branch(primary)}")
+    if base:
+        for entry in _ledger_entries(primary):
+            head = entry.read_text().partition("\n")[0]
+            if _history_ancestor(primary, head, base):
+                entry.unlink()
 
 
 def _kept_origin(primary: Path) -> Urls | None:
@@ -960,8 +947,11 @@ def _outside(
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
         alternates = root / "objects" / "info" / "alternates"
-        alternates.write_text(f"{primary / '.git' / 'objects'}\n")
-        env = {**os.environ, "GIT_DIR": scratch}
+        objects = _git(
+            primary, "rev-parse", "--path-format=absolute", "--git-path", "objects"
+        )
+        alternates.write_text(objects)
+        env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
         return _run(root, *args, env=env, timeout=timeout)
 
 
@@ -989,21 +979,61 @@ def _pushed(
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
 
 
-def _release_merge(primary: Path, tip: str) -> bool:
-    """Return whether `tip` says `chore(release): <tag>` and that tag points at it."""
-    subject = _subject(primary, tip)
+def _history(primary: Path, *args: str) -> str:
+    """Read raw object history in the conductor's clean scratch repo.
+
+    Only alternates reach the primary: no ref, graft or shallow file does, and
+    replacement is disabled. Why: 0053-sandbox-patch design D2.
+    """
+    done = _outside(primary, *args)
+    if done.returncode != 0:
+        raise Stop(2, f"conduct: cannot read release history: git {args[0]} failed")
+    return done.stdout.strip()
+
+
+def _history_ancestor(primary: Path, older: str, newer: str) -> bool:
+    """Return whether raw object history places `older` at or before `newer`."""
+    done = _outside(primary, "merge-base", "--is-ancestor", older, newer)
+    if done.returncode not in (0, 1):
+        raise Stop(2, "conduct: cannot read release history: git merge-base failed")
+    return done.returncode == 0
+
+
+def _release_tags(primary: Path) -> dict[str, tuple[str, str]]:
+    """Snapshot version tags as `(ref sha, commit sha)`, peeling in scratch."""
+    refs = _git(
+        primary,
+        "for-each-ref",
+        "--format=%(refname:strip=2) %(objectname)",
+        "refs/tags",
+    )
+    tags = {}
+    for line in refs.splitlines():
+        name, sha = line.split()
+        if TAG.fullmatch(name):
+            done = _outside(primary, "rev-parse", "--verify", f"{sha}^{{commit}}")
+            if done.returncode == 0:
+                tags[name] = (sha, done.stdout.strip())
+    return tags
+
+
+def _release_merge(primary: Path, tip: str, tags: dict[str, tuple[str, str]]) -> bool:
+    """Return whether raw `tip` says `chore(release): <tag>` and holds that tag."""
+    subject = _history(primary, "log", "-1", "--format=%s", tip)
     return any(
-        TAG.fullmatch(tag) and subject == f"chore(release): {tag}"
-        for tag in _git(primary, "tag", "--points-at", tip).split()
+        tip == commit and subject == f"chore(release): {tag}"
+        for tag, (_, commit) in tags.items()
     )
 
 
-def _merges_a_release(primary: Path, sha: str) -> bool:
-    """Return whether `sha` merges a tagged release and holds that release's tree."""
-    parents = _git(primary, "rev-list", "--parents", "-n", "1", sha).split()
-    if len(parents) != 3 or not _release_merge(primary, parents[2]):
+def _merges_a_release(
+    primary: Path, sha: str, tags: dict[str, tuple[str, str]]
+) -> bool:
+    """Return whether raw `sha` merges a tagged release with that release's tree."""
+    parents = _history(primary, "rev-list", "--parents", "-n", "1", sha).split()
+    if len(parents) != 3 or not _release_merge(primary, parents[2], tags):
         return False
-    trees = _git(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
+    trees = _history(primary, "rev-parse", f"{sha}^{{tree}}", f"{parents[2]}^{{tree}}")
     return len(set(trees.split())) == 1
 
 
@@ -1021,19 +1051,32 @@ def _no_release(default: str, name: str) -> Stop:
     )
 
 
-def _foreign_commit(primary: Path, base: str) -> list[str]:
-    """Return the default branch's first-parent commits past `base`, the tip first.
+def _foreign_commit(
+    primary: Path,
+    base: str,
+    tip: str | None = None,
+    tags: dict[str, tuple[str, str]] | None = None,
+) -> list[str]:
+    """Return the default branch's first-parent release merges past raw `base`.
 
-    Each must merge a tagged release whose release commit's parent is a head the
-    release ledger holds, or this stops with 1. Why: 0053-sandbox-patch design D2.
+    Each release's parent must be a ledger head not yet reachable from `base`.
+    Only ref snapshots come from the primary; all history comes from scratch.
+    Why: 0053-sandbox-patch design D2.
     """
     default = default_branch(primary)
-    heads = _ledger_heads(primary)
-    commits = _git(primary, "rev-list", "--first-parent", f"{base}..{default}").split()
+    base = _git(primary, "rev-parse", "--verify", base).strip()
+    tip = tip or _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    tags = _release_tags(primary) if tags is None else tags
+    heads = {
+        head
+        for head in _ledger_heads(primary)
+        if not _history_ancestor(primary, head, base)
+    }
+    commits = _history(primary, "rev-list", "--first-parent", f"{base}..{tip}").split()
     for sha in commits:
         if not (
-            _merges_a_release(primary, sha)
-            and _git(primary, "rev-parse", f"{sha}^2^").strip() in heads
+            _merges_a_release(primary, sha, tags)
+            and _history(primary, "rev-parse", f"{sha}^2^") in heads
         ):
             raise _no_release(default, sha[:7])
     return commits
@@ -1042,12 +1085,12 @@ def _foreign_commit(primary: Path, base: str) -> list[str]:
 def _unpushed(
     primary: Path, first_read: bool = False
 ) -> tuple[list[tuple[str, str]], dict[str, str]]:
-    """Return each `(ref, sha)` to push, and each ref `origin` holds with its sha.
+    """Return each `(ref, sha)` to push, and each ref origin holds with its sha.
 
-    The base is `origin`'s own head; with no read allowed, the local remote ref, and
-    no tag. A run's read that fails stops with 1, and so does a commit or a tag no run
-    released. The refusal needs no `origin`: a run with none keeps that too. A run's
-    read first retires each ledger entry holding a tag sha `origin` lists.
+    Judge history in scratch against origin's listed default sha. With no read
+    allowed, use the local remote ref and no tags. Cleanup has no security weight:
+    landed ledger heads never authorize another release, however they landed.
+    Why: 0053-sandbox-patch design D2.
     """
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
@@ -1072,7 +1115,7 @@ def _unpushed(
         raise Stop(
             1, f"conduct: halt — origin has no {default}: a person pushes it first"
         )
-    if _maybe(primary, "cat-file", "-e", f"{base}^{{commit}}") is None:
+    if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
         raise Stop(
             1,
             f"conduct: halt — origin's {default} is at {base[:7]}, which this repo"
@@ -1080,16 +1123,17 @@ def _unpushed(
         )
     if first_read:
         _close_releases(primary, held)
-    commits = _foreign_commit(primary, base)
-    found = [(f"refs/heads/{default}", commits[0])] if commits else []
-    heads = _ledger_heads(primary)
-    for tag in _git(primary, "tag", "--merged", default).split():
+    tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    tags = _release_tags(primary)
+    commits = _foreign_commit(primary, base, tip, tags)
+    found = [(f"refs/heads/{default}", tip)] if commits else []
+    released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    for tag, (sha, commit) in tags.items():
         ref = f"refs/tags/{tag}"
-        if not TAG.fullmatch(tag) or ref in held:
+        if ref in held or not _history_ancestor(primary, commit, tip):
             continue
-        sha = _git(primary, "rev-parse", ref).strip()
-        if _subject(primary, sha) != f"chore(release): {tag}" or (
-            _git(primary, "rev-parse", f"{sha}^{{commit}}^").strip() not in heads
+        if not _release_merge(primary, commit, {tag: (sha, commit)}) or (
+            commit not in released and not _history_ancestor(primary, commit, base)
         ):
             raise _no_release(default, tag)
         found.append((ref, sha))
@@ -1813,7 +1857,7 @@ class Run:
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
-                if stage == "release" and not self.push_left(version.change):
+                if stage == "release" and not self.push_left():
                     return
                 reason = check(self.primary, stage, version, first_read=True)
                 if not self.judge(version.change, stage, reason, denied):
@@ -1942,14 +1986,14 @@ class Run:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
 
-    def push_left(self, change: str | None = None) -> bool:
+    def push_left(self) -> bool:
         """Push what a release merged and left; return False when that halted the run.
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it. A tag's sha goes
-        into `change`'s ledger entry before its push, with no change into every entry,
-        and each push retires the entries holding a tag sha `origin` then holds.
+        steers none. A held key is refused first, so the halt names it. Each push
+        removes entries whose heads are now on origin's default branch; a head
+        already there authorizes nothing even when cleanup did not run.
         Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
@@ -1964,8 +2008,6 @@ class Run:
             return False
         for ref, sha in unpushed:
             kind, name = ref.split("/", 2)[1:]
-            if kind == "tags":
-                _mark_releases(self.primary, sha, change)
             for url in self.pushes:
                 done = _outside(
                     self.primary,

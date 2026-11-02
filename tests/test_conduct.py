@@ -62,10 +62,11 @@ def _released(root: Path, tag: str, by_hand: bool = False) -> None:
     A run's release is in the release ledger; one by hand is not.
     """
     branch = f"release-{tag}"
+    _git(root, "switch", "-q", "-c", branch)
+    _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
     if not by_hand:
         head = _git(root, "rev-parse", "HEAD").strip()
         _conduct()["_record_release"](root, branch, head)
-    _git(root, "switch", "-q", "-c", branch)
     _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {tag}")
     _git(root, "tag", "-a", "-m", tag, tag)
     _git(root, "switch", "-q", "main")
@@ -1657,7 +1658,9 @@ def test_a_run_pushes_only_tagged_merges(
     _git(root, "tag", "v0.2.0", "release-v0.1.0")
     halts_on("v0.2.0", "v0.2.0")
     _git(root, "tag", "-d", "v0.2.0")
-    assert conduct["_ledger_heads"](root) == {pushed}
+    assert conduct["_ledger_heads"](root) == {
+        _git(root, "rev-parse", "v0.1.0^{commit}^")
+    }
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -1719,17 +1722,25 @@ def test_a_forged_release_is_not_pushed(
         ("resume",),
         *((view,) for view in views),
         ("resume", *views),
+        ("hand-finished",),
+        ("failed-push",),
     )
     for number, mutation in enumerate(cases, start=1):
         tag = f"v0.{number}.0"
         branch = f"refs/heads/release-{tag}"
-        head = _git(root, "rev-parse", "main")
         _released(root, tag)
         commit = _git(root, "rev-parse", f"{tag}^{{commit}}")
+        head = _git(root, "rev-parse", f"{commit}^")
 
         def push(
             cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
         ) -> subprocess.CompletedProcess[str]:
+            if (
+                "failed-push" in mutation
+                and args[0] == "push"
+                and args[-1].endswith(":refs/heads/main")
+            ):
+                return subprocess.CompletedProcess(args, 1, "", "rejected")
             done = outside(cwd, *args, timeout=timeout)
             if (
                 args[0] == "push"
@@ -1754,12 +1765,20 @@ def test_a_forged_release_is_not_pushed(
         if "resume" in mutation:
             # The conductor died after both pushes, before retiring the entry.
             module["_close_releases"] = lambda *_: None
-        assert run() == 0
+        if "hand-finished" not in mutation:
+            assert run() == (1 if "failed-push" in mutation else 0)
         module["_outside"] = outside
         module["_close_releases"] = close
+        if "failed-push" in mutation or "hand-finished" in mutation:
+            # A person lands a halted run's release or finishes a release by hand.
+            _git(root, "push", "-q", "origin", "main", tag)
         assert tag in _git(root, "ls-remote", "--tags", "origin")
         assert conduct["_ledger_heads"](root) == (
-            {head} if "resume" in mutation else set()
+            {head}
+            if any(
+                case in mutation for case in ("resume", "failed-push", "hand-finished")
+            )
+            else set()
         ), mutation
 
         forged = f"v9.{number}.0"
@@ -1768,6 +1787,13 @@ def test_a_forged_release_is_not_pushed(
         _git(root, "tag", "-a", "-m", forged, forged)
         _git(root, "switch", "-q", "main")
         _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'forged'", "forged")
+        if "failed-push" in mutation or "hand-finished" in mutation:
+            # Retirement is only cleanup: a landed head refuses even with it absent.
+            module["_close_releases"] = lambda *_: None
+            with pytest.raises(conduct["Stop"], match="no run's release"):
+                conduct["_unpushed"](root, first_read=True)
+            assert conduct["_ledger_heads"](root) == {head}, mutation
+            module["_close_releases"] = close
         halts_on_main()
         assert conduct["_ledger_heads"](root) == set(), mutation
         _git(root, "reset", "-q", "--hard", "HEAD~1")
@@ -1777,6 +1803,43 @@ def test_a_forged_release_is_not_pushed(
             _git(root, "replace", "-d", commit)
         (git_dir / "info" / "grafts").unlink(missing_ok=True)
         (git_dir / "shallow").unlink(missing_ok=True)
+
+    # Local history must not turn an unauthorized release into a recorded one.
+    for number, view in enumerate(views, start=20):
+        tag = f"v9.{number}.0"
+        base = _git(root, "rev-parse", "main")
+        _released(root, tag, by_hand=True)
+        commit = _git(root, "rev-parse", f"{tag}^{{commit}}")
+        if view == "shallow":
+            # A shallow base hides a ledger head that has already landed.
+            head = _git(root, "rev-parse", f"{base}^2^")
+            _git(root, "replace", "--graft", commit, head)
+            replacement = _git(root, "rev-parse", f"refs/replace/{commit}")
+            _git(root, "replace", "-d", commit)
+            _git(root, "tag", "-f", tag, replacement)
+            _git(root, "reset", "-q", "--hard", base)
+            _git(root, "merge", "-q", "--no-ff", "-m", "forged", replacement)
+            (git_dir / "shallow").write_text(f"{base}\n")
+        else:
+            head = _git(
+                root, "commit-tree", f"{base}^{{tree}}", "-p", base, "-m", "recorded"
+            )
+            if view == "replace":
+                _git(root, "replace", "--graft", commit, head)
+            else:
+                (git_dir / "info" / "grafts").write_text(f"{commit} {head}\n")
+        conduct["_record_release"](root, "recorded", head)
+        listed = _git(root, "ls-remote", "origin")
+        with pytest.raises(conduct["Stop"], match="no run's release"):
+            conduct["_unpushed"](root, first_read=True)
+        assert _git(root, "ls-remote", "origin") == listed
+        if view == "replace":
+            _git(root, "replace", "-d", commit)
+        (git_dir / "info" / "grafts").unlink(missing_ok=True)
+        (git_dir / "shallow").unlink(missing_ok=True)
+        _git(root, "reset", "-q", "--hard", base)
+        _git(root, "tag", "-d", tag)
+        conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
 
 
 def test_no_worker_pushes(

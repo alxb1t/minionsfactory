@@ -470,5 +470,5 @@ hostile repo needs a container.**
   conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls, and a repo's config outlasts
   the run that wrote it, so the URLs stand where no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
-  worker · a domain `Ship network:` lists · a release forged on a head during that head's release.
+  worker · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile.

@@ -29,8 +29,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   run before its next push. A worker can redirect git with `commondir` or a swapped `.git`, so `conduct.py` halts when git
   names a repo outside the folder it runs in and no run kept that repo's URLs, and `status`, `check` and `report` make no
   remote call for a repo no run kept, wherever they run: a first read is a run's alone. It pushes only a release a run took
-  to its release: the release ledger in the home folder holds each version's head from its release worker's start until its
-  push.
+  to its release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
+  authorizes nothing once it is on `origin`. The push check reads history in a clean scratch repo, through objects alone,
+  with replacement disabled; no worker-written ref, graft or `shallow` file reaches it.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points
@@ -73,6 +74,6 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
   leader must name an executor.
 - `0049·R15`, the LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
 - Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone.
-- A worker can forge a release on a head while that head's release runs: the ledger holds the head until its push. A dead
-  run's release a person pushes by hand keeps its entry until the person removes it.
+- A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
+  keeps its entry until a person removes it.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
