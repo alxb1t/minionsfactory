@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-02
+
+Gate: local 3m53s · CI 0m42s (CI at d897227) · 0.46.1: local 3m53s · CI 0m42s (CI at d897227)
+
+- `- **Ship loopback:** yes` in `AGENTS.md` lets a repo's Claude workers bind loopback, and a Codex station there
+  halts its version, because a gate that serves on `127.0.0.1` was red under every worker (change `0054-loopback`,
+  phase 1).
+- A loopback repo's run logs a `loopback` event per process of the operator's listening on loopback, from `lsof`, so
+  the exposure each run carries is on record; a root daemon's listener goes unlogged (change `0054-loopback`, phase 2).
+- Every worker starts with `VIRTUAL_ENV` unset, because the conductor's uv environment is not the worker's `.venv`,
+  and uv warned on every run (change `0054-loopback`, phase 3).
+- D51, `THREAT_MODEL.md` and `mf-ship` Step 3 state what `Ship loopback: yes` exposes, the threat model's *Out of
+  scope* accepting the class by name, and D15 carries the accepted-class exception converge already holds (change
+  `0054-loopback`, phase 4).
+- The escape drill proves a Claude worker binds loopback in a `Ship loopback: yes` repo and is refused a bind in a repo
+  without the line, and fails when Codex writes a trust entry, which it ignored before (change `0054-loopback`,
+  phase 5).
+
 ## [0.46.1] - 2026-11-02
 
 Gate: local 3m53s · CI 0m42s (CI at d897227) · 0.46.0: local 3m25s · CI 0m42s (CI at d897227)

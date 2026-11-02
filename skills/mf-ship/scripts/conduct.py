@@ -37,6 +37,7 @@ import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -52,7 +53,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept"),
+    *("push", "ledger", "unlock", "unkept", "loopback"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -64,6 +65,10 @@ EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
+# Why: 0054-loopback design D2.
+NEEDS_CLAUDE = (
+    "conduct: halt — AGENTS.md: Ship loopback needs Claude workers: {} names codex"
+)
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
@@ -143,8 +148,6 @@ HOOKS_OFF = (
 )
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
-# `AGENTS.md`'s `Ship tools:` values, then its `Ship network:` values.
-type ShipLines = tuple[list[str], list[str]]
 # The URLs git fetches `origin` from, then the ones it pushes to.
 type Urls = tuple[list[str], list[str]]
 # The only keys a repo's own config may hold: each starts no program under `NO_HOOKS`,
@@ -169,6 +172,14 @@ LFS_CONFIG = {
 # A URL git reaches over a network. Any other form runs a program on this machine: a
 # local path or `file://` runs that repo's hooks, and `<helper>::` runs the helper.
 NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
+
+
+class ShipLines(NamedTuple):
+    """`AGENTS.md`'s `Ship tools:` and `Ship network:` values; `Ship loopback: yes`."""
+
+    tools: list[str]
+    network: list[str]
+    loopback: bool
 
 
 class Stop(Exception):
@@ -309,16 +320,31 @@ def _after(text: str) -> list[str]:
     return re.findall(r"[^,\s]+", found[1]) if found else []
 
 
+def _agents_line(root: Path, key: str) -> str | None:
+    """Return the text after `AGENTS.md`'s `**<key>:**`, or None."""
+    path = root / "AGENTS.md"
+    if not path.is_file():
+        return None
+    found = re.search(rf"\*\*{key}:\*\*(.*)", path.read_text())
+    return found[1] if found else None
+
+
 def _agents_values(root: Path, key: str) -> list[str] | None:
     """Return the backticked values of `AGENTS.md`'s `**<key>:**` line, or None.
 
     e.g. "- **Ship tools:** `npm`, `pnpm`", "Ship tools" → ["npm", "pnpm"]
     """
-    path = root / "AGENTS.md"
-    if not path.is_file():
-        return None
-    found = re.search(rf"\*\*{key}:\*\*(.*)", path.read_text())
-    return re.findall(r"`([^`]+)`", found[1]) if found else None
+    line = _agents_line(root, key)
+    return None if line is None else re.findall(r"`([^`]+)`", line)
+
+
+def _agents_flag(root: Path, key: str) -> str | None:
+    """Return `AGENTS.md`'s `**<key>:**` text up to an optional ` — `, or None.
+
+    e.g. "- **Ship loopback:** yes — the gate serves", "Ship loopback" → "yes"
+    """
+    line = _agents_line(root, key)
+    return None if line is None else line.split(" — ", 1)[0].strip()
 
 
 @dataclass(frozen=True)
@@ -1388,10 +1414,11 @@ def reach(primary: Path) -> list[Path]:
 
 
 def ship_lines(primary: Path) -> ShipLines:
-    """Return `AGENTS.md`'s `Ship tools:` and `Ship network:` values.
+    """Return `AGENTS.md`'s `Ship tools:`, `Ship network:` and `Ship loopback:` lines.
 
-    A `Ship network:` value that is not a plain domain stops with 1.
-    Why: 0052-security-hardening design D2.
+    A `Ship network:` value that is not a plain domain stops with 1, and so does a
+    `Ship loopback:` other than `yes`. Why: 0052-security-hardening design D2;
+    0054-loopback design D1.
     """
     network = _agents_values(primary, "Ship network") or []
     for domain in network:
@@ -1399,7 +1426,13 @@ def ship_lines(primary: Path) -> ShipLines:
             raise Stop(
                 1, f"conduct: halt — AGENTS.md: Ship network {domain!r} is not a domain"
             )
-    return _agents_values(primary, "Ship tools") or [], network
+    loopback = _agents_flag(primary, "Ship loopback")
+    if loopback not in (None, "yes"):
+        raise Stop(
+            1, f"conduct: halt — AGENTS.md: Ship loopback {loopback!r} is not yes"
+        )
+    tools = _agents_values(primary, "Ship tools") or []
+    return ShipLines(tools, network, loopback == "yes")
 
 
 def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]]:
@@ -1424,13 +1457,55 @@ def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]
     return allowed, denied
 
 
+def _loopback_listeners() -> list[tuple[str, str]]:
+    """Return each of the operator's processes listening on loopback, with its address.
+
+    e.g. "ollama 101 … TCP 127.0.0.1:11434 (LISTEN)" → [("ollama", "127.0.0.1:11434")]
+    `lsof` without root names no other user's process, so a root daemon's listener is
+    not in the list; `netstat -v` names it, but prints no socket to a Python that is not
+    Apple's. Each pair comes once. An `lsof` that fails, or prints what does not parse,
+    gives ("lsof", "unavailable"). Why: 0054-loopback design D3.
+    """
+    unavailable = [("lsof", "unavailable")]
+    try:
+        done = subprocess.run(
+            ["lsof", "+c", "0", "-nP", "-iTCP", "-sTCP:LISTEN"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return unavailable
+    rows = done.stdout.splitlines()
+    if done.returncode == 1 and not rows:
+        return []
+    if done.returncode != 0 or not rows[0].startswith("COMMAND"):
+        return unavailable
+    found: list[tuple[str, str]] = []
+    for row in rows[1:]:
+        fields = row.split()
+        if len(fields) < 3 or fields[-1] != "(LISTEN)":
+            return unavailable
+        process, address = fields[0], fields[-2]
+        host = address.rpartition(":")[0]
+        if host in ("*", "[::1]") or host.startswith("127."):
+            found.append((process, address))
+    return list(dict.fromkeys(found))
+
+
 def worker_settings(
-    primary: Path, trees: list[Path], common: Path | None, network: list[str]
+    primary: Path,
+    trees: list[Path],
+    common: Path | None,
+    network: list[str],
+    loopback: bool,
 ) -> str:
     """Return the Claude worker's sandbox settings, as JSON.
 
-    A sandbox that cannot start ends the worker. Why: 0052-security-hardening design
-    D1 and 0053-sandbox-patch design D1.
+    A sandbox that cannot start ends the worker. `loopback` lets it bind and reach
+    every local service. Why: 0052-security-hardening design D1, 0053-sandbox-patch
+    design D1 and 0054-loopback design D1.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
@@ -1441,7 +1516,10 @@ def worker_settings(
         "credentials": {
             "envVars": [{"name": name, "mode": "deny"} for name in TOKENS],
         },
-        "network": {"allowedDomains": [*NETWORK, *network]},
+        "network": {
+            "allowedDomains": [*NETWORK, *network],
+            **({"allowLocalBinding": True} if loopback else {}),
+        },
     }
     return json.dumps({"sandbox": sandbox})
 
@@ -1468,16 +1546,16 @@ def argv(
     trees = reach(primary)
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
-        tools, network = lines or ship_lines(primary)
+        tools, network, loopback = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         return [
-            *("env", *HOOKS_OFF, cache),
+            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
-            *("--settings", worker_settings(primary, trees, common, network)),
+            *("--settings", worker_settings(primary, trees, common, network, loopback)),
             # A worker can write the project's settings and `.mcp.json`, and each
             # runs at a start, outside the sandbox.
             # Why: 0052-security-hardening design D1.
@@ -1491,7 +1569,7 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", *HOOKS_OFF, cache, path)
+    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, path)
     return [
         *env,
         *("codex", "exec"),
@@ -1800,7 +1878,8 @@ class Run:
         self.blocked: list[str] = []
         self.released: list[str] = []
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
-        self.lines: ShipLines = ([], [])
+        self.lines = ShipLines([], [], False)
+        self.held: dict[str, str] = {}
         self.guard = threading.Lock()
         self.merging = threading.Lock()
 
@@ -1972,6 +2051,8 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
+            if station := self.held.get(version.change):
+                raise Stop(1, NEEDS_CLAUDE.format(station))
             for station in STATIONS:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
@@ -1990,17 +2071,26 @@ class Run:
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models and `AGENTS.md`'s `Ship` lines, once.
 
-        A worker can write both. A table `_models` refuses stays out of the plan: its
-        version halts in `take`. Why: 0052-security-hardening design D4.
+        A worker can write both. A table `_models` refuses stays out of the plan, and
+        so does a loopback repo's version with a Codex station: each halts in `take`.
+        Why: 0052-security-hardening design D4; 0054-loopback design D2.
         """
         self.lines = ship_lines(self.primary)
+        if self.lines.loopback and self.executor == "codex":
+            raise Stop(1, NEEDS_CLAUDE.format("the run"))
         for version, station in itertools.product(versions, STATIONS):
             try:
-                self.plan[version.change, station] = _models(
+                models = _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
             except (Stop, ValueError):
                 continue
+            if self.lines.loopback and models[0] == "codex":
+                self.held.setdefault(version.change, station)
+            self.plan[version.change, station] = models
+        self.plan = {
+            key: models for key, models in self.plan.items() if key[0] not in self.held
+        }
 
     def executors(self) -> list[str]:
         """Return the run's executor, then each other one the plan names."""
@@ -2112,6 +2202,9 @@ class Run:
             self.halt("run", str(stop))
             self.log.event("run", "halt", self.closing())
             return 1
+        if self.lines.loopback:
+            for process, address in _loopback_listeners():
+                self.log.event("run", "loopback", f"{process} {address}")
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }

@@ -2116,6 +2116,16 @@ def test_no_worker_pushes(
     assert "remote.x.promisor" in capsys.readouterr().out
 
 
+_LSOF = """\
+COMMAND     PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+ollama      101 mf      3u  IPv4  0x1      0t0  TCP 127.0.0.1:11434 (LISTEN)
+ControlCenter 102 mf  10u  IPv4  0x2      0t0  TCP *:7000 (LISTEN)
+ControlCenter 102 mf  11u  IPv6  0x3      0t0  TCP *:7000 (LISTEN)
+redis-server 103 mf    6u  IPv6  0x4      0t0  TCP [::1]:6379 (LISTEN)
+sshd        104 mf      3u  IPv4  0x5      0t0  TCP 192.168.1.5:22 (LISTEN)
+"""
+
+
 def test_the_plan_is_read_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2123,6 +2133,14 @@ def test_the_plan_is_read_once(
     calls = fake("plant-network", "plant-executor")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    listening = tmp_path / "lsof"
+    listening.mkdir()
+    # Without `+c 0`, `lsof` cuts each name to nine characters.
+    cut = "awk 'NR > 1 { $1 = substr($1, 1, 9) } 1'"
+    cut = f"if [ \"$1 $2\" = '+c 0' ]; then cat; else {cut}; fi"
+    (listening / "lsof").write_text(f"#!/bin/sh\n{cut} <<'EOF'\n{_LSOF}EOF\n")
+    (listening / "lsof").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{listening}:{os.environ['PATH']}")
     started: list[tuple[object, ...]] = []
     argv = conduct["argv"]
 
@@ -2166,6 +2184,47 @@ def test_the_plan_is_read_once(
     assert _calls(calls) == []
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
     assert " · run · halt — conduct: halt — AGENTS.md: Ship network '*.example'" in log
+    runs = (root / ".minions" / "runs").glob("*.md")
+    assert not [run for run in runs if " · loopback — " in run.read_text()]
+
+    # Codex cannot bind with its network off, so a loopback repo holds its stations.
+    other = tmp_path / "loopback"
+    other.mkdir()
+    loopback = _primary(other, agents=_WORKTREES + "- **Ship loopback:** yes\n")
+    _version(loopback, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(loopback, "0002-marks", "- [ ] 1 — Marks\n")
+    (loopback / ".minions" / "models").mkdir(parents=True)
+    table = '[converge]\nexecutor = "codex"\n'
+    (loopback / ".minions" / "models" / "0002-marks.toml").write_text(table)
+    calls = fake()
+    assert (
+        _main(conduct, loopback, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    seen = _calls(calls)
+    assert seen.count("probe") == 1
+    assert "release 0001-todo" in seen
+    assert not [call for call in seen if call.endswith("0002-marks")]
+    held = "conduct: halt — AGENTS.md: Ship loopback needs Claude workers"
+    log = _log(loopback)
+    assert f" · 0002-marks · halt — {held}: converge names codex" in "\n".join(log)
+    assert log[-1].endswith(
+        " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
+    )
+    assert [line.split(" · ", 1)[1] for line in log if " · loopback — " in line] == [
+        "run · loopback — ollama 127.0.0.1:11434",
+        "run · loopback — ControlCenter *:7000",
+        "run · loopback — redis-server [::1]:6379",
+    ]
+    (listening / "lsof").write_text("#!/bin/sh\nexit 2\n")
+    assert conduct["_loopback_listeners"]() == [("lsof", "unavailable")]
+    calls.unlink()
+    assert (
+        _main(conduct, loopback, "run", "--executor", "codex", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    assert f" · run · halt — {held}: the run names codex" in "\n".join(_log(loopback))
 
 
 def test_a_commit_during_a_run_halts_before_integrate(
@@ -2247,8 +2306,8 @@ def test_no_hook_runs_in_a_worker(
     repo = (root, root / ".git")
     for executor in conduct["EXECUTORS"]:
         command = conduct["argv"](executor, "Do it.", root, None, None, repo)
-        assert command[0] == "env"
-        pairs = dict(arg.split("=", 1) for arg in command[1 : size + 1])
+        assert command[:3] == ["env", "-u", "VIRTUAL_ENV"]
+        pairs = dict(arg.split("=", 1) for arg in command[3 : size + 3])
         assert not fires(pairs)
         assert fires({})
 
@@ -2703,6 +2762,26 @@ def test_a_claude_worker_starts_in_the_sandbox(
     command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
     assert command[command.index("--setting-sources") + 1] == "user"
 
+    # The conductor's uv environment is not the worker's `.venv`.
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
+    for executor in ("claude", "codex"):
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+        prefix = command[: command.index(executor)]
+        shown = subprocess.run([*prefix, "env"], capture_output=True, text=True)
+        assert "UV_CACHE_DIR=" in shown.stdout
+        assert "VIRTUAL_ENV=" not in shown.stdout
+
+    # Loopback reaches every local service, so a repo opts in by name.
+    (root / "AGENTS.md").write_text("- **Ship loopback:** yes — the gate serves\n")
+    assert settings()["sandbox"]["network"]["allowLocalBinding"] is True
+    (root / "AGENTS.md").write_text("- **Ship loopback:** maybe\n")
+    with pytest.raises(conduct["Stop"]) as stop:
+        settings()
+    assert stop.value.code == 1
+    assert (
+        str(stop.value) == "conduct: halt — AGENTS.md: Ship loopback 'maybe' is not yes"
+    )
+
     for value in ("*.example.com", "example.com/simple", "https://example.com"):
         (root / "AGENTS.md").write_text(f"- **Ship network:** `{value}`\n")
         with pytest.raises(conduct["Stop"]) as stop:
@@ -2803,8 +2882,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     hooks_off = list(conduct["HOOKS_OFF"])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
-    assert claude[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
-    claude = claude[len(hooks_off) + 2 :]
+    unset = ["env", "-u", "VIRTUAL_ENV"]
+    assert claude[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
+    claude = claude[len(hooks_off) + 4 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -2880,8 +2960,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    assert codex[: len(hooks_off) + 2] == ["env", *hooks_off, cache]
-    codex = codex[len(hooks_off) + 2 :]
+    assert codex[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
+    codex = codex[len(hooks_off) + 4 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
