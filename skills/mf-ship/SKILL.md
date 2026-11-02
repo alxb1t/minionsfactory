@@ -91,7 +91,8 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 `.minions/runs/detached.log` → Step 4; missing with no new line → **halt**, pasting that log's last lines.
 
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
-names, with no permission prompt. `conduct.py` holds the push.
+names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
+out refused. `conduct.py` holds the push.
 Converge runs MF's method at the tier the cut chose.
 
 ## Step 4 — Report, then stop

@@ -10,7 +10,7 @@ threat-model text is the design's, word for word.
 - [x] 3 — The release ledger
 - [x] 4 — The stale lock
 - [x] 5 — The cards
-- [ ] 6 — The record
+- [x] 6 — The record
 - [ ] 7 — The proof
 
 ## 1 — The Codex project config
@@ -73,12 +73,12 @@ threat-model text is the design's, word for word.
 
 ## 6 — The record
 
-- [ ] 6.1 Edit `THREAT_MODEL.md` per [D5](design.md#d5).
+- [x] 6.1 Edit `THREAT_MODEL.md` per [D5](design.md#d5).
   Verify: `grep -c 'credentials denied on Claude' THREAT_MODEL.md` prints `1`, `grep -c 'anchors included' THREAT_MODEL.md`
   prints `1`, and `grep -c 'does not block on it' THREAT_MODEL.md` prints `0`.
-- [ ] 6.2 Amend D51 and D47 in `docs/decisions.md`, per [D5](design.md#d5).
+- [x] 6.2 Amend D51 and D47 in `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `grep -c 'by a ledger there' docs/decisions.md` prints `1`, and `grep -c 'Ship tools:. names runs' docs/decisions.md` prints `1`.
-- [ ] 6.3 Edit `skills/mf-converge/SKILL.md`'s anchor rule, `skills/mf-converge/references/generic-security.md` and
+- [x] 6.3 Edit `skills/mf-converge/SKILL.md`'s anchor rule, `skills/mf-converge/references/generic-security.md` and
   `skills/mf-ship/SKILL.md` Step 3, per [D5](design.md#d5).
   Verify: `grep -c 'anchors included' skills/mf-converge/SKILL.md` prints `1`, `grep -c 'never blocking' skills/mf-converge/references/generic-security.md`
   prints `1`, and `grep -c 'sandbox cannot start does not run' skills/mf-ship/SKILL.md` prints `1`.

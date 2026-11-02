@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The run's start line says `permissions: sandbox`, a push waits 30 minutes, a changed git config names its file, a
   home folder that refuses the kept URLs is logged, and `mf-release` says `conduct.py` pushes under `merge=yes`: the
   `0052` cards whose triggers fire here (change `0053-sandbox-patch`, phase 5).
+- `THREAT_MODEL.md`, D47 and D51 state the boundary a run holds, and a route in the threat model's accepted class is carded
+  without blocking, anchors included, because the anchor rule had blocked on what the person accepted (change
+  `0053-sandbox-patch`, phase 6).
 
 ## [0.46.0] - 2026-11-02
 

@@ -15,7 +15,8 @@ missing or unusable → halt, naming it.
 
 1. **The threat model first**: what is worth protecting, the trust boundaries, the entry points, what is out of
    scope. Read it at the base too, and card any change the range makes to it as a finding to weigh, never as a
-   settled bar. Missing, or `Not written yet:` → this section is `inconclusive`; check the classes below anyway.
+   settled bar. A route in a class its *Out of scope* accepts by name is carded, never blocking, per the contract's
+   anchors. Missing, or `Not written yet:` → this section is `inconclusive`; check the classes below anyway.
 2. **Trace each input that crosses a boundary into a sink**, with the existing defences on the way. Classes:
    injection — SQL, shell, template, path traversal; authentication, authorization and IDOR; crypto misuse and
    secrets; deserialization and `eval`; data exposure; SSRF; **model output trusted as input** — written to a sink

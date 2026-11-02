@@ -317,6 +317,8 @@ tier, and a station writing `verdict: clean` must leave it at zero — its oblig
 **Anchors always block.** An **anchor** is a harm class: data loss or an irreversible delete, spend, exposure of
 personal data or secrets, silent wrong output. An anchored finding is `blocking` in review and at least `high` in
 security, so the loop fixes it instead of deferring it. Outside the anchors, the grade is the station's.
+Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded and does not block,
+anchors included.
 
 **Status is `open → fixed → verified`, and only the checker converges.**
 
