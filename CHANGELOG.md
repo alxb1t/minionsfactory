@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-02
+
+Gate: local 3m53s · CI 0m42s (CI at d897227) · 0.46.1: local 3m53s · CI 0m42s (CI at d897227)
+
 - `- **Ship loopback:** yes` in `AGENTS.md` lets a repo's Claude workers bind loopback, and a Codex station there
   halts its version, because a gate that serves on `127.0.0.1` was red under every worker (change `0054-loopback`,
   phase 1).
