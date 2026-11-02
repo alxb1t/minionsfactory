@@ -11,7 +11,7 @@ threat-model text is the design's, word for word.
 - [x] 4 — The stale lock
 - [x] 5 — The cards
 - [x] 6 — The record
-- [ ] 7 — The proof
+- [x] 7 — The proof
 
 ## 1 — The Codex project config
 
@@ -85,9 +85,9 @@ threat-model text is the design's, word for word.
 
 ## 7 — The proof
 
-- [ ] 7.1 Run `Run.probe` on each executor in `tests/escape_drill.py`, per [D7](design.md#d7).
+- [x] 7.1 Run `Run.probe` on each executor in `tests/escape_drill.py`, per [D7](design.md#d7).
   Verify: `grep -c 'probe: held' tests/escape_drill.py` prints a number above `0`.
-- [ ] 7.2 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output over
+- [x] 7.2 **HALT CHECK** Run `uv run --script tests/escape_drill.py`, and write its output over
   `openspec/changes/0053-sandbox-patch/evidence/escape.md`, per [D7](design.md#d7).
   Verify: `grep -c -E '^(claude|codex) probe: held' openspec/changes/0053-sandbox-patch/evidence/escape.md` prints `2`, and
   `grep -c -E '^claude (worker|subagent): held' openspec/changes/0053-sandbox-patch/evidence/escape.md` prints a number above `1`.

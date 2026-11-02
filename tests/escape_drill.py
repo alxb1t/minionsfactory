@@ -376,6 +376,30 @@ def _escapes(primary: Path, executor: str) -> bool:
     return home and all(held) and code == 0
 
 
+def _probe(primary: Path, executor: str) -> bool:
+    """Run a run's probe on `executor`; print its line, return whether it held.
+
+    Why: 0053-sandbox-patch design D7.
+    """
+    # The probe's worker inherits this process's environment.
+    for key in ("CLAUDECODE", "MF_SHIP_AGENT"):
+        os.environ.pop(key, None)
+    run = runpy.run_path(str(CONDUCT))["Run"](primary, executor)
+    # The worker's group goes in the claim, as in a run.
+    claim = run.runs / "active"
+    claim.mkdir()
+    try:
+        run.probe(executor)
+    finally:
+        shutil.rmtree(claim)
+    if run.halts:
+        said = " · ".join(why for _, why in run.halts)
+        print(f"{executor} probe: failed — {said}", flush=True)
+        return False
+    print(f"{executor} probe: held", flush=True)
+    return True
+
+
 def _converge(primary: Path) -> bool:
     """Run a Codex converge on a one-line change; return whether it ends clean."""
     tree = _cut(primary)
@@ -398,11 +422,12 @@ def main() -> int:
         config = _codex_config(primary)
         _control(primary)
         held = [_escapes(primary, executor) for executor in HELD]
+        probed = [_probe(primary, executor) for executor in HELD]
         converged = _converge(primary)
     except (FailedError, subprocess.SubprocessError) as error:
         print(f"drill: failed — {error}", flush=True)
         return 1
-    if config and all(held) and converged:
+    if config and all(held) and all(probed) and converged:
         shutil.rmtree(PROBE)
         return 0
     return 1

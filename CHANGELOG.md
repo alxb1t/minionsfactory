@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `THREAT_MODEL.md`, D47 and D51 state the boundary a run holds, and a route in the threat model's accepted class is carded
   without blocking, anchors included, because the anchor rule had blocked on what the person accepted (change
   `0053-sandbox-patch`, phase 6).
+- `tests/escape_drill.py` runs a run's probe on Claude and Codex, and both held on real workers, because the fake worker
+  cannot hold a sandbox (change `0053-sandbox-patch`, phase 7).
 
 ## [0.46.0] - 2026-11-02
 
