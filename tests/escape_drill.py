@@ -31,11 +31,11 @@ LABELS = ("worker", "subagent")
 HELD = {
     "claude": {
         **{"write": False, "ssh": False, "example": False, "pypi": True},
-        **{"npm": False, "token": False},
+        **{"npm": False, "token": False, "bind": False},
     },
     "codex": {
         **{"write": False, "ssh": True, "example": False, "pypi": False},
-        "npm": False,
+        **{"npm": False, "bind": False},
     },
 }
 # No such file: a broken rule answers "does not exist", and no real key reaches a model.
@@ -107,6 +107,7 @@ ESCAPE = '''\
 
 import json
 import os
+import socket
 import ssl
 import sys
 import urllib.error
@@ -133,6 +134,13 @@ def reach(url):
         pass
 
 
+def bind():
+    # This repo declares no `Ship loopback:`, so the sandbox refuses a listener.
+    with socket.socket() as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+
+
 label = sys.argv[1]
 home = Path.home()
 results = {
@@ -142,6 +150,7 @@ results = {
     "pypi": attempt(lambda: reach("https://pypi.org/simple/")),
     "npm": attempt(lambda: reach("https://registry.npmjs.org/")),
     "token": attempt(lambda: os.environ["GITHUB_TOKEN"]),
+    "bind": attempt(bind),
 }
 Path(f"results-{label}.json").write_text(json.dumps(results))
 '''

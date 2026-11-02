@@ -2119,9 +2119,9 @@ def test_no_worker_pushes(
 _LSOF = """\
 COMMAND     PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
 ollama      101 mf      3u  IPv4  0x1      0t0  TCP 127.0.0.1:11434 (LISTEN)
-ControlCe   102 mf     10u  IPv4  0x2      0t0  TCP *:7000 (LISTEN)
-ControlCe   102 mf     11u  IPv6  0x3      0t0  TCP *:7000 (LISTEN)
-redis       103 mf      6u  IPv6  0x4      0t0  TCP [::1]:6379 (LISTEN)
+ControlCenter 102 mf  10u  IPv4  0x2      0t0  TCP *:7000 (LISTEN)
+ControlCenter 102 mf  11u  IPv6  0x3      0t0  TCP *:7000 (LISTEN)
+redis-server 103 mf    6u  IPv6  0x4      0t0  TCP [::1]:6379 (LISTEN)
 sshd        104 mf      3u  IPv4  0x5      0t0  TCP 192.168.1.5:22 (LISTEN)
 """
 
@@ -2135,7 +2135,10 @@ def test_the_plan_is_read_once(
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     listening = tmp_path / "lsof"
     listening.mkdir()
-    (listening / "lsof").write_text(f"#!/bin/sh\ncat <<'EOF'\n{_LSOF}EOF\n")
+    # Without `+c 0`, `lsof` cuts each name to nine characters.
+    cut = "awk 'NR > 1 { $1 = substr($1, 1, 9) } 1'"
+    cut = f"if [ \"$1 $2\" = '+c 0' ]; then cat; else {cut}; fi"
+    (listening / "lsof").write_text(f"#!/bin/sh\n{cut} <<'EOF'\n{_LSOF}EOF\n")
     (listening / "lsof").chmod(0o755)
     monkeypatch.setenv("PATH", f"{listening}:{os.environ['PATH']}")
     started: list[tuple[object, ...]] = []
@@ -2210,8 +2213,8 @@ def test_the_plan_is_read_once(
     )
     assert [line.split(" · ", 1)[1] for line in log if " · loopback — " in line] == [
         "run · loopback — ollama 127.0.0.1:11434",
-        "run · loopback — ControlCe *:7000",
-        "run · loopback — redis [::1]:6379",
+        "run · loopback — ControlCenter *:7000",
+        "run · loopback — redis-server [::1]:6379",
     ]
     (listening / "lsof").write_text("#!/bin/sh\nexit 2\n")
     assert conduct["_loopback_listeners"]() == [("lsof", "unavailable")]

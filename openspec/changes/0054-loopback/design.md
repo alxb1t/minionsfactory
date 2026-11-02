@@ -68,10 +68,10 @@ it keeps a refused table out, and records the station. `take` halts that version
 
 ### D3
 
-`_loopback_listeners()` runs `lsof -nP -iTCP -sTCP:LISTEN` and returns each `(process, address)` whose address is on
-`127.0.0.0/8`, `[::1]` or `*`, once each. `lsof` failing → one entry, `("lsof", "unavailable")`. `Run.ship`, after
-`read_plan`, when `self.lines.loopback` is true, logs `self.log.event("run", "loopback", f"{process} {address}")` per entry.
-`EVENTS` gains `loopback`. Nothing halts.
+`_loopback_listeners()` runs `lsof +c 0 -nP -iTCP -sTCP:LISTEN`, whose `+c 0` keeps each name whole (converge round 1,
+`R2`), and returns each `(process, address)` whose address is on `127.0.0.0/8`, `[::1]` or `*`, once each. `lsof` failing →
+one entry, `("lsof", "unavailable")`. `Run.ship`, after `read_plan`, when `self.lines.loopback` is true, logs
+`self.log.event("run", "loopback", f"{process} {address}")` per entry. `EVENTS` gains `loopback`. Nothing halts.
 
 `lsof` without root names the operator's processes alone, so a root daemon's listener, Tailscale's on the measuring machine,
 goes unlogged, and the record says so. `netstat -anv -p tcp` names every owner's listener, but measured 2026-11-02 it printed
@@ -110,6 +110,8 @@ Both executors' `env` prefixes become `("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, 
 - A **loopback row**: in a scratch repo whose `AGENTS.md` declares `Ship loopback: yes`, a Claude worker through `argv` runs a
   script that binds `127.0.0.1`, listens, and connects to its own port. It prints `claude loopback: bound` when both succeed,
   else `claude loopback: failed — <reason>`, and `main` needs it.
+- A **bind** in `ESCAPE`: the primary declares no `Ship loopback:`, so each worker's and subagent's bind and listen on
+  `127.0.0.1` is held when refused, on both executors (converge round 1, `R3`).
 - **`0053·R2`**: the Codex step's result moves into `_codex_held(twin, loaded, written)`, true only for a loaded twin, an
   unloaded plant and no written entry; `_codex_config` returns it.
 
@@ -128,8 +130,9 @@ integration tests; none is end-to-end, and none runs on an engine.
 | test | change | holds |
 |---|---|---|
 | `test_a_claude_worker_starts_in_the_sandbox` | edited | D1: a repo with the line gives `allowLocalBinding: true`, one without has no key, `Ship loopback: maybe` halts; D4: neither executor's command sets `VIRTUAL_ENV` |
-| `test_the_plan_is_read_once` | edited | D2: a Codex station in a loopback repo halts its version and the other goes on; D3: the run's log holds a `loopback` event per listener from a fake `lsof` on `PATH`, and none without the line |
+| `test_the_plan_is_read_once` | edited | D2: a Codex station in a loopback repo halts its version and the other goes on; D3: the run's log holds a `loopback` event per listener from a fake `lsof` on `PATH`, each named whole, and none without the line |
 | `test_codex_held` in `tests/test_escape_drill.py` | added | D6: `_codex_held` is false when the twin did not load, the plant loaded, or an entry was written |
+| `test_judged` in `tests/test_escape_drill.py` | added | D6: a worker's line in the primary fails on a bind that passed (converge round 1, `R3`) |
 
 Each guard's twin is a step in its own test, per `T6`. None is deleted or merged.
 

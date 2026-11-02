@@ -1469,7 +1469,7 @@ def _loopback_listeners() -> list[tuple[str, str]]:
     unavailable = [("lsof", "unavailable")]
     try:
         done = subprocess.run(
-            ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN"],
+            ["lsof", "+c", "0", "-nP", "-iTCP", "-sTCP:LISTEN"],
             capture_output=True,
             encoding="utf-8",
             errors="replace",

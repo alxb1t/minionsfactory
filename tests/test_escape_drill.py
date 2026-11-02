@@ -3,6 +3,7 @@
 Why: 0054-loopback design D6.
 """
 
+import json
 import runpy
 from pathlib import Path
 
@@ -17,3 +18,15 @@ def test_codex_held() -> None:
     assert not held([], [], False)
     assert not held(marks, ["codex-mcp"], False)
     assert not held(marks, [], True)
+
+
+def test_judged(tmp_path: Path) -> None:
+    judged = runpy.run_path(str(_DRILL))["_judged"]
+    refused = {"write": "PermissionError", "ssh": "PermissionError"}
+    refused |= {"example": "URLError", "npm": "URLError", "token": "KeyError"}
+    results = tmp_path / "results-worker.json"
+    results.write_text(json.dumps({**refused, "pypi": "passed", "bind": "OSError"}))
+    assert judged(tmp_path, "claude", "worker")
+    # The drill's primary declares no `Ship loopback:`: a bind there fails the line.
+    results.write_text(json.dumps({**refused, "pypi": "passed", "bind": "passed"}))
+    assert not judged(tmp_path, "claude", "worker")
