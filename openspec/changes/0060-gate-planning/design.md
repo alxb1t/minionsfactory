@@ -38,8 +38,8 @@ diff passes with no rewrite; a branch still cannot approve itself.
 |---|---|---|---|
 | [D1](#d1) | One halt lists every unquoted line, the rule, the cut commit and the way out | the report: the first halt named a file and hid the second requirement | two halts in turn |
 | [D2](#d2) | `I18`, and `gate_check.py --tasks` run by the cut | the approval is the person's, at the cut, in a form the check reads | a rule in prose alone |
-| [D3](#d3) | The build runs the check on the staged tree before a gate-makefile phase commit | a bad quote costs a phase, not the build | a check after the commit |
-| [D4](#d4) | `approve-gate`: the diff's hash in the home folder | no worker writes there; a later edit changes the hash | an approval on the branch |
+| [D3](#d3) | The build runs the check on the staged tree before every phase's tick | a bad quote costs a phase, not the build; a halt leaves the box unticked | a check after the commit · after the tick · on `Makefile` and `*.mk` names alone |
+| [D4](#d4) | `approve-gate`: the hash a halt names, in the home folder | no worker writes there; a later edit or a moved line changes the hash; the conductor runs no worker's makefile | an approval on the branch · a conductor that runs the check |
 | [D5](#d5) | The record and the ride-alongs | `0055·R3`'s trigger fires; the release names a station that is gone | — |
 
 ### D1
@@ -51,11 +51,13 @@ gate: halt — the branch changes the gate, and no cut task quotes these lines:
   added: Makefile: setup:
   removed: Makefile: .PHONY: gate browsers drift derive
 The dry run is unchanged. A planning task names `Makefile` and `gate` in backticks and quotes each line, in the
-cut commit <sha>. A person approves this diff with /mf-ship approve-gate <change-id>.
+cut commit <sha>. A person approves this diff with /mf-ship approve-gate <change-id> <hash>.
 ```
 
 "The dry run is unchanged" becomes "The dry run changed" with the diff below it when it did. With a planning task, the same list
-reads "no cut task quotes" for its unquoted lines.
+reads "no cut task quotes" for its unquoted lines. With none, the list also holds each line the head's dry run adds,
+`added to the dry run: <line>`, then each touched makefile, `changed: <name>`, else `changed: the dry run`: a change with no
+plan never passes as planned.
 
 ### D2
 
@@ -70,24 +72,31 @@ is indented and not blank, so a blank line inside the block ends the task, as to
 
 ### D3
 
-`gate_check.py` gains `--head <tree-ish>`, `HEAD` by default; `read_side` exports it as it exports `HEAD`. `mf-build` Step 2,
-before item 6's commit, when `git diff --cached --name-only` names `Makefile` or a `*.mk` file: run `git write-tree`, then
+`gate_check.py` gains `--head <tree-ish>`, `HEAD` by default; `read_side` exports it as it exports `HEAD`. `mf-build` Step 2
+item 5, every phase, before it ticks the box: stage the phase's paths by name, run `git write-tree`, then
 `uv run --script <mf-converge's package>/scripts/gate_check.py --change <change-id> --base <merge-base> --head <the tree>`.
-Exit 1 → **halt**, committing nothing, copying the halt. Exit 2 → **halt**, naming the side.
+Exit 1 → **halt**, ticking and committing nothing, copying the halt. Exit 2 → **halt**, naming the side. Every phase, since a gate
+makefile is whatever make reads, a `GNUmakefile` or an included `rules.inc` among them; a phase that moves none prints
+`gate: no unplanned change`. Before the tick, so a halt leaves the box unticked and the start table's dirty-tree row continues the
+phase.
 
 ### D4
 
-`gate_check.py --digest` prints the hash of what it reads: sha256 over the edits, one `kind name text` line each, sorted, then
-the dry runs' diff. `check` passes, "gate: approved — <hash>", when
+The hash of what the check reads is sha256 over each affected gate makefile's unified diff, its raw lines with their line
+numbers, then the dry runs' diff: a line moved or re-indented after the approval changes it, where the stripped edits stay
+equal. Each halt names it in its way out, `/mf-ship approve-gate <change-id> <hash>`, so the diff a person reads and the hash
+come from one run; `gate_check.py --digest` prints it alone. `check` passes, "gate: approved — <hash>", when
 `~/.mf-ship-origin/<digest>.gate/<change-id>` holds that hash, `<digest>` the primary's, computed as `conduct.py`'s `_digest`
 does. A test holds the two computations equal.
 
-`conduct.py approve-gate <change-id>`: from the primary, runs the check's `--digest` and its halt text for the version's tree,
-and prints them; with `--yes <hash>`, when the hash still matches, writes the file `0o600`, its folder `0o700`. Run under the
-sandbox, the write fails, and the command says so. `skills/mf-ship/SKILL.md`'s parameters gain the row
-"`approve-gate <change-id>` | `conduct.py approve-gate <change-id>`; show its diff and hash; on the person's yes,
-`conduct.py approve-gate <change-id> --yes <hash>`; then Step 4". Converge's precondition 6 and the release's text name the
-approval.
+`conduct.py approve-gate <change-id> --yes <hash>`: from the primary, refuses a `<hash>` that is not 64 hex digits, else writes
+the file `0o600`, its folder `0o700`. It runs no make, and no check: it runs outside the sandbox, to write the home folder, and
+`make -n` on a branch still runs the `$(shell …)` a worker wrote. The check runs where make already runs, in converge's and the
+build's own workers, inside their sandbox; a hash no later check computes approves nothing, so a stale or mistyped one fails
+closed. A build's halt on its staged tree names that tree's hash, which its commit keeps. Run under the sandbox, the write fails,
+and the command says so. `skills/mf-ship/SKILL.md`'s parameters gain the row "`approve-gate <change-id> <hash>` | the person's
+yes to the gate check's halt that named `<hash>` … `conduct.py approve-gate <change-id> --yes <hash>`". Converge's
+precondition 6 and the release's text name the approval.
 
 ### D5
 
@@ -108,8 +117,9 @@ tests/test_gate_check.py` prints `13`. All unit or integration; none end-to-end.
 | `test_a_halt_lists_every_unquoted_line` | added, `tests/test_gate_check.py` | D1: no planning task, a `setup` target and a `.PHONY` edit: one halt names both lines, the cut commit and `approve-gate` |
 | `test_a_bare_makefile_task_fails_the_plan_check` | added, `tests/test_gate_check.py` | D2: `--tasks` exits 1 on gpunit `0017`'s original task 1.6, and 0 on the same task with its `diff` block |
 | `test_a_staged_tree_is_checked` | added, `tests/test_gate_check.py` | D3: `--head <tree>` halts on an unquoted staged line, passes a quoted one |
-| `test_an_approval_passes_until_the_diff_moves` | added, `tests/test_gate_check.py` | D4: an approval of the hash passes; one more edit halts; an approval written in the repository approves nothing |
-| `test_approve_gate_records_the_hash` | added, `tests/test_conduct.py` | D4: `approve-gate --yes <hash>` writes the file; a stale hash refuses; the digest equals `gate_check.py`'s |
+| `test_an_approval_passes_until_the_diff_moves` | added, `tests/test_gate_check.py` | D4: an approval of the hash passes; the halt names the hash; one more edit halts; a line moved after the approval halts; an approval written in the repository approves nothing |
+| `test_approve_gate_records_the_hash` | added, `tests/test_conduct.py` | D4: `approve-gate --yes <hash>` writes the hash the halt names and runs none of the branch's makefile; a malformed hash refuses; the digest equals `gate_check.py`'s; a staged tree's hash approves that tree |
+| `test_an_include_changed_on_the_branch_halts` | extended, `tests/test_gate_check.py` | D1: with no planning task, a dry run that only gains a line halts, naming it |
 | `tests/test_skills.py` | unchanged | `I18` in both contract tables keeps the id sets equal |
 
 None is deleted or merged. Each guard's twin is in its own test, per `T6`.
@@ -124,6 +134,11 @@ None.
 - **The approval reads the home folder** from a converge worker's sandbox, which denies only `SECRETS`; a reading Codex worker
   sees it too, and can write none.
 - **Two `_digest`s** in two scripts; the test holds them equal.
+- **The person reads a halt a worker relayed.** The check that names the hash runs inside a worker's sandbox, and a hostile worker
+  can report a benign diff beside another diff's hash, as a hostile makefile can already rewrite what the check reads. That is
+  the threat model's accepted class, a worker steering through what it writes; D51's threat is a confused agent, and a hostile
+  repo needs a container. In exchange, the unsandboxed conductor runs no worker's code.
+- **A check before every phase** costs each phase two exports and two dry runs.
 
 ## Verdict
 

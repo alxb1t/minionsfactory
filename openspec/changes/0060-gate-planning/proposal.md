@@ -24,8 +24,8 @@ rewrote every commit from the cut. The sandbox made such edits common: every tar
 - **`I18`**: a cut task that names a gate makefile names `` `gate` `` and quotes its lines in a `diff` block; the cut runs the
   check's own parser and refuses the bare form.
 - **The build checks a gate change at its phase**, before the phase's commit.
-- **`/mf-ship approve-gate <change-id>`**: the person's yes, bound to the hash of the exact diff, kept in the home folder,
-  passes the check with no rewrite.
+- **`/mf-ship approve-gate <change-id> <hash>`**: the person's yes, bound to the hash of the exact diff the halt named, kept
+  in the home folder, passes the check with no rewrite.
 - **Ride-along**: `mf-release`'s `Next:` names `/mf-plan`; the station diagrams say `plan`; `0055·R3`'s start-row fix.
 
 ## Capabilities

@@ -12,7 +12,7 @@
     conduct.py grant <change-id> --executor claude|codex
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
-    conduct.py approve-gate <change-id> [--yes <hash>]
+    conduct.py approve-gate <change-id> --yes <hash>
 
 Exit 0 done · 1 halt · 2 cannot run. Every stage and check is read from git and
 the run directory, so a re-run derives them again.
@@ -47,11 +47,11 @@ PUSH_TIMEOUT = 1800
 LOCK_SECONDS = 30
 LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
-GATE_CHECK = Path(__file__).resolve().parents[2] / "mf-converge/scripts/gate_check.py"
 MOVED = "delta: changed on the default branch: "
 # A started build's gate and rules: changed since its base, they halt it.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
+SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
@@ -2398,45 +2398,20 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     return run(cwd, executor, True)
 
 
-def _gate_check(
-    tree: Path, change: str, *flags: str
-) -> subprocess.CompletedProcess[str]:
-    """Return the gate check's run in the version's tree, against its base."""
-    base = _git(tree, "merge-base", default_branch(tree), "HEAD").strip()
-    argv = [sys.executable, str(GATE_CHECK), "--change", change, "--base", base]
-    return subprocess.run(
-        [*argv, *flags],
-        cwd=tree,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "GIT_NO_LAZY_FETCH": "1"},
-    )
+def approve_gate(cwd: Path, change: str, hashed: str) -> str:
+    """Record the hash a gate check's halt named, as a person's yes to that diff.
 
-
-def approve_gate(cwd: Path, change: str, yes: str | None) -> str:
-    """Show a version's gate halt and its hash; with `yes`, record that hash.
-
-    The record is the person's, in the home folder, where no worker writes.
+    The record is the person's, in the home folder, where no worker writes. It runs
+    no make: this process is outside the sandbox, and a branch's makefile is code a
+    worker wrote. A hash no check reads approves nothing.
     Why: 0060-gate-planning design D4.
     """
     primary = primary_of(cwd)
     version = find_version(primary, change)
     if version is None or version.tree is None:
         raise Stop(2, f"approve-gate: cannot run — no version worktree holds {change}")
-    digest = _gate_check(version.tree, change, "--digest")
-    if digest.returncode != 0:
-        raise Stop(2, f"approve-gate: cannot run — {digest.stdout.strip()}")
-    hashed = digest.stdout.strip()
-    if yes is None:
-        shown = _gate_check(version.tree, change)
-        if shown.returncode == 2:
-            raise Stop(2, f"approve-gate: cannot run — {shown.stdout.strip()}")
-        return (
-            f"{shown.stdout.rstrip()}\napprove-gate: {hashed} — on the person's yes, "
-            f"conduct.py approve-gate {change} --yes {hashed}"
-        )
-    if yes != hashed:
-        raise Stop(1, f"approve-gate: refused — the diff moved: {yes} is not {hashed}")
+    if not SHA256.fullmatch(hashed):
+        raise Stop(1, f"approve-gate: refused — not the hash a halt names: {hashed}")
     folder = Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.gate"
     try:
         folder.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -2628,7 +2603,7 @@ def main(argv_: list[str] | None = None) -> int:
     commands.add_parser("report", help="the last run's close-out lines")
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
-    approving.add_argument("--yes", metavar="hash")
+    approving.add_argument("--yes", required=True, metavar="hash")
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:

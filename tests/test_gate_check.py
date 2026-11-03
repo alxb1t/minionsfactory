@@ -6,6 +6,7 @@ Why: 0034-gate-recipe-hardening design D1…D4.
 
 import hashlib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -119,6 +120,18 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     assert not _halted(result, "dropped: false"), result.stdout
     assert "\nThe dry run changed:\n" in result.stdout
     assert "\n-false\n+true" in result.stdout
+
+    # With no plan, a dry run that only gains a line, no makefile edited, halts too.
+    gained = tmp_path / "gained"
+    files = {
+        "Makefile": "EXTRA := $(shell cat extra.txt)\ngate:\n\techo a\n\t$(EXTRA)\n"
+    }
+    base = _branch(
+        gained, {**files, "extra.txt": ""}, _UNPLANNED, {"extra.txt": "echo b\n"}
+    )
+    result = _check(gained, base)
+    assert not _halted(result, "added to the dry run: echo b"), result.stdout
+    assert "\n+echo b" in result.stdout
 
     # Preserve the names Git tracks when make follows an include symlink, including
     # a parent directory, or Git would quote the filename in line-based output.
@@ -299,7 +312,9 @@ def test_a_halt_lists_every_unquoted_line(tmp_path: Path) -> None:
         result.stdout
     )
     assert f"each line, in the cut commit {cut}. " in result.stdout
-    assert result.stdout.endswith(f"/mf-ship approve-gate {_CHANGE}.\n")
+    assert re.search(
+        f"/mf-ship approve-gate {_CHANGE} [0-9a-f]{{64}}\\.\n$", result.stdout
+    )
 
     # A planning task's quoted line leaves the list; the rest stays in the one halt.
     quoted = tmp_path / "quoted"
@@ -457,7 +472,10 @@ def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
         entry.parent.mkdir(parents=True)
         entry.write_text(f"{hashed}\n")
     _commit(root, {f".mf-ship-origin/{digest}.gate/x": f"{hashed}\n"}, "claim")
-    assert not _halted(_check(root, base, env), "added: Makefile: .IGNORE:")
+    unapproved = _check(root, base, env)
+    assert not _halted(unapproved, "added: Makefile: .IGNORE:"), unapproved.stdout
+    # The halt names the hash it read, so the person approves what it showed.
+    assert unapproved.stdout.endswith(f"approve-gate {_CHANGE} {hashed}.\n")
 
     entry = home / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
     entry.parent.mkdir(parents=True)
@@ -469,6 +487,22 @@ def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
     _commit(root, {"Makefile": f".IGNORE:\n{_GATE}\techo c\n"}, "one more edit")
     moved = _check(root, base, env)
     assert not _halted(moved, "added: Makefile: echo c"), moved.stdout
+
+    # A line the approval saw, moved where it drops `pipefail`, lapses the approval.
+    shifted = tmp_path / "shifted"
+    strict = f"SHELL := /bin/bash -o pipefail\n{_GATE}"
+    branch = {"Makefile": f"SHELL := /bin/sh\n{strict}"}
+    base = _branch(shifted, {"Makefile": strict}, _UNPLANNED, branch)
+    hashed = _check(shifted, base, env, "--digest").stdout.strip()
+    digest = hashlib.sha256(str(shifted.resolve()).encode()).hexdigest()[:16]
+    entry = home / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
+    entry.parent.mkdir(parents=True)
+    entry.write_text(f"{hashed}\n")
+    assert _check(shifted, base, env).stdout.startswith(f"gate: approved — {hashed}")
+    weaker = f"SHELL := /bin/bash -o pipefail\nSHELL := /bin/sh\n{_GATE}"
+    _commit(shifted, {"Makefile": weaker}, "move the line")
+    lapsed = _check(shifted, base, env)
+    assert not _halted(lapsed, "added: Makefile: SHELL := /bin/sh"), lapsed.stdout
 
 
 def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:

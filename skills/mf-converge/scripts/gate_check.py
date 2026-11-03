@@ -7,7 +7,8 @@
     gate_check.py --change <id> --base <rev> [--head <tree-ish>] [--digest]
     gate_check.py --tasks <tasks.md>
 
-Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
+Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read. A halt names the
+hash a person approves; `--digest` prints it alone.
 `--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
 It reads makefiles and dry runs; a file read at parse time, or a program the
 recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
@@ -292,6 +293,25 @@ def _lines(path: Path) -> list[str]:
     return path.read_text(errors="replace").splitlines() if path.is_file() else []
 
 
+def hunks(base: Path, head: Path, files: list[str]) -> str:
+    """Return each of `files`' unified diff, its raw lines and line numbers.
+
+    A moved or re-indented line changes it, where the stripped edits stay equal.
+    Why: 0060-gate-planning design D4.
+    """
+    return "\n".join(
+        line
+        for name in files
+        for line in difflib.unified_diff(
+            _lines(base / name),
+            _lines(head / name),
+            f"base: {name}",
+            f"head: {name}",
+            lineterm="",
+        )
+    )
+
+
 def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], list[str]]:
     """Export `rev` to `root`; return its gate makefiles and its dry run.
 
@@ -313,6 +333,7 @@ class Gate(NamedTuple):
     tasks: list[str]
     touched: list[str]
     edits: list[tuple[str, str, str]]
+    hunks: str
     base_lines: list[str]
     head_lines: list[str]
     diff: str
@@ -338,6 +359,7 @@ def read_gate(change: str, base: str, head: str) -> Gate:
             if (base_files.get(name, set()) | head_files.get(name, set())) & changed
         )
         edits = changed_lines(root / "base", root / "head", affected)
+        changes = hunks(root / "base", root / "head", affected)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -350,16 +372,16 @@ def read_gate(change: str, base: str, head: str) -> Gate:
             lineterm="",
         )
     )
-    return Gate(cut, tasks, touched, edits, base_lines, head_lines, diff)
+    return Gate(cut, tasks, touched, edits, changes, base_lines, head_lines, diff)
 
 
 def gate_hash(gate: Gate) -> str:
     """Return the sha256 a person approves.
 
-    It hashes one `kind name text` line per edit, sorted, then the dry runs' diff.
+    It hashes each gate makefile's unified diff, then the dry runs' diff, so a line
+    moved after the approval changes it. Why: 0060-gate-planning design D4.
     """
-    lines = sorted(" ".join(edit) for edit in gate.edits)
-    return hashlib.sha256("\n".join([*lines, gate.diff]).encode()).hexdigest()
+    return hashlib.sha256(f"{gate.hunks}\n{gate.diff}".encode()).hexdigest()
 
 
 def check(change: str, base: str, head: str = "HEAD") -> str:
@@ -384,24 +406,33 @@ def check(change: str, base: str, head: str = "HEAD") -> str:
         if not quoted(text)
     ]
     if not tasks and not problems:
-        # A makefile changed in blank lines alone still has no plan.
-        problems = [f"  changed: {name}" for name in gate.touched]
+        # With no plan, a dry run that only gains lines, or a makefile changed in
+        # blank lines alone, still halts: every change is unplanned.
+        printed = set(gate.base_lines)
+        problems = [
+            f"  added to the dry run: {line}"
+            for line in gate.head_lines
+            if line.strip() and line not in printed
+        ]
+        problems += [f"  changed: {name}" for name in gate.touched]
+        problems = problems or ["  changed: the dry run"]
     if not problems:
         return f"gate: planned — {' · '.join(tasks)}\n{diff}"
     if approval(change) == (hashed := gate_hash(gate)):
         return f"gate: approved — {hashed}\n{diff}"
-    raise Stop(1, halt(problems, diff, gate.cut, change))
+    raise Stop(1, halt(problems, diff, gate.cut, change, hashed))
 
 
-def halt(problems: list[str], diff: str, cut: str, change: str) -> str:
+def halt(problems: list[str], diff: str, cut: str, change: str, hashed: str) -> str:
     """Return the one halt: every unquoted line, the dry run, the rule, the way out.
 
-    Why: 0060-gate-planning design D1.
+    The way out names the hash of what this run read, so the diff it shows is the
+    one a person approves. Why: 0060-gate-planning design D1, D4.
     """
     rule = (
         "A planning task names `Makefile` and `gate` in backticks and quotes each "
         f"line, in the cut commit {cut}. A person approves this diff with "
-        f"/mf-ship approve-gate {change}."
+        f"/mf-ship approve-gate {change} {hashed}."
     )
     dry = f"The dry run changed:\n{diff}\n" if diff else "The dry run is unchanged. "
     return (

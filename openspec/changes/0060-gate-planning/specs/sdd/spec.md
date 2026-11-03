@@ -14,8 +14,10 @@ non-blank gate makefile line the branch adds or removes, unless that task quotes
 name what it read — the gate makefiles and the dry runs — and SHALL NOT state that the gate is the base's. A halt SHALL
 list every unquoted line in one run, the halt with no planning task among them; SHALL say that `` `gate` `` must be in
 backticks and that the cut commit is what counts; SHALL say whether the dry run changed or the file alone; and SHALL name
-`/mf-ship approve-gate <change-id>` as the way out. A person's approval recorded in the home folder for the change, whose
-hash equals the hash of the edits and the dry runs' diff the script reads, SHALL pass the script without a planning task. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
+`/mf-ship approve-gate <change-id> <hash>` as the way out, `<hash>` the hash of what that run read. With no planning task, the
+halt SHALL list each line the branch's dry run adds, and SHALL list the dry run itself when nothing else is listed. A person's
+approval recorded in the home folder for the change, whose hash equals the hash of each gate makefile's unified diff, line
+numbers included, and the dry runs' diff the script reads, SHALL pass the script without a planning task. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
 side. The cut commit SHALL be the one commit that adds the change's `design.md`; more than one SHALL be a
 halt.
 
@@ -42,12 +44,16 @@ halt.
 
 #### Scenario: The halt lists every unquoted line
 - **WHEN** a branch adds a `setup` target and edits `.PHONY`, and no cut task names `` `gate` ``
-- **THEN** the halt lists each added and removed line, says the dry run is unchanged, and names `approve-gate`
+- **THEN** the halt lists each added and removed line, says the dry run is unchanged, and names `approve-gate` with the hash
+
+#### Scenario: A dry run gains a line with no plan
+- **WHEN** no cut task names `` `gate` ``, no gate makefile changes, and the branch's dry run prints a line the base's does not
+- **THEN** the script halts, naming the added line
 
 #### Scenario: A person approves a gate change
-- **WHEN** a person's approval recorded in the home folder holds the hash of the branch's gate edits and dry-run diff
+- **WHEN** a person's approval recorded in the home folder holds the hash of the branch's gate makefile diffs and dry-run diff
 - **THEN** the script passes, naming the approval
-- **AND WHEN** the branch changes a gate makefile line after the approval
+- **AND WHEN** the branch changes or moves a gate makefile line after the approval
 - **THEN** the hashes differ, and the script halts as with no approval
 
 #### Scenario: A branch writes its own approval
@@ -73,13 +79,14 @@ SHALL halt, naming the sub-task, on one that names a gate makefile without that 
 
 ### Requirement: The build checks a gate change at its phase
 
-`skills/mf-build/SKILL.md` SHALL, before committing a phase whose staged diff touches a gate makefile, run
-`gate_check.py --change <change-id> --base <merge-base> --head <the staged tree>`, and SHALL halt on its exit 1, committing
-nothing.
+`skills/mf-build/SKILL.md` SHALL, before ticking each phase's box, run
+`gate_check.py --change <change-id> --base <merge-base> --head <the staged tree>`, and SHALL halt on its exit 1, ticking and
+committing nothing.
 
 #### Scenario: A phase adds a line the cut did not quote
-- **WHEN** a phase's staged diff adds a gate makefile line its cut task does not quote
-- **THEN** the build halts before the phase's commit, naming the line
+- **WHEN** a phase's staged diff adds a gate makefile line its cut task does not quote — in `Makefile`, a `*.mk` file, a
+  `GNUmakefile` or any file make includes
+- **THEN** the build halts before the phase's tick and commit, naming the line, and the next build continues the phase
 
 #### Scenario: A phase adds a quoted line
 - **WHEN** every gate makefile line the phase adds or removes is quoted by its cut task
@@ -87,10 +94,20 @@ nothing.
 
 ### Requirement: A person can approve a gate change
 
-`/mf-ship approve-gate <change-id>`, the person's command, SHALL show the version's gate makefile edits and the dry runs' diff,
-as `gate_check.py` reads them, with their hash, and on the person's yes SHALL record the hash in the home folder beside the kept
-URLs and the release ledger. A worker, whose sandbox writes nothing in the home folder, SHALL be unable to record one.
+`/mf-ship approve-gate <change-id> <hash>`, the person's command, SHALL be the person's yes to the gate check halt that named
+`<hash>` beside the version's gate makefile edits and the dry runs' diff, and SHALL record the hash in the home folder beside
+the kept URLs and the release ledger. It SHALL run none of the branch's makefiles, since it runs outside the sandbox, and SHALL
+refuse a `<hash>` that is not a sha256. A worker, whose sandbox writes nothing in the home folder, SHALL be unable to record one.
 
 #### Scenario: A person approves a planned change the task quoted badly
-- **WHEN** converge halted on an unquoted gate line, and the person runs `/mf-ship approve-gate <change-id>` and says yes
+- **WHEN** converge halted on an unquoted gate line, and the person runs `/mf-ship approve-gate <change-id> <hash>` with the
+  hash the halt named
 - **THEN** the hash is recorded, and the next converge's gate check passes, naming the approval
+
+#### Scenario: A person approves a phase's halt
+- **WHEN** the build halted on its staged tree, and the person approves the hash that halt named
+- **THEN** the next build's check on the same staged tree passes, naming the approval
+
+#### Scenario: The approval runs no worker's code
+- **WHEN** a branch's makefile runs a `$(shell …)` as make reads it, and the person runs `approve-gate`
+- **THEN** the hash is recorded, and the `$(shell …)` does not run

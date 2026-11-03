@@ -152,16 +152,18 @@ ticking the `N.M` boxes with the phase's box at item 5.
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
    changed and why, following `P`.
-5. **Tick the phase's box** in `## Progress` (`- [ ] N` → `- [x] N`). A phase is finished by a commit **and** a
-   ticked box; either alone is not an advance.
-6. **One commit for the phase.** Stage the paths you changed **by name** — never `git add -A`: `.minions/` holds
-   gitignored run output, and an un-ignored one would be swept into history. When `git diff --cached --name-only`
-   names `Makefile` or a `*.mk` file, check the staged tree first: run `git write-tree`, then
+5. **Check the staged tree, then tick the phase's box.** Stage the paths you changed **by name** — never
+   `git add -A`: `.minions/` holds gitignored run output, and an un-ignored one would be swept into history. Run
+   `git write-tree`, then
    `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base> --head <the tree>`,
-   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 3.5. Exit 1 → **halt**, committing
-   nothing, copying what it prints. Exit 2, or `uv` missing → **halt**, naming the side. Write a Conventional-Commits
-   subject. **Every commit ends with this trailer block, contiguous** — git parses the last paragraph as the
-   trailers, so a blank line between them silently breaks it:
+   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 3.5; a phase that moves no gate
+   makefile and no dry run prints `gate: no unplanned change`. Exit 1 → **halt**, ticking and committing nothing,
+   copying what it prints: the box stays unticked, so the next `/mf-build` continues this phase. Exit 2, or `uv`
+   missing → **halt**, naming the side. Exit 0 → tick the phase's box in `## Progress` (`- [ ] N` → `- [x] N`). A
+   phase is finished by a commit **and** a ticked box; either alone is not an advance.
+6. **One commit for the phase.** Stage `tasks.md` again, by name, and write a Conventional-Commits subject.
+   **Every commit ends with this trailer block, contiguous** — git parses the last paragraph as the trailers, so a
+   blank line between them silently breaks it:
 
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
