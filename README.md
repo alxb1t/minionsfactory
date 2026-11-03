@@ -31,7 +31,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 | [`mf-ship`](skills/mf-ship/SKILL.md) | take every cut version to the default branch unattended — build, converge, integrate, release |
-| [`mf-review-metrics`](skills/mf-review-metrics/SKILL.md) | draw one page of review metrics across repos — per tier and model — from past findings; an operator tool |
+| [`mf-review-metrics`](skills/mf-review-metrics/SKILL.md) | draw one page of review metrics across repos — per model — from past findings; an operator tool |
 
 ## Install
 
@@ -44,7 +44,7 @@ make uninstall-skills    # remove the symlinks into this checkout
 
 ## Execution
 
-Every host runs MF's own method: `mf-simplify` in the build, review and security at the `standard` or `high` tier.
+Every host runs MF's own method: `mf-simplify` in the build, review and security at one depth.
 The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
 completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
 remote review service.

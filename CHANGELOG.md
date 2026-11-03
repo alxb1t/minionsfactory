@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   branches `conduct.py` merges into: a dependent's, or one the default branch passed before its first worker, because
   v0.47.4 widened it (change `0061-conflict-resolve`, phase 2).
 
+## [0.48.0] - 2026-11-03
+
+Gate: local 5m05s · CI not read under mf-ship · 0.47.4: local 4m56s · CI not read under mf-ship
+
+- Converge runs one depth, one fresh worker per role, and halts on a `tier=`; `references/high-tier.md` goes and the
+  findings frontmatter records no tier, because the high tier found what the standard one found at many times the cost
+  (change `0059-remove-high-tier`, phase 1).
+- `conduct.py` passes no tier to converge and ignores a models file's `tier`, a granted round keeping its
+  `and grant=yes`; the cut writes no `tier`, because converge has one depth (change `0059-remove-high-tier`, phase 2).
+- `mf-review-metrics` draws a table per model and engine, reads no tier, and counts a file's `inconclusive` sections
+  only when it holds `## Refuted`, because the tier no longer marks the review method's era (change
+  `0059-remove-high-tier`, phase 3).
+- D49 becomes one review method at one depth, rejecting the high tier on its calibration; D47, D50, `README.md` and
+  `mf-release`'s close-out lose their tier text (change `0059-remove-high-tier`, phase 4).
+
 ## [0.47.4] - 2026-11-03
 
 Gate: local 4m56s · CI not read under mf-ship · 0.47.3: local 4m38s · CI none
