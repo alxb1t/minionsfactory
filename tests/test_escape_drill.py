@@ -27,6 +27,6 @@ def test_judged(tmp_path: Path) -> None:
     results = tmp_path / "results-worker.json"
     results.write_text(json.dumps({**refused, "pypi": "passed", "bind": "OSError"}))
     assert judged(tmp_path, "claude", "worker")
-    # The drill's primary declares no `Ship loopback:`: a bind there fails the line.
+    # No worker binds loopback: a bind that passes fails the line.
     results.write_text(json.dumps({**refused, "pypi": "passed", "bind": "passed"}))
     assert not judged(tmp_path, "claude", "worker")
