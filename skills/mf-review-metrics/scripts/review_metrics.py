@@ -47,7 +47,7 @@ CATEGORIES = (
     "maintainability",
 )
 TOP_CATEGORIES = 3
-IDENTITY = 3  # the tier table's leading columns: tier, model, engine
+IDENTITY = 2  # the model table's leading columns: model, engine
 VERDICT_FIELDS = ("confirmed", "plausible", "plausible_verified", "refuted")
 RESOLUTION_FIELDS = ("verified", "reopened")
 GAP = "—"
@@ -242,7 +242,7 @@ def _findings_file(path: Path, blocking: tuple[str, ...]) -> Record | None:
                 "inconclusive" in line and not _DENIED.search(line.lower())
                 for line in outside.splitlines()
             )
-            if "tier" in front
+            if _section(body, "Refuted") is not None
             else None
         ),
     }
@@ -348,7 +348,6 @@ def read_change(repo: Path, change: str) -> Record:
         "repo": repo.name,
         "change": change,
         "reviewed": _first(fronts, "reviewed"),
-        "tier": _first(fronts, "tier"),
         "model": _first(fronts, "model"),
         "mode": _first(fronts, "mode"),
         "workers": _total(_integer(front.get("workers")) for front in fronts),
@@ -449,15 +448,14 @@ def _severity_table(records: list[Record]) -> Table:
     return ["grade", "findings"], [[grade, str(count)] for grade, count in grades]
 
 
-def tier_table(records: list[Record]) -> Table:
-    """Return a row per tier, model and engine, `unknown` for a gap."""
+def model_table(records: list[Record]) -> Table:
+    """Return a row per model and engine, `unknown` for a gap."""
     groups: dict[tuple[str, ...], list[Record]] = {}
     for record in records:
-        key = tuple(record[f] or "unknown" for f in ("tier", "model", "engine"))
+        key = tuple(record[f] or "unknown" for f in ("model", "engine"))
         groups.setdefault(key, []).append(record)
     summed = (*VERDICT_FIELDS, "inconclusive", "packet_included", "packet_skipped")
     headers = [
-        "tier",
         "model",
         "engine",
         "changes",
@@ -489,7 +487,7 @@ def tier_table(records: list[Record]) -> Table:
 
 
 def lacked(records: list[Record]) -> str:
-    """Return each gap field and its count; e.g. "tier 2 · tokens 3", else "none"."""
+    """Return each gap field and its count; e.g. "model 2 · tokens 3", else "none"."""
     gaps = Counter(k for record in records for k, v in record.items() if v is None)
     return " · ".join(f"{k} {n}" for k, n in sorted(gaps.items())) or "none"
 
@@ -550,7 +548,7 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
     ]
     for name, held in read:
         lines += _repo_section(name, held, chart)
-    lines += ["<h2>tier × model</h2>", _html_table(tier_table(records))]
+    lines += ["<h2>model</h2>", _html_table(model_table(records))]
     lines += ["<h2>lacked</h2>", "<ul>"]
     lines += [f"<li>{_E(name)}: {_E(lacked(held))}</li>" for name, held in read]
     lines += ["</ul>", "</body></html>"]
@@ -558,14 +556,14 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
 
 
 def _printable(text: str) -> str:
-    """Return `text` when shaped like a tier, model or engine name, else `unknown`."""
+    """Return `text` when shaped like a model or engine name, else `unknown`."""
     return text if _PRINTABLE.fullmatch(text) else "unknown"
 
 
 def summary(out: Path, read: list[tuple[str, list[Record]]]) -> str:
     """Return what a written run prints, per 0045-review-metrics design D2."""
     records = _every_record(read)
-    headers, rows = tier_table(records)
+    headers, rows = model_table(records)
     shown = [[_printable(c) for c in row[:IDENTITY]] + row[IDENTITY:] for row in rows]
     return "\n".join(
         [

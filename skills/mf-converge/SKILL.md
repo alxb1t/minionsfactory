@@ -73,9 +73,9 @@ The events, and no others:
 
 | event | written in | detail holds |
 |---|---|---|
-| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed, the tier |
+| `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
-| `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the tier and the worker count |
+| `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
 | `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking`, ending `tokens <n>` from the worker's output, or `tokens unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
@@ -91,21 +91,19 @@ The events, and no others:
 ## Run 2 — 2026-09-28 10:04
 10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
 10:09:02 · round 1 · verdicts — review clean · security clean · tokens unavailable
-10:04:20 · round 1 · fan-out — review and security dispatched · standard · 2 workers
-10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files · standard
+10:04:20 · round 1 · fan-out — review and security dispatched · 2 workers
+10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
 
 ## Run 1 — 2026-09-27 14:02
 14:31:00 · round 3 · halt — cap reached, R3 open
 …
 ```
 
-## The tier and the workers — before checker dispatch
+## The workers — before checker dispatch
 
-`tier=standard|high` — `standard` when absent. Echo it, and write it in the `start` line. **Every host runs MF's
-method:** each worker loads [review](references/generic-review.md) or [security](references/generic-security.md),
-resolved from the installed package. At `standard` each role is one fresh worker. At `high` read
-[the high tier](references/high-tier.md): per role, finders, verifiers, a gap sweep and a writer, every one
-dispatched by you.
+**Every host runs MF's method:** each worker loads [review](references/generic-review.md) or
+[security](references/generic-security.md), resolved from the installed package. Each role is one fresh worker. A
+`tier=` given → **halt**: the `tier` parameter was removed.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
@@ -241,7 +239,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 The stations are **review** and **security**. Simplify ran inside `mf-build` and wrote no findings file; its
 edits are in this range, so review judges them.
 
-Dispatch both roles as fresh workers, per *The tier and the workers*, read-only apart from their own findings
+Dispatch both roles as fresh workers, per *The workers*, read-only apart from their own findings
 files. Give each:
 
 - the range `<base>..HEAD` and its two commit ids;
@@ -254,7 +252,7 @@ files. Give each:
   `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
   and spec delta under `openspec/changes/<change-id>/`, with the living specs the delta touches — review reads the
   design's `## Tests` table;
-- its tier, mode and reference;
+- its mode and reference;
 - the card, from [`## The card`](#the-card) — every finding is a card;
 - `.minions/backlog.md`, read-only, when it exists, and the repeat rule below.
 
@@ -279,7 +277,7 @@ resolved; halt when the inputs cannot support a verdict.
 ## Step 4 — The findings file contract
 
 Each station writes **exactly one** file, `.minions/findings/<change-id>_<role>.md`, and nothing else. Something
-parses it, and it opens with this frontmatter, all fourteen keys:
+parses it, and it opens with this frontmatter, every key below:
 
 ```yaml
 ---
@@ -292,7 +290,6 @@ reviewed: <YYYY-MM-DD>
 round: <int, bumped by each verify pass>
 open_blocking: <int>
 verdict: clean | changes-requested
-tier: standard | high
 mode: parallel | sequential
 workers: <int, the workers this role used>
 model: <the model, as the host reports it, or unknown>
@@ -398,7 +395,7 @@ record drifts.
 ## Step 7 — Verify, and the cap
 
 Re-run the gate yourself, and write `verify` to the status log. Dispatch review and security again as **fresh**
-workers at `round ≥ 2`, with Step 3's tier, inputs and dispatch rules, and write `fan-out`. Also pass each its
+workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
 own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
 counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a
 fix's new test is judged like the build's. Read the verdicts from disk under Step 5.
@@ -456,7 +453,7 @@ retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the verdicts and the round, read from disk; the tier, and each `inconclusive` section; each
+Your sentences: the verdicts and the round, read from disk; each `inconclusive` section; each
 blocking finding's end state, by id; the cards
 written, by qualified id, and the backlog's total card count, so a vanished file shows as a drop; the exit code of
 the gate you re-run at the end.

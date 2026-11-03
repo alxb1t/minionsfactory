@@ -1,7 +1,7 @@
 # Review — correctness, spec, standards, architecture and gate integrity
 
 You are a fresh checker of a frozen change. Write only your findings file; production edits and commits are the
-fix station's. This is MF's method on every host; the tier changes who runs it, never what it checks.
+fix station's. This is MF's method on every host.
 
 ## Inputs and contract
 
@@ -13,7 +13,7 @@ red runs.
 range holds one; the change's proposal, design and tasks, its spec delta unless it declares `skip_specs: true`, and the
 living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root standards files, architecture
 decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your
-tier and mode; your findings path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
+mode; your findings path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
 symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
 range. An input missing or unusable → halt, naming it.
 
@@ -61,8 +61,8 @@ the invariant, quoted — goes under `## Refuted` in your file, never a card.
 
 The frontmatter with every key the contract names, the cards, `## Refuted`, and a Summary: the resolved file and
 commit counts, each section's outcome (findings, none, or `inconclusive` and why), the passes run, and the packet's
-included and skipped documents. Over 1,500 changed lines at `standard`, the Summary says
-`over the standard cap — consider tier=high or a split`. An empty scope outside the checked empty-resolution case, or
+included and skipped documents. Over 1,500 changed lines, the Summary says
+`over the standard cap — consider a split`. An empty scope outside the checked empty-resolution case, or
 a materially incomplete scope, cannot earn clean: report scope failure, per Step 5.
 
 ## Verify freshly

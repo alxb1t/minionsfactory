@@ -1,8 +1,7 @@
 # Security — concrete exposure against the threat model
 
 Find concrete vulnerabilities in a frozen change, as a fresh checker. Write only your findings file; production
-edits and commits are the fix station's. This is MF's method on every host; the tier changes who runs it, never
-what it checks.
+edits and commits are the fix station's. This is MF's method on every host.
 
 ## Inputs and contract
 
@@ -43,8 +42,8 @@ counterevidence quoted.
 
 The frontmatter with every key the contract names, evidence-bearing cards, `## Refuted`, and a Summary with the
 range, the resolved file and commit counts, the threat model's state (read, `inconclusive`, changed by the range)
-and the packet's included and skipped documents. Over 1,500 changed lines at `standard`, the Summary says
-`over the standard cap — consider tier=high or a split`. An uninspected change cannot earn clean: report scope
+and the packet's included and skipped documents. Over 1,500 changed lines, the Summary says
+`over the standard cap — consider a split`. An uninspected change cannot earn clean: report scope
 failure, per Step 5.
 
 ## Verify freshly

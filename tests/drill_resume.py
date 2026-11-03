@@ -143,9 +143,7 @@ def _cut(primary: Path, change: str) -> None:
     )
     _git(tree, "add", ".")
     _git(tree, "commit", "-q", "-m", f"feat: add a note\n\nChange: {change}")
-    table = (
-        '[converge]\nmodel = "sonnet"\ntier = "standard"\n[release]\nmodel = "sonnet"\n'
-    )
+    table = '[converge]\nmodel = "sonnet"\n[release]\nmodel = "sonnet"\n'
     _write(primary, {f".minions/models/{change}.toml": table})
 
 
