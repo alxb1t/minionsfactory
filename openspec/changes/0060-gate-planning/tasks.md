@@ -45,4 +45,4 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 - [ ] 5.1 Edit `skills/mf-build/SKILL.md`'s start row, `skills/mf-release/SKILL.md`'s last line, and the diagrams in `README.md`,
   `docs/README.md` and `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `git grep -c 'grill the next version' -- skills` prints nothing, and
-  `grep -c 'a ## Progress. box is unticked' skills/mf-build/SKILL.md` prints `1`.
+  `grep -c 'a .## Progress. box is unticked' skills/mf-build/SKILL.md` prints `1`.
