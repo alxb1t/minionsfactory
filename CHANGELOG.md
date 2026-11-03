@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0059-remove-high-tier`, phase 1).
 - `conduct.py` passes no tier to converge and ignores a models file's `tier`, a granted round keeping its
   `and grant=yes`; the cut writes no `tier`, because converge has one depth (change `0059-remove-high-tier`, phase 2).
+- `mf-review-metrics` draws a table per model and engine, reads no tier, and counts a file's `inconclusive` sections
+  only when it holds `## Refuted`, because the tier no longer marks the review method's era (change
+  `0059-remove-high-tier`, phase 3).
 
 ## [0.47.4] - 2026-11-03
 

@@ -1,6 +1,6 @@
 ---
 name: mf-review-metrics
-description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per tier and model — from the .minions/findings of the repos ~/.config/minionsfactory/review-metrics.toml names. Use to compare review tiers and models on data; an operator tool, never part of a run.
+description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per model — from the .minions/findings of the repos ~/.config/minionsfactory/review-metrics.toml names. Use to compare review models on data; an operator tool, never part of a run.
 ---
 
 # mf-review-metrics — what review found, and what it cost
@@ -21,4 +21,4 @@ the config is missing or names no repo.
 ## Report
 
 **Close-out:** at most three sentences — the page's path, the repos and changes read, and the fields some repos lack;
-then the per tier × model table it printed. No advice: the default tier is the person's decision.
+then the per model table it printed. No advice: the choice of model is the person's.

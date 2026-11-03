@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 - [x] 1 — Converge
 - [x] 2 — The run
-- [ ] 3 — The metrics
+- [x] 3 — The metrics
 - [ ] 4 — The record
 
 ## 1 — Converge
@@ -28,7 +28,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 3 — The metrics
 
-- [ ] 3.1 Drop the tier dimension from `skills/mf-review-metrics/scripts/review_metrics.py` and its `SKILL.md`, and edit
+- [x] 3.1 Drop the tier dimension from `skills/mf-review-metrics/scripts/review_metrics.py` and its `SKILL.md`, and edit
   `test_each_era_parses_with_gaps` and `test_the_page_draws_charts_and_lists_gaps`, per [D3](design.md#d3).
   Verify: `grep -c 'tier' skills/mf-review-metrics/scripts/review_metrics.py` prints `0`, and
   `uv run pytest -q tests/test_review_metrics.py` exits 0.

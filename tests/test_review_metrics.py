@@ -73,12 +73,12 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
 
     _findings(tmp_path, "0009-clean_review.md", _front(reviewed="2026-02-01"))
 
-    no_tier = _card(1, "`medium · security (integrity)` — why · and why")
-    no_tier += _card(2, "high · security")
+    cards = _card(1, "`medium · security (integrity)` — why · and why")
+    cards += _card(2, "high · security")
     _findings(
         tmp_path,
         "0014-carded_security.md",
-        _front("changes-requested", reviewed="2026-03-01") + no_tier,
+        _front("changes-requested", reviewed="2026-03-01") + cards,
     )
 
     verdicts = _card(
@@ -102,7 +102,7 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
         "**Verdict:** plausible — a run would confirm it.",
         "**Status:** open",
     )
-    tiered = _front(
+    judged = _front(
         "changes-requested",
         reviewed="2026-10-30",
         round=3,
@@ -115,13 +115,11 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     summary = "## Refuted\n\n- a candidate\n- another\n\n## Summary\n\n"
     summary += "Threat model: inconclusive, not written yet.\nAll else read.\n"
     summary += "Spec: none, no other section is inconclusive.\n"
-    _findings(tmp_path, "0042-tiered_review.md", tiered + verdicts + summary)
+    _findings(tmp_path, "0042-judged_review.md", judged + verdicts + summary)
     _findings(
         tmp_path,
-        "0042-tiered_security.md",
-        _front(
-            reviewed="2026-10-30", round=3, tier="high", workers=5, model="other-model"
-        )
+        "0042-judged_security.md",
+        _front(reviewed="2026-10-30", round=3, workers=5, model="other-model")
         + "## Refuted\n\nNone.\n",
     )
 
@@ -129,7 +127,7 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     assert (old["repo"], old["reviewed"]) == (tmp_path.name, "2026-01-02")
     assert (old["rounds"], old["findings"], old["blocking"]) == (2, 3, 1)
     assert old["severity"] == {"blocking": 1, "nit": 2}
-    assert (old["tier"], old["model"], old["workers"]) == (None, None, None)
+    assert (old["model"], old["workers"]) == (None, None)
     assert (old["confirmed"], old["verified"], old["inconclusive"]) == (
         None,
         None,
@@ -141,50 +139,48 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     assert clean["confirmed"] is None
 
     carded = _record(tmp_path, "0014-carded")
-    assert (carded["findings"], carded["blocking"], carded["tier"]) == (2, 1, None)
+    assert (carded["findings"], carded["blocking"]) == (2, 1)
     assert carded["severity"] == {"medium": 1, "high": 1}
     assert carded["categories"] == {"integrity": 1}
 
-    tier = _record(tmp_path, "0042-tiered")
-    assert (tier["tier"], tier["mode"], tier["model"]) == (
-        "high",
-        "parallel",
-        "some-model",
-    )
-    assert (tier["rounds"], tier["workers"]) == (3, 12)
-    assert (tier["packet_included"], tier["packet_skipped"]) == (3, 1)
-    assert (tier["findings"], tier["blocking"]) == (3, 1)
-    assert tier["categories"] == {"functional correctness": 1, "maintainability": 2}
-    assert (tier["confirmed"], tier["plausible"], tier["plausible_verified"]) == (
+    rich = _record(tmp_path, "0042-judged")
+    assert (rich["mode"], rich["model"]) == ("parallel", "some-model")
+    assert (rich["rounds"], rich["workers"]) == (3, 12)
+    assert (rich["packet_included"], rich["packet_skipped"]) == (3, 1)
+    assert (rich["findings"], rich["blocking"]) == (3, 1)
+    assert rich["categories"] == {"functional correctness": 1, "maintainability": 2}
+    assert (rich["confirmed"], rich["plausible"], rich["plausible_verified"]) == (
         1,
         2,
         1,
     )
-    assert (tier["refuted"], tier["inconclusive"]) == (2, 1)
-    assert tier["duration"] is None
+    assert (rich["refuted"], rich["inconclusive"]) == (2, 1)
+    assert rich["duration"] is None
 
     _findings(
         tmp_path,
         "0043-quoted_review.md",
         _front(
             reviewed="2026-10-30",
-            tier='"standard"',
             model='"quoted-model"',
             packet='"proposal.md, design.md; skipped: none"',
         )
-        + "## Summary\n\nNo section is inconclusive.\n",
+        + "## Refuted\n\nNone.\n\n## Summary\n\nNo section is inconclusive.\n",
     )
     unquoted = _record(tmp_path, "0043-quoted")
-    assert (unquoted["tier"], unquoted["model"]) == ("standard", "quoted-model")
+    assert unquoted["model"] == "quoted-model"
     assert (unquoted["packet_included"], unquoted["packet_skipped"]) == (2, 0)
     assert unquoted["inconclusive"] == 0
 
+    # Twin: an old tier line, and no `## Refuted`, leaves `inconclusive` a gap.
     _findings(
         tmp_path,
         "0044-escape_review.md",
-        _front(reviewed="2026-10-30", model="a\x1b[2Jb", tier="standard"),
+        _front(reviewed="2026-10-30", model="a\x1b[2Jb", tier="standard")
+        + "## Summary\n\nThreat model: inconclusive.\n",
     )
-    assert _record(tmp_path, "0044-escape")["model"] == "a[2Jb"
+    escape = _record(tmp_path, "0044-escape")
+    assert (escape["model"], escape["inconclusive"]) == ("a[2Jb", None)
 
     _findings(
         tmp_path,
@@ -200,6 +196,7 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     _findings(tmp_path, "0021-quoted_review.md", _front("changes-requested") + quoted)
     prose = _record(tmp_path, "0021-quoted")
     assert (prose["findings"], prose["categories"]) == (3, {})
+    assert not any("tier" in record for record in review_metrics.read_repo(tmp_path))
 
     skill = _REPO / "skills" / "mf-converge" / "SKILL.md"
     listed = re.search(r"category one of (.*?);", skill.read_text(encoding="utf-8"))
@@ -323,11 +320,12 @@ def test_the_page_draws_charts_and_lists_gaps(
     assert "&lt;b&gt;m&lt;/b&gt;" in page
     assert "<b>m" not in page
     assert "<script" not in page
+    assert "<h2>model</h2>" in page
 
     printed = capsys.readouterr().out.splitlines()
     assert printed[:2] == [str(out.resolve()), "repos: 2 · changes: 3"]
-    assert printed[2].startswith("| tier | model | engine | changes |")
-    assert "| high | unknown | generic | 1 | 2 (n=1) |" in "\n".join(printed)
+    assert printed[2].startswith("| model | engine | changes |")
+    assert "| unknown | generic | 1 | 2 (n=1) |" in "\n".join(printed)
     assert "<b>m" not in "\n".join(printed)
     assert printed[-1].startswith("lacked: capped 2 · confirmed 2 · ")
 
