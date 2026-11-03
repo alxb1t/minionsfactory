@@ -64,7 +64,6 @@ HALTS = ("integrating", "released", "human", "converge-halted")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
-TIERS = ("standard", "high")
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
@@ -118,7 +117,7 @@ NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
-    "converge": "Run the mf-converge skill for change {change}{tier}.",
+    "converge": "Run the mf-converge skill for change {change}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
 }
@@ -1423,22 +1422,6 @@ def _models(
     return str(executor), model, effort if isinstance(effort, str) else None
 
 
-def _tier(runs: Path, change: str) -> str:
-    """Return the converge prompt's tier clause, or "" when the cut set no tier.
-
-    e.g. `tier = "high"` under `[converge]` → " with tier=high"
-
-    Any value but `TIERS` halts: the models file is writable by a worker, and the
-    value lands in the next worker's prompt.
-    """
-    tier = _table(runs, change, "converge").get("tier")
-    if tier is None:
-        return ""
-    if tier not in TIERS:
-        raise Stop(1, f"conduct: halt — models/{change}.toml: tier {tier!r} unknown")
-    return f" with tier={tier}"
-
-
 def reach(primary: Path) -> list[Path]:
     """Return what a worker may edit: the primary and each linked worktree.
 
@@ -1975,12 +1958,12 @@ class Run:
                     self.halt(version.change, f"{version.change} has no worktree")
                     return
                 minions = self.primary / ".minions"
-                tier = _tier(minions, version.change) if stage == "converge" else ""
+                clause = ""
                 granted = minions / "grants" / version.change
                 if stage == "converge" and granted.is_file():
-                    tier += " and grant=yes"
+                    clause = " and grant=yes"
                     granted.unlink()
-                prompt = PROMPTS[stage].format(change=version.change, tier=tier)
+                prompt = PROMPTS[stage].format(change=version.change, grant=clause)
                 models = _models(minions, version.change, stage, self.executor)
                 if models != self.plan.get((version.change, stage)):
                     raise Stop(

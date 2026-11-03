@@ -218,16 +218,15 @@ persists in that file. Dispatch prefers parallel; workers may run sequentially o
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
 
-### D49 · One review method, two depths
+### D49 · One review method, one depth
 
-**Converge runs MF's method at `tier=standard` — one fresh worker per role, from a packet given up front — or at
-`tier=high` — per role, finders, a verifier per candidate, a gap sweep and a writer, all dispatched by converge.
-`standard` is the default; the cut suggests `high` for changes to authentication, the gate, migrations, CI or the
-review machinery. Both write the review and security files, recording the tier.**
+**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front. The review and
+security files are the same for every change.**
 
-- **Why:** most changes need a cheap review of the obvious; a few need many independent readers. The same
-  checklist and finding bar at both depths keep the results comparable.
-- **Rejected:** native review in production · `high` as the default · a third findings file · nested fan-out.
+- **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
+  fraction of the cost.
+- **Rejected:** native review in production · `high` as the default · a third findings file · nested fan-out · a
+  high tier: 5 of 5 at both depths, 89 workers and 55.6 M tokens against 2 and 4.2 M.
 
 ### D43 · Project health is measured per change, from the repo's own catalogue
 
@@ -247,10 +246,10 @@ station says so.**
 ### D50 · Review metrics are read across repos and drawn on one page
 
 **`mf-review-metrics` reads the findings files and status logs of the repos the operator's config names, leniently —
-every unreadable field a gap — and writes one self-contained page: tables per repo and per tier × model, charts over
+every unreadable field a gap — and writes one self-contained page: tables per repo and per model, charts over
 changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
 
-- **Why:** choosing a review tier, and seeing what it costs, needs the record of every past converge in one place.
+- **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
 
 ## The target repo
@@ -429,9 +428,10 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 ### D45 · One station merges the default branch into the next version
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
-applies fixed rules to the CHANGELOG, decision ids and spec delta, hands a semantic conflict to the person with the
-merge open, gates, and commits the merge; converge's catch-up judges the merge by its remerge-diff. `conduct.py` alone
-merges it into a dependent's cut-only branch, which cannot conflict in git: it runs `integrate.py delta` on the open
+applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, naming it in the
+merge commit, hands a semantic conflict to the person with the merge open, gates, and commits the merge; converge's
+catch-up judges the merge by its remerge-diff. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
+one the default branch passed before its first worker — which cannot conflict in git: it runs `integrate.py delta` on the open
 merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
@@ -448,7 +448,7 @@ judged by its exit and a check on disk; a failed check halts its version, a halt
 `after:`, a failed probe halts the run, and a re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
-needs the person. Converge runs at the tier the cut chose.**
+needs the person.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.

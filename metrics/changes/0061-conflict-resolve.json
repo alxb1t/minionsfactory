@@ -1,0 +1,49 @@
+{
+  "change": "0061-conflict-resolve",
+  "version": "0.49",
+  "base": "aa176eb",
+  "analyzed": "03f9a75",
+  "measured_on": "local",
+  "collected_at": "2026-11-03T18:55:49+02:00",
+  "mf_version": "v0.48.0-7-g03f9a75-dirty",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 13973
+    },
+    "shared-context": {
+      "value": 7043
+    },
+    "rule-ids": {
+      "value": 62
+    },
+    "tests-collected": {
+      "value": 102
+    },
+    "gate-seconds": {
+      "value": 267
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 49
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 28
+    }
+  }
+}

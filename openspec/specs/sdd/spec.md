@@ -632,9 +632,8 @@ transcript. A resumed worker, inherited build conversation or fork carrying that
 freshness. The conductor SHALL dispatch, observe completion and read each role's findings from shared disk.
 
 Converge SHALL prefer parallel dispatch and permit sequential independent workers over the same frozen head,
-completing every checker of a round before a fix begins. At `high` it SHALL dispatch each finder, pass worker,
-verifier, gap sweep and role writer itself, none dispatching another, and record `mode: parallel` or
-`mode: sequential`. The station SHALL halt before work requiring an unavailable worker capability, naming that
+completing every checker of a round before a fix begins, and SHALL record `mode: parallel` or `mode: sequential`. The
+station SHALL halt before work requiring an unavailable worker capability, naming that
 capability.
 
 #### Scenario: A generic host executes workers sequentially
@@ -646,9 +645,9 @@ capability.
 - **WHEN** neither a suitable subagent nor a fresh agent process can be dispatched and awaited
 - **THEN** convergence halts rather than reviewing in the conductor's context
 
-#### Scenario: A host runs one worker at a time at high
-- **WHEN** converge runs at `high` on a host that cannot run workers in parallel
-- **THEN** it runs the same finders, verifiers, gap sweep and role writer in sequence, and the findings files record
+#### Scenario: A host runs one worker at a time
+- **WHEN** converge runs on a host that cannot run workers in parallel
+- **THEN** it runs the review worker, then the security worker, over the same frozen head, and the findings files record
   `mode: sequential`
 
 ### Requirement: Bundled generic role references resolve
@@ -912,8 +911,11 @@ propose no order.
 ready version with the lowest change id among the unmerged branches named by a change id that hold their change or a
 release commit. It SHALL halt, naming the version, when the named one is not ready, or when none is: a phase unticked,
 converge not clean, or an `after:` id missing from its tree. A named version whose merge is open with its note SHALL be
-ready. It SHALL merge the default branch into that version's worktree, run `make gate` there, commit
-the merge with the version's `Change:` trailer, and end with `Next: /mf-converge, then /mf-release`, or with
+ready. It SHALL merge the default branch into that version's worktree, resolve each additive hunk git leaves — one whose union
+keeps every addition and every removal of both sides and changes nothing else, whether its edits separate as lines, list
+items or sentences — and a merged test the union breaks when the fix keeps both sides' intent, run `make gate` there, commit
+the merge with the version's `Change:` trailer, its body naming each resolved hunk: the file, both sides' intent and the
+union, and end with `Next: /mf-converge, then /mf-release`, or with
 `Next: /mf-ship, in the primary.` for a version with an unticked phase. A red gate SHALL
 halt with the merge open and write `.minions/integrate/<change-id>.red`, which the commit deletes. It SHALL NOT
 release, tag, push or rebase.
@@ -938,6 +940,11 @@ release, tag, push or rebase.
 - **WHEN** `/mf-integrate <change-id>` commits the merge of a version with an unticked phase
 - **THEN** its last line is `Next: /mf-ship, in the primary.`
 
+#### Scenario: Both sides add in one hunk
+- **WHEN** the branch adds items to a list and the default branch removes another item from it, on one line
+- **THEN** the station keeps the branch's items and the removal, gates the result, and commits the merge
+- **AND** the commit's body names the file, both sides' intent and the union
+
 ### Requirement: The integrate station resolves mechanical conflicts by fixed rules
 
 `skills/mf-integrate/scripts/integrate.py` SHALL keep the branch's `## [Unreleased]` entries of `CHANGELOG.md` above
@@ -955,7 +962,8 @@ that the default branch changed since the branch's base. `.gitattributes` SHALL 
 
 ### Requirement: A semantic conflict is handed to the person with the merge open
 
-When the delta check reports a changed requirement or git leaves a conflict the rules do not cover,
+When the delta check reports a changed requirement, or git leaves a conflict that is not additive (one side editing what the
+other removed, two values for one thing, designs that disagree, a choice between behaviours),
 `skills/mf-integrate/SKILL.md` SHALL halt with the merge in progress in the version's worktree, write
 `.minions/integrate/<change-id>.md` holding both intents and a proposed resolution, and continue from the open
 merge on its next run.
@@ -963,6 +971,10 @@ merge on its next run.
 #### Scenario: Both versions changed one requirement
 - **WHEN** the branch's delta modifies a requirement the default branch also changed since the base
 - **THEN** the merge stays open, the note names both changes, and the next run continues from `MERGE_HEAD`
+
+#### Scenario: Two values for one thing
+- **WHEN** the branch sets a constant to one value and the default branch sets it to another
+- **THEN** the merge stays open, the note names both changes, and nothing is resolved
 
 ### Requirement: The build's comment rules default to no explanatory comment
 
@@ -1078,48 +1090,6 @@ fail on a worker with no end, a run that ends on neither `halt` nor `done`, or a
 - **WHEN** the probe worker's shell reports `x86_64` on an `arm64` host
 - **THEN** the run halts, naming the executor and both architectures, and no version starts a worker
 
-### Requirement: Converge runs at a tier
-
-`skills/mf-converge/SKILL.md` SHALL take `tier=standard|high`, `standard` when absent. At `standard` each role's one
-fresh worker SHALL judge the change from a packet given up front, reading beyond the diff only to trace a named
-angle. At `high` each role SHALL run finders per angle, a fresh verifier per candidate, a gap sweep and a fresh role
-writer, per `skills/mf-converge/references/high-tier.md`. At `high` a named pass worker SHALL run review's
-stale-claim, test-cost and coverage-trace passes, the role writer SHALL report them and apply the repeat rule, and a
-verify round SHALL give a fresh verifier to each card marked `fixed` or `wontfix`. Converge SHALL halt, naming the
-role and the count, before a role passes 40 verifiers in a round, and SHALL NOT verify only some of its candidates.
-Both tiers SHALL write the same review and security files, whose frontmatter SHALL record `tier`, `mode`, `workers`,
-`model` and `packet`. The cut SHALL suggest the tier in `.minions/models/<change-id>.toml`, `mf-ship` SHALL pass it
-and halt on any value but `standard` or `high`, and the release SHALL report it.
-
-#### Scenario: No tier is given
-- **WHEN** converge runs without `tier=`
-- **THEN** it runs at `standard`, one fresh worker per role, and the findings files record `tier: standard`
-
-#### Scenario: The cut suggests high
-- **WHEN** the models file's `[converge]` table holds `tier = "high"` and `mf-ship` runs converge
-- **THEN** the prompt carries `tier=high`, and the findings files record `tier: high`
-
-#### Scenario: The models file holds an unknown tier
-- **WHEN** the models file's `[converge]` table holds a `tier` other than `standard` or `high`
-- **THEN** `mf-ship` halts, naming the value, and starts no converge worker
-
-#### Scenario: A standard diff is large
-- **WHEN** a standard-tier change exceeds 1,500 changed lines
-- **THEN** it is reviewed anyway, and each file's Summary says it is over the standard cap
-
-#### Scenario: Review runs its passes at high
-- **WHEN** review runs at `high`
-- **THEN** the pass worker writes `pass-review.md`, and the role writer's Summary reports each pass from it
-
-#### Scenario: A verify round at high meets a wontfix
-- **WHEN** the fixer marks a card `wontfix` and commits nothing
-- **THEN** a fresh verifier judges it against the unchanged head and the previous freeze's patch
-- **AND** the role writer records `accepted` or reopens the card
-
-#### Scenario: Candidates pass the ceiling at high
-- **WHEN** a role's next verifiers would take it past 40 in a round
-- **THEN** converge halts, naming the role, the count and the ceiling, and starts none of that batch
-
 ### Requirement: A finding carries its evidence and verdict
 
 Every card SHALL hold an `Evidence:` field — the offending line quoted, the rule or spec line it breaks, and whether
@@ -1197,21 +1167,22 @@ write no findings file and hold no verdict.
 `--config` and `--repo`, and SHALL halt naming the config path when neither names a repo. It SHALL read each repo's
 `.minions/findings/` files without writing to any repo, parse each field it can, record a field it cannot as a gap —
 never a zero — and write one self-contained HTML page, with no script, to the config's `out` or `--out`. The page
-SHALL hold a table per repo and per tier × model, charts over changes drawn by `mf-build`'s `chart()`, and the list of
-fields each repo lacked. It SHALL give numbers, never a recommendation.
+SHALL hold a table per repo and per model, charts over changes drawn by `mf-build`'s `chart()`, and the list of
+fields each repo lacked. It SHALL read no tier, and SHALL count a file's `inconclusive` sections only when the file holds
+`## Refuted`, the review method's mark. It SHALL give numbers, never a recommendation.
 
 #### Scenario: No config
 - **WHEN** the script runs with no config file and no `--repo`
 - **THEN** it exits 2, naming the config path it looked for, and writes nothing
 
 #### Scenario: Files from every era
-- **WHEN** a repo holds a findings file with no cards, one with cards and no tier, a status log, and a file with the
-  tier, the verdict states and `## Refuted`
+- **WHEN** a repo holds a findings file with no cards, one with cards and no `## Refuted`, a status log, and a file with
+  the verdict states and `## Refuted`, with or without a `tier:` line
 - **THEN** each record carries what its file holds, every missing field is a gap, and the page lists the gaps per repo
 
 #### Scenario: A page from findings
 - **WHEN** the script runs over repos with findings
-- **THEN** the page holds a section per repo, a table per tier × model, and charts, and no repo has changed
+- **THEN** the page holds a section per repo, a table per model, and charts, and no repo has changed
 
 ### Requirement: A cut reserves its id against every open version branch
 
@@ -1791,3 +1762,31 @@ integrate when the default branch holds a first-parent commit past `origin` that
 #### Scenario: A run in a loopback repo
 - **WHEN** a run starts in a repo that declares no `Ship loopback:`
 - **THEN** its log holds no `loopback` event, and no worker's sandbox has `allowLocalBinding`
+
+### Requirement: Converge runs one depth
+
+`skills/mf-converge/SKILL.md` SHALL run one depth: each role's one fresh worker SHALL judge the change from a packet given up
+front, reading beyond the diff only to trace a named angle, and SHALL run review's stale-claim, test-cost and coverage-trace
+passes itself. It SHALL take no `tier=`, and SHALL halt, naming the parameter as removed, when one is given. The review and
+security files' frontmatter SHALL record `mode`, `workers`, `model` and `packet`, and no tier. The cut SHALL write no `tier` into
+`.minions/models/<change-id>.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge.
+
+#### Scenario: Converge runs
+- **WHEN** converge runs
+- **THEN** each role is one fresh worker, and the findings files and the status log record no tier
+
+#### Scenario: A tier is given by hand
+- **WHEN** a person runs `/mf-converge <change-id> tier=high`
+- **THEN** converge halts, naming `tier` as removed, and dispatches no worker
+
+#### Scenario: An old models file holds a tier
+- **WHEN** a version's models file's `[converge]` table holds `tier = "high"`
+- **THEN** `mf-ship` ignores it, and the converge prompt carries no tier
+
+#### Scenario: A granted round
+- **WHEN** the person grants a round past the cap
+- **THEN** the converge prompt ends `and grant=yes`, with no tier clause
+
+#### Scenario: A diff is large
+- **WHEN** a change exceeds 1,500 changed lines
+- **THEN** it is reviewed anyway, and each file's Summary says it is over the standard cap and to consider a split

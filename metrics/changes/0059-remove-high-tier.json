@@ -1,0 +1,49 @@
+{
+  "change": "0059-remove-high-tier",
+  "version": "v0.48",
+  "base": "22c1af8",
+  "analyzed": "af5e696",
+  "measured_on": "local",
+  "collected_at": "2026-11-03T18:25:41+02:00",
+  "mf_version": "v0.47.4-1-g22c1af8",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 13947
+    },
+    "shared-context": {
+      "value": 7017
+    },
+    "rule-ids": {
+      "value": 62
+    },
+    "tests-collected": {
+      "value": 102
+    },
+    "gate-seconds": {
+      "value": 305
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 46
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 28
+    }
+  }
+}

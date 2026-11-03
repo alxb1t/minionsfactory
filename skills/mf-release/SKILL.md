@@ -278,7 +278,7 @@ authorizes nothing.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
-`converge ran`, or `converge: skipped — no findings files`; the converge tier and each `inconclusive` section, from
+`converge ran`, or `converge: skipped — no findings files`; each `inconclusive` section, from
 the findings files' frontmatter and Summaries; the paid-down cards, or `backlog: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
