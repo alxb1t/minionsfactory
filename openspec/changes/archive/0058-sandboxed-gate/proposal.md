@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: v0.47.1
 ---
 
 # Sandboxed gate
