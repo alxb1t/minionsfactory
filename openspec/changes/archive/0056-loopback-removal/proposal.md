@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: 0.47.2
 backlog: [0054·S3, 0054·R4]
 ---
 
