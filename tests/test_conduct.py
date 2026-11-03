@@ -3389,3 +3389,78 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert (
         ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
     ) in capsys.readouterr().out
+
+
+def test_approve_gate_records_the_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    root = _primary(tmp_path)
+    _commit(root, {"Makefile": "gate:\n\techo a\n"}, "gate")
+    change = "0002-gate"
+    tree = _version(root, change, "- [ ] 1 — One\n")
+    _commit(tree, {f"openspec/changes/{change}/design.md": "# X\n"}, "design")
+    # make runs `$(shell)` as it reads: the worker's makefile is code it wrote.
+    ran = tmp_path / "ran.log"
+    gate = f"$(shell echo ran >> {ran})\n.IGNORE:\ngate:\n\techo a\n"
+    _commit(tree, {"Makefile": gate}, "build")
+    conduct = _conduct()
+    base = _git(tree, "merge-base", "main", "HEAD")
+    script = _REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py"
+    gate_check = [sys.executable, str(script), "--change", change]
+
+    def check(*args: str) -> subprocess.CompletedProcess[str]:
+        argv = [*gate_check, "--base", base, *args]
+        return subprocess.run(argv, cwd=tree, capture_output=True, text=True)
+
+    def approve(*args: str) -> tuple[int, str]:
+        capsys.readouterr()
+        code = _main(
+            conduct, root, "approve-gate", change, *args, monkeypatch=monkeypatch
+        )
+        return code, capsys.readouterr().out
+
+    # The check, run in the worker's sandbox, prints the hash in the halt it shows.
+    hashed = check("--digest").stdout.strip()
+    halt = check()
+    assert halt.returncode == 1, halt.stdout
+    assert "\n  added: Makefile: .IGNORE:\n" in halt.stdout
+    assert halt.stdout.endswith(f"/mf-ship approve-gate {change} {hashed}.\n")
+
+    assert approve("--yes", "not-a-hash")[0] == 1
+    folder = home / ".mf-ship-origin" / f"{conduct['_digest'](root)}.gate"
+    assert not folder.exists()
+    ran.unlink()
+    lapses = []
+    code, out = approve("--yes", hashed)
+    assert (code, out) == (0, f"approve-gate: approved — {hashed} · {change}\n")
+    assert (folder / change).read_text() == f"{hashed}\n"
+    assert (
+        folder.stat().st_mode & 0o777,
+        (folder / change).stat().st_mode & 0o777,
+    ) == (
+        0o700,
+        0o600,
+    )
+    # Outside the sandbox, approve-gate runs none of the branch's makefiles.
+    if ran.exists():
+        lapses.append("approve-gate ran the branch's makefile")
+
+    # The digest conduct.py names the folder by is the one gate_check.py reads.
+    checked = check()
+    assert checked.stdout.startswith(f"gate: approved — {hashed}\n"), checked.stdout
+
+    # A phase's halt on its staged tree is approved by the hash that halt names.
+    (tree / "Makefile").write_text(f"{gate}\techo b\n")
+    _git(tree, "add", "Makefile")
+    staged = _git(tree, "write-tree")
+    hashed = check("--digest", "--head", staged).stdout.strip()
+    code, out = approve("--yes", hashed)
+    if code != 0:
+        lapses.append(f"the staged tree's hash: {out.strip()}")
+    checked = check("--head", staged)
+    if not checked.stdout.startswith(f"gate: approved — {hashed}\n"):
+        lapses.append(f"the staged check: {checked.stdout.splitlines()[0]}")
+    assert not lapses, lapses

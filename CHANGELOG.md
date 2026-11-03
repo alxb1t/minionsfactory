@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-03
+
+Gate: local 4m40s · CI not read under mf-ship · 0.49.0: local 4m27s · CI not read under mf-ship
+
+- `gate_check.py`'s halt lists every unquoted gate line in one run, with or without a planning task, states the rule
+  and the cut commit, and names `/mf-ship approve-gate`, because the first halt named only a file and hid the second
+  requirement (change `0060-gate-planning`, phase 1).
+- Input-contract item `I18`: a cut task that names a gate makefile names `` `gate` `` and quotes its lines in a `diff`
+  block, and the cut's Step 8 runs `gate_check.py --tasks` to refuse the bare form, because a task in prose passed the
+  cut and halted converge after the whole build (change `0060-gate-planning`, phase 2).
+- `gate_check.py` takes `--head <tree-ish>`, and `mf-build` checks a phase's staged tree before committing it, so a
+  bad quote costs a phase, not the build (change `0060-gate-planning`, phase 3).
+- `/mf-ship approve-gate <change-id> <hash>` records, on the person's yes, the hash a gate halt named in the home
+  folder, where `gate_check.py` reads it and passes the exact diff, because each recovery rewrote every commit from the
+  cut (change `0060-gate-planning`, phase 4).
+- `mf-build`'s interrupted-pass row needs an unticked `## Progress` box, so a ticked dirty tree goes to the closing
+  steps (`0055·R3`); `mf-release`'s `Next:` names `/mf-plan`, and the station diagrams say `plan`, not `grill`
+  (change `0060-gate-planning`, phase 5).
+- `gate_check.py`'s halt names the hash of what it read, and `approve-gate <change-id> --yes <hash>` records that hash
+  and runs no make, because the unsandboxed conductor ran the `$(shell …)` a worker wrote and hashed `HEAD`, not a
+  phase's staged tree; the hash covers each gate makefile's unified diff, so a line moved after the approval lapses it;
+  with no plan, a dry run that only gains lines halts, naming them, where it passed as planned; and `mf-build` checks
+  every phase's staged tree before its tick, so a halt leaves the box unticked (change `0060-gate-planning`, converge
+  fixes R1, R2, R3, R4, R5 and S1).
+
 ## [0.49.0] - 2026-11-03
 
 Gate: local 4m27s · CI not read under mf-ship · 0.48.0: local 5m05s · CI not read under mf-ship

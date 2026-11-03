@@ -12,7 +12,7 @@ description: Cut a new in-repo change from a settled grilling — create its ver
 ```
   mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
                  │                  ▲
-                 └── I1 … I17 ──────┘   the input contract, owned by mf-build
+                 └── I1 … I18 ──────┘   the input contract, owned by mf-build
 ```
 
 Before work, read root `AGENTS.md`, the mandatory context it names, and the architecture decisions and threat model:
@@ -112,8 +112,12 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 
 ## Step 8 — Self-check
 
-Build a table: each of `I1`…`I17`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
+Build a table: each of `I1`…`I18`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
+
+- **Run the plan check** — `uv run --script ../mf-converge/scripts/gate_check.py --tasks
+  openspec/changes/<change-id>/tasks.md`, `../mf-converge/` resolved from this skill's package. Exit 1 → **halt**,
+  naming each sub-task it prints and `I18`; commit nothing. Exit 2, or `uv` missing → **halt**, naming it.
 
 - **Read every `Verify:`; run none.** The build runs them, once the human starts it. Rewrite a check you can see
   will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its needle
@@ -181,6 +185,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | Step 1, for each `after` id; reading `proposal.md` |
+| **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | `gate_check.py --tasks openspec/changes/<change-id>/tasks.md` exits 0 |
 
 ## Prose rules
 

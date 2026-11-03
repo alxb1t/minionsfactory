@@ -122,9 +122,10 @@ precondition 4 says what absence means.
    own commit is never the one compared.
 8. **The gate changes only as the cut planned.** Run
    `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base>`, `../mf-converge/`
-   resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass.
-   Exit 1 → **halt**, copying what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be
-   read, and it names the side. A branch does not release its own weakened gate.
+   resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass: a
+   planned change, or one a person approved with `/mf-ship approve-gate <change-id> <hash>`. Exit 1 → **halt**, copying
+   what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side.
+   A branch does not release its own weakened gate: the approval is the person's, kept in the home folder.
 9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
    the way out:
 
@@ -283,7 +284,7 @@ data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.
 
-The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
+The last line, after a merge: `Next: /mf-plan <the next version>.`, or `Next: cd <primary> && /mf-plan <the next version>.`
 when Step 5.6 removed the worktree. With no merge:
 
     Next: merge and push — release <tag> is on branch <branch>:

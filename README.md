@@ -10,7 +10,7 @@ fresh readers before it is released.
 One change goes from an idea to a tag on the default branch.
 
 ```
-   grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
+   plan ────▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security

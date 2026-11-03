@@ -8,7 +8,7 @@ no history: when a change adds or overturns one, it edits this page in one of it
 An id in force is never reused or renumbered. A new decision takes the next number, in the group it belongs to.
 
 ```
-  grill ───▶ cut ───▶ build ───▶ converge ───▶ release
+  plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 

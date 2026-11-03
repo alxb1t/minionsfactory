@@ -4,15 +4,19 @@
 # ///
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
-    gate_check.py --change <id> --base <rev>
+    gate_check.py --change <id> --base <rev> [--head <tree-ish>] [--digest]
+    gate_check.py --tasks <tasks.md>
 
-Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
+Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read. A halt names the
+hash a person approves; `--digest` prints it alone.
+`--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
 It reads makefiles and dry runs; a file read at parse time, or a program the
 recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
 """
 
 import argparse
 import difflib
+import hashlib
 import os
 import re
 import shutil
@@ -20,14 +24,18 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from typing import NamedTuple
 
 TIMEOUT_SECONDS = 300
+# `conduct.py`'s `KEPT_ORIGINS`: the person's records, in the home folder.
+KEPT = ".mf-ship-origin"
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 # `gate_makefiles` parses make's English `Reading makefile` and directory lines.
 PINNED = {"LC_ALL": "C"}
 CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
+GATE_MAKEFILE = re.compile(r"`(?:[^`\s]*/)?Makefile`|`[^`\s]*\.mk`")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
 
@@ -74,10 +82,29 @@ def _git(*args: str) -> str:
     return _run(["git", *args], Path("."), f"git {args[0]}")
 
 
+def _primary() -> Path:
+    """Return the primary checkout, from any worktree."""
+    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(common.strip()).parent
+
+
 def exports() -> Path:
     """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
-    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.strip()).parent / ".minions" / "gate-check"
+    return _primary() / ".minions" / "gate-check"
+
+
+def approval(change: str) -> str | None:
+    """Return the hash a person approved for the change, kept in the home folder.
+
+    The folder is `conduct.py`'s, named as its `_digest` names the primary; no worker
+    writes there. Why: 0060-gate-planning design D4.
+    """
+    digest = hashlib.sha256(str(_primary().resolve()).encode()).hexdigest()[:16]
+    entry = Path.home() / KEPT / f"{digest}.gate" / change
+    try:
+        return entry.read_text().partition("\n")[0]
+    except OSError:
+        return None
 
 
 def cut_commit(change: str) -> str:
@@ -92,22 +119,67 @@ def cut_commit(change: str) -> str:
     return commits[0]
 
 
+def subtasks(tasks: str) -> list[list[str]]:
+    """Return each sub-task's lines, stripped: its first, then each wrapped line.
+
+    A wrapped line is indented and not blank; a blank line ends the sub-task.
+    """
+    found: list[list[str]] = []
+    wrapped = False
+    for line in tasks.splitlines():
+        if match := SUBTASK.match(line):
+            found.append([match[1]])
+            wrapped = True
+        elif wrapped and line[:1] in (" ", "\t") and line.strip():
+            found[-1].append(line.strip())
+        else:
+            wrapped = False
+    return found
+
+
 def planning_tasks(tasks: str) -> list[str]:
     """Return each sub-task naming both `Makefile` and `gate`, its wrapped lines joined.
 
     e.g. "- [ ] 1.2 Edit the `gate` recipe in `Makefile`." → "1.2 Edit the `gate` …"
     """
-    found: list[str] = []
-    wrapped = False
-    for line in tasks.splitlines():
-        if match := SUBTASK.match(line):
-            found.append(match[1])
-            wrapped = True
-        elif wrapped and line[:1] in (" ", "\t") and line.strip():
-            found[-1] += " " + line.strip()
-        else:
-            wrapped = False
+    found = [" ".join(lines) for lines in subtasks(tasks)]
     return [text for text in found if "Makefile" in text and "`gate`" in text]
+
+
+def plan_problems(tasks: str) -> list[str]:
+    """Return each sub-task that names a gate makefile without `I18`'s form.
+
+    e.g. "- [ ] 1.6 Edit `Makefile`." → ["  1.6: no `gate` · no ```diff line · …"]
+    Why: 0060-gate-planning design D2.
+    """
+    problems: list[str] = []
+    for lines in subtasks(tasks):
+        text = " ".join(lines)
+        if not GATE_MAKEFILE.search(text):
+            continue
+        lacks = [] if "`gate`" in text else ["no `gate`"]
+        lacks += [] if "```diff" in lines else ["no ```diff line"]
+        if not any(line.startswith(("+ ", "- ")) for line in lines[1:]):
+            lacks.append("no line starting `+ ` or `- `")
+        if lacks:
+            problems.append(f"  {lines[0].split()[0]}: {' · '.join(lacks)}")
+    return problems
+
+
+def check_tasks(path: Path) -> str:
+    """Return the passing verdict for a `tasks.md`; a task out of form raises `Stop`."""
+    try:
+        tasks = path.read_text()
+    except OSError as error:
+        raise Stop(2, f"gate: cannot check — {path}: {error.strerror}") from None
+    if problems := plan_problems(tasks):
+        raise Stop(
+            1,
+            "gate: halt — I18: a sub-task names a gate makefile, and does not name "
+            "`gate` and quote its lines in a fenced `diff` block:\n"
+            + "\n".join(problems),
+        )
+    return "gate: every task that names a gate makefile quotes its lines"
 
 
 def export(rev: str, dest: Path, side: str) -> None:
@@ -221,6 +293,25 @@ def _lines(path: Path) -> list[str]:
     return path.read_text(errors="replace").splitlines() if path.is_file() else []
 
 
+def hunks(base: Path, head: Path, files: list[str]) -> str:
+    """Return each of `files`' unified diff, its raw lines and line numbers.
+
+    A moved or re-indented line changes it, where the stripped edits stay equal.
+    Why: 0060-gate-planning design D4.
+    """
+    return "\n".join(
+        line
+        for name in files
+        for line in difflib.unified_diff(
+            _lines(base / name),
+            _lines(head / name),
+            f"base: {name}",
+            f"head: {name}",
+            lineterm="",
+        )
+    )
+
+
 def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], list[str]]:
     """Export `rev` to `root`; return its gate makefiles and its dry run.
 
@@ -235,16 +326,29 @@ def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], lis
     return gate_makefiles(root, trace), lines
 
 
-def check(change: str, base: str) -> str:
-    """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
+class Gate(NamedTuple):
+    """What the check reads of a branch's gate against its base."""
+
+    cut: str
+    tasks: list[str]
+    touched: list[str]
+    edits: list[tuple[str, str, str]]
+    hunks: str
+    base_lines: list[str]
+    head_lines: list[str]
+    diff: str
+
+
+def read_gate(change: str, base: str, head: str) -> Gate:
+    """Return the gate's edits and dry runs; an unreadable gate raises `Stop`."""
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
     root = exports() / change
     shutil.rmtree(root, ignore_errors=True)
     try:
         base_files, base_lines = read_side(base, root / "base", "base")
-        head_files, head_lines = read_side("HEAD", root / "head", "head")
-        changed = set(_git("diff", "--name-only", "-z", base, "HEAD").split("\0"))
+        head_files, head_lines = read_side(head, root / "head", "head")
+        changed = set(_git("diff", "--name-only", "-z", base, head).split("\0"))
         touched = sorted(
             set().union(*base_files.values(), *head_files.values()) & changed
         )
@@ -255,6 +359,7 @@ def check(change: str, base: str) -> str:
             if (base_files.get(name, set()) | head_files.get(name, set())) & changed
         )
         edits = changed_lines(root / "base", root / "head", affected)
+        changes = hunks(root / "base", root / "head", affected)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -267,36 +372,73 @@ def check(change: str, base: str) -> str:
             lineterm="",
         )
     )
-    if not touched and not diff:
+    return Gate(cut, tasks, touched, edits, changes, base_lines, head_lines, diff)
+
+
+def gate_hash(gate: Gate) -> str:
+    """Return the sha256 a person approves.
+
+    It hashes each gate makefile's unified diff, then the dry runs' diff, so a line
+    moved after the approval changes it. Why: 0060-gate-planning design D4.
+    """
+    return hashlib.sha256(f"{gate.hunks}\n{gate.diff}".encode()).hexdigest()
+
+
+def check(change: str, base: str, head: str = "HEAD") -> str:
+    """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
+    gate = read_gate(change, base, head)
+    tasks, diff = gate.tasks, gate.diff
+    if not gate.touched and not diff:
         return "gate: no unplanned change"
-    if not tasks:
-        # The changed makefiles, or else the dry runs' diff.
-        shown = "".join(f"\n  {name}" for name in touched) or f"\n{diff}"
-        raise Stop(
-            1,
-            "gate: halt — the branch changes the gate, and no cut task names "
-            f"`Makefile` and `gate`:{shown}",
-        )
 
     def quoted(text: str) -> bool:
         return any(text.strip() in task for task in tasks)
 
-    kept = set(head_lines)
+    kept = set(gate.head_lines)
     problems = [
         f"  dropped: {line}"
-        for line in base_lines
+        for line in gate.base_lines
         if line.strip() and line not in kept and not quoted(line)
     ]
     problems += [
-        f"  {kind}: {name}: {text}" for kind, name, text in edits if not quoted(text)
+        f"  {kind}: {name}: {text}"
+        for kind, name, text in gate.edits
+        if not quoted(text)
     ]
-    if problems:
-        raise Stop(
-            1,
-            "gate: halt — the planned change adds, removes or drops a line "
-            "the task does not quote:\n" + "\n".join(problems) + f"\n{diff}",
-        )
-    return f"gate: planned — {' · '.join(tasks)}\n{diff}"
+    if not tasks and not problems:
+        # With no plan, a dry run that only gains lines, or a makefile changed in
+        # blank lines alone, still halts: every change is unplanned.
+        printed = set(gate.base_lines)
+        problems = [
+            f"  added to the dry run: {line}"
+            for line in gate.head_lines
+            if line.strip() and line not in printed
+        ]
+        problems += [f"  changed: {name}" for name in gate.touched]
+        problems = problems or ["  changed: the dry run"]
+    if not problems:
+        return f"gate: planned — {' · '.join(tasks)}\n{diff}"
+    if approval(change) == (hashed := gate_hash(gate)):
+        return f"gate: approved — {hashed}\n{diff}"
+    raise Stop(1, halt(problems, diff, gate.cut, change, hashed))
+
+
+def halt(problems: list[str], diff: str, cut: str, change: str, hashed: str) -> str:
+    """Return the one halt: every unquoted line, the dry run, the rule, the way out.
+
+    The way out names the hash of what this run read, so the diff it shows is the
+    one a person approves. Why: 0060-gate-planning design D1, D4.
+    """
+    rule = (
+        "A planning task names `Makefile` and `gate` in backticks and quotes each "
+        f"line, in the cut commit {cut}. A person approves this diff with "
+        f"/mf-ship approve-gate {change} {hashed}."
+    )
+    dry = f"The dry run changed:\n{diff}\n" if diff else "The dry run is unchanged. "
+    return (
+        "gate: halt — the branch changes the gate, and no cut task quotes these "
+        "lines:\n" + "\n".join(problems) + f"\n{dry}{rule}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -304,15 +446,31 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Halt on a gate the change's cut did not plan."
     )
-    parser.add_argument("--change", required=True, help="the change id")
-    parser.add_argument("--base", required=True, help="the base commit")
+    parser.add_argument("--change", help="the change id")
+    parser.add_argument("--base", help="the base commit")
+    parser.add_argument("--head", default="HEAD", help="the branch's tree-ish")
+    parser.add_argument("--tasks", type=Path, help="a tasks.md to check alone")
+    parser.add_argument(
+        "--digest", action="store_true", help="print the hash a person approves"
+    )
     args = parser.parse_args(argv)
-    if not CHANGE_ID.fullmatch(args.change):
-        parser.error(f"--change: not a change id: {args.change}")
-    if args.base.startswith("-"):
-        parser.error(f"--base: not a commit: {args.base}")
+    if args.tasks is None:
+        if args.change is None or args.base is None:
+            parser.error("--change and --base are required without --tasks")
+        if not CHANGE_ID.fullmatch(args.change):
+            parser.error(f"--change: not a change id: {args.change}")
+        for flag, rev in (("--base", args.base), ("--head", args.head)):
+            if rev.startswith("-"):
+                parser.error(f"{flag}: not a commit: {rev}")
+    elif args.change is not None or args.base is not None or args.digest:
+        parser.error("--tasks takes no --change, --base or --digest")
     try:
-        print(check(args.change, args.base))
+        if args.tasks is not None:
+            print(check_tasks(args.tasks))
+        elif args.digest:
+            print(gate_hash(read_gate(args.change, args.base, args.head)))
+        else:
+            print(check(args.change, args.base, args.head))
     except Stop as stop:
         print(stop)
         return stop.code

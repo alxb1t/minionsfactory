@@ -137,7 +137,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
   written to the path the operator gives — neither named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
-  ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)).
+  ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — and a person's gate approval
+  beside it, which `gate_check.py` reads.
 
 **Installed skills, bundled references and bundled scripts are instruction-package material, not permission to
 read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or tool

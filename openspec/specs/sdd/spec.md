@@ -292,7 +292,13 @@ the `MAKEFILE_LIST` or a `Reading makefile` line of `make -pn -r -w -d gate` on 
 or the `make -n gate` output, SHALL halt. When such a task exists, the script SHALL show the two exports'
 `make -n gate` diff, and SHALL halt on a command line the base prints and the branch does not, and on every
 non-blank gate makefile line the branch adds or removes, unless that task quotes the line. Its verdict SHALL
-name what it read — the gate makefiles and the dry runs — and SHALL NOT state that the gate is the base's. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
+name what it read — the gate makefiles and the dry runs — and SHALL NOT state that the gate is the base's. A halt SHALL
+list every unquoted line in one run, the halt with no planning task among them; SHALL say that `` `gate` `` must be in
+backticks and that the cut commit is what counts; SHALL say whether the dry run changed or the file alone; and SHALL name
+`/mf-ship approve-gate <change-id> <hash>` as the way out, `<hash>` the hash of what that run read. With no planning task, the
+halt SHALL list each line the branch's dry run adds, and SHALL list the dry run itself when nothing else is listed. A person's
+approval recorded in the home folder for the change, whose hash equals the hash of each gate makefile's unified diff, line
+numbers included, and the dry runs' diff the script reads, SHALL pass the script without a planning task. An export that lacks a path of its tree, or a dry run that fails on either export, SHALL halt, naming the
 side. The cut commit SHALL be the one commit that adds the change's `design.md`; more than one SHALL be a
 halt.
 
@@ -316,6 +322,24 @@ halt.
 - **WHEN** either export lacks a path of its tree — an `export-ignore` path — or `make -pn -r -w -d gate` or
   `make -n gate` fails in it — an included `.env`
 - **THEN** each station halts, naming the side and the failure, and compares nothing in the working tree
+
+#### Scenario: The halt lists every unquoted line
+- **WHEN** a branch adds a `setup` target and edits `.PHONY`, and no cut task names `` `gate` ``
+- **THEN** the halt lists each added and removed line, says the dry run is unchanged, and names `approve-gate` with the hash
+
+#### Scenario: A dry run gains a line with no plan
+- **WHEN** no cut task names `` `gate` ``, no gate makefile changes, and the branch's dry run prints a line the base's does not
+- **THEN** the script halts, naming the added line
+
+#### Scenario: A person approves a gate change
+- **WHEN** a person's approval recorded in the home folder holds the hash of the branch's gate makefile diffs and dry-run diff
+- **THEN** the script passes, naming the approval
+- **AND WHEN** the branch changes or moves a gate makefile line after the approval
+- **THEN** the hashes differ, and the script halts as with no approval
+
+#### Scenario: A branch writes its own approval
+- **WHEN** a file in the repository, the run directory or the version's tree claims an approval
+- **THEN** the script reads none of it, and halts as with no approval
 
 ### Requirement: No station deletes a findings file or the diff patch
 
@@ -1231,8 +1255,8 @@ SHALL each halt their version.
 Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
 close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
-outside git and the run directory, except the claim, `origin`'s URLs and the release ledger in the home folder: a re-run derives
-every stage again and continues. A halt SHALL need
+outside git and the run directory, except the claim, `origin`'s URLs, the release ledger and a person's gate approval in the
+home folder: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
 `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
@@ -1790,3 +1814,53 @@ security files' frontmatter SHALL record `mode`, `workers`, `model` and `packet`
 #### Scenario: A diff is large
 - **WHEN** a change exceeds 1,500 changed lines
 - **THEN** it is reviewed anyway, and each file's Summary says it is over the standard cap and to consider a split
+
+### Requirement: The cut plans a gate change in the form the check reads
+
+`skills/mf-cut-change/SKILL.md` SHALL hold input-contract item `I18`, which `skills/mf-build/SKILL.md` owns: a sub-task that
+names `Makefile`, or a gate makefile ending `.mk`, SHALL name `` `gate` `` and hold a fenced `diff` block quoting each line it adds
+or removes, with no blank line inside the block. The cut SHALL run `gate_check.py --tasks <tasks.md>` before its commit, and
+SHALL halt, naming the sub-task, on one that names a gate makefile without that form.
+
+#### Scenario: A cut task describes a Makefile edit in prose
+- **WHEN** a sub-task says "the gate's `pytest` line takes `-m "not e2e"`" in `Makefile`, and holds no `diff` block
+- **THEN** the cut halts, naming the sub-task and `I18`, and commits nothing
+
+#### Scenario: A cut task quotes its lines
+- **WHEN** a sub-task names `Makefile` and `` `gate` `` and holds a `diff` block of its lines
+- **THEN** the cut's check passes
+
+### Requirement: The build checks a gate change at its phase
+
+`skills/mf-build/SKILL.md` SHALL, before ticking each phase's box, run
+`gate_check.py --change <change-id> --base <merge-base> --head <the staged tree>`, and SHALL halt on its exit 1, ticking and
+committing nothing.
+
+#### Scenario: A phase adds a line the cut did not quote
+- **WHEN** a phase's staged diff adds a gate makefile line its cut task does not quote — in `Makefile`, a `*.mk` file, a
+  `GNUmakefile` or any file make includes
+- **THEN** the build halts before the phase's tick and commit, naming the line, and the next build continues the phase
+
+#### Scenario: A phase adds a quoted line
+- **WHEN** every gate makefile line the phase adds or removes is quoted by its cut task
+- **THEN** the build commits the phase
+
+### Requirement: A person can approve a gate change
+
+`/mf-ship approve-gate <change-id> <hash>`, the person's command, SHALL be the person's yes to the gate check halt that named
+`<hash>` beside the version's gate makefile edits and the dry runs' diff, and SHALL record the hash in the home folder beside
+the kept URLs and the release ledger. It SHALL run none of the branch's makefiles, since it runs outside the sandbox, and SHALL
+refuse a `<hash>` that is not a sha256. A worker, whose sandbox writes nothing in the home folder, SHALL be unable to record one.
+
+#### Scenario: A person approves a planned change the task quoted badly
+- **WHEN** converge halted on an unquoted gate line, and the person runs `/mf-ship approve-gate <change-id> <hash>` with the
+  hash the halt named
+- **THEN** the hash is recorded, and the next converge's gate check passes, naming the approval
+
+#### Scenario: A person approves a phase's halt
+- **WHEN** the build halted on its staged tree, and the person approves the hash that halt named
+- **THEN** the next build's check on the same staged tree passes, naming the approval
+
+#### Scenario: The approval runs no worker's code
+- **WHEN** a branch's makefile runs a `$(shell …)` as make reads it, and the person runs `approve-gate`
+- **THEN** the hash is recorded, and the `$(shell …)` does not run

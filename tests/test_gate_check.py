@@ -4,7 +4,9 @@ Real git and make in a scratch repository: the routes are make's own behaviour.
 Why: 0034-gate-recipe-hardening design D1…D4.
 """
 
+import hashlib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -52,10 +54,10 @@ def _branch(
 
 
 def _check(
-    root: Path, base: str, env: dict[str, str] | None = None
+    root: Path, base: str, env: dict[str, str] | None = None, *extra: str
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base],
+        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base, *extra],
         cwd=root,
         env={**os.environ, **(env or {})},
         capture_output=True,
@@ -65,6 +67,18 @@ def _check(
 
 def _planned(quote: str = "") -> str:
     return f"## 1 — One\n\n- [ ] 1.1 Change the `gate` recipe in `Makefile`.{quote}\n"
+
+
+_HALT = (
+    "gate: halt — the branch changes the gate, and no cut task quotes these lines:\n"
+)
+
+
+def _halted(result: subprocess.CompletedProcess[str], *lines: str) -> list[str]:
+    """Return what the halt lacks: its header, or a `  <line>` entry."""
+    missing = [] if result.returncode == 1 else [f"exit {result.returncode}"]
+    missing += [] if result.stdout.startswith(_HALT) else ["the header"]
+    return missing + [line for line in lines if f"\n  {line}\n" not in result.stdout]
 
 
 def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
@@ -83,8 +97,8 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     }
     base = _branch(tmp_path, files, _UNPLANNED, {"gate.mk": "CHECK = true\n"})
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith("names `Makefile` and `gate`:\n  gate.mk\n")
+    removed, added = "removed: gate.mk: CHECK = false", "added: gate.mk: CHECK = true"
+    assert not _halted(result, removed, added), result.stdout
 
     # A makefile the base's wildcard picks up cannot drop itself from the list.
     wildcard = tmp_path / "wildcard"
@@ -94,8 +108,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     hidden += "$(info make: Entering directory `/')\n"
     base = _branch(wildcard, files, _UNPLANNED, {"mk/z.mk": hidden})
     result = _check(wildcard, base)
-    assert result.returncode == 1, result.stdout
-    assert result.stdout.endswith(":\n  mk/z.mk\n")
+    assert not _halted(result, "added: mk/z.mk: .IGNORE:"), result.stdout
 
     # A file make reads through `$(shell)` is no makefile, but its dry run differs.
     data = tmp_path / "data"
@@ -104,9 +117,21 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
         data, {**files, "gate.cmd": "false\n"}, _UNPLANNED, {"gate.cmd": "true\n"}
     )
     result = _check(data, base)
-    assert result.returncode == 1, result.stdout
-    assert "and no cut task names" in result.stdout
+    assert not _halted(result, "dropped: false"), result.stdout
+    assert "\nThe dry run changed:\n" in result.stdout
     assert "\n-false\n+true" in result.stdout
+
+    # With no plan, a dry run that only gains a line, no makefile edited, halts too.
+    gained = tmp_path / "gained"
+    files = {
+        "Makefile": "EXTRA := $(shell cat extra.txt)\ngate:\n\techo a\n\t$(EXTRA)\n"
+    }
+    base = _branch(
+        gained, {**files, "extra.txt": ""}, _UNPLANNED, {"extra.txt": "echo b\n"}
+    )
+    result = _check(gained, base)
+    assert not _halted(result, "added to the dry run: echo b"), result.stdout
+    assert "\n+echo b" in result.stdout
 
     # Preserve the names Git tracks when make follows an include symlink, including
     # a parent directory, or Git would quote the filename in line-based output.
@@ -120,6 +145,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("rules.mk", "strict.mk", "loose.mk"),
             "rules.mk",
+            "added: rules.mk: .IGNORE:",
         ),
         (
             "recipe-symlink",
@@ -130,6 +156,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("gate.mk", "strict.mk", "ignored.mk"),
             "gate.mk",
+            "added: gate.mk: -false",
         ),
         (
             "parent-symlink",
@@ -140,16 +167,18 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("rules", "strict", "ignored"),
             "rules",
+            "added: rules/gate.mk: -false",
         ),
         (
             "quoted-name",
             {"Makefile": "include café.mk\ngate:\n\tfalse\n", "café.mk": "# strict\n"},
             None,
             "café.mk",
+            "added: café.mk: .IGNORE:",
         ),
     ]
     failures = []
-    for label, initial, link, changed in cases:
+    for label, initial, link, changed, line in cases:
         root = tmp_path / label
         root.mkdir()
         if link:
@@ -161,7 +190,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             (root / link[0]).symlink_to(link[2])
             _commit(root, {}, "retarget include")
         result = _check(root, base)
-        if result.returncode != 1 or not result.stdout.endswith(f":\n  {changed}\n"):
+        if _halted(result, line):
             failures.append((label, result.returncode, result.stdout))
     # Every link followed while resolving an include can change its contents,
     # even when the direct include name and the dry run stay unchanged.
@@ -227,9 +256,8 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             _commit(root, {}, "retarget resolution dependency")
             result = _check(root, base)
             valid = result.returncode == expected
-            if plan == "unplanned":
-                valid &= result.stdout.endswith(f":\n  {changed}\n")
-            elif plan == "unquoted":
+            if expected:
+                valid &= result.stdout.startswith(_HALT)
                 valid &= "removed:" in result.stdout and "added:" in result.stdout
                 valid &= "false" in result.stdout and "-false" in result.stdout
             else:
@@ -245,32 +273,55 @@ def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
     weakened = {"checks/Makefile": "check:\n\tuv run pytest -q || true\n"}
     base = _branch(tmp_path, files, _UNPLANNED, weakened)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  checks/Makefile\n")
+    added = "added: checks/Makefile: uv run pytest -q || true"
+    assert not _halted(result, added), result.stdout
 
 
 def test_a_dash_prefix_halts(tmp_path: Path) -> None:
     files = {"Makefile": "gate:\n\tfalse\n"}
     base = _branch(tmp_path, files, _UNPLANNED, {"Makefile": "gate:\n\t-false\n"})
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: -false"), result.stdout
 
 
 def test_an_ignore_target_halts(tmp_path: Path) -> None:
     branch = {"Makefile": f".IGNORE:\n{_GATE}"}
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: .IGNORE:"), result.stdout
 
 
 def test_makeflags_ignore_halts(tmp_path: Path) -> None:
     branch = {"Makefile": f"MAKEFLAGS += -i\n{_GATE}"}
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: MAKEFLAGS += -i"), result.stdout
+
+
+def test_a_halt_lists_every_unquoted_line(tmp_path: Path) -> None:
+    gate = f".PHONY: gate browsers drift derive\n{_GATE}"
+    branch = {"Makefile": f".PHONY: gate browsers drift derive setup\nsetup:\n{_GATE}"}
+    base = _branch(tmp_path, {"Makefile": gate}, _UNPLANNED, branch)
+    result = _check(tmp_path, base)
+    removed = "removed: Makefile: .PHONY: gate browsers drift derive"
+    added = "added: Makefile: .PHONY: gate browsers drift derive setup"
+    assert not _halted(result, removed, added, "added: Makefile: setup:"), result.stdout
+    design = f"openspec/changes/{_CHANGE}/design.md"
+    cut = _git(tmp_path, "log", "--diff-filter=A", "--format=%h", "--", design)
+    assert "\nThe dry run is unchanged. A planning task names `Makefile` and " in (
+        result.stdout
+    )
+    assert f"each line, in the cut commit {cut}. " in result.stdout
+    assert re.search(
+        f"/mf-ship approve-gate {_CHANGE} [0-9a-f]{{64}}\\.\n$", result.stdout
+    )
+
+    # A planning task's quoted line leaves the list; the rest stays in the one halt.
+    quoted = tmp_path / "quoted"
+    base = _branch(quoted, {"Makefile": gate}, _planned(" Adds `setup:`."), branch)
+    result = _check(quoted, base)
+    assert not _halted(result, removed, added), result.stdout
+    assert "\n  added: Makefile: setup:\n" not in result.stdout
 
 
 def test_a_planned_change_that_drops_a_line_halts(tmp_path: Path) -> None:
@@ -385,3 +436,110 @@ def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     made = {Path(line) for line in log.read_text().splitlines()}
     assert made == {exports / "base", exports / "head"}
     assert not exports.exists() and not (worktree / ".minions").exists()
+
+
+def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
+    tasks = _planned(" It adds `echo c`.")
+    base = _branch(tmp_path, {"Makefile": _GATE}, tasks, {"README.md": "x\n"})
+
+    def staged(gate: str) -> subprocess.CompletedProcess[str]:
+        (tmp_path / "Makefile").write_text(gate)
+        _git(tmp_path, "add", "Makefile")
+        tree = _git(tmp_path, "write-tree")
+        return _check(tmp_path, base, None, "--head", tree)
+
+    # HEAD's gate is the base's: only the staged tree holds the edit.
+    unquoted = staged(f"{_GATE}\techo d\n")
+    assert not _halted(unquoted, "added: Makefile: echo d"), unquoted.stdout
+    quoted = staged(f"{_GATE}\techo c\n")
+    assert quoted.returncode == 0, quoted.stdout
+    assert quoted.stdout.startswith("gate: planned — 1.1 ")
+    assert "\n+echo c" in quoted.stdout
+
+
+def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
+    root, home = tmp_path / "repo", tmp_path / "home"
+    branch = {"Makefile": f".IGNORE:\n{_GATE}"}
+    base = _branch(root, {"Makefile": _GATE}, _UNPLANNED, branch)
+    env = {"HOME": str(home)}
+    hashed = _check(root, base, env, "--digest").stdout.strip()
+    assert len(hashed) == 64, hashed
+    digest = hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16]
+
+    # An approval in the repository, its run directory or the tree approves nothing.
+    for planted in (".mf-ship-origin", ".minions/.mf-ship-origin"):
+        entry = root / planted / f"{digest}.gate" / _CHANGE
+        entry.parent.mkdir(parents=True)
+        entry.write_text(f"{hashed}\n")
+    _commit(root, {f".mf-ship-origin/{digest}.gate/x": f"{hashed}\n"}, "claim")
+    unapproved = _check(root, base, env)
+    assert not _halted(unapproved, "added: Makefile: .IGNORE:"), unapproved.stdout
+    # The halt names the hash it read, so the person approves what it showed.
+    assert unapproved.stdout.endswith(f"approve-gate {_CHANGE} {hashed}.\n")
+
+    entry = home / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
+    entry.parent.mkdir(parents=True)
+    entry.write_text(f"{hashed}\n")
+    approved = _check(root, base, env)
+    assert approved.returncode == 0, approved.stdout
+    assert approved.stdout == f"gate: approved — {hashed}\n\n"
+
+    _commit(root, {"Makefile": f".IGNORE:\n{_GATE}\techo c\n"}, "one more edit")
+    moved = _check(root, base, env)
+    assert not _halted(moved, "added: Makefile: echo c"), moved.stdout
+
+    # A line the approval saw, moved where it drops `pipefail`, lapses the approval.
+    shifted = tmp_path / "shifted"
+    strict = f"SHELL := /bin/bash -o pipefail\n{_GATE}"
+    branch = {"Makefile": f"SHELL := /bin/sh\n{strict}"}
+    base = _branch(shifted, {"Makefile": strict}, _UNPLANNED, branch)
+    hashed = _check(shifted, base, env, "--digest").stdout.strip()
+    digest = hashlib.sha256(str(shifted.resolve()).encode()).hexdigest()[:16]
+    entry = home / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
+    entry.parent.mkdir(parents=True)
+    entry.write_text(f"{hashed}\n")
+    assert _check(shifted, base, env).stdout.startswith(f"gate: approved — {hashed}")
+    weaker = f"SHELL := /bin/bash -o pipefail\nSHELL := /bin/sh\n{_GATE}"
+    _commit(shifted, {"Makefile": weaker}, "move the line")
+    lapsed = _check(shifted, base, env)
+    assert not _halted(lapsed, "added: Makefile: SHELL := /bin/sh"), lapsed.stdout
+
+
+def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
+    prose = (
+        '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`.\n'
+        "  Verify: `make -n gate` prints `not e2e`.\n"
+    )
+    quoted = (
+        '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`:\n'
+        "  ```diff\n"
+        "  - \tuv run pytest -q\n"
+        '  + \tuv run pytest -q -m "not e2e"\n'
+        "  ```\n"
+        "  Verify: `make -n gate` prints `not e2e`.\n"
+    )
+    # A blank line inside the block ends the sub-task before its quoted lines.
+    gapped = quoted.replace("```diff\n", "```diff\n\n")
+    cases = {
+        "prose": (prose, 1),
+        "quoted": (quoted, 0),
+        "gapped": (gapped, 1),
+        "mk": ("- [ ] 2.1 Add `setup` to `mk/tools.mk`.\n", 1),
+        "none": ("- [ ] 1.1 Edit `README.md`.\n", 0),
+    }
+    outcomes = {}
+    for label, (task, _) in cases.items():
+        tasks = tmp_path / f"{label}.md"
+        tasks.write_text(f"## Progress\n\n- [ ] 1 — One\n\n## 1 — One\n\n{task}")
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--tasks", str(tasks)],
+            capture_output=True,
+            text=True,
+        )
+        outcomes[label] = (result.returncode, result.stdout)
+    codes = {label: code for label, (code, _) in outcomes.items()}
+    assert codes == {label: code for label, (_, code) in cases.items()}, outcomes
+    halt = outcomes["prose"][1]
+    assert halt.startswith("gate: halt — I18: "), halt
+    assert "\n  1.6: no ```diff line · no line starting `+ ` or `- `\n" in halt
+    assert "\n  2.1: no `gate` · no ```diff line" in outcomes["mk"][1]

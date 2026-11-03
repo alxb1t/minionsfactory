@@ -64,6 +64,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
+| **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — (Step 2 checks the staged tree) |
 
 ## Step 1 — Lift the context
 
@@ -102,7 +103,7 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 
 | at the start | do |
 |---|---|
-| the tree is dirty, and `tasks.md` is tracked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
+| the tree is dirty, `tasks.md` is tracked, and a `## Progress` box is unticked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
 | every box ticked, and `.minions/build/<change-id>.done` names `HEAD` | the change is built: report that and stop; invent no scope |
 | every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/build/<change-id>.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no `.minions/build/<change-id>.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
@@ -151,12 +152,18 @@ ticking the `N.M` boxes with the phase's box at item 5.
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
    changed and why, following `P`.
-5. **Tick the phase's box** in `## Progress` (`- [ ] N` → `- [x] N`). A phase is finished by a commit **and** a
-   ticked box; either alone is not an advance.
-6. **One commit for the phase.** Stage the paths you changed **by name** — never `git add -A`: `.minions/` holds
-   gitignored run output, and an un-ignored one would be swept into history. Write a Conventional-Commits
-   subject. **Every commit ends with this trailer block, contiguous** — git parses the last paragraph as the
-   trailers, so a blank line between them silently breaks it:
+5. **Check the staged tree, then tick the phase's box.** Stage the paths you changed **by name** — never
+   `git add -A`: `.minions/` holds gitignored run output, and an un-ignored one would be swept into history. Run
+   `git write-tree`, then
+   `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base> --head <the tree>`,
+   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 3.5; a phase that moves no gate
+   makefile and no dry run prints `gate: no unplanned change`. Exit 1 → **halt**, ticking and committing nothing,
+   copying what it prints: the box stays unticked, so the next `/mf-build` continues this phase. Exit 2, or `uv`
+   missing → **halt**, naming the side. Exit 0 → tick the phase's box in `## Progress` (`- [ ] N` → `- [x] N`). A
+   phase is finished by a commit **and** a ticked box; either alone is not an advance.
+6. **One commit for the phase.** Stage `tasks.md` again, by name, and write a Conventional-Commits subject.
+   **Every commit ends with this trailer block, contiguous** — git parses the last paragraph as the trailers, so a
+   blank line between them silently breaks it:
 
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>

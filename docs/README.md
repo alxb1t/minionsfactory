@@ -4,7 +4,7 @@ The map of this repository's record. MinionsFactory is disciplined feature devel
 as the `mf-*` skills: each station of the line is a skill, and a person conducts them.
 
 ```
-   grill ───▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
+   plan ────▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
                                            review ‖ security
