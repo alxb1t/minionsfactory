@@ -61,7 +61,7 @@ Read at `22c1af8` (v0.47.4).
 
 `conduct.py`: `TIERS` and `_tier` go. `PROMPTS["converge"]` → `"Run the mf-converge skill for change {change}{grant}."`;
 `Run.advance` formats it with `grant=" and grant=yes"` for a granted round, else `""`. No `[converge].tier` is read.
-`tests/fake_worker.py:73`'s pattern → `r" and grant=yes"`; `tests/drill_resume.py:147` writes no `tier`.
+`tests/fake_worker.py:73`'s pattern → `r" (?:with|and) (?!merge=yes\b)\w+=\w+"`, so a returned clause changes the call; `tests/drill_resume.py:147` writes no `tier`.
 
 `skills/mf-ship/SKILL.md:96` → "Converge runs MF's method." `skills/mf-cut-change/SKILL.md`: the **Tier** bullet and the TOML's
 `tier =` line go.

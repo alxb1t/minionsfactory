@@ -50,7 +50,7 @@ capability.
 - **WHEN** neither a suitable subagent nor a fresh agent process can be dispatched and awaited
 - **THEN** convergence halts rather than reviewing in the conductor's context
 
-#### Scenario: A host runs one worker at a time at high
+#### Scenario: A host runs one worker at a time
 - **WHEN** converge runs on a host that cannot run workers in parallel
 - **THEN** it runs the review worker, then the security worker, over the same frozen head, and the findings files record
   `mode: sequential`
