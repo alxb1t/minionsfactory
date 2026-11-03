@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.3] - 2026-11-03
+
+Gate: local 4m38s · CI none · 0.47.2: local 4m24s · CI none
+
 - `mf-build` writes `.minions/build/<change-id>.done` once simplify and the metrics are done, and resumes at simplify
   when every box is ticked and no marker names `HEAD`, because a build that died in simplify read as built
   (change `0055-build-resume`, phase 1).
