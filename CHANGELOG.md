@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.4] - 2026-11-03
+
+Gate: local 4m56s · CI not read under mf-ship · 0.47.3: local 4m38s · CI none
+
+- `conduct.py`'s probe checks the worker shell's `uname -m` against the host's native architecture, and halts the run
+  naming both, because a Codex shell ran as `x86_64` on an `arm64` Mac and the probe passed it (change
+  `0057-run-fixes`, phase 1).
+- At a run's start, `conduct.py` merges `main` into a cut-only version behind it, and halts one still building behind a
+  `main` that changed its gate or rules, naming the files and the merge, and one whose merge is left open with no note,
+  naming the commit, while a built one goes on to integrate, because versions cut before `main` moved built on the old
+  gate (change `0057-run-fixes`, phase 2).
+- `conduct.py` removes a released version's worktree at the path `Worktrees:` gives, logging the ignored paths it
+  held, and logs `kept` for one elsewhere, one whose ignored paths cannot be listed, or one git refuses, because a
+  sandboxed release cannot write the worktree's parent (change `0057-run-fixes`, phase 3).
+- `mf-release` under `merge=yes` writes `CI not read under mf-ship` in its `Gate:` line and leaves its worktree to
+  `conduct.py`, and `mf-ship` names the merge a gate-change halt needs, because the sandbox keeps `gh` from its
+  config (change `0057-run-fixes`, phase 4).
+
 ## [0.47.3] - 2026-11-03
 
 Gate: local 4m38s · CI none · 0.47.2: local 4m24s · CI none

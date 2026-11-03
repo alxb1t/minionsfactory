@@ -419,7 +419,8 @@ def test_each_check_passes_only_on_disk_evidence(
     mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    _commit(scratch, {"Makefile": conduct["probe_gate"](mark)}, "init")
+    gate_file = conduct["probe_gate"](mark, conduct["_native"]())
+    _commit(scratch, {"Makefile": gate_file}, "init")
     assert check("probe", str(scratch)) == (
         1,
         "check: probe · fail — HEAD holds no probe.txt",
@@ -544,6 +545,53 @@ def test_a_ready_version_ships_past_a_slow_one(
         " · no origin · round 1 · cards none · denied none · metrics: none"
     )
     assert report[-1] == lines[-1]
+    for change in ("0001-todo", "0002-marks"):
+        assert not (root.parent / change).exists()
+        assert _git(root, "branch", "--list", change)
+    assert _git(root, "worktree", "list", "--porcelain").count("worktree ") == 1
+
+    elsewhere = tmp_path / "elsewhere" / "0003-more"
+    _git(root, "worktree", "add", "-q", "-b", "0003-more", str(elsewhere))
+    folder = "openspec/changes/0003-more"
+    cut = {
+        f"{folder}/proposal.md": "---\nbump: minor\n---\n",
+        f"{folder}/tasks.md": "## Progress\n\n- [ ] 1 — More\n",
+    }
+    _commit(elsewhere, cut, "cut 0003-more")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert elsewhere.is_dir()
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert (
+        f" · 0003-more · kept — {elsewhere.resolve()}: not at the cut's path\n" in log
+    )
+
+    listed = _version(root, "0004-listed", "- [ ] 1 — Listed\n")
+    (listed / ".minions").mkdir()
+    (listed / ".minions" / "local.db").write_text("x\n")
+    run = conduct["Run"](root, "claude")
+    version = conduct["Version"]("0004-listed", listed)
+    found = run.remove_tree.__globals__
+    real = found["_maybe"]
+
+    def unlisted(cwd: Path, *args: str) -> str | None:
+        return None if args[0] == "ls-files" else real(cwd, *args)
+
+    monkeypatch.setitem(found, "_maybe", unlisted)
+    run.remove_tree(version)
+    assert (listed / ".minions" / "local.db").is_file()
+    unlisted_line = (
+        f" · 0004-listed · kept — {listed}: its ignored paths could not be listed\n"
+    )
+    assert unlisted_line in run.log.path.read_text()
+    monkeypatch.setitem(found, "_maybe", real)
+    run.remove_tree(version)
+    assert not listed.exists()
+    assert f" · 0004-listed · removed — {listed}: ignored .minions/\n" in (
+        run.log.path.read_text()
+    )
 
 
 def test_after_waits_for_its_dependency(
@@ -695,6 +743,123 @@ def test_after_waits_for_its_dependency(
     assert held.read_text().startswith("raise OSError")
     assert "chore(integrate): merge main into 0002-marks" in _git(
         planted, "log", "--format=%s", "0002-marks"
+    )
+    conduct["main"].__globals__["INTEGRATE"] = script
+
+    def behind(folder: str, moved: str, started: bool) -> tuple[Path, Path]:
+        """Return a primary whose `main` moved `moved` after `0001-todo`'s cut."""
+        (tmp_path / folder).mkdir()
+        base = _primary(tmp_path / folder)
+        cut = _version(base, "0001-todo", "- [ ] 1 — Todo\n")
+        if started:
+            _commit(cut, {"work.txt": "x\n"}, "build: a first part")
+        _commit(base, {moved: "x\n"}, "main moves")
+        calls.unlink(missing_ok=True)
+        return base, cut
+
+    cut_only, _ = behind("cut-only", "Makefile", started=False)
+    assert (
+        _main(conduct, cut_only, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert "chore(integrate): merge main into 0001-todo" in _git(
+        cut_only, "log", "--format=%s", "0001-todo"
+    )
+
+    gated, started = behind("started", "Makefile", started=True)
+    assert (
+        _main(conduct, gated, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — main changed Makefile since"
+            f" 0001-todo's base: git -C {shlex.quote(str(started))} merge main,"
+            " then re-run"
+        )
+        for line in _log(gated)
+    )
+
+    # Twin: a started version behind a `main` that changed neither builds.
+    moved, _ = behind("moved", "moved.txt", started=True)
+    assert (
+        _main(conduct, moved, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert "build 0001-todo" in _calls(calls)
+
+    gate_halt = "conduct: halt — main changed Makefile"
+    built, built_tree = behind("built", "Makefile", started=True)
+    ticked = {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"}
+    _commit(built_tree, ticked, "build")
+    assert (
+        _main(conduct, built, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert "integrate 0001-todo" in _calls(calls)
+    assert not any(gate_halt in line for line in _log(built))
+
+    opened, opened_tree = behind("opened", "Makefile", started=True)
+    _git(opened_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    assert (
+        _main(conduct, opened, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — a merge is open in 0001-todo's"
+            " worktree with no note while phase 1 is unticked: finish it with"
+            f" git -C {shlex.quote(str(opened_tree))} commit, then re-run"
+        )
+        for line in _log(opened)
+    )
+    assert not any(gate_halt in line for line in _log(opened))
+    assert _git(opened_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+    # Twin: with its note beside it, the open merge is the `integrating` halt.
+    noted, noted_tree = behind("noted", "Makefile", started=True)
+    _git(noted_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    marks = noted / ".minions" / "integrate"
+    marks.mkdir(parents=True)
+    (marks / "0001-todo.md").write_text("## sdd: First\n")
+    assert (
+        _main(conduct, noted, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — integrating — semantic conflict:"
+            " .minions/integrate/0001-todo.md"
+        )
+        for line in _log(noted)
+    )
+    assert not any(gate_halt in line for line in _log(noted))
+
+    # Twin: a started dependent's open merge, its dependency shipped, is merge_in's.
+    (tmp_path / "dependent").mkdir()
+    shipped = _primary(tmp_path / "dependent")
+    waits = _version(shipped, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _commit(waits, {"work.txt": "x\n"}, "build: a first part")
+    archive = {"openspec/changes/archive/0001-todo/proposal.md": "x\n"}
+    _commit(shipped, archive, "chore(release): 0001-todo")
+    _git(waits, "merge", "-q", "--no-ff", "--no-commit", "main")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, shipped, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1] == "build 0002-marks"
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        shipped, "log", "--format=%s", "0002-marks"
     )
 
 
@@ -2037,6 +2202,7 @@ def test_no_worker_pushes(
         "run · push — main",
         "run · push — v0.1.0",
         "0001-todo · check — release · pass",
+        f"0001-todo · removed — {root.parent / '0001-todo'}: ignored none",
         "run · done — released v0.1.0",
     ]
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")
@@ -2918,7 +3084,18 @@ def test_a_probe_halts_on_a_write_out(
     )
     assert not list(marks.glob("probe-*"))
 
-    # Twin: a sandbox refuses the write, and the run ships.
+    calls.unlink()
+    fake("translated")
+    assert run() == 1
+    assert _calls(calls) == ["probe"]
+    native = conduct["_native"]()
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert (
+        " · run · halt — probe check fail — claude's shell runs as i386 on a"
+        f" {native} host\n"
+    ) in log
+
+    # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()
     fake()
     assert run() == 0

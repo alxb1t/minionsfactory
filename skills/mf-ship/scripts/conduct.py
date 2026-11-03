@@ -47,13 +47,15 @@ LOCK_SECONDS = 30
 LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
+# A started build's gate and rules: changed since its base, they halt it.
+GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept"),
+    *("push", "ledger", "unlock", "unkept", "kept", "removed"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -1250,13 +1252,37 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def probe_gate(mark: Path) -> str:
+def _native() -> str:
+    """Return the host's native architecture, read past a translated process.
+
+    e.g. an `x86_64` Python under Rosetta on Apple silicon → "arm64"
+    Why: 0057-run-fixes design D1.
+    """
+    try:
+        done = subprocess.run(
+            ["sysctl", "-n", "hw.optional.arm64"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return os.uname().machine
+    return "arm64" if done.stdout.strip() == "1" else os.uname().machine
+
+
+def probe_gate(mark: Path, native: str) -> str:
     """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
 
-    Why: 0053-sandbox-patch design D1.
+    Its shell must run as `native`: a translated one fails before the mark.
+    Why: 0053-sandbox-patch design D1; 0057-run-fixes design D1.
     """
     target = shlex.quote(str(mark)).replace("$", "$$")
-    return f"gate:\n\t! echo escaped >> {target}\n\ttouch .gated\n"
+    arch = shlex.quote(native).replace("$", "$$")
+    return (
+        f'gate:\n\tuname -m > .arch\n\ttest "$$(cat .arch)" = {arch}\n'
+        f"\t! echo escaped >> {target}\n\ttouch .gated\n"
+    )
 
 
 def check_probe(scratch: Path, mark: Path | None) -> str | None:
@@ -1265,15 +1291,20 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     A `mark` gone or written fails, naming its executor: `probe-codex-41` → `codex`.
     `check probe` has no mark, and skips it. Why: 0053-sandbox-patch design D1.
     """
+    executor = mark.name.split("-")[1] if mark is not None else "the worker"
     if mark is not None and (not mark.is_file() or mark.stat().st_size):
-        executor = mark.name.split("-")[1]
         return f"{executor} wrote outside its reach: it runs unsandboxed"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
     if held.strip() != "ok":
         return f"probe.txt reads {held.strip()!r}"
-    return None if (scratch / ".gated").is_file() else "make gate left no .gated"
+    if (scratch / ".gated").is_file():
+        return None
+    arch, native = scratch / ".arch", _native()
+    if arch.is_file() and (shell := arch.read_text().strip()) != native:
+        return f"{executor}'s shell runs as {shell} on a {native} host"
+    return "make gate left no .gated"
 
 
 def check(
@@ -1839,6 +1870,7 @@ class Run:
         self.pushes = (_kept_origin(primary) or _urls(primary))[1]
         self.primary = primary
         self.repo = _repo(primary)
+        self.worktrees = primary / (_agents_values(primary, "Worktrees") or [""])[0]
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -1969,11 +2001,41 @@ class Run:
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
+                    self.remove_tree(version)
                     return
         except Stop as stop:
             self.halt(version.change, str(stop))
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
+
+    def remove_tree(self, version: Version) -> None:
+        """Remove a released version's worktree at the cut's path; else log it kept.
+
+        The branch stays. A worker can write the worktree entry, so its path is checked
+        against `Worktrees:`, read before the first worker. The removal deletes the
+        tree's ignored paths, so they are listed first and logged; a failed listing
+        keeps the tree. Why: 0057-run-fixes design D3.
+        """
+        tree, change = version.tree, version.change
+        if tree is None:
+            return
+        if tree.resolve() != (self.worktrees / change).resolve():
+            self.log.event(change, "kept", f"{tree}: not at the cut's path")
+            return
+        listing = ("ls-files", "--others", "--ignored", "--exclude-standard")
+        ignored = _maybe(tree, *listing, "--directory")
+        if ignored is None:
+            why = "its ignored paths could not be listed"
+            self.log.event(change, "kept", f"{tree}: {why}")
+            return
+        done = _run(self.primary, "worktree", "remove", str(tree))
+        if done.returncode != 0:
+            lines = [line for line in done.stderr.splitlines() if line.strip()]
+            why = lines[0] if lines else f"exit {done.returncode}"
+            self.log.event(change, "kept", f"{tree}: {why}")
+            return
+        paths = ", ".join(ignored.splitlines()) or "none"
+        self.log.event(change, "removed", f"{tree}: ignored {paths}")
 
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Wait for the version's dependencies, then bring the default branch in."""
@@ -1994,7 +2056,7 @@ class Run:
         return True
 
     def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a dependent, once the delta check passes.
+        """Merge the default branch into a cut-only branch, once the delta check passes.
 
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
@@ -2015,6 +2077,50 @@ class Run:
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
+    def catch_up(self, version: Version) -> None:
+        """Merge the default branch into a cut-only version behind it.
+
+        A started version with an unticked phase and no open merge, behind a default
+        branch that changed `GATE_FILES`, stops with 1, naming them and the merge. One
+        with an unticked phase and a merge open with no note stops with 1, naming the
+        commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
+        finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
+        """
+        change, default, tree = (
+            version.change,
+            default_branch(self.primary),
+            version.tree,
+        )
+        if tree is None or _ancestor(self.primary, default, change):
+            return
+        base = _git(self.primary, "merge-base", default, change).strip()
+        held = _git(self.primary, "rev-list", "--count", f"{base}..{change}").strip()
+        if held == "1":
+            self.merge_in(tree, change, default)
+            return
+        if (unticked := _unticked(tree, change)) is None:
+            return
+        at = shlex.quote(str(tree))
+        if _merge_open(tree):
+            marks = self.primary / ".minions" / "integrate"
+            noted = any((marks / f"{change}{end}").is_file() for end in (".md", ".red"))
+            after = _dependencies(self.primary, change)
+            if noted or not all(_shipped(tree, "HEAD", name) for name in after):
+                return
+            raise Stop(
+                1,
+                f"conduct: halt — a merge is open in {change}'s worktree with no note"
+                f" while phase {unticked[0]} is unticked: finish it with"
+                f" git -C {at} commit, then re-run",
+            )
+        diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
+        if paths := _git(self.primary, *diff).split():
+            raise Stop(
+                1,
+                f"conduct: halt — {default} changed {', '.join(paths)}"
+                f" since {change}'s base: git -C {at} merge {default}, then re-run",
+            )
+
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
@@ -2022,6 +2128,7 @@ class Run:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
+            self.catch_up(version)
             if not self.ready(version, threads):
                 return
             self.advance(version, ("integrate", "release"))
@@ -2078,8 +2185,8 @@ class Run:
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text(probe_gate(mark))
-            (scratch / ".gitignore").write_text(".gated\n")
+            (scratch / "Makefile").write_text(probe_gate(mark, _native()))
+            (scratch / ".gitignore").write_text(".gated\n.arch\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             models = (executor, None, None)

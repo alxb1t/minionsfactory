@@ -393,7 +393,7 @@ default branch is not an ancestor of the branch, naming the person's
 recovery — the tag deleted and the release commit reset, by the person — then merge with `--no-ff` in the worktree
 that holds the default branch, halting when that worktree's tree is not clean, check that the merged tree equals the
 branch's, and push the default branch and the tag to `origin`, except under `merge=yes`, where `conduct.py` pushes. After the merge it SHALL remove the worktree the ask
-named, without `--force`, keeping its branch. A listing that fails SHALL be named in the ask, and the worktree
+named, without `--force`, keeping its branch, except under `merge=yes`, where `conduct.py` removes it. A listing that fails SHALL be named in the ask, and the worktree
 retained. A worktree that refuses removal is reported, not forced. Its close-out SHALL name the worktree removed,
 kept or refused. It SHALL never force a push, never push
 the version branch, and SHALL merge without pushing when there is no `origin`. On anything but yes it SHALL print
@@ -429,9 +429,13 @@ the commands and stop.
 
 #### Scenario: The conductor gives the yes
 - **WHEN** the release is run with `merge=yes` and Step 2 flagged nothing
-- **THEN** it asks nothing, merges and removes the worktree as on a yes, and `conduct.py` pushes
+- **THEN** it asks nothing, merges as on a yes, and `conduct.py` pushes and removes the worktree
 - **AND WHEN** Step 2 flagged a hand-edit
 - **THEN** it halts after the tag and before the merge, naming the flagged prose
+
+#### Scenario: A release under mf-ship leaves its worktree to the conductor
+- **WHEN** a release under `merge=yes` merges
+- **THEN** it removes no worktree, and its close-out says `conduct.py` removes it
 
 ### Requirement: A HUMAN phase is handed over as a checklist of commands
 
@@ -508,12 +512,17 @@ station SHALL say in its Summary that each pass ran, and `skills/mf-converge/SKI
 
 `skills/mf-release/SKILL.md` SHALL time precondition 1's gate run and SHALL write one `Gate:` line under the new
 release heading in `CHANGELOG.md`: that time, CI's latest green run on the default branch read with `gh run list`
-or `none`, and the previous release's `Gate:` line's times.
+or `none`, and the previous release's `Gate:` line's times. Under `merge=yes` the CI part SHALL read `CI not read under
+mf-ship`: the sandbox keeps `gh` from its config.
 
 #### Scenario: The release names the line and the CI read
 - **WHEN** `mf-release` renames `## [Unreleased]` to the release heading
 - **THEN** it writes one `Gate:` line under it: precondition 1's timed run, CI's latest green run on the default
   branch from `gh run list` or `none`, and the previous release's `Gate:` times
+
+#### Scenario: A release under mf-ship
+- **WHEN** a release under `merge=yes` writes its `Gate:` line
+- **THEN** the CI part reads `CI not read under mf-ship`, never `CI none`
 
 ### Requirement: The bootstrap's `AGENTS.md` states the rules for tests
 
@@ -983,7 +992,15 @@ each open worktree and nothing outside them, under `conduct.py`'s allowlist on C
 tools:` line, its prompt carrying the shell rules, and SHALL never run with permission prompts bypassed. A denial SHALL
 not halt a version by itself: the station's check decides, and the report lists every denial. Starting `mf-ship` SHALL be the person's yes to every
 merge and push of the run. `conduct.py` SHALL run its own git with hooks and `core.fsmonitor` off, so a hook a worker
-plants does not run at the conductor's rights.
+plants does not run at the conductor's rights. At a run's start, a version whose branch holds nothing past its cut commit,
+and whose base the default branch has passed, SHALL get the default branch merged in, as a dependent does; a version with
+more, an unticked phase and no merge open SHALL halt when the default branch changed a gate makefile, `AGENTS.md`,
+`CODING_STANDARDS.md` or `CONTRIBUTING.md` since its base, naming the files and `git -C <tree> merge <default>`; one
+with an unticked phase and a merge open with no note SHALL halt, naming `git -C <tree> commit`, unless it is a
+dependent whose merge `conduct.py` finishes; any other version SHALL go on from its stage. After a release's check passes, `conduct.py` SHALL
+remove the version's worktree, without `--force`, keeping its branch, only when its path is `AGENTS.md`'s `Worktrees:`
+path joined with the change id, logging the ignored paths it held, listed by name; a listing that fails SHALL keep the
+worktree, logged, and a refusal SHALL be logged, never forced.
 
 #### Scenario: A worker plants a hook
 - **WHEN** a `post-commit` hook stands in the repo and `conduct.py` commits a dependent's merge
@@ -1008,6 +1025,26 @@ plants does not run at the conductor's rights.
 - **WHEN** `mf-ship` starts in a repo whose `AGENTS.md` declares no `Worktrees:`
 - **THEN** it halts, naming the missing declaration, and starts no worker
 
+#### Scenario: A version cut before main moved
+- **WHEN** a version's branch holds only its cut commit, and the default branch has moved since
+- **THEN** the run merges the default branch into it before its first worker, and builds on the merge
+- **AND WHEN** the version's build has begun, and the default branch changed `Makefile` since its base
+- **THEN** that version halts before its next worker, naming `Makefile` and the merge to run
+- **AND WHEN** every phase is ticked
+- **THEN** the version goes on from its stage, and integrate merges the default branch in
+- **AND WHEN** a phase is unticked and the merge is open in its worktree with no note
+- **THEN** that version halts before its next worker, naming `git -C <tree> commit` to finish the merge
+- **AND WHEN** the merge is open with its note
+- **THEN** that version halts as `integrating`, naming the note
+
+#### Scenario: A released worktree
+- **WHEN** a release's check passes under `mf-ship`
+- **THEN** the version's worktree is gone and its branch kept, and the run logs the ignored paths it held
+- **AND WHEN** git's worktree entry names a path other than the `Worktrees:` path joined with the change id
+- **THEN** nothing is removed, and the run logs it
+- **AND WHEN** the worktree's ignored paths cannot be listed
+- **THEN** nothing is removed, and the run logs it
+
 ### Requirement: The ship station judges every station from disk
 
 `skills/mf-ship/scripts/conduct.py` SHALL decide each version's stage from git and the run directory alone, and SHALL
@@ -1015,7 +1052,9 @@ pass a station only when the worker exits 0 and its check on disk passes — nev
 check SHALL need `done` as the newest run's latest status-log event. Before the
 first station it SHALL run a probe worker that must edit, commit and run `make gate` in a scratch repo, or halt. The scratch
 gate's recipe SHALL try a write to a file `conduct.py` made outside the worker's reach, and SHALL pass only when that write is
-refused; `conduct.py` SHALL halt the run when the file changed, and SHALL remove it.
+refused; `conduct.py` SHALL halt the run when the file changed, and SHALL remove it. The recipe SHALL also pass only
+when the shell's `uname -m` is the host's native architecture, so a worker whose shell runs translated halts the run, naming
+its executor.
 It SHALL log every worker's start, end and check to `.minions/runs/<stamp>.md`, and `conduct.py log --verify` SHALL
 fail on a worker with no end, a run that ends on neither `halt` nor `done`, or an unknown event.
 
@@ -1034,6 +1073,10 @@ fail on a worker with no end, a run that ends on neither `halt` nor `done`, or a
 #### Scenario: A probe worker runs unsandboxed
 - **WHEN** the probe worker's write outside its reach lands
 - **THEN** the run halts naming the probe's executor, no version starts a worker, and the file is gone
+
+#### Scenario: A worker's shell runs translated
+- **WHEN** the probe worker's shell reports `x86_64` on an `arm64` host
+- **THEN** the run halts, naming the executor and both architectures, and no version starts a worker
 
 ### Requirement: Converge runs at a tier
 
