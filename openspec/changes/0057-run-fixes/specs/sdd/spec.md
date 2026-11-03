@@ -89,8 +89,9 @@ merge and push of the run. `conduct.py` SHALL run its own git with hooks and `co
 plants does not run at the conductor's rights. At a run's start, a version whose branch holds nothing past its cut commit,
 and whose base the default branch has passed, SHALL get the default branch merged in, as a dependent does; a version with
 more, an unticked phase and no merge open SHALL halt when the default branch changed a gate makefile, `AGENTS.md`,
-`CODING_STANDARDS.md` or `CONTRIBUTING.md` since its base, naming the files and `git -C <tree> merge <default>`; any
-other version SHALL go on from its stage. After a release's check passes, `conduct.py` SHALL
+`CODING_STANDARDS.md` or `CONTRIBUTING.md` since its base, naming the files and `git -C <tree> merge <default>`; one
+with an unticked phase and a merge open with no note SHALL halt, naming `git -C <tree> commit`, unless it is a
+dependent whose merge `conduct.py` finishes; any other version SHALL go on from its stage. After a release's check passes, `conduct.py` SHALL
 remove the version's worktree, without `--force`, keeping its branch, only when its path is `AGENTS.md`'s `Worktrees:`
 path joined with the change id, logging the ignored paths it held, listed by name; a listing that fails SHALL keep the
 worktree, logged, and a refusal SHALL be logged, never forced.
@@ -123,8 +124,12 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 - **THEN** the run merges the default branch into it before its first worker, and builds on the merge
 - **AND WHEN** the version's build has begun, and the default branch changed `Makefile` since its base
 - **THEN** that version halts before its next worker, naming `Makefile` and the merge to run
-- **AND WHEN** every phase is ticked, or a merge is open in its worktree
+- **AND WHEN** every phase is ticked
 - **THEN** the version goes on from its stage, and integrate merges the default branch in
+- **AND WHEN** a phase is unticked and the merge is open in its worktree with no note
+- **THEN** that version halts before its next worker, naming `git -C <tree> commit` to finish the merge
+- **AND WHEN** the merge is open with its note
+- **THEN** that version halts as `integrating`, naming the note
 
 #### Scenario: A released worktree
 - **WHEN** a release's check passes under `mf-ship`

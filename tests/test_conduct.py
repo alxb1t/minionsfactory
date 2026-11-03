@@ -804,10 +804,57 @@ def test_after_waits_for_its_dependency(
     _git(opened_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
     assert (
         _main(conduct, opened, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — a merge is open in 0001-todo's"
+            " worktree with no note while phase 1 is unticked: finish it with"
+            f" git -C {shlex.quote(str(opened_tree))} commit, then re-run"
+        )
+        for line in _log(opened)
+    )
+    assert not any(gate_halt in line for line in _log(opened))
+    assert _git(opened_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+    # Twin: with its note beside it, the open merge is the `integrating` halt.
+    noted, noted_tree = behind("noted", "Makefile", started=True)
+    _git(noted_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    marks = noted / ".minions" / "integrate"
+    marks.mkdir(parents=True)
+    (marks / "0001-todo.md").write_text("## sdd: First\n")
+    assert (
+        _main(conduct, noted, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — integrating — semantic conflict:"
+            " .minions/integrate/0001-todo.md"
+        )
+        for line in _log(noted)
+    )
+    assert not any(gate_halt in line for line in _log(noted))
+
+    # Twin: a started dependent's open merge, its dependency shipped, is merge_in's.
+    (tmp_path / "dependent").mkdir()
+    shipped = _primary(tmp_path / "dependent")
+    waits = _version(shipped, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _commit(waits, {"work.txt": "x\n"}, "build: a first part")
+    archive = {"openspec/changes/archive/0001-todo/proposal.md": "x\n"}
+    _commit(shipped, archive, "chore(release): 0001-todo")
+    _git(waits, "merge", "-q", "--no-ff", "--no-commit", "main")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, shipped, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
-    assert _calls(calls)[1:3] == ["integrate 0001-todo", "build 0001-todo"]
-    assert not any(gate_halt in line for line in _log(opened))
+    assert _calls(calls)[1] == "build 0002-marks"
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        shipped, "log", "--format=%s", "0002-marks"
+    )
 
 
 def test_a_halted_dependency_blocks_a_chain(

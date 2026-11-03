@@ -51,8 +51,13 @@ the scratch `.gitignore`.
 - the branch holds more, `_unticked(tree, change)` names a phase, no merge is open in the tree, and `git diff --name-only
   <base> <default> -- Makefile '*.mk' AGENTS.md CODING_STANDARDS.md CONTRIBUTING.md` prints a path → `Stop(1, "conduct:
   halt — <default> changed <paths> since <change>'s base: git -C <tree> merge <default>, then re-run")`;
-- else nothing: a built version, or one with a merge open, goes on from its stage, and integrate merges the default
-  branch in under D45's rules.
+- the branch holds more, `_unticked(tree, change)` names a phase, a merge is open in the tree, neither
+  `.minions/integrate/<change>.md` nor `.red` stands, and its `HEAD` holds every `after:` id → `Stop(1, "conduct: halt
+  — a merge is open in <change>'s worktree with no note while phase <n> is unticked: finish it with git -C <tree>
+  commit, then re-run")`, since `integrate.py next` refuses a version with a phase unticked unless its note stands. A
+  dependent whose `HEAD` lacks an `after:` id goes on: `ready`'s `merge_in` finishes its merge;
+- else nothing: a built version goes on from its stage, and integrate merges the default branch in under D45's rules;
+  one with a merge open and its note halts as `integrating`.
 
 `<base>` is `git merge-base <default> <change>`. Only at a version's first `take` in a run.
 
@@ -83,7 +88,7 @@ Counted at `f33a6b3`: `uv run pytest --collect-only -q | tail -1` prints `101 te
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | edited | D1: a fake probe whose `uname -m` differs from the native halts the run, naming the executor; the default passes |
-| `test_after_waits_for_its_dependency` | edited | D2: a cut-only version behind `main` gets `main` merged in with no halt; a started version behind a `main` that changed `Makefile` halts naming it; one behind a `main` that changed neither builds; a built one, or one with a merge open, behind a `Makefile` change reaches integrate |
+| `test_after_waits_for_its_dependency` | edited | D2: a cut-only version behind `main` gets `main` merged in with no halt; a started version behind a `main` that changed `Makefile` halts naming it; one behind a `main` that changed neither builds; a built one behind a `Makefile` change reaches integrate; a started one with a merge open and no note halts naming `git -C <tree> commit`, with its note halts as `integrating`, and a started dependent's open merge is finished and builds |
 | `test_a_ready_version_ships_past_a_slow_one` | edited | D3: after each release, its worktree is gone and its branch kept; a worktree entry pointing elsewhere is kept and logged; a tree whose ignored paths cannot be listed is kept and logged, and a removed one logs its ignored paths |
 | `test_no_worker_pushes` | edited | D3: the release's log ends with the tree's `removed` line |
 

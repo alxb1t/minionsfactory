@@ -104,7 +104,8 @@ Converge runs MF's method at the tier the cut chose.
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate <change-id>` commits the merge;
 until then a run halts on it again. A halt naming a changed git config is the person's: read that file, and repoint
 `origin` if a worker moved it, before a re-run. A version still building, halted because `main` changed its gate since its
-base, needs `git -C <tree> merge <default>` before a re-run; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
+base, needs `git -C <tree> merge <default>` before a re-run, and one halted on that merge left open with no note needs
+it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
 what it released stays released, and a re-run resumes the rest. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.

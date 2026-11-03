@@ -2114,8 +2114,10 @@ class Run:
         """Merge the default branch into a cut-only version behind it.
 
         A started version with an unticked phase and no open merge, behind a default
-        branch that changed `GATE_FILES`, stops with 1, naming them and the merge; any
-        other goes on from its stage. Why: 0057-run-fixes design D2.
+        branch that changed `GATE_FILES`, stops with 1, naming them and the merge. One
+        with an unticked phase and a merge open with no note stops with 1, naming the
+        commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
+        finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
         """
         change, default, tree = (
             version.change,
@@ -2129,11 +2131,23 @@ class Run:
         if held == "1":
             self.merge_in(tree, change, default)
             return
-        if _unticked(tree, change) is None or _merge_open(tree):
+        if (unticked := _unticked(tree, change)) is None:
             return
+        at = shlex.quote(str(tree))
+        if _merge_open(tree):
+            marks = self.primary / ".minions" / "integrate"
+            noted = any((marks / f"{change}{end}").is_file() for end in (".md", ".red"))
+            after = _dependencies(self.primary, change)
+            if noted or not all(_shipped(tree, "HEAD", name) for name in after):
+                return
+            raise Stop(
+                1,
+                f"conduct: halt — a merge is open in {change}'s worktree with no note"
+                f" while phase {unticked[0]} is unticked: finish it with"
+                f" git -C {at} commit, then re-run",
+            )
         diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
         if paths := _git(self.primary, *diff).split():
-            at = shlex.quote(str(tree))
             raise Stop(
                 1,
                 f"conduct: halt — {default} changed {', '.join(paths)}"
