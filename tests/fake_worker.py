@@ -45,6 +45,12 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
+def _done(root: Path, change: str, head: str) -> None:
+    folder = root / ".minions" / "build"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{change}.done").write_text(f"head: {head}\nsimplify: lean already\n")
+
+
 def _integrate(tree: Path, message: str, modes: set[str]) -> None:
     """Merge `main` into `tree`, or finish a merge a dead worker left open."""
     if _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False):
@@ -140,7 +146,11 @@ def _fake(prompt: str) -> None:
         if f"after-self-{change}" in modes:
             proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
             files[str(tasks.with_name("proposal.md"))] = proposal
-        _commit(here, files, "build")
+        if "- [ ]" in tasks.read_text():
+            _commit(here, files, "build")
+        if "dies-simplify" in modes:
+            sys.exit(1)
+        _done(primary, str(change), _git(here, "rev-parse", "HEAD"))
         if "person-commits" in modes:
             _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
         if "plant-network" in modes:

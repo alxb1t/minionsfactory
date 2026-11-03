@@ -92,9 +92,7 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
-out refused. `conduct.py` holds the push. In a repo that declares `Ship loopback: yes`, its Claude workers reach every
-service on the Mac's loopback, and the run's log names those the operator's own processes hold; a root daemon's goes
-unlogged.
+out refused. `conduct.py` holds the push.
 Converge runs MF's method at the tier the cut chose.
 
 ## Step 4 — Report, then stop
@@ -106,7 +104,8 @@ until then a run halts on it again. A halt naming a changed git config is the pe
 `origin` if a worker moved it, before a re-run. A version still building, halted because `main` changed its gate since its
 base, needs `git -C <tree> merge <default>` before a re-run, and one halted on that merge left open with no note needs
 it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
-what it released stays released, and a re-run resumes the rest. The last line:
+what it released stays released, and a re-run resumes the rest.
+A build that died in its closing steps resumes at simplify on a re-run. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.
 

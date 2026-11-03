@@ -55,7 +55,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "loopback", "kept", "removed"),
+    *("push", "ledger", "unlock", "unkept", "kept", "removed"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -67,10 +67,6 @@ EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
-# Why: 0054-loopback design D2.
-NEEDS_CLAUDE = (
-    "conduct: halt — AGENTS.md: Ship loopback needs Claude workers: {} names codex"
-)
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
@@ -177,11 +173,10 @@ NETWORK_URL = re.compile(r"(https?|ssh|git)://.+|[^/:]+:(?!:|//).*")
 
 
 class ShipLines(NamedTuple):
-    """`AGENTS.md`'s `Ship tools:` and `Ship network:` values; `Ship loopback: yes`."""
+    """`AGENTS.md`'s `Ship tools:` and `Ship network:` values."""
 
     tools: list[str]
     network: list[str]
-    loopback: bool
 
 
 class Stop(Exception):
@@ -340,15 +335,6 @@ def _agents_values(root: Path, key: str) -> list[str] | None:
     return None if line is None else re.findall(r"`([^`]+)`", line)
 
 
-def _agents_flag(root: Path, key: str) -> str | None:
-    """Return `AGENTS.md`'s `**<key>:**` text up to an optional ` — `, or None.
-
-    e.g. "- **Ship loopback:** yes — the gate serves", "Ship loopback" → "yes"
-    """
-    line = _agents_line(root, key)
-    return None if line is None else line.split(" — ", 1)[0].strip()
-
-
 @dataclass(frozen=True)
 class Version:
     """A cut version: its change, which names its branch, and its worktree."""
@@ -476,6 +462,22 @@ def _run_end(runs: Path, change: str) -> str | None:
     if heading is None:
         return None
     return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
+
+
+def _closed(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
+
+    A missing or unreadable file is not closed. Why: 0055-build-resume design D2.
+    """
+    try:
+        text = (runs / "build" / f"{change}.done").read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
+    if found is None:
+        return False
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
 
 
 def _is_event(line: str, event: str) -> bool:
@@ -703,13 +705,15 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if "**HUMAN" in title:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
+    end = _run_end(runs, change)
+    if end is None and not _closed(runs, tree, change):
+        return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
         if ".minions/backlog.lock" in halt:
             return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
-    end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):
@@ -719,11 +723,16 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     return "release", f"converge clean at HEAD; {default} is an ancestor"
 
 
-def _check_build(version: Version, tree: Path) -> str | None:
+def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the build check fails, or None."""
-    if unticked := _unticked(tree, version.change):
+    change = version.change
+    if unticked := _unticked(tree, change):
         return f"phase {unticked[0]} unticked"
-    return "the tree is not clean" if _dirty(tree) else None
+    if _dirty(tree):
+        return "the tree is not clean"
+    if not _closed(primary / ".minions", tree, change):
+        return f"no .minions/build/{change}.done names HEAD"
+    return None
 
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
@@ -1307,7 +1316,7 @@ def check(
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
-        return _check_build(version, version.tree)
+        return _check_build(primary, version, version.tree)
     if stage == "converge":
         return _check_converge(primary, version, version.tree)
     return _check_integrate(primary, version, version.tree)
@@ -1445,11 +1454,11 @@ def reach(primary: Path) -> list[Path]:
 
 
 def ship_lines(primary: Path) -> ShipLines:
-    """Return `AGENTS.md`'s `Ship tools:`, `Ship network:` and `Ship loopback:` lines.
+    """Return `AGENTS.md`'s `Ship tools:` and `Ship network:` lines.
 
     A `Ship network:` value that is not a plain domain stops with 1, and so does a
-    `Ship loopback:` other than `yes`. Why: 0052-security-hardening design D2;
-    0054-loopback design D1.
+    `Ship loopback:` line of any value. Why: 0052-security-hardening design D2;
+    0056-loopback-removal design D2.
     """
     network = _agents_values(primary, "Ship network") or []
     for domain in network:
@@ -1457,13 +1466,14 @@ def ship_lines(primary: Path) -> ShipLines:
             raise Stop(
                 1, f"conduct: halt — AGENTS.md: Ship network {domain!r} is not a domain"
             )
-    loopback = _agents_flag(primary, "Ship loopback")
-    if loopback not in (None, "yes"):
+    if _agents_line(primary, "Ship loopback") is not None:
         raise Stop(
-            1, f"conduct: halt — AGENTS.md: Ship loopback {loopback!r} is not yes"
+            1,
+            "conduct: halt — AGENTS.md: Ship loopback: was removed"
+            " (change 0056-loopback-removal): delete the line",
         )
     tools = _agents_values(primary, "Ship tools") or []
-    return ShipLines(tools, network, loopback == "yes")
+    return ShipLines(tools, network)
 
 
 def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]]:
@@ -1488,55 +1498,16 @@ def allowlist(trees: list[Path], tools: list[str]) -> tuple[list[str], list[str]
     return allowed, denied
 
 
-def _loopback_listeners() -> list[tuple[str, str]]:
-    """Return each of the operator's processes listening on loopback, with its address.
-
-    e.g. "ollama 101 … TCP 127.0.0.1:11434 (LISTEN)" → [("ollama", "127.0.0.1:11434")]
-    `lsof` without root names no other user's process, so a root daemon's listener is
-    not in the list; `netstat -v` names it, but prints no socket to a Python that is not
-    Apple's. Each pair comes once. An `lsof` that fails, or prints what does not parse,
-    gives ("lsof", "unavailable"). Why: 0054-loopback design D3.
-    """
-    unavailable = [("lsof", "unavailable")]
-    try:
-        done = subprocess.run(
-            ["lsof", "+c", "0", "-nP", "-iTCP", "-sTCP:LISTEN"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return unavailable
-    rows = done.stdout.splitlines()
-    if done.returncode == 1 and not rows:
-        return []
-    if done.returncode != 0 or not rows[0].startswith("COMMAND"):
-        return unavailable
-    found: list[tuple[str, str]] = []
-    for row in rows[1:]:
-        fields = row.split()
-        if len(fields) < 3 or fields[-1] != "(LISTEN)":
-            return unavailable
-        process, address = fields[0], fields[-2]
-        host = address.rpartition(":")[0]
-        if host in ("*", "[::1]") or host.startswith("127."):
-            found.append((process, address))
-    return list(dict.fromkeys(found))
-
-
 def worker_settings(
     primary: Path,
     trees: list[Path],
     common: Path | None,
     network: list[str],
-    loopback: bool,
 ) -> str:
     """Return the Claude worker's sandbox settings, as JSON.
 
-    A sandbox that cannot start ends the worker. `loopback` lets it bind and reach
-    every local service. Why: 0052-security-hardening design D1, 0053-sandbox-patch
-    design D1 and 0054-loopback design D1.
+    A sandbox that cannot start ends the worker. Why: 0052-security-hardening design
+    D1, 0053-sandbox-patch design D1 and 0056-loopback-removal design D1.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
@@ -1547,10 +1518,7 @@ def worker_settings(
         "credentials": {
             "envVars": [{"name": name, "mode": "deny"} for name in TOKENS],
         },
-        "network": {
-            "allowedDomains": [*NETWORK, *network],
-            **({"allowLocalBinding": True} if loopback else {}),
-        },
+        "network": {"allowedDomains": [*NETWORK, *network]},
     }
     return json.dumps({"sandbox": sandbox})
 
@@ -1577,7 +1545,7 @@ def argv(
     trees = reach(primary)
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
-        tools, network, loopback = lines or ship_lines(primary)
+        tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
@@ -1586,7 +1554,7 @@ def argv(
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
-            *("--settings", worker_settings(primary, trees, common, network, loopback)),
+            *("--settings", worker_settings(primary, trees, common, network)),
             # A worker can write the project's settings and `.mcp.json`, and each
             # runs at a start, outside the sandbox.
             # Why: 0052-security-hardening design D1.
@@ -1910,8 +1878,7 @@ class Run:
         self.blocked: list[str] = []
         self.released: list[str] = []
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
-        self.lines = ShipLines([], [], False)
-        self.held: dict[str, str] = {}
+        self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
 
@@ -2157,8 +2124,6 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
-            if station := self.held.get(version.change):
-                raise Stop(1, NEEDS_CLAUDE.format(station))
             for station in STATIONS:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
@@ -2178,13 +2143,10 @@ class Run:
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models and `AGENTS.md`'s `Ship` lines, once.
 
-        A worker can write both. A table `_models` refuses stays out of the plan, and
-        so does a loopback repo's version with a Codex station: each halts in `take`.
-        Why: 0052-security-hardening design D4; 0054-loopback design D2.
+        A worker can write both. A table `_models` refuses stays out of the plan: it
+        halts in `take`. Why: 0052-security-hardening design D4.
         """
         self.lines = ship_lines(self.primary)
-        if self.lines.loopback and self.executor == "codex":
-            raise Stop(1, NEEDS_CLAUDE.format("the run"))
         for version, station in itertools.product(versions, STATIONS):
             try:
                 models = _models(
@@ -2192,12 +2154,7 @@ class Run:
                 )
             except (Stop, ValueError):
                 continue
-            if self.lines.loopback and models[0] == "codex":
-                self.held.setdefault(version.change, station)
             self.plan[version.change, station] = models
-        self.plan = {
-            key: models for key, models in self.plan.items() if key[0] not in self.held
-        }
 
     def executors(self) -> list[str]:
         """Return the run's executor, then each other one the plan names."""
@@ -2309,9 +2266,6 @@ class Run:
             self.halt("run", str(stop))
             self.log.event("run", "halt", self.closing())
             return 1
-        if self.lines.loopback:
-            for process, address in _loopback_listeners():
-                self.log.event("run", "loopback", f"{process} {address}")
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }

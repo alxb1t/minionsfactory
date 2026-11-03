@@ -1327,7 +1327,12 @@ heading, the round unchanged, and a pickup whose fix was never committed sent ag
 ### Requirement: A re-run recovers what a dead station left
 
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
-`integrate`. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
+`integrate`. A version with every phase ticked, no converge run begun, and no `.minions/build/<change-id>.done`
+naming `HEAD` SHALL be stage `build`, its closing steps left, and SHALL fail the build check: `skills/mf-build/SKILL.md`
+SHALL then run its simplify step and the metrics again, restoring first, saved to a patch under `.minions/build/`, a dirty
+tree whose paths are all in the change's range while its `.minions/build/<change-id>.closing` mark names `HEAD`, halting and
+restoring nothing on a path outside it, a dirty tree with no such mark, or a patch an earlier save left, and SHALL write that file, naming `HEAD` and
+simplify's outcome, only once both are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
 archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
@@ -1438,6 +1443,30 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 #### Scenario: A flagged release dies
 - **WHEN** a release flags its preamble, commits and dies
 - **THEN** a re-run halts on the flag before its merge
+
+#### Scenario: A build dies in simplify
+- **WHEN** a build worker ticks and commits every phase, marks its closing steps begun, then dies in simplify with an edit
+  left uncommitted
+- **THEN** a re-run reads the stage as `build`, closing steps left, and its worker saves the edit to a patch, restores it
+  and runs simplify again
+- **AND** the run converges only after `.minions/build/<change-id>.done` names `HEAD`
+
+#### Scenario: A dirty tree the build did not mark
+- **WHEN** every phase is ticked, no `.done` names `HEAD`, and the tree is dirty with no `.closing` mark naming `HEAD`
+- **THEN** `mf-build` halts naming the dirty paths, and restores nothing
+
+#### Scenario: A resume finds an earlier patch
+- **WHEN** a resume finds the tree dirty while `.closing` names `HEAD`, and `.minions/build/<change-id>.discarded.patch`
+  already exists
+- **THEN** `mf-build` halts naming the dirty paths and the patch, restores nothing, and leaves the patch as it was
+
+#### Scenario: A build exits without its marker
+- **WHEN** a build worker exits 0 with every phase ticked and committed, and no `.done` names `HEAD`
+- **THEN** the build check fails, the version halts, and no second build starts
+
+#### Scenario: A build closed before this rule
+- **WHEN** a version's phases are all ticked, its converge has begun, and no `.minions/build/<change-id>.done` exists
+- **THEN** the stage is read from converge's status log, as before
 
 ### Requirement: A station's executor comes from the models file
 
@@ -1557,9 +1586,8 @@ only to the primary, the open worktrees and the common directory: a sandbox that
 it unsandboxed. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
 and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
 `.mcp.json`, which a worker can write, start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
-domains `AGENTS.md`'s `Ship network:` line names, and loopback only in a repo whose `AGENTS.md` declares
-`Ship loopback: yes`, where its sandbox has `allowLocalBinding` true; there a local service may reach further for it, a class
-the threat model's *Out of scope* accepts by name. A Codex worker SHALL run with its network off, and SHALL
+domains `AGENTS.md`'s `Ship network:` line names, and its sandbox SHALL never have `allowLocalBinding`: it binds no
+loopback port, in any repo. A Codex worker SHALL run with its network off, and SHALL
 start with its working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a
 project's `.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache
 in the run directory, and neither SHALL inherit the conductor's `VIRTUAL_ENV`.
@@ -1587,10 +1615,7 @@ in the run directory, and neither SHALL inherit the conductor's `VIRTUAL_ENV`.
 - **THEN** the worker ends without running a command, and its version halts on the exit
 
 #### Scenario: A repo's gate serves on loopback
-- **WHEN** a Claude worker runs a gate that binds `127.0.0.1` and connects to its own port, in a repo whose `AGENTS.md`
-  declares `Ship loopback: yes`
-- **THEN** the bind and the connection succeed
-- **AND WHEN** the repo declares no `Ship loopback:`
+- **WHEN** a Claude worker runs a gate that binds `127.0.0.1`
 - **THEN** the bind is refused, and the worker's sandbox has no `allowLocalBinding`
 
 #### Scenario: The conductor runs in a uv environment
@@ -1698,12 +1723,10 @@ fetch no missing object from a promisor remote.
 
 ### Requirement: A run's plan is read once
 
-`conduct.py` SHALL read every open version's executors, models and efforts, and `AGENTS.md`'s `Ship network:`, `Ship tools:`
-and `Ship loopback:` lines, once, before the first worker, and SHALL halt a
-version whose models file later differs. A `Ship loopback:` value other than `yes` SHALL halt the run, naming it. In a repo
-that declares `Ship loopback: yes`, a version with a station on Codex SHALL halt before its first worker, naming the station,
-and the run SHALL log, after its `start`, one `loopback` event per process of the operator's listening on loopback, naming the
-process and its address; another user's listener, root's among them, is not logged. It SHALL halt a version before
+`conduct.py` SHALL read every open version's executors, models and efforts, and `AGENTS.md`'s `Ship network:` and `Ship tools:`
+lines, once, before the first worker, and SHALL halt a
+version whose models file later differs. An `AGENTS.md` that declares `Ship loopback:` SHALL halt the run, naming the line
+as removed. It SHALL halt a version before
 integrate when the default branch holds a first-parent commit past `origin` that merges no release.
 
 #### Scenario: A worker edits the models file
@@ -1715,15 +1738,13 @@ integrate when the default branch holds a first-parent commit past `origin` that
 - **THEN** that version halts before integrate, naming the commit
 
 #### Scenario: A repo declares loopback badly
-- **WHEN** `AGENTS.md` declares `Ship loopback: maybe`
-- **THEN** the run halts naming the value, and starts no worker
+- **WHEN** `AGENTS.md` declares `Ship loopback: yes`, `Ship loopback: maybe`, or any value
+- **THEN** the run halts naming the removed line, and starts no worker
 
 #### Scenario: A Codex station in a loopback repo
-- **WHEN** a repo declares `Ship loopback: yes`, and a version's models file names `executor = "codex"` for a station
-- **THEN** that version halts before its first worker, naming the station, and every other version goes on
+- **WHEN** a repo declares `Ship loopback:`, and a version's models file names `executor = "codex"` for a station
+- **THEN** the run halts on the removed line before any worker, whatever the executor
 
 #### Scenario: A run in a loopback repo
-- **WHEN** a run starts in a repo that declares `Ship loopback: yes`, with a process of the operator's listening on `127.0.0.1`
-- **THEN** its log holds a `loopback` event naming that process and address
-- **AND WHEN** the repo declares no `Ship loopback:`
-- **THEN** its log holds no `loopback` event
+- **WHEN** a run starts in a repo that declares no `Ship loopback:`
+- **THEN** its log holds no `loopback` event, and no worker's sandbox has `allowLocalBinding`

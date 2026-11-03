@@ -1,6 +1,6 @@
 [project]
 name = "minions-factory"
-version = "0.47.1"
+version = "0.47.3"
 requires-python = ">=3.12"
 dependencies = []
 

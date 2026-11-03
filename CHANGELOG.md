@@ -21,6 +21,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conduct.py`, and `mf-ship` names the merge a gate-change halt needs, because the sandbox keeps `gh` from its
   config (change `0057-run-fixes`, phase 4).
 
+## [0.47.3] - 2026-11-03
+
+Gate: local 4m38s · CI none · 0.47.2: local 4m24s · CI none
+
+- `mf-build` writes `.minions/build/<change-id>.done` once simplify and the metrics are done, and resumes at simplify
+  when every box is ticked and no marker names `HEAD`, because a build that died in simplify read as built
+  (change `0055-build-resume`, phase 1).
+- `conduct.py` reads a version with every phase ticked, no converge run and no `.done` naming `HEAD` as stage
+  `build`, closing steps left, so a run re-runs a build that died in simplify instead of converging it
+  (change `0055-build-resume`, phase 2).
+- `mf-ship`'s report says a build that died in its closing steps resumes at simplify on a re-run
+  (change `0055-build-resume`, phase 3).
+- The build check fails until a `.done` names `HEAD`, so a build that exits without one halts rather than starting again.
+  `mf-build` restores a dirty tree only while its `.closing` mark names `HEAD`, saving it to a patch first, and halts
+  otherwise, so a person's uncommitted edit stays in the tree or the patch (change `0055-build-resume`, converge fixes R1, R2 and S1).
+- `mf-build` halts, restoring nothing, when a resume finds an earlier `.discarded.patch`, because a second save wrote
+  over the only copy of the edit the first one kept (change `0055-build-resume`, converge fixes R4 and S3).
+
+## [0.47.2] - 2026-11-03
+
+Gate: local 4m24s · CI none · 0.47.1: local 4m29s · CI 0m42s (CI at d897227)
+
+- No Claude worker's sandbox has `allowLocalBinding`, the Codex refusal and the `loopback` log event go, and an
+  `AGENTS.md` that still declares `Ship loopback:` halts the run, naming the line, because no repo uses it and a
+  worker could write it for every later run (change `0056-loopback-removal`, phase 1).
+- The escape drill drops its loopback row, because the setting it proved is gone; its refused bind stays (change
+  `0056-loopback-removal`, phase 2).
+- D51, `THREAT_MODEL.md` and `mf-ship` Step 3 say no worker binds loopback, and name the Linux container as the way out
+  for a gate that serves on it (change `0056-loopback-removal`, phase 3).
+
 ## [0.47.1] - 2026-11-03
 
 Gate: local 4m29s · CI 0m42s (CI at d897227) · 0.47.0: local 3m53s · CI 0m42s (CI at d897227)
