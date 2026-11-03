@@ -55,7 +55,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "loopback", "kept"),
+    *("push", "ledger", "unlock", "unkept", "loopback", "kept", "removed"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -2045,8 +2045,9 @@ class Run:
         """Remove a released version's worktree at the cut's path; else log it kept.
 
         The branch stays. A worker can write the worktree entry, so its path is checked
-        against `Worktrees:`, read before the first worker.
-        Why: 0057-run-fixes design D3.
+        against `Worktrees:`, read before the first worker. The removal deletes the
+        tree's ignored paths, so they are listed first and logged; a failed listing
+        keeps the tree. Why: 0057-run-fixes design D3.
         """
         tree, change = version.tree, version.change
         if tree is None:
@@ -2054,11 +2055,20 @@ class Run:
         if tree.resolve() != (self.worktrees / change).resolve():
             self.log.event(change, "kept", f"{tree}: not at the cut's path")
             return
+        listing = ("ls-files", "--others", "--ignored", "--exclude-standard")
+        ignored = _maybe(tree, *listing, "--directory")
+        if ignored is None:
+            why = "its ignored paths could not be listed"
+            self.log.event(change, "kept", f"{tree}: {why}")
+            return
         done = _run(self.primary, "worktree", "remove", str(tree))
         if done.returncode != 0:
             lines = [line for line in done.stderr.splitlines() if line.strip()]
             why = lines[0] if lines else f"exit {done.returncode}"
             self.log.event(change, "kept", f"{tree}: {why}")
+            return
+        paths = ", ".join(ignored.splitlines()) or "none"
+        self.log.event(change, "removed", f"{tree}: ignored {paths}")
 
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Wait for the version's dependencies, then bring the default branch in."""
@@ -2103,8 +2113,9 @@ class Run:
     def catch_up(self, version: Version) -> None:
         """Merge the default branch into a cut-only version behind it.
 
-        A started version behind a default branch that changed `GATE_FILES` stops
-        with 1, naming them and the merge. Why: 0057-run-fixes design D2.
+        A started version with an unticked phase and no open merge, behind a default
+        branch that changed `GATE_FILES`, stops with 1, naming them and the merge; any
+        other goes on from its stage. Why: 0057-run-fixes design D2.
         """
         change, default, tree = (
             version.change,
@@ -2117,6 +2128,8 @@ class Run:
         held = _git(self.primary, "rev-list", "--count", f"{base}..{change}").strip()
         if held == "1":
             self.merge_in(tree, change, default)
+            return
+        if _unticked(tree, change) is None or _merge_open(tree):
             return
         diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
         if paths := _git(self.primary, *diff).split():

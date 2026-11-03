@@ -48,18 +48,21 @@ the scratch `.gitignore`.
 
 - the branch holds only its cut commit (`git rev-list --count <base>..<change>` is `1`) and the default branch is not an
   ancestor → `merge_in(tree, change, default)`, as for a dependent;
-- the branch holds more, and `git diff --name-only <base> <default> -- Makefile '*.mk' AGENTS.md CODING_STANDARDS.md
-  CONTRIBUTING.md` prints a path → `Stop(1, "conduct: halt — <default> changed <paths> since <change>'s base: git -C <tree>
-  merge <default>, then re-run")`;
-- else nothing.
+- the branch holds more, `_unticked(tree, change)` names a phase, no merge is open in the tree, and `git diff --name-only
+  <base> <default> -- Makefile '*.mk' AGENTS.md CODING_STANDARDS.md CONTRIBUTING.md` prints a path → `Stop(1, "conduct:
+  halt — <default> changed <paths> since <change>'s base: git -C <tree> merge <default>, then re-run")`;
+- else nothing: a built version, or one with a merge open, goes on from its stage, and integrate merges the default
+  branch in under D45's rules.
 
 `<base>` is `git merge-base <default> <change>`. Only at a version's first `take` in a run.
 
 ### D3
 
 `Run.advance`, after a release's `check` passes: `tree = version.tree`; when `tree.resolve()` equals the `Worktrees:` path
-joined with the change id, resolved, `_git(primary, *NO_HOOKS, "worktree", "remove", str(tree))`; else, or on a refusal, log
-`self.log.event(change, "kept", "<tree>: <why>")`. The branch stays. `EVENTS` gains `kept`.
+joined with the change id, resolved, list its ignored paths with `git ls-files --others --ignored --exclude-standard
+--directory` in the tree, then `_git(primary, *NO_HOOKS, "worktree", "remove", str(tree))` and log
+`self.log.event(change, "removed", "<tree>: ignored <paths>")`; else, on a failed listing, or on a refusal, log
+`self.log.event(change, "kept", "<tree>: <why>")`. The branch stays. `EVENTS` gains `kept` and `removed`.
 
 `skills/mf-release/SKILL.md` Step 5.6 opens "Under `merge=yes`, skip this: `conduct.py` removes it." and Step 6's close-out
 says so.
@@ -69,8 +72,8 @@ says so.
 `skills/mf-release/SKILL.md` Step 4.1: "`gh` failing, no `origin`, or no run → `CI none`" → "`gh` failing, no `origin`, or no
 run → `CI none`; under `merge=yes`, `CI not read under mf-ship`".
 
-`skills/mf-ship/SKILL.md` Step 4 gains: "A version halted because `main` changed its gate since its base needs
-`git -C <tree> merge <default>` before a re-run."
+`skills/mf-ship/SKILL.md` Step 4 gains: "A version still building, halted because `main` changed its gate since its
+base, needs `git -C <tree> merge <default>` before a re-run; a built one goes on to integrate."
 
 ## Tests
 
@@ -80,8 +83,9 @@ Counted at `f33a6b3`: `uv run pytest --collect-only -q | tail -1` prints `101 te
 | test | change | holds |
 |---|---|---|
 | `test_a_probe_halts_on_a_write_out` | edited | D1: a fake probe whose `uname -m` differs from the native halts the run, naming the executor; the default passes |
-| `test_after_waits_for_its_dependency` | edited | D2: a cut-only version behind `main` gets `main` merged in with no halt; a started version behind a `main` that changed `Makefile` halts naming it; one behind a `main` that changed neither builds |
-| `test_a_ready_version_ships_past_a_slow_one` | edited | D3: after each release, its worktree is gone and its branch kept; a worktree entry pointing elsewhere is kept and logged |
+| `test_after_waits_for_its_dependency` | edited | D2: a cut-only version behind `main` gets `main` merged in with no halt; a started version behind a `main` that changed `Makefile` halts naming it; one behind a `main` that changed neither builds; a built one, or one with a merge open, behind a `Makefile` change reaches integrate |
+| `test_a_ready_version_ships_past_a_slow_one` | edited | D3: after each release, its worktree is gone and its branch kept; a worktree entry pointing elsewhere is kept and logged; a tree whose ignored paths cannot be listed is kept and logged, and a removed one logs its ignored paths |
+| `test_no_worker_pushes` | edited | D3: the release's log ends with the tree's `removed` line |
 
 `tests/fake_worker.py`'s probe gains a mode whose `uname -m` reports another architecture, through a `uname` on its `PATH`.
 None is deleted or merged.

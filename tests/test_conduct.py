@@ -562,6 +562,31 @@ def test_a_ready_version_ships_past_a_slow_one(
         f" · 0003-more · kept — {elsewhere.resolve()}: not at the cut's path\n" in log
     )
 
+    listed = _version(root, "0004-listed", "- [ ] 1 — Listed\n")
+    (listed / ".minions").mkdir()
+    (listed / ".minions" / "local.db").write_text("x\n")
+    run = conduct["Run"](root, "claude")
+    version = conduct["Version"]("0004-listed", listed)
+    found = run.remove_tree.__globals__
+    real = found["_maybe"]
+
+    def unlisted(cwd: Path, *args: str) -> str | None:
+        return None if args[0] == "ls-files" else real(cwd, *args)
+
+    monkeypatch.setitem(found, "_maybe", unlisted)
+    run.remove_tree(version)
+    assert (listed / ".minions" / "local.db").is_file()
+    unlisted_line = (
+        f" · 0004-listed · kept — {listed}: its ignored paths could not be listed\n"
+    )
+    assert unlisted_line in run.log.path.read_text()
+    monkeypatch.setitem(found, "_maybe", real)
+    run.remove_tree(version)
+    assert not listed.exists()
+    assert f" · 0004-listed · removed — {listed}: ignored .minions/\n" in (
+        run.log.path.read_text()
+    )
+
 
 def test_after_waits_for_its_dependency(
     tmp_path: Path,
@@ -763,6 +788,26 @@ def test_after_waits_for_its_dependency(
         == 0
     )
     assert "build 0001-todo" in _calls(calls)
+
+    gate_halt = "conduct: halt — main changed Makefile"
+    built, built_tree = behind("built", "Makefile", started=True)
+    ticked = {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"}
+    _commit(built_tree, ticked, "build")
+    assert (
+        _main(conduct, built, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert "integrate 0001-todo" in _calls(calls)
+    assert not any(gate_halt in line for line in _log(built))
+
+    opened, opened_tree = behind("opened", "Makefile", started=True)
+    _git(opened_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    assert (
+        _main(conduct, opened, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1:3] == ["integrate 0001-todo", "build 0001-todo"]
+    assert not any(gate_halt in line for line in _log(opened))
 
 
 def test_a_halted_dependency_blocks_a_chain(
@@ -2043,6 +2088,7 @@ def test_no_worker_pushes(
         "run · push — main",
         "run · push — v0.1.0",
         "0001-todo · check — release · pass",
+        f"0001-todo · removed — {root.parent / '0001-todo'}: ignored none",
         "run · done — released v0.1.0",
     ]
     assert _git(root, "rev-parse", "main") in _git(root, "ls-remote", "origin", "main")

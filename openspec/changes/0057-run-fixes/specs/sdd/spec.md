@@ -50,7 +50,7 @@ the commands and stop.
 
 #### Scenario: The conductor gives the yes
 - **WHEN** the release is run with `merge=yes` and Step 2 flagged nothing
-- **THEN** it asks nothing, merges and removes the worktree as on a yes, and `conduct.py` pushes
+- **THEN** it asks nothing, merges as on a yes, and `conduct.py` pushes and removes the worktree
 - **AND WHEN** Step 2 flagged a hand-edit
 - **THEN** it halts after the tag and before the merge, naming the flagged prose
 
@@ -88,10 +88,12 @@ not halt a version by itself: the station's check decides, and the report lists 
 merge and push of the run. `conduct.py` SHALL run its own git with hooks and `core.fsmonitor` off, so a hook a worker
 plants does not run at the conductor's rights. At a run's start, a version whose branch holds nothing past its cut commit,
 and whose base the default branch has passed, SHALL get the default branch merged in, as a dependent does; a version with
-more SHALL halt when the default branch changed a gate makefile, `AGENTS.md`, `CODING_STANDARDS.md` or `CONTRIBUTING.md`
-since its base, naming the files and `git -C <tree> merge <default>`. After a release's check passes, `conduct.py` SHALL
+more, an unticked phase and no merge open SHALL halt when the default branch changed a gate makefile, `AGENTS.md`,
+`CODING_STANDARDS.md` or `CONTRIBUTING.md` since its base, naming the files and `git -C <tree> merge <default>`; any
+other version SHALL go on from its stage. After a release's check passes, `conduct.py` SHALL
 remove the version's worktree, without `--force`, keeping its branch, only when its path is `AGENTS.md`'s `Worktrees:`
-path joined with the change id; a refusal SHALL be logged, never forced.
+path joined with the change id, logging the ignored paths it held, listed by name; a listing that fails SHALL keep the
+worktree, logged, and a refusal SHALL be logged, never forced.
 
 #### Scenario: A worker plants a hook
 - **WHEN** a `post-commit` hook stands in the repo and `conduct.py` commits a dependent's merge
@@ -121,11 +123,15 @@ path joined with the change id; a refusal SHALL be logged, never forced.
 - **THEN** the run merges the default branch into it before its first worker, and builds on the merge
 - **AND WHEN** the version's build has begun, and the default branch changed `Makefile` since its base
 - **THEN** that version halts before its next worker, naming `Makefile` and the merge to run
+- **AND WHEN** every phase is ticked, or a merge is open in its worktree
+- **THEN** the version goes on from its stage, and integrate merges the default branch in
 
 #### Scenario: A released worktree
 - **WHEN** a release's check passes under `mf-ship`
-- **THEN** the version's worktree is gone and its branch kept
+- **THEN** the version's worktree is gone and its branch kept, and the run logs the ignored paths it held
 - **AND WHEN** git's worktree entry names a path other than the `Worktrees:` path joined with the change id
+- **THEN** nothing is removed, and the run logs it
+- **AND WHEN** the worktree's ignored paths cannot be listed
 - **THEN** nothing is removed, and the run logs it
 
 ### Requirement: The ship station judges every station from disk

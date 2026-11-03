@@ -21,9 +21,9 @@ left, because removing a sibling folder writes its parent, outside the worker's 
 ## What Changes
 
 - **The probe checks the shell's architecture** against the host's native one; a mismatch halts the run.
-- **At a run's start, a cut-only version behind `main` gets `main` merged in**, as a dependent does; a started version
-  behind a `main` that changed its gate halts, naming the files and the merge.
-- **`conduct.py` removes a released worktree**, at the path the cut made.
+- **At a run's start, a cut-only version behind `main` gets `main` merged in**, as a dependent does; a version still
+  building behind a `main` that changed its gate halts, naming the files and the merge.
+- **`conduct.py` removes a released worktree**, at the path the cut made, logging its ignored paths first.
 - **A release under `merge=yes` writes `CI not read under mf-ship`**, and leaves its worktree to `conduct.py`.
 
 ## Capabilities
