@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 ## Progress
 
 - [x] 1 — Converge
-- [ ] 2 — The run
+- [x] 2 — The run
 - [ ] 3 — The metrics
 - [ ] 4 — The record
 
@@ -18,11 +18,11 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 2 — The run
 
-- [ ] 2.1 Remove `TIERS` and `_tier` from `skills/mf-ship/scripts/conduct.py` and give the converge prompt `{grant}`; edit
+- [x] 2.1 Remove `TIERS` and `_tier` from `skills/mf-ship/scripts/conduct.py` and give the converge prompt `{grant}`; edit
   `tests/fake_worker.py`, `tests/drill_resume.py` and `test_a_worker_carries_the_allowlist_and_a_denial_is_named`, per [D2](design.md#d2).
   Verify: `grep -c -E 'TIERS|def _tier' skills/mf-ship/scripts/conduct.py` prints `0`, and
   `uv run pytest -q tests/test_conduct.py -k 'carries_the_allowlist or grant_buys_one_round'` reports `2 passed`.
-- [ ] 2.2 Edit `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, per [D2](design.md#d2).
+- [x] 2.2 Edit `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -c 'tier the cut chose' skills/mf-ship/SKILL.md` prints `0`, and
   `grep -c 'tier = "standard"' skills/mf-cut-change/SKILL.md` prints `0`.
 

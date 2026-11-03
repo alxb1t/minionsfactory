@@ -70,7 +70,7 @@ def _fake(prompt: str) -> None:
     here = Path.cwd()
     found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
-    clauses = "".join(re.findall(r" with tier=\w+| and grant=yes", prompt))
+    clauses = "".join(re.findall(r" and grant=yes", prompt))
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
         calls.write(f"{called}{clauses}\n")

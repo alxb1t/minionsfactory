@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge runs one depth, one fresh worker per role, and halts on a `tier=`; `references/high-tier.md` goes and the
   findings frontmatter records no tier, because the high tier found what the standard one found at many times the cost
   (change `0059-remove-high-tier`, phase 1).
+- `conduct.py` passes no tier to converge and ignores a models file's `tier`, a granted round keeping its
+  `and grant=yes`; the cut writes no `tier`, because converge has one depth (change `0059-remove-high-tier`, phase 2).
 
 ## [0.47.4] - 2026-11-03
 
