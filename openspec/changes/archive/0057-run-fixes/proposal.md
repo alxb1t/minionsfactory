@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: 0.47.4
 ---
 
 # Run fixes

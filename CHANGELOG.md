@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.4] - 2026-11-03
+
+Gate: local 4m56s · CI not read under mf-ship · 0.47.3: local 4m38s · CI none
+
 - `conduct.py`'s probe checks the worker shell's `uname -m` against the host's native architecture, and halts the run
   naming both, because a Codex shell ran as `x86_64` on an `arm64` Mac and the probe passed it (change
   `0057-run-fixes`, phase 1).
