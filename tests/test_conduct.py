@@ -413,7 +413,8 @@ def test_each_check_passes_only_on_disk_evidence(
     mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    _commit(scratch, {"Makefile": conduct["probe_gate"](mark)}, "init")
+    gate_file = conduct["probe_gate"](mark, conduct["_native"]())
+    _commit(scratch, {"Makefile": gate_file}, "init")
     assert check("probe", str(scratch)) == (
         1,
         "check: probe · fail — HEAD holds no probe.txt",
@@ -2896,7 +2897,20 @@ def test_a_probe_halts_on_a_write_out(
     )
     assert not list(marks.glob("probe-*"))
 
-    # Twin: a sandbox refuses the write, and the run ships.
+    calls.unlink()
+    fake("translated")
+    assert run() == 1
+    assert _calls(calls) == ["probe"]
+    native = conduct["_native"]()
+    assert any(
+        line.endswith(
+            " · run · halt — probe check fail — claude's shell runs as i386 on a"
+            f" {native} host"
+        )
+        for line in _log(root)
+    )
+
+    # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()
     fake()
     assert run() == 0

@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## Progress
 
-- [ ] 1 — The probe
+- [x] 1 — The probe
 - [ ] 2 — The base
 - [ ] 3 — The release
 - [ ] 4 — The record
 
 ## 1 — The probe
 
-- [ ] 1.1 Add `_native` and the architecture line to `probe_gate`, and its reading to `check_probe`, in
+- [x] 1.1 Add `_native` and the architecture line to `probe_gate`, and its reading to `check_probe`, in
   `skills/mf-ship/scripts/conduct.py`; the mode to `tests/fake_worker.py`; and its step to `test_a_probe_halts_on_a_write_out`,
   per [D1](design.md#d1).
   Verify: `grep -c 'def _native' skills/mf-ship/scripts/conduct.py` prints `1`, and

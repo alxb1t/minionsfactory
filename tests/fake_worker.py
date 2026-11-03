@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -117,7 +118,22 @@ def _fake(prompt: str) -> None:
             for mark in Path(os.environ["HOME"], ".mf-ship-origin").glob("probe-*"):
                 mark.chmod(0o400)
         _commit(here, {"probe.txt": "ok\n"}, "probe")
-        subprocess.run(["make", "gate"], cwd=here, capture_output=True, check=sandboxed)
+        translated = "translated" in modes
+        with tempfile.TemporaryDirectory(prefix="fake-uname-") as folder:
+            env = dict(os.environ)
+            # A translated shell's stand-in: a `uname` first on `PATH` names another.
+            if translated:
+                uname = Path(folder, "uname")
+                uname.write_text("#!/bin/sh\necho i386\n")
+                uname.chmod(0o755)
+                env["PATH"] = f"{folder}{os.pathsep}{env['PATH']}"
+            subprocess.run(
+                ["make", "gate"],
+                cwd=here,
+                env=env,
+                capture_output=True,
+                check=sandboxed and not translated,
+            )
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
         files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}

@@ -1241,13 +1241,37 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def probe_gate(mark: Path) -> str:
+def _native() -> str:
+    """Return the host's native architecture, read past a translated process.
+
+    e.g. an `x86_64` Python under Rosetta on Apple silicon → "arm64"
+    Why: 0057-run-fixes design D1.
+    """
+    try:
+        done = subprocess.run(
+            ["sysctl", "-n", "hw.optional.arm64"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return os.uname().machine
+    return "arm64" if done.stdout.strip() == "1" else os.uname().machine
+
+
+def probe_gate(mark: Path, native: str) -> str:
     """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
 
-    Why: 0053-sandbox-patch design D1.
+    Its shell must run as `native`: a translated one fails before the mark.
+    Why: 0053-sandbox-patch design D1; 0057-run-fixes design D1.
     """
     target = shlex.quote(str(mark)).replace("$", "$$")
-    return f"gate:\n\t! echo escaped >> {target}\n\ttouch .gated\n"
+    arch = shlex.quote(native).replace("$", "$$")
+    return (
+        f'gate:\n\tuname -m > .arch\n\ttest "$$(cat .arch)" = {arch}\n'
+        f"\t! echo escaped >> {target}\n\ttouch .gated\n"
+    )
 
 
 def check_probe(scratch: Path, mark: Path | None) -> str | None:
@@ -1256,15 +1280,20 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     A `mark` gone or written fails, naming its executor: `probe-codex-41` → `codex`.
     `check probe` has no mark, and skips it. Why: 0053-sandbox-patch design D1.
     """
+    executor = mark.name.split("-")[1] if mark is not None else "the worker"
     if mark is not None and (not mark.is_file() or mark.stat().st_size):
-        executor = mark.name.split("-")[1]
         return f"{executor} wrote outside its reach: it runs unsandboxed"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
     if held.strip() != "ok":
         return f"probe.txt reads {held.strip()!r}"
-    return None if (scratch / ".gated").is_file() else "make gate left no .gated"
+    if (scratch / ".gated").is_file():
+        return None
+    arch, native = scratch / ".arch", _native()
+    if arch.is_file() and (shell := arch.read_text().strip()) != native:
+        return f"{executor}'s shell runs as {shell} on a {native} host"
+    return "make gate left no .gated"
 
 
 def check(
@@ -2121,8 +2150,8 @@ class Run:
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text(probe_gate(mark))
-            (scratch / ".gitignore").write_text(".gated\n")
+            (scratch / "Makefile").write_text(probe_gate(mark, _native()))
+            (scratch / ".gitignore").write_text(".gated\n.arch\n")
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             models = (executor, None, None)
