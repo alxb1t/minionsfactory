@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Input-contract item `I18`: a cut task that names a gate makefile names `` `gate` `` and quotes its lines in a `diff`
   block, and the cut's Step 8 runs `gate_check.py --tasks` to refuse the bare form, because a task in prose passed the
   cut and halted converge after the whole build (change `0060-gate-planning`, phase 2).
+- `gate_check.py` takes `--head <tree-ish>`, and `mf-build` checks a phase's staged tree before committing a gate
+  makefile change, so a bad quote costs a phase, not the build (change `0060-gate-planning`, phase 3).
 
 ## [0.47.4] - 2026-11-03
 

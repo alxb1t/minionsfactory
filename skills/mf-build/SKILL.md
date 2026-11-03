@@ -64,7 +64,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
-| **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — |
+| **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — (Step 2 checks the staged tree) |
 
 ## Step 1 — Lift the context
 
@@ -155,7 +155,11 @@ ticking the `N.M` boxes with the phase's box at item 5.
 5. **Tick the phase's box** in `## Progress` (`- [ ] N` → `- [x] N`). A phase is finished by a commit **and** a
    ticked box; either alone is not an advance.
 6. **One commit for the phase.** Stage the paths you changed **by name** — never `git add -A`: `.minions/` holds
-   gitignored run output, and an un-ignored one would be swept into history. Write a Conventional-Commits
+   gitignored run output, and an un-ignored one would be swept into history. When `git diff --cached --name-only`
+   names `Makefile` or a `*.mk` file, check the staged tree first: run `git write-tree`, then
+   `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base> --head <the tree>`,
+   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 3.5. Exit 1 → **halt**, committing
+   nothing, copying what it prints. Exit 2, or `uv` missing → **halt**, naming the side. Write a Conventional-Commits
    subject. **Every commit ends with this trailer block, contiguous** — git parses the last paragraph as the
    trailers, so a blank line between them silently breaks it:
 

@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 - [x] 1 — The message
 - [x] 2 — The cut
-- [ ] 3 — The build
+- [x] 3 — The build
 - [ ] 4 — The approval
 - [ ] 5 — The record
 
@@ -27,7 +27,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 3 — The build
 
-- [ ] 3.1 Add `--head` to `gate_check.py`, and the staged-tree check before `mf-build` Step 2's commit; add
+- [x] 3.1 Add `--head` to `gate_check.py`, and the staged-tree check before `mf-build` Step 2's commit; add
   `test_a_staged_tree_is_checked`, per [D3](design.md#d3).
   Verify: `grep -c 'git write-tree' skills/mf-build/SKILL.md` prints `1`, and
   `uv run pytest -q tests/test_gate_check.py -k staged_tree` reports `1 passed`.

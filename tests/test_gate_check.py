@@ -52,10 +52,10 @@ def _branch(
 
 
 def _check(
-    root: Path, base: str, env: dict[str, str] | None = None
+    root: Path, base: str, env: dict[str, str] | None = None, *extra: str
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base],
+        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base, *extra],
         cwd=root,
         env={**os.environ, **(env or {})},
         capture_output=True,
@@ -420,6 +420,25 @@ def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     made = {Path(line) for line in log.read_text().splitlines()}
     assert made == {exports / "base", exports / "head"}
     assert not exports.exists() and not (worktree / ".minions").exists()
+
+
+def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
+    tasks = _planned(" It adds `echo c`.")
+    base = _branch(tmp_path, {"Makefile": _GATE}, tasks, {"README.md": "x\n"})
+
+    def staged(gate: str) -> subprocess.CompletedProcess[str]:
+        (tmp_path / "Makefile").write_text(gate)
+        _git(tmp_path, "add", "Makefile")
+        tree = _git(tmp_path, "write-tree")
+        return _check(tmp_path, base, None, "--head", tree)
+
+    # HEAD's gate is the base's: only the staged tree holds the edit.
+    unquoted = staged(f"{_GATE}\techo d\n")
+    assert not _halted(unquoted, "added: Makefile: echo d"), unquoted.stdout
+    quoted = staged(f"{_GATE}\techo c\n")
+    assert quoted.returncode == 0, quoted.stdout
+    assert quoted.stdout.startswith("gate: planned — 1.1 ")
+    assert "\n+echo c" in quoted.stdout
 
 
 def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:

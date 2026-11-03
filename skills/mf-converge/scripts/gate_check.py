@@ -4,7 +4,7 @@
 # ///
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
-    gate_check.py --change <id> --base <rev>
+    gate_check.py --change <id> --base <rev> [--head <tree-ish>]
     gate_check.py --tasks <tasks.md>
 
 Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
@@ -283,7 +283,7 @@ def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], lis
     return gate_makefiles(root, trace), lines
 
 
-def check(change: str, base: str) -> str:
+def check(change: str, base: str, head: str = "HEAD") -> str:
     """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
@@ -291,8 +291,8 @@ def check(change: str, base: str) -> str:
     shutil.rmtree(root, ignore_errors=True)
     try:
         base_files, base_lines = read_side(base, root / "base", "base")
-        head_files, head_lines = read_side("HEAD", root / "head", "head")
-        changed = set(_git("diff", "--name-only", "-z", base, "HEAD").split("\0"))
+        head_files, head_lines = read_side(head, root / "head", "head")
+        changed = set(_git("diff", "--name-only", "-z", base, head).split("\0"))
         touched = sorted(
             set().union(*base_files.values(), *head_files.values()) & changed
         )
@@ -362,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--change", help="the change id")
     parser.add_argument("--base", help="the base commit")
+    parser.add_argument("--head", default="HEAD", help="the branch's tree-ish")
     parser.add_argument("--tasks", type=Path, help="a tasks.md to check alone")
     args = parser.parse_args(argv)
     if args.tasks is None:
@@ -369,15 +370,16 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--change and --base are required without --tasks")
         if not CHANGE_ID.fullmatch(args.change):
             parser.error(f"--change: not a change id: {args.change}")
-        if args.base.startswith("-"):
-            parser.error(f"--base: not a commit: {args.base}")
+        for flag, rev in (("--base", args.base), ("--head", args.head)):
+            if rev.startswith("-"):
+                parser.error(f"{flag}: not a commit: {rev}")
     elif args.change is not None or args.base is not None:
         parser.error("--tasks takes no --change or --base")
     try:
         if args.tasks is not None:
             print(check_tasks(args.tasks))
         else:
-            print(check(args.change, args.base))
+            print(check(args.change, args.base, args.head))
     except Stop as stop:
         print(stop)
         return stop.code
