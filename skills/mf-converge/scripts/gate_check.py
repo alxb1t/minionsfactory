@@ -269,14 +269,6 @@ def check(change: str, base: str) -> str:
     )
     if not touched and not diff:
         return "gate: no unplanned change"
-    if not tasks:
-        # The changed makefiles, or else the dry runs' diff.
-        shown = "".join(f"\n  {name}" for name in touched) or f"\n{diff}"
-        raise Stop(
-            1,
-            "gate: halt — the branch changes the gate, and no cut task names "
-            f"`Makefile` and `gate`:{shown}",
-        )
 
     def quoted(text: str) -> bool:
         return any(text.strip() in task for task in tasks)
@@ -290,13 +282,29 @@ def check(change: str, base: str) -> str:
     problems += [
         f"  {kind}: {name}: {text}" for kind, name, text in edits if not quoted(text)
     ]
+    if not tasks and not problems:
+        # A makefile changed in blank lines alone still has no plan.
+        problems = [f"  changed: {name}" for name in touched]
     if problems:
-        raise Stop(
-            1,
-            "gate: halt — the planned change adds, removes or drops a line "
-            "the task does not quote:\n" + "\n".join(problems) + f"\n{diff}",
-        )
+        raise Stop(1, halt(problems, diff, cut, change))
     return f"gate: planned — {' · '.join(tasks)}\n{diff}"
+
+
+def halt(problems: list[str], diff: str, cut: str, change: str) -> str:
+    """Return the one halt: every unquoted line, the dry run, the rule, the way out.
+
+    Why: 0060-gate-planning design D1.
+    """
+    rule = (
+        "A planning task names `Makefile` and `gate` in backticks and quotes each "
+        f"line, in the cut commit {cut}. A person approves this diff with "
+        f"/mf-ship approve-gate {change}."
+    )
+    dry = f"The dry run changed:\n{diff}\n" if diff else "The dry run is unchanged. "
+    return (
+        "gate: halt — the branch changes the gate, and no cut task quotes these "
+        "lines:\n" + "\n".join(problems) + f"\n{dry}{rule}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

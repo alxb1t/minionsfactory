@@ -67,6 +67,18 @@ def _planned(quote: str = "") -> str:
     return f"## 1 — One\n\n- [ ] 1.1 Change the `gate` recipe in `Makefile`.{quote}\n"
 
 
+_HALT = (
+    "gate: halt — the branch changes the gate, and no cut task quotes these lines:\n"
+)
+
+
+def _halted(result: subprocess.CompletedProcess[str], *lines: str) -> list[str]:
+    """Return what the halt lacks: its header, or a `  <line>` entry."""
+    missing = [] if result.returncode == 1 else [f"exit {result.returncode}"]
+    missing += [] if result.stdout.startswith(_HALT) else ["the header"]
+    return missing + [line for line in lines if f"\n  {line}\n" not in result.stdout]
+
+
 def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
     # A calling make's `-q` would fail both dry runs unless the check clears it.
@@ -83,8 +95,8 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     }
     base = _branch(tmp_path, files, _UNPLANNED, {"gate.mk": "CHECK = true\n"})
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith("names `Makefile` and `gate`:\n  gate.mk\n")
+    removed, added = "removed: gate.mk: CHECK = false", "added: gate.mk: CHECK = true"
+    assert not _halted(result, removed, added), result.stdout
 
     # A makefile the base's wildcard picks up cannot drop itself from the list.
     wildcard = tmp_path / "wildcard"
@@ -94,8 +106,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     hidden += "$(info make: Entering directory `/')\n"
     base = _branch(wildcard, files, _UNPLANNED, {"mk/z.mk": hidden})
     result = _check(wildcard, base)
-    assert result.returncode == 1, result.stdout
-    assert result.stdout.endswith(":\n  mk/z.mk\n")
+    assert not _halted(result, "added: mk/z.mk: .IGNORE:"), result.stdout
 
     # A file make reads through `$(shell)` is no makefile, but its dry run differs.
     data = tmp_path / "data"
@@ -104,8 +115,8 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
         data, {**files, "gate.cmd": "false\n"}, _UNPLANNED, {"gate.cmd": "true\n"}
     )
     result = _check(data, base)
-    assert result.returncode == 1, result.stdout
-    assert "and no cut task names" in result.stdout
+    assert not _halted(result, "dropped: false"), result.stdout
+    assert "\nThe dry run changed:\n" in result.stdout
     assert "\n-false\n+true" in result.stdout
 
     # Preserve the names Git tracks when make follows an include symlink, including
@@ -120,6 +131,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("rules.mk", "strict.mk", "loose.mk"),
             "rules.mk",
+            "added: rules.mk: .IGNORE:",
         ),
         (
             "recipe-symlink",
@@ -130,6 +142,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("gate.mk", "strict.mk", "ignored.mk"),
             "gate.mk",
+            "added: gate.mk: -false",
         ),
         (
             "parent-symlink",
@@ -140,16 +153,18 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             },
             ("rules", "strict", "ignored"),
             "rules",
+            "added: rules/gate.mk: -false",
         ),
         (
             "quoted-name",
             {"Makefile": "include café.mk\ngate:\n\tfalse\n", "café.mk": "# strict\n"},
             None,
             "café.mk",
+            "added: café.mk: .IGNORE:",
         ),
     ]
     failures = []
-    for label, initial, link, changed in cases:
+    for label, initial, link, changed, line in cases:
         root = tmp_path / label
         root.mkdir()
         if link:
@@ -161,7 +176,7 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             (root / link[0]).symlink_to(link[2])
             _commit(root, {}, "retarget include")
         result = _check(root, base)
-        if result.returncode != 1 or not result.stdout.endswith(f":\n  {changed}\n"):
+        if _halted(result, line):
             failures.append((label, result.returncode, result.stdout))
     # Every link followed while resolving an include can change its contents,
     # even when the direct include name and the dry run stay unchanged.
@@ -227,9 +242,8 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             _commit(root, {}, "retarget resolution dependency")
             result = _check(root, base)
             valid = result.returncode == expected
-            if plan == "unplanned":
-                valid &= result.stdout.endswith(f":\n  {changed}\n")
-            elif plan == "unquoted":
+            if expected:
+                valid &= result.stdout.startswith(_HALT)
                 valid &= "removed:" in result.stdout and "added:" in result.stdout
                 valid &= "false" in result.stdout and "-false" in result.stdout
             else:
@@ -245,32 +259,53 @@ def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
     weakened = {"checks/Makefile": "check:\n\tuv run pytest -q || true\n"}
     base = _branch(tmp_path, files, _UNPLANNED, weakened)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  checks/Makefile\n")
+    added = "added: checks/Makefile: uv run pytest -q || true"
+    assert not _halted(result, added), result.stdout
 
 
 def test_a_dash_prefix_halts(tmp_path: Path) -> None:
     files = {"Makefile": "gate:\n\tfalse\n"}
     base = _branch(tmp_path, files, _UNPLANNED, {"Makefile": "gate:\n\t-false\n"})
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: -false"), result.stdout
 
 
 def test_an_ignore_target_halts(tmp_path: Path) -> None:
     branch = {"Makefile": f".IGNORE:\n{_GATE}"}
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: .IGNORE:"), result.stdout
 
 
 def test_makeflags_ignore_halts(tmp_path: Path) -> None:
     branch = {"Makefile": f"MAKEFLAGS += -i\n{_GATE}"}
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
     result = _check(tmp_path, base)
-    assert result.returncode == 1
-    assert result.stdout.endswith(":\n  Makefile\n")
+    assert not _halted(result, "added: Makefile: MAKEFLAGS += -i"), result.stdout
+
+
+def test_a_halt_lists_every_unquoted_line(tmp_path: Path) -> None:
+    gate = f".PHONY: gate browsers drift derive\n{_GATE}"
+    branch = {"Makefile": f".PHONY: gate browsers drift derive setup\nsetup:\n{_GATE}"}
+    base = _branch(tmp_path, {"Makefile": gate}, _UNPLANNED, branch)
+    result = _check(tmp_path, base)
+    removed = "removed: Makefile: .PHONY: gate browsers drift derive"
+    added = "added: Makefile: .PHONY: gate browsers drift derive setup"
+    assert not _halted(result, removed, added, "added: Makefile: setup:"), result.stdout
+    design = f"openspec/changes/{_CHANGE}/design.md"
+    cut = _git(tmp_path, "log", "--diff-filter=A", "--format=%h", "--", design)
+    assert "\nThe dry run is unchanged. A planning task names `Makefile` and " in (
+        result.stdout
+    )
+    assert f"each line, in the cut commit {cut}. " in result.stdout
+    assert result.stdout.endswith(f"/mf-ship approve-gate {_CHANGE}.\n")
+
+    # A planning task's quoted line leaves the list; the rest stays in the one halt.
+    quoted = tmp_path / "quoted"
+    base = _branch(quoted, {"Makefile": gate}, _planned(" Adds `setup:`."), branch)
+    result = _check(quoted, base)
+    assert not _halted(result, removed, added), result.stdout
+    assert "\n  added: Makefile: setup:\n" not in result.stdout
 
 
 def test_a_planned_change_that_drops_a_line_halts(tmp_path: Path) -> None:

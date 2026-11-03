@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `gate_check.py`'s halt lists every unquoted gate line in one run, with or without a planning task, states the rule
+  and the cut commit, and names `/mf-ship approve-gate`, because the first halt named only a file and hid the second
+  requirement (change `0060-gate-planning`, phase 1).
+
 ## [0.47.4] - 2026-11-03
 
 Gate: local 4m56s · CI not read under mf-ship · 0.47.3: local 4m38s · CI none

@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## Progress
 
-- [ ] 1 — The message
+- [x] 1 — The message
 - [ ] 2 — The cut
 - [ ] 3 — The build
 - [ ] 4 — The approval
@@ -12,7 +12,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 1 — The message
 
-- [ ] 1.1 Compute the edits before the planning-task test, and write D1's halt, in `skills/mf-converge/scripts/gate_check.py`;
+- [x] 1.1 Compute the edits before the planning-task test, and write D1's halt, in `skills/mf-converge/scripts/gate_check.py`;
   add `test_a_halt_lists_every_unquoted_line` to `tests/test_gate_check.py`, per [D1](design.md#d1).
   Verify: `grep -c 'approve-gate' skills/mf-converge/scripts/gate_check.py` prints a number above `0`, and
   `uv run pytest -q tests/test_gate_check.py -k every_unquoted_line` reports `1 passed`.
