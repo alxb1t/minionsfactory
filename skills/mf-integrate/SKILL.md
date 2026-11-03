@@ -75,14 +75,15 @@ Then, in the worktree:
 |---|---|---|
 | succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
 | succeeds | `.minions/integrate/<change-id>.red` exists | the person fixed the merged tree: Step 3.4 |
-| succeeds | no note | an interrupted run: Step 3.2 |
+| succeeds | no note — a `.resolved` is not one | an interrupted run: Step 3.2 |
 | fails | `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | nothing to merge: report it, and `Next: /mf-release` |
 | fails | otherwise | Step 3.1. `git -C <worktree> status --porcelain` prints something → **halt** |
 
 ## Step 3 — Merge and apply the rules
 
-1. **Merge, uncommitted:** `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a
-   failure here; the rules come next.
+1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, then
+   `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a failure here; the rules come
+   next.
 2. **Apply the rules**, each run even when one before it exits 1, in this order — `decisions` renumbers the
    CHANGELOG lines `changelog` keeps:
 
@@ -96,9 +97,11 @@ Then, in the worktree:
    open.
 3. **Resolve what both sides add.** For each path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    compare the base with each side. A hunk is **additive** when the union keeps every line, list item or sentence
-   each side added and every one each side removed, and changes nothing else. Resolve it to the union and stage the
-   path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent. A path with a hunk
-   that is not additive stays unmerged. Keep each resolved hunk for the note and the commit body.
+   each side added and every one each side removed, and changes nothing else. Resolve it to the union, write it to
+   `.minions/integrate/<change-id>.resolved` in item 5's `### <path>` form unless the file holds it already, and
+   stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent. A path with
+   a hunk that is not additive stays unmerged. The note and the commit body read the hunks from that file, which only
+   Step 4.4 deletes.
 4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
@@ -115,7 +118,7 @@ Then, in the worktree:
    - **Proposed:** <the resolution, at most three sentences>
    ```
 
-   Item 3's resolved hunks go under a last `## Resolved`, one `### <path>` each:
+   The hunks `.minions/integrate/<change-id>.resolved` holds go under a last `## Resolved`, one `### <path>` each:
 
    ```markdown
    ### <path>
@@ -133,12 +136,11 @@ Then, in the worktree:
 
 1. In the worktree, run `make -n gate` and paste its output; halt, naming the worktree's `Makefile`, when it
    exits non-zero or prints no command. Then `make gate`. **Red → halt** with the merge open, commit nothing, write
-   `.minions/integrate/<change-id>.red` holding `gate red`, the date and each resolved hunk under a last `## Resolved`,
-   as in Step 3 item 5's note, and never weaken the gate to pass.
+   `.minions/integrate/<change-id>.red` holding `gate red` and the date, and never weaken the gate to pass.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
    nothing — else **halt**: the commit must hold the tree the gate judged.
-3. **Commit the merge**, one body line per resolved hunk before the trailer block, which is contiguous. On a resumed
-   run the hunks are those under `## Resolved` in the note or the `.red`, whichever exists:
+3. **Commit the merge**, one body line per hunk `.minions/integrate/<change-id>.resolved` holds, before the trailer
+   block, which is contiguous:
 
        chore(integrate): merge <default-branch> into <branch>
 
@@ -150,8 +152,8 @@ Then, in the worktree:
 
    e.g. `skills/mf-ship/scripts/conduct.py EVENTS: the branch adds kept, removed; main drops loopback; union`.
 
-4. Delete `.minions/integrate/<change-id>.md` and `.minions/integrate/<change-id>.red` when they exist: the merge
-   settled it.
+4. Delete `.minions/integrate/<change-id>.md`, `<change-id>.red` and `<change-id>.resolved` when they exist: the
+   merge settled it.
 
 ## Step 5 — Report
 
