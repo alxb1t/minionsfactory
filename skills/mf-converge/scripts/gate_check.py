@@ -5,8 +5,10 @@
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
     gate_check.py --change <id> --base <rev>
+    gate_check.py --tasks <tasks.md>
 
 Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
+`--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
 It reads makefiles and dry runs; a file read at parse time, or a program the
 recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
 """
@@ -28,6 +30,7 @@ CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 PINNED = {"LC_ALL": "C"}
 CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
+GATE_MAKEFILE = re.compile(r"`(?:[^`\s]*/)?Makefile`|`[^`\s]*\.mk`")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
 
@@ -92,22 +95,67 @@ def cut_commit(change: str) -> str:
     return commits[0]
 
 
+def subtasks(tasks: str) -> list[list[str]]:
+    """Return each sub-task's lines, stripped: its first, then each wrapped line.
+
+    A wrapped line is indented and not blank; a blank line ends the sub-task.
+    """
+    found: list[list[str]] = []
+    wrapped = False
+    for line in tasks.splitlines():
+        if match := SUBTASK.match(line):
+            found.append([match[1]])
+            wrapped = True
+        elif wrapped and line[:1] in (" ", "\t") and line.strip():
+            found[-1].append(line.strip())
+        else:
+            wrapped = False
+    return found
+
+
 def planning_tasks(tasks: str) -> list[str]:
     """Return each sub-task naming both `Makefile` and `gate`, its wrapped lines joined.
 
     e.g. "- [ ] 1.2 Edit the `gate` recipe in `Makefile`." → "1.2 Edit the `gate` …"
     """
-    found: list[str] = []
-    wrapped = False
-    for line in tasks.splitlines():
-        if match := SUBTASK.match(line):
-            found.append(match[1])
-            wrapped = True
-        elif wrapped and line[:1] in (" ", "\t") and line.strip():
-            found[-1] += " " + line.strip()
-        else:
-            wrapped = False
+    found = [" ".join(lines) for lines in subtasks(tasks)]
     return [text for text in found if "Makefile" in text and "`gate`" in text]
+
+
+def plan_problems(tasks: str) -> list[str]:
+    """Return each sub-task that names a gate makefile without `I18`'s form.
+
+    e.g. "- [ ] 1.6 Edit `Makefile`." → ["  1.6: no `gate` · no ```diff line · …"]
+    Why: 0060-gate-planning design D2.
+    """
+    problems: list[str] = []
+    for lines in subtasks(tasks):
+        text = " ".join(lines)
+        if not GATE_MAKEFILE.search(text):
+            continue
+        lacks = [] if "`gate`" in text else ["no `gate`"]
+        lacks += [] if "```diff" in lines else ["no ```diff line"]
+        if not any(line.startswith(("+ ", "- ")) for line in lines[1:]):
+            lacks.append("no line starting `+ ` or `- `")
+        if lacks:
+            problems.append(f"  {lines[0].split()[0]}: {' · '.join(lacks)}")
+    return problems
+
+
+def check_tasks(path: Path) -> str:
+    """Return the passing verdict for a `tasks.md`; a task out of form raises `Stop`."""
+    try:
+        tasks = path.read_text()
+    except OSError as error:
+        raise Stop(2, f"gate: cannot check — {path}: {error.strerror}") from None
+    if problems := plan_problems(tasks):
+        raise Stop(
+            1,
+            "gate: halt — I18: a sub-task names a gate makefile, and does not name "
+            "`gate` and quote its lines in a fenced `diff` block:\n"
+            + "\n".join(problems),
+        )
+    return "gate: every task that names a gate makefile quotes its lines"
 
 
 def export(rev: str, dest: Path, side: str) -> None:
@@ -312,15 +360,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Halt on a gate the change's cut did not plan."
     )
-    parser.add_argument("--change", required=True, help="the change id")
-    parser.add_argument("--base", required=True, help="the base commit")
+    parser.add_argument("--change", help="the change id")
+    parser.add_argument("--base", help="the base commit")
+    parser.add_argument("--tasks", type=Path, help="a tasks.md to check alone")
     args = parser.parse_args(argv)
-    if not CHANGE_ID.fullmatch(args.change):
-        parser.error(f"--change: not a change id: {args.change}")
-    if args.base.startswith("-"):
-        parser.error(f"--base: not a commit: {args.base}")
+    if args.tasks is None:
+        if args.change is None or args.base is None:
+            parser.error("--change and --base are required without --tasks")
+        if not CHANGE_ID.fullmatch(args.change):
+            parser.error(f"--change: not a change id: {args.change}")
+        if args.base.startswith("-"):
+            parser.error(f"--base: not a commit: {args.base}")
+    elif args.change is not None or args.base is not None:
+        parser.error("--tasks takes no --change or --base")
     try:
-        print(check(args.change, args.base))
+        if args.tasks is not None:
+            print(check_tasks(args.tasks))
+        else:
+            print(check(args.change, args.base))
     except Stop as stop:
         print(stop)
         return stop.code

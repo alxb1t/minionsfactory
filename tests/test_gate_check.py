@@ -420,3 +420,43 @@ def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     made = {Path(line) for line in log.read_text().splitlines()}
     assert made == {exports / "base", exports / "head"}
     assert not exports.exists() and not (worktree / ".minions").exists()
+
+
+def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
+    prose = (
+        '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`.\n'
+        "  Verify: `make -n gate` prints `not e2e`.\n"
+    )
+    quoted = (
+        '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`:\n'
+        "  ```diff\n"
+        "  - \tuv run pytest -q\n"
+        '  + \tuv run pytest -q -m "not e2e"\n'
+        "  ```\n"
+        "  Verify: `make -n gate` prints `not e2e`.\n"
+    )
+    # A blank line inside the block ends the sub-task before its quoted lines.
+    gapped = quoted.replace("```diff\n", "```diff\n\n")
+    cases = {
+        "prose": (prose, 1),
+        "quoted": (quoted, 0),
+        "gapped": (gapped, 1),
+        "mk": ("- [ ] 2.1 Add `setup` to `mk/tools.mk`.\n", 1),
+        "none": ("- [ ] 1.1 Edit `README.md`.\n", 0),
+    }
+    outcomes = {}
+    for label, (task, _) in cases.items():
+        tasks = tmp_path / f"{label}.md"
+        tasks.write_text(f"## Progress\n\n- [ ] 1 — One\n\n## 1 — One\n\n{task}")
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--tasks", str(tasks)],
+            capture_output=True,
+            text=True,
+        )
+        outcomes[label] = (result.returncode, result.stdout)
+    codes = {label: code for label, (code, _) in outcomes.items()}
+    assert codes == {label: code for label, (_, code) in cases.items()}, outcomes
+    halt = outcomes["prose"][1]
+    assert halt.startswith("gate: halt — I18: "), halt
+    assert "\n  1.6: no ```diff line · no line starting `+ ` or `- `\n" in halt
+    assert "\n  2.1: no `gate` · no ```diff line" in outcomes["mk"][1]

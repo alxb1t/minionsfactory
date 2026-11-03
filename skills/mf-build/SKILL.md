@@ -64,6 +64,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
+| **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — |
 
 ## Step 1 — Lift the context
 

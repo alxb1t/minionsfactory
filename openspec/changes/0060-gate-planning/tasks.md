@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 ## Progress
 
 - [x] 1 — The message
-- [ ] 2 — The cut
+- [x] 2 — The cut
 - [ ] 3 — The build
 - [ ] 4 — The approval
 - [ ] 5 — The record
@@ -19,7 +19,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 2 — The cut
 
-- [ ] 2.1 Add `--tasks` to `gate_check.py`, and `I18` to the input-contract tables of `skills/mf-build/SKILL.md` and
+- [x] 2.1 Add `--tasks` to `gate_check.py`, and `I18` to the input-contract tables of `skills/mf-build/SKILL.md` and
   `skills/mf-cut-change/SKILL.md` together, with the cut's Step 8 running it; add `test_a_bare_makefile_task_fails_the_plan_check`,
   per [D2](design.md#d2).
   Verify: `grep -c '\*\*I18\*\*' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints `1` for each, and

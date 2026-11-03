@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gate_check.py`'s halt lists every unquoted gate line in one run, with or without a planning task, states the rule
   and the cut commit, and names `/mf-ship approve-gate`, because the first halt named only a file and hid the second
   requirement (change `0060-gate-planning`, phase 1).
+- Input-contract item `I18`: a cut task that names a gate makefile names `` `gate` `` and quotes its lines in a `diff`
+  block, and the cut's Step 8 runs `gate_check.py --tasks` to refuse the bare form, because a task in prose passed the
+  cut and halted converge after the whole build (change `0060-gate-planning`, phase 2).
 
 ## [0.47.4] - 2026-11-03
 
