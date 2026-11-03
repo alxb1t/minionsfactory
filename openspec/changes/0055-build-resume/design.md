@@ -28,7 +28,7 @@ Read at `f33a6b3` (v0.47.0).
 |---|---|---|---|
 | [D1](#d1) | `.minions/build/<change-id>.done`, written by `mf-build` alone after Step 3.5 | the one way to tell `lean already` from "never ran" | the simplify commit as the marker: `lean already` makes none |
 | [D2](#d2) | `stage_of` reads its absence as stage `build`, and the build check fails on it | a run resumes by itself, and a build that exits without it halts rather than starting again | a halt for the person · a build check on the boxes and a clean tree alone: it re-spawns without end |
-| [D3](#d3) | `mf-build` resumes at Step 3, restoring a dirty tree in the range only while its `.closing` mark names `HEAD`, saved to a patch first | simplify's edits are cleanups; a half-done angle's edit was never gated; the mark proves the dirt is the build's own | continuing the angle · restoring on the range alone: a person's uncommitted edit is lost |
+| [D3](#d3) | `mf-build` resumes at Step 3, restoring a dirty tree in the range only while its `.closing` mark names `HEAD`, saved to a patch first, and halting while an earlier patch is there | simplify's edits are cleanups; a half-done angle's edit was never gated; the mark proves the dirt is the build's own; a second save would overwrite the first | continuing the angle · restoring on the range alone: a person's uncommitted edit is lost · a fresh patch name per save: patches pile up unread |
 | [D4](#d4) | A version whose converge has begun reads as before | no migration for versions built before this | a migration step |
 
 ### D1
@@ -63,13 +63,15 @@ Step 3 opens: "After the last phase, and only then, write `.minions/build/<chang
   change is built: report that and stop; invent no scope".
 - a new row: "every box ticked, and no `.done` names `HEAD` → the closing steps were interrupted: go to Step 3. A dirty tree
   holds a pass that never finished only while `.minions/build/<change-id>.closing` names `HEAD`: then, when every dirty path
-  is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5), save them —
-  `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to
-  `.minions/build/<change-id>.discarded.patch` — restore them with `git restore --staged --worktree`, and say so, naming the
-  patch. No such mark, or a path outside them → **halt**, naming the dirty paths, and restore nothing."
+  is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no
+  `.minions/build/<change-id>.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write
+  `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the
+  patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and
+  restore nothing."
 
 A dirty tree with no mark is not the build's: a person's edit, or a build closed before this rule. `git apply` of the patch
-brings the restored paths back, untracked ones included.
+brings the restored paths back, untracked ones included. A patch already there may hold the only copy of an edit an earlier
+resume saved, so the build halts rather than write over it: the person applies or removes it, then runs the build again.
 
 ### D4
 
@@ -102,7 +104,8 @@ None.
   still judges the head.
 - **A version built before this, not yet converging,** simplifies once more, and halts for the person on a dirty tree.
 - **A person's edit made after a build died in simplify**, while its `.closing` still names `HEAD`, reads as the build's and
-  is restored with it. `.minions/build/<change-id>.discarded.patch` keeps it, and the report names the patch.
+  is restored with it. `.minions/build/<change-id>.discarded.patch` keeps it, and the report names the patch. A later
+  resume that finds the patch still there halts and restores nothing, so a second save does not overwrite the first.
 - **A worker writes the `.closing` mark**, as it writes the marker: the same accepted class.
 
 ## Verdict

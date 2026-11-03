@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The build check fails until a `.done` names `HEAD`, so a build that exits without one halts rather than starting again.
   `mf-build` restores a dirty tree only while its `.closing` mark names `HEAD`, saving it to a patch first, and halts
   otherwise, so a person's uncommitted edit stays in the tree or the patch (change `0055-build-resume`, converge fixes R1, R2 and S1).
+- `mf-build` halts, restoring nothing, when a resume finds an earlier `.discarded.patch`, because a second save wrote
+  over the only copy of the edit the first one kept (change `0055-build-resume`, converge fixes R4 and S3).
 
 ## [0.47.1] - 2026-11-03
 
