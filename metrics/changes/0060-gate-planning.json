@@ -1,0 +1,49 @@
+{
+  "change": "0060-gate-planning",
+  "version": "0.50",
+  "base": "6368c5b",
+  "analyzed": "a90b23b",
+  "measured_on": "local",
+  "collected_at": "2026-11-03T21:06:54+02:00",
+  "mf_version": "v0.49.0-11-ga90b23b-dirty",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 14012
+    },
+    "shared-context": {
+      "value": 7054
+    },
+    "rule-ids": {
+      "value": 63
+    },
+    "tests-collected": {
+      "value": 107
+    },
+    "gate-seconds": {
+      "value": 280
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 50
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 30
+    }
+  }
+}
