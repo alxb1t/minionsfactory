@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-03
+
+Gate: local 4m27s · CI not read under mf-ship · 0.48.0: local 5m05s · CI not read under mf-ship
+
 - `mf-integrate` resolves a hunk both sides only add, fixes a merged test the union breaks, and names each resolved hunk
   in the merge commit and the note, because a person was needed only to stage the two additive hunks of `0057-run-fixes`'
   merge (change `0061-conflict-resolve`, phase 1).
