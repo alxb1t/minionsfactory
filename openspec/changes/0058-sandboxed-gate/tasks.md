@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time, by hand.
 ## Progress
 
 - [x] 1 — The fake ps
-- [ ] 2 — The proof
+- [x] 2 — The proof
 
 ## 1 — The fake ps
 
@@ -16,6 +16,6 @@ Build the settled [design](design.md), one phase at a time, by hand.
 
 ## 2 — The proof
 
-- [ ] 2.1 **HALT CHECK** Run D3's command in this worktree, and write the worker's report to
+- [x] 2.1 **HALT CHECK** Run D3's command in this worktree, and write the worker's report to
   `openspec/changes/0058-sandboxed-gate/evidence/gate.md`, per [D3](design.md#d3).
   Verify: `grep -c -E 'exit (code )?0' openspec/changes/0058-sandboxed-gate/evidence/gate.md` prints a number above `0`.

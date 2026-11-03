@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every `tests/test_conduct.py` test runs with a fake `ps` first on `PATH`, and a worker-group stand-in registers its
   name and start time, because a Claude worker's sandbox refuses the real `ps`, and each test that starts
   `conduct.py run` failed there (change `0058-sandboxed-gate`, phase 1).
+- A real Claude worker ran `make gate` in its sandbox and it exited 0, recorded in the change's `evidence/gate.md`,
+  so MF can ship itself with `/mf-ship` again (change `0058-sandboxed-gate`, phase 2).
 
 ## [0.47.0] - 2026-11-02
 
