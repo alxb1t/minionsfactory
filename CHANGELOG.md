@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py`'s probe checks the worker shell's `uname -m` against the host's native architecture, and halts the run
   naming both, because a Codex shell ran as `x86_64` on an `arm64` Mac and the probe passed it (change
   `0057-run-fixes`, phase 1).
+- At a run's start, `conduct.py` merges `main` into a cut-only version behind it, and halts a started one behind a
+  `main` that changed its gate or rules, naming the files and the merge, because versions cut before `main` moved
+  built on the old gate (change `0057-run-fixes`, phase 2).
 
 ## [0.47.1] - 2026-11-03
 

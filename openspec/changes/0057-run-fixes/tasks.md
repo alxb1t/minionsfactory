@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 ## Progress
 
 - [x] 1 — The probe
-- [ ] 2 — The base
+- [x] 2 — The base
 - [ ] 3 — The release
 - [ ] 4 — The record
 
@@ -19,7 +19,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 2 — The base
 
-- [ ] 2.1 Merge `main` into a cut-only version, and halt a started one behind a gate change, in `Run.take`; add their steps to
+- [x] 2.1 Merge `main` into a cut-only version, and halt a started one behind a gate change, in `Run.take`; add their steps to
   `test_after_waits_for_its_dependency`, per [D2](design.md#d2).
   Verify: `grep -c 'since .*base: git -C' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
   `uv run pytest -q tests/test_conduct.py -k after_waits_for_its_dependency` reports `1 passed`.

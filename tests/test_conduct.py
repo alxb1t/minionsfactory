@@ -691,6 +691,56 @@ def test_after_waits_for_its_dependency(
     assert "chore(integrate): merge main into 0002-marks" in _git(
         planted, "log", "--format=%s", "0002-marks"
     )
+    conduct["main"].__globals__["INTEGRATE"] = script
+
+    def behind(folder: str, moved: str, started: bool) -> tuple[Path, Path]:
+        """Return a primary whose `main` moved `moved` after `0001-todo`'s cut."""
+        (tmp_path / folder).mkdir()
+        base = _primary(tmp_path / folder)
+        cut = _version(base, "0001-todo", "- [ ] 1 — Todo\n")
+        if started:
+            _commit(cut, {"work.txt": "x\n"}, "build: a first part")
+        _commit(base, {moved: "x\n"}, "main moves")
+        calls.unlink(missing_ok=True)
+        return base, cut
+
+    cut_only, _ = behind("cut-only", "Makefile", started=False)
+    assert (
+        _main(conduct, cut_only, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert "chore(integrate): merge main into 0001-todo" in _git(
+        cut_only, "log", "--format=%s", "0001-todo"
+    )
+
+    gated, started = behind("started", "Makefile", started=True)
+    assert (
+        _main(conduct, gated, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — main changed Makefile since"
+            f" 0001-todo's base: git -C {shlex.quote(str(started))} merge main,"
+            " then re-run"
+        )
+        for line in _log(gated)
+    )
+
+    # Twin: a started version behind a `main` that changed neither builds.
+    moved, _ = behind("moved", "moved.txt", started=True)
+    assert (
+        _main(conduct, moved, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert "build 0001-todo" in _calls(calls)
 
 
 def test_a_halted_dependency_blocks_a_chain(
@@ -2902,13 +2952,11 @@ def test_a_probe_halts_on_a_write_out(
     assert run() == 1
     assert _calls(calls) == ["probe"]
     native = conduct["_native"]()
-    assert any(
-        line.endswith(
-            " · run · halt — probe check fail — claude's shell runs as i386 on a"
-            f" {native} host"
-        )
-        for line in _log(root)
-    )
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert (
+        " · run · halt — probe check fail — claude's shell runs as i386 on a"
+        f" {native} host\n"
+    ) in log
 
     # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()

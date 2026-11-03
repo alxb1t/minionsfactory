@@ -47,6 +47,8 @@ LOCK_SECONDS = 30
 LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
+# A started build's gate and rules: changed since its base, they halt it.
+GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -2056,7 +2058,7 @@ class Run:
         return True
 
     def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a dependent, once the delta check passes.
+        """Merge the default branch into a cut-only branch, once the delta check passes.
 
         A requirement both sides changed leaves the merge open with its note, which
         `stage_of` reads as an `integrating` halt.
@@ -2077,6 +2079,33 @@ class Run:
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
+    def catch_up(self, version: Version) -> None:
+        """Merge the default branch into a cut-only version behind it.
+
+        A started version behind a default branch that changed `GATE_FILES` stops
+        with 1, naming them and the merge. Why: 0057-run-fixes design D2.
+        """
+        change, default, tree = (
+            version.change,
+            default_branch(self.primary),
+            version.tree,
+        )
+        if tree is None or _ancestor(self.primary, default, change):
+            return
+        base = _git(self.primary, "merge-base", default, change).strip()
+        held = _git(self.primary, "rev-list", "--count", f"{base}..{change}").strip()
+        if held == "1":
+            self.merge_in(tree, change, default)
+            return
+        diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
+        if paths := _git(self.primary, *diff).split():
+            at = shlex.quote(str(tree))
+            raise Stop(
+                1,
+                f"conduct: halt — {default} changed {', '.join(paths)}"
+                f" since {change}'s base: git -C {at} merge {default}, then re-run",
+            )
+
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
@@ -2086,6 +2115,7 @@ class Run:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
+            self.catch_up(version)
             if not self.ready(version, threads):
                 return
             self.advance(version, ("integrate", "release"))
