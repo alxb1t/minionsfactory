@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0055-build-resume`, phase 2).
 - `mf-ship`'s report says a build that died in its closing steps resumes at simplify on a re-run
   (change `0055-build-resume`, phase 3).
+- The build check fails until a `.done` names `HEAD`, so a build that exits without one halts rather than starting again.
+  `mf-build` restores a dirty tree only while its `.closing` mark names `HEAD`, saving it to a patch first, and halts
+  otherwise, so a person's uncommitted edit stays in the tree or the patch (change `0055-build-resume`, converge fixes R1, R2 and S1).
 
 ## [0.47.1] - 2026-11-03
 

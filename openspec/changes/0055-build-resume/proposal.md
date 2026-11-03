@@ -20,9 +20,10 @@ tells a finished simplify from one that never ran.
 ## What Changes
 
 - **`mf-build` writes `.minions/build/<change-id>.done`** after its closing steps, naming `HEAD` and simplify's outcome.
-- **`conduct.py` reads every phase ticked, no converge run, and no `.done` at `HEAD`** as stage `build`, closing steps left.
-- **`mf-build` resumes at simplify** when every phase is ticked and no `.done` names `HEAD`, restoring a dirty tree's paths in
-  the change's range first.
+- **`conduct.py` reads every phase ticked, no converge run, and no `.done` at `HEAD`** as stage `build`, closing steps left;
+  its build check fails while no `.done` names `HEAD`.
+- **`mf-build` resumes at simplify** when every phase is ticked and no `.done` names `HEAD`. It restores a dirty tree's paths
+  in the change's range first, saved to a patch, only while its `.closing` mark names `HEAD`, and halts otherwise.
 
 ## Capabilities
 

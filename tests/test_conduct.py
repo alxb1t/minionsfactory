@@ -270,6 +270,11 @@ def test_each_check_passes_only_on_disk_evidence(
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     assert check("build") == (1, "check: build · fail — phase 1 unticked")
     _commit(tree, {}, "build")
+    open_build = "check: build · fail — no .minions/build/0001-todo.done names HEAD"
+    assert check("build") == (1, open_build)
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
+    assert check("build") == (1, open_build)
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert check("build") == (0, "check: build · pass")
     (tree / "stray.txt").write_text("x\n")
     assert check("build") == (1, "check: build · fail — the tree is not clean")

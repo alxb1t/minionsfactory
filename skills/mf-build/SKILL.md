@@ -21,7 +21,7 @@ it → **halt**, naming the decision and the task.
   1 lift
   2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
-  3 mf-simplify ─▶ its commit, lean already or nothing kept
+  3 .minions/build/<change-id>.closing, then mf-simplify ─▶ its commit, lean already or nothing kept
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
   3.6 .minions/build/<change-id>.done ─▶ HEAD and simplify's outcome
   4 report
@@ -105,7 +105,7 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 | the tree is dirty, and `tasks.md` is tracked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
 | every box ticked, and `.minions/build/<change-id>.done` names `HEAD` | the change is built: report that and stop; invent no scope |
-| every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree then holds a pass that never finished: when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`), restore them with `git restore --staged --worktree` and remove the untracked ones, and say so; a path outside them → **halt**, naming it |
+| every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/build/<change-id>.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5), save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to `.minions/build/<change-id>.discarded.patch` — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, or a path outside them → **halt**, naming the dirty paths, and restore nothing |
 
 ## Executor — report it
 
@@ -176,7 +176,8 @@ Then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 ## Step 3 — Close with the simplify pass
 
-After the last phase, and only then:
+After the last phase, and only then, write `.minions/build/<change-id>.closing`, the run directory's, one line:
+`head: <the full sha of HEAD>`. It marks what Step 3 leaves dirty as the build's own. Then:
 
 1. Run [`mf-simplify`](../mf-simplify/SKILL.md), resolved from this installed skill package, not the target's cwd;
    missing → **halt**, naming it. For this change it edits the range's lines, gates each angle, and commits
@@ -222,7 +223,7 @@ simplify: <the simplify commit's sha> | lean already | nothing kept
 ```
 
 It writes it only once Step 3 and Step 3.5 are done; `metrics: none — no catalogue` counts as done. Step 4's report
-names it.
+names it. Then it removes `.minions/build/<change-id>.closing`.
 
 ## Step 4 — Report, then stop
 

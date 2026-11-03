@@ -735,11 +735,16 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     return "release", f"converge clean at HEAD; {default} is an ancestor"
 
 
-def _check_build(version: Version, tree: Path) -> str | None:
+def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the build check fails, or None."""
-    if unticked := _unticked(tree, version.change):
+    change = version.change
+    if unticked := _unticked(tree, change):
         return f"phase {unticked[0]} unticked"
-    return "the tree is not clean" if _dirty(tree) else None
+    if _dirty(tree):
+        return "the tree is not clean"
+    if not _closed(primary / ".minions", tree, change):
+        return f"no .minions/build/{change}.done names HEAD"
+    return None
 
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
@@ -1294,7 +1299,7 @@ def check(
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
-        return _check_build(version, version.tree)
+        return _check_build(primary, version, version.tree)
     if stage == "converge":
         return _check_converge(primary, version, version.tree)
     return _check_integrate(primary, version, version.tree)

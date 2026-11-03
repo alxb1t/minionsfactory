@@ -4,9 +4,11 @@
 
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
 `integrate`. A version with every phase ticked, no converge run begun, and no `.minions/build/<change-id>.done`
-naming `HEAD` SHALL be stage `build`, its closing steps left: `skills/mf-build/SKILL.md` SHALL then run its simplify step
-and the metrics again, restoring first a dirty tree whose paths are all in the change's range, halting on one outside it, and
-SHALL write that file, naming `HEAD` and simplify's outcome, only once both are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
+naming `HEAD` SHALL be stage `build`, its closing steps left, and SHALL fail the build check: `skills/mf-build/SKILL.md`
+SHALL then run its simplify step and the metrics again, restoring first, saved to a patch under `.minions/build/`, a dirty
+tree whose paths are all in the change's range while its `.minions/build/<change-id>.closing` mark names `HEAD`, halting and
+restoring nothing on a path outside it or a dirty tree with no such mark, and SHALL write that file, naming `HEAD` and
+simplify's outcome, only once both are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
 archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
@@ -119,9 +121,19 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 - **THEN** a re-run halts on the flag before its merge
 
 #### Scenario: A build dies in simplify
-- **WHEN** a build worker ticks and commits every phase, then dies in simplify with an edit left uncommitted
-- **THEN** a re-run reads the stage as `build`, closing steps left, and its worker restores the edit and runs simplify again
+- **WHEN** a build worker ticks and commits every phase, marks its closing steps begun, then dies in simplify with an edit
+  left uncommitted
+- **THEN** a re-run reads the stage as `build`, closing steps left, and its worker saves the edit to a patch, restores it
+  and runs simplify again
 - **AND** the run converges only after `.minions/build/<change-id>.done` names `HEAD`
+
+#### Scenario: A dirty tree the build did not mark
+- **WHEN** every phase is ticked, no `.done` names `HEAD`, and the tree is dirty with no `.closing` mark naming `HEAD`
+- **THEN** `mf-build` halts naming the dirty paths, and restores nothing
+
+#### Scenario: A build exits without its marker
+- **WHEN** a build worker exits 0 with every phase ticked and committed, and no `.done` names `HEAD`
+- **THEN** the build check fails, the version halts, and no second build starts
 
 #### Scenario: A build closed before this rule
 - **WHEN** a version's phases are all ticked, its converge has begun, and no `.minions/build/<change-id>.done` exists
