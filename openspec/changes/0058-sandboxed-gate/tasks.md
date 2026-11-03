@@ -4,12 +4,12 @@ Build the settled [design](design.md), one phase at a time, by hand.
 
 ## Progress
 
-- [ ] 1 — The fake ps
+- [x] 1 — The fake ps
 - [ ] 2 — The proof
 
 ## 1 — The fake ps
 
-- [ ] 1.1 Add the autouse `ps` fixture, its fake `ps` and `_register` to `tests/test_conduct.py`, and register the group
+- [x] 1.1 Add the autouse `ps` fixture, its fake `ps` and `_register` to `tests/test_conduct.py`, and register the group
   stand-ins in the stale-claim, reboot and no-executor tests, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `grep -c 'autouse=True' tests/test_conduct.py` prints a number above `0`, and `uv run pytest -q tests/test_conduct.py`
   exits 0.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Every `tests/test_conduct.py` test runs with a fake `ps` first on `PATH`, and a worker-group stand-in registers its
+  name and start time, because a Claude worker's sandbox refuses the real `ps`, and each test that starts
+  `conduct.py run` failed there (change `0058-sandboxed-gate`, phase 1).
+
 ## [0.47.0] - 2026-11-02
 
 Gate: local 3m53s · CI 0m42s (CI at d897227) · 0.46.1: local 3m53s · CI 0m42s (CI at d897227)

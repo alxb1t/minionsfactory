@@ -78,6 +78,52 @@ def _lstart(pid: int) -> str:
     return subprocess.run(command, capture_output=True, text=True).stdout.strip()
 
 
+_FAKE_PS = """
+import os
+import sys
+from pathlib import Path
+
+_, field, _, pid = sys.argv[1:]
+try:
+    os.kill(int(pid), 0)
+except PermissionError:
+    pass
+except (OSError, OverflowError, ValueError):
+    sys.exit(1)
+known = Path(os.environ["FAKE_PS_REGISTRY"], f"{pid}.{field.rstrip('=')}")
+if known.is_file():
+    print(known.read_text())
+else:
+    print({"lstart=": "Mon Nov  3 10:00:00 2026", "comm=": "python3"}[field])
+"""
+_GROUP_START = "Mon Nov  3 09:00:00 2026"
+
+
+@pytest.fixture(autouse=True)
+def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a fake `ps` first on `PATH`; return the registry it reads.
+
+    A worker's sandbox refuses the real one. Why: 0058-sandboxed-gate design D1.
+    """
+    folder = tmp_path / "ps-bin"
+    folder.mkdir()
+    fake = folder / "ps"
+    fake.write_text(f"#!{sys.executable}{_FAKE_PS}")
+    fake.chmod(0o755)
+    registry = tmp_path / "ps-registry"
+    registry.mkdir()
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_PS_REGISTRY", str(registry))
+    return registry
+
+
+def _register(pid: int, comm: str, lstart: str) -> None:
+    """Have the fake `ps` answer `comm` and `lstart` for `pid`."""
+    registry = Path(os.environ["FAKE_PS_REGISTRY"])
+    (registry / f"{pid}.comm").write_text(comm)
+    (registry / f"{pid}.lstart").write_text(lstart)
+
+
 def _no_ps(tmp_path: Path) -> str:
     """Return a folder whose `ps` prints nothing, to put first on `PATH`."""
     folder = tmp_path / "no-ps"
@@ -2372,6 +2418,7 @@ def test_stop_ends_a_live_run(
     executor.symlink_to(sleep)
     conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
     worker = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(worker.pid, str(executor), _GROUP_START)
     active.mkdir()
     (active / "pid").write_text(str(conductor.pid))
     (active / str(worker.pid)).write_text(_lstart(worker.pid))
@@ -2427,6 +2474,7 @@ def test_stop_ends_a_live_run(
     log.write_text(opening)
     conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
     foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    _register(foreign.pid, "sleep", _GROUP_START)
     active.mkdir()
     (active / "pid").write_text(str(conductor.pid))
     (active / "start").write_text(_lstart(conductor.pid))
@@ -2602,10 +2650,13 @@ def test_a_stale_claim_is_cleared(
     assert sleep
     executor.symlink_to(sleep)
     group = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(group.pid, str(executor), _GROUP_START)
     (active / str(group.pid)).write_text(_lstart(group.pid))
     recycled = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(recycled.pid, str(executor), _GROUP_START)
     (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
     unstamped = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(unstamped.pid, str(executor), _GROUP_START)
     (active / str(unstamped.pid)).touch()
     (active / "0").touch()
     (active / "7").mkdir()
@@ -2633,8 +2684,10 @@ def test_a_stale_claim_is_cleared(
     active.mkdir()
     (active / "pid").write_text(str(dead.pid))
     foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    _register(foreign.pid, "sleep", _GROUP_START)
     (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
     sibling = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(sibling.pid, str(executor), _GROUP_START)
     (active / str(sibling.pid)).write_text(_lstart(sibling.pid))
     with pytest.raises(conduct["Stop"], match=f"group {foreign.pid} .*no executor"):
         conduct["_clear"](active)
@@ -2655,6 +2708,7 @@ def test_a_stale_claim_is_cleared(
     active.mkdir()
     (active / "pid").write_text(str(dead.pid))
     refusing = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    _register(refusing.pid, str(executor), _GROUP_START)
     (active / str(refusing.pid)).write_text(_lstart(refusing.pid))
     held = (active / "pid", active / str(refusing.pid))
 
