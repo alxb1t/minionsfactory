@@ -5,13 +5,13 @@ for word.
 
 ## Progress
 
-- [ ] 1 — The code
+- [x] 1 — The code
 - [ ] 2 — The drill
 - [ ] 3 — The record
 
 ## 1 — The code
 
-- [ ] 1.1 Remove the reader, the setting, the Codex refusal, the listeners and the event from
+- [x] 1.1 Remove the reader, the setting, the Codex refusal, the listeners and the event from
   `skills/mf-ship/scripts/conduct.py`, and halt on a declared line, per [D1](design.md#d1) and [D2](design.md#d2); edit
   `test_the_plan_is_read_once` and `test_a_claude_worker_starts_in_the_sandbox`.
   Verify: `grep -c -E 'allowLocalBinding|_loopback_listeners|NEEDS_CLAUDE' skills/mf-ship/scripts/conduct.py` prints `0`, and
