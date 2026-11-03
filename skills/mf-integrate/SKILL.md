@@ -133,11 +133,12 @@ Then, in the worktree:
 
 1. In the worktree, run `make -n gate` and paste its output; halt, naming the worktree's `Makefile`, when it
    exits non-zero or prints no command. Then `make gate`. **Red → halt** with the merge open, commit nothing, write
-   `.minions/integrate/<change-id>.red` holding `gate red` and the date, and never weaken the gate to pass.
+   `.minions/integrate/<change-id>.red` holding `gate red`, the date and each resolved hunk under a last `## Resolved`,
+   as in Step 3 item 5's note, and never weaken the gate to pass.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
    nothing — else **halt**: the commit must hold the tree the gate judged.
 3. **Commit the merge**, one body line per resolved hunk before the trailer block, which is contiguous. On a resumed
-   run the hunks are the note's resolved ones:
+   run the hunks are those under `## Resolved` in the note or the `.red`, whichever exists:
 
        chore(integrate): merge <default-branch> into <branch>
 
