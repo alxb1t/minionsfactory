@@ -1,0 +1,49 @@
+{
+  "change": "0056-loopback-removal",
+  "version": "0.47.2",
+  "base": "b265135",
+  "analyzed": "1edc99f",
+  "measured_on": "local",
+  "collected_at": "2026-11-03T13:12:06+02:00",
+  "mf_version": "v0.47.1-6-g1edc99f-dirty",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 14032
+    },
+    "shared-context": {
+      "value": 7051
+    },
+    "rule-ids": {
+      "value": 62
+    },
+    "tests-collected": {
+      "value": 101
+    },
+    "gate-seconds": {
+      "value": 264
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 49
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 15
+    }
+  }
+}

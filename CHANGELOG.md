@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-build` halts, restoring nothing, when a resume finds an earlier `.discarded.patch`, because a second save wrote
   over the only copy of the edit the first one kept (change `0055-build-resume`, converge fixes R4 and S3).
 
+## [0.47.2] - 2026-11-03
+
+Gate: local 4m24s · CI none · 0.47.1: local 4m29s · CI 0m42s (CI at d897227)
+
+- No Claude worker's sandbox has `allowLocalBinding`, the Codex refusal and the `loopback` log event go, and an
+  `AGENTS.md` that still declares `Ship loopback:` halts the run, naming the line, because no repo uses it and a
+  worker could write it for every later run (change `0056-loopback-removal`, phase 1).
+- The escape drill drops its loopback row, because the setting it proved is gone; its refused bind stays (change
+  `0056-loopback-removal`, phase 2).
+- D51, `THREAT_MODEL.md` and `mf-ship` Step 3 say no worker binds loopback, and name the Linux container as the way out
+  for a gate that serves on it (change `0056-loopback-removal`, phase 3).
+
 ## [0.47.1] - 2026-11-03
 
 Gate: local 4m29s · CI 0m42s (CI at d897227) · 0.47.0: local 3m53s · CI 0m42s (CI at d897227)
