@@ -179,7 +179,7 @@ binding check covers it, and a gate without one gives a separate step nothing to
    e.g. `Gate: local 0m41s · CI 0m12s (CI at d5162e4) · 0.25.0: none`. Times are `XmYs`. **CI** is
    `gh run list --branch <default-branch> --status success --limit 50 --json workflowName,headSha,startedAt,updatedAt`:
    the latest run of each workflow, timed `updatedAt − startedAt`, and the longest of them — the default branch
-   before this release, named by its commit. `gh` failing, no `origin`, or no run → `CI none`. **The previous** is
+   before this release, named by its commit. `gh` failing, no `origin`, or no run → `CI none`; under `merge=yes`, `CI not read under mf-ship`. **The previous** is
    the `Gate:` line under the previous release heading, its times copied; no line there →
    `<previous version>: none`.
 
@@ -263,7 +263,7 @@ On yes, in order. A failure is a **halt**: report the error and the commands sti
 5. Under `merge=yes`, skip this: `conduct.py` pushes. **Push, from the primary:**
    `git -C <primary> push origin <default-branch>`, then `git -C <primary> push origin <tag>`. A rejected push
    halts; the default branch stays merged locally. Never pull, never `--force`, never push the version branch.
-6. **Remove the version's worktree**, when the ask said it goes: `git -C <primary> worktree remove
+6. Under `merge=yes`, skip this: `conduct.py` removes it. **Remove the version's worktree**, when the ask said it goes: `git -C <primary> worktree remove
    <this worktree>`, keeping the branch; git deletes the ignored paths the ask named. A refusal is reported, never
    forced.
 
@@ -280,7 +280,7 @@ Your sentences: the release commit and the tag, with the Step 4.3 gate's exit co
 `converge ran`, or `converge: skipped — no findings files`; the converge tier and each `inconclusive` section, from
 the findings files' frontmatter and Summaries; the paid-down cards, or `backlog: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
-and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused. A preamble flagged for a
+and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.
 
 The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`

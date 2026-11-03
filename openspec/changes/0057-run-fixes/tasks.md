@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 - [x] 1 — The probe
 - [x] 2 — The base
 - [x] 3 — The release
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The probe
 
@@ -33,7 +33,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 4 — The record
 
-- [ ] 4.1 Edit `skills/mf-release/SKILL.md` Steps 4.1, 5.6 and 6, and `skills/mf-ship/SKILL.md` Step 4, per [D3](design.md#d3)
+- [x] 4.1 Edit `skills/mf-release/SKILL.md` Steps 4.1, 5.6 and 6, and `skills/mf-ship/SKILL.md` Step 4, per [D3](design.md#d3)
   and [D4](design.md#d4).
   Verify: `grep -c 'CI not read under mf-ship' skills/mf-release/SKILL.md` prints `1`, and
   `grep -c 'conduct.py. removes it' skills/mf-release/SKILL.md` prints a number above `0`.

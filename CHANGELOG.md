@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` removes a released version's worktree at the path `Worktrees:` gives, and logs `kept` for one elsewhere
   or one git refuses, because a sandboxed release cannot write the worktree's parent (change `0057-run-fixes`,
   phase 3).
+- `mf-release` under `merge=yes` writes `CI not read under mf-ship` in its `Gate:` line and leaves its worktree to
+  `conduct.py`, and `mf-ship` names the merge a gate-change halt needs, because the sandbox keeps `gh` from its
+  config (change `0057-run-fixes`, phase 4).
 
 ## [0.47.1] - 2026-11-03
 
