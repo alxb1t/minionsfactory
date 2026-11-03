@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fake_worker import _IDENTITY, _commit, _findings, _git
+from fake_worker import _IDENTITY, _commit, _done, _findings, _git
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -201,6 +201,7 @@ def test_status_reads_each_stage_from_disk(
     assert stage().endswith(" · human")
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     _commit(tree, {}, "build")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage().endswith(" · converge")
     log = root / ".minions" / "findings" / "0001-todo_status_log.md"
     log.parent.mkdir(parents=True)
@@ -269,6 +270,11 @@ def test_each_check_passes_only_on_disk_evidence(
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     assert check("build") == (1, "check: build · fail — phase 1 unticked")
     _commit(tree, {}, "build")
+    open_build = "check: build · fail — no .minions/build/0001-todo.done names HEAD"
+    assert check("build") == (1, open_build)
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
+    assert check("build") == (1, open_build)
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert check("build") == (0, "check: build · pass")
     (tree / "stray.txt").write_text("x\n")
     assert check("build") == (1, "check: build · fail — the tree is not clean")
@@ -862,6 +868,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
         {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"},
         "build",
     )
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     calls.unlink()
     fake()
     assert (
@@ -1193,6 +1200,66 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     )
 
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
+def test_a_build_dead_in_simplify_resumes_at_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-simplify")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    marker = root / ".minions" / "build" / "0001-todo.done"
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert not marker.exists()
+    tasks = tree / "openspec/changes/0001-todo/tasks.md"
+    assert tasks.read_text() == "## Progress\n\n- [x] 1 — Todo\n"
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.strip() == "0001-todo · build"
+    closing = ("build", "closing steps left")
+    assert stage_of(root, find(root, "0001-todo")) == closing
+
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
+    assert stage_of(root, find(root, "0001-todo")) == closing
+    marker.write_text("simplify: lean already\n")
+    assert stage_of(root, find(root, "0001-todo")) == closing
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    assert stage_of(root, find(root, "0001-todo"))[0] == "converge"
+    marker.unlink()
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log.parent.mkdir(parents=True)
+    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
+    assert stage_of(root, find(root, "0001-todo")) == (
+        "converge",
+        "unfinished run: 10:00:00 · round 1 · pickup — R1",
+    )
+    log.unlink()
+
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
@@ -2488,6 +2555,7 @@ def test_a_grant_buys_one_round(
     calls = fake("grant-halts")
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     version = conduct["find_version"](root, "0001-todo")
     grants = root / ".minions" / "grants" / "0001-todo"
     log = root / ".minions" / "findings" / "0001-todo_status_log.md"

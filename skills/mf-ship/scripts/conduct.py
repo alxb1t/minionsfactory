@@ -462,6 +462,22 @@ def _run_end(runs: Path, change: str) -> str | None:
     return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
 
 
+def _closed(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
+
+    A missing or unreadable file is not closed. Why: 0055-build-resume design D2.
+    """
+    try:
+        text = (runs / "build" / f"{change}.done").read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
+    if found is None:
+        return False
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
+
+
 def _is_event(line: str, event: str) -> bool:
     """Return whether a status-log line holds `event`, its detail aside.
 
@@ -687,13 +703,15 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if "**HUMAN" in title:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
+    end = _run_end(runs, change)
+    if end is None and not _closed(runs, tree, change):
+        return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
         if ".minions/backlog.lock" in halt:
             return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
-    end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):
@@ -703,11 +721,16 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     return "release", f"converge clean at HEAD; {default} is an ancestor"
 
 
-def _check_build(version: Version, tree: Path) -> str | None:
+def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the build check fails, or None."""
-    if unticked := _unticked(tree, version.change):
+    change = version.change
+    if unticked := _unticked(tree, change):
         return f"phase {unticked[0]} unticked"
-    return "the tree is not clean" if _dirty(tree) else None
+    if _dirty(tree):
+        return "the tree is not clean"
+    if not _closed(primary / ".minions", tree, change):
+        return f"no .minions/build/{change}.done names HEAD"
+    return None
 
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
@@ -1262,7 +1285,7 @@ def check(
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
-        return _check_build(version, version.tree)
+        return _check_build(primary, version, version.tree)
     if stage == "converge":
         return _check_converge(primary, version, version.tree)
     return _check_integrate(primary, version, version.tree)

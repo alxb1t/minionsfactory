@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.3] - 2026-11-03
+
+Gate: local 4m38s · CI none · 0.47.2: local 4m24s · CI none
+
+- `mf-build` writes `.minions/build/<change-id>.done` once simplify and the metrics are done, and resumes at simplify
+  when every box is ticked and no marker names `HEAD`, because a build that died in simplify read as built
+  (change `0055-build-resume`, phase 1).
+- `conduct.py` reads a version with every phase ticked, no converge run and no `.done` naming `HEAD` as stage
+  `build`, closing steps left, so a run re-runs a build that died in simplify instead of converging it
+  (change `0055-build-resume`, phase 2).
+- `mf-ship`'s report says a build that died in its closing steps resumes at simplify on a re-run
+  (change `0055-build-resume`, phase 3).
+- The build check fails until a `.done` names `HEAD`, so a build that exits without one halts rather than starting again.
+  `mf-build` restores a dirty tree only while its `.closing` mark names `HEAD`, saving it to a patch first, and halts
+  otherwise, so a person's uncommitted edit stays in the tree or the patch (change `0055-build-resume`, converge fixes R1, R2 and S1).
+- `mf-build` halts, restoring nothing, when a resume finds an earlier `.discarded.patch`, because a second save wrote
+  over the only copy of the edit the first one kept (change `0055-build-resume`, converge fixes R4 and S3).
+
 ## [0.47.2] - 2026-11-03
 
 Gate: local 4m24s · CI none · 0.47.1: local 4m29s · CI 0m42s (CI at d897227)
