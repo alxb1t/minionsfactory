@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/mf-ship approve-gate <change-id>` shows a version's gate halt and its hash, and on the person's yes records the hash
   in the home folder, where `gate_check.py` reads it and passes the exact diff, because each recovery rewrote every
   commit from the cut (change `0060-gate-planning`, phase 4).
+- `mf-build`'s interrupted-pass row needs an unticked `## Progress` box, so a ticked dirty tree goes to the closing
+  steps (`0055·R3`); `mf-release`'s `Next:` names `/mf-plan`, and the station diagrams say `plan`, not `grill`
+  (change `0060-gate-planning`, phase 5).
 
 ## [0.47.4] - 2026-11-03
 

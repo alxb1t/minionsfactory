@@ -284,7 +284,7 @@ data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.
 
-The last line, after a merge: `Next: grill the next version.`, or `Next: cd <primary> && grill the next version.`
+The last line, after a merge: `Next: /mf-plan <the next version>.`, or `Next: cd <primary> && /mf-plan <the next version>.`
 when Step 5.6 removed the worktree. With no merge:
 
     Next: merge and push — release <tag> is on branch <branch>:

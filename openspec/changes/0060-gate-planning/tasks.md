@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 - [x] 2 — The cut
 - [x] 3 — The build
 - [x] 4 — The approval
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The message
 
@@ -42,7 +42,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 5 — The record
 
-- [ ] 5.1 Edit `skills/mf-build/SKILL.md`'s start row, `skills/mf-release/SKILL.md`'s last line, and the diagrams in `README.md`,
+- [x] 5.1 Edit `skills/mf-build/SKILL.md`'s start row, `skills/mf-release/SKILL.md`'s last line, and the diagrams in `README.md`,
   `docs/README.md` and `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `git grep -c 'grill the next version' -- skills` prints nothing, and
   `grep -c 'a .## Progress. box is unticked' skills/mf-build/SKILL.md` prints `1`.

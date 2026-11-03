@@ -103,7 +103,7 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 
 | at the start | do |
 |---|---|
-| the tree is dirty, and `tasks.md` is tracked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
+| the tree is dirty, `tasks.md` is tracked, and a `## Progress` box is unticked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
 | every box ticked, and `.minions/build/<change-id>.done` names `HEAD` | the change is built: report that and stop; invent no scope |
 | every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/build/<change-id>.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no `.minions/build/<change-id>.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
