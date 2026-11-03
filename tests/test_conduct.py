@@ -539,6 +539,28 @@ def test_a_ready_version_ships_past_a_slow_one(
         " · no origin · round 1 · cards none · denied none · metrics: none"
     )
     assert report[-1] == lines[-1]
+    for change in ("0001-todo", "0002-marks"):
+        assert not (root.parent / change).exists()
+        assert _git(root, "branch", "--list", change)
+    assert _git(root, "worktree", "list", "--porcelain").count("worktree ") == 1
+
+    elsewhere = tmp_path / "elsewhere" / "0003-more"
+    _git(root, "worktree", "add", "-q", "-b", "0003-more", str(elsewhere))
+    folder = "openspec/changes/0003-more"
+    cut = {
+        f"{folder}/proposal.md": "---\nbump: minor\n---\n",
+        f"{folder}/tasks.md": "## Progress\n\n- [ ] 1 — More\n",
+    }
+    _commit(elsewhere, cut, "cut 0003-more")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert elsewhere.is_dir()
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert (
+        f" · 0003-more · kept — {elsewhere.resolve()}: not at the cut's path\n" in log
+    )
 
 
 def test_after_waits_for_its_dependency(

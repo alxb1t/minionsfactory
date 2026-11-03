@@ -196,7 +196,6 @@ def _fake(prompt: str) -> None:
         _git(
             primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
         )
-        _git(primary, "worktree", "remove", str(here))
         if "plant-config" in modes:
             _git(primary, "config", "pull.rebase", "true")
         if "plant-held" in modes:

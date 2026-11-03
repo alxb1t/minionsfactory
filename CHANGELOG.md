@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - At a run's start, `conduct.py` merges `main` into a cut-only version behind it, and halts a started one behind a
   `main` that changed its gate or rules, naming the files and the merge, because versions cut before `main` moved
   built on the old gate (change `0057-run-fixes`, phase 2).
+- `conduct.py` removes a released version's worktree at the path `Worktrees:` gives, and logs `kept` for one elsewhere
+  or one git refuses, because a sandboxed release cannot write the worktree's parent (change `0057-run-fixes`,
+  phase 3).
 
 ## [0.47.1] - 2026-11-03
 

@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 - [x] 1 — The probe
 - [x] 2 — The base
-- [ ] 3 — The release
+- [x] 3 — The release
 - [ ] 4 — The record
 
 ## 1 — The probe
@@ -26,7 +26,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 3 — The release
 
-- [ ] 3.1 Remove a released worktree in `Run.advance`, with `kept` in `EVENTS`, and add its steps to
+- [x] 3.1 Remove a released worktree in `Run.advance`, with `kept` in `EVENTS`, and add its steps to
   `test_a_ready_version_ships_past_a_slow_one`, per [D3](design.md#d3).
   Verify: `grep -c '"kept"' skills/mf-ship/scripts/conduct.py` prints a number above `0`, and
   `uv run pytest -q tests/test_conduct.py -k ready_version_ships_past` reports `1 passed`.

@@ -55,7 +55,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "loopback"),
+    *("push", "ledger", "unlock", "unkept", "loopback", "kept"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -1902,6 +1902,7 @@ class Run:
         self.pushes = (_kept_origin(primary) or _urls(primary))[1]
         self.primary = primary
         self.repo = _repo(primary)
+        self.worktrees = primary / (_agents_values(primary, "Worktrees") or [""])[0]
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -2033,11 +2034,31 @@ class Run:
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
+                    self.remove_tree(version)
                     return
         except Stop as stop:
             self.halt(version.change, str(stop))
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
+
+    def remove_tree(self, version: Version) -> None:
+        """Remove a released version's worktree at the cut's path; else log it kept.
+
+        The branch stays. A worker can write the worktree entry, so its path is checked
+        against `Worktrees:`, read before the first worker.
+        Why: 0057-run-fixes design D3.
+        """
+        tree, change = version.tree, version.change
+        if tree is None:
+            return
+        if tree.resolve() != (self.worktrees / change).resolve():
+            self.log.event(change, "kept", f"{tree}: not at the cut's path")
+            return
+        done = _run(self.primary, "worktree", "remove", str(tree))
+        if done.returncode != 0:
+            lines = [line for line in done.stderr.splitlines() if line.strip()]
+            why = lines[0] if lines else f"exit {done.returncode}"
+            self.log.event(change, "kept", f"{tree}: {why}")
 
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Wait for the version's dependencies, then bring the default branch in."""
