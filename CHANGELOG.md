@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Converge runs one depth, one fresh worker per role, and halts on a `tier=`; `references/high-tier.md` goes and the
+  findings frontmatter records no tier, because the high tier found what the standard one found at many times the cost
+  (change `0059-remove-high-tier`, phase 1).
+
 ## [0.47.4] - 2026-11-03
 
 Gate: local 4m56s · CI not read under mf-ship · 0.47.3: local 4m38s · CI none

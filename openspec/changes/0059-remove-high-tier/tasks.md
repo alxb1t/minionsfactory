@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## Progress
 
-- [ ] 1 — Converge
+- [x] 1 — Converge
 - [ ] 2 — The run
 - [ ] 3 — The metrics
 - [ ] 4 — The record
 
 ## 1 — Converge
 
-- [ ] 1.1 Rewrite *The tier and the workers* and the tier lines in `skills/mf-converge/SKILL.md`, edit
+- [x] 1.1 Rewrite *The tier and the workers* and the tier lines in `skills/mf-converge/SKILL.md`, edit
   `references/generic-review.md` and `references/generic-security.md`, and delete `references/high-tier.md`, per [D1](design.md#d1).
   Verify: `grep -c -E 'tier=standard|tier: standard|high-tier' skills/mf-converge/SKILL.md` prints `0`, and
   `grep -c 'parameter was removed' skills/mf-converge/SKILL.md` prints `1`.
