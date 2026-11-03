@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` reads a version with every phase ticked, no converge run and no `.done` naming `HEAD` as stage
   `build`, closing steps left, so a run re-runs a build that died in simplify instead of converging it
   (change `0055-build-resume`, phase 2).
+- `mf-ship`'s report says a build that died in its closing steps resumes at simplify on a re-run
+  (change `0055-build-resume`, phase 3).
 
 ## [0.47.1] - 2026-11-03
 

@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 - [x] 1 — The marker
 - [x] 2 — The stage
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The marker
 
@@ -26,5 +26,5 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 3 — The record
 
-- [ ] 3.1 Add D4's line to `skills/mf-ship/SKILL.md` Step 4.
+- [x] 3.1 Add D4's line to `skills/mf-ship/SKILL.md` Step 4.
   Verify: `grep -c 'resumes at simplify' skills/mf-ship/SKILL.md` prints `1`.
