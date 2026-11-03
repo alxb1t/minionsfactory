@@ -2439,12 +2439,39 @@ def test_stop_ends_a_live_run(
     assert (conductor.poll(), worker.poll()) == (None, None)
     assert (active / "pid").is_file()
 
+    ps_environments: list[dict[str, str]] = []
+    run_ps = subprocess.run
+
+    def read_ps(
+        command: list[str],
+        *,
+        capture_output: bool,
+        encoding: str,
+        errors: str,
+        timeout: float,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        observed = env if env is not None else os.environ
+        ps_environments.append(
+            {name: observed.get(name, "") for name in ("LC_ALL", "TZ")}
+        )
+        return run_ps(
+            command,
+            capture_output=capture_output,
+            encoding=encoding,
+            errors=errors,
+            timeout=timeout,
+            env=env,
+        )
+
     with monkeypatch.context() as patch:
-        patch.setenv("LC_ALL", "C")
+        patch.setattr(subprocess, "run", read_ps)
+        patch.setenv("LC_ALL", "POSIX")
         patch.setenv("TZ", "Asia/Tokyo")
         (active / "start").write_text(conduct["_ps"](conductor.pid, "lstart="))
         patch.setenv("TZ", "America/New_York")
         assert conduct["_claim"](active) == "live"
+        assert ps_environments == [{"LC_ALL": "C", "TZ": "UTC0"}] * 2
 
     (active / "start").write_text(_lstart(conductor.pid))
     assert stop() == f"stop: stopped · .minions/runs/{log.name}"
