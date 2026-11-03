@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cut and halted converge after the whole build (change `0060-gate-planning`, phase 2).
 - `gate_check.py` takes `--head <tree-ish>`, and `mf-build` checks a phase's staged tree before committing a gate
   makefile change, so a bad quote costs a phase, not the build (change `0060-gate-planning`, phase 3).
+- `/mf-ship approve-gate <change-id>` shows a version's gate halt and its hash, and on the person's yes records the hash
+  in the home folder, where `gate_check.py` reads it and passes the exact diff, because each recovery rewrote every
+  commit from the cut (change `0060-gate-planning`, phase 4).
 
 ## [0.47.4] - 2026-11-03
 

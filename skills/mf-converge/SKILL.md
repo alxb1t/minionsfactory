@@ -215,9 +215,10 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
 6. **The gate changes only as the cut planned.** Run
    `uv run --script <this package>/scripts/gate_check.py --change <change-id> --base <base>`, `<base>` being
-   Step 2's merge-base. Exit 0 → pass. Exit 1 → **halt**, copying what it prints to the report and the status log.
-   Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side. A branch does not certify its
-   own weakened gate.
+   Step 2's merge-base. Exit 0 → pass: a planned change, or one a person approved with
+   `/mf-ship approve-gate <change-id>`, which the script names. Exit 1 → **halt**, copying what it prints to the
+   report and the status log. Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side. A
+   branch does not certify its own weakened gate: the approval is the person's, kept in the home folder.
 
 Once all pass, write `start` to the status log.
 

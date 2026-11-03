@@ -3399,3 +3399,57 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert (
         ' · denied Bash(rm -rf build), Bash(git commit -m "$(cat <<EOF build EOF )") · '
     ) in capsys.readouterr().out
+
+
+def test_approve_gate_records_the_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    root = _primary(tmp_path)
+    _commit(root, {"Makefile": "gate:\n\techo a\n"}, "gate")
+    change = "0002-gate"
+    tree = _version(root, change, "- [ ] 1 — One\n")
+    _commit(tree, {f"openspec/changes/{change}/design.md": "# X\n"}, "design")
+    _commit(tree, {"Makefile": ".IGNORE:\ngate:\n\techo a\n"}, "build")
+    conduct = _conduct()
+
+    def approve(*args: str) -> tuple[int, str]:
+        capsys.readouterr()
+        code = _main(
+            conduct, root, "approve-gate", change, *args, monkeypatch=monkeypatch
+        )
+        return code, capsys.readouterr().out
+
+    code, shown = approve()
+    assert code == 0, shown
+    assert "\n  added: Makefile: .IGNORE:\n" in shown
+    hashed = shown.rsplit("--yes ", 1)[1].strip()
+    assert f"\napprove-gate: {hashed} — on the person's yes, " in shown
+
+    assert approve("--yes", "0" * 64)[0] == 1
+    folder = home / ".mf-ship-origin" / f"{conduct['_digest'](root)}.gate"
+    assert not folder.exists()
+    code, out = approve("--yes", hashed)
+    assert (code, out) == (0, f"approve-gate: approved — {hashed} · {change}\n")
+    assert (folder / change).read_text() == f"{hashed}\n"
+    assert (
+        folder.stat().st_mode & 0o777,
+        (folder / change).stat().st_mode & 0o777,
+    ) == (
+        0o700,
+        0o600,
+    )
+
+    # The digest conduct.py names the folder by is the one gate_check.py reads.
+    base = _git(tree, "merge-base", "main", "HEAD")
+    gate_check = [sys.executable, str(conduct["GATE_CHECK"]), "--change", change]
+    checked = subprocess.run(
+        [*gate_check, "--base", base], cwd=tree, capture_output=True, text=True
+    )
+    assert checked.stdout.startswith(f"gate: approved — {hashed}\n"), checked.stdout
+
+    _commit(tree, {"Makefile": ".IGNORE:\ngate:\n\techo b\n"}, "one more edit")
+    code, out = approve("--yes", hashed)
+    assert code == 1 and out.startswith("approve-gate: refused — the diff moved: ")

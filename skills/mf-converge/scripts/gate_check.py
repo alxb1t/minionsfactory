@@ -4,7 +4,7 @@
 # ///
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
-    gate_check.py --change <id> --base <rev> [--head <tree-ish>]
+    gate_check.py --change <id> --base <rev> [--head <tree-ish>] [--digest]
     gate_check.py --tasks <tasks.md>
 
 Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
@@ -15,6 +15,7 @@ recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D
 
 import argparse
 import difflib
+import hashlib
 import os
 import re
 import shutil
@@ -22,8 +23,11 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from typing import NamedTuple
 
 TIMEOUT_SECONDS = 300
+# `conduct.py`'s `KEPT_ORIGINS`: the person's records, in the home folder.
+KEPT = ".mf-ship-origin"
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 # `gate_makefiles` parses make's English `Reading makefile` and directory lines.
@@ -77,10 +81,29 @@ def _git(*args: str) -> str:
     return _run(["git", *args], Path("."), f"git {args[0]}")
 
 
+def _primary() -> Path:
+    """Return the primary checkout, from any worktree."""
+    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(common.strip()).parent
+
+
 def exports() -> Path:
     """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
-    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.strip()).parent / ".minions" / "gate-check"
+    return _primary() / ".minions" / "gate-check"
+
+
+def approval(change: str) -> str | None:
+    """Return the hash a person approved for the change, kept in the home folder.
+
+    The folder is `conduct.py`'s, named as its `_digest` names the primary; no worker
+    writes there. Why: 0060-gate-planning design D4.
+    """
+    digest = hashlib.sha256(str(_primary().resolve()).encode()).hexdigest()[:16]
+    entry = Path.home() / KEPT / f"{digest}.gate" / change
+    try:
+        return entry.read_text().partition("\n")[0]
+    except OSError:
+        return None
 
 
 def cut_commit(change: str) -> str:
@@ -283,8 +306,20 @@ def read_side(rev: str, root: Path, side: str) -> tuple[dict[str, set[str]], lis
     return gate_makefiles(root, trace), lines
 
 
-def check(change: str, base: str, head: str = "HEAD") -> str:
-    """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
+class Gate(NamedTuple):
+    """What the check reads of a branch's gate against its base."""
+
+    cut: str
+    tasks: list[str]
+    touched: list[str]
+    edits: list[tuple[str, str, str]]
+    base_lines: list[str]
+    head_lines: list[str]
+    diff: str
+
+
+def read_gate(change: str, base: str, head: str) -> Gate:
+    """Return the gate's edits and dry runs; an unreadable gate raises `Stop`."""
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
     root = exports() / change
@@ -315,27 +350,47 @@ def check(change: str, base: str, head: str = "HEAD") -> str:
             lineterm="",
         )
     )
-    if not touched and not diff:
+    return Gate(cut, tasks, touched, edits, base_lines, head_lines, diff)
+
+
+def gate_hash(gate: Gate) -> str:
+    """Return the sha256 a person approves.
+
+    It hashes one `kind name text` line per edit, sorted, then the dry runs' diff.
+    """
+    lines = sorted(" ".join(edit) for edit in gate.edits)
+    return hashlib.sha256("\n".join([*lines, gate.diff]).encode()).hexdigest()
+
+
+def check(change: str, base: str, head: str = "HEAD") -> str:
+    """Return the passing verdict; a halt or an unreadable gate raises `Stop`."""
+    gate = read_gate(change, base, head)
+    tasks, diff = gate.tasks, gate.diff
+    if not gate.touched and not diff:
         return "gate: no unplanned change"
 
     def quoted(text: str) -> bool:
         return any(text.strip() in task for task in tasks)
 
-    kept = set(head_lines)
+    kept = set(gate.head_lines)
     problems = [
         f"  dropped: {line}"
-        for line in base_lines
+        for line in gate.base_lines
         if line.strip() and line not in kept and not quoted(line)
     ]
     problems += [
-        f"  {kind}: {name}: {text}" for kind, name, text in edits if not quoted(text)
+        f"  {kind}: {name}: {text}"
+        for kind, name, text in gate.edits
+        if not quoted(text)
     ]
     if not tasks and not problems:
         # A makefile changed in blank lines alone still has no plan.
-        problems = [f"  changed: {name}" for name in touched]
-    if problems:
-        raise Stop(1, halt(problems, diff, cut, change))
-    return f"gate: planned — {' · '.join(tasks)}\n{diff}"
+        problems = [f"  changed: {name}" for name in gate.touched]
+    if not problems:
+        return f"gate: planned — {' · '.join(tasks)}\n{diff}"
+    if approval(change) == (hashed := gate_hash(gate)):
+        return f"gate: approved — {hashed}\n{diff}"
+    raise Stop(1, halt(problems, diff, gate.cut, change))
 
 
 def halt(problems: list[str], diff: str, cut: str, change: str) -> str:
@@ -364,6 +419,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", help="the base commit")
     parser.add_argument("--head", default="HEAD", help="the branch's tree-ish")
     parser.add_argument("--tasks", type=Path, help="a tasks.md to check alone")
+    parser.add_argument(
+        "--digest", action="store_true", help="print the hash a person approves"
+    )
     args = parser.parse_args(argv)
     if args.tasks is None:
         if args.change is None or args.base is None:
@@ -373,11 +431,13 @@ def main(argv: list[str] | None = None) -> int:
         for flag, rev in (("--base", args.base), ("--head", args.head)):
             if rev.startswith("-"):
                 parser.error(f"{flag}: not a commit: {rev}")
-    elif args.change is not None or args.base is not None:
-        parser.error("--tasks takes no --change or --base")
+    elif args.change is not None or args.base is not None or args.digest:
+        parser.error("--tasks takes no --change, --base or --digest")
     try:
         if args.tasks is not None:
             print(check_tasks(args.tasks))
+        elif args.digest:
+            print(gate_hash(read_gate(args.change, args.base, args.head)))
         else:
             print(check(args.change, args.base, args.head))
     except Stop as stop:

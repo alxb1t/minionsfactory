@@ -34,6 +34,7 @@ waits for free, and every loop decision is a check on disk.
 | bare | Steps 1–4 |
 | `stop` | runs `conduct.py stop`, reports it, and stops |
 | `grant <change-id>` | Step 1, then `conduct.py grant <change-id> --executor <executor>`, then Step 4 |
+| `approve-gate <change-id>` | `conduct.py approve-gate <change-id>`; show its diff and hash; on the person's yes, `conduct.py approve-gate <change-id> --yes <hash>`; then Step 4 |
 
 The current directory is the **primary**, the checkout on the default branch.
 

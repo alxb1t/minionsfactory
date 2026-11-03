@@ -4,6 +4,7 @@ Real git and make in a scratch repository: the routes are make's own behaviour.
 Why: 0034-gate-recipe-hardening design D1…D4.
 """
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -439,6 +440,35 @@ def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
     assert quoted.returncode == 0, quoted.stdout
     assert quoted.stdout.startswith("gate: planned — 1.1 ")
     assert "\n+echo c" in quoted.stdout
+
+
+def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
+    root, home = tmp_path / "repo", tmp_path / "home"
+    branch = {"Makefile": f".IGNORE:\n{_GATE}"}
+    base = _branch(root, {"Makefile": _GATE}, _UNPLANNED, branch)
+    env = {"HOME": str(home)}
+    hashed = _check(root, base, env, "--digest").stdout.strip()
+    assert len(hashed) == 64, hashed
+    digest = hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16]
+
+    # An approval in the repository, its run directory or the tree approves nothing.
+    for planted in (".mf-ship-origin", ".minions/.mf-ship-origin"):
+        entry = root / planted / f"{digest}.gate" / _CHANGE
+        entry.parent.mkdir(parents=True)
+        entry.write_text(f"{hashed}\n")
+    _commit(root, {f".mf-ship-origin/{digest}.gate/x": f"{hashed}\n"}, "claim")
+    assert not _halted(_check(root, base, env), "added: Makefile: .IGNORE:")
+
+    entry = home / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
+    entry.parent.mkdir(parents=True)
+    entry.write_text(f"{hashed}\n")
+    approved = _check(root, base, env)
+    assert approved.returncode == 0, approved.stdout
+    assert approved.stdout == f"gate: approved — {hashed}\n\n"
+
+    _commit(root, {"Makefile": f".IGNORE:\n{_GATE}\techo c\n"}, "one more edit")
+    moved = _check(root, base, env)
+    assert not _halted(moved, "added: Makefile: echo c"), moved.stdout
 
 
 def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:

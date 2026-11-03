@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 - [x] 1 — The message
 - [x] 2 — The cut
 - [x] 3 — The build
-- [ ] 4 — The approval
+- [x] 4 — The approval
 - [ ] 5 — The record
 
 ## 1 — The message
@@ -34,7 +34,7 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## 4 — The approval
 
-- [ ] 4.1 Add `--digest` and the approval read to `gate_check.py`, `approve-gate` to `skills/mf-ship/scripts/conduct.py`, its
+- [x] 4.1 Add `--digest` and the approval read to `gate_check.py`, `approve-gate` to `skills/mf-ship/scripts/conduct.py`, its
   row to `skills/mf-ship/SKILL.md`, and the approval to converge's precondition 6 and the release's gate step; add
   `test_an_approval_passes_until_the_diff_moves` and `test_approve_gate_records_the_hash`, per [D4](design.md#d4).
   Verify: `grep -c 'def approve_gate' skills/mf-ship/scripts/conduct.py` prints `1`, and
