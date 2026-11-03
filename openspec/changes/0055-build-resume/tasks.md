@@ -4,13 +4,13 @@ Build the settled [design](design.md), one phase at a time. The skill text is th
 
 ## Progress
 
-- [ ] 1 — The marker
+- [x] 1 — The marker
 - [ ] 2 — The stage
 - [ ] 3 — The record
 
 ## 1 — The marker
 
-- [ ] 1.1 Write `.minions/build/<change-id>.done` after Step 3.5, and change and add the start table's rows, in
+- [x] 1.1 Write `.minions/build/<change-id>.done` after Step 3.5, and change and add the start table's rows, in
   `skills/mf-build/SKILL.md`, per [D1](design.md#d1) and [D3](design.md#d3).
   Verify: `grep -c 'build/<change-id>.done' skills/mf-build/SKILL.md` prints a number above `1`.
 

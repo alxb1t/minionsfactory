@@ -23,6 +23,7 @@ it → **halt**, naming the decision and the task.
       └─ again, until every phase is ticked
   3 mf-simplify ─▶ its commit, lean already or nothing kept
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
+  3.6 .minions/build/<change-id>.done ─▶ HEAD and simplify's outcome
   4 report
 ```
 
@@ -103,7 +104,8 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 |---|---|
 | the tree is dirty, and `tasks.md` is tracked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
-| every `## Progress` box is ticked | the change is built: report that and stop; invent no scope |
+| every box ticked, and `.minions/build/<change-id>.done` names `HEAD` | the change is built: report that and stop; invent no scope |
+| every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree then holds a pass that never finished: when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`), restore them with `git restore --staged --worktree` and remove the untracked ones, and say so; a path outside them → **halt**, naming it |
 
 ## Executor — report it
 
@@ -209,6 +211,18 @@ directory's absolute `metrics/<change-id>.json` path:
 
 A metric `unavailable` is not a halt, and **a watch never halts the build**: the page is the person's, who decides
 before converge.
+
+## Step 3.6 — Mark the closing steps done
+
+After Step 3.5, `mf-build` writes `.minions/build/<change-id>.done`, the run directory's, two lines:
+
+```
+head: <the full sha of HEAD>
+simplify: <the simplify commit's sha> | lean already | nothing kept
+```
+
+It writes it only once Step 3 and Step 3.5 are done; `metrics: none — no catalogue` counts as done. Step 4's report
+names it.
 
 ## Step 4 — Report, then stop
 
