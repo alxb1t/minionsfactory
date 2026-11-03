@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 - [x] 1 — Converge
 - [x] 2 — The run
 - [x] 3 — The metrics
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — Converge
 
@@ -35,7 +35,7 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## 4 — The record
 
-- [ ] 4.1 Amend D49, D47 and D50 in `docs/decisions.md`, and edit `README.md` and `skills/mf-release/SKILL.md`, per
+- [x] 4.1 Amend D49, D47 and D50 in `docs/decisions.md`, and edit `README.md` and `skills/mf-release/SKILL.md`, per
   [D4](design.md#d4).
   Verify: `grep -c 'One review method, one depth' docs/decisions.md` prints `1`, and
   `git grep -n -E 'tier=high|high-tier|TIERS|tier × model' -- skills tests docs README.md` prints nothing.

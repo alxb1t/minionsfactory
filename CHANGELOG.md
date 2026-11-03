@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-review-metrics` draws a table per model and engine, reads no tier, and counts a file's `inconclusive` sections
   only when it holds `## Refuted`, because the tier no longer marks the review method's era (change
   `0059-remove-high-tier`, phase 3).
+- D49 becomes one review method at one depth, rejecting the high tier on its calibration; D47, D50, `README.md` and
+  `mf-release`'s close-out lose their tier text (change `0059-remove-high-tier`, phase 4).
 
 ## [0.47.4] - 2026-11-03
 
