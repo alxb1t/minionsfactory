@@ -476,6 +476,22 @@ def _run_end(runs: Path, change: str) -> str | None:
     return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
 
 
+def _closed(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
+
+    A missing or unreadable file is not closed. Why: 0055-build-resume design D2.
+    """
+    try:
+        text = (runs / "build" / f"{change}.done").read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
+    if found is None:
+        return False
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
+
+
 def _is_event(line: str, event: str) -> bool:
     """Return whether a status-log line holds `event`, its detail aside.
 
@@ -701,13 +717,15 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if "**HUMAN" in title:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
+    end = _run_end(runs, change)
+    if end is None and not _closed(runs, tree, change):
+        return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
         if ".minions/backlog.lock" in halt:
             return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
-    end = _run_end(runs, change)
     if end is not None and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):

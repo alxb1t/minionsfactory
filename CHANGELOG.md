@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-build` writes `.minions/build/<change-id>.done` once simplify and the metrics are done, and resumes at simplify
   when every box is ticked and no marker names `HEAD`, because a build that died in simplify read as built
   (change `0055-build-resume`, phase 1).
+- `conduct.py` reads a version with every phase ticked, no converge run and no `.done` naming `HEAD` as stage
+  `build`, closing steps left, so a run re-runs a build that died in simplify instead of converging it
+  (change `0055-build-resume`, phase 2).
 
 ## [0.47.1] - 2026-11-03
 
