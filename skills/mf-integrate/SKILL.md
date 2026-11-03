@@ -6,7 +6,7 @@ description: Merge the default branch into the next version — take the named v
 # mf-integrate — bring the next version onto the latest default branch
 
 > **Your role is INTEGRATE.** You merge the default branch into one version's worktree, settle what fixed rules
-> settle, and hand the rest to the person with the merge open. You never release, tag, push or rebase: converge's
+> settle and what both sides only add, and hand the rest to the person with the merge open. You never release, tag, push or rebase: converge's
 > catch-up round judges the merge, and `mf-release` ships it.
 
 Before work, read root `AGENTS.md` and the mandatory context it names. Missing root `AGENTS.md` → **halt**,
@@ -72,8 +72,8 @@ Then, in the worktree:
 
 | `git -C <worktree> rev-parse -q --verify MERGE_HEAD` | and | then |
 |---|---|---|
-| succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.3 |
-| succeeds | `.minions/integrate/<change-id>.red` exists | the person fixed the merged tree: Step 3.3 |
+| succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
+| succeeds | `.minions/integrate/<change-id>.red` exists | the person fixed the merged tree: Step 3.4 |
 | succeeds | no note | an interrupted run: Step 3.2 |
 | fails | `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | nothing to merge: report it, and `Next: /mf-release` |
 | fails | otherwise | Step 3.1. `git -C <worktree> status --porcelain` prints something → **halt** |
@@ -93,10 +93,17 @@ Then, in the worktree:
 
    `changelog` and `decisions` stage what they write. Exit 2 → **halt**, naming what it printed, the merge left
    open.
-3. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
-   is a **semantic conflict** → item 4. On a resumed run the rules ran before the halt, or a dependent's cut-only
-   branch gave them nothing to settle: only the paths count. Nothing left → Step 4.
-4. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
+3. **Resolve what both sides add.** For each path `git -C <worktree> diff --name-only --diff-filter=U` prints,
+   compare the base with each side. A hunk is **additive** when the union keeps every line, list item or sentence
+   each side added and every one each side removed, and changes nothing else. Resolve it to the union and stage the
+   path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent. A path with a hunk
+   that is not additive stays unmerged. Keep each resolved hunk for the note and the commit body.
+4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
+   is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
+   stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
+   requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a dependent's cut-only
+   branch gave them nothing to settle: only the paths count, and item 3 does not run. Nothing left → Step 4.
+5. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 
    ```markdown
@@ -105,6 +112,16 @@ Then, in the worktree:
    - **The branch:** <its design's decision on it, cited — `openspec/changes/<change-id>/design.md` D2>
    - **The default branch:** <the change that made it, and its design's decision, cited>
    - **Proposed:** <the resolution, at most three sentences>
+   ```
+
+   Item 3's resolved hunks go under a last `## Resolved`, one `### <path>` each:
+
+   ```markdown
+   ### <path>
+
+   - **The branch:** <its intent>
+   - **The default branch:** <its intent>
+   - **The union:** <what the merged hunk keeps>
    ```
 
    The default branch's change is the `Change:` trailer of the commits
@@ -118,12 +135,18 @@ Then, in the worktree:
    `.minions/integrate/<change-id>.red` holding `gate red` and the date, and never weaken the gate to pass.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
    nothing — else **halt**: the commit must hold the tree the gate judged.
-3. **Commit the merge**, the trailer block contiguous:
+3. **Commit the merge**, one body line per resolved hunk before the trailer block, which is contiguous. On a resumed
+   run the hunks are the note's resolved ones:
 
        chore(integrate): merge <default-branch> into <branch>
 
+       <path>: the branch <its intent>; <default-branch> <its intent>; union
+       <path>: …
+
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
+
+   e.g. `skills/mf-ship/scripts/conduct.py EVENTS: the branch adds kept, removed; main drops loopback; union`.
 
 4. Delete `.minions/integrate/<change-id>.md` and `.minions/integrate/<change-id>.red` when they exist: the merge
    settled it.

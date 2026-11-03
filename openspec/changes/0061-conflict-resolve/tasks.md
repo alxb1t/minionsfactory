@@ -4,15 +4,15 @@ Build the settled [design](design.md), one phase at a time. The skill and decisi
 
 ## Progress
 
-- [ ] 1 — The rule
+- [x] 1 — The rule
 - [ ] 2 — The record
 
 ## 1 — The rule
 
-- [ ] 1.1 Add *Resolve what both sides add* to `skills/mf-integrate/SKILL.md` Step 3, and name what is not additive in its
+- [x] 1.1 Add *Resolve what both sides add* to `skills/mf-integrate/SKILL.md` Step 3, and name what is not additive in its
   semantic-conflict item, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `grep -c 'Resolve what both sides add' skills/mf-integrate/SKILL.md` prints `1`.
-- [ ] 1.2 Add the `## Resolved` section to the note and the commit body to Step 4 in `skills/mf-integrate/SKILL.md`, per
+- [x] 1.2 Add the `## Resolved` section to the note and the commit body to Step 4 in `skills/mf-integrate/SKILL.md`, per
   [D3](design.md#d3).
   Verify: `grep -c '## Resolved' skills/mf-integrate/SKILL.md` prints `1`.
 
