@@ -7,7 +7,7 @@ for word.
 
 - [x] 1 — The code
 - [x] 2 — The drill
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The code
 
@@ -26,7 +26,7 @@ for word.
 
 ## 3 — The record
 
-- [ ] 3.1 Amend D51 in `docs/decisions.md`, and edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` Step 3, per
+- [x] 3.1 Amend D51 in `docs/decisions.md`, and edit `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` Step 3, per
   [D4](design.md#d4).
   Verify: `git grep -c 'Ship loopback' -- docs/decisions.md THREAT_MODEL.md skills/mf-ship/SKILL.md` prints nothing, and
   `grep -c 'loopback per repo' docs/decisions.md` prints `1`.

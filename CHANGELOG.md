@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worker could write it for every later run (change `0056-loopback-removal`, phase 1).
 - The escape drill drops its loopback row, because the setting it proved is gone; its refused bind stays (change
   `0056-loopback-removal`, phase 2).
+- D51, `THREAT_MODEL.md` and `mf-ship` Step 3 say no worker binds loopback, and name the Linux container as the way out
+  for a gate that serves on it (change `0056-loopback-removal`, phase 3).
 
 ## [0.47.1] - 2026-11-03
 
