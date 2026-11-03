@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-integrate` resolves a hunk both sides only add, fixes a merged test the union breaks, and names each resolved hunk
   in the merge commit and the note, because a person was needed only to stage the two additive hunks of `0057-run-fixes`'
   merge (change `0061-conflict-resolve`, phase 1).
+- `mf-integrate`'s *Never* line and D45 allow a resolution named in the merge commit, and both name the cut-only
+  branches `conduct.py` merges into: a dependent's, or one the default branch passed before its first worker, because
+  v0.47.4 widened it (change `0061-conflict-resolve`, phase 2).
 
 ## [0.47.4] - 2026-11-03
 

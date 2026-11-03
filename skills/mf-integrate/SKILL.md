@@ -66,7 +66,8 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
 converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
-`conduct.py` opens a dependent's merge before its build.
+`conduct.py` opens the merge of a cut-only branch — a dependent's, or one the default branch passed before its first
+worker — before its build.
 
 Then, in the worktree:
 
@@ -101,8 +102,8 @@ Then, in the worktree:
 4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
-   requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a dependent's cut-only
-   branch gave them nothing to settle: only the paths count, and item 3 does not run. Nothing left → Step 4.
+   requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a cut-only branch — a
+   dependent's, or one the default branch passed before its first worker — gave them nothing to settle: only the paths count, and item 3 does not run. Nothing left → Step 4.
 5. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 
@@ -158,12 +159,13 @@ Then, in the worktree:
 
 Your sentences: the version and its merge commit, each rule's printed line, and the gate's exit code. The last
 line: `Next: /mf-converge, then /mf-release`; converge's catch-up round judges the merge by its remerge-diff. A
-version with an unticked phase, a dependent merged before its build, ends `Next: /mf-ship, in the primary.`
+version with an unticked phase, a cut-only branch merged before its build, ends `Next: /mf-ship, in the primary.`
 
 ## Never
 
 - **Never release, tag, push or rebase**, and never merge into the default branch: the release does.
-- **Never resolve a semantic conflict silently** against either design, and never abort the person's open merge.
+- **Never resolve a semantic conflict silently**: name each resolved hunk in the merge commit; a choice between
+  behaviours halts. Never abort the person's open merge.
 - **Never commit over a red gate**, or weaken it to pass.
 - **Never `git add -A`** — the rules stage what they write; the person stages a hand resolution by name.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file. The note is
