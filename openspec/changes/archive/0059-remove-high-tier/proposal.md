@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.48
 ---
 
 # Remove the high tier
