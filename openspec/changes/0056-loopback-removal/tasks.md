@@ -6,7 +6,7 @@ for word.
 ## Progress
 
 - [x] 1 — The code
-- [ ] 2 — The drill
+- [x] 2 — The drill
 - [ ] 3 — The record
 
 ## 1 — The code
@@ -19,7 +19,7 @@ for word.
 
 ## 2 — The drill
 
-- [ ] 2.1 Remove the loopback row from `tests/escape_drill.py`, and reword the comment in `tests/test_escape_drill.py`, per
+- [x] 2.1 Remove the loopback row from `tests/escape_drill.py`, and reword the comment in `tests/test_escape_drill.py`, per
   [D3](design.md#d3).
   Verify: `grep -c -E 'LOOPBACK_PROMPT|def _loopback' tests/escape_drill.py` prints `0`, `uv run --script tests/escape_drill.py --help`
   exits 0, and `uv run pytest -q tests/test_escape_drill.py` passes.

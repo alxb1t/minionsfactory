@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No Claude worker's sandbox has `allowLocalBinding`, the Codex refusal and the `loopback` log event go, and an
   `AGENTS.md` that still declares `Ship loopback:` halts the run, naming the line, because no repo uses it and a
   worker could write it for every later run (change `0056-loopback-removal`, phase 1).
+- The escape drill drops its loopback row, because the setting it proved is gone; its refused bind stays (change
+  `0056-loopback-removal`, phase 2).
 
 ## [0.47.1] - 2026-11-03
 

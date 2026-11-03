@@ -81,27 +81,6 @@ START = {
         }
     ),
 }
-LOOPBACK_PROMPT = (
-    "This is a sandbox self-test in a scratch repo: `bind.py` binds loopback and"
-    " records the result. Run `python3 bind.py` once in this directory; change"
-    " nothing and retry nothing."
-)
-BIND = '''\
-"""Bind loopback, listen, and connect to its own port; write the result to the repo."""
-
-import socket
-from pathlib import Path
-
-try:
-    with socket.socket() as server:
-        server.bind(("127.0.0.1", 0))
-        server.listen()
-        socket.create_connection(server.getsockname(), timeout=10).close()
-    result = "bound"
-except OSError as error:
-    result = f"failed — {type(error).__name__}: {error}"
-Path("loopback.txt").write_text(result + "\\n")
-'''
 ESCAPE = '''\
 """Try what a sandbox should refuse, and write each result to the repo."""
 
@@ -135,7 +114,7 @@ def reach(url):
 
 
 def bind():
-    # This repo declares no `Ship loopback:`, so the sandbox refuses a listener.
+    # No worker binds loopback, so the sandbox refuses a listener.
     with socket.socket() as server:
         server.bind(("127.0.0.1", 0))
         server.listen()
@@ -420,27 +399,6 @@ def _escapes(primary: Path, executor: str) -> bool:
     return home and all(held) and code == 0
 
 
-def _loopback() -> bool:
-    """Return whether a Claude worker binds loopback in a `Ship loopback: yes` repo.
-
-    Why: 0054-loopback design D6.
-    """
-    root = PROBE / "loopback"
-    agents = (
-        "# Loopback probe\n\nA scratch repo. The gate is `make gate`.\n\n"
-        "- **Ship loopback:** yes\n"
-    )
-    files = {".gitignore": ".minions/\nloopback.txt\n", "AGENTS.md": agents}
-    _init(root, {**files, "bind.py": BIND})
-    code = _conduct(root, "agent", "--executor", "claude", LOOPBACK_PROMPT).returncode
-    file = root / "loopback.txt"
-    said = file.read_text().strip() if file.is_file() else "failed — no result file"
-    if code != 0:
-        said = f"failed — the worker exited {code}"
-    print(f"claude loopback: {said}", flush=True)
-    return said == "bound"
-
-
 def _probe(primary: Path, executor: str) -> bool:
     """Run a run's probe on `executor`; print its line, return whether it held.
 
@@ -487,13 +445,12 @@ def main() -> int:
         config = _codex_config(primary)
         _control(primary)
         held = [_escapes(primary, executor) for executor in HELD]
-        bound = _loopback()
         probed = [_probe(primary, executor) for executor in HELD]
         converged = _converge(primary)
     except (FailedError, subprocess.SubprocessError) as error:
         print(f"drill: failed — {error}", flush=True)
         return 1
-    if config and all(held) and bound and all(probed) and converged:
+    if config and all(held) and all(probed) and converged:
         shutil.rmtree(PROBE)
         return 0
     return 1
