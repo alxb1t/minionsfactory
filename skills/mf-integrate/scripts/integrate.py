@@ -210,8 +210,9 @@ def next_version(cwd: Path, change: str | None = None) -> str:
     """Return the named or the lowest-id ready version, its worktree and readiness.
 
     A version is a branch named by a change id that holds its change. A named
-    version whose merge is open with its note is ready: a dependent's opens before
-    its build. With none ready, stop on the lowest id's line.
+    version whose merge is open with its note is ready: a cut-only branch's — a
+    dependent's, or one the default branch passed before its first worker — opens
+    before its build. With none ready, stop on the lowest id's line.
     """
     default = default_branch(cwd)
     listing = _git(
