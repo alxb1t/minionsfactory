@@ -5,7 +5,9 @@
 `conduct.py rejoin [<change-id>]` SHALL write a request in `.minions/runs/rejoin/`, and `/mf-ship` SHALL send it when a run is
 live. The live run SHALL check that folder at most every 10 seconds and before its close, and SHALL take into the run every
 open version the request names — every one for a request with no id — whose stage on disk is no longer a halt: a halted one,
-a blocked one, and one cut after the run started. A version still at a halt SHALL stay out, logged with why. A taken version
+a blocked one, and one cut after the run started. A version still at a halt SHALL stay out, logged with why. The poll SHALL
+not end the run's loop while a version's thread runs: an entry it cannot delete SHALL be no request, and a version it fails
+to take SHALL halt alone. A taken version
 SHALL have its models file read as it joins, then go through the run's base check, its dependencies, its stations and the
 merge lock, as at a run's start, with its halts and blocks cleared. Its executor's probe SHALL run once in the run, before
 the first worker on it; a failed probe SHALL halt only the versions on that executor. The run SHALL log a `rejoin` event per
@@ -23,6 +25,8 @@ end the run, as before; a request reaches no ended run.
 #### Scenario: A version cut during the run
 - **WHEN** a version is cut while a run is live, and `/mf-ship` runs
 - **THEN** the live run takes it, and builds it beside the others
+- **AND WHEN** a folder stands in `.minions/runs/rejoin/` beside the request
+- **THEN** the poll skips it, and the run goes on
 
 #### Scenario: A new executor
 - **WHEN** a taken version's models file names an executor the run has not probed
@@ -38,10 +42,13 @@ end the run, as before; a request reaches no ended run.
 
 ### Requirement: A converge halt answered by the person converges afresh
 
-A converge halt SHALL be void when the findings files' `head:` is not the version's `HEAD`: `conduct.py`'s stage SHALL be
-`converge`, and its converge check SHALL not read the old halt. `skills/mf-converge/SKILL.md`, finding its newest run's top
-line a `halt` and `HEAD` past the findings files' `head:`, SHALL open a run marked `· amended`, and converge from round 1 over
-the whole change, the findings files restarting at `round: 1`. A run marked `· grant` that resumes SHALL stay a granted round.
+Every converge `halt` line SHALL end `· head <sha>`, the `HEAD` it halted at. A converge halt other than the backlog lock's
+SHALL be void when its head is both findings files' `head:` and `HEAD` is past it, a descendant that is not it: `conduct.py`'s
+stage SHALL be `converge`, and its converge check SHALL not read the old halt. A halt naming no head, one past the judged
+head — after converge's own fix, or in a catch-up run — and one whose head is no ancestor of `HEAD` SHALL stand.
+`skills/mf-converge/SKILL.md`, finding its newest run's top line such a void halt, SHALL open a run marked `· amended`, and
+converge from round 1 over the whole change, the findings files restarting at `round: 1`. A run marked `· grant` that
+resumes SHALL stay a granted round.
 
 #### Scenario: A fix after a cap halt
 - **WHEN** a version halted at the cap, and the person commits a fix on its branch
@@ -50,6 +57,12 @@ the whole change, the findings files restarting at `round: 1`. A run marked `· 
 #### Scenario: A cap halt with no fix
 - **WHEN** a version halted at the cap, and `HEAD` is the findings files' `head:`
 - **THEN** its stage stays `converge-halted`
+- **AND WHEN** the person rewrote the history, so the halted head is no ancestor of `HEAD`
+- **THEN** its stage stays `converge-halted`
+
+#### Scenario: A halt past the judged head
+- **WHEN** converge halts after its own fix commit, or in a catch-up run, so its head is not the findings files' `head:`
+- **THEN** its stage stays `converge-halted`, and no `· amended` run opens
 
 #### Scenario: A granted round resumes
 - **WHEN** a granted round dies after its `fix` line, and a re-run resumes it

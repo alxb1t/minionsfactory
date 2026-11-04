@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- A person's commit past a converge halt voids it: the stage is `converge`, a waiting grant goes unspent, and
+- A person's commit past a converge halt voids it — every `halt` line names its head, and a halt at the judged head
+  that `HEAD` descends from is void: the stage is `converge`, a waiting grant goes unspent, and
   `mf-converge` opens a run marked `· amended` from round 1, so a fix no longer costs a grant; a resumed `· grant` run
   stays a granted round, and a `.done` that is no regular file reads as not closed (change `0063-rejoin`, phase 1).
 - `conduct.py rejoin [<change-id>]` writes a request the live run polls: it takes back each requested version whose
   stage is no halt, newly cut ones included, reads its models and probes a new executor first, halting only that
-  version on a failed probe; `report` names each `rejoined` version (change `0063-rejoin`, phase 2).
+  version on a failed probe, and any failure taking a version halts that version alone; `report` names each
+  `rejoined` version (change `0063-rejoin`, phase 2).
 - `grant` names `/mf-ship` when it refuses, a waiting grant included; during a live run it records the grant with a
   rejoin request instead of refusing, and the run logs a `grant` event and the `start` line's standing grants
   (change `0063-rejoin`, phase 3).

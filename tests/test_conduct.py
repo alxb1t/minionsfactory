@@ -1293,6 +1293,8 @@ def test_a_version_cut_during_a_run_joins(
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     def cut() -> None:
+        # A folder no unlink removes: the poll skips it, and the run goes on (R2).
+        (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
         _version(root, "0002-marks", "- [ ] 1 — Marks\n")
         assert conduct["rejoin"](root, "0002-marks") == "rejoin: requested 0002-marks"
 
@@ -3341,9 +3343,10 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), "blocking")
+    judged = _git(tree, "rev-parse", "HEAD")
+    _findings(root, "0001-todo", judged, "blocking")
     log = root / ".minions" / "findings" / "0001-todo_status_log.md"
-    capped = "10:00:00 · round 3 · halt — cap reached"
+    capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
     grants = root / ".minions" / "grants" / "0001-todo"
     version = conduct["find_version"](root, "0001-todo")
@@ -3352,9 +3355,28 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     assert check(root, "converge", version) == f"the status log halts: {capped}"
 
     _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
+    fixed = _git(tree, "rev-parse", "HEAD")
+    # The lock case comes first, as in mf-converge's Resuming a run (R3).
+    locked = f"halt — waited 2 minutes for .minions/backlog.lock · head {judged}"
+    log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
+    lock = ("converge", "halted on the backlog lock: resumes at Step 9")
+    assert stage_of(root, version) == lock
+    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's (R3).
+    for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
+        own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
+        log.write_text(f"# t\n\n## Run {run}\n{own}\n")
+        assert stage_of(root, version) == ("converge-halted", own)
+        assert check(root, "converge", version) == f"the status log halts: {own}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
     amended = ("converge", "amended: HEAD past the halted head")
     assert stage_of(root, version) == amended
     assert check(root, "converge", version) == "the status log has no done"
+    # A rewritten history answers no halt: converge would halt it again (R1).
+    _git(tree, "reset", "-q", "--soft", "HEAD~2")
+    _git(tree, "commit", "-q", "-m", "the cut and the fix, squashed")
+    assert stage_of(root, version) == ("converge-halted", capped)
+    assert check(root, "converge", version) == f"the status log halts: {capped}"
+    _git(tree, "reset", "-q", "--hard", fixed)
     grants.parent.mkdir(parents=True)
     grants.touch()
     assert stage_of(root, version) == amended

@@ -43,7 +43,7 @@ grant; `grant` never refuses without naming what to run; a sibling's release no 
 | [D1](#d1) | A request file, `.minions/runs/rejoin/<id>` or `…/all`, polled by the main loop every `REJOIN_POLL` seconds | a signal still needs the loop to wake | a signal; a second run |
 | [D2](#d2) | The run takes every requested open version whose stage is no halt; clears its halts and blocks; reads its models; starts `take` | the stage is read from disk, as D47 has it | keeping state for a version |
 | [D3](#d3) | A new executor is probed in the live run, once; a failure halts only its versions | the running versions never touch it | waiting for the next run |
-| [D4](#d4) | A converge halt is void when the findings `head:` is not `HEAD`; converge opens a `· amended` run from round 1 | a commit after a halt is never converge's own; converge counts from `round:` | voiding in the conductor alone (F4) |
+| [D4](#d4) | A converge halt names its head; it is void when that head is the findings `head:` and `HEAD` descends past it; converge opens a `· amended` run from round 1 | a commit past the judged head at a halt is never converge's own; converge counts from `round:` | voiding in the conductor alone (F4); voiding on `head:` not `HEAD` alone, which reads converge's own fix and catch-up halts, and a rewritten history, as answered |
 | [D5](#d5) | `grant` names `/mf-ship` when it refuses; during a live run it writes the grant and a request | isekai #15 and 15:40 | — |
 | [D6](#d6) | `merge_in` settles `CHANGELOG.md` and `docs/decisions.md` conflicts with `integrate.py`'s rules; `catch_up` merges a started version behind a gate change | a sibling release that touched `AGENTS.md` halted each started version | merging by an agent |
 | [D7](#d7) | The record: `rejoin` and `grant` events, the `start` line's grants, `report` | the person sees what rejoined and what a grant bought | — |
@@ -62,6 +62,8 @@ with `timeout=REJOIN_POLL`; with none alive, `take_requests` once more, and brea
 names, whose thread is not alive: `stage_of` in `HALTS` → log `rejoin — <id>: still <stage> — <why>`, and skip; else remove its
 entries from `self.halts` and `self.blocked`, read its models into `self.plan` (`read_plan([version])`), probe its executors
 not yet probed (D3), log `rejoin — <id>: <stage>`, and start `take`. A `run` halt in `self.halts` stops it all, as before.
+The poll runs beside live threads, so it raises nothing: an entry `unlink` refuses is no request, a failed `open_versions`
+logs `rejoin — skipped — <why>`, and a failure taking one version halts that version.
 
 ### D3
 
@@ -70,12 +72,15 @@ in `take_requests`, each taken version on that executor, the station `probe-<exe
 
 ### D4
 
-`_answered(runs, tree, change)` — both findings files hold a `head:` that resolves, and neither is `HEAD`. `stage_of`: a halt from
-`_converge_halt` with `_answered` true → `("converge", "amended: HEAD past the halted head")`, before the grant and lock cases;
-`advance` then deletes a waiting grant unspent, and sends no `grant=yes`. `_check_converge` skips an answered halt the same way.
-`skills/mf-converge/SKILL.md`'s *Resuming a run* gains: the top line a `halt`, and `HEAD` past both findings files' `head:` →
-open a run marked `· amended`, and start at Step 1 over the whole change, writing `round: 1`; and, for `0051·R8`, a run marked
-`· grant` that resumes stays a granted round: Step 9, never Step 8.
+Every converge `halt` line ends `· head <sha>`, `git rev-parse HEAD` at the halt (`HALT_HEAD`). `_answered(runs, tree, change,
+halt)` — the halt names a head that resolves, both findings files' `head:` resolve to it, and it is an ancestor of `HEAD` and not
+`HEAD`. A halt after converge's own fix commit, or in a catch-up run, names a head the files did not judge; a halt naming no
+head stands. `stage_of`: a halt naming `.minions/backlog.lock` first, as in the skill; then a halt with `_answered` true →
+`("converge", "amended: HEAD past the halted head")`, before the grant case; `advance` then deletes a waiting grant unspent, and
+sends no `grant=yes`. `_check_converge` skips an answered halt the same way. `skills/mf-converge/SKILL.md`'s *Resuming a run*
+gains, after its lock case: the top line a `halt` whose head is both findings files' `head:`, and `HEAD` past it → open a run
+marked `· amended`, and start at Step 1 over the whole change, writing `round: 1`; and, for `0051·R8`, a run marked `· grant`
+that resumes stays a granted round: Step 9, never Step 8.
 
 ### D5
 

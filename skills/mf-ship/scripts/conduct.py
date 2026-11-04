@@ -66,6 +66,7 @@ EVENTS = (
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
 AMENDED = "amended: HEAD past the halted head"
+HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
@@ -527,21 +528,33 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     return end if end and _is_event(end, "halt") else None
 
 
-def _answered(runs: Path, tree: Path, change: str) -> bool:
-    """Return whether both findings files judged a head that resolves and is not `HEAD`.
+def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
+    """Return whether a person's commit answered a converge halt.
 
-    A commit past it answers a converge halt. Why: 0063-rejoin design D4.
+    The halt names the head it stopped at, both findings files judged that head,
+    and `HEAD` descends from it and is not it. A halt past the judged head — after
+    converge's own fix, or in a catch-up run — names no head the files judged, and a
+    rewritten history leaves no descendant. Why: 0063-rejoin design D4.
+    e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
-    head = _git(tree, "rev-parse", "HEAD").strip()
+    found = HALT_HEAD.search(halt)
+    halted = found and _maybe(
+        tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+    )
+    if not halted:
+        return False
+    halted = halted.strip()
+    if halted == _git(tree, "rev-parse", "HEAD").strip():
+        return False
     for role in ROLES:
         file = runs / "findings" / f"{change}_{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
         )
-        if not resolved or resolved.strip() == head:
+        if not resolved or resolved.strip() != halted:
             return False
-    return True
+    return _ancestor(tree, halted, "HEAD")
 
 
 def _converge_done(runs: Path, change: str) -> bool:
@@ -741,12 +754,12 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
-        if _answered(runs, tree, change):
+        if ".minions/backlog.lock" in halt:
+            return "converge", "halted on the backlog lock: resumes at Step 9"
+        if _answered(runs, tree, change, halt):
             return "converge", AMENDED
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
-        if ".minions/backlog.lock" in halt:
-            return "converge", "halted on the backlog lock: resumes at Step 9"
         return "converge-halted", halt
     if end is not None and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
@@ -773,7 +786,7 @@ def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the converge check fails, or None."""
     runs = primary / ".minions"
     halt = _converge_halt(runs, version.change)
-    if halt and not _answered(runs, tree, version.change):
+    if halt and not _answered(runs, tree, version.change, halt):
         return f"the status log halts: {halt}"
     if not _converge_done(runs, version.change):
         return "the status log has no done"
@@ -2356,42 +2369,53 @@ class Run:
 
         The requests are read and deleted. A version whose stage is a halt stays out,
         logged; a taken one has its halts and blocks cleared, its models read and its
-        new executors probed first. Why: 0063-rejoin design D2.
+        new executors probed first. It raises nothing: it runs beside live threads,
+        so a failure skips the request or halts that version. Why: 0063-rejoin
+        design D2.
         """
         names = _requests(self.runs)
         if not names or self.stopped("run"):
             return False
+        try:
+            versions = open_versions(self.primary)
+        except Exception as error:
+            self.log.event("run", "rejoin", f"skipped — {error}")
+            return False
         started = False
-        for version in open_versions(self.primary):
+        for version in versions:
             change = version.change
             thread = threads.get(change)
             if not names & {"all", change} or (thread and thread.is_alive()):
                 continue
             try:
-                stage, why = stage_of(self.primary, version)
+                started = self.take_back(version, threads) or started
             except Stop as stop:
                 self.halt(change, str(stop))
-                continue
-            if stage in HALTS:
-                self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
-                continue
-            with self.guard:
-                self.halts = [held for held in self.halts if held[0] != change]
-                self.blocked = [name for name in self.blocked if name != change]
-            self.read_plan([version])
-            named = (self.plan.get((change, station)) for station in STATIONS)
-            for executor in dict.fromkeys(models[0] for models in named if models):
-                if executor not in self.probed and not self.stopped(change):
-                    self.probe(executor, change)
-            if self.stopped(change):
-                continue
-            self.log.event("run", "rejoin", f"{change}: {stage}")
-            threads[change] = threading.Thread(
-                target=self.take, args=(version, threads)
-            )
-            threads[change].start()
-            started = True
+            except Exception as error:
+                self.halt(change, f"conduct.py failed: {error}")
         return started
+
+    def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
+        """Start `take` for a requested version whose stage is no halt; True if so."""
+        change = version.change
+        stage, why = stage_of(self.primary, version)
+        if stage in HALTS:
+            self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
+            return False
+        with self.guard:
+            self.halts = [held for held in self.halts if held[0] != change]
+            self.blocked = [name for name in self.blocked if name != change]
+        self.read_plan([version])
+        named = (self.plan.get((change, station)) for station in STATIONS)
+        for executor in dict.fromkeys(models[0] for models in named if models):
+            if executor not in self.probed and not self.stopped(change):
+                self.probe(executor, change)
+        if self.stopped(change):
+            return False
+        self.log.event("run", "rejoin", f"{change}: {stage}")
+        threads[change] = threading.Thread(target=self.take, args=(version, threads))
+        threads[change].start()
+        return True
 
     def probe(self, executor: str, who: str = "run") -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
@@ -2688,13 +2712,22 @@ def _log_stop(runs: Path) -> Path | None:
 def _requests(runs: Path) -> set[str]:
     """Delete the rejoin requests in `runs`; return their names.
 
+    An entry `unlink` refuses, a folder say, is no request, and an unreadable folder
+    holds none: the poll runs beside live threads. Why: 0063-rejoin design D2.
     e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
     """
     folder = runs / "rejoin"
     names = set()
-    for request in folder.iterdir() if folder.is_dir() else []:
+    try:
+        entries = list(folder.iterdir()) if folder.is_dir() else []
+    except OSError:
+        return names
+    for request in entries:
+        try:
+            request.unlink(missing_ok=True)
+        except OSError:
+            continue
         names.add(request.name)
-        request.unlink(missing_ok=True)
     return names
 
 

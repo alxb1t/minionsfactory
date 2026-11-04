@@ -24,8 +24,8 @@ touched `AGENTS.md` halted each started version at the next start.
   the live run polls the folder and takes back every version whose stage on disk is no longer a halt, newly cut ones included.
 - **A new executor mid-run** — the live run probes it before its first worker; a failed probe halts only that executor's
   versions.
-- **A fix voids a converge halt** — the findings files' `head:` not `HEAD` → the stage is `converge`, and converge opens a run
-  marked `· amended`, from round 1.
+- **A fix voids a converge halt** — the halt's head the findings files' `head:`, and `HEAD` past it → the stage is `converge`,
+  and converge opens a run marked `· amended`, from round 1.
 - **`grant`** — names `/mf-ship` when it refuses; during a live run it writes the grant and a request; the run logs `grant`.
 - **The base** — a started version behind a gate change gets the default branch merged in when the merge is clean or only the
   changelog and decisions rules' paths conflict.
