@@ -11,6 +11,7 @@ gate:
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run ty check
+	uv run zizmor .github/workflows/ci.yml
 	uv run pytest -q -n auto
 
 check:

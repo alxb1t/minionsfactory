@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The gate's tests run on every core with `pytest-xdist`, each test's home, global git config and XDG folders under
   its own `tmp_path`; the tests over 5 s carry `slow`, and `make check` runs the gate's fast steps without them, so a
   build runs it after each phase but the last, the gate after the last (change `0065-gate-hardening`, phase 1).
+- uv is pinned by `required-version`; CI pins its actions by commit SHA and uv's version, reads with
+  `contents: read`, times out at 20 minutes and fetches the whole history; `zizmor` lints `ci.yml` in the gate
+  (change `0065-gate-hardening`, phase 2).
 
 ## [0.53.0] - 2026-11-04
 

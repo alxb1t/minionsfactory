@@ -10,7 +10,11 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.16.3",
     "ty>=0.0.71",
+    "zizmor>=1.32.0",
 ]
+
+[tool.uv]
+required-version = ">=0.12.19,<0.13"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D", "ANN"]

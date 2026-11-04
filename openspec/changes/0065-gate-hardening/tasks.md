@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 ## Progress
 
 - [x] 1 — Speed
-- [ ] 2 — Pins
+- [x] 2 — Pins
 - [ ] 3 — Lint
 - [ ] 4 — Coverage
 - [ ] 5 — Secrets
@@ -39,9 +39,9 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 2 — Pins
 
-- [ ] 2.1 Pin uv in `pyproject.toml`, and pin CI in `.github/workflows/ci.yml`, per [D3](design.md#d3).
+- [x] 2.1 Pin uv in `pyproject.toml`, and pin CI in `.github/workflows/ci.yml`, per [D3](design.md#d3).
   Verify: `grep -n 'required-version' pyproject.toml` prints a line, and `grep -n 'fetch-depth: 0' .github/workflows/ci.yml` prints a line.
-- [ ] 2.2 Add `zizmor` to the dev group (`uv add --dev 'zizmor>=1.32.0'`), and run it in the gate, in `Makefile`, `gate` named, fixing
+- [x] 2.2 Add `zizmor` to the dev group (`uv add --dev 'zizmor>=1.32.0'`), and run it in the gate, in `Makefile`, `gate` named, fixing
   each finding in `ci.yml`, per [D3](design.md#d3):
   ```diff
   + 	uv run zizmor .github/workflows/ci.yml
