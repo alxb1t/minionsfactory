@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Input-contract item `I19`: a `Verify:` is one plain command — no `$(…)`, shell variable, loop or `cd` — and an
   exact count only when the count is the point, so a check runs under a worker's shell rules
   (change `0066-plan-halts`, phase 2).
+- `gate_check.py --verify --change <id>` compares each `Verify:` in the working tree with the cut's, or its latest
+  `docs(<id>): amend the change directory` commit's, and halts on an edit, naming it and whether it is uncommitted;
+  `--change` runs it after its gate check, and the build runs it before a phase's first check, so a narrowed check
+  never passes for the plan (change `0066-plan-halts`, phase 3).
 
 ## [0.54.0] - 2026-11-05
 

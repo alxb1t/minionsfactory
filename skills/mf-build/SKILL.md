@@ -147,7 +147,10 @@ ticking the `N.M` boxes with the phase's box at item 5.
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
    effects behind the repo's declared seams, so the suite stays offline and deterministic. Write to `W`, `T`,
    `P` and `C` below.
-2. **Run each sub-task's `Verify:` — never summarize it** — and show the command's real output. A check you
+2. **Run each sub-task's `Verify:` — never summarize it** — and show the command's real output. Before the
+   phase's first one, run `uv run --script ../mf-converge/scripts/gate_check.py --verify --change <change-id>`,
+   resolved as in Step 1: exit 1 → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming
+   it. Never amend a `Verify:`. A check you
    describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
    has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
    Never change code to make it pass.

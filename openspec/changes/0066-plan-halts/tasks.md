@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The search script
 - [x] 2 — The contract
-- [ ] 3 — The edited check
+- [x] 3 — The edited check
 - [ ] 4 — The cut
 - [ ] 5 — The record
 - [ ] 6 — The calibration
@@ -24,10 +24,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The edited check
 
-- [ ] 3.1 Add `--verify` and the comparison to `skills/mf-converge/scripts/gate_check.py`, and `test_an_edited_verify_halts` to
+- [x] 3.1 Add `--verify` and the comparison to `skills/mf-converge/scripts/gate_check.py`, and `test_an_edited_verify_halts` to
   `tests/test_gate_check.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_gate_check.py -k edited_verify_halts` reports `1 passed`.
-- [ ] 3.2 Run `gate_check.py --verify` before a phase's first `Verify:` in `skills/mf-build/SKILL.md` Step 2, per [D3](design.md#d3).
+- [x] 3.2 Run `gate_check.py --verify` before a phase's first `Verify:` in `skills/mf-build/SKILL.md` Step 2, per [D3](design.md#d3).
   Verify: `grep -n 'gate_check.py --verify' skills/mf-build/SKILL.md` prints a line.
 
 ## 4 — The cut
