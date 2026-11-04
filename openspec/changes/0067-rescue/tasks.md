@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The halt file
-- [ ] 2 — The skill
+- [x] 2 — The skill
 - [ ] 3 — The conductor
 - [ ] 4 — The record
 
@@ -18,7 +18,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The skill
 
-- [ ] 2.1 Write `skills/mf-rescue/SKILL.md`, per [D2](design.md#d2).
+- [x] 2.1 Write `skills/mf-rescue/SKILL.md`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_skills.py` reports no failure, and `grep -n 'Rescue:' skills/mf-rescue/SKILL.md` prints a line.
 
 ## 3 — The conductor
