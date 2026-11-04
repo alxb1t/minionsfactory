@@ -1730,6 +1730,7 @@ def test_a_rerun_pushes_what_a_release_left(
     assert lines[-2].endswith(" · run · halt — git push origin main failed, exit 1")
     assert lines[-1].endswith(
         " · run · halt — halted run · blocked none · released none"
+        " · unpushed main v0.2.0"
     )
     tagged = _git(root, "rev-parse", "v0.1.0^{commit}")
     assert tagged in _git(root, "ls-remote", "origin", "refs/tags/v0.1.0^{}")
@@ -2489,7 +2490,10 @@ def test_anchor_seeds_the_offline_base(
 
 
 def test_a_run_goes_on_while_origin_is_down(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     calls = fake()
@@ -2509,10 +2513,14 @@ def test_a_run_goes_on_while_origin_is_down(
         log = conduct["last_log"](root / ".minions" / "runs")
         return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
 
-    # No offline base: the run halts before any worker.
+    def waits(lines: list[str]) -> list[str]:
+        return [line for line in lines if line.startswith("run · push — waiting: ")]
+
+    # No offline base: three tries, then the run halts before any worker.
     lines = run()
-    assert lines[0].startswith("run · start — executor claude")
-    assert lines[1:] == [
+    assert lines[0].endswith(" · origin: unreachable — pushes wait")
+    assert lines[1:4] == waits(lines)
+    assert lines[4:] == [
         "run · halt — conduct: halt — cannot read origin, and no offline base: a"
         " person runs conduct.py anchor",
         "run · halt — halted run · blocked none · released none",
@@ -2523,7 +2531,7 @@ def test_a_run_goes_on_while_origin_is_down(
     conduct["_keep_base"](root, _git(root, "rev-parse", "main").strip())
     _commit(root, {"mine.txt": "x\n"}, "a person's commit")
     mine = _git(root, "rev-parse", "--short=7", "main").strip()
-    assert run()[1] == (
+    assert run()[4] == (
         f"run · halt — conduct: halt — main holds {mine}, no run's release: a person"
         " reads it, then git push origin main"
     )
@@ -2541,7 +2549,20 @@ def test_a_run_goes_on_while_origin_is_down(
     for change in ("0001-todo", "0002-marks"):
         assert f"{change} · check — release · pass" in lines
         assert not (root.parent / change).exists()
-    assert lines[-1] == "run · done — released v0.1.0 v0.2.0"
+    assert lines[0].endswith(" · origin: unreachable — pushes wait")
+    assert lines[1:4] == waits(lines)[:3]
+    for tag in ("v0.1.0", "v0.2.0"):
+        assert f"run · push — waiting: {tag} released locally" in lines
+    assert lines[-2:] == [
+        waits(lines)[-1],
+        "run · done — released v0.1.0 v0.2.0 · unpushed main",
+    ]
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    report = capsys.readouterr().out.splitlines()
+    said = [line.replace("push — waiting: ", "waited ") for line in waits(lines)]
+    assert report[: len(said)] == said
+    assert report[len(said)].startswith("0001-todo · v0.1.0 · ")
     archived = "0002-marks:openspec/changes/archive/0001-todo"
     assert _git(root, "cat-file", "-t", archived) == "tree"
     assert _git(root, "tag", "--merged", "main").split() == ["v0.1.0", "v0.2.0"]
@@ -2572,7 +2593,7 @@ def test_a_local_release_is_pushed_when_origin_returns(
         return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
 
     origin.rename(away)
-    assert run(0)[-1] == "run · done — released v0.1.0"
+    assert run(0)[-1] == "run · done — released v0.1.0 · unpushed main"
     away.rename(origin)
 
     # Origin's main moved meanwhile: the push is refused, and nothing lands.

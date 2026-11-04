@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A release made while `origin` is down passes as released locally: its worktree goes, its dependents merge it from
   the local default branch, and each release and the run's close push what is pending, so an outage stops no version
   (change `0062-offline-origin`, phase 3).
+- The record names every wait: the `start` line's `origin: unreachable — pushes wait`, a `push — waiting` event per
+  failed read or push and per local release, the close's `· unpushed <names>`, and `report`'s `run · waited` lines, so
+  the person sees what is local only (change `0062-offline-origin`, phase 4).
 
 ## [0.50.0] - 2026-11-03
 

@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The offline base
 - [x] 2 — The waits
 - [x] 3 — The local release
-- [ ] 4 — The record
+- [x] 4 — The record
 - [ ] 5 — The docs
 
 ## 1 — The offline base
@@ -45,7 +45,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The record
 
-- [ ] 4.1 Add the `start` line's field, the `push — waiting` events, the close's `· unpushed` and `report`'s `run · waited` lines;
+- [x] 4.1 Add the `start` line's field, the `push — waiting` events, the close's `· unpushed` and `report`'s `run · waited` lines;
   add their steps to `test_a_run_goes_on_while_origin_is_down`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k run_goes_on_while_origin_is_down` reports `1 passed`, and
   `grep -n 'origin: unreachable — pushes wait' skills/mf-ship/scripts/conduct.py` prints a line.

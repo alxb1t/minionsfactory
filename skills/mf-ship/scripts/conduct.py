@@ -1979,7 +1979,24 @@ class Run:
         halted = " ".join(dict.fromkeys(who for who, _ in self.halts)) or "none"
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
-        return f"halted {halted} · blocked {blocked} · released {released}"
+        return f"halted {halted} · blocked {blocked} · released {released}" + (
+            self.unpushed()
+        )
+
+    def unpushed(self) -> str:
+        """Return ` · unpushed <names>`, as `status` names them, or "" with none.
+
+        Why: 0062-offline-origin design D5.
+        """
+        try:
+            names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
+        except Stop:
+            return ""
+        return f" · unpushed {' '.join(names)}" if names else ""
+
+    def waited(self, why: str) -> None:
+        """Log a push that waits on `origin`."""
+        self.log.event("run", "push", f"waiting: {why}")
 
     def spawn(
         self,
@@ -2079,6 +2096,8 @@ class Run:
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
+                        if self.offline:
+                            self.waited(f"{tag} released locally")
                     self.remove_tree(version)
                     return
         except Stop as stop:
@@ -2299,7 +2318,8 @@ class Run:
                 ):
                     raise changed
                 unpushed = _unpushed(self.primary, first_read=True)
-            except Unreachable:
+            except Unreachable as down:
+                self.waited(str(down))
                 continue
             except Stop as stop:
                 self.halt("run", str(stop))
@@ -2338,6 +2358,7 @@ class Run:
                 if done.returncode != 0:
                     read = _remote(self.primary, "ls-remote", "--heads", "--", url)
                     if read.returncode != 0:
+                        self.waited(_why(read))
                         return None
                     self.halt(
                         "run", f"git push origin {name} failed, exit {done.returncode}"
@@ -2358,11 +2379,12 @@ class Run:
         self.log.held = []
         self.push_left(RETRIES)
         held, self.log.held = self.log.held, None
+        down = " · origin: unreachable — pushes wait" if self.offline else ""
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}",
+            f" · versions {names}{down}",
         )
         for event in held:
             self.log.event(*event)
@@ -2411,7 +2433,8 @@ class Run:
         if self.halts or self.blocked:
             self.log.event("run", "halt", self.closing())
             return 1
-        self.log.event("run", "done", f"released {' '.join(self.released)}")
+        released = " ".join(self.released)
+        self.log.event("run", "done", f"released {released}{self.unpushed()}")
         return 0
 
 
@@ -2674,7 +2697,7 @@ def _change_number(change: str) -> int:
 
 
 def report(cwd: Path) -> str:
-    """Return the last run's close-out: per version, its halts, then its last line."""
+    """Return the last run's close-out: its waits, each version, the halts, the end."""
     primary = primary_of(cwd)
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
@@ -2695,6 +2718,12 @@ def report(cwd: Path) -> str:
             call = found.string[found.end() :].split(" · ", 1)[-1]
             denied.setdefault(found[1], []).append(call)
     lines = [f"run · denied {', '.join(denied['run'])}"] if "run" in denied else []
+    lines += [
+        f"run · waited {detail.removeprefix('waiting: ')}"
+        for found in events
+        if found[2] == "push"
+        and (detail := found.string[found.end() :]).startswith("waiting: ")
+    ]
     for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
