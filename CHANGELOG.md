@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-05
+
+Gate: local 1m49s · CI not read under mf-ship · 0.53.0: local 6m11s · CI not read under mf-ship
+
+- The gate's tests run on every core with `pytest-xdist`, each test's home, global git config and XDG folders under
+  its own `tmp_path`; the tests over 5 s carry `slow`, and `make check` runs the gate's fast steps without them, so a
+  build runs it after each phase but the last, the gate after the last (change `0065-gate-hardening`, phase 1).
+- uv is pinned by `required-version`; CI pins its actions by commit SHA and uv's version, reads with
+  `contents: read`, times out at 20 minutes and fetches the whole history; `zizmor` lints `ci.yml` in the gate
+  (change `0065-gate-hardening`, phase 2).
+- Ruff checks bug patterns and security (`B`, `S`); `S603` and `S607` stay off with their reasons, `S101` in tests,
+  and the loop-variable and `raise … from` hits are fixed; pytest rejects an unregistered marker
+  (change `0065-gate-hardening`, phase 3).
+- The gate runs the tests under `coverage`, its subprocesses included, and `diff-cover` fails it below 100% of the
+  lines changed since `DIFF_BASE` — `main` here, `origin/main` in CI — so no changed line goes unrun
+  (change `0065-gate-hardening`, phase 4).
+- The gate scans the tree with Betterleaks, `.betterleaks.toml` allowlisting `.minions/` and each path `.gitignore`
+  names, each with its reason, and no tracked file, so a gitignored `.env` or `.venv/` never turns it red, and adding
+  a rule for a lone AWS key id; CI installs `betterleaks 1.9.0` by checksum; D52 makes a gate tool off PyPI operator
+  tooling; the guardrail's four key shapes retire to the scan, which a planted key of each proves, a token per GitHub
+  prefix and a lone AWS id among them (change `0065-gate-hardening`, phase 5).
+- `conduct.py` scans each pushed branch's range from the offline base with `betterleaks git`, each two-parent merge
+  commit by its remerge diff so a key only a merge adds is caught, in a scratch repo with no system config or
+  attributes, honouring no allow comment and no ignore file in the conductor's folder, and halts on a hit — rule,
+  file and commit named, the secret redacted, nothing pushed; an octopus merge, whose diff git does not show, and a
+  scan that fails halt too, and `run` stops at its start without Betterleaks (change `0065-gate-hardening`, phase 6).
+- A bootstrapped target's gate scans for secrets and gains `check`, its lines but the scan; its `.gitignore` gains
+  `.env`, `.venv/` and `node_modules/`, and a `.betterleaks.toml` allowlists each path it names; the bootstrap checks
+  `betterleaks version` first, and `CODING_STANDARDS.md.tmpl` carries the per-stack recipes, the any-stack rule and
+  the `slow` rule (change `0065-gate-hardening`, phase 7).
+
 ## [0.53.0] - 2026-11-04
 
 Gate: local 6m11s · CI not read under mf-ship · 0.52.0: local 6m10s · CI not read under mf-ship

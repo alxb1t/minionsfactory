@@ -57,14 +57,20 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     return tree.resolve()
 
 
-def _released(root: Path, tag: str, by_hand: bool = False) -> None:
+def _released(
+    root: Path, tag: str, by_hand: bool = False, files: dict[str, str] | None = None
+) -> None:
     """Merge a branch into `main` whose tip is `tag`'s annotated release commit.
 
-    A run's release is in the release ledger; one by hand is not.
+    A run's release is in the release ledger; one by hand is not. Its build commit
+    writes `files`, or none.
     """
     branch = f"release-{tag}"
     _git(root, "switch", "-q", "-c", branch)
-    _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
+    if files:
+        _commit(root, files, f"build {tag}")
+    else:
+        _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
     if not by_hand:
         head = _git(root, "rev-parse", "HEAD").strip()
         _conduct()["_record_release"](root, branch, head)
@@ -300,6 +306,7 @@ def test_status_reads_each_stage_from_disk(
     assert stage().endswith(" · released")
 
 
+@pytest.mark.slow
 def test_each_check_passes_only_on_disk_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -544,6 +551,7 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     assert conduct["last_log"](runs) == second.path
 
 
+@pytest.mark.slow
 def test_a_ready_version_ships_past_a_slow_one(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -646,6 +654,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     )
 
 
+@pytest.mark.slow
 def test_after_waits_for_its_dependency(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -959,6 +968,7 @@ def test_after_waits_for_its_dependency(
     )
 
 
+@pytest.mark.slow
 def test_a_halted_dependency_blocks_a_chain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1100,6 +1110,7 @@ def test_run_halts_on_a_human_phase(
     assert _calls(calls) == []
 
 
+@pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1233,6 +1244,7 @@ def test_a_later_version_ships_past_a_halted_one(
     )
 
 
+@pytest.mark.slow
 def test_a_fixed_version_rejoins_a_live_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1352,6 +1364,7 @@ def test_a_version_cut_during_a_run_joins(
     assert (elsewhere / "kept-urls").is_file()
 
 
+@pytest.mark.slow
 def test_a_new_executor_is_probed_mid_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1376,7 +1389,11 @@ def test_a_new_executor_is_probed_mid_run(
         # A failed probe is kept: a second version on codex halts on it, unprobed.
         joining = ("0002-marks", "0003-hand") if missing else ("0002-marks",)
 
-        def cut(root: Path = root, joining: tuple[str, ...] = joining) -> None:
+        def cut(
+            root: Path = root,
+            joining: tuple[str, ...] = joining,
+            missing: bool = missing,
+        ) -> None:
             for change in joining:
                 table = root / ".minions" / "models" / f"{change}.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -1546,6 +1563,7 @@ def test_a_models_mismatch_halts_its_version(
     )
 
 
+@pytest.mark.slow
 def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1769,6 +1787,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not any(" · unlock — " in line for line in _log(root))
 
 
+@pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1946,6 +1965,7 @@ def test_a_rerun_recovers_a_dead_release(
     )
 
 
+@pytest.mark.slow
 def test_a_rerun_pushes_what_a_release_left(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2155,6 +2175,7 @@ def test_a_rerun_pushes_what_a_release_left(
     assert status() == "status: none — no open version"
 
 
+@pytest.mark.slow
 def test_a_run_pushes_only_tagged_merges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2243,6 +2264,142 @@ def test_a_run_pushes_only_tagged_merges(
     assert conduct["_ledger_heads"](root) == set()
 
 
+def test_a_secret_in_the_push_range_halts_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+    pushed = _git(root, "ls-remote", "origin")
+    # Built from parts so this file never matches the gate's scan.
+    key = "gh" + "p_" + "4Fq9Lx2Rm7Tv" + "5Wk8Zn3Yb6Hc" + "1Jd0Sg7Pu2Ea"
+    _released(root, "v0.1.0", files={"settings.txt": f"token: {key}\n"})
+    leaked = _git(root, "rev-parse", "v0.1.0^{commit}^").strip()
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    said = (
+        "conduct: halt — the push range holds a secret: github-pat in settings.txt"
+        f" at {leaked[:7]}; nothing pushed"
+    )
+    assert f" · run · halt — {said}\n" in log
+    assert key not in log
+    assert _git(root, "ls-remote", "origin") == pushed
+    assert _calls(calls) == []
+
+    # A key that only a merge commit adds, staged while the merge was open, halts too.
+    tip = _git(root, "rev-parse", "main")
+    _git(root, "switch", "-q", "-c", "side")
+    _commit(root, {"side.txt": "x\n"}, "a side commit")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "--no-commit", "side")
+    _commit(root, {"merged.txt": f"token: {key}\n"}, "a merge")
+    merge = _git(root, "rev-parse", "HEAD")
+    assert _git(root, "rev-list", "--count", "--merges", f"{tip}..{merge}") == "1"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, merge)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in merged.txt"
+        f" at {merge[:7]}; nothing pushed"
+    )
+
+    # An allow comment a worker writes on the key's line does not hide it.
+    tip = _git(root, "rev-parse", "main")
+    _commit(root, {"allowed.txt": f"token: {key}  # gitleaks:allow\n"}, "allowed")
+    allowed = _git(root, "rev-parse", "HEAD")
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, allowed)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in allowed.txt"
+        f" at {allowed[:7]}; nothing pushed"
+    )
+
+    # git shows no octopus merge's diff, so a key one adds halts as unreadable.
+    tip = _git(root, "rev-parse", "main")
+    for side in ("left", "right"):
+        _git(root, "switch", "-q", "-c", side, tip)
+        _commit(root, {f"{side}.txt": "x\n"}, f"a {side} commit")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "--no-commit", "left", "right")
+    _commit(root, {"octopus.txt": f"token: {key}\n"}, "an octopus merge")
+    octopus = _git(root, "rev-parse", "HEAD")
+    assert _git(root, "rev-list", "--count", "--min-parents=3", f"{tip}..main") == "1"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, octopus)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds an octopus merge, which the scan cannot"
+        f" read: {octopus[:7]}; nothing pushed"
+    )
+
+    # An ignore file a worker writes into the primary, the conductor's folder, does not.
+    tip = _git(root, "rev-parse", "main")
+    _commit(root, {"ignored.txt": f"token: {key}\n"}, "ignored")
+    ignored = _git(root, "rev-parse", "HEAD")
+    (root / ".gitleaksignore").write_text(f"{ignored}:ignored.txt:github-pat:1\n")
+    monkeypatch.chdir(root)
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, ignored)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in ignored.txt"
+        f" at {ignored[:7]}; nothing pushed"
+    )
+
+    # A scan that fails, or cannot start, halts as a hit does.
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, None, "0" * 40)
+    assert stopped.value.code == 1
+    assert str(stopped.value).startswith("conduct: halt — the secret scan failed: ")
+    assert str(stopped.value).endswith("; nothing pushed")
+    failing = tmp_path / "failing-scan"
+    failing.write_text("#!/bin/sh\necho 'no repo here' >&2\nexit 1\n")
+    failing.chmod(0o755)
+    for scanner, why in (
+        (str(failing), "the secret scan failed: no repo here"),
+        (str(tmp_path / "absent"), "the secret scan cannot run: "),
+    ):
+        conduct["main"].__globals__["SCANNER"] = scanner
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["_scan"](root, None, leaked)
+        assert stopped.value.code == 1
+        assert f"conduct: halt — {why}" in str(stopped.value)
+        assert str(stopped.value).endswith("; nothing pushed")
+
+
+def test_a_run_without_betterleaks_stops_at_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    conduct["main"].__globals__["SCANNER"] = "betterleaks-absent"
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+
+    assert capsys.readouterr().out.strip() == (
+        "run: cannot run — betterleaks-absent is not on PATH:"
+        " brew install betterleaks-absent"
+    )
+    assert _calls(calls) == []
+    assert not (root / ".minions" / "runs").exists()
+
+
+@pytest.mark.slow
 def test_a_forged_release_is_not_pushed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2306,7 +2463,14 @@ def test_a_forged_release_is_not_pushed(
         head = _git(root, "rev-parse", f"{commit}^")
 
         def push(
-            cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
+            cwd: Path,
+            *args: str,
+            timeout: int = conduct["GIT_TIMEOUT"],
+            mutation: tuple[str, ...] = mutation,
+            tag: str = tag,
+            branch: str = branch,
+            head: str = head,
+            commit: str = commit,
         ) -> subprocess.CompletedProcess[str]:
             if (
                 "failed-push" in mutation
@@ -2467,6 +2631,7 @@ def test_a_forged_release_is_not_pushed(
     assert _calls(calls) == []
 
 
+@pytest.mark.slow
 def test_no_worker_pushes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2700,6 +2865,7 @@ def _with_origin(tmp_path: Path) -> tuple[Path, Path]:
     return root, origin
 
 
+@pytest.mark.slow
 def test_a_good_read_keeps_the_offline_base(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2787,6 +2953,7 @@ def test_anchor_seeds_the_offline_base(
     )
 
 
+@pytest.mark.slow
 def test_a_run_goes_on_while_origin_is_down(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2869,6 +3036,7 @@ def test_a_run_goes_on_while_origin_is_down(
     assert len(conduct["_ledger_heads"](root)) == 2
 
 
+@pytest.mark.slow
 def test_a_local_release_is_pushed_when_origin_returns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:

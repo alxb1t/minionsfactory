@@ -1,11 +1,11 @@
 ---
 name: mf-build
-description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with mf-simplify. Use when a change under openspec/changes/ has been cut and its phases need building.
+description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green make check and the last on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with mf-simplify. Use when a change under openspec/changes/ has been cut and its phases need building.
 ---
 
 # mf-build — build the active change, one phase at a time
 
-> **Your role is BUILD.** You build one change's phases, in order, each to a green gate and its own commit. You
+> **Your role is BUILD.** You build one change's phases, in order, each to a green check and its own commit. You
 > do **not** review, converge or release your own work: `mf-converge` conducts the end-of-change loop and
 > `mf-release` finalizes.
 
@@ -19,7 +19,7 @@ it → **halt**, naming the decision and the task.
 
 ```
   1 lift
-  2 first unticked phase: tasks ─▶ verifies ─▶ gate ─▶ CHANGELOG ─▶ tick ─▶ commit
+  2 first unticked phase: tasks ─▶ verifies ─▶ check, the gate at the last ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
   3 .minions/build/<change-id>.closing, then mf-simplify ─▶ its commit, lean already or nothing kept
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
@@ -54,7 +54,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |
-| **I8** | let each phase end on a green gate by itself; steps that cannot be green apart are one phase | — (stop-condition 5) |
+| **I8** | let each phase end on a green `make check`, the last on a green gate; steps that cannot be green apart are one phase | — (stop-condition 5) |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
@@ -150,7 +150,9 @@ ticking the `N.M` boxes with the phase's box at item 5.
    describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
    has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
    Never change code to make it pass.
-3. **Run the full gate** — `make gate`, through `gate_run.py` (Step 1). It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
+3. **Run the phase's check** — `make check` after each phase but the last, when `make -n check` exits 0; after the
+   last phase, or when `make -n check` exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1).
+   It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
    a blanket suppression, a loosened config: that is a plan problem, so halt (stop-condition 5). A test deleted
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
@@ -284,7 +286,7 @@ they differ. A test is paid for on every gate run, on every engine it runs on: t
 
 | id | rule | example / why |
 |---|---|---|
-| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has | a price rule is a unit test; the price on the page is one step in a page test |
+| **T1** | **Lowest layer first** — a test goes to the lowest layer that can fail for the behaviour: unit, then integration, then end-to-end only for what a browser alone shows. A repo with no lower layer tests at the lowest it has. A new test that runs over 5 s carries the `slow` marker, which `make check` skips | a price rule is a unit test; the price on the page is one step in a page test |
 | **T2** | **Extend before adding** — before a new end-to-end test, find one that already reaches the same state (page, record, fixture) and add a step there. A new one says in the commit body why none fits | most of a browser test's time is its setup |
 | **T3** | **A step stands alone** — an added step asserts nothing an earlier step's change set up, unless the test's flow is that sequence | a step leaning on an earlier one passes for the wrong reason |
 | **T4** | **Engines only where they differ** — a test runs on more than one browser or engine only when its outcome can depend on it. Client behaviour — script, layout, input — runs on each; server-rendered output runs on one | a status code, a header or `<head>` text is the same on every engine |

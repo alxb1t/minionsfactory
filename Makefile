@@ -1,4 +1,6 @@
-.PHONY: fix gate install-skills uninstall-skills
+.PHONY: fix gate check install-skills uninstall-skills
+
+DIFF_BASE ?= main
 
 fix:
 	uv run ruff format .
@@ -11,7 +13,18 @@ gate:
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run ty check
-	uv run pytest -q
+	uv run zizmor .github/workflows/ci.yml
+	betterleaks dir . --no-banner --redact
+	uv run coverage run -m pytest -q -n auto
+	uv run coverage combine -q
+	uv run coverage xml -q
+	uv run diff-cover coverage.xml --compare-branch=$(DIFF_BASE) --fail-under=100
+
+check:
+	uv run ruff format --check .
+	uv run ruff check .
+	uv run ty check
+	uv run pytest -q -n auto -m "not slow"
 
 # Symlink the mf- execution-line skills into the operator's personal skills
 # directory — `SKILLS_DIR`, which defaults to `~/.agents/skills` and is the ONE place

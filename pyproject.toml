@@ -1,18 +1,30 @@
 [project]
 name = "minions-factory"
-version = "0.53.0"
+version = "0.54.0"
 requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
 dev = [
+    "coverage>=7.17.1",
+    "diff-cover>=11.0.1",
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.3",
     "ty>=0.0.71",
+    "zizmor>=1.32.0",
 ]
 
+[tool.uv]
+required-version = ">=0.12.19,<0.13"
+
 [tool.ruff.lint]
-select = ["E", "F", "I", "D", "ANN"]
+select = ["E", "F", "I", "D", "ANN", "B", "S"]
+
+[tool.coverage.run]
+parallel = true
+patch = ["subprocess"]
+source = ["skills", "scripts"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -22,6 +34,16 @@ error-on-warning = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = ["slow: over 5 s; `make check` leaves it to the gate"]
 
+# Per file, not `ignore`, so a command-line `--select` keeps them.
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D"]
+"**" = [
+    # The scripts' subprocesses are argv lists by design, never a shell string.
+    "S603",
+    # `git`, `make` and `uv` resolve on `PATH`, as the OpenSpec CLI does (D8).
+    "S607",
+]
+# pytest's checks are plain asserts.
+"tests/**" = ["D", "S101"]

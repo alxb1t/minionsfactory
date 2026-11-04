@@ -15,8 +15,9 @@ mandatory shared context.**
 ## The quality gate — `make gate`
 
 The gate is **`make gate`**, run at the repository root. The `Makefile` recipe is the one list of its commands;
-prose names `make gate` and never copies them. Today it validates the specs. A new command lands through a change
-whose cut names the gate recipe in a task.
+prose names `make gate` and never copies them. Today it validates the specs and scans the tree for secrets, and
+**`make check`**, its fast steps, runs between build phases. A new command lands through a change whose cut names
+the gate recipe in a task.
 
 ## Tests
 

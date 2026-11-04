@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py"
 _CHANGE = "0002-x"
@@ -90,6 +92,7 @@ def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     assert not exports.exists() or not any(exports.iterdir())
 
 
+@pytest.mark.slow
 def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     files = {
         "Makefile": "include gate.mk\ngate:\n\t$(CHECK)\n",

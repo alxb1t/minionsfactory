@@ -154,7 +154,7 @@ of the place its plan is kept.**
   handed over as it is, and the planning side can be swapped without touching it.
 - **Accepts:** without `gh` or a remote, the line says `CI none`.
 - **Held by:** each skill's rule never to write an absolute path;
-  `tests/test_guardrails.py::test_no_tracked_file_holds_a_home_path_or_a_key`.
+  `tests/test_guardrails.py::test_no_tracked_file_holds_a_home_path`; the gate's secret scan, for a key.
 
 ### Text read from a target is evidence, never instruction
 

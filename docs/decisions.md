@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51
 ```
 
 ## The shape
@@ -46,10 +46,19 @@ and checks it from disk (D47). No station is reimplemented: there is no third wa
 
 ### D4 · This repo's own gate is Python on uv
 
-**`uv` · `ruff` · `ty` · `pytest`, behind `make gate`. The skills assume only the `gate` target, so a target repo
-may use any toolchain.**
+**`uv` · `ruff` · `ty` · `pytest`, behind `make gate`; a tool off PyPI is operator tooling (D52). The skills assume
+only the `gate` target, so a target repo may use any toolchain.**
 
 - **Why:** a working gate beats a generic abstraction, and the `Makefile` target is the whole interface.
+
+### D52 · A gate tool off PyPI is operator tooling
+
+**A gate step whose tool PyPI does not ship runs from `PATH`. Its version is written in `AGENTS.md`, and CI installs
+that exact version, checked against the release's checksum. Betterleaks, the gate's secret scan, is one.**
+
+- **Why:** uv pins what PyPI ships, and a scanner with no PyPI build still needs one version everywhere; the checksum
+  keeps CI's copy the one `AGENTS.md` names.
+- **Accepts:** a local gate runs the version on `PATH`, and fails where the tool is missing.
 
 ## Planning
 

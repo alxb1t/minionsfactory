@@ -22,9 +22,14 @@ context.**
 
 ## The quality gate — `make gate`
 
-**`make gate`**, at the repository root, checks in order: the lock is in sync · format · lint (`D` docstrings and
-`ANN` annotations enabled) · strict types · the tests. The `Makefile` recipe is the only list of the commands; the
-skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies them.
+**`make gate`**, at the repository root, checks in order: the lock is in sync · format · lint (`D` docstrings, `ANN`
+annotations, `B` bug patterns and `S` security enabled) · strict types · the CI workflow's lint · the secret scan ·
+the tests on every core, under coverage · 100% coverage of the lines changed since `DIFF_BASE`. The `Makefile` recipe
+is the only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies
+them. **`make check`** runs its fast steps, no `slow` test, between build phases.
+
+The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, resolved on `PATH`, its allowlist in
+`.betterleaks.toml`, which names each path `.gitignore` names: the scan reads what git can track.
 
 ## Layout — where things live here
 
@@ -63,6 +68,6 @@ Where `mf-cut-change` puts a version's branch, per
   echo absolute paths, so a real path is one careless paste from history. A path a fixture or a worked example
   *constructs* — a fictional home, a `tmp_path` expression in a test — is not the target; a rendered one, carrying
   a real username, is. `.env` is gitignored; `AGENTS.md` stays path-free. `tests/test_guardrails.py` fails on a
-  home path or a key shape in any tracked file.
+  home path in any tracked file, and the gate's secret scan on a key.
 - **Dependencies are minimal and human-gated.** Argue for any new one (`uv add`) and **wait for approval** before
   installing. Test, lint and type tools stay dev-only; the runtime stays lean.

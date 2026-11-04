@@ -55,12 +55,13 @@ def test_no_config_exits_2_naming_the_path(
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     monkeypatch.chdir(tmp_path)
+    before = sorted(tmp_path.rglob("*"))
 
     assert review_metrics.main([]) == 2
 
     looked_for = tmp_path / "minionsfactory" / "review-metrics.toml"
     assert str(looked_for) in capsys.readouterr().err
-    assert list(tmp_path.iterdir()) == []
+    assert sorted(tmp_path.rglob("*")) == before
 
 
 def test_each_era_parses_with_gaps(tmp_path: Path) -> None:

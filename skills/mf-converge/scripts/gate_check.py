@@ -191,8 +191,11 @@ def export(rev: str, dest: Path, side: str) -> None:
     try:
         with tarfile.open(archive) as tar:
             tar.extractall(dest, filter="data")
-    except (tarfile.TarError, OSError) as error:
-        raise Stop(2, f"gate: cannot check — the {side}'s export failed: {error}")
+    # Not covered: git's own tar passes the data filter, so a full disk alone fails it.
+    except (tarfile.TarError, OSError) as error:  # pragma: no cover
+        raise Stop(
+            2, f"gate: cannot check — the {side}'s export failed: {error}"
+        ) from error
     # `export-ignore` drops a path the checkout's make still reads.
     for entry in _git("ls-tree", "-r", "-z", "--full-tree", rev).split("\0"):
         meta, _, name = entry.partition("\t")

@@ -273,6 +273,7 @@ _ALSO_WRITTEN = (
     "CONTRIBUTING.md",
     "THREAT_MODEL.md",
     "docs/decisions.md",
+    ".betterleaks.toml",
 )
 _VALIDATE = "openspec validate --all --strict --no-interactive"
 
@@ -324,6 +325,13 @@ def _layout_problems(base: Path) -> list[str]:
 def test_the_bootstrap_templates_cover_the_target_layout() -> None:
     assert _layout_problems(_REPO) == []
 
+    # The gate scans for secrets; `check` is the gate's lines but the scan.
+    makefile = (_REPO / _TEMPLATES / "Makefile.tmpl").read_text()
+    gate, _, check = makefile.partition("\ncheck:\n")
+    scan = "betterleaks dir . --no-banner --redact"
+    assert _VALIDATE in gate and scan in gate
+    assert _VALIDATE in check and scan not in check
+
 
 def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     # A D18 tree, and a later decision's tree entry that must not count.
@@ -357,6 +365,7 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
         f"{_TEMPLATES}: no template for `CONTRIBUTING.md`",
         f"{_TEMPLATES}: no template for `THREAT_MODEL.md`",
         f"{_TEMPLATES}: no template for `docs/decisions.md`",
+        f"{_TEMPLATES}: no template for `.betterleaks.toml`",
         f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
         f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",
     ]

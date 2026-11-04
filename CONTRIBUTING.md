@@ -22,7 +22,7 @@ mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge or a ha
 
 - **Its change directory** under `openspec/changes/`: proposal, design, tasks and spec delta.
 - **Each `Verify:`**, run by the build before its box is ticked.
-- **A green `make gate`** at every phase's commit.
+- **A green `make check`** at every phase's commit, and a green `make gate` at the last.
 - **A `Change: <change-id>` trailer** on every commit
   ([D21](docs/decisions.md#d21--every-commit-names-its-change)).
 - **The check loop's findings**, in `.minions/findings/`, when converge ran. `.minions/backlog.md` holds only

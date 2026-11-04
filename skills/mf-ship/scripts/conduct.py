@@ -76,6 +76,8 @@ STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
+SCANNER = "betterleaks"
+LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
@@ -1150,6 +1152,74 @@ def _outside(
         return _run(root, *args, env=env, timeout=timeout)
 
 
+def _scan(primary: Path, base: str | None, sha: str) -> None:
+    """Stop with 1 when a commit in `base..sha` holds a secret; with no base, in `sha`.
+
+    Betterleaks reads a scratch repo with `primary`'s objects, no system config and no
+    attributes, so no worker-written filter or `textconv` runs; its report is redacted.
+    It reads no ignore file and no allow comment, which a worker can write. `git log -p`
+    prints no merge's diff, so a two-parent merge is read by what it adds to the
+    automatic merge of its parents; git shows an octopus merge's not at all, so one
+    stops the scan. Why: 0065-gate-hardening design D7.
+    """
+    commits = f"{base}..{sha}" if base else sha
+    span = f"--remerge-diff {commits}"
+    with _scratch() as scratch:
+        root = Path(scratch)
+        _git(root, "init", "-q", "--bare", "--template=")
+        objects = _git(
+            primary, "rev-parse", "--path-format=absolute", "--git-path", "objects"
+        )
+        (root / "objects" / "info" / "alternates").write_text(objects)
+        report = root / "leaks.json"
+        quiet = ("GIT_CONFIG_NOSYSTEM", "GIT_ATTR_NOSYSTEM", "GIT_NO_REPLACE_OBJECTS")
+        env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_LAZY_FETCH": "1"}
+        env |= dict.fromkeys(quiet, "1")
+        listed = _run(root, "rev-list", "--min-parents=3", commits, env=env)
+        if listed.returncode != 0:
+            why = _why(listed)
+            raise Stop(
+                1, f"conduct: halt — the secret scan failed: {why}; nothing pushed"
+            )
+        if octopus := listed.stdout.split():
+            raise Stop(
+                1,
+                "conduct: halt — the push range holds an octopus merge, which the scan"
+                f" cannot read: {octopus[0][:7]}; nothing pushed",
+            )
+        argv = [
+            *(SCANNER, "git", "--no-banner", "--no-color", "--redact"),
+            *("--ignore-gitleaks-allow", f"--gitleaks-ignore-path={scratch}"),
+            *(f"--exit-code={LEAKED}", f"--log-opts={span}", "--report-format=json"),
+            *(f"--report-path={report}", scratch),
+        ]
+        try:
+            done = subprocess.run(
+                argv,
+                capture_output=True,
+                encoding="utf-8",
+                env=env,
+                errors="replace",
+                timeout=PUSH_TIMEOUT,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise Stop(
+                1,
+                f"conduct: halt — the secret scan cannot run: {error}; nothing pushed",
+            ) from None
+        if done.returncode == LEAKED:
+            hit = json.loads(report.read_text())[0]
+            raise Stop(
+                1,
+                f"conduct: halt — the push range holds a secret: {hit['RuleID']} in"
+                f" {hit['File']} at {hit['Commit'][:7]}; nothing pushed",
+            )
+    if done.returncode != 0:
+        raise Stop(
+            1, f"conduct: halt — the secret scan failed: {_why(done)}; nothing pushed"
+        )
+
+
 def _remote(
     primary: Path, *args: str, timeout: int = GIT_TIMEOUT
 ) -> subprocess.CompletedProcess[str]:
@@ -1991,6 +2061,10 @@ def preconditions(cwd: Path, executor: str) -> Path:
         raise Stop(2, "run: cannot run — AGENTS.md declares no **Worktrees:**")
     if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
+    if shutil.which(SCANNER) is None:
+        raise Stop(
+            2, f"run: cannot run — {SCANNER} is not on PATH: brew install {SCANNER}"
+        )
     _unlinked(executor)
     if _claim(primary / ".minions" / "runs" / "active") == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
@@ -2540,8 +2614,17 @@ class Run:
     def push(self, unpushed: list[tuple[str, str]]) -> bool | None:
         """Push each `(ref, sha)`; return False when a refusal halted the run.
 
-        None when a push failed and a re-read of `origin` fails too: a wait.
+        None when a push failed and a re-read of `origin` fails too: a wait. Each heads
+        ref's range from the offline base, origin's sha the read just kept, is scanned
+        first, so a secret halts the run before any push.
         """
+        try:
+            for ref, sha in unpushed:
+                if ref.startswith("refs/heads/"):
+                    _scan(self.primary, _offline_base(self.primary), sha)
+        except Stop as stop:
+            self.halt("run", str(stop))
+            return False
         for ref, sha in unpushed:
             kind, name = ref.split("/", 2)[1:]
             for url in self.pushes:
