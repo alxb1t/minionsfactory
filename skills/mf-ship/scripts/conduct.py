@@ -63,6 +63,7 @@ EVENTS = (
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
+AMENDED = "amended: HEAD past the halted head"
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
@@ -475,10 +476,14 @@ def _run_end(runs: Path, change: str) -> str | None:
 def _closed(runs: Path, tree: Path, change: str) -> bool:
     """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
 
-    A missing or unreadable file is not closed. Why: 0055-build-resume design D2.
+    A missing or unreadable file is not closed, nor is one that is no regular file.
+    Why: 0055-build-resume design D2.
     """
+    done = runs / "build" / f"{change}.done"
+    if not done.is_file():
+        return False
     try:
-        text = (runs / "build" / f"{change}.done").read_text()
+        text = done.read_text()
     except (OSError, UnicodeDecodeError):
         return False
     found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
@@ -518,6 +523,23 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event when it is a halt, else None."""
     end = _run_end(runs, change)
     return end if end and _is_event(end, "halt") else None
+
+
+def _answered(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether both findings files judged a head that resolves and is not `HEAD`.
+
+    A commit past it answers a converge halt. Why: 0063-rejoin design D4.
+    """
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    for role in ROLES:
+        file = runs / "findings" / f"{change}_{role}.md"
+        judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
+        resolved = judged and _maybe(
+            tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
+        )
+        if not resolved or resolved.strip() == head:
+            return False
+    return True
 
 
 def _converge_done(runs: Path, change: str) -> bool:
@@ -717,6 +739,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
+        if _answered(runs, tree, change):
+            return "converge", AMENDED
         if "cap reached" in halt and (runs / "grants" / change).is_file():
             return "converge", "granted"
         if ".minions/backlog.lock" in halt:
@@ -746,7 +770,8 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the converge check fails, or None."""
     runs = primary / ".minions"
-    if halt := _converge_halt(runs, version.change):
+    halt = _converge_halt(runs, version.change)
+    if halt and not _answered(runs, tree, version.change):
         return f"the status log halts: {halt}"
     if not _converge_done(runs, version.change):
         return "the status log has no done"
@@ -2096,7 +2121,8 @@ class Run:
                 clause = ""
                 granted = minions / "grants" / version.change
                 if stage == "converge" and granted.is_file():
-                    clause = " and grant=yes"
+                    # An amended run starts from round 1: the grant goes unspent.
+                    clause = "" if why == AMENDED else " and grant=yes"
                     granted.unlink()
                 prompt = PROMPTS[stage].format(change=version.change, grant=clause)
                 models = _models(minions, version.change, stage, self.executor)

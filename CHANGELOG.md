@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A person's commit past a converge halt voids it: the stage is `converge`, a waiting grant goes unspent, and
+  `mf-converge` opens a run marked `· amended` from round 1, so a fix no longer costs a grant; a resumed `· grant` run
+  stays a granted round, and a `.done` that is no regular file reads as not closed (change `0063-rejoin`, phase 1).
+
 ## [0.51.0] - 2026-11-04
 
 Gate: local 6m25s · CI 0m42s (CI at d897227) · 0.50.0: local 4m40s · CI not read under mf-ship

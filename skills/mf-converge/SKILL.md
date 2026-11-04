@@ -129,6 +129,12 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 The top line is a `halt` naming `.minions/backlog.lock` → continue that run at Step 9 when both findings files are clean
 at `HEAD`; else halt, naming the file.
 
+The top line is any other `halt`, and `HEAD` is past both findings files' `head:` → a person answered it: open a run
+marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
+grant is needed, and the catch-up round does not apply.
+
+A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
+
 | latest event | go on at |
 |---|---|
 | `start` | Step 2, or a catch-up run's freeze |

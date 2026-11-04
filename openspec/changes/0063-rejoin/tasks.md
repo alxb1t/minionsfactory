@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The stale halt
+- [x] 1 — The stale halt
 - [ ] 2 — The request
 - [ ] 3 — Grant
 - [ ] 4 — The base
@@ -12,14 +12,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The stale halt
 
-- [ ] 1.1 Add `_answered`, and its case to `stage_of` and `_check_converge`, and the unspent grant to `advance`, in
+- [x] 1.1 Add `_answered`, and its case to `stage_of` and `_check_converge`, and the unspent grant to `advance`, in
   `skills/mf-ship/scripts/conduct.py`; add `test_a_fix_after_a_cap_halt_converges_afresh` to `tests/test_conduct.py`, with its
   fake-worker mode in `tests/fake_worker.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k fix_after_a_cap_halt_converges_afresh` reports `1 passed`.
-- [ ] 1.2 Add the `· amended` run and the resumed `· grant` run to *Resuming a run* in `skills/mf-converge/SKILL.md`, per
+- [x] 1.2 Add the `· amended` run and the resumed `· grant` run to *Resuming a run* in `skills/mf-converge/SKILL.md`, per
   [D4](design.md#d4).
   Verify: `grep -n '· amended' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.3 Check `is_file()` in `_closed`; add a FIFO step to `test_a_build_dead_in_simplify_resumes_at_it`, per the design's
+- [x] 1.3 Check `is_file()` in `_closed`; add a FIFO step to `test_a_build_dead_in_simplify_resumes_at_it`, per the design's
   *Context* F8.
   Verify: `uv run pytest -q tests/test_conduct.py -k build_dead_in_simplify_resumes_at_it` reports `1 passed`.
 

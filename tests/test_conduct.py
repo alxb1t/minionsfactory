@@ -1410,6 +1410,10 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage_of(root, find(root, "0001-todo"))[0] == "converge"
     marker.unlink()
+    # A read of a FIFO waits for a writer.
+    os.mkfifo(marker)
+    assert stage_of(root, find(root, "0001-todo")) == closing
+    marker.unlink()
     log = root / ".minions" / "findings" / "0001-todo_status_log.md"
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
@@ -3063,6 +3067,43 @@ def test_a_grant_buys_one_round(
     calls.unlink()
     run()
     assert _calls(calls) == []
+
+
+def test_a_fix_after_a_cap_halt_converges_afresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("amends")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), "blocking")
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    capped = "10:00:00 · round 3 · halt — cap reached"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    grants = root / ".minions" / "grants" / "0001-todo"
+    version = conduct["find_version"](root, "0001-todo")
+    stage_of, check = conduct["stage_of"], conduct["check"]
+    assert stage_of(root, version) == ("converge-halted", capped)
+    assert check(root, "converge", version) == f"the status log halts: {capped}"
+
+    _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
+    amended = ("converge", "amended: HEAD past the halted head")
+    assert stage_of(root, version) == amended
+    assert check(root, "converge", version) == "the status log has no done"
+    grants.parent.mkdir(parents=True)
+    grants.touch()
+    assert stage_of(root, version) == amended
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert not grants.exists()
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+    assert _git(root, "tag", "-l") == "v0.1.0"
 
 
 def test_a_missing_skill_stops_a_run(
