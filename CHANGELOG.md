@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offline base, or halts naming `conduct.py anchor` with none; remote calls pass `ssh -o ConnectTimeout=15 -o
   BatchMode=yes` when the operator set no ssh command, and `status` names a missing `origin/<default>` (change
   `0062-offline-origin`, phase 2).
+- A release made while `origin` is down passes as released locally: its worktree goes, its dependents merge it from
+  the local default branch, and each release and the run's close push what is pending, so an outage stops no version
+  (change `0062-offline-origin`, phase 3).
 
 ## [0.50.0] - 2026-11-03
 

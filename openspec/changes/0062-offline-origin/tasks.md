@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The offline base
 - [x] 2 — The waits
-- [ ] 3 — The local release
+- [x] 3 — The local release
 - [ ] 4 — The record
 - [ ] 5 — The docs
 
@@ -34,12 +34,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The local release
 
-- [ ] 3.1 Pass `offline` to `check` and `_check_release`; push pending refs at each release with `PUSH_RETRIES`, a refused
+- [x] 3.1 Pass `offline` to `check` and `_check_release`; push pending refs at each release with `PUSH_RETRIES`, a refused
   push still a halt; add
   `test_a_local_release_is_pushed_when_origin_returns`, and take `test_a_run_goes_on_while_origin_is_down` through a local release
   and a dependent, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "origin_is_down or origin_returns or release_left"` reports `3 passed`.
-- [ ] 3.2 **HALT CHECK** Read `_pushed` for `0049·S7`'s *Still true?*: its remote call is `_listed`, through `_outside`; name
+- [x] 3.2 **HALT CHECK** Read `_pushed` for `0049·S7`'s *Still true?*: its remote call is `_listed`, through `_outside`; name
   that in the phase commit's body, per [D7](design.md#d7).
   Verify: `grep -n '_listed(primary, url' skills/mf-ship/scripts/conduct.py` prints a line.
 

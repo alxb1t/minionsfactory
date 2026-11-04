@@ -2497,13 +2497,14 @@ def test_a_run_goes_on_while_origin_is_down(
     module["RETRIES"], module["PUSH_RETRIES"] = (0, 0, 0), (0, 0)
     root, origin = _with_origin(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     away = tmp_path / "origin.away"
     origin.rename(away)
 
-    def run() -> list[str]:
+    def run(code: int = 1) -> list[str]:
         assert (
             _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-            == 1
+            == code
         )
         log = conduct["last_log"](root / ".minions" / "runs")
         return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
@@ -2529,19 +2530,72 @@ def test_a_run_goes_on_while_origin_is_down(
     assert _calls(calls) == []
     _git(root, "reset", "-q", "--hard", "HEAD~1")
 
-    lines = run()
+    # A release made offline passes as released locally; its dependent merges it.
+    held = _git(away, "rev-parse", "main")
+    lines = run(0)
     assert _calls(calls) == [
         "probe",
-        "build 0001-todo",
-        "converge 0001-todo",
-        "release 0001-todo",
+        *(f"{station} 0001-todo" for station in ("build", "converge", "release")),
+        *(f"{station} 0002-marks" for station in ("build", "converge", "release")),
     ]
-    assert lines[-3:] == [
-        "0001-todo · check — release · fail — v0.1.0 is not on origin",
-        "0001-todo · halt — release check fail — v0.1.0 is not on origin",
-        "run · halt — halted 0001-todo · blocked none · released none",
+    for change in ("0001-todo", "0002-marks"):
+        assert f"{change} · check — release · pass" in lines
+        assert not (root.parent / change).exists()
+    assert lines[-1] == "run · done — released v0.1.0 v0.2.0"
+    archived = "0002-marks:openspec/changes/archive/0001-todo"
+    assert _git(root, "cat-file", "-t", archived) == "tree"
+    assert _git(root, "tag", "--merged", "main").split() == ["v0.1.0", "v0.2.0"]
+    assert _git(away, "rev-parse", "main") == held
+    assert _git(away, "tag", "-l") == ""
+    assert len(conduct["_ledger_heads"](root)) == 2
+
+
+def test_a_local_release_is_pushed_when_origin_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    module = conduct["main"].__globals__
+    module["RETRIES"], module["PUSH_RETRIES"] = (0, 0, 0), (0, 0)
+    root, origin = _with_origin(tmp_path)
+    held = _git(root, "rev-parse", "main").strip()
+    conduct["_keep_base"](root, held)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    away = tmp_path / "origin.away"
+
+    def run(code: int) -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        log = conduct["last_log"](root / ".minions" / "runs")
+        return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
+
+    origin.rename(away)
+    assert run(0)[-1] == "run · done — released v0.1.0"
+    away.rename(origin)
+
+    # Origin's main moved meanwhile: the push is refused, and nothing lands.
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    _git(root, "fetch", "-q", "origin")
+    assert run(1)[-2] == "run · halt — git push origin main failed, exit 1"
+    assert _git(root, "ls-remote", "--tags", "origin") == ""
+    assert conduct["_offline_base"](root) == _git(other, "rev-parse", "main").strip()
+    _git(other, "push", "-q", "-f", "origin", f"{held}:refs/heads/main")
+
+    assert run(0)[1:] == [
+        "run · push — main",
+        "run · push — v0.1.0",
+        "run · done — nothing to ship",
     ]
-    assert not origin.exists()
+    main = _git(root, "rev-parse", "main").strip()
+    assert main in _git(root, "ls-remote", "origin", "refs/heads/main")
+    assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
+    assert conduct["_offline_base"](root) == main
+    assert conduct["_ledger_heads"](root) == set()
 
 
 def test_the_remote_calls_carry_the_ssh_options(

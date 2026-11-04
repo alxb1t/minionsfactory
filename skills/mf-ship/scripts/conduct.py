@@ -773,8 +773,14 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     return None
 
 
-def _check_release(primary: Path, version: Version, first_read: bool) -> str | None:
-    """Return why the release check fails, or None."""
+def _check_release(
+    primary: Path, version: Version, first_read: bool, offline: bool = False
+) -> str | None:
+    """Return why the release check fails, or None.
+
+    Offline, a tag origin cannot list is released locally: the next good read
+    pushes it. Why: 0062-offline-origin design D4.
+    """
     default = default_branch(primary)
     if not _ancestor(primary, version.change, default):
         return f"{default} does not contain {version.change}"
@@ -787,7 +793,7 @@ def _check_release(primary: Path, version: Version, first_read: bool) -> str | N
     own = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own != tip:
         return f"{tag} is not the tip of {version.change}"
-    if _pushed(primary, version.change, tag, first_read) is False:
+    if not offline and _pushed(primary, version.change, tag, first_read) is False:
         return f"{tag} is not on origin"
     return None
 
@@ -1381,11 +1387,15 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
 
 
 def check(
-    primary: Path, stage: str, version: Version, first_read: bool = False
+    primary: Path,
+    stage: str,
+    version: Version,
+    first_read: bool = False,
+    offline: bool = False,
 ) -> str | None:
     """Return why a station's check on disk fails, or None when it passes."""
     if stage == "release":
-        return _check_release(primary, version, first_read)
+        return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
@@ -2061,7 +2071,9 @@ class Run:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
-                reason = check(self.primary, stage, version, first_read=True)
+                reason = check(
+                    self.primary, stage, version, first_read=True, offline=self.offline
+                )
                 if not self.judge(version.change, stage, reason, denied):
                     return
                 if stage == "release":
@@ -2394,6 +2406,8 @@ class Run:
                 thread.start()
             for thread in threads.values():
                 thread.join()
+        if self.offline and not self.stopped("run"):
+            self.push_left((0,))
         if self.halts or self.blocked:
             self.log.event("run", "halt", self.closing())
             return 1
