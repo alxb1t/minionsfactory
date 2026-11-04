@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `skills/mf-cut-change/scripts/verify_check.py` runs each `grep` and `git grep` a `Verify:` names over HEAD's tree,
+  as argv with no shell, and prints every match as `path:line`; a `$(…)`, shell variable, loop or `cd`, or an exact
+  count beside more matches, exits 1, so a stray match or an unrunnable check shows at the cut
+  (change `0066-plan-halts`, phase 1).
+
 ## [0.54.0] - 2026-11-05
 
 Gate: local 1m49s · CI not read under mf-ship · 0.53.0: local 6m11s · CI not read under mf-ship

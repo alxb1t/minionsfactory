@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The search script
+- [x] 1 — The search script
 - [ ] 2 — The contract
 - [ ] 3 — The edited check
 - [ ] 4 — The cut
@@ -13,7 +13,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The search script
 
-- [ ] 1.1 Write `skills/mf-cut-change/scripts/verify_check.py` and `tests/test_verify_check.py`, per [D1](design.md#d1).
+- [x] 1.1 Write `skills/mf-cut-change/scripts/verify_check.py` and `tests/test_verify_check.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_verify_check.py` reports no failure.
 
 ## 2 — The contract
