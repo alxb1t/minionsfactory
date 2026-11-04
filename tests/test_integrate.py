@@ -283,7 +283,9 @@ def _scratch_gone(root: Path) -> bool:
     return listed == 2 and not (replays.exists() and any(replays.iterdir()))
 
 
-def test_replay_reproduces_a_rule_settled_merge(tmp_path: Path) -> None:
+def test_replay_reproduces_a_rule_settled_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root, tree = _changelog_merge(tmp_path / "changelog")
     _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0003-b")
 
@@ -301,6 +303,33 @@ def test_replay_reproduces_a_rule_settled_merge(tmp_path: Path) -> None:
     _git(tree, "merge", "-q", "--no-ff", "-m", "chore(integrate): merge", "main")
     result = _run(root, "replay", _git(tree, "rev-parse", "HEAD"))
     assert (result.returncode, result.stdout) == (0, "replay: by rule — no conflict\n")
+    assert _scratch_gone(root)
+
+    # A hook a worker planted in the common directory runs nowhere in a replay,
+    # though a plain checkout runs it.
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+    marker = tmp_path / "hook-ran"
+    hook = root / ".git" / "hooks" / "post-checkout"
+    hook.write_text(f"#!/bin/sh\ntouch '{marker}'\n")
+    hook.chmod(0o755)
+    _git(root, "checkout", "-q", "main")
+    assert marker.exists()
+    marker.unlink()
+    result = _run(root, "replay", _git(tree, "rev-parse", "HEAD"))
+    assert (result.returncode, result.stdout) == (0, "replay: by rule — no conflict\n")
+    assert not marker.exists()
+    assert _scratch_gone(root)
+
+    # A planted promisor holds a blob the replay needs: no git of it fetches one.
+    holder = tmp_path / "holder.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(root), str(holder))
+    _git(root, "config", "remote.x.url", str(holder))
+    _git(root, "config", "remote.x.promisor", "true")
+    blob = _git(root, "rev-parse", "main:main.txt")
+    (root / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+    result = _run(root, "replay", _git(tree, "rev-parse", "HEAD"))
+    assert result.returncode == 2, result.stdout
+    assert not list((root / ".git" / "objects" / "pack").glob("*.promisor"))
     assert _scratch_gone(root)
 
 
@@ -358,6 +387,22 @@ def test_replay_refuses_a_judged_merge(tmp_path: Path) -> None:
     assert result.returncode == 2, result.stdout
     assert result.stdout == (
         "integrate: cannot run — HEAD's second parent is not on main\n"
+    )
+    assert _scratch_gone(root)
+
+    # A requirement both sides changed: `delta` halts, the person keeps the branch's.
+    both = tmp_path / "delta"
+    both.mkdir()
+    root = _primary(both, {"openspec/specs/sdd/spec.md": _spec("It SHALL hold.")})
+    tree = _version(root, "0005-b")
+    edit = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe branch's.\n"
+    _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": edit}, "phase")
+    _commit(root, {"openspec/specs/sdd/spec.md": _spec("Main's.")}, "release")
+    _git(tree, "merge", "-q", "--no-ff", "-m", "chore(integrate): merge", "main")
+    result = _run(tree, "replay", "HEAD")
+    assert result.returncode == 1, result.stdout
+    assert result.stdout == (
+        "replay: judged — delta: changed on the default branch: sdd: First\n"
     )
     assert _scratch_gone(root)
 

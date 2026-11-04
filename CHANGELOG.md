@@ -9,17 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `skills/mf-converge/scripts/gate_run.py` runs `make gate` and records a green run in `.minions/gate/<tree>` by its
   tree and dry-run hash; a later call on the same settled tree and dry run reuses it, `--fresh` runs whatever stands,
-  and a red run records nothing, so one tree is never gated twice (change `0064-lighter-catch-up`, phase 1).
+  and a red run records nothing, so one tree is never gated twice; no record is written through a link a worker
+  planted, so a gate run outside a sandbox overwrites no other file (change `0064-lighter-catch-up`, phase 1).
 - `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` gate through `gate_run.py`; the release takes its `Gate:`
   time from the run's or the record's line, and gates its folded tree with `--fresh`, so no record reaches a tag
   (change `0064-lighter-catch-up`, phase 2).
 - `integrate.py replay <merge>` rebuilds a merge from its parents in a scratch worktree with the `changelog` and
-  `decisions` rules alone and compares trees: equal exits 0, naming the paths; a path left unmerged or another tree
-  exits 1, so a merge someone judged never passes as the rules'; a merge whose second parent the default branch does
-  not hold exits 2, so a merge of another branch never passes either (change `0064-lighter-catch-up`, phase 3).
+  `decisions` rules alone, runs `delta`, and compares trees: equal exits 0, naming the paths; a requirement `delta`
+  names, a path left unmerged or another tree exits 1, so a merge someone judged never passes as the rules'; a merge
+  whose second parent the default branch does not hold exits 2, so a merge of another branch never passes either;
+  `integrate.py`'s git runs no hook and fetches no missing object (change `0064-lighter-catch-up`, phase 3).
 - `mf-converge`'s catch-up over merges only replays each one; when all replay, it writes both findings files clean
   with `## By rule`, logs `by rule`, and dispatches no worker, so a rule-settled `CHANGELOG.md` no longer costs a
-  review round (change `0064-lighter-catch-up`, phase 4).
+  review round; `review_metrics.py` reads a by-rule file's `workers: 0` as a gap, so no model's median counts a
+  zero its workers never wrote (change `0064-lighter-catch-up`, phase 4).
 - The integrate merge commit names every path it settled — `integrate.py changelog` or `decisions`, the union, the
   person, `test fixed — <what it now asserts>` — and a test fix never removes or loosens an assertion; the station's
   *Why*, its diagram and `README.md` name the union it resolves (change `0064-lighter-catch-up`, phase 5).

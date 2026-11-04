@@ -148,6 +148,27 @@ def test_fresh_runs_whatever_stands_and_records(tmp_path: Path) -> None:
     assert "date: then" not in _record(root).read_text()
     assert _gate(root).stdout.startswith("gate: reused — ")
 
+    # A link a worker planted at the staged record is removed, not written through.
+    outside = tmp_path / "home-file"
+    outside.write_text("the person's\n")
+    _record(root).with_name(f"{_record(root).name}.tmp").symlink_to(outside)
+    planted = _gate(root, "--fresh")
+    assert planted.stdout.splitlines()[-1].startswith(f"gate: green — {tree} · ")
+    assert outside.read_text() == "the person's\n"
+    assert not _record(root).is_symlink()
+    assert _record(root).read_text().startswith("dry: ")
+
+    # A linked record folder takes no record.
+    folder = root / ".minions" / "gate"
+    elsewhere = tmp_path / "elsewhere"
+    folder.rename(elsewhere)
+    folder.symlink_to(elsewhere)
+    (elsewhere / tree).unlink()
+    linked = _gate(root, "--fresh")
+    assert linked.returncode == 0, linked.stdout
+    assert "gate: green — unrecorded, .minions/gate is a link" in linked.stdout
+    assert list(elsewhere.iterdir()) == []
+
 
 def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"

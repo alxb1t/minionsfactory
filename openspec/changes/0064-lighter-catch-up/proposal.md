@@ -21,7 +21,7 @@ changed tree.
 ## What Changes
 
 - **`gate_run.py`** — runs `make gate`, records a green run by its tree, and reuses the record on the same clean tree with the
-  same dry run; every station gates through it; the release's post-fold gate runs fresh.
+  same dry run; build, converge, integrate and release gate through it; the release's post-fold gate runs fresh.
 - **`integrate.py replay <merge>`** — rebuilds a merge with the fixed rules alone and compares trees.
 - **A by-rule catch-up** — every merge replays → both findings files clean with `## By rule`, no worker.
 - **The integrate commit names every settled path** — the rule, the union, the person, a test fixed.
@@ -42,13 +42,14 @@ None.
   - *The release ships only a reviewed head* — MODIFIED: a by-rule catch-up runs no verify round.
   - *Converge keeps a status log* — MODIFIED: the `by rule` event.
   - *The release records the gate's time* — MODIFIED: the time from a run or a reused record.
-  - *Independent workers have fresh contexts* — MODIFIED: `mode: by-rule`, `workers: 0`.
+  - *Independent workers have fresh contexts* — MODIFIED: `mode: by-rule`, `workers: 0`, which the metrics read as a gap.
 
 ## Impact
 
-Changes `skills/mf-converge/scripts/gate_run.py` (new), `skills/mf-integrate/scripts/integrate.py`, the `mf-build`,
-`mf-converge`, `mf-integrate` and `mf-release` skills, `README.md`, `docs/principles.md`, `docs/decisions.md` (D45),
-`THREAT_MODEL.md`, `tests/test_gate_run.py` (new), `tests/test_integrate.py`, `tests/test_skills.py`, `tests/test_conduct.py` and
+Changes `skills/mf-converge/scripts/gate_run.py` (new), `skills/mf-integrate/scripts/integrate.py`,
+`skills/mf-review-metrics/scripts/review_metrics.py`, the `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` skills,
+`README.md`, `docs/principles.md`, `docs/decisions.md` (D45), `THREAT_MODEL.md`, `tests/test_gate_run.py` (new),
+`tests/test_integrate.py`, `tests/test_review_metrics.py`, `tests/test_skills.py`, `tests/test_conduct.py` and
 `tests/fake_worker.py`. `conduct.py` is unchanged.
 
 Dependencies: none. The gate recipe stays unchanged.

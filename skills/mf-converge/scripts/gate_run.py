@@ -15,6 +15,7 @@ else `make`'s code; a red run records nothing. Why: 0064-lighter-catch-up design
 
 import argparse
 import hashlib
+import os
 import subprocess
 import sys
 import time
@@ -86,13 +87,27 @@ def read_record(path: Path) -> dict[str, str]:
     return {key: value for key, _, value in pairs}
 
 
-def write_record(path: Path, dry: str, seconds: int) -> None:
-    """Write the record of a green run, replacing any record of the same tree."""
+def write_record(path: Path, dry: str, seconds: int) -> str | None:
+    """Write the record of a green run, replacing any record of the same tree.
+
+    A worker can write the run directory, so nothing is written through a link: a
+    linked `.minions/gate` takes no record, and a staged `.tmp` is removed first and
+    then created anew, refusing a link. Return why nothing was written, else None.
+    """
+    if path.parent.is_symlink():
+        return ".minions/gate is a link"
     path.parent.mkdir(parents=True, exist_ok=True)
     date = datetime.now(UTC).isoformat(timespec="seconds")
     staged = path.with_name(f"{path.name}.tmp")
-    staged.write_text(f"dry: {dry}\ndate: {date}\nseconds: {seconds}\n")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        staged.unlink(missing_ok=True)
+        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
+            file.write(f"dry: {dry}\ndate: {date}\nseconds: {seconds}\n")
+    except OSError:
+        return f"{staged.name} could not be created"
     staged.replace(path)
+    return None
 
 
 def gate(fresh: bool) -> int:
@@ -114,7 +129,9 @@ def gate(fresh: bool) -> int:
     if tree is None or settled_tree() != tree or dry_run() != dry:
         print(f"gate: green — unrecorded, the worktree is not settled · {seconds}s")
         return 0
-    write_record(records() / tree, dry, seconds)
+    if refused := write_record(records() / tree, dry, seconds):
+        print(f"gate: green — unrecorded, {refused} · {seconds}s")
+        return 0
     print(f"gate: green — {tree} · {seconds}s")
     return 0
 

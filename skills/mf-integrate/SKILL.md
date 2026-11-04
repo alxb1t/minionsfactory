@@ -178,8 +178,8 @@ Then, in the worktree:
 — then a last line, `Next: <the next act>`. A halt is reported in full.
 
 Your sentences: the version and its merge commit, each rule's printed line, and the gate's exit code. The last
-line: `Next: /mf-converge, then /mf-release`; converge's catch-up round judges the merge by its remerge-diff. A
-version with an unticked phase, a cut-only branch merged before its build, ends `Next: /mf-ship, in the primary.`
+line: `Next: /mf-converge, then /mf-release`; converge's catch-up round replays the merge by the rules, or judges
+it by its remerge-diff. A version with an unticked phase, a cut-only branch merged before its build, ends `Next: /mf-ship, in the primary.`
 
 ## Never
 

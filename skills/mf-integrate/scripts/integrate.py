@@ -18,6 +18,7 @@ Why: 0037-serial-integration design D2; 0064-lighter-catch-up design D3.
 
 import argparse
 import difflib
+import os
 import re
 import shutil
 import subprocess
@@ -36,6 +37,7 @@ DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
 CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
+NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
 
@@ -50,13 +52,19 @@ class Stop(Exception):
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Return a finished git command run in `cwd`; a missing git stops with exit 2."""
+    """Return a finished git command run in `cwd`; a missing git stops with exit 2.
+
+    A worker can write the common directory: no git here runs a hook or fetches a
+    missing object from a promisor it planted, as `conduct.py`'s own git does not.
+    Why: 0064-lighter-catch-up design D3.
+    """
     try:
         return subprocess.run(
-            ["git", *args],
+            ["git", *NO_HOOKS, *args],
             cwd=cwd,
             capture_output=True,
             encoding="utf-8",
+            env={**os.environ, "GIT_NO_LAZY_FETCH": "1"},
             errors="replace",
             timeout=TIMEOUT_SECONDS,
         )
@@ -550,9 +558,10 @@ def replay(cwd: Path, merge: str) -> str:
     """Return the paths the rules settled when they rebuild `merge`'s tree exactly.
 
     The merge is redone from its parents in a scratch worktree under the run
-    directory, `changelog` and `decisions` settling their files. A path left
-    unmerged, or another tree, stops with exit 1; a commit without two parents,
-    or whose second parent the default branch does not hold, with exit 2.
+    directory, `changelog` and `decisions` settling their files. A requirement
+    `delta` names, a path left unmerged, or another tree, stops with exit 1; a
+    commit without two parents, or whose second parent the default branch does not
+    hold, with exit 2.
     e.g. a merge settled in CHANGELOG.md → "replay: by rule — CHANGELOG.md"
     """
     if merge.startswith("-"):
@@ -583,6 +592,14 @@ def replay(cwd: Path, merge: str) -> str:
             if path in _unmerged(scratch):
                 rule(scratch)
                 settled.append(path)
+        # A requirement both sides changed is the person's, however the files settle.
+        try:
+            delta(scratch)
+        except Stop as stop:
+            if stop.code != 1:
+                raise
+            moved = "; ".join(str(stop).splitlines())
+            raise Stop(1, f"replay: judged — {moved}") from None
         if left := sorted(_unmerged(scratch)):
             raise Stop(
                 1, f"replay: judged — the rules leave {', '.join(left)} unmerged"

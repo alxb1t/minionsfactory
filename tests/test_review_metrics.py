@@ -157,6 +157,17 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     assert (rich["refuted"], rich["inconclusive"]) == (2, 1)
     assert rich["duration"] is None
 
+    # A catch-up by rule writes `workers: 0` under the judged round's model: a gap.
+    for role in ("review", "security"):
+        by_rule = _front(round=2, mode="by-rule", workers=0, model="some-model")
+        _findings(tmp_path, f"0045-caught_{role}.md", by_rule)
+    caught = _record(tmp_path, "0045-caught")
+    assert (caught["mode"], caught["model"], caught["workers"]) == (
+        "by-rule",
+        "some-model",
+        None,
+    )
+
     _findings(
         tmp_path,
         "0043-quoted_review.md",

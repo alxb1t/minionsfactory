@@ -3,7 +3,8 @@
 ### Requirement: A catch-up over a merge the fixed rules reproduce is clean by recomputation
 
 `skills/mf-integrate/scripts/integrate.py replay <merge>` SHALL rebuild the merge from its parents in a scratch worktree, settle
-its conflicts with the `changelog` and `decisions` rules alone, and exit 0 when the rebuilt tree equals the merge's tree, else 1.
+its conflicts with the `changelog` and `decisions` rules alone, run the `delta` rule, and exit 0 when `delta` names no requirement
+and the rebuilt tree equals the merge's tree, else 1. Its git SHALL run no hook and fetch no missing object.
 It SHALL exit 2, rebuilding nothing, for a commit without two parents or whose second parent the default branch does not hold.
 `skills/mf-converge/SKILL.md`'s catch-up round SHALL first run *Catch-up scope*'s ancestry and parent checks, halting when one
 fails, then run `replay` for each merge in its selection; when every merge replays and the
@@ -17,7 +18,8 @@ merges-only count. Any other selection SHALL take the catch-up round as before.
   passes its preconditions
 
 #### Scenario: A merge someone judged
-- **WHEN** the merge holds a hunk the integrator resolved as a union, a person's resolution, or a test edited
+- **WHEN** the merge holds a hunk the integrator resolved as a union, a person's resolution, a test edited, or a requirement
+  the delta edits that the default branch changed
 - **THEN** replay exits 1, and the catch-up round dispatches review and security as before
 
 #### Scenario: A merge of a commit the default branch does not hold
@@ -41,7 +43,7 @@ for a test the integrator edited, which SHALL never remove or loosen an assertio
 The `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` skills SHALL run the gate as `make gate`, from the repository
 root, through `skills/mf-converge/scripts/gate_run.py`, which records a green run in `.minions/gate/<tree>` — the tree, the
 dry run's hash, the date and the seconds — and on a later call reuses it when the worktree is clean, its tree is that tree,
-and `make -n gate` prints the same lines. A red run SHALL record nothing, and `mf-release`'s gate after its fold SHALL run
+and `make -n gate` prints the same lines. A red run SHALL record nothing, and no record SHALL be written through a link, and `mf-release`'s gate after its fold SHALL run
 fresh. Each SHALL print the output of `make -n gate` before its first gate run in a session. Each SHALL halt,
 naming the root `Makefile`, when that file is missing, has no `gate` target, or has a `gate` target that runs
 no command. No shipped skill SHALL name `.minions/minions.toml`.
@@ -173,3 +175,4 @@ capability.
 #### Scenario: A by-rule catch-up records no worker
 - **WHEN** every merge of a catch-up replays by the fixed rules
 - **THEN** both findings files record `mode: by-rule` and `workers: 0`
+- **AND** `review_metrics.py` reads that change's workers as a gap, never a zero

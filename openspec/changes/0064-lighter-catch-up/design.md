@@ -53,6 +53,8 @@ Read at `40bd25e` (v0.52.0).
 - Else run `make gate`, its output streamed; exit 0 on a settled tree → write `.minions/gate/<tree>` (`dry:`, `date:`,
   `seconds:`), print `gate: green — <tree> · <seconds>s`; any other exit → write nothing, exit with `make`'s code.
 - `--fresh` runs `make gate` whatever stands, and records it.
+- No record is written through a link: a linked `.minions/gate` takes none, and a stale `<tree>.tmp` is unlinked, then
+  created `O_EXCL | O_NOFOLLOW`; a refused write prints `gate: green — unrecorded, <why> · <seconds>s`, exit 0.
 
 ### D2
 
@@ -63,17 +65,20 @@ call `uv run --script ../mf-converge/scripts/gate_run.py`, each still printing `
 ### D3
 
 `replay(merge)`: a scratch worktree (`git worktree add --detach <tmp> <merge>^1`), `git merge --no-ff --no-commit <merge>^2`;
-on conflict, `changelog` when `CHANGELOG.md` is unmerged and `decisions` when `docs/decisions.md` is, each staged; any path left
-unmerged → exit 1. Then `git write-tree` against `git rev-parse <merge>^{tree}`: equal → print `replay: by rule — <paths>`,
+on conflict, `changelog` when `CHANGELOG.md` is unmerged and `decisions` when `docs/decisions.md` is, each staged; then `delta`,
+whose exit 1 — a requirement both sides changed, the person's call — is `replay: judged`; any path left unmerged → exit 1. Then `git write-tree` against `git rev-parse <merge>^{tree}`: equal → print `replay: by rule — <paths>`,
 exit 0; else exit 1. The scratch worktree is removed in every case. A merge without two parents, or whose second parent
 is not an ancestor of the default branch (`git merge-base --is-ancestor`), → exit 2, before any scratch worktree.
+`integrate.py`'s git runs as `conduct.py`'s does: `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and
+`GIT_NO_LAZY_FETCH=1`, so the scratch checkout runs no hook a worker planted and fetches from no promisor.
 
 ### D4
 
 In *Catch-up round*, after the selection: each merge in it run through `replay`; every one exits 0 and the selection holds no other
 commit → write both findings files (`head: HEAD`, `verdict: clean`, `round:` the run's own count) with a `## By rule` section naming
 each merge and its paths, log `round N · by rule — clean, <paths>`, then Step 9. Any exit 1 → the round as before. *Nothing reads as
-clean by being absent* gains its exception: clean by recomputation.
+clean by being absent* gains its exception: clean by recomputation. The write sets `mode: by-rule` and `workers: 0` under the
+judged round's `model:`, so `review_metrics.py` reads a by-rule file's workers as a gap.
 
 ### D5
 
@@ -95,11 +100,11 @@ edited, which never removes or loosens an assertion (`0061·S1`). *Why a station
 
 | test | layer | why new (`T2`) |
 |---|---|---|
-| `tests/test_gate_run.py` — a green run recorded, a red run unrecorded, reuse refused on a dirty tree, another tree, a changed dry run; `--fresh` | integration, a scratch repo and `Makefile` | a new script |
-| `test_replay_reproduces_a_rule_settled_merge` | integration | a new subcommand |
-| `test_replay_refuses_a_judged_merge` — a union, a person's edit, a cleanly merged test edited | integration | the same, its other side |
+| `tests/test_gate_run.py` — a green run recorded, a red run unrecorded, reuse refused on a dirty tree, another tree, a changed dry run; `--fresh`, a planted link refused | integration, a scratch repo and `Makefile` | a new script |
+| `test_replay_reproduces_a_rule_settled_merge` — a planted hook and promisor unused | integration | a new subcommand |
+| `test_replay_refuses_a_judged_merge` — a union, a person's edit, a cleanly merged test edited, a second parent off the default branch, a requirement `delta` names | integration | the same, its other side |
 
-Extended: `tests/test_skills.py` (each station names `gate_run.py`, the release's Step 4.3 `--fresh`); `tests/test_conduct.py`
+Extended: `tests/test_review_metrics.py` (a by-rule file's workers a gap); `tests/test_skills.py` (each station names `gate_run.py`, the release's Step 4.3 `--fresh`); `tests/test_conduct.py`
 with a `by-rule` mode in `tests/fake_worker.py` (a version whose catch-up is by rule releases).
 
 ## Dependencies

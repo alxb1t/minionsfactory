@@ -87,8 +87,8 @@ What "done" means, and how it is observed.
 
 ### The gate is run, never summarized
 
-**A green gate is `make gate` exiting zero, observed by the station that needs the assurance. Each station gates
-itself through `gate_run.py`: a recorded run of this exact tree counts; the release's post-fold gate runs fresh.**
+**A green gate is `make gate` exiting zero, observed by the station that needs the assurance. Build, converge,
+integrate and release gate through `gate_run.py`: a recorded run of this exact tree counts; the release's post-fold gate runs fresh.**
 
 - **Why:** "it passed" is a claim about the gate, not the gate. A record is keyed by the tree and the dry run, so it
   holds what a run of that tree said, and the fresh run keeps a forged one from a tag.
