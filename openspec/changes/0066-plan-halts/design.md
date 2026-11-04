@@ -99,6 +99,25 @@ backtick needle); a fixture of isekai `0093`'s drawer task beside its `min-width
 change at its cut. It records each doubt's `path:line`, and the CHANGELOG entry states the result. A host with no fresh worker
 halts the phase.
 
+**The isekai `0093` fixture**, word for word from isekai at `69687552`, `0093-the-tests-revisited`'s cut — the build writes
+these three into a scratch change directory and repo for the review, and reads nothing outside MF:
+
+- its task 3.2: "Add the drawer's viewport step and the pick's width step under their restored keys, and `0091·R4`'s and
+  `0091·R9`'s steps in the merged import test, per [D5](design.md#d5)."
+- its D5's sentence: "The drawer's step narrows the viewport with `page.set_viewport_size`, so one photograph's grid sets the
+  width; `ui:compare:the-pick-holds-its-width` and `ui:sessions:the-drawer-fits-its-widest-grid` return."
+- `ui/src/app.css:508-511`:
+
+  ```css
+  .drawer {
+    width: max-content;
+    min-width: max(50vw, 480px);
+    max-width: calc(100vw - 100px);
+  ```
+
+The review should doubt the task: narrowing the viewport cannot make one photograph's grid set a width whose floor is
+`max(50vw, 480px)`.
+
 ## Tests
 
 `git grep -c '^def test_' main -- tests/` totals 131. Added, integration layer, no end-to-end (`T1`): `tests/test_verify_check.py`
