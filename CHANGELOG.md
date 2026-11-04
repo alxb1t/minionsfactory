@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-04
+
+Gate: local 6m10s · CI not read under mf-ship · 0.51.0: local 6m25s · CI not read under mf-ship
+
 - A person's commit past a converge halt voids it — every `halt` line names its head, and a halt at the judged head
   that `HEAD` descends from is void: the stage is `converge`, a waiting grant goes unspent, and
   `mf-converge` opens a run marked `· amended` from round 1, so a fix no longer costs a grant; a resumed `· grant` run
