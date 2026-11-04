@@ -570,6 +570,35 @@ def test_an_edited_verify_halts(tmp_path: Path) -> None:
         "\n  1.3 · uncommitted\n  - Verify: `ls`.\n  + (no Verify:)\n"
     )
 
+    # An integrate merge renumbers a cited decision: the plan moves with it, and
+    # any other edit the merge makes still halts.
+    cited = "Verify: `grep -c '^### D2 ' docs/decisions.md` prints `1`."
+    ours = f"{amended}- [ ] 1.3 Cite D2.\n  {cited}\n"
+    decisions = "docs/decisions.md"
+    tasks_path = str(path.relative_to(tmp_path))
+    _commit(
+        tmp_path,
+        {tasks_path: ours, decisions: "### D2 · ours\n"},
+        f"docs({_CHANGE}): amend the change directory",
+    )
+    branch = _git(tmp_path, "branch", "--show-current")
+    _git(tmp_path, "switch", "-q", "-c", "trunk", base)
+    _commit(tmp_path, {decisions: "### D2 · theirs\n"}, "theirs")
+    _git(tmp_path, "switch", "-q", branch)
+    _git(tmp_path, "merge", "-q", "--no-ff", "--no-commit", "-s", "ours", "trunk")
+    listed = "Verify: `ls` prints `README.md`."
+    merged = ours.replace("D2", "D3").replace(listed, "Verify: `ls` prints a line.")
+    _commit(
+        tmp_path,
+        {tasks_path: merged, decisions: "### D2 · theirs\n### D3 · ours\n"},
+        "chore(integrate): merge trunk",
+    )
+    merge = _git(tmp_path, "rev-parse", "--short", "HEAD")
+    assert verify().stdout == (
+        f"verify: halt — a `Verify:` differs from the plan at {merge}; the build "
+        f"never amends one:\n  1.2\n  - {listed}\n  + Verify: `ls` prints a line.\n"
+    )
+
     path.unlink()
     missing = verify()
     assert missing.returncode == 2, missing.stdout

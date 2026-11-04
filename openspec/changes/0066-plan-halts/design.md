@@ -42,16 +42,17 @@ Read at `51ea75e` (v0.54.0).
 | [D4](#d4) | Step 3 greps what a change deletes; the cut reads the standards, a target's own test rule first | Q5, Q6, Q17 | — |
 | [D5](#d5) | A fresh read-only plan review after Step 8; the simple doubts fixed, one re-run; a decision to the person | Q7, Q10, Q11 | the cut reading its own plan |
 | [D6](#d6) | No gate at the cut; `I3` reworded | Q18 | the full gate on a docs-only tree |
-| [D7](#d7) | The record: D7, D40, D46, the principles' exception | — | — |
+| [D7](#d7) | The record: D7, D38, D40, D46, the principles' exception | — | — |
 | [D8](#d8) | A calibration of the review on replayed cuts, in the CHANGELOG | Q15 | a gate test of prose (D42) |
 
 ### D1
 
 `skills/mf-cut-change/scripts/verify_check.py <tasks.md>`, a stdlib `uv run --script`. For each sub-task's `Verify:`, each backticked
 command: `$(`, a backtick inside, `for `, `while `, `cd `, a `NAME=` or `$NAME` → an `I19` break. A `grep …` or `git grep …` command is
-split with `shlex`, run as argv with `-n` added and no shell, in the repo at `HEAD`, and each match printed `<sub-task>: <path>:<line>:
-<text>`. An exact count (`prints <n>`, `reports <n>`) on a search beside more matches than `<n>` lines is a break too. Exit 1 on a break,
-naming the sub-task; 0 when none; 2 when a `Verify:` cannot be parsed.
+split with `shlex`, run as argv with `-n` added and no shell, in the repo at `HEAD` — a `git grep` at the revision it names before
+`--` — and each match printed `<sub-task>: <path>:<line>: <text>`. A search takes a fixed list of options; any other, a pager's among
+them, is a break. An exact count (`prints <n>`, `reports <n>`) on a search beside more matches than `<n>` lines is a break too. Exit 1
+on a break, naming the sub-task; 0 when none; 2 when a `Verify:` cannot be parsed, or git refuses its `git grep`.
 
 ### D2
 
@@ -62,7 +63,9 @@ the point | `verify_check.py` in Step 8" — a row in `skills/mf-build/SKILL.md`
 ### D3
 
 `gate_check.py --verify --change <id>`: the `Verify:` lines of `tasks.md` in the working tree against those at the cut commit and at
-each later commit whose subject is `docs(<id>): amend the change directory`, in order; a line that differs from the latest of them →
+each later commit whose subject is `docs(<id>): amend the change directory`, in order; a later merge of two parents that touches
+`tasks.md` renumbers the plan's decision citations by `integrate.py decisions`' rule, so integrate's renumber is no edit and any
+other edit of the merge is; a line that differs from the latest of them →
 exit 1, printing the sub-task, the diff, and `uncommitted` when the working tree's line is not in `HEAD`. `--change` runs the same
 comparison after its gate check. `skills/mf-build/SKILL.md` Step 2 runs `--verify` before a phase's first `Verify:`; exit 1 → halt,
 naming it.
@@ -89,8 +92,8 @@ phase owns the full gate, as before.
 
 ### D7
 
-D7 gains the plan review and the search script; D40 names the cut's reviewer among the fresh workers; D46 names the cut among the
-standards' readers. *No station verifies its own work*'s exception: the cut's review is a fresh worker's.
+D7 gains the plan review and the search script; D38 waits on a plan-review doubt left to the person; D40 names the cut's reviewer
+among the fresh workers; D46 names the cut among the standards' readers. *No station verifies its own work*'s exception: the cut's review is a fresh worker's.
 
 ### D8
 

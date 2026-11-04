@@ -10,8 +10,9 @@
 
 Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read. A halt names the
 hash a person approves; `--digest` prints it alone.
-`--verify` compares each `Verify:` with the cut's and its amends'; `--change` does
-too, after its gate check. Why: 0066-plan-halts design D3.
+`--verify` compares each `Verify:` with the cut's and its amends', with the decision
+ids an integrate merge renumbered; `--change` does too, after its gate check.
+Why: 0066-plan-halts design D3.
 `--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
 It reads makefiles and dry runs; a file read at parse time, or a program the
 recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
@@ -42,6 +43,10 @@ SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 GATE_MAKEFILE = re.compile(r"`(?:[^`\s]*/)?Makefile`|`[^`\s]*\.mk`")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
+# `integrate.py`'s: the decisions file, a decision's heading, and a cited id.
+DECISIONS = "docs/decisions.md"
+DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
+CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 
 
 class Stop(Exception):
@@ -201,20 +206,52 @@ def checks(tasks: str) -> dict[str, str]:
     return found
 
 
+def _show(rev: str, path: str) -> str:
+    """Return a file's text at `rev`; a path the commit lacks reads as empty."""
+    listed = _git("ls-tree", "--name-only", rev, "--", path)
+    return _git("show", f"{rev}:{path}") if listed else ""
+
+
+def renumbered(merge: str) -> dict[int, int]:
+    """Return the decision ids `integrate.py decisions` moves in a merge, by its rule.
+
+    The first parent's new ids move past the second parent's highest, when the
+    lowest collides. e.g. base none, ours D2, theirs D2 → {2: 3}
+    Why: 0066-plan-halts design D3.
+    """
+    ours, theirs = _git("rev-list", "--parents", "-n", "1", merge).split()[1:]
+    base = _git("merge-base", ours, theirs).strip()
+    base_ids, our_ids, their_ids = (
+        {int(n) for n in DECISION.findall(_show(rev, DECISIONS))}
+        for rev in (base, ours, theirs)
+    )
+    top = max(their_ids, default=0)
+    new = sorted(our_ids - base_ids)
+    ids: dict[int, int] = {}
+    if new and new[0] <= top:
+        ids = {old: top + i for i, old in enumerate(new, 1)}
+    return ids
+
+
 def check_verify(change: str) -> str:
     """Return the passing verdict; a `Verify:` edited since the cut raises `Stop`.
 
-    The plan is `tasks.md` at the cut, or at the latest later commit titled
-    `docs(<id>): amend the change directory` that touches it.
+    The plan is `tasks.md` at the cut, then at each later commit titled
+    `docs(<id>): amend the change directory` that touches it; a merge of two
+    parents that touches it moves the plan's decision citations as integrate does.
     """
     cut = cut_commit(change)
     path = f"openspec/changes/{change}/tasks.md"
     amend = f"docs({change}): amend the change directory"
-    log = _git("log", "--format=%h %s", f"{cut}..HEAD", "--", path)
-    entries = [line.partition(" ") for line in log.splitlines()]
-    amends = [sha for sha, _, subject in entries if subject == amend]
-    plan = amends[0] if amends else cut
-    planned = checks(_git("show", f"{plan}:{path}"))
+    plan, planned = cut, checks(_git("show", f"{cut}:{path}"))
+    walk = ["--topo-order", "--reverse", "--format=%h%x09%p%x09%s", f"{cut}..HEAD"]
+    log = _git("log", *walk, "--", path)
+    for sha, parents, subject in (line.split("\t", 2) for line in log.splitlines()):
+        if subject == amend:
+            plan, planned = sha, checks(_git("show", f"{sha}:{path}"))
+        elif len(parents.split()) == 2 and (ids := renumbered(sha)):
+            plan = sha
+            planned = {name: _recite(text, ids) for name, text in planned.items()}
     committed = checks(_git("show", f"HEAD:{path}"))
     try:
         current = checks(Path(path).read_text())
@@ -234,6 +271,14 @@ def check_verify(change: str) -> str:
             "never amends one:\n" + "\n".join(edits),
         )
     return f"verify: every `Verify:` is the plan's at {plan}"
+
+
+def _recite(text: str, ids: dict[int, int]) -> str:
+    """Return `text` with each decision id `ids` moves cited anew.
+
+    e.g. "`grep -c '^### D2 ' x`", {2: 3} → "`grep -c '^### D3 ' x`"
+    """
+    return CITATION.sub(lambda m: f"{m[1]}{ids.get(int(m[2]), m[2])}", text)
 
 
 def _subtask_order(name: str) -> tuple[int, ...]:

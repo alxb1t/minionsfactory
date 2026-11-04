@@ -40,12 +40,13 @@ None.
   - *A fresh worker reviews the plan before the cut commits* — ADDED: the review, the fixes, the readers, the standards.
   - *The build refuses an edited Verify:* — ADDED: the comparison and where the build runs it.
   - *The cut runs no check before the human reads it* — MODIFIED: the search patterns run, no gate.
+  - *The cut commits without waiting, unless it adds a dependency* — MODIFIED: a plan-review doubt left to the person waits.
   - *Every station closes in a few sentences and names the next act* — MODIFIED: the cut reports its checks' exit codes.
 
 ## Impact
 
 Changes `skills/mf-cut-change/SKILL.md`, `skills/mf-cut-change/scripts/verify_check.py` (new), `skills/mf-build/SKILL.md`,
-`skills/mf-converge/scripts/gate_check.py`, `docs/decisions.md` (D7, D40, D46), `docs/principles.md`,
+`skills/mf-converge/scripts/gate_check.py`, `docs/decisions.md` (D7, D38, D40, D46), `docs/principles.md`,
 `tests/test_verify_check.py` (new), `tests/test_gate_check.py`, `tests/test_skills.py` and `CHANGELOG.md`'s calibration record.
 
 Dependencies: none. The gate recipe stays unchanged.

@@ -8,8 +8,10 @@
 
 Exit 0 no break · 1 a check breaks `I19` · 2 a check cannot be parsed or run. Run
 from the repository root. A `grep` or `git grep` runs as argv, no shell, over HEAD's
-tree; each match prints as `<sub-task>: <path>:<line>: <text>`.
-Why: 0066-plan-halts design D1.
+tree, or a revision a `git grep` names before `--`; each match prints as
+`<sub-task>: <path>:<line>: <text>`. A search takes the options below alone: any
+other, a pager's among them, breaks `I19`. Why: 0066-plan-halts design D1, review R1
+and security S1.
 """
 
 import argparse
@@ -57,6 +59,20 @@ HIDING_LONG = {
     "--silent",
     "--no-filename",
 }
+# The options a search runs with; `e`, last in its word, takes the next as a pattern.
+SHORT = HIDING | set("eEFGHinorRsvwx")
+LONG = HIDING_LONG | {
+    "--basic-regexp",
+    "--extended-regexp",
+    "--fixed-strings",
+    "--ignore-case",
+    "--invert-match",
+    "--line-number",
+    "--line-regexp",
+    "--only-matching",
+    "--recursive",
+    "--word-regexp",
+}
 
 
 class Stop(Exception):
@@ -69,7 +85,7 @@ class Stop(Exception):
 
 
 class Unparsed(ValueError):
-    """A `Verify:` whose spans or words cannot be read; the message says why."""
+    """A `Verify:` that cannot be read or run; the message says why."""
 
 
 class Command(NamedTuple):
@@ -77,6 +93,13 @@ class Command(NamedTuple):
 
     text: str
     count: int | None
+
+
+class Search(NamedTuple):
+    """The argv that prints a search's matching lines, and each option it refuses."""
+
+    argv: list[str]
+    refused: list[str]
 
 
 def _spawn(
@@ -170,11 +193,12 @@ def breaks(command: str, words: list[str]) -> list[str]:
     return found
 
 
-def search(words: list[str]) -> list[str] | None:
+def search(words: list[str]) -> Search | None:
     """Return the argv that prints a search's matching lines; None for no search.
 
     The words stop at the first operator; `-n` is added, and the flags that hide
-    lines dropped. e.g. "grep -c x a > o" → ["grep", "-H", "-n", "x", "a"]
+    lines dropped. A `git grep` reads HEAD's index, unless a word between its pattern
+    and `--` names a revision. e.g. "grep -c x a > o" → ["grep", "-H", "-n", "x", "a"]
     """
     plain: list[str] = []
     for word in words:
@@ -188,17 +212,31 @@ def search(words: list[str]) -> list[str] | None:
     else:
         return None
     kept: list[str] = []
+    refused: list[str] = []
+    operands: list[str] = []
+    tail: list[str] = []
+    pattern = value = False
     for i, word in enumerate(rest):
-        if word == "--":
-            return head + kept + rest[i:]
-        if word in HIDING_LONG:
-            continue
-        if re.fullmatch(r"-[A-Za-z]+", word):
-            word = "".join(flag for flag in word if flag not in HIDING)
-            if word == "-":
-                continue
-        kept.append(word)
-    return head + kept
+        if value or not word.startswith("-"):
+            operands += [] if value else [word]
+            kept.append(word)
+            value = False
+        elif word == "--":
+            tail = rest[i:]
+            break
+        elif word in LONG:
+            kept += [] if word in HIDING_LONG else [word]
+        elif re.fullmatch(r"-(?:[A-Za-df-z]+e?|e)", word) and set(word[1:]) <= SHORT:
+            # `e` ends its word, so a pattern attached to it is refused, never read.
+            value = word.endswith("e")
+            pattern = pattern or value
+            flags = "".join(flag for flag in word[1:] if flag not in HIDING)
+            kept += [f"-{flags}"] if flags else []
+        else:
+            refused.append(word)
+    if head[0] == "git" and tail and operands[0 if pattern else 1 :]:
+        head.remove("--cached")
+    return Search(head + kept + tail, refused)
 
 
 class Head:
@@ -211,13 +249,20 @@ class Head:
         self.env: dict[str, str] | None = None
 
     def run(self, argv: list[str]) -> list[str]:
-        """Return a search's output lines, run over HEAD: stdout, then stderr."""
-        if argv[0] == "git":
-            done = _spawn(argv, "git grep", Path.cwd(), self.index())
-        else:
+        """Return a search's output lines, run over HEAD: stdout, then stderr.
+
+        A `git grep` git refuses, a revision it cannot read among them, raises
+        `Unparsed`: it searched nothing.
+        """
+        if argv[0] == "grep":
             done = _spawn(argv, "grep", self.export())
-        out = done.stdout.decode(errors="replace").splitlines()
-        return out + done.stderr.decode(errors="replace").splitlines()
+        else:
+            index = self.index() if "--cached" in argv else None
+            done = _spawn(argv, "git grep", Path.cwd(), index)
+        err = done.stderr.decode(errors="replace").splitlines()
+        if argv[0] == "git" and done.returncode > 1:
+            raise Unparsed(f"git grep failed: {(err or ['no message'])[0]}")
+        return done.stdout.decode(errors="replace").splitlines() + err
 
     def export(self) -> Path:
         """Return HEAD's tree, written out once."""
@@ -242,11 +287,18 @@ def check_command(subtask: str, command: Command, head: Head) -> bool:
     if found := breaks(command.text, words):
         print(f"{subtask}: I19 — {' · '.join(found)}: `{command.text}`")
         return True
-    argv = search(words)
-    if argv is None:
+    query = search(words)
+    if query is None:
         return False
+    if query.refused:
+        refused = " · ".join(query.refused)
+        print(
+            f"{subtask}: I19 — an option the search does not run: {refused}: "
+            f"`{command.text}`"
+        )
+        return True
     matches = 0
-    for line in head.run(argv):
+    for line in head.run(query.argv):
         if match := MATCH.fullmatch(line):
             matches += 1
             line = f"{match[1]}:{match[2]}: {match[3]}"

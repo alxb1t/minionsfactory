@@ -111,11 +111,14 @@ def test_a_search_prints_the_lines_it_matches_at_head(
         "1.2 A sub-task with no check is not the script's to read.",
         "1.3 Run it before the first `Verify:` in `a.md`.\n"
         "  Verify: `grep -n 'first' app/states.py` prints nothing.",
+        # A revision before `--` is searched there, its name before each path.
+        "1.4 x\n  Verify: `git grep -c 'stock_wait' HEAD -- app/` prints `1`.",
     )
     code, out = _run(root, fits, capsys, monkeypatch)
     assert code == 0, out
     assert out.splitlines() == [
         "1.1: app/drawer.css:2:   width: 720px;",
+        '1.4: HEAD:app/states.py:1: STATES = ["ready", "stock_wait"]',
         "verify: every check is one plain command",
     ]
 
@@ -134,6 +137,9 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         "prints nothing.",
         "1.5 x\n  Verify: `` grep -n `x` a.md `` prints a line.",
         '1.6 x\n  Verify: `grep -n "$(touch pwned)" a.md` prints nothing.',
+        # An option outside the search's list may run a program: a pager, here.
+        "1.7 x\n  Verify: `git grep --no-cached '--open-files-in-pager=touch pwned' "
+        "-e x -- a.md` prints a line.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
@@ -145,7 +151,10 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         "1.4: I19 — a shell variable: `grep -n $HOME a.md`",
         "1.5: I19 — a backtick: `grep -n `x` a.md`",
         '1.6: I19 — `$(…)`: `grep -n "$(touch pwned)" a.md`',
-        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6",
+        "1.7: I19 — an option the search does not run: --no-cached · "
+        "--open-files-in-pager=touch pwned: `git grep --no-cached "
+        "'--open-files-in-pager=touch pwned' -e x -- a.md`",
+        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7",
     ]
     assert not (root / "pwned").exists()
 
@@ -212,6 +221,11 @@ def test_what_cannot_run_exits_2(
     assert out.startswith("verify: cannot check — git archive failed: "), out
 
     root = _repo(tmp_path / "repo", {"a.md": "one\n"})
+    # A `git grep` git refuses ran nothing: a revision with no `--` after it.
+    tree = _tasks("1.1 x\n  Verify: `git grep -n one HEAD` prints a line.")
+    code, out = _run(root, tree, capsys, monkeypatch)
+    assert code == 2, out
+    assert out.startswith("verify: cannot check — 1.1: git grep failed: fatal: "), out
 
     def missing(*_: object, **__: object) -> None:
         raise FileNotFoundError

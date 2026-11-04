@@ -123,8 +123,8 @@ a deleted capability leaves no marker directory behind.**
 ### D38 · The cut commits without waiting
 
 **`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
-that is not `None.`, and a self-check item the cut cannot meet, still wait for the person's OK. Starting
-`/mf-build` is the OK for the `Verify:` commands.**
+that is not `None.`, a self-check item the cut cannot meet, and a plan-review doubt left to the person still wait for
+the person's OK. Starting `/mf-build` is the OK for the `Verify:` commands.**
 
 - **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
   every time.

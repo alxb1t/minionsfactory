@@ -123,8 +123,8 @@ Take the **first unticked `## Progress` phase** and finish its whole ritual, thr
 look at the next. Never batch phases: each must be reviewable and revertible on its own.
 
 **A HUMAN phase is done by a person, not by you.** Its `## Progress` line contains `**HUMAN`. Do none of its
-tasks; run its `Verify:` checks. Any fails → **halt** with the person's checklist and nothing else — the one halt
-not reported in full:
+tasks; run `gate_check.py --verify --change <change-id>` first, with item 2's exits, then its `Verify:` checks.
+A check fails → **halt** with the person's checklist and nothing else — the one halt not reported in full:
 
 ````
 <N> — <Title> · HUMAN

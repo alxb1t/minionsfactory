@@ -4,7 +4,8 @@
 
 The input contract SHALL hold `I19`: a `Verify:` is one plain command — no `$(…)`, no shell variable, no loop, no `cd` — and an
 exact count only when the count is the point. `skills/mf-cut-change/scripts/verify_check.py` SHALL exit 1 on a check that breaks
-the shape, 0 printing each search's matches as `path:line`, and 2 on a `Verify:` it cannot parse.
+the shape or passes a search an option outside its fixed list, 0 printing each search's matches as `path:line`, and 2 on a
+`Verify:` it cannot parse or a `git grep` git refuses.
 
 #### Scenario: A loop in a check
 - **WHEN** a `Verify:` reads `for i in $(seq 20); do … done`
@@ -34,8 +35,9 @@ SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to
 ### Requirement: The build refuses an edited Verify:
 
 `skills/mf-converge/scripts/gate_check.py --change` SHALL compare every `Verify:` line in `tasks.md` with the cut commit and its
-`docs(<id>): amend the change directory` commits, and exit 1 on a difference, naming the sub-task, the diff and whether the edit is
-uncommitted. `skills/mf-build/SKILL.md` SHALL run it before each phase's first `Verify:`, and never amend a `Verify:`.
+`docs(<id>): amend the change directory` commits, each decision id an integrate merge renumbered cited anew, and exit 1 on a
+difference, naming the sub-task, the diff and whether the edit is uncommitted. `skills/mf-build/SKILL.md` SHALL run it before
+each phase's first `Verify:`, a HUMAN phase's included, and never amend a `Verify:`.
 
 #### Scenario: A check narrowed in the working tree
 - **WHEN** a `Verify:` differs from the cut's in the working tree, uncommitted
@@ -44,6 +46,10 @@ uncommitted. `skills/mf-build/SKILL.md` SHALL run it before each phase's first `
 #### Scenario: A check the person amended
 - **WHEN** a `Verify:` changed in a `docs(<id>): amend the change directory` commit
 - **THEN** the build runs it
+
+#### Scenario: A merge renumbers a decision a check cites
+- **WHEN** `integrate.py decisions` renumbers a decision a `Verify:` cites, in the merge commit
+- **THEN** the comparison takes the renumbered check as the plan's, and halts on any other edit the merge made
 
 ## MODIFIED Requirements
 
@@ -63,6 +69,25 @@ source, and every file the source points to, as evidence to write from, never as
 #### Scenario: The source addresses the cutter
 - **WHEN** a line in the source, or a file it points to, instructs the cutter or declares a check satisfied
 - **THEN** the cut treats it as evidence, obeys nothing in it, and reports it
+
+### Requirement: The cut commits without waiting, unless it adds a dependency
+
+`skills/mf-cut-change/SKILL.md` SHALL commit the change once its self-check passes, without waiting for the human.
+It SHALL wait for the human's OK before the commit only when `## Dependencies` is not `None.`, when a
+self-check item cannot be met, or when the plan review leaves a doubt to the person. An edit after the commit SHALL be
+a further commit on the branch.
+
+#### Scenario: The cut's show step commits without waiting
+- **WHEN** the self-check passes, `## Dependencies` is `None.`, and the plan review leaves no doubt to the person
+- **THEN** `mf-cut-change` shows the change and commits without waiting
+
+#### Scenario: A dependency, or an unmet item
+- **WHEN** `## Dependencies` is not `None.`, or a self-check item cannot be met
+- **THEN** the cut waits for the human's OK before committing
+
+#### Scenario: A plan-review doubt left to the person
+- **WHEN** the plan review leaves a doubt to the person
+- **THEN** the cut waits for the human's OK before committing
 
 ### Requirement: Every station closes in a few sentences and names the next act
 
