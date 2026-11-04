@@ -44,6 +44,8 @@ TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
 PUSH_TIMEOUT = 1800
+RETRIES = (0, 10, 30)
+PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
@@ -70,6 +72,7 @@ STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
+SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
@@ -187,6 +190,10 @@ class Stop(Exception):
         """Keep the exit code beside the message."""
         super().__init__(message)
         self.code = code
+
+
+class Unreachable(Stop):
+    """A read of `origin` that failed: the run waits on it, and halts on no other."""
 
 
 def _run(
@@ -766,8 +773,15 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     return None
 
 
-def _check_release(primary: Path, version: Version, first_read: bool) -> str | None:
-    """Return why the release check fails, or None."""
+def _check_release(
+    primary: Path, version: Version, first_read: bool, offline: bool = False
+) -> str | None:
+    """Return why the release check fails, or None.
+
+    Offline, a tag origin cannot list is released locally: the next good read
+    pushes it. A run's read of the tag that fails is `Unreachable`, and the run
+    goes offline. Why: 0062-offline-origin design D2, D4.
+    """
     default = default_branch(primary)
     if not _ancestor(primary, version.change, default):
         return f"{default} does not contain {version.change}"
@@ -780,7 +794,7 @@ def _check_release(primary: Path, version: Version, first_read: bool) -> str | N
     own = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
     if own != tip:
         return f"{tag} is not the tip of {version.change}"
-    if _pushed(primary, version.change, tag, first_read) is False:
+    if not offline and _pushed(primary, version.change, tag, first_read) is False:
         return f"{tag} is not on origin"
     return None
 
@@ -934,14 +948,54 @@ def _default_file(primary: Path) -> Path:
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.default"
 
 
+def _kept_default(primary: Path) -> str:
+    """Return the default branch's name a run kept, else the one git names."""
+    named = _default_file(primary)
+    return named.read_text() if named.is_file() else default_branch(primary)
+
+
+def _pushed_file(primary: Path) -> Path:
+    """Return the offline base's file: the default branch's sha origin last listed.
+
+    Why: 0062-offline-origin design D1.
+    """
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.pushed"
+
+
+def _keep_base(primary: Path, sha: str) -> str | None:
+    """Keep `sha` as the offline base, over an older one; return why it could not.
+
+    Owner-only, through a temp file and `os.replace`. Where the home folder refuses
+    it, this process is itself in a sandbox, and nothing is kept.
+    """
+    file = _pushed_file(primary)
+    try:
+        file.parent.mkdir(mode=0o700, exist_ok=True)
+        fd, temp = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}-")
+        with os.fdopen(fd, "w") as kept:
+            kept.write(f"{sha}\n")
+        os.replace(temp, file)
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    return None
+
+
+def _offline_base(primary: Path) -> str | None:
+    """Return the offline base's sha, or None when none stands."""
+    file = _pushed_file(primary)
+    if not file.is_file():
+        return None
+    return file.read_text().strip() or None
+
+
 def _origin_head(primary: Path, url: str) -> str | None:
     """Return the branch `url`'s own HEAD names, or None when it names none.
 
-    A read that fails stops with 1, nothing pushed.
+    A read that fails is `Unreachable`.
     """
-    done = _outside(primary, "ls-remote", "--symref", "--", url, "HEAD")
+    done = _remote(primary, "ls-remote", "--symref", "--", url, "HEAD")
     if done.returncode != 0:
-        raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
+        raise Unreachable(1, _why(done))
     for line in done.stdout.splitlines():
         ref, _, name = line.partition("\t")
         if name == "HEAD" and ref.startswith("ref: refs/heads/"):
@@ -1034,9 +1088,11 @@ def _outside(
 ) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
-    It reads the operator's global config and no repo's, so a key a worker sets after
-    the refusal starts nothing. The caller passes a URL, not a remote's name, behind
-    `--`. Why: 0052-security-hardening design D9.
+    It reads the operator's config, and what that includes, and no repo's, so a key
+    a worker sets after the refusal starts nothing. The caller passes a URL, not a
+    remote's name, behind `--`. With no ssh command the operator set, ssh neither
+    hangs nor prompts.
+    Why: 0052-security-hardening design D9; 0062-offline-origin design D3.
     """
     with _scratch() as scratch:
         root = Path(scratch)
@@ -1047,12 +1103,39 @@ def _outside(
         )
         alternates.write_text(objects)
         env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
+        operator = ("GIT_SSH_COMMAND", "GIT_SSH")
+        named = _maybe(root, "config", "--get", "core.sshCommand")
+        if not any(env.get(name) for name in operator) and not (named or "").strip():
+            env["GIT_SSH_COMMAND"] = SSH_COMMAND
         return _run(root, *args, env=env, timeout=timeout)
 
 
-def _listed(primary: Path, url: str, *refs: str) -> str | None:
-    """Return what `url` lists of its tags and `refs`, or None if it cannot be read."""
-    done = _outside(primary, "ls-remote", "--tags", "--", url, *refs)
+def _remote(
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+) -> subprocess.CompletedProcess[str]:
+    """Return `_outside`'s call; one that stopped, a timeout, exits 1 naming why."""
+    try:
+        return _outside(primary, *args, timeout=timeout)
+    except Stop as stop:
+        return subprocess.CompletedProcess(args, 1, "", str(stop))
+
+
+def _why(done: subprocess.CompletedProcess[str]) -> str:
+    """Return a failed call's last stderr line, or its exit."""
+    lines = [line for line in done.stderr.splitlines() if line.strip()]
+    return lines[-1].strip() if lines else f"exit {done.returncode}"
+
+
+def _listed(
+    primary: Path, url: str, *refs: str, first_read: bool = False
+) -> str | None:
+    """Return what `url` lists of its tags and `refs`, or None if it cannot be read.
+
+    A run's read that fails is `Unreachable`. Why: 0062-offline-origin design D2.
+    """
+    done = _remote(primary, "ls-remote", "--tags", "--", url, *refs)
+    if done.returncode != 0 and first_read:
+        raise Unreachable(1, _why(done))
     return done.stdout if done.returncode == 0 else None
 
 
@@ -1061,14 +1144,19 @@ def _pushed(
 ) -> bool | None:
     """Return whether origin's tag is on the branch's tip, or None with no origin.
 
-    An `origin` this may not read lacks the tag, as one that cannot be read does.
+    An `origin` this may not read lacks the tag, as one that cannot be read does,
+    save on a run's read, where that is `Unreachable`.
     """
     if "origin" not in _git(primary, "remote").split():
         return None
     url = _read_url(primary, first_read)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
-    listed = _listed(primary, url, ref, f"{ref}^{{}}") if url else None
+    listed = (
+        _listed(primary, url, ref, f"{ref}^{{}}", first_read=first_read)
+        if url
+        else None
+    )
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
     lines = (listed or "").splitlines()
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
@@ -1177,6 +1265,15 @@ def _foreign_commit(
     return commits
 
 
+def _local_releases(primary: Path, base: str, default: str) -> list[str]:
+    """Return `default` and the tags of its release merges past raw `base`, or none."""
+    tags = _release_tags(primary)
+    commits = _foreign_commit(primary, base, default, tags=tags)
+    released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    named = [tag for tag, (_, commit) in tags.items() if commit in released]
+    return [default, *named] if commits else []
+
+
 def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push.
 
@@ -1193,12 +1290,15 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
         _push_default(primary, url) if first_read and url else default_branch(primary)
     )
     done = (
-        _outside(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
+        _remote(primary, "ls-remote", "--heads", "--tags", "--", url) if url else None
     )
     if done is None or done.returncode != 0:
         if done is not None and first_read:
-            raise Stop(1, "conduct: halt — cannot read origin: nothing pushed")
-        commits = _foreign_commit(primary, f"origin/{default}", default)
+            raise Unreachable(1, _why(done))
+        tracking = f"refs/remotes/origin/{default}"
+        if _maybe(primary, "rev-parse", "-q", "--verify", tracking) is None:
+            raise Stop(1, f"conduct: halt — origin has no {default}: push it by hand")
+        commits = _foreign_commit(primary, tracking, default)
         return [(f"refs/heads/{default}", commits[0])] if commits else []
     held = {
         ref: sha
@@ -1218,6 +1318,7 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
             " lacks: a person fetches",
         )
     if first_read:
+        _keep_base(primary, base)
         _close_releases(primary, base)
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
@@ -1309,11 +1410,15 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
 
 
 def check(
-    primary: Path, stage: str, version: Version, first_read: bool = False
+    primary: Path,
+    stage: str,
+    version: Version,
+    first_read: bool = False,
+    offline: bool = False,
 ) -> str | None:
     """Return why a station's check on disk fails, or None when it passes."""
     if stage == "release":
-        return _check_release(primary, version, first_read)
+        return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
     if stage == "build":
@@ -1367,9 +1472,16 @@ class RunLog:
             except FileExistsError:
                 continue
         self.lock = runs / f"{self.stamp}.lock"
+        self.held: list[tuple[str, str, str]] | None = None
 
     def event(self, who: str, event: str, detail: str) -> None:
-        """Append `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line."""
+        """Append `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line.
+
+        While `held` is a list, the event waits there instead.
+        """
+        if self.held is not None:
+            self.held.append((who, event, detail))
+            return
         detail = " ".join(detail.split())
         deadline = time.monotonic() + LOCK_SECONDS
         while True:
@@ -1862,6 +1974,7 @@ class Run:
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
         self.released: list[str] = []
+        self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
@@ -1889,7 +2002,28 @@ class Run:
         halted = " ".join(dict.fromkeys(who for who, _ in self.halts)) or "none"
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
-        return f"halted {halted} · blocked {blocked} · released {released}"
+        return f"halted {halted} · blocked {blocked} · released {released}" + (
+            self.unpushed()
+        )
+
+    def unpushed(self) -> str:
+        """Return ` · unpushed <names>`, as `status` names them, or "" with none.
+
+        Offline, they are the default branch and the tags of its release merges past
+        the offline base. Why: 0062-offline-origin design D5.
+        """
+        try:
+            if self.offline and (base := _offline_base(self.primary)):
+                names = _local_releases(self.primary, base, _kept_default(self.primary))
+            else:
+                names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
+        except Stop:
+            return ""
+        return f" · unpushed {' '.join(names)}" if names else ""
+
+    def waited(self, why: str) -> None:
+        """Log a push that waits on `origin`."""
+        self.log.event("run", "push", f"waiting: {why}")
 
     def spawn(
         self,
@@ -1952,7 +2086,8 @@ class Run:
                     return
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
-                    _foreign_commit(self.primary, f"origin/{default}", default)
+                    base = _offline_base(self.primary) if self.offline else None
+                    _foreign_commit(self.primary, base or f"origin/{default}", default)
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -1978,14 +2113,21 @@ class Run:
                 denied = self.spawn(version.change, stage, cwd, prompt, models)
                 if denied is None:
                     return
-                if stage == "release" and not self.push_left():
+                if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
-                reason = check(self.primary, stage, version, first_read=True)
+                try:
+                    reason = check(self.primary, stage, version, True, self.offline)
+                except Unreachable as down:
+                    self.waited(str(down))
+                    self.offline = True
+                    reason = check(self.primary, stage, version, True, True)
                 if not self.judge(version.change, stage, reason, denied):
                     return
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
+                        if self.offline:
+                            self.waited(f"{tag} released locally")
                     self.remove_tree(version)
                     return
         except Stop as stop:
@@ -2183,36 +2325,71 @@ class Run:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
 
-    def push_left(self) -> bool:
+    def push_left(self, tries: tuple[int, ...]) -> bool:
         """Push what a release merged and left; return False when that halted the run.
 
         A refusal or a rejection halts it, and so does a changed config, before any
         remote call: the URLs are the ones read before the first worker, so a worker
         steers none. A held key is refused first, so the halt names it. The default
         branch is the one origin's HEAD names, and the one a run kept. Its push
-        removes entries whose heads are now on it; a head already there authorizes
-        nothing even when cleanup did not run.
-        Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
+        keeps the offline base and removes entries whose heads are now on it; a head
+        already there authorizes nothing even when cleanup did not run. A failed read
+        is tried again after each of `tries`' delays; past the last, the run is
+        offline and judged against the offline base.
+        Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2;
+        0062-offline-origin design D2.
         """
+        for delay in tries:
+            time.sleep(delay)
+            try:
+                _refuse_config_commands(self.primary)
+                if self.pushes and (
+                    changed := _config_changed(self.primary, self.git_state)
+                ):
+                    raise changed
+                unpushed = _unpushed(self.primary, first_read=True)
+            except Unreachable as down:
+                self.waited(str(down))
+                continue
+            except Stop as stop:
+                self.halt("run", str(stop))
+                return False
+            self.offline = False
+            pushed = self.push(unpushed)
+            if pushed is not None:
+                return pushed
+        self.offline = True
         try:
-            _refuse_config_commands(self.primary)
-            if self.pushes and (
-                changed := _config_changed(self.primary, self.git_state)
-            ):
-                raise changed
-            unpushed = _unpushed(self.primary, first_read=True)
+            if (base := _offline_base(self.primary)) is None:
+                raise Stop(
+                    1,
+                    "conduct: halt — cannot read origin, and no offline base: a person"
+                    " runs conduct.py anchor",
+                )
+            _foreign_commit(self.primary, base, _kept_default(self.primary))
         except Stop as stop:
             self.halt("run", str(stop))
             return False
+        return True
+
+    def push(self, unpushed: list[tuple[str, str]]) -> bool | None:
+        """Push each `(ref, sha)`; return False when a refusal halted the run.
+
+        None when a push failed and a re-read of `origin` fails too: a wait.
+        """
         for ref, sha in unpushed:
             kind, name = ref.split("/", 2)[1:]
             for url in self.pushes:
-                done = _outside(
+                done = _remote(
                     self.primary,
                     *("push", "--no-verify", "--", url, f"{sha}:{ref}"),
                     timeout=PUSH_TIMEOUT,
                 )
                 if done.returncode != 0:
+                    read = _remote(self.primary, "ls-remote", "--heads", "--", url)
+                    if read.returncode != 0:
+                        self.waited(_why(read))
+                        return None
                     self.halt(
                         "run", f"git push origin {name} failed, exit {done.returncode}"
                     )
@@ -2220,6 +2397,7 @@ class Run:
             self.log.event("run", "push", name)
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
+                _keep_base(self.primary, sha)
                 _close_releases(self.primary, sha)
         return True
 
@@ -2228,13 +2406,18 @@ class Run:
         versions = open_versions(self.primary)
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
+        self.log.held = []
+        self.push_left(RETRIES)
+        held, self.log.held = self.log.held, None
+        down = " · origin: unreachable — pushes wait" if self.offline else ""
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}",
+            f" · versions {names}{down}",
         )
-        self.push_left()
+        for event in held:
+            self.log.event(*event)
         if self.halts:
             self.log.event("run", "halt", self.closing())
             return 1
@@ -2275,10 +2458,13 @@ class Run:
                 thread.start()
             for thread in threads.values():
                 thread.join()
+        if self.offline and not self.stopped("run"):
+            self.push_left((0,))
         if self.halts or self.blocked:
             self.log.event("run", "halt", self.closing())
             return 1
-        self.log.event("run", "done", f"released {' '.join(self.released)}")
+        released = " ".join(self.released)
+        self.log.event("run", "done", f"released {released}{self.unpushed()}")
         return 0
 
 
@@ -2412,6 +2598,54 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
     return f"approve-gate: approved — {hashed} · {change}"
 
 
+def anchor(cwd: Path, yes: str | None) -> str:
+    """Seed the first offline base from the default branch's tracking ref, checked.
+
+    A person's session alone: no worker can write the home folder, and the tracking
+    ref is one a worker writes, so it writes only the sha the person names with
+    `yes` after seeing it. Why: 0062-offline-origin design D6.
+    """
+    primary = primary_of(cwd)
+    _refuse_config_commands(primary)
+    if _claim(primary / ".minions" / "runs" / "active") == "live":
+        raise Stop(2, "anchor: cannot run — a run is live: .minions/runs/active exists")
+    file = _pushed_file(primary)
+    if file.is_file():
+        raise Stop(
+            2,
+            f"anchor: cannot run — an offline base stands:"
+            f" ~/{KEPT_ORIGINS}/{file.name}",
+        )
+    default = _kept_default(primary)
+    tracking = f"origin/{default}"
+    sha = _maybe(
+        primary, "rev-parse", "-q", "--verify", f"refs/remotes/{tracking}^{{commit}}"
+    )
+    if sha is None:
+        raise Stop(2, f"anchor: cannot run — {tracking} is missing")
+    sha = sha.strip()
+    tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    if not _history_ancestor(primary, sha, tip):
+        raise Stop(2, f"anchor: cannot run — {tracking} is not on {default}")
+    if not _merges_a_release(primary, sha, _release_tags(primary)):
+        raise Stop(2, f"anchor: cannot run — {tracking} is no release merge")
+    if yes is None:
+        raise Stop(
+            1,
+            f"anchor: check {sha} · {_subject(primary, sha)} against origin's"
+            f" {default}, then run conduct.py anchor --yes {sha}",
+        )
+    if yes != sha:
+        raise Stop(2, f"anchor: cannot run — {tracking} is {sha}, not {yes}")
+    if why := _keep_base(primary, sha):
+        raise Stop(
+            2,
+            f"anchor: cannot write the offline base — {why}; a sandbox refuses the"
+            " home folder: run it outside one",
+        )
+    return f"anchor: {sha} · {_subject(primary, sha)}"
+
+
 def agent(cwd: Path, executor: str, prompt: str) -> int:
     """Run one worker in `cwd` under the run's permissions; return its exit code."""
     if _executor_missing(executor):
@@ -2502,7 +2736,7 @@ def _change_number(change: str) -> int:
 
 
 def report(cwd: Path) -> str:
-    """Return the last run's close-out: per version, its halts, then its last line."""
+    """Return the last run's close-out: its waits, each version, the halts, the end."""
     primary = primary_of(cwd)
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
@@ -2523,6 +2757,12 @@ def report(cwd: Path) -> str:
             call = found.string[found.end() :].split(" · ", 1)[-1]
             denied.setdefault(found[1], []).append(call)
     lines = [f"run · denied {', '.join(denied['run'])}"] if "run" in denied else []
+    lines += [
+        f"run · waited {detail.removeprefix('waiting: ')}"
+        for found in events
+        if found[2] == "push"
+        and (detail := found.string[found.end() :]).startswith("waiting: ")
+    ]
     for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
@@ -2587,6 +2827,10 @@ def main(argv_: list[str] | None = None) -> int:
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
+    anchoring = commands.add_parser(
+        "anchor", help="a person seeds the first offline base"
+    )
+    anchoring.add_argument("--yes", metavar="sha")
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:
@@ -2609,6 +2853,8 @@ def main(argv_: list[str] | None = None) -> int:
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
+        elif args.command == "anchor":
+            print(anchor(cwd, args.yes))
         else:
             print(report(cwd))
     except Stop as stop:

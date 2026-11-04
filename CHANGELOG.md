@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-04
+
+Gate: local 6m25s · CI 0m42s (CI at d897227) · 0.50.0: local 4m40s · CI not read under mf-ship
+
+- `conduct.py` keeps an offline base, `~/.mf-ship-origin/<digest>.pushed`, after every good read of `origin` and every
+  default-branch push, and `conduct.py anchor` lets a person seed the first one from a checked tracking ref, written
+  only on `--yes <sha>` after it prints the sha and subject, so a run has a base to judge against while `origin` is
+  down (change `0062-offline-origin`, phase 1).
+- A failed read of `origin` is a wait, not a halt: three tries at the start, then the run goes on judged against the
+  offline base, or halts naming `conduct.py anchor` with none; remote calls pass `ssh -o ConnectTimeout=15 -o
+  BatchMode=yes` when the operator set no ssh command, and `status` names a missing `origin/<default>` (change
+  `0062-offline-origin`, phase 2).
+- A release made while `origin` is down passes as released locally: its worktree goes, its dependents merge it from
+  the local default branch, and each release and the run's close push what is pending, so an outage stops no version
+  (change `0062-offline-origin`, phase 3).
+- The record names every wait: the `start` line's `origin: unreachable — pushes wait`, a `push — waiting` event per
+  failed read or push and per local release, the close's `· unpushed <names>`, and `report`'s `run · waited` lines, so
+  the person sees what is local only (change `0062-offline-origin`, phase 4).
+- `mf-ship`'s skill names `conduct.py anchor` and the no-offline-base halt, D47 and D51 record the waits and the
+  offline base, and `THREAT_MODEL.md` names the ledger's window an outage holds open and the anchor's trust in the
+  tracking ref (change `0062-offline-origin`, phase 5).
+
 ## [0.50.0] - 2026-11-03
 
 Gate: local 4m40s · CI not read under mf-ship · 0.49.0: local 4m27s · CI not read under mf-ship
