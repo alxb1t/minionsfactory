@@ -109,7 +109,8 @@ in full. An `integrating` halt is the person's: they settle the note, then `/mf-
 until then a run halts on it again. A halt naming a changed git config is the person's: read that file, and repoint
 `origin` if a worker moved it, before a re-run. A halt naming a secret in the push range — `the push range holds a
 secret: <rule> in <file> at <commit>; nothing pushed` — is the person's too: they read that commit, take the secret out of
-the unpushed history and revoke it, before a re-run. A version still building gets `main` merged in when `main` changed its gate
+the unpushed history and revoke it, before a re-run; one naming `an octopus merge, which the scan cannot read` is theirs
+as well: they redo it as merges of one branch each. A version still building gets `main` merged in when `main` changed its gate
 since its base; halted because that merge conflicts where no rule settles it, it needs `git -C <tree> merge <default>`,
 resolved, before a re-run, and one halted on that merge left open with no note needs
 it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:

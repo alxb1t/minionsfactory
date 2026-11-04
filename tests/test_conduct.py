@@ -2312,7 +2312,53 @@ def test_a_secret_in_the_push_range_halts_the_run(
         f" at {merge[:7]}; nothing pushed"
     )
 
+    # An allow comment a worker writes on the key's line does not hide it.
+    tip = _git(root, "rev-parse", "main")
+    _commit(root, {"allowed.txt": f"token: {key}  # gitleaks:allow\n"}, "allowed")
+    allowed = _git(root, "rev-parse", "HEAD")
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, allowed)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in allowed.txt"
+        f" at {allowed[:7]}; nothing pushed"
+    )
+
+    # git shows no octopus merge's diff, so a key one adds halts as unreadable.
+    tip = _git(root, "rev-parse", "main")
+    for side in ("left", "right"):
+        _git(root, "switch", "-q", "-c", side, tip)
+        _commit(root, {f"{side}.txt": "x\n"}, f"a {side} commit")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "--no-commit", "left", "right")
+    _commit(root, {"octopus.txt": f"token: {key}\n"}, "an octopus merge")
+    octopus = _git(root, "rev-parse", "HEAD")
+    assert _git(root, "rev-list", "--count", "--min-parents=3", f"{tip}..main") == "1"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, octopus)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds an octopus merge, which the scan cannot"
+        f" read: {octopus[:7]}; nothing pushed"
+    )
+
+    # An ignore file a worker writes into the primary, the conductor's folder, does not.
+    tip = _git(root, "rev-parse", "main")
+    _commit(root, {"ignored.txt": f"token: {key}\n"}, "ignored")
+    ignored = _git(root, "rev-parse", "HEAD")
+    (root / ".gitleaksignore").write_text(f"{ignored}:ignored.txt:github-pat:1\n")
+    monkeypatch.chdir(root)
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, ignored)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in ignored.txt"
+        f" at {ignored[:7]}; nothing pushed"
+    )
+
     # A scan that fails, or cannot start, halts as a hit does.
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, None, "0" * 40)
+    assert stopped.value.code == 1
+    assert str(stopped.value).startswith("conduct: halt — the secret scan failed: ")
+    assert str(stopped.value).endswith("; nothing pushed")
     failing = tmp_path / "failing-scan"
     failing.write_text("#!/bin/sh\necho 'no repo here' >&2\nexit 1\n")
     failing.chmod(0o755)

@@ -45,7 +45,7 @@ def _hits(root: Path) -> list[str]:
     return hits
 
 
-def test_no_tracked_file_holds_a_home_path_or_a_key() -> None:
+def test_no_tracked_file_holds_a_home_path() -> None:
     assert _hits(_REPO) == []
 
 
@@ -191,7 +191,7 @@ def test_the_gate_scan_skips_what_git_ignores(
     assert {name for name in listed if key in (scanned / name).read_text()} == hits
 
 
-def test_the_guardrail_scan_reports_a_planted_path_and_key(tmp_path: Path) -> None:
+def test_the_guardrail_scan_reports_a_planted_path(tmp_path: Path) -> None:
     # A staged file is listed before any commit; an untracked one is not.
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     planted = (

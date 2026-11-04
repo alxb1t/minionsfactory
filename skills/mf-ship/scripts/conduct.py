@@ -1157,10 +1157,13 @@ def _scan(primary: Path, base: str | None, sha: str) -> None:
 
     Betterleaks reads a scratch repo with `primary`'s objects, no system config and no
     attributes, so no worker-written filter or `textconv` runs; its report is redacted.
-    `git log -p` prints no merge's diff, so a merge is read by what it adds to the
-    automatic merge of its parents. Why: 0065-gate-hardening design D7.
+    It reads no ignore file and no allow comment, which a worker can write. `git log -p`
+    prints no merge's diff, so a two-parent merge is read by what it adds to the
+    automatic merge of its parents; git shows an octopus merge's not at all, so one
+    stops the scan. Why: 0065-gate-hardening design D7.
     """
-    span = "--remerge-diff " + (f"{base}..{sha}" if base else sha)
+    commits = f"{base}..{sha}" if base else sha
+    span = f"--remerge-diff {commits}"
     with _scratch() as scratch:
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
@@ -1172,8 +1175,21 @@ def _scan(primary: Path, base: str | None, sha: str) -> None:
         quiet = ("GIT_CONFIG_NOSYSTEM", "GIT_ATTR_NOSYSTEM", "GIT_NO_REPLACE_OBJECTS")
         env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_LAZY_FETCH": "1"}
         env |= dict.fromkeys(quiet, "1")
+        listed = _run(root, "rev-list", "--min-parents=3", commits, env=env)
+        if listed.returncode != 0:
+            why = _why(listed)
+            raise Stop(
+                1, f"conduct: halt — the secret scan failed: {why}; nothing pushed"
+            )
+        if octopus := listed.stdout.split():
+            raise Stop(
+                1,
+                "conduct: halt — the push range holds an octopus merge, which the scan"
+                f" cannot read: {octopus[0][:7]}; nothing pushed",
+            )
         argv = [
             *(SCANNER, "git", "--no-banner", "--no-color", "--redact"),
+            *("--ignore-gitleaks-allow", f"--gitleaks-ignore-path={scratch}"),
             *(f"--exit-code={LEAKED}", f"--log-opts={span}", "--report-format=json"),
             *(f"--report-path={report}", scratch),
         ]

@@ -77,7 +77,7 @@ that then reaches a real home path, a fixed port or a global config is fixed to 
 `skills/mf-build/SKILL.md`'s phase gate: `make -n check` exits 0 → `make check` after each phase but the last, the gate after the
 last; else the gate after each, as before. `I8` in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`: "let each phase
 end on a green `make check`, the last on a green gate". A new test the builder writes that runs over 5 s carries `slow` — a line
-beside `T1`, in both rule tables.
+beside `T1`, in both rule tables, and in `skills/mf-converge/SKILL.md`'s copy, which the fix station writes tests to.
 
 ### D3
 
@@ -102,8 +102,8 @@ The `B023` and `B904` hits are fixed. `addopts = ["--strict-markers"]`.
 
 ### D6
 
-`betterleaks dir . --no-banner --redact` in the gate; `.betterleaks.toml` allowlists MF's fixture paths and each path `.gitignore`
-names, each with a reason, so the scan reads what git can track and a gitignored `.env` or `.venv/` never turns it red; it adds an
+`betterleaks dir . --no-banner --redact` in the gate; `.betterleaks.toml` allowlists `.minions/` and each path `.gitignore`
+names, each with a reason, and no tracked file, so the scan reads what git can track and a gitignored `.env` or `.venv/` never turns it red; it adds an
 `aws-access-key-id` rule, a lone `AKIA` or `ASIA` id, which the retired shape caught and the default rule skips without its secret. CI
 installs `betterleaks_1.9.0_linux_x64.tar.gz` from the `betterleaks/betterleaks` v1.9.0 release, checked against
 `f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7` with `sha256sum -c`, before `make gate`. `docs/decisions.md`
@@ -113,11 +113,15 @@ retire to the scan (the `## Tests` table).
 
 ### D7
 
-`_scan(primary, base, sha)` runs `betterleaks git --no-banner --redact --exit-code 3 --log-opts='--remerge-diff
-<base>..<sha>' <scratch>` — `git log -p` prints no merge's diff, so a merge is read by what it adds to the automatic merge of
-its parents; a clean merge adds nothing, so a hit names the commit that brought the key — against
-`_scratch`'s bare repo borrowing the primary's objects, `GIT_CONFIG_NOSYSTEM=1` and `GIT_ATTR_NOSYSTEM=1`, so no worker-written
-config or attributes — `diff.*.textconv` among them — run. `Run.push` scans each heads ref's range before its first push; exit 3 →
+`_scan(primary, base, sha)` runs `betterleaks git --no-banner --redact --ignore-gitleaks-allow --gitleaks-ignore-path=<scratch>
+--exit-code 3 --log-opts='--remerge-diff <base>..<sha>' <scratch>` — `git log -p` prints no merge's diff, so a two-parent merge
+is read by what it adds to the automatic merge of its parents; a clean merge adds nothing, so a hit names the commit that brought
+the key — against `_scratch`'s bare repo borrowing the primary's objects, `GIT_CONFIG_NOSYSTEM=1` and `GIT_ATTR_NOSYSTEM=1`, so
+no worker-written config or attributes — `diff.*.textconv` among them — run, and no `betterleaks:allow` or `gitleaks:allow`
+comment and no ignore file in the conductor's folder, which a worker can write, hides a hit. git skips `--remerge-diff` for an
+octopus merge and shows it no diff, so a commit `git rev-list --min-parents=3` lists in the range →
+`Stop(1, "conduct: halt — the push range holds an octopus merge, which the scan cannot read: <commit>; nothing pushed")`;
+MF's own merges take one branch. `Run.push` scans each heads ref's range before its first push; exit 3 →
 `Stop(1, "conduct: halt — the push range holds a secret: <rule> in <file> at <commit>; nothing pushed")`, the report read with
 `--report-format json`, redacted. `preconditions` stops with 2, `run: cannot run — betterleaks is not on PATH: brew install
 betterleaks`. Pays `0051·S6`.
@@ -138,7 +142,10 @@ integration: `test_the_isolation_fixture_holds_home_under_tmp_path` (`T2`: a new
 (the scan's own twin, `T6`), `test_a_secret_in_the_push_range_halts_the_run` and `test_a_run_without_betterleaks_stops_at_start`
 (new conductor paths), and a step in `test_the_bootstrap_templates_cover_the_target_layout`. Converge round 1 adds
 `test_the_gate_scan_skips_what_git_ignores`, over MF's and the template's `.gitignore` and `.betterleaks.toml`, and a step in
-`test_a_secret_in_the_push_range_halts_the_run` with a key only a merge commit adds.
+`test_a_secret_in_the_push_range_halts_the_run` with a key only a merge commit adds; round 3 adds steps there with a key behind
+an allow comment, a key an octopus merge adds and a key an ignore file in the conductor's folder names, and renames
+`test_no_tracked_file_holds_a_home_path_or_a_key` and `test_the_guardrail_scan_reports_a_planted_path_and_key` to
+`test_no_tracked_file_holds_a_home_path` and `test_the_guardrail_scan_reports_a_planted_path`, which check home paths alone.
 
 | removed or merged | carried by |
 |---|---|

@@ -32,9 +32,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   to its release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
   authorizes nothing once it is on `origin`. The push check reads history in a clean scratch repo, through objects alone,
   with replacement disabled; no worker-written ref, graft or `shallow` file reaches it. Before any push, Betterleaks scans
-  each pushed branch's range from the offline base, each merge by what it adds to the automatic merge, in such a scratch repo, with no
-  system config or attributes, so no worker-written filter runs; a hit halts the run, its secret redacted, and a run
-  without Betterleaks does not start.
+  each pushed branch's range from the offline base, each two-parent merge by what it adds to the automatic merge, in such a
+  scratch repo, with no system config or attributes, so no worker-written filter runs, and with no ignore file or allow
+  comment honoured; a hit halts the run, its secret redacted, as does an octopus merge, whose diff git does not show, and a
+  run without Betterleaks does not start.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points
@@ -71,6 +72,10 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - A git too old to read `GIT_NO_LAZY_FETCH` still fetches for a promisor a worker plants, before the refusal.
 - A credential outside `SECRETS` and `TOKENS` stays readable by a script or the `Read` tool: the host has no list of its
   own. So does a repo's `.env`, and `conduct.py` pushes to `origin` what a worker commits and Betterleaks' rules miss.
+- The push scan reads each commit's diff alone: git shows no content for a file it takes as binary, and no commit message or
+  tag annotation reaches a rule, so a key in a binary keystore, a commit message or a release tag's annotation is pushed
+  unscanned. The push scan runs Betterleaks' default rules, so a lone AWS key id the gate's `.betterleaks.toml` catches
+  passes it.
 - A run compares the git config with its own first read, so a plain key a run that stopped left is that read, and it steers no
   remote call.
 - A repo's first run keeps the URLs it reads, so a URL set before it stands. A repo a worker puts inside a linked worktree reads

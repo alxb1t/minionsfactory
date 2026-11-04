@@ -19,16 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The gate runs the tests under `coverage`, its subprocesses included, and `diff-cover` fails it below 100% of the
   lines changed since `DIFF_BASE` — `main` here, `origin/main` in CI — so no changed line goes unrun
   (change `0065-gate-hardening`, phase 4).
-- The gate scans the tree with Betterleaks, `.betterleaks.toml` allowlisting the planted-key test, `.minions/` and
-  each path `.gitignore` names, each with its reason, so a gitignored `.env` or `.venv/` never turns it red, and adding
+- The gate scans the tree with Betterleaks, `.betterleaks.toml` allowlisting `.minions/` and each path `.gitignore`
+  names, each with its reason, and no tracked file, so a gitignored `.env` or `.venv/` never turns it red, and adding
   a rule for a lone AWS key id; CI installs `betterleaks 1.9.0` by checksum; D52 makes a gate tool off PyPI operator
   tooling; the guardrail's four key shapes retire to the scan, which a planted key of each proves, a token per GitHub
   prefix and a lone AWS id among them (change `0065-gate-hardening`, phase 5).
-- `conduct.py` scans each pushed branch's range from the offline base with `betterleaks git`, each merge commit
-  by its remerge diff so a key only a merge adds is caught, in a scratch repo with
-  no system config or attributes, and halts on a hit — rule, file and commit named, the secret redacted, nothing
-  pushed; a scan that fails halts too, and `run` stops at its start without Betterleaks (change
-  `0065-gate-hardening`, phase 6).
+- `conduct.py` scans each pushed branch's range from the offline base with `betterleaks git`, each two-parent merge
+  commit by its remerge diff so a key only a merge adds is caught, in a scratch repo with no system config or
+  attributes, honouring no allow comment and no ignore file in the conductor's folder, and halts on a hit — rule,
+  file and commit named, the secret redacted, nothing pushed; an octopus merge, whose diff git does not show, and a
+  scan that fails halt too, and `run` stops at its start without Betterleaks (change `0065-gate-hardening`, phase 6).
 - A bootstrapped target's gate scans for secrets and gains `check`, its lines but the scan; its `.gitignore` gains
   `.env`, `.venv/` and `node_modules/`, and a `.betterleaks.toml` allowlists each path it names; the bootstrap checks
   `betterleaks version` first, and `CODING_STANDARDS.md.tmpl` carries the per-stack recipes, the any-stack rule and

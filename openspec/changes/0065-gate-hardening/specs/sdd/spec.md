@@ -16,10 +16,11 @@ gate otherwise; its last phase SHALL end on a green gate. The input contract's `
 
 ### Requirement: The conductor scans a push for secrets
 
-Before it pushes, `conduct.py` SHALL scan each pushed range with `betterleaks git`, each merge commit by what it adds to the automatic merge of its parents,
-from a scratch repo that borrows the primary's objects and reads no repo config or attributes, and SHALL halt the run on a hit,
-naming the rule, the file and the commit, the secret redacted, pushing nothing. A run SHALL stop at its start when `betterleaks`
-is not on `PATH`, naming its install.
+Before it pushes, `conduct.py` SHALL scan each pushed range with `betterleaks git`, each two-parent merge commit by what it adds to the automatic merge of its parents,
+from a scratch repo that borrows the primary's objects and reads no repo config or attributes, honouring no ignore file and no
+allow comment, and SHALL halt the run on a hit, naming the rule, the file and the commit, the secret redacted, pushing nothing.
+It SHALL halt the same way, naming the commit, when the range holds an octopus merge, whose diff git does not show. A run SHALL
+stop at its start when `betterleaks` is not on `PATH`, naming its install.
 
 #### Scenario: A secret in the push range
 - **WHEN** a release's commits hold a string a Betterleaks rule matches
@@ -28,6 +29,14 @@ is not on `PATH`, naming its install.
 #### Scenario: A secret only a merge adds
 - **WHEN** a merge commit in the push range adds a string a Betterleaks rule matches, which neither parent holds
 - **THEN** the scan halts, naming the rule, the file and the merge commit
+
+#### Scenario: A secret a worker marks allowed
+- **WHEN** a key in the push range carries a `gitleaks:allow` comment, or an ignore file in the conductor's folder names it
+- **THEN** the scan halts, naming the rule, the file and the commit
+
+#### Scenario: An octopus merge
+- **WHEN** the push range holds a merge commit with more than two parents
+- **THEN** the scan halts, naming the commit, and nothing is pushed
 
 #### Scenario: No Betterleaks
 - **WHEN** `betterleaks` is not on `PATH`
