@@ -14,7 +14,8 @@ close. The `start` line SHALL say when `origin` is unreachable, each failed push
 SHALL name what stays unpushed, and `report` SHALL print every wait. `conduct.py anchor` SHALL write the first offline base from
 `refs/remotes/origin/<default>` only when no run is live, no offline base stands, the ref is an ancestor of the local default
 branch, and it is a release merge whose tag stands; otherwise it SHALL refuse, naming the check. The conductor's remote calls SHALL
-pass `ssh -o ConnectTimeout=15 -o BatchMode=yes` when neither `GIT_SSH_COMMAND` nor a global `core.sshCommand` is set.
+pass `ssh -o ConnectTimeout=15 -o BatchMode=yes` when neither `GIT_SSH_COMMAND` nor a `core.sshCommand` in the operator's
+config, or a file it includes, is set.
 
 #### Scenario: A good read keeps the offline base
 - **WHEN** a run reads `origin`, or pushes its default branch
@@ -35,7 +36,7 @@ pass `ssh -o ConnectTimeout=15 -o BatchMode=yes` when neither `GIT_SSH_COMMAND` 
 - **WHEN** a version's release merges while `origin` cannot be read
 - **THEN** its check passes as released locally, its worktree is removed, a `push — waiting` line is logged, and a dependent
   merges it from the local default branch and ships in the same run
-- **AND** the close names the unpushed refs, and `report` prints the wait
+- **AND** the close names the unpushed refs, the default branch and each local release's tag, and `report` prints the wait
 
 #### Scenario: Origin comes back
 - **WHEN** `origin` answers again before the run's close, or at the next run's start

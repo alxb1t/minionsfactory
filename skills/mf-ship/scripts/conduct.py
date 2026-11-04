@@ -779,7 +779,8 @@ def _check_release(
     """Return why the release check fails, or None.
 
     Offline, a tag origin cannot list is released locally: the next good read
-    pushes it. Why: 0062-offline-origin design D4.
+    pushes it. A run's read of the tag that fails is `Unreachable`, and the run
+    goes offline. Why: 0062-offline-origin design D2, D4.
     """
     default = default_branch(primary)
     if not _ancestor(primary, version.change, default):
@@ -1087,9 +1088,10 @@ def _outside(
 ) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
-    It reads the operator's global config and no repo's, so a key a worker sets after
-    the refusal starts nothing. The caller passes a URL, not a remote's name, behind
-    `--`. With no ssh command the operator set, ssh neither hangs nor prompts.
+    It reads the operator's config, and what that includes, and no repo's, so a key
+    a worker sets after the refusal starts nothing. The caller passes a URL, not a
+    remote's name, behind `--`. With no ssh command the operator set, ssh neither
+    hangs nor prompts.
     Why: 0052-security-hardening design D9; 0062-offline-origin design D3.
     """
     with _scratch() as scratch:
@@ -1102,7 +1104,7 @@ def _outside(
         alternates.write_text(objects)
         env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
         operator = ("GIT_SSH_COMMAND", "GIT_SSH")
-        named = _maybe(root, "config", "--global", "--get", "core.sshCommand")
+        named = _maybe(root, "config", "--get", "core.sshCommand")
         if not any(env.get(name) for name in operator) and not (named or "").strip():
             env["GIT_SSH_COMMAND"] = SSH_COMMAND
         return _run(root, *args, env=env, timeout=timeout)
@@ -1124,9 +1126,16 @@ def _why(done: subprocess.CompletedProcess[str]) -> str:
     return lines[-1].strip() if lines else f"exit {done.returncode}"
 
 
-def _listed(primary: Path, url: str, *refs: str) -> str | None:
-    """Return what `url` lists of its tags and `refs`, or None if it cannot be read."""
-    done = _outside(primary, "ls-remote", "--tags", "--", url, *refs)
+def _listed(
+    primary: Path, url: str, *refs: str, first_read: bool = False
+) -> str | None:
+    """Return what `url` lists of its tags and `refs`, or None if it cannot be read.
+
+    A run's read that fails is `Unreachable`. Why: 0062-offline-origin design D2.
+    """
+    done = _remote(primary, "ls-remote", "--tags", "--", url, *refs)
+    if done.returncode != 0 and first_read:
+        raise Unreachable(1, _why(done))
     return done.stdout if done.returncode == 0 else None
 
 
@@ -1135,14 +1144,19 @@ def _pushed(
 ) -> bool | None:
     """Return whether origin's tag is on the branch's tip, or None with no origin.
 
-    An `origin` this may not read lacks the tag, as one that cannot be read does.
+    An `origin` this may not read lacks the tag, as one that cannot be read does,
+    save on a run's read, where that is `Unreachable`.
     """
     if "origin" not in _git(primary, "remote").split():
         return None
     url = _read_url(primary, first_read)
     ref = f"refs/tags/{tag}"
     # Origin lists an annotated tag's own id on `ref`, and its commit only on `^{}`.
-    listed = _listed(primary, url, ref, f"{ref}^{{}}") if url else None
+    listed = (
+        _listed(primary, url, ref, f"{ref}^{{}}", first_read=first_read)
+        if url
+        else None
+    )
     tip = _git(primary, "rev-parse", f"refs/heads/{change}").strip()
     lines = (listed or "").splitlines()
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
@@ -1249,6 +1263,15 @@ def _foreign_commit(
         ):
             raise _no_release(default, sha[:7])
     return commits
+
+
+def _local_releases(primary: Path, base: str, default: str) -> list[str]:
+    """Return `default` and the tags of its release merges past raw `base`, or none."""
+    tags = _release_tags(primary)
+    commits = _foreign_commit(primary, base, default, tags=tags)
+    released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    named = [tag for tag, (_, commit) in tags.items() if commit in released]
+    return [default, *named] if commits else []
 
 
 def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
@@ -1986,10 +2009,14 @@ class Run:
     def unpushed(self) -> str:
         """Return ` · unpushed <names>`, as `status` names them, or "" with none.
 
-        Why: 0062-offline-origin design D5.
+        Offline, they are the default branch and the tags of its release merges past
+        the offline base. Why: 0062-offline-origin design D5.
         """
         try:
-            names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
+            if self.offline and (base := _offline_base(self.primary)):
+                names = _local_releases(self.primary, base, _kept_default(self.primary))
+            else:
+                names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
         except Stop:
             return ""
         return f" · unpushed {' '.join(names)}" if names else ""
@@ -2088,9 +2115,12 @@ class Run:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
-                reason = check(
-                    self.primary, stage, version, first_read=True, offline=self.offline
-                )
+                try:
+                    reason = check(self.primary, stage, version, True, self.offline)
+                except Unreachable as down:
+                    self.waited(str(down))
+                    self.offline = True
+                    reason = check(self.primary, stage, version, True, True)
                 if not self.judge(version.change, stage, reason, denied):
                     return
                 if stage == "release":

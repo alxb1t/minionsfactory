@@ -81,11 +81,14 @@ patch both to zeros. `ship()` reads `origin` before it logs `start`, so the `sta
 raises is logged after `start`. Before the close, a run that is offline or holds pending refs calls `push_left()` once more.
 
 `_outside` adds `GIT_SSH_COMMAND="ssh -o ConnectTimeout=15 -o BatchMode=yes"` to its environment when `GIT_SSH_COMMAND` is unset
-and `git config --global --get core.sshCommand` prints nothing.
+and `git config --get core.sshCommand`, run in the scratch repo, prints nothing: it reads the system and global files and what
+they include, as the remote call does.
 
 ### D4
 
-`check(..., offline=self.offline)` → `_check_release(…, offline)`: offline, a tag `_pushed` cannot list is no failure. `advance`
+`check(..., offline=self.offline)` → `_check_release(…, offline)`: offline, a tag `_pushed` cannot list is no failure. Online,
+the check's own read of the tag, through `_listed` and `_remote`, failing is `Unreachable`: `advance` logs it as a wait, sets
+the run offline and checks again offline, so a flapping `origin` halts no version (D2). `advance`
 then appends the tag to `self.released`, logs `push — waiting: <tag> released locally`, and removes the worktree, as today. The
 ledger keeps the head; the next good read pushes it (`_unpushed`) and `_close_releases` removes it. A dependent needs nothing new
 (F4).
@@ -95,6 +98,7 @@ ledger keeps the head; the next good read pushes it (`_unpushed`) and `_close_re
 - **`start`:** `· origin: unreachable — pushes wait` after `versions …` when the read failed.
 - **`push — waiting: <why>`:** each failed read or push, and each local release.
 - **The close:** `closing()` gains `· unpushed <names>` when `_unpushed(self.primary)` lists any — names as `status` prints them.
+  Offline, the names are the default branch and the tag of each release merge past the offline base, `_local_releases`.
 - **`report`:** a `run · waited <why>` line per `push — waiting` event of the last run, before the version lines.
 - **`status`:** no change: `run · unpushed <names>` (F5).
 

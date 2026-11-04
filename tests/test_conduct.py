@@ -2555,7 +2555,7 @@ def test_a_run_goes_on_while_origin_is_down(
         assert f"run · push — waiting: {tag} released locally" in lines
     assert lines[-2:] == [
         waits(lines)[-1],
-        "run · done — released v0.1.0 v0.2.0 · unpushed main",
+        "run · done — released v0.1.0 v0.2.0 · unpushed main v0.1.0 v0.2.0",
     ]
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
@@ -2593,7 +2593,7 @@ def test_a_local_release_is_pushed_when_origin_returns(
         return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
 
     origin.rename(away)
-    assert run(0)[-1] == "run · done — released v0.1.0 · unpushed main"
+    assert run(0)[-1] == "run · done — released v0.1.0 · unpushed main v0.1.0"
     away.rename(origin)
 
     # Origin's main moved meanwhile: the push is refused, and nothing lands.
@@ -2617,6 +2617,23 @@ def test_a_local_release_is_pushed_when_origin_returns(
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
     assert conduct["_offline_base"](root) == main
     assert conduct["_ledger_heads"](root) == set()
+
+    # Origin flaps: the release's push lands, and the check's read of the tag fails.
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    left = module["Run"].push_left
+
+    def flap(self: object, tries: tuple[int, ...]) -> bool:
+        pushed: bool = left(self, tries)
+        if tries == module["PUSH_RETRIES"]:
+            origin.rename(away)
+        return pushed
+
+    monkeypatch.setattr(module["Run"], "push_left", flap)
+    lines = run(0)
+    assert "0002-marks · check — release · pass" in lines
+    assert "run · push — waiting: v0.2.0 released locally" in lines
+    assert lines[-1] == "run · done — released v0.2.0"
+    assert "refs/tags/v0.2.0" in _git(away, "ls-remote", "--tags", str(away))
 
 
 def test_the_remote_calls_carry_the_ssh_options(
@@ -2650,6 +2667,13 @@ def test_the_remote_calls_carry_the_ssh_options(
     monkeypatch.delenv("GIT_SSH_COMMAND")
     _git(root, "config", "--global", "core.sshCommand", "ssh -o Global=yes")
     assert "Global=yes" in reached()
+    assert "BatchMode" not in reached()
+    # Twin: one a file the global config includes sets stands too.
+    _git(root, "config", "--global", "--unset", "core.sshCommand")
+    included = tmp_path / "included.gitconfig"
+    included.write_text("[core]\n\tsshCommand = ssh -o Included=yes\n")
+    _git(root, "config", "--global", "include.path", str(included))
+    assert "Included=yes" in reached()
     assert "BatchMode" not in reached()
 
 
