@@ -58,7 +58,8 @@ On every halt — a stop-condition, a failing `**HALT CHECK**`, a gate check's e
 
 `skills/mf-rescue/SKILL.md`, read-only but for its one commit or its one file. Inputs: the `.halt` file, the run log's halt line,
 `runs/<stamp>/<id>_build.log`'s last lines, the change directory, and the code at `HEAD`. **Fix** — a `Verify:` that cannot pass, a
-reader a deletion missed, a task two readings would build differently, an `I19` break: edit `tasks.md` (and `design.md`'s prose,
+reader a deletion missed, a task two readings would build differently, a `Verify:` that is not one plain command — a `$(…)`, a shell variable, a loop or a
+`cd`: edit `tasks.md` (and `design.md`'s prose,
 never its decisions table), commit `docs(<id>): amend the change directory` with a body naming each fix and a `Rescue: <sub-task>`
 trailer. **Diagnose** — a design premise the code rules out, a converge cap, integrate's red gate or note: write
 `.minions/rescue/<id>.md` — the halt, the cause with `path:line`, a proposal — and commit nothing. It closes in three sentences, then

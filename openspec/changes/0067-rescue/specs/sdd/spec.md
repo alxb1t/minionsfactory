@@ -7,7 +7,7 @@ When a version halts on its build check, its converge cap, or integrate's red ga
 the `[rescue]` table's executor and model, the `[build]` table's when there is none. `skills/mf-build/SKILL.md` SHALL write
 `.minions/build/<id>.halt` on every halt — the sub-task, the stop condition, one line of evidence. `skills/mf-rescue/SKILL.md` SHALL
 fix a build halt on a `Verify:` that cannot pass, a reader a deletion missed, a task two readings would build differently, or an
-`I19` break, with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
+`Verify:` that is not one plain command — a `$(…)`, a shell variable, a loop or a `cd` — with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
 never `design.md`'s decisions table, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/rescue/<id>.md`.
 `conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on. A version SHALL
 get at most `RESCUES = 3` rescues in a run, and none for a sub-task it rescued before; a timeout, a usage limit and D47's halts that
