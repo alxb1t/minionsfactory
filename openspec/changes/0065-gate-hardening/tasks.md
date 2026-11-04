@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 - [x] 1 — Speed
 - [x] 2 — Pins
 - [x] 3 — Lint
-- [ ] 4 — Coverage
+- [x] 4 — Coverage
 - [ ] 5 — Secrets
 - [ ] 6 — The push
 - [ ] 7 — Targets
@@ -56,7 +56,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 4 — Coverage
 
-- [ ] 4.1 Add `coverage` and `diff-cover` to the dev group (`uv add --dev 'coverage>=7.17.1' 'diff-cover>=11.0.1'`), their config in
+- [x] 4.1 Add `coverage` and `diff-cover` to the dev group (`uv add --dev 'coverage>=7.17.1' 'diff-cover>=11.0.1'`), their config in
   `pyproject.toml`, their files in `.gitignore`, and the coverage lines in `Makefile`, `gate` named, per [D5](design.md#d5):
   ```diff
   + DIFF_BASE ?= main
@@ -67,10 +67,10 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
   + 	uv run diff-cover coverage.xml --compare-branch=$(DIFF_BASE) --fail-under=100
   ```
   Verify: `make -n gate` prints `uv run diff-cover coverage.xml --compare-branch=main --fail-under=100`.
-- [ ] 4.2 **HALT CHECK** The combined report covers a line a fake-worker test reaches only through a subprocess, per
+- [x] 4.2 **HALT CHECK** The combined report covers a line a fake-worker test reaches only through a subprocess, per
   [D5](design.md#d5).
   Verify: `uv run coverage report --include='skills/mf-ship/scripts/conduct.py'` prints a total above `0%`.
-- [ ] 4.3 Run `make gate DIFF_BASE=origin/main` in CI, per [D5](design.md#d5).
+- [x] 4.3 Run `make gate DIFF_BASE=origin/main` in CI, per [D5](design.md#d5).
   Verify: `grep -n 'DIFF_BASE=origin/main' .github/workflows/ci.yml` prints a line.
 
 ## 5 — Secrets

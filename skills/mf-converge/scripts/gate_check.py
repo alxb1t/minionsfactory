@@ -191,7 +191,8 @@ def export(rev: str, dest: Path, side: str) -> None:
     try:
         with tarfile.open(archive) as tar:
             tar.extractall(dest, filter="data")
-    except (tarfile.TarError, OSError) as error:
+    # Not covered: git's own tar passes the data filter, so a full disk alone fails it.
+    except (tarfile.TarError, OSError) as error:  # pragma: no cover
         raise Stop(
             2, f"gate: cannot check — the {side}'s export failed: {error}"
         ) from error

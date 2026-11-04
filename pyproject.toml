@@ -6,6 +6,8 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "coverage>=7.17.1",
+    "diff-cover>=11.0.1",
     "pytest>=9.1.1",
     "pytest-xdist>=3.8.0",
     "ruff>=0.16.3",
@@ -18,6 +20,11 @@ required-version = ">=0.12.19,<0.13"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D", "ANN", "B", "S"]
+
+[tool.coverage.run]
+parallel = true
+patch = ["subprocess"]
+source = ["skills", "scripts"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"

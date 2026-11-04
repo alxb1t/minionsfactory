@@ -24,4 +24,4 @@ jobs:
           python-version: "3.12"
 
       - name: Gate
-        run: make gate
+        run: make gate DIFF_BASE=origin/main

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ruff checks bug patterns and security (`B`, `S`); `S603` and `S607` stay off with their reasons, `S101` in tests,
   and the loop-variable and `raise … from` hits are fixed; pytest rejects an unregistered marker
   (change `0065-gate-hardening`, phase 3).
+- The gate runs the tests under `coverage`, its subprocesses included, and `diff-cover` fails it below 100% of the
+  lines changed since `DIFF_BASE` — `main` here, `origin/main` in CI — so no changed line goes unrun
+  (change `0065-gate-hardening`, phase 4).
 
 ## [0.53.0] - 2026-11-04
 

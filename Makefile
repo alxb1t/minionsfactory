@@ -1,5 +1,7 @@
 .PHONY: fix gate check install-skills uninstall-skills
 
+DIFF_BASE ?= main
+
 fix:
 	uv run ruff format .
 	uv run ruff check --fix .
@@ -12,7 +14,10 @@ gate:
 	uv run ruff check .
 	uv run ty check
 	uv run zizmor .github/workflows/ci.yml
-	uv run pytest -q -n auto
+	uv run coverage run -m pytest -q -n auto
+	uv run coverage combine -q
+	uv run coverage xml -q
+	uv run diff-cover coverage.xml --compare-branch=$(DIFF_BASE) --fail-under=100
 
 check:
 	uv run ruff format --check .
