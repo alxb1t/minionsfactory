@@ -571,11 +571,6 @@ def _merge_open(tree: Path) -> bool:
     return _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
 
 
-def _unmerged(tree: Path) -> bool:
-    """Return whether an open merge leaves a path unmerged in `tree`."""
-    return bool(_conflicts(tree))
-
-
 def _conflicts(tree: Path) -> list[str]:
     """Return the paths an open merge leaves unmerged in `tree`.
 
@@ -720,7 +715,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
-        if _unmerged(tree):
+        if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
         return (
             "integrate",
