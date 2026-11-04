@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - uv is pinned by `required-version`; CI pins its actions by commit SHA and uv's version, reads with
   `contents: read`, times out at 20 minutes and fetches the whole history; `zizmor` lints `ci.yml` in the gate
   (change `0065-gate-hardening`, phase 2).
+- Ruff checks bug patterns and security (`B`, `S`); `S603` and `S607` stay off with their reasons, `S101` in tests,
+  and the loop-variable and `raise … from` hits are fixed; pytest rejects an unregistered marker
+  (change `0065-gate-hardening`, phase 3).
 
 ## [0.53.0] - 2026-11-04
 

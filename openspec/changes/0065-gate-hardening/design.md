@@ -30,6 +30,7 @@ Taken at the cut in this worktree, no run competing for the CPU.
 | `uv sync --locked`, `ruff format --check .`, `ruff check .`, `ty check` | under 1 s each | each, timed with `date +%s` |
 | `pytest -q` | 378 s, `116 passed` | `uv run pytest -q --durations=30` |
 | `betterleaks dir . --no-banner` | 1 s, no hit | the same |
+| `pytest -q -n auto`, after phase 3, in the build | 107 s, `127 passed` | `make gate` |
 
 Tests over 5 s, `uv run pytest -q --durations=30`: `test_a_forged_release_is_not_pushed` 60.9 s ·
 `test_after_waits_for_its_dependency` 44.1 · `test_a_rerun_recovers_a_dead_release` 24.0 · `test_no_worker_pushes` 21.3 ·

@@ -1383,7 +1383,11 @@ def test_a_new_executor_is_probed_mid_run(
         # A failed probe is kept: a second version on codex halts on it, unprobed.
         joining = ("0002-marks", "0003-hand") if missing else ("0002-marks",)
 
-        def cut(root: Path = root, joining: tuple[str, ...] = joining) -> None:
+        def cut(
+            root: Path = root,
+            joining: tuple[str, ...] = joining,
+            missing: bool = missing,
+        ) -> None:
             for change in joining:
                 table = root / ".minions" / "models" / f"{change}.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -2318,7 +2322,14 @@ def test_a_forged_release_is_not_pushed(
         head = _git(root, "rev-parse", f"{commit}^")
 
         def push(
-            cwd: Path, *args: str, timeout: int = conduct["GIT_TIMEOUT"]
+            cwd: Path,
+            *args: str,
+            timeout: int = conduct["GIT_TIMEOUT"],
+            mutation: tuple[str, ...] = mutation,
+            tag: str = tag,
+            branch: str = branch,
+            head: str = head,
+            commit: str = commit,
         ) -> subprocess.CompletedProcess[str]:
             if (
                 "failed-push" in mutation

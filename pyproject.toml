@@ -17,7 +17,7 @@ dev = [
 required-version = ">=0.12.19,<0.13"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "D", "ANN"]
+select = ["E", "F", "I", "D", "ANN", "B", "S"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -27,7 +27,16 @@ error-on-warning = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
 markers = ["slow: over 5 s; `make check` leaves it to the gate"]
 
+# Per file, not `ignore`, so a command-line `--select` keeps them.
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D"]
+"**" = [
+    # The scripts' subprocesses are argv lists by design, never a shell string.
+    "S603",
+    # `git`, `make` and `uv` resolve on `PATH`, as the OpenSpec CLI does (D8).
+    "S607",
+]
+# pytest's checks are plain asserts.
+"tests/**" = ["D", "S101"]

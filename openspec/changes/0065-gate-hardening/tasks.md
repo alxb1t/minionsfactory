@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 - [x] 1 — Speed
 - [x] 2 — Pins
-- [ ] 3 — Lint
+- [x] 3 — Lint
 - [ ] 4 — Coverage
 - [ ] 5 — Secrets
 - [ ] 6 — The push
@@ -50,7 +50,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 3 — Lint
 
-- [ ] 3.1 Select `B` and `S` with the ignores and their reasons, and `--strict-markers`, in `pyproject.toml`; fix the `B023` and
+- [x] 3.1 Select `B` and `S` with the ignores and their reasons, and `--strict-markers`, in `pyproject.toml`; fix the `B023` and
   `B904` hits, per [D4](design.md#d4).
   Verify: `uv run ruff check --select B,S .` exits 0, and `grep -n -- '--strict-markers' pyproject.toml` prints a line.
 
