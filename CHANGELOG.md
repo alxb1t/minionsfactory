@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py rejoin [<change-id>]` writes a request the live run polls: it takes back each requested version whose
   stage is no halt, newly cut ones included, reads its models and probes a new executor first, halting only that
   version on a failed probe; `report` names each `rejoined` version (change `0063-rejoin`, phase 2).
+- `grant` names `/mf-ship` when it refuses, a waiting grant included; during a live run it records the grant with a
+  rejoin request instead of refusing, and the run logs a `grant` event and the `start` line's standing grants
+  (change `0063-rejoin`, phase 3).
 
 ## [0.51.0] - 2026-11-04
 

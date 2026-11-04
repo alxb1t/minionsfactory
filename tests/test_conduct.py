@@ -3237,18 +3237,24 @@ def test_a_grant_buys_one_round(
         code = _main(conduct, root, *args, monkeypatch=monkeypatch)
         return code, capsys.readouterr().out.strip()
 
-    refused = "grant: cannot run — 0001-todo is at {}, not a cap halt"
+    refused = (
+        "grant: cannot run — 0001-todo is at {}: run /mf-ship; grant once converge caps"
+    )
     assert grant() == (2, refused.format("converge"))
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 2 · halt — a scope failure\n")
     assert grant() == (2, refused.format("converge-halted"))
     assert started == [] and not grants.exists()
 
-    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
+    log.write_text(capped)
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     assert grant() == (0, "")
     assert started == [(root, "claude", True)]
     assert conduct["stage_of"](root, version) == ("converge", "granted")
+    waiting = "grant: cannot run — 0001-todo has a grant waiting: run /mf-ship"
+    assert grant() == (2, waiting)
+    assert started == [(root, "claude", True)]
 
     conduct["main"].__globals__["run"] = runner
 
@@ -3263,10 +3269,29 @@ def test_a_grant_buys_one_round(
     assert not grants.exists()
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     assert _git(tree, "status", "--porcelain") == ""
+    lines = _log(root)
+    assert " · versions 0001-todo · grant 0001-todo" in lines[0]
+    assert any(
+        line.endswith(" · run · grant — 0001-todo: one more round past the cap")
+        for line in lines
+    )
 
     calls.unlink()
     run()
     assert _calls(calls) == []
+    assert " · grant " not in _log(root)[0]
+
+    log.write_text(capped)
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir()
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
+    assert grants.is_file()
+    assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()
+    assert started == [(root, "claude", True)]
+    assert _calls(calls) == []
+    shutil.rmtree(active)
 
 
 def test_a_fix_after_a_cap_halt_converges_afresh(

@@ -61,7 +61,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin"),
+    *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -2127,6 +2127,12 @@ class Run:
                     # An amended run starts from round 1: the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
                     granted.unlink()
+                    if clause:
+                        self.log.event(
+                            "run",
+                            "grant",
+                            f"{version.change}: one more round past the cap",
+                        )
                 prompt = PROMPTS[stage].format(change=version.change, grant=clause)
                 models = _models(minions, version.change, stage, self.executor)
                 if models != self.plan.get((version.change, stage)):
@@ -2503,11 +2509,16 @@ class Run:
         self.push_left(RETRIES)
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
+        folder = self.primary / ".minions" / "grants"
+        standing = (
+            sorted(file.name for file in folder.iterdir()) if folder.is_dir() else []
+        )
+        grants = f" · grant {' '.join(standing)}" if standing else ""
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}{down}",
+            f" · versions {names}{grants}{down}",
         )
         for event in held:
             self.log.event(*event)
@@ -2671,24 +2682,46 @@ def rejoin(cwd: Path, change: str | None) -> str:
         version.change for version in open_versions(primary)
     ):
         raise Stop(2, f"rejoin: cannot run — no open version holds {change}")
-    (runs / "rejoin").mkdir(parents=True, exist_ok=True)
-    (runs / "rejoin" / (change or "all")).touch()
+    _request(runs, change or "all")
     return f"rejoin: requested {change or 'every halted version'}"
 
 
+def _request(runs: Path, name: str) -> None:
+    """Write the rejoin request `name` for the live run."""
+    (runs / "rejoin").mkdir(parents=True, exist_ok=True)
+    (runs / "rejoin" / name).touch()
+
+
 def grant(cwd: Path, change: str, executor: str) -> int:
-    """Record one more round for a version halted at the cap, then start a run."""
+    """Record one more round for a version halted at the cap, then start a run.
+
+    With a run live, the grant goes with a rejoin request instead.
+    Why: 0063-rejoin design D5.
+    """
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
         raise Stop(2, f"grant: cannot run — no version branch holds {change}")
     stage, why = stage_of(primary, version)
+    if (stage, why) == ("converge", "granted"):
+        raise Stop(2, f"grant: cannot run — {change} has a grant waiting: run /mf-ship")
     if stage != "converge-halted" or "cap reached" not in why:
-        raise Stop(2, f"grant: cannot run — {change} is at {stage}, not a cap halt")
-    preconditions(cwd, executor)
+        raise Stop(
+            2,
+            f"grant: cannot run — {change} is at {stage}: run /mf-ship; grant once"
+            " converge caps",
+        )
+    runs = primary / ".minions" / "runs"
+    live = _claim(runs / "active") == "live"
+    if not live:
+        preconditions(cwd, executor)
     grants = primary / ".minions" / "grants"
     grants.mkdir(parents=True, exist_ok=True)
     (grants / change).touch()
-    return run(cwd, executor, True)
+    if not live:
+        return run(cwd, executor, True)
+    _request(runs, change)
+    print(f"grant: recorded — the live run takes {change} back")
+    return 0
 
 
 def approve_gate(cwd: Path, change: str, hashed: str) -> str:

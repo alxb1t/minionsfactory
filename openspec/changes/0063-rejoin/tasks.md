@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The stale halt
 - [x] 2 — The request
-- [ ] 3 — Grant
+- [x] 3 — Grant
 - [ ] 4 — The base
 - [ ] 5 — The docs
 
@@ -37,7 +37,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Grant
 
-- [ ] 3.1 Add `grant`'s refusals naming `/mf-ship`, its live-run path, the `grant` event, `grant` in `EVENTS` and the `start`
+- [x] 3.1 Add `grant`'s refusals naming `/mf-ship`, its live-run path, the `grant` event, `grant` in `EVENTS` and the `start`
   line's grants; update the refusal and add the live-run step in `test_a_grant_buys_one_round`, per [D5](design.md#d5) and
   [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k grant_buys_one_round` reports `1 passed`.
