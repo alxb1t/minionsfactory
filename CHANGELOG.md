@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` gate through `gate_run.py`; the release takes its `Gate:`
   time from the run's or the record's line, and gates its folded tree with `--fresh`, so no record reaches a tag
   (change `0064-lighter-catch-up`, phase 2).
+- `integrate.py replay <merge>` rebuilds a merge from its parents in a scratch worktree with the `changelog` and
+  `decisions` rules alone and compares trees: equal exits 0, naming the paths; a path left unmerged or another tree
+  exits 1, so a merge someone judged never passes as the rules' (change `0064-lighter-catch-up`, phase 3).
 
 ## [0.52.0] - 2026-11-04
 

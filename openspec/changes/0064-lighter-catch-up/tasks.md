@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The gate record
 - [x] 2 — The stations
-- [ ] 3 — Replay
+- [x] 3 — Replay
 - [ ] 4 — The by-rule catch-up
 - [ ] 5 — The commit body
 - [ ] 6 — The record
@@ -25,7 +25,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Replay
 
-- [ ] 3.1 Add `replay` to `skills/mf-integrate/scripts/integrate.py`; add `test_replay_reproduces_a_rule_settled_merge` and
+- [x] 3.1 Add `replay` to `skills/mf-integrate/scripts/integrate.py`; add `test_replay_reproduces_a_rule_settled_merge` and
   `test_replay_refuses_a_judged_merge` to `tests/test_integrate.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_integrate.py -k replay` reports `2 passed`.
 

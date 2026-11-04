@@ -8,16 +8,18 @@
     integrate.py changelog <worktree>
     integrate.py decisions <worktree>
     integrate.py delta <worktree>
+    integrate.py replay <merge>
 
 Exit 0 done · 1 halt: not ready, or a conflict the rules do not cover · 2 cannot run.
 The worktree commands read an open merge; `changelog` and `decisions` stage
-what they write.
-Why: 0037-serial-integration design D2.
+what they write. `replay` rebuilds a merge commit by the rules alone.
+Why: 0037-serial-integration design D2; 0064-lighter-catch-up design D3.
 """
 
 import argparse
 import difflib
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -537,6 +539,60 @@ def delta(tree: Path) -> str:
     return "delta: the default branch changed no requirement the delta edits"
 
 
+def _drop(cwd: Path, scratch: Path) -> None:
+    """Remove a scratch worktree and its entry, whatever state it is in."""
+    _run(cwd, "worktree", "remove", "--force", "--force", str(scratch))
+    shutil.rmtree(scratch, ignore_errors=True)
+    _run(cwd, "worktree", "prune")
+
+
+def replay(cwd: Path, merge: str) -> str:
+    """Return the paths the rules settled when they rebuild `merge`'s tree exactly.
+
+    The merge is redone from its parents in a scratch worktree under the run
+    directory, `changelog` and `decisions` settling their files. A path left
+    unmerged, or another tree, stops with exit 1; a commit without two parents,
+    with exit 2. e.g. a merge settled in CHANGELOG.md → "replay: by rule — CHANGELOG.md"
+    """
+    if merge.startswith("-"):
+        raise Stop(2, f"integrate: cannot run — not a commit: {merge}")
+    sha = _git(cwd, "rev-parse", "--verify", f"{merge}^{{commit}}").strip()
+    parents = _git(cwd, "rev-list", "--parents", "-n", "1", sha).split()[1:]
+    if len(parents) != 2:
+        raise Stop(2, f"integrate: cannot run — {merge} is not a merge of two parents")
+    scratch = _run_dir(cwd) / "replay" / sha
+    _drop(cwd, scratch)
+    _git(cwd, "worktree", "add", "-q", "--detach", str(scratch), parents[0])
+    try:
+        # A recorded resolution is a person's; rerere must not replay it.
+        merged = _run(
+            scratch,
+            *("-c", "rerere.enabled=false", "merge", "-q", "--no-ff", "--no-commit"),
+            parents[1],
+        )
+        if merged.returncode != 0 and not _unmerged(scratch):
+            raise Stop(2, f"integrate: cannot run — git merge failed: {merged.stderr}")
+        settled = []
+        for path, rule in (("CHANGELOG.md", changelog), (DECISIONS, decisions)):
+            if path in _unmerged(scratch):
+                rule(scratch)
+                settled.append(path)
+        if left := sorted(_unmerged(scratch)):
+            raise Stop(
+                1, f"replay: judged — the rules leave {', '.join(left)} unmerged"
+            )
+        rebuilt = _git(scratch, "write-tree").strip()
+        tree = _git(cwd, "rev-parse", f"{sha}^{{tree}}").strip()
+        if rebuilt != tree:
+            moved = ", ".join(_git(cwd, "diff", "--name-only", rebuilt, tree).split())
+            raise Stop(
+                1, f"replay: judged — the merge differs from the rules at {moved}"
+            )
+    finally:
+        _drop(cwd, scratch)
+    return f"replay: by rule — {', '.join(settled) or 'no conflict'}"
+
+
 ON_A_MERGE = {
     "changelog": (
         changelog,
@@ -562,10 +618,15 @@ def main(argv: list[str] | None = None) -> int:
     picking.add_argument("change", metavar="change-id", nargs="?")
     for name, (_, text) in ON_A_MERGE.items():
         commands.add_parser(name, help=text).add_argument("worktree")
+    commands.add_parser(
+        "replay", help="rebuild a merge by the rules alone and compare its tree"
+    ).add_argument("merge")
     args = parser.parse_args(argv)
     try:
         if args.command == "next":
             print(next_version(Path.cwd(), args.change))
+        elif args.command == "replay":
+            print(replay(Path.cwd(), args.merge))
         else:
             print(ON_A_MERGE[args.command][0](_tree(args.worktree)))
     except Stop as stop:

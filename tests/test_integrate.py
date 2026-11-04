@@ -261,6 +261,95 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
         assert external.read_text() == "Per D45.\n"
 
 
+def _changelog_merge(base: Path) -> tuple[Path, Path]:
+    """Return a primary and a version whose merge of `main` conflicts in CHANGELOG.md.
+
+    The merge is left open; `changelog` has settled and staged it.
+    """
+    base.mkdir()
+    root = _primary(base, {"CHANGELOG.md": f"{_HEAD}\n{_OLD}", "README.md": "x\n"})
+    tree = _version(root, "0003-b")
+    _commit(tree, {"CHANGELOG.md": f"{_HEAD}\n- Branch.\n\n{_OLD}"}, "phase")
+    released = "## [0.2.0] - 2026-02-02\n\n- Main.\n"
+    _commit(root, {"CHANGELOG.md": f"{_HEAD}\n{released}\n{_OLD}"}, "release")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
+    assert _run(root, "changelog", str(tree)).returncode == 0
+    return root, tree
+
+
+def _scratch_gone(root: Path) -> bool:
+    replays = root / ".minions" / "replay"
+    listed = _git(root, "worktree", "list", "--porcelain").count("worktree ")
+    return listed == 2 and not (replays.exists() and any(replays.iterdir()))
+
+
+def test_replay_reproduces_a_rule_settled_merge(tmp_path: Path) -> None:
+    root, tree = _changelog_merge(tmp_path / "changelog")
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0003-b")
+
+    result = _run(tree, "replay", "HEAD")
+
+    assert (result.returncode, result.stdout) == (0, "replay: by rule — CHANGELOG.md\n")
+    assert _scratch_gone(root)
+
+    # A merge git settles alone is the rules' too.
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    root = _primary(clean, {"README.md": "x\n"})
+    tree = _version(root, "0004-c")
+    _commit(root, {"main.txt": "x\n"}, "main moves")
+    _git(tree, "merge", "-q", "--no-ff", "-m", "chore(integrate): merge", "main")
+    result = _run(root, "replay", _git(tree, "rev-parse", "HEAD"))
+    assert (result.returncode, result.stdout) == (0, "replay: by rule — no conflict\n")
+    assert _scratch_gone(root)
+
+
+def test_replay_refuses_a_judged_merge(tmp_path: Path) -> None:
+    # A union: both sides add a line to one file, resolved by hand.
+    union = tmp_path / "union"
+    union.mkdir()
+    root = _primary(union, {"README.md": "x\n"})
+    tree = _version(root, "0003-b")
+    _commit(tree, {"README.md": "x\nbranch\n"}, "phase")
+    _commit(root, {"README.md": "x\nmain\n"}, "main moves")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
+    _commit(tree, {"README.md": "x\nbranch\nmain\n"}, "chore(integrate): merge")
+    result = _run(tree, "replay", "HEAD")
+    assert result.returncode == 1, result.stdout
+    assert result.stdout == "replay: judged — the rules leave README.md unmerged\n"
+    assert _scratch_gone(root)
+
+    # A person's edit over the rule's resolution.
+    root, tree = _changelog_merge(tmp_path / "person")
+    changelog = (tree / "CHANGELOG.md").read_text()
+    _commit(tree, {"CHANGELOG.md": changelog + "- A person's line.\n"}, "merge")
+    result = _run(tree, "replay", "HEAD")
+    assert result.returncode == 1, result.stdout
+    assert result.stdout == (
+        "replay: judged — the merge differs from the rules at CHANGELOG.md\n"
+    )
+    assert _scratch_gone(root)
+
+    # A test git merged cleanly, edited before the commit.
+    edited = tmp_path / "edited"
+    edited.mkdir()
+    root = _primary(edited, {"tests/test_x.py": "assert True\n"})
+    tree = _version(root, "0003-b")
+    _commit(root, {"tests/test_x.py": "assert 1\n"}, "main moves")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    _commit(tree, {"tests/test_x.py": "assert 1 == 1\n"}, "chore(integrate): merge")
+    result = _run(tree, "replay", "HEAD")
+    assert result.returncode == 1, result.stdout
+    assert "differs from the rules at tests/test_x.py" in result.stdout
+    assert _scratch_gone(root)
+
+    # A commit with one parent is no merge.
+    result = _run(tree, "replay", "HEAD~1")
+    assert result.returncode == 2, result.stdout
+    assert result.stdout.startswith("integrate: cannot run — HEAD~1 is not a merge")
+    assert _scratch_gone(root)
+
+
 def _spec(first: str) -> str:
     return (
         "# sdd\n\n## Requirements\n\n"
