@@ -60,4 +60,4 @@ Build the settled [design](design.md), one phase at a time.
   Verify: `grep -n 'offline base' docs/decisions.md` prints a line.
 - [ ] 5.3 Add to `THREAT_MODEL.md` *Known gaps*: the ledger's window held open by an outage, and the anchor's one trust in the
   tracking ref, per the design's *Risks*.
-  Verify: `grep -n 'anchor' THREAT_MODEL.md` prints a line.
+  Verify: `grep -n 'conduct.py anchor' THREAT_MODEL.md` prints a line.
