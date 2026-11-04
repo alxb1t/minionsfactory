@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.54
 after: [0064-lighter-catch-up]
 backlog: [0051·S6]
 ---
