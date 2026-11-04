@@ -68,7 +68,8 @@ Every one holds, or **halt** naming the one that failed:
    `git rev-parse --path-format=absolute --git-common-dir`.
 2. `git branch --show-current` is the default branch, and `git status --porcelain` prints nothing.
 3. Root `AGENTS.md` declares `**Worktrees:**`. Missing → **halt**, naming it: versions run side by side.
-4. `uv` runs.
+4. `uv` runs, and so does `betterleaks version`: the push is scanned for secrets. Missing → **halt**, naming
+   `brew install betterleaks`; `conduct.py run` stops on it too, with no worker.
 5. **The executor**, from runtime evidence: Claude Code → `claude`; Codex → `codex`; any other → **halt**, naming
    it. Model, provider and editor names do not identify it.
 
@@ -97,7 +98,7 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
-out refused. `conduct.py` holds the push.
+out refused. `conduct.py` holds the push, and scans each push range for secrets first.
 Converge runs MF's method.
 
 ## Step 4 — Report, then stop
@@ -106,7 +107,9 @@ Converge runs MF's method.
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate <change-id>` commits the merge;
 until then a run halts on it again. A halt naming a changed git config is the person's: read that file, and repoint
-`origin` if a worker moved it, before a re-run. A version still building gets `main` merged in when `main` changed its gate
+`origin` if a worker moved it, before a re-run. A halt naming a secret in the push range — `the push range holds a
+secret: <rule> in <file> at <commit>; nothing pushed` — is the person's too: they read that commit, take the secret out of
+the unpushed history and revoke it, before a re-run. A version still building gets `main` merged in when `main` changed its gate
 since its base; halted because that merge conflicts where no rule settles it, it needs `git -C <tree> merge <default>`,
 resolved, before a re-run, and one halted on that merge left open with no note needs
 it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:

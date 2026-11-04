@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each with its reason; CI installs `betterleaks 1.9.0` by checksum; D52 makes a gate tool off PyPI operator tooling;
   the guardrail's four key shapes retire to the scan, which a planted key of each proves (change
   `0065-gate-hardening`, phase 5).
+- `conduct.py` scans each pushed branch's range from the offline base with `betterleaks git`, in a scratch repo with
+  no system config or attributes, and halts on a hit — rule, file and commit named, the secret redacted, nothing
+  pushed; a scan that fails halts too, and `run` stops at its start without Betterleaks (change
+  `0065-gate-hardening`, phase 6).
 
 ## [0.53.0] - 2026-11-04
 

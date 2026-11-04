@@ -57,14 +57,20 @@ def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
     return tree.resolve()
 
 
-def _released(root: Path, tag: str, by_hand: bool = False) -> None:
+def _released(
+    root: Path, tag: str, by_hand: bool = False, files: dict[str, str] | None = None
+) -> None:
     """Merge a branch into `main` whose tip is `tag`'s annotated release commit.
 
-    A run's release is in the release ledger; one by hand is not.
+    A run's release is in the release ledger; one by hand is not. Its build commit
+    writes `files`, or none.
     """
     branch = f"release-{tag}"
     _git(root, "switch", "-q", "-c", branch)
-    _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
+    if files:
+        _commit(root, files, f"build {tag}")
+    else:
+        _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
     if not by_hand:
         head = _git(root, "rev-parse", "HEAD").strip()
         _conduct()["_record_release"](root, branch, head)
@@ -2256,6 +2262,79 @@ def test_a_run_pushes_only_tagged_merges(
     assert on_origin() == _git(root, "rev-parse", "main")
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
     assert conduct["_ledger_heads"](root) == set()
+
+
+def test_a_secret_in_the_push_range_halts_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+    pushed = _git(root, "ls-remote", "origin")
+    # Built from parts so this file never matches the gate's scan.
+    key = "gh" + "p_" + "4Fq9Lx2Rm7Tv" + "5Wk8Zn3Yb6Hc" + "1Jd0Sg7Pu2Ea"
+    _released(root, "v0.1.0", files={"settings.txt": f"token: {key}\n"})
+    leaked = _git(root, "rev-parse", "v0.1.0^{commit}^").strip()
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    said = (
+        "conduct: halt — the push range holds a secret: github-pat in settings.txt"
+        f" at {leaked[:7]}; nothing pushed"
+    )
+    assert f" · run · halt — {said}\n" in log
+    assert key not in log
+    assert _git(root, "ls-remote", "origin") == pushed
+    assert _calls(calls) == []
+
+    # A scan that fails, or cannot start, halts as a hit does.
+    failing = tmp_path / "failing-scan"
+    failing.write_text("#!/bin/sh\necho 'no repo here' >&2\nexit 1\n")
+    failing.chmod(0o755)
+    for scanner, why in (
+        (str(failing), "the secret scan failed: no repo here"),
+        (str(tmp_path / "absent"), "the secret scan cannot run: "),
+    ):
+        conduct["main"].__globals__["SCANNER"] = scanner
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["_scan"](root, None, leaked)
+        assert stopped.value.code == 1
+        assert f"conduct: halt — {why}" in str(stopped.value)
+        assert str(stopped.value).endswith("; nothing pushed")
+
+
+def test_a_run_without_betterleaks_stops_at_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    conduct["main"].__globals__["SCANNER"] = "betterleaks-absent"
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+
+    assert capsys.readouterr().out.strip() == (
+        "run: cannot run — betterleaks-absent is not on PATH:"
+        " brew install betterleaks-absent"
+    )
+    assert _calls(calls) == []
+    assert not (root / ".minions" / "runs").exists()
 
 
 @pytest.mark.slow

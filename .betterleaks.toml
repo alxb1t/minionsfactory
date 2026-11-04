@@ -11,3 +11,7 @@ paths = ['''(?:^|/)tests/test_guardrails\.py$''']
 [[allowlists]]
 description = "gitignored run output: worker logs quote the planted keys"
 paths = ['''(?:^|/)\.minions/''']
+
+[[allowlists]]
+description = "gitignored bytecode: the compiler folds a test's key parts into one constant"
+paths = ['''(?:^|/)__pycache__/''']

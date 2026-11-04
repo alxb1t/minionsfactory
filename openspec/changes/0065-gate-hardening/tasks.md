@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 - [x] 3 — Lint
 - [x] 4 — Coverage
 - [x] 5 — Secrets
-- [ ] 6 — The push
+- [x] 6 — The push
 - [ ] 7 — Targets
 
 ## 1 — Speed
@@ -90,7 +90,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 6 — The push
 
-- [ ] 6.1 Add `_scan` and its call in `Run.push`, and the start's Betterleaks check in `preconditions`, in
+- [x] 6.1 Add `_scan` and its call in `Run.push`, and the start's Betterleaks check in `preconditions`, in
   `skills/mf-ship/scripts/conduct.py`; add `test_a_secret_in_the_push_range_halts_the_run` and
   `test_a_run_without_betterleaks_stops_at_start` to `tests/test_conduct.py`; name the halt in `skills/mf-ship/SKILL.md` and the scan
   in `THREAT_MODEL.md`, per [D7](design.md#d7).
