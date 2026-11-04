@@ -37,8 +37,8 @@ What keeps a verdict worth having.
 - **Why:** a station's report on itself is a claim; more opinions from the reader who wrote the code verify
   nothing.
 - **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; review.
-- **Accepted exception:** `mf-cut-change` checks its own artifacts. The person's read of the committed change and
-  `mf-build` Step 1 are the independent checks.
+- **Accepted exception:** `mf-cut-change` checks its own artifacts. Its plan review, a fresh worker's (Step 8.5),
+  the person's read of the committed change and `mf-build` Step 1 are the independent checks.
 
 ### A checker is a fresh reader of a frozen diff
 

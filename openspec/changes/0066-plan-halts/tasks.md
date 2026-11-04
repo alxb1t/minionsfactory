@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — The contract
 - [x] 3 — The edited check
 - [x] 4 — The cut
-- [ ] 5 — The record
+- [x] 5 — The record
 - [ ] 6 — The calibration
 
 ## 1 — The search script
@@ -39,7 +39,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The record
 
-- [ ] 5.1 Amend D7, D40 and D46 in `docs/decisions.md`, and the self-check exception in `docs/principles.md`, per [D7](design.md#d7).
+- [x] 5.1 Amend D7, D40 and D46 in `docs/decisions.md`, and the self-check exception in `docs/principles.md`, per [D7](design.md#d7).
   Verify: `grep -n 'plan review' docs/decisions.md` prints a line, and `uv run pytest -q tests/test_principles.py` reports no failure.
 
 ## 6 — The calibration

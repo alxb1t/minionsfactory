@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The cut reads the target's standards, `git grep`s what a task deletes, runs `verify_check.py` in place of the gate
   and has a fresh worker review the plan before its commit; `I3` reads the checks the cut runs, so a plan the code
   cannot satisfy halts at the cut, not in the build (change `0066-plan-halts`, phase 4).
+- D7 names the search script and the plan review, and the cut runs no gate; D40 counts the plan reviewer among the
+  fresh workers; D46 names the cut among the standards' readers; the cut's self-check exception names its fresh
+  review (change `0066-plan-halts`, phase 5).
 
 ## [0.54.0] - 2026-11-05
 
