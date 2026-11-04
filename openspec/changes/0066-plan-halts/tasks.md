@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The search script
 - [x] 2 — The contract
 - [x] 3 — The edited check
-- [ ] 4 — The cut
+- [x] 4 — The cut
 - [ ] 5 — The record
 - [ ] 6 — The calibration
 
@@ -32,7 +32,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The cut
 
-- [ ] 4.1 In `skills/mf-cut-change/SKILL.md`: the standards in the reading list, the deletion grep in Step 3, `verify_check.py` in
+- [x] 4.1 In `skills/mf-cut-change/SKILL.md`: the standards in the reading list, the deletion grep in Step 3, `verify_check.py` in
   Step 8 in place of the gate, the plan review and its fixes, Step 9's decision doubt, the close-out's checks, and `I3` in both
   contract tables, per [D4](design.md#d4), [D5](design.md#d5) and [D6](design.md#d6).
   Verify: `grep -n 'verify_check.py' skills/mf-cut-change/SKILL.md` prints a line, and `grep -n 'make gate. is green' skills/mf-cut-change/SKILL.md` prints nothing.

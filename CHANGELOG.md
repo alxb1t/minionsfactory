@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs(<id>): amend the change directory` commit's, and halts on an edit, naming it and whether it is uncommitted;
   `--change` runs it after its gate check, and the build runs it before a phase's first check, so a narrowed check
   never passes for the plan (change `0066-plan-halts`, phase 3).
+- The cut reads the target's standards, `git grep`s what a task deletes, runs `verify_check.py` in place of the gate
+  and has a fresh worker review the plan before its commit; `I3` reads the checks the cut runs, so a plan the code
+  cannot satisfy halts at the cut, not in the build (change `0066-plan-halts`, phase 4).
 
 ## [0.54.0] - 2026-11-05
 
