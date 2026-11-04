@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The search script
-- [ ] 2 — The contract
+- [x] 2 — The contract
 - [ ] 3 — The edited check
 - [ ] 4 — The cut
 - [ ] 5 — The record
@@ -18,7 +18,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The contract
 
-- [ ] 2.1 Add `I19` to the contract tables of `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, and `I1 … I19` to the
+- [x] 2.1 Add `I19` to the contract tables of `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, and `I1 … I19` to the
   cut's diagram, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_skills.py -k same_contract_ids` reports `1 passed`.
 

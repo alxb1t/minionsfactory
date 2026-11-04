@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as argv with no shell, and prints every match as `path:line`; a `$(…)`, shell variable, loop or `cd`, or an exact
   count beside more matches, exits 1, so a stray match or an unrunnable check shows at the cut
   (change `0066-plan-halts`, phase 1).
+- Input-contract item `I19`: a `Verify:` is one plain command — no `$(…)`, shell variable, loop or `cd` — and an
+  exact count only when the count is the point, so a check runs under a worker's shell rules
+  (change `0066-plan-halts`, phase 2).
 
 ## [0.54.0] - 2026-11-05
 
