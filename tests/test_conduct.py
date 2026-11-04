@@ -1118,6 +1118,11 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     calls = fake("deny", "liar")
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    # A halt file naming another head is stale: the halt line leaves it out.
+    stale = root / ".minions" / "build" / "0001-todo.halt"
+    stale.parent.mkdir(parents=True)
+    base = _git(root, "rev-parse", "HEAD")
+    stale.write_text(f"sub-task: 9.9\nstop: 1\nevidence: old\nhead: {base}\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -1133,6 +1138,20 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
             " · denied: Bash(rm -rf build)"
         )
         for line in lines
+    )
+
+    fake("halt-0001-todo")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    logs = (root / ".minions" / "runs").glob("*.md")
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+        )
+        for log in logs
+        for line in log.read_text().splitlines()
     )
 
     _commit(

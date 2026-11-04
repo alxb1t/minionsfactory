@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The halt file
+- [x] 1 — The halt file
 - [ ] 2 — The skill
 - [ ] 3 — The conductor
 - [ ] 4 — The record
 
 ## 1 — The halt file
 
-- [ ] 1.1 Write `.minions/build/<id>.halt` on every halt in `skills/mf-build/SKILL.md`, and read it into the build check's halt line
+- [x] 1.1 Write `.minions/build/<id>.halt` on every halt in `skills/mf-build/SKILL.md`, and read it into the build check's halt line
   in `skills/mf-ship/scripts/conduct.py`, with a `halt-<id>` mode in `tests/fake_worker.py` and its step in
   `test_run_halts_when_a_worker_claims_what_disk_does_not_show`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k claims_what_disk_does_not_show` reports `1 passed`, and `grep -n '\.halt' skills/mf-build/SKILL.md` prints a line.

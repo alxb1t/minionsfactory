@@ -189,6 +189,13 @@ def _fake(prompt: str) -> None:
                 capture_output=True,
                 check=sandboxed and not translated,
             )
+    elif station == "build" and f"halt-{change}" in modes:
+        folder = primary / ".minions" / "build"
+        folder.mkdir(parents=True, exist_ok=True)
+        head = _git(here, "rev-parse", "HEAD")
+        (folder / f"{change}.halt").write_text(
+            f"sub-task: 1.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
+        )
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
         files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}

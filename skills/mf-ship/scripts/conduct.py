@@ -498,6 +498,26 @@ def _closed(runs: Path, tree: Path, change: str) -> bool:
     return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
 
 
+def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
+    r"""Return `.minions/build/<change>.halt`'s sub-task and stop when it names `HEAD`.
+
+    None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
+    e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
+    """
+    file = runs / "build" / f"{change}.halt"
+    try:
+        text = file.read_text() if file.is_file() else ""
+    except (OSError, UnicodeDecodeError):
+        return None
+    keys = dict(re.findall(r"^(sub-task|stop|head):[ \t]*(\S.*?)[ \t]*$", text, re.M))
+    if not {"sub-task", "stop", "head"} <= keys.keys():
+        return None
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{keys['head']}^{{commit}}")
+    if (named or "").strip() != _git(tree, "rev-parse", "HEAD").strip():
+        return None
+    return keys["sub-task"], keys["stop"]
+
+
 def _is_event(line: str, event: str) -> bool:
     """Return whether a status-log line holds `event`, its detail aside.
 
@@ -776,7 +796,9 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the build check fails, or None."""
     change = version.change
     if unticked := _unticked(tree, change):
-        return f"phase {unticked[0]} unticked"
+        held = _build_halt(primary / ".minions", tree, change)
+        named = f" · {held[0]}: {held[1]}" if held else ""
+        return f"phase {unticked[0]} unticked{named}"
     if _dirty(tree):
         return "the tree is not clean"
     if not _closed(primary / ".minions", tree, change):

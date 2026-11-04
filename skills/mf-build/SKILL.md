@@ -252,6 +252,17 @@ Then **stop** and hand back.
 Halt by **stopping cleanly, without committing and without ticking the box**, and report the specific question.
 An unticked box on a clean tree is a legible place to resume; a half-finished phase committed as whole is not.
 
+**Every halt writes `.minions/build/<change-id>.halt`**, the run directory's, before the close-out — a stop-condition
+below, a failing `**HALT CHECK**`, a gate check's exit, any halt this skill names. `mf-ship` reads it into the halt
+line, and `mf-rescue` starts from it:
+
+```
+sub-task: <N.M, the sub-task you were on>
+stop: <the stop-condition by its number, or the halt by its name: HALT CHECK, gate check>
+evidence: <one line: the command and what it printed, or the two readings>
+head: <the full sha of HEAD>
+```
+
 1. **An acceptance that cannot be made a passing check** — halt for human verification; never fake one.
 2. **`design.md` contradicting the code** — the decisions were settled against reality; where it moved, that is
    a finding, never a silent divergence.
