@@ -431,8 +431,9 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, naming it in the
 merge commit, hands a semantic conflict to the person with the merge open, gates, and commits the merge; converge's
 catch-up judges the merge by its remerge-diff. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
-one the default branch passed before its first worker — which cannot conflict in git: it runs `integrate.py delta` on the open
-merge, commits when that passes, and else leaves the merge open with its note.**
+one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
+its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules and halts on any other, runs
+`integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
   read, and what the merge decided is exactly what review must see.

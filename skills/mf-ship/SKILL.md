@@ -105,8 +105,9 @@ Converge runs MF's method.
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's: they settle the note, then `/mf-integrate <change-id>` commits the merge;
 until then a run halts on it again. A halt naming a changed git config is the person's: read that file, and repoint
-`origin` if a worker moved it, before a re-run. A version still building, halted because `main` changed its gate since its
-base, needs `git -C <tree> merge <default>` before a re-run, and one halted on that merge left open with no note needs
+`origin` if a worker moved it, before a re-run. A version still building gets `main` merged in when `main` changed its gate
+since its base; halted because that merge conflicts where no rule settles it, it needs `git -C <tree> merge <default>`,
+resolved, before a re-run, and one halted on that merge left open with no note needs
 it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags>`:
 what it released stays released, and a re-run resumes the rest. While `origin` cannot be read, a run goes on and releases
 locally: its close adds `· unpushed <names>`, `report` prints a `run · waited` line per wait, and the next run pushes them.

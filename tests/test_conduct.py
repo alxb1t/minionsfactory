@@ -734,7 +734,10 @@ def test_after_waits_for_its_dependency(
     _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
-    crash.write_text("def delta(tree):\n    raise OSError('no fork')\n")
+    crash.write_text(
+        "def delta(tree):\n    raise OSError('no fork')\n\n"
+        "changelog = decisions = delta\n"
+    )
     script = conduct["main"].__globals__["INTEGRATE"]
     conduct["main"].__globals__["INTEGRATE"] = crash
     calls.unlink()
@@ -819,20 +822,56 @@ def test_after_waits_for_its_dependency(
         cut_only, "log", "--format=%s", "0001-todo"
     )
 
-    gated, started = behind("started", "Makefile", started=True)
+    merged = "chore(integrate): merge main into 0001-todo"
+    gated, _ = behind("started", "Makefile", started=True)
     assert (
         _main(conduct, gated, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1] == "build 0001-todo"
+    assert merged in _git(gated, "log", "--format=%s", "0001-todo")
+
+    (tmp_path / "logged").mkdir()
+    logged = _primary(tmp_path / "logged")
+    entries = "# Changelog\n\n## [Unreleased]\n"
+    _commit(logged, {"CHANGELOG.md": entries}, "changelog")
+    logged_tree = _version(logged, "0001-todo", "- [ ] 1 — Todo\n")
+    mine = f"{entries}\n- The branch's entry.\n"
+    _commit(logged_tree, {"CHANGELOG.md": mine}, "build: a first part")
+    release = f"{entries}\n## [0.1.0] - 2026-11-04\n\n- A release.\n"
+    _commit(logged, {"Makefile": "x\n", "CHANGELOG.md": release}, "main releases")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, logged, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1] == "build 0001-todo"
+    assert merged in _git(logged, "log", "--format=%s", "0001-todo")
+    assert _git(logged, "show", "0001-todo:CHANGELOG.md") == (
+        "# Changelog\n\n## [Unreleased]\n\n- The branch's entry.\n\n"
+        "## [0.1.0] - 2026-11-04\n\n- A release."
+    )
+
+    clashed, clashed_tree = behind("clashed", "Makefile", started=False)
+    _commit(clashed_tree, {"Makefile": "y\n"}, "build: a first part")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, clashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
     assert _calls(calls) == ["probe"]
     assert any(
         line.endswith(
-            " · 0001-todo · halt — conduct: halt — main changed Makefile since"
-            f" 0001-todo's base: git -C {shlex.quote(str(started))} merge main,"
-            " then re-run"
+            " · 0001-todo · halt — conduct: halt — merging main into 0001-todo"
+            " conflicts in Makefile: git -C"
+            f" {shlex.quote(str(clashed_tree))} merge main, then re-run"
         )
-        for line in _log(gated)
+        for line in _log(clashed)
     )
+    assert not _git(
+        clashed_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False
+    )
+    assert merged not in _git(clashed, "log", "--format=%s", "0001-todo")
 
     # Twin: a started version behind a `main` that changed neither builds.
     moved, _ = behind("moved", "moved.txt", started=True)

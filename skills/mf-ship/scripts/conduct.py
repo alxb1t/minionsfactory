@@ -52,7 +52,7 @@ LOCK_STALE = 600
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
-# A started build's gate and rules: changed since its base, they halt it.
+# A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -572,12 +572,17 @@ def _merge_open(tree: Path) -> bool:
 
 
 def _unmerged(tree: Path) -> bool:
-    """Return whether an open merge leaves a path unmerged in `tree`.
+    """Return whether an open merge leaves a path unmerged in `tree`."""
+    return bool(_conflicts(tree))
+
+
+def _conflicts(tree: Path) -> list[str]:
+    """Return the paths an open merge leaves unmerged in `tree`.
 
     Past the refusal: a stat-dirty file makes `git diff` run a clean filter.
     """
     _refuse_config_commands(tree)
-    return bool(_git(tree, "diff", "--name-only", "--diff-filter=U").strip())
+    return _git(tree, "diff", "--name-only", "--diff-filter=U").split()
 
 
 def _dirty(tree: Path) -> bool:
@@ -1989,7 +1994,12 @@ class Run:
 
     def __init__(self, primary: Path, executor: str) -> None:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
-        self.delta = runpy.run_path(str(INTEGRATE))["delta"]
+        integrate = runpy.run_path(str(INTEGRATE))
+        self.delta = integrate["delta"]
+        self.rules = {
+            "CHANGELOG.md": integrate["changelog"],
+            "docs/decisions.md": integrate["decisions"],
+        }
         self.git_state = _git_state(primary)
         self.pushes = (_kept_origin(primary) or _urls(primary))[1]
         self.primary = primary
@@ -2218,10 +2228,10 @@ class Run:
         return True
 
     def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a cut-only branch, once the delta check passes.
+        """Merge the default branch into a branch, once the delta check passes.
 
-        A requirement both sides changed leaves the merge open with its note, which
-        `stage_of` reads as an `integrating` halt.
+        A conflict goes to `settle`. A requirement both sides changed leaves the merge
+        open with its note, which `stage_of` reads as an `integrating` halt.
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
@@ -2230,8 +2240,9 @@ class Run:
         if opened and note.is_file():
             return
         _refuse_config_commands(tree)
-        if not opened:
-            _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
+        merge = ("merge", "-q", "--no-ff", "--no-commit", default)
+        if not opened and _maybe(tree, *merge) is None:
+            self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
             note.parent.mkdir(parents=True, exist_ok=True)
             note.write_text(_note(tree, change, moved))
@@ -2239,11 +2250,38 @@ class Run:
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
+    def settle(self, tree: Path, change: str, default: str) -> None:
+        """Settle a merge's conflicts by `integrate.py`'s rules; else abort it, stop.
+
+        Why: 0063-rejoin design D6.
+        """
+        run = f"git -C {shlex.quote(str(tree))} merge {default}, then re-run"
+        if not _merge_open(tree):
+            raise Stop(
+                1, f"conduct: halt — merging {default} into {change} failed: {run}"
+            )
+        first = _conflicts(tree)
+        stopped = ""
+        for path, rule in self.rules.items():
+            if path in first and not stopped:
+                try:
+                    rule(tree)
+                except Exception as error:
+                    stopped = f" — {error}"
+        if not (left := _conflicts(tree)) and not stopped:
+            return
+        _git(tree, "merge", "--abort")
+        raise Stop(
+            1,
+            f"conduct: halt — merging {default} into {change} conflicts in"
+            f" {', '.join(left or first)}{stopped}: {run}",
+        )
+
     def catch_up(self, version: Version) -> None:
         """Merge the default branch into a cut-only version behind it.
 
         A started version with an unticked phase and no open merge, behind a default
-        branch that changed `GATE_FILES`, stops with 1, naming them and the merge. One
+        branch that changed `GATE_FILES`, gets it merged in by `merge_in`. One
         with an unticked phase and a merge open with no note stops with 1, naming the
         commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
         finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
@@ -2276,12 +2314,8 @@ class Run:
                 f" git -C {at} commit, then re-run",
             )
         diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
-        if paths := _git(self.primary, *diff).split():
-            raise Stop(
-                1,
-                f"conduct: halt — {default} changed {', '.join(paths)}"
-                f" since {change}'s base: git -C {at} merge {default}, then re-run",
-            )
+        if _git(self.primary, *diff).split():
+            self.merge_in(tree, change, default)
 
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""

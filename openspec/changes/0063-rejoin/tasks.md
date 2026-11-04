@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The stale halt
 - [x] 2 — The request
 - [x] 3 — Grant
-- [ ] 4 — The base
+- [x] 4 — The base
 - [ ] 5 — The docs
 
 ## 1 — The stale halt
@@ -44,7 +44,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The base
 
-- [ ] 4.1 Load `changelog` and `decisions` from `integrate.py`, settle their conflicts in `merge_in`, and call `merge_in` from
+- [x] 4.1 Load `changelog` and `decisions` from `integrate.py`, settle their conflicts in `merge_in`, and call `merge_in` from
   `catch_up`'s gate-change case; update that case's step in `test_after_waits_for_its_dependency` — a merge that is clean, one
   that conflicts in `CHANGELOG.md`, and one that conflicts elsewhere and halts, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k after_waits_for_its_dependency` reports `1 passed`.
