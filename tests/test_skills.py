@@ -324,6 +324,13 @@ def _layout_problems(base: Path) -> list[str]:
 def test_the_bootstrap_templates_cover_the_target_layout() -> None:
     assert _layout_problems(_REPO) == []
 
+    # The gate scans for secrets; `check` is the gate's lines but the scan.
+    makefile = (_REPO / _TEMPLATES / "Makefile.tmpl").read_text()
+    gate, _, check = makefile.partition("\ncheck:\n")
+    scan = "betterleaks dir . --no-banner --redact"
+    assert _VALIDATE in gate and scan in gate
+    assert _VALIDATE in check and scan not in check
+
 
 def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
     # A D18 tree, and a later decision's tree entry that must not count.

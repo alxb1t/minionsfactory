@@ -7,6 +7,20 @@ The rules this repo's code follows. Mandatory context, named by [AGENTS.md](AGEN
 The MinionsFactory `mf-build` skill's rules apply as written: comments `C1`…`C12`, tests `T1`…`T6`, prose
 `P1`…`P13`. Formatter and linter settings stay in their own config files.
 
+## The gate, per stack
+
+**Any stack:** the gate runs one tool per job — format, lint, types, tests with coverage, security patterns — and
+`docs/decisions.md` records each choice. The gate's secret scan, `betterleaks dir . --no-banner --redact`, stays.
+
+| stack | the gate adds |
+|---|---|
+| Python | Ruff with `B` and `S` · ty · deptry · pytest with `--strict-markers` · diff-cover on coverage's XML |
+| TypeScript | `tsc --noEmit`, or `vue-tsc --noEmit` · Oxlint · knip · vitest with coverage · diff-cover on its lcov |
+| Docker | Hadolint |
+
+**Slow tests:** a test over 5 s carries a `slow` marker, and `make check` runs the gate's fast steps without them.
+The build runs `make check` after each phase but the last, and the gate after the last.
+
 ## Project rules
 
 None yet. Add one when the project decides it; a rule that names a `C` rule replaces it.

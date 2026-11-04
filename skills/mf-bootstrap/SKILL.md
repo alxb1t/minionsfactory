@@ -37,6 +37,7 @@ Only these placeholders are filled; nothing else in a template changes:
 Every one holds, or **halt** naming the one that failed:
 
 - `openspec --version` runs: the gate runs the OpenSpec CLI.
+- `betterleaks version` runs: the gate scans the tree for secrets with it.
 - `git config user.name` and `git config user.email` each print a value.
 - The target sits inside no other repo: `git rev-parse --show-toplevel` fails, or prints the target (`pwd -P`).
 - When the target is a repo, `git status --porcelain` prints nothing, and `git branch --show-current` is the
@@ -49,12 +50,13 @@ Every one holds, or **halt** naming the one that failed:
 
 1. Not a repo → `git init -b main`.
 2. Write each template to its target path as the table says, placeholders filled, creating parent directories.
-   Keep every other byte: the `Makefile` recipe line starts with a tab.
+   Keep every other byte: each `Makefile` recipe line starts with a tab.
 3. List the paths written, skipped and appended.
 
 ## Step 3 — The gate
 
-Run `make -n gate`, then `make gate`, pasting each output; the dry run prints the `openspec validate` line.
+Run `make -n gate`, then `make gate`, pasting each output; the dry run prints the `openspec validate` and
+`betterleaks dir` lines.
 `make gate` exits 0, or **halt**: commit nothing, and report the paths written for the human to inspect.
 
 ## Step 4 — Commit

@@ -10,7 +10,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 - [x] 4 — Coverage
 - [x] 5 — Secrets
 - [x] 6 — The push
-- [ ] 7 — Targets
+- [x] 7 — Targets
 
 ## 1 — Speed
 
@@ -98,7 +98,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 7 — Targets
 
-- [ ] 7.1 Add the scan and a `check` target to `skills/mf-bootstrap/templates/Makefile.tmpl`, `gate` named; the `betterleaks version`
+- [x] 7.1 Add the scan and a `check` target to `skills/mf-bootstrap/templates/Makefile.tmpl`, `gate` named; the `betterleaks version`
   precondition to `skills/mf-bootstrap/SKILL.md`; the recipes, the any-stack rule and the `slow` rule to
   `skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl`; a step in `test_the_bootstrap_templates_cover_the_target_layout`, per
   [D8](design.md#d8):

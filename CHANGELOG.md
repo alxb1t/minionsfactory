@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no system config or attributes, and halts on a hit — rule, file and commit named, the secret redacted, nothing
   pushed; a scan that fails halts too, and `run` stops at its start without Betterleaks (change
   `0065-gate-hardening`, phase 6).
+- A bootstrapped target's gate scans for secrets and gains `check`, its lines but the scan; the bootstrap checks
+  `betterleaks version` first, and `CODING_STANDARDS.md.tmpl` carries the per-stack recipes, the any-stack rule and
+  the `slow` rule (change `0065-gate-hardening`, phase 7).
 
 ## [0.53.0] - 2026-11-04
 
