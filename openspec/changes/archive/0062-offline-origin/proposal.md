@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.51
 backlog: [0051·R12]
 ---
 

@@ -1255,13 +1255,13 @@ SHALL each halt their version.
 Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
 close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
-outside git and the run directory, except the claim, `origin`'s URLs, the release ledger and a person's gate approval in the
-home folder: a re-run derives every stage again and continues. A halt SHALL need
+outside git and the run directory, except the claim, `origin`'s URLs, the offline base, the release ledger and a person's gate approval
+in the home folder: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
 `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
-changed during the run, an `origin` that left the kept URLs, or a default-branch commit no ledger entry stands behind. A worker
-stopped by a usage limit SHALL be halted with its reset time named.
+changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, or a
+default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset time named.
 
 #### Scenario: A HUMAN phase halts its version
 - **WHEN** a version's first unticked phase is marked `**HUMAN`
@@ -1378,8 +1378,8 @@ worker died and the person left no `.minions/release/<change-id>.held` mark, and
 a run, push the default branch and each merged tag `origin` lacks, only when every first-parent commit past `origin`'s default
 branch, as `origin` lists it, is a merge of a tagged release holding that release's tree, whose release commit's parent is a
 head the release ledger holds that is not yet on `origin`, and every such tag is on such a release commit, and SHALL else halt, naming the commit or the
-tag; an `origin` it cannot read SHALL halt the push. It SHALL push the sha it checked, never force, a rejected push halting the
-run; `status`
+tag; an `origin` it cannot read SHALL leave the push waiting, as *A run goes on while origin cannot be reached* says. It
+SHALL push the sha it checked, never force, a rejected push halting the run; `status`
 SHALL report that work, so a run starts for it. It SHALL make no remote call, merge nothing into a dependent, and read no
 tree's status or diff, while the repo's own git config holds a key off its list of keys that name no program, with an
 `origin` or without one. It SHALL make no remote call while `origin`'s
@@ -1864,3 +1864,58 @@ refuse a `<hash>` that is not a sha256. A worker, whose sandbox writes nothing i
 #### Scenario: The approval runs no worker's code
 - **WHEN** a branch's makefile runs a `$(shell …)` as make reads it, and the person runs `approve-gate`
 - **THEN** the hash is recorded, and the `$(shell …)` does not run
+
+### Requirement: A run goes on while origin cannot be reached
+
+`conduct.py` SHALL keep an **offline base** in the home folder, `~/.mf-ship-origin/<digest>.pushed`: the default branch's sha as
+`origin` last listed it, written after every read of `origin` that succeeds and every push of the default branch. A run whose
+read of `origin` fails SHALL try it three times, then go on with no remote call, judging the default branch's release merges
+against the offline base wherever it judges them against `origin`; with no offline base it SHALL halt, naming
+`conduct.py anchor`. Every failed read or push SHALL be a wait, whatever its error; a read that succeeds and shows a refused URL,
+a moved default branch or a default named other than the kept one SHALL halt as before. A release made while `origin` is unread
+SHALL pass its check as released locally, its worktree removed and its dependents merged from the local default branch, its
+ledger entry kept until its push lands. Each release SHALL push what is pending, and the run SHALL try once more before its
+close. The `start` line SHALL say when `origin` is unreachable, each failed push SHALL be logged as `push — waiting`, the close
+SHALL name what stays unpushed, and `report` SHALL print every wait. `conduct.py anchor` SHALL write the first offline base from
+`refs/remotes/origin/<default>` only when no run is live, no offline base stands, the ref is an ancestor of the local default
+branch, it is a release merge whose tag stands, and the person names its sha with `--yes <sha>`; with no `--yes` it SHALL print
+the sha and subject and write nothing, and otherwise it SHALL refuse, naming the check. The conductor's remote calls SHALL
+pass `ssh -o ConnectTimeout=15 -o BatchMode=yes` when neither `GIT_SSH_COMMAND` nor a `core.sshCommand` in the operator's
+config, or a file it includes, is set.
+
+#### Scenario: A good read keeps the offline base
+- **WHEN** a run reads `origin`, or pushes its default branch
+- **THEN** the offline base holds the default branch's sha `origin` lists
+
+#### Scenario: Origin is down at the start
+- **WHEN** a run starts and every read of `origin` fails
+- **THEN** it logs three tries, its `start` line says `origin: unreachable — pushes wait`, and it builds and converges every open
+  version
+- **AND WHEN** a commit on the local default branch is no release a ledger head explains, past the offline base
+- **THEN** the run halts naming the commit, and pushes nothing
+
+#### Scenario: No offline base
+- **WHEN** a run starts, every read of `origin` fails, and no offline base stands
+- **THEN** the run halts naming `conduct.py anchor`, and starts no worker
+
+#### Scenario: A release while origin is down
+- **WHEN** a version's release merges while `origin` cannot be read
+- **THEN** its check passes as released locally, its worktree is removed, a `push — waiting` line is logged, and a dependent
+  merges it from the local default branch and ships in the same run
+- **AND** the close names the unpushed refs, the default branch and each local release's tag, and `report` prints the wait
+
+#### Scenario: Origin comes back
+- **WHEN** `origin` answers again before the run's close, or at the next run's start
+- **THEN** the pending default branch and tags are pushed, and the ledger entries whose heads landed are removed
+- **AND WHEN** `origin`'s default branch moved meanwhile, so the local one is not its descendant
+- **THEN** the run halts as before, and pushes nothing
+
+#### Scenario: A person anchors the offline base
+- **WHEN** no run is live, no offline base stands, and `refs/remotes/origin/<default>` is a tagged release merge on the local
+  default branch
+- **THEN** `conduct.py anchor` prints its sha and subject, naming `--yes <sha>`, and writes nothing
+- **AND WHEN** the person runs `conduct.py anchor --yes <sha>` with that sha
+- **THEN** it writes the sha as the offline base and prints its sha and subject
+- **AND WHEN** a run is live, an offline base stands, the ref is not an ancestor of the local default branch or not a tagged
+  release merge, or the `--yes` sha is not the ref's
+- **THEN** it refuses, naming the check, and writes nothing

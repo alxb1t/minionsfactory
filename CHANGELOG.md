@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-04
+
+Gate: local 6m25s · CI 0m42s (CI at d897227) · 0.50.0: local 4m40s · CI not read under mf-ship
+
 - `conduct.py` keeps an offline base, `~/.mf-ship-origin/<digest>.pushed`, after every good read of `origin` and every
   default-branch push, and `conduct.py anchor` lets a person seed the first one from a checked tracking ref, written
   only on `--yes <sha>` after it prints the sha and subject, so a run has a base to judge against while `origin` is
