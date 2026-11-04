@@ -40,6 +40,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/`.
+- Rejoin requests, `.minions/runs/rejoin/`: a worker can write one, and the live run then reads a version's stage from disk
+  again, which it already trusts, and the models file of a version cut since its start — the class *Out of scope* accepts.
+  A version the run's plan holds stays out while its models file differs, so a version halted on a models change does not
+  rejoin on the new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it.
 
 ## Out of scope
 
@@ -59,7 +63,7 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
 - A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
 - `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
-  still read the repo's config after the refusal. `integrate.py`'s `delta` starts its own git there, so a promisor set in that race
+  still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog` and `decisions` start their own git there, so a promisor set in that race
   can still take a fetch.
 - A git too old to read `GIT_NO_LAZY_FETCH` still fetches for a promisor a worker plants, before the refusal.
 - A credential outside `SECRETS` and `TOKENS` stays readable by a script or the `Read` tool: the host has no list of its

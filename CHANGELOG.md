@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-04
+
+Gate: local 6m10s · CI not read under mf-ship · 0.51.0: local 6m25s · CI not read under mf-ship
+
+- A person's commit past a converge halt voids it — every `halt` line names its head, and a halt at the judged head
+  that `HEAD` descends from is void: the stage is `converge`, a waiting grant goes unspent, and
+  `mf-converge` opens a run marked `· amended` from round 1, so a fix no longer costs a grant; a resumed `· grant` run
+  stays a granted round, and a `.done` that is no regular file reads as not closed (change `0063-rejoin`, phase 1).
+- `conduct.py rejoin [<change-id>]` writes a request the live run polls: it takes back each requested version whose
+  stage is no halt, newly cut ones included, reads its models and probes a new executor once, first, halting only
+  the versions on it when the probe fails, and any failure taking a version halts that version alone; a version
+  whose models file changed since the run read it stays out, and a request folder that is a link holds no request;
+  `report` names each `rejoined` version and keeps a skipped request's line (change `0063-rejoin`, phase 2).
+- `grant` names `/mf-ship` when it refuses, a waiting grant included; during a live run it records the grant with a
+  rejoin request instead of refusing, and the run logs a `grant` event and the `start` line's standing grants
+  (change `0063-rejoin`, phase 3).
+- A started version whose base `main` passed changing its gate gets `main` merged in, conflicts in `CHANGELOG.md`
+  and `docs/decisions.md` settled by `integrate.py`'s rules, so a sibling's release no longer halts it; any other
+  conflict aborts the merge and halts, naming the paths and the merge to run, its branch quoted (change
+  `0063-rejoin`, phase 4).
+- `mf-ship` sends `conduct.py rejoin` when a run is live and names `rejoin` and `grant`'s refusals in its table; D47
+  records the rejoin mailbox and the mid-run probe, and `THREAT_MODEL.md` lists `.minions/runs/rejoin/` as an entry
+  point (change `0063-rejoin`, phase 5).
+
 ## [0.51.0] - 2026-11-04
 
 Gate: local 6m25s · CI 0m42s (CI at d897227) · 0.50.0: local 4m40s · CI not read under mf-ship

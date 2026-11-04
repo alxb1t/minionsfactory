@@ -14,6 +14,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -174,6 +175,45 @@ def _calls(path: Path) -> list[str]:
 def _log(root: Path) -> list[str]:
     logs = sorted((root / ".minions" / "runs").glob("*.md"))
     return logs[-1].read_text().splitlines()[2:]
+
+
+def _when_logged(
+    root: Path, said: tuple[str, ...], act: Callable[[], None], hold: Path
+) -> Callable[[], None]:
+    """Run `act` beside the run once its log holds each of `said`, then make `hold`.
+
+    Return the join, which raises what `act` raised.
+    """
+    raised: list[BaseException] = []
+
+    def logged() -> bool:
+        if not list((root / ".minions" / "runs").glob("*.md")):
+            return False
+        lines = _log(root)
+        return all(any(part in line for line in lines) for part in said)
+
+    def wait() -> None:
+        deadline = time.monotonic() + 60
+        while not logged() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # The halted version's thread returns after its halt line.
+        time.sleep(0.5)
+        try:
+            act()
+        except BaseException as error:
+            raised.append(error)
+        finally:
+            hold.touch()
+
+    thread = threading.Thread(target=wait)
+    thread.start()
+
+    def join() -> None:
+        thread.join(timeout=60)
+        if raised:
+            raise raised[0]
+
+    return join
 
 
 def test_status_reads_each_stage_from_disk(
@@ -694,7 +734,10 @@ def test_after_waits_for_its_dependency(
     _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
-    crash.write_text("def delta(tree):\n    raise OSError('no fork')\n")
+    crash.write_text(
+        "def delta(tree):\n    raise OSError('no fork')\n\n"
+        "changelog = decisions = delta\n"
+    )
     script = conduct["main"].__globals__["INTEGRATE"]
     conduct["main"].__globals__["INTEGRATE"] = crash
     calls.unlink()
@@ -779,20 +822,61 @@ def test_after_waits_for_its_dependency(
         cut_only, "log", "--format=%s", "0001-todo"
     )
 
-    gated, started = behind("started", "Makefile", started=True)
+    merged = "chore(integrate): merge main into 0001-todo"
+    gated, _ = behind("started", "Makefile", started=True)
     assert (
         _main(conduct, gated, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1] == "build 0001-todo"
+    assert merged in _git(gated, "log", "--format=%s", "0001-todo")
+
+    (tmp_path / "logged").mkdir()
+    logged = _primary(tmp_path / "logged")
+    entries = "# Changelog\n\n## [Unreleased]\n"
+    _commit(logged, {"CHANGELOG.md": entries}, "changelog")
+    logged_tree = _version(logged, "0001-todo", "- [ ] 1 — Todo\n")
+    mine = f"{entries}\n- The branch's entry.\n"
+    _commit(logged_tree, {"CHANGELOG.md": mine}, "build: a first part")
+    release = f"{entries}\n## [0.1.0] - 2026-11-04\n\n- A release.\n"
+    _commit(logged, {"Makefile": "x\n", "CHANGELOG.md": release}, "main releases")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, logged, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls)[1] == "build 0001-todo"
+    assert merged in _git(logged, "log", "--format=%s", "0001-todo")
+    assert _git(logged, "show", "0001-todo:CHANGELOG.md") == (
+        "# Changelog\n\n## [Unreleased]\n\n- The branch's entry.\n\n"
+        "## [0.1.0] - 2026-11-04\n\n- A release."
+    )
+
+    clashed, clashed_tree = behind("clashed", "Makefile", started=False)
+    _commit(clashed_tree, {"Makefile": "y\n"}, "build: a first part")
+    calls.unlink(missing_ok=True)
+    assert (
+        _main(conduct, clashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
     assert _calls(calls) == ["probe"]
     assert any(
         line.endswith(
-            " · 0001-todo · halt — conduct: halt — main changed Makefile since"
-            f" 0001-todo's base: git -C {shlex.quote(str(started))} merge main,"
-            " then re-run"
+            " · 0001-todo · halt — conduct: halt — merging main into 0001-todo"
+            " conflicts in Makefile: git -C"
+            f" {shlex.quote(str(clashed_tree))} merge main, then re-run"
         )
-        for line in _log(gated)
+        for line in _log(clashed)
     )
+    assert not _git(
+        clashed_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False
+    )
+    assert merged not in _git(clashed, "log", "--format=%s", "0001-todo")
+    # A worker can name the default branch: the remedy line quotes it.
+    hostile = "x$(touch pwned)"
+    remedy = f"merge {shlex.quote(hostile)}, then re-run"
+    with pytest.raises(conduct["Stop"], match=re.escape(remedy) + "$"):
+        conduct["Run"](clashed, "claude").settle(clashed_tree, "0001-todo", hostile)
 
     # Twin: a started version behind a `main` that changed neither builds.
     moved, _ = behind("moved", "moved.txt", started=True)
@@ -1144,6 +1228,200 @@ def test_a_later_version_ships_past_a_halted_one(
     )
 
 
+def test_a_fixed_version_rejoins_a_live_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("liar-0001-todo", "hold-0002-marks")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _version(root, "0003-hand", "- [ ] 1 — Hand **HUMAN**\n")
+    rejoin, stop = conduct["rejoin"], conduct["Stop"]
+    with pytest.raises(stop, match="^rejoin: no run is live — run /mf-ship$"):
+        rejoin(root, None)
+
+    def fix() -> None:
+        tasks = tree / "openspec/changes/0001-todo/tasks.md"
+        _commit(tree, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
+        _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+        fake("hold-0002-marks")
+        with pytest.raises(stop, match="no open version holds 0009-none"):
+            rejoin(root, "0009-none")
+        assert rejoin(root, None) == "rejoin: requested every halted version"
+
+    halted = (" · 0001-todo · halt — ", " · 0003-hand · halt — ")
+    join = _when_logged(root, halted, fix, hold)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    join()
+
+    lines = _log(root)
+    assert any(line.endswith(" · run · rejoin — 0001-todo: converge") for line in lines)
+    assert any(
+        line.endswith(
+            " · run · rejoin — 0003-hand: still human — phase 1 — Hand **HUMAN**"
+        )
+        for line in lines
+    )
+    made = _calls(calls)
+    assert made.count("build 0001-todo") == made.count("build 0002-marks") == 1
+    assert {"release 0001-todo", "release 0002-marks"} <= set(made)
+    assert lines[-1].endswith(
+        " · run · halt — halted 0003-hand · blocked none · released v0.1.0 v0.2.0"
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
+    assert said.index("0001-todo · rejoined converge") > halt
+    assert not any("0003-hand · rejoined" in line for line in said)
+
+    # A skipped request names no version: report keeps its line as it stands.
+    log = conduct["last_log"](root / ".minions" / "runs")
+    skipped = "10:00:00 · run · rejoin — skipped — conduct: cannot run — git failed"
+    *body, closing = log.read_text().splitlines()
+    log.write_text("\n".join([*body, skipped, closing]) + "\n")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    assert "skipped — conduct · rejoined cannot run — git failed" not in said
+    assert skipped in said
+
+
+def test_a_version_cut_during_a_run_joins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("hold-0001-todo")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def cut() -> None:
+        # A folder no unlink removes: the poll skips it, and the run goes on.
+        # Why: 0063-rejoin design D2.
+        (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
+        _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+        assert conduct["rejoin"](root, "0002-marks") == "rejoin: requested 0002-marks"
+
+    join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+
+    lines = _log(root)
+    assert any(line.endswith(" · run · rejoin — 0002-marks: build") for line in lines)
+    assert {"release 0001-todo", "release 0002-marks"} <= set(_calls(calls))
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+
+    stale = root / ".minions" / "runs" / "rejoin" / "all"
+    stale.touch()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert not stale.exists()
+
+    # A worker may link the folder elsewhere: the poll reads no link, deletes nothing.
+    # Why: 0063-rejoin design D2.
+    elsewhere = tmp_path / "operator-files"
+    elsewhere.mkdir()
+    (elsewhere / "kept-urls").touch()
+    (elsewhere / "kept.gate").mkdir()
+    shutil.rmtree(stale.parent)
+    stale.parent.symlink_to(elsewhere)
+    assert conduct["_requests"](root / ".minions" / "runs") == set()
+    assert (elsewhere / "kept-urls").is_file()
+
+
+def test_a_new_executor_is_probed_mid_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    probe = " · 0002-marks · spawn — probe-codex · model default · executor codex"
+    for missing, code in ((False, 0), (True, 1)):
+        scratch = tmp_path / f"missing-{missing}"
+        scratch.mkdir()
+        hold = scratch / "hold"
+        monkeypatch.setenv("FAKE_HOLD", str(hold))
+        calls = fake("hold-0001-todo")
+        calls.unlink(missing_ok=True)
+        asked: list[str] = []
+        conduct["main"].__globals__["_executor_missing"] = (
+            lambda name, missing=missing, asked=asked: (
+                asked.append(name) or (missing and name == "codex")
+            )
+        )
+        root = _primary(scratch)
+        _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+        # A failed probe is kept: a second version on codex halts on it, unprobed.
+        joining = ("0002-marks", "0003-hand") if missing else ("0002-marks",)
+
+        def cut(root: Path = root, joining: tuple[str, ...] = joining) -> None:
+            for change in joining:
+                table = root / ".minions" / "models" / f"{change}.toml"
+                table.parent.mkdir(parents=True, exist_ok=True)
+                table.write_text('[converge]\nexecutor = "codex"\n')
+                _version(root, change, "- [ ] 1 — Marks\n")
+            conduct["rejoin"](root, None if missing else "0002-marks")
+
+        join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        join()
+
+        lines = _log(root)
+        made = _calls(calls)
+        assert "release 0001-todo" in made
+        if missing:
+            assert "build 0002-marks" not in made
+            assert made.count("probe") == 1
+            assert asked.count("codex") == 1
+            for change in joining:
+                assert not any(f" · rejoin — {change}" in line for line in lines)
+                assert any(
+                    line.endswith(
+                        f" · {change} · halt — probe-codex — codex is not on PATH"
+                    )
+                    for line in lines
+                )
+            assert lines[-1].endswith(
+                " · run · halt — halted 0002-marks 0003-hand · blocked none"
+                " · released v0.1.0"
+            )
+        else:
+            assert made.count("probe") == 2
+            taken = next(i for i, line in enumerate(lines) if "rejoin — 0002" in line)
+            assert any(line.endswith(probe) for line in lines[:taken])
+            assert any(
+                line.endswith(" · 0002-marks · check — probe-codex · pass")
+                for line in lines[:taken]
+            )
+            assert any(
+                line.endswith(
+                    " · 0002-marks · spawn — converge · model default · executor codex"
+                )
+                for line in lines
+            )
+            assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+
+
 def test_a_station_runs_on_its_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1409,6 +1687,10 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     assert stage_of(root, find(root, "0001-todo")) == closing
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage_of(root, find(root, "0001-todo"))[0] == "converge"
+    marker.unlink()
+    # A read of a FIFO waits for a writer.
+    os.mkfifo(marker)
+    assert stage_of(root, find(root, "0001-todo")) == closing
     marker.unlink()
     log = root / ".minions" / "findings" / "0001-todo_status_log.md"
     log.parent.mkdir(parents=True)
@@ -2718,6 +3000,27 @@ def test_the_plan_is_read_once(
         for line in _log(root)
     )
 
+    # A request takes back no version whose models file left the run's plan: the plan
+    # stays as read, and the halt stands. Why: 0063-rejoin design D2.
+    conductor = conduct["Run"](root, "claude")
+    conductor.take = lambda *args: None
+    conductor.read_plan([conduct["find_version"](root, "0001-todo")])
+    read = dict(conductor.plan)
+    table = root / ".minions" / "models" / "0001-todo.toml"
+    table.write_text('[converge]\nexecutor = "codex"\n')
+    changed = "conduct: halt — models/0001-todo.toml changed during the run"
+    conductor.halt("0001-todo", changed)
+    request = root / ".minions" / "runs" / "rejoin" / "0001-todo"
+    request.parent.mkdir(parents=True, exist_ok=True)
+    request.touch()
+    assert not conductor.take_requests({})
+    last = conductor.log.path.read_text().splitlines()[-1]
+    assert last.endswith(
+        " · run · rejoin — 0001-todo: still halted — models/0001-todo.toml changed"
+        " during the run"
+    )
+    assert conductor.plan == read and conductor.stopped("0001-todo")
+
     def domains(*args: object) -> list[str]:
         command = argv(*args)
         settings = json.loads(command[command.index("--settings") + 1])
@@ -3033,18 +3336,24 @@ def test_a_grant_buys_one_round(
         code = _main(conduct, root, *args, monkeypatch=monkeypatch)
         return code, capsys.readouterr().out.strip()
 
-    refused = "grant: cannot run — 0001-todo is at {}, not a cap halt"
+    refused = (
+        "grant: cannot run — 0001-todo is at {}: run /mf-ship; grant once converge caps"
+    )
     assert grant() == (2, refused.format("converge"))
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 2 · halt — a scope failure\n")
     assert grant() == (2, refused.format("converge-halted"))
     assert started == [] and not grants.exists()
 
-    log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
+    capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
+    log.write_text(capped)
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     assert grant() == (0, "")
     assert started == [(root, "claude", True)]
     assert conduct["stage_of"](root, version) == ("converge", "granted")
+    waiting = "grant: cannot run — 0001-todo has a grant waiting: run /mf-ship"
+    assert grant() == (2, waiting)
+    assert started == [(root, "claude", True)]
 
     conduct["main"].__globals__["run"] = runner
 
@@ -3059,10 +3368,100 @@ def test_a_grant_buys_one_round(
     assert not grants.exists()
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     assert _git(tree, "status", "--porcelain") == ""
+    lines = _log(root)
+    assert " · versions 0001-todo · grant 0001-todo" in lines[0]
+    assert any(
+        line.endswith(" · run · grant — 0001-todo: one more round past the cap")
+        for line in lines
+    )
 
     calls.unlink()
+    # A grants folder a worker linked elsewhere lists nothing on the start line.
+    elsewhere = tmp_path / "operator-files"
+    elsewhere.mkdir()
+    (elsewhere / "kept-urls").touch()
+    grants.parent.rmdir()
+    grants.parent.symlink_to(elsewhere)
     run()
     assert _calls(calls) == []
+    assert " · grant " not in _log(root)[0]
+    grants.parent.unlink()
+    grants.parent.mkdir()
+
+    log.write_text(capped)
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir()
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
+    assert grants.is_file()
+    assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()
+    assert started == [(root, "claude", True)]
+    assert _calls(calls) == []
+    shutil.rmtree(active)
+
+
+def test_a_fix_after_a_cap_halt_converges_afresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("amends")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    judged = _git(tree, "rev-parse", "HEAD")
+    _findings(root, "0001-todo", judged, "blocking")
+    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    grants = root / ".minions" / "grants" / "0001-todo"
+    version = conduct["find_version"](root, "0001-todo")
+    stage_of, check = conduct["stage_of"], conduct["check"]
+    assert stage_of(root, version) == ("converge-halted", capped)
+    assert check(root, "converge", version) == f"the status log halts: {capped}"
+
+    _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
+    fixed = _git(tree, "rev-parse", "HEAD")
+    # The lock case comes first, as in mf-converge's Resuming a run.
+    # Why: 0063-rejoin design D4.
+    locked = f"halt — waited 2 minutes for .minions/backlog.lock · head {judged}"
+    log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
+    lock = ("converge", "halted on the backlog lock: resumes at Step 9")
+    assert stage_of(root, version) == lock
+    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
+    # and a person's commit past it answers none (0063-rejoin design D4).
+    for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
+        own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
+        log.write_text(f"# t\n\n## Run {run}\n{own}\n")
+        assert stage_of(root, version) == ("converge-halted", own)
+        assert check(root, "converge", version) == f"the status log halts: {own}"
+        _commit(tree, {"later.txt": "later\n"}, "a person's commit past the halt")
+        assert stage_of(root, version) == ("converge-halted", own)
+        _git(tree, "reset", "-q", "--hard", fixed)
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    amended = ("converge", "amended: HEAD past the halted head")
+    assert stage_of(root, version) == amended
+    assert check(root, "converge", version) == "the status log has no done"
+    # A rewritten history answers no halt: converge would halt it again.
+    # Why: 0063-rejoin design D4.
+    _git(tree, "reset", "-q", "--soft", "HEAD~2")
+    _git(tree, "commit", "-q", "-m", "the cut and the fix, squashed")
+    assert stage_of(root, version) == ("converge-halted", capped)
+    assert check(root, "converge", version) == f"the status log halts: {capped}"
+    _git(tree, "reset", "-q", "--hard", fixed)
+    grants.parent.mkdir(parents=True)
+    grants.touch()
+    assert stage_of(root, version) == amended
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert not grants.exists()
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+    assert _git(root, "tag", "-l") == "v0.1.0"
 
 
 def test_a_missing_skill_stops_a_run(

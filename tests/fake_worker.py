@@ -110,6 +110,10 @@ def _fake(prompt: str) -> None:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
         time.sleep(2)
+    if station == "build" and f"hold-{change}" in modes:
+        hold, deadline = Path(os.environ["FAKE_HOLD"]), time.monotonic() + 60
+        while not hold.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
     if station == "build" and (script := os.environ.get("FAKE_SCRIPT")):
         Path(script).write_text("raise OSError('planted')\n")
     if f"liar-{change or station}" in modes:
@@ -169,9 +173,13 @@ def _fake(prompt: str) -> None:
                 "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
             )
             return
+        log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+        held = log.read_text() if log.is_file() else ""
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
+        if "amends" in modes:
+            run = "## Run 2 — d · amended\n10:00:00 · round 1 · done — ok\n\n"
+            log.write_text(held.replace("## Run", run + "## Run", 1))
         if "dies-converge" in modes:
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
             log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
             sys.exit(1)
     elif station == "integrate":

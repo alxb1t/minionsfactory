@@ -66,8 +66,9 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
   `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
   under the title.
 - **Insert only.** Each event goes directly under the latest `## Run` heading; a written line stays as it is.
-- **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop. A top line that
-  is neither means the run is going or dead; its time says which.
+- **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop, ending
+  ` · head <sha>`, the commit `git rev-parse HEAD` prints at the halt. A top line that is neither means the run is
+  going or dead; its time says which.
 
 The events, and no others:
 
@@ -82,7 +83,7 @@ The events, and no others:
 | `pickup` | Step 8 | the picked ids, or `none` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
 | `backlog` | Step 9 | the cards written, moot and cleared, by id |
-| `halt` | wherever this skill halts | the reason, as reported |
+| `halt` | wherever this skill halts | the reason, as reported, then `· head <sha>` |
 | `done` | Step 10 | rounds used, cards to the backlog |
 
 ```
@@ -95,7 +96,7 @@ The events, and no others:
 10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
 
 ## Run 1 — 2026-09-27 14:02
-14:31:00 · round 3 · halt — cap reached, R3 open
+14:31:00 · round 3 · halt — cap reached, R3 open · head 7ee2179c1d3a5b8e9f0a2b4c6d8e0f1a3b5c7d9e
 …
 ```
 
@@ -128,6 +129,14 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 
 The top line is a `halt` naming `.minions/backlog.lock` → continue that run at Step 9 when both findings files are clean
 at `HEAD`; else halt, naming the file.
+
+The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
+`git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
+marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
+grant is needed, and the catch-up round does not apply. A halt naming no head, or one past the judged head — after
+this skill's own fix commit, or in a catch-up run — is no person's answer.
+
+A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
 | latest event | go on at |
 |---|---|

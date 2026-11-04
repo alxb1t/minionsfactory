@@ -431,8 +431,9 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, naming it in the
 merge commit, hands a semantic conflict to the person with the merge open, gates, and commits the merge; converge's
 catch-up judges the merge by its remerge-diff. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
-one the default branch passed before its first worker — which cannot conflict in git: it runs `integrate.py delta` on the open
-merge, commits when that passes, and else leaves the merge open with its note.**
+one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
+its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules and halts on any other, runs
+`integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
   read, and what the merge decided is exactly what review must see.
@@ -445,14 +446,17 @@ merge, commits when that passes, and else leaves the merge open with its note.**
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
-`after:`, a failed probe halts the run, and a re-run resumes from
+`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A live run takes a rejoin
+request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back each requested version whose stage on disk is
+no longer a halt, a version cut since its start included, and none whose models file changed since the run read it. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
-- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
+- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, at the
+  start or before a joining version's first worker on it, and a
   worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
 - **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;

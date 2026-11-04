@@ -10,6 +10,7 @@
     conduct.py run --executor claude|codex [--detach]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
+    conduct.py rejoin [<change-id>]
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
@@ -48,9 +49,10 @@ RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
+REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
-# A started build's gate and rules: changed since its base, they halt it.
+# A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -59,10 +61,12 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "kept", "removed"),
+    *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
+AMENDED = "amended: HEAD past the halted head"
+HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
 ROLES = ("review", "security")
@@ -475,10 +479,14 @@ def _run_end(runs: Path, change: str) -> str | None:
 def _closed(runs: Path, tree: Path, change: str) -> bool:
     """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
 
-    A missing or unreadable file is not closed. Why: 0055-build-resume design D2.
+    A missing or unreadable file is not closed, nor is one that is no regular file.
+    Why: 0055-build-resume design D2.
     """
+    done = runs / "build" / f"{change}.done"
+    if not done.is_file():
+        return False
     try:
-        text = (runs / "build" / f"{change}.done").read_text()
+        text = done.read_text()
     except (OSError, UnicodeDecodeError):
         return False
     found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
@@ -520,6 +528,35 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     return end if end and _is_event(end, "halt") else None
 
 
+def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
+    """Return whether a person's commit answered a converge halt.
+
+    The halt names the head it stopped at, both findings files judged that head,
+    and `HEAD` descends from it and is not it. A halt past the judged head — after
+    converge's own fix, or in a catch-up run — names no head the files judged, and a
+    rewritten history leaves no descendant. Why: 0063-rejoin design D4.
+    e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
+    """
+    found = HALT_HEAD.search(halt)
+    halted = found and _maybe(
+        tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+    )
+    if not halted:
+        return False
+    halted = halted.strip()
+    if halted == _git(tree, "rev-parse", "HEAD").strip():
+        return False
+    for role in ROLES:
+        file = runs / "findings" / f"{change}_{role}.md"
+        judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
+        resolved = judged and _maybe(
+            tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
+        )
+        if not resolved or resolved.strip() != halted:
+            return False
+    return _ancestor(tree, halted, "HEAD")
+
+
 def _converge_done(runs: Path, change: str) -> bool:
     """Return whether the newest converge run ends on `done`."""
     return _is_event(_run_end(runs, change) or "", "done")
@@ -547,13 +584,13 @@ def _merge_open(tree: Path) -> bool:
     return _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
 
 
-def _unmerged(tree: Path) -> bool:
-    """Return whether an open merge leaves a path unmerged in `tree`.
+def _conflicts(tree: Path) -> list[str]:
+    """Return the paths an open merge leaves unmerged in `tree`.
 
     Past the refusal: a stat-dirty file makes `git diff` run a clean filter.
     """
     _refuse_config_commands(tree)
-    return bool(_git(tree, "diff", "--name-only", "--diff-filter=U").strip())
+    return _git(tree, "diff", "--name-only", "--diff-filter=U").split()
 
 
 def _dirty(tree: Path) -> bool:
@@ -691,7 +728,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
-        if _unmerged(tree):
+        if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
         return (
             "integrate",
@@ -717,10 +754,12 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
-        if "cap reached" in halt and (runs / "grants" / change).is_file():
-            return "converge", "granted"
         if ".minions/backlog.lock" in halt:
             return "converge", "halted on the backlog lock: resumes at Step 9"
+        if _answered(runs, tree, change, halt):
+            return "converge", AMENDED
+        if "cap reached" in halt and (runs / "grants" / change).is_file():
+            return "converge", "granted"
         return "converge-halted", halt
     if end is not None and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
@@ -746,7 +785,8 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the converge check fails, or None."""
     runs = primary / ".minions"
-    if halt := _converge_halt(runs, version.change):
+    halt = _converge_halt(runs, version.change)
+    if halt and not _answered(runs, tree, version.change, halt):
         return f"the status log halts: {halt}"
     if not _converge_done(runs, version.change):
         return "the status log has no done"
@@ -1962,7 +2002,12 @@ class Run:
 
     def __init__(self, primary: Path, executor: str) -> None:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
-        self.delta = runpy.run_path(str(INTEGRATE))["delta"]
+        integrate = runpy.run_path(str(INTEGRATE))
+        self.delta = integrate["delta"]
+        self.rules = {
+            "CHANGELOG.md": integrate["changelog"],
+            "docs/decisions.md": integrate["decisions"],
+        }
         self.git_state = _git_state(primary)
         self.pushes = (_kept_origin(primary) or _urls(primary))[1]
         self.primary = primary
@@ -1976,6 +2021,9 @@ class Run:
         self.released: list[str] = []
         self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
+        self.planned: set[str] = set()
+        self.probed: set[str] = set()
+        self.refused: dict[str, str] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2096,8 +2144,15 @@ class Run:
                 clause = ""
                 granted = minions / "grants" / version.change
                 if stage == "converge" and granted.is_file():
-                    clause = " and grant=yes"
+                    # An amended run starts from round 1: the grant goes unspent.
+                    clause = "" if why == AMENDED else " and grant=yes"
                     granted.unlink()
+                    if clause:
+                        self.log.event(
+                            "run",
+                            "grant",
+                            f"{version.change}: one more round past the cap",
+                        )
                 prompt = PROMPTS[stage].format(change=version.change, grant=clause)
                 models = _models(minions, version.change, stage, self.executor)
                 if models != self.plan.get((version.change, stage)):
@@ -2183,10 +2238,10 @@ class Run:
         return True
 
     def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a cut-only branch, once the delta check passes.
+        """Merge the default branch into a branch, once the delta check passes.
 
-        A requirement both sides changed leaves the merge open with its note, which
-        `stage_of` reads as an `integrating` halt.
+        A conflict goes to `settle`. A requirement both sides changed leaves the merge
+        open with its note, which `stage_of` reads as an `integrating` halt.
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
@@ -2195,8 +2250,9 @@ class Run:
         if opened and note.is_file():
             return
         _refuse_config_commands(tree)
-        if not opened:
-            _git(tree, "merge", "-q", "--no-ff", "--no-commit", default)
+        merge = ("merge", "-q", "--no-ff", "--no-commit", default)
+        if not opened and _maybe(tree, *merge) is None:
+            self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
             note.parent.mkdir(parents=True, exist_ok=True)
             note.write_text(_note(tree, change, moved))
@@ -2204,11 +2260,40 @@ class Run:
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
-    def catch_up(self, version: Version) -> None:
-        """Merge the default branch into a cut-only version behind it.
+    def settle(self, tree: Path, change: str, default: str) -> None:
+        """Settle a merge's conflicts by `integrate.py`'s rules; else abort it, stop.
 
-        A started version with an unticked phase and no open merge, behind a default
-        branch that changed `GATE_FILES`, stops with 1, naming them and the merge. One
+        Why: 0063-rejoin design D6.
+        """
+        at, branch = shlex.quote(str(tree)), shlex.quote(default)
+        run = f"git -C {at} merge {branch}, then re-run"
+        if not _merge_open(tree):
+            raise Stop(
+                1, f"conduct: halt — merging {default} into {change} failed: {run}"
+            )
+        first = _conflicts(tree)
+        stopped = ""
+        for path, rule in self.rules.items():
+            if path in first and not stopped:
+                try:
+                    rule(tree)
+                except Exception as error:
+                    stopped = f" — {error}"
+        if not (left := _conflicts(tree)) and not stopped:
+            return
+        _git(tree, "merge", "--abort")
+        raise Stop(
+            1,
+            f"conduct: halt — merging {default} into {change} conflicts in"
+            f" {', '.join(left or first)}{stopped}: {run}",
+        )
+
+    def catch_up(self, version: Version) -> None:
+        """Merge the default branch into a version behind it.
+
+        A cut-only version gets it merged in by `merge_in`, and so does a started one
+        with an unticked phase and no open merge, behind a default branch that changed
+        `GATE_FILES`. One
         with an unticked phase and a merge open with no note stops with 1, naming the
         commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
         finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
@@ -2241,12 +2326,8 @@ class Run:
                 f" git -C {at} commit, then re-run",
             )
         diff = ("diff", "--name-only", base, default, "--", *GATE_FILES)
-        if paths := _git(self.primary, *diff).split():
-            raise Stop(
-                1,
-                f"conduct: halt — {default} changed {', '.join(paths)}"
-                f" since {change}'s base: git -C {at} merge {default}, then re-run",
-            )
+        if _git(self.primary, *diff).split():
+            self.merge_in(tree, change, default)
 
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
@@ -2268,36 +2349,118 @@ class Run:
             self.halt("run", f"conduct.py failed: {error}")
 
     def read_plan(self, versions: list[Version]) -> None:
-        """Read each station's models and `AGENTS.md`'s `Ship` lines, once.
+        """Read each station's models, once per version: at the start, or as it joins.
 
-        A worker can write both. A table `_models` refuses stays out of the plan: it
+        A worker can write them. A table `_models` refuses stays out of the plan: it
         halts in `take`. Why: 0052-security-hardening design D4.
         """
-        self.lines = ship_lines(self.primary)
         for version, station in itertools.product(versions, STATIONS):
-            try:
-                models = _models(
-                    self.primary / ".minions", version.change, station, self.executor
-                )
-            except (Stop, ValueError):
-                continue
-            self.plan[version.change, station] = models
+            self.planned.add(version.change)
+            if (models := self.models(version.change, station)) is not None:
+                self.plan[version.change, station] = models
+
+    def models(
+        self, change: str, station: str
+    ) -> tuple[str, str | None, str | None] | None:
+        """Return one station's models as `_models` reads them; None on a refusal."""
+        try:
+            return _models(self.primary / ".minions", change, station, self.executor)
+        except (Stop, ValueError):
+            return None
 
     def executors(self) -> list[str]:
         """Return the run's executor, then each other one the plan names."""
         named = (executor for executor, *_ in self.plan.values())
         return list(dict.fromkeys((self.executor, *named)))
 
-    def probe(self, executor: str) -> None:
-        """Prove a sandboxed worker edits, commits and gates a scratch repo, or halt."""
+    def take_requests(self, threads: dict[str, threading.Thread]) -> bool:
+        """Start `take` for each requested open version no thread runs; True if any.
+
+        The requests are read and deleted. A version whose stage is a halt stays out,
+        logged; a taken one has its halts and blocks cleared, its models read and its
+        new executors probed first. It raises nothing: it runs beside live threads,
+        so a failure skips the request or halts that version. Why: 0063-rejoin
+        design D2.
+        """
+        names = _requests(self.runs)
+        if not names or self.stopped("run"):
+            return False
+        try:
+            versions = open_versions(self.primary)
+        except Exception as error:
+            self.log.event("run", "rejoin", f"skipped — {error}")
+            return False
+        started = False
+        for version in versions:
+            change = version.change
+            thread = threads.get(change)
+            if not names & {"all", change} or (thread and thread.is_alive()):
+                continue
+            try:
+                started = self.take_back(version, threads) or started
+            except Stop as stop:
+                self.halt(change, str(stop))
+            except Exception as error:
+                self.halt(change, f"conduct.py failed: {error}")
+        return started
+
+    def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
+        """Start `take` for a requested version whose stage is no halt; True if so.
+
+        One the run's plan holds stays out while its models file differs: a worker can
+        write it. An executor whose probe failed halts it with that probe's reason,
+        probed no second time. Why: 0063-rejoin design D2, D3.
+        """
+        change = version.change
+        stage, why = stage_of(self.primary, version)
+        if stage in HALTS:
+            self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
+            return False
+        if change in self.planned and any(
+            self.models(change, station) != self.plan.get((change, station))
+            for station in STATIONS
+        ):
+            moved = f"models/{change}.toml changed during the run"
+            self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
+            return False
+        with self.guard:
+            self.halts = [held for held in self.halts if held[0] != change]
+            self.blocked = [name for name in self.blocked if name != change]
+        self.read_plan([version])
+        named = (self.plan.get((change, station)) for station in STATIONS)
+        for executor in dict.fromkeys(models[0] for models in named if models):
+            if executor in self.probed or self.stopped(change):
+                continue
+            if (refused := self.refused.get(executor)) is not None:
+                self.halt(change, refused)
+                continue
+            self.probe(executor, change)
+            if executor not in self.probed:
+                with self.guard:
+                    self.refused[executor] = next(
+                        reason for who, reason in reversed(self.halts) if who == change
+                    )
+        if self.stopped(change):
+            return False
+        self.log.event("run", "rejoin", f"{change}: {stage}")
+        threads[change] = threading.Thread(target=self.take, args=(version, threads))
+        threads[change].start()
+        return True
+
+    def probe(self, executor: str, who: str = "run") -> None:
+        """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
+
+        A failure halts `who`; a pass adds `executor` to `probed`.
+        Why: 0063-rejoin design D3.
+        """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
-            self.halt("run", f"{station} — {executor} is not on PATH")
+            self.halt(who, f"{station} — {executor} is not on PATH")
             return
         try:
             _unlinked(executor)
         except Stop as stop:
-            self.halt("run", f"{station} — {stop}")
+            self.halt(who, f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         mark = Path.home() / KEPT_ORIGINS / f"probe-{executor}-{os.getpid()}"
@@ -2308,7 +2471,7 @@ class Run:
                 os.close(os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
             except OSError as error:
                 self.halt(
-                    "run", f"{station} — cannot write the probe mark: {error.strerror}"
+                    who, f"{station} — cannot write the probe mark: {error.strerror}"
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
@@ -2318,9 +2481,11 @@ class Run:
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             models = (executor, None, None)
             repo = _repo(scratch)
-            denied = self.spawn("run", station, scratch, PROBE, models, repo)
-            if denied is not None:
-                self.judge("run", station, check_probe(scratch, mark), denied)
+            denied = self.spawn(who, station, scratch, PROBE, models, repo)
+            if denied is not None and self.judge(
+                who, station, check_probe(scratch, mark), denied
+            ):
+                self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
@@ -2401,8 +2566,25 @@ class Run:
                 _close_releases(self.primary, sha)
         return True
 
+    def join(self, threads: dict[str, threading.Thread]) -> None:
+        """Wait for every thread, taking requests every `REJOIN_POLL` seconds.
+
+        With none alive, the requests are read once more. Why: 0063-rejoin design D1.
+        """
+        while True:
+            self.take_requests(threads)
+            for thread in [thread for thread in threads.values() if thread.is_alive()]:
+                thread.join(timeout=REJOIN_POLL)
+            alive = any(thread.is_alive() for thread in threads.values())
+            if not alive and not self.take_requests(threads):
+                return
+
     def ship(self) -> int:
-        """Run the loop; return 0 when every version shipped, else 1."""
+        """Run the loop; return 0 when every version shipped, else 1.
+
+        A request standing at the start is deleted: the run takes every open version.
+        """
+        _requests(self.runs)
         versions = open_versions(self.primary)
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
@@ -2410,11 +2592,16 @@ class Run:
         self.push_left(RETRIES)
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
+        folder = self.primary / ".minions" / "grants"
+        # A worker may link the folder elsewhere: a link lists nothing.
+        listed = folder.is_dir() and not folder.is_symlink()
+        standing = sorted(file.name for file in folder.iterdir()) if listed else []
+        grants = f" · grant {' '.join(standing)}" if standing else ""
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}{down}",
+            f" · versions {names}{grants}{down}",
         )
         for event in held:
             self.log.event(*event)
@@ -2429,6 +2616,7 @@ class Run:
             self.log.event("run", "done", "nothing to ship")
             return 0
         try:
+            self.lines = ship_lines(self.primary)
             self.read_plan(versions)
         except Stop as stop:
             self.halt("run", str(stop))
@@ -2456,8 +2644,7 @@ class Run:
                 )
             for thread in threads.values():
                 thread.start()
-            for thread in threads.values():
-                thread.join()
+            self.join(threads)
         if self.offline and not self.stopped("run"):
             self.push_left((0,))
         if self.halts or self.blocked:
@@ -2552,19 +2739,84 @@ def _log_stop(runs: Path) -> Path | None:
     return log
 
 
+def _requests(runs: Path) -> set[str]:
+    """Delete the rejoin requests in `runs`; return their names.
+
+    An entry `unlink` refuses, a folder say, is no request, and an unreadable folder
+    holds none: the poll runs beside live threads. A folder that is a link holds
+    none: a worker may write it, and the conductor deletes outside the sandbox.
+    Why: 0063-rejoin design D2.
+    e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
+    """
+    folder = runs / "rejoin"
+    names = set()
+    try:
+        listed = folder.is_dir() and not folder.is_symlink()
+        entries = list(folder.iterdir()) if listed else []
+    except OSError:
+        return names
+    for request in entries:
+        try:
+            request.unlink(missing_ok=True)
+        except OSError:
+            continue
+        names.add(request.name)
+    return names
+
+
+def rejoin(cwd: Path, change: str | None) -> str:
+    """Ask the live run to take back `change`, or every version, and return the line.
+
+    Why: 0063-rejoin design D1.
+    """
+    primary = primary_of(cwd)
+    runs = primary / ".minions" / "runs"
+    if _claim(runs / "active") != "live":
+        raise Stop(2, "rejoin: no run is live — run /mf-ship")
+    if change is not None and change not in (
+        version.change for version in open_versions(primary)
+    ):
+        raise Stop(2, f"rejoin: cannot run — no open version holds {change}")
+    _request(runs, change or "all")
+    return f"rejoin: requested {change or 'every halted version'}"
+
+
+def _request(runs: Path, name: str) -> None:
+    """Write the rejoin request `name` for the live run."""
+    (runs / "rejoin").mkdir(parents=True, exist_ok=True)
+    (runs / "rejoin" / name).touch()
+
+
 def grant(cwd: Path, change: str, executor: str) -> int:
-    """Record one more round for a version halted at the cap, then start a run."""
+    """Record one more round for a version halted at the cap, then start a run.
+
+    With a run live, the grant goes with a rejoin request instead.
+    Why: 0063-rejoin design D5.
+    """
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
         raise Stop(2, f"grant: cannot run — no version branch holds {change}")
     stage, why = stage_of(primary, version)
+    if (stage, why) == ("converge", "granted"):
+        raise Stop(2, f"grant: cannot run — {change} has a grant waiting: run /mf-ship")
     if stage != "converge-halted" or "cap reached" not in why:
-        raise Stop(2, f"grant: cannot run — {change} is at {stage}, not a cap halt")
-    preconditions(cwd, executor)
+        raise Stop(
+            2,
+            f"grant: cannot run — {change} is at {stage}: run /mf-ship; grant once"
+            " converge caps",
+        )
+    runs = primary / ".minions" / "runs"
+    live = _claim(runs / "active") == "live"
+    if not live:
+        preconditions(cwd, executor)
     grants = primary / ".minions" / "grants"
     grants.mkdir(parents=True, exist_ok=True)
     (grants / change).touch()
-    return run(cwd, executor, True)
+    if not live:
+        return run(cwd, executor, True)
+    _request(runs, change)
+    print(f"grant: recorded — the live run takes {change} back")
+    return 0
 
 
 def approve_gate(cwd: Path, change: str, hashed: str) -> str:
@@ -2736,7 +2988,11 @@ def _change_number(change: str) -> int:
 
 
 def report(cwd: Path) -> str:
-    """Return the last run's close-out: its waits, each version, the halts, the end."""
+    """Return the last run's close-out: its waits, each version, the halts, the end.
+
+    A version that rejoined has a `rejoined` line after the halts before it; a
+    skipped request, which names no version, keeps its line as it stands.
+    """
     primary = primary_of(cwd)
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
@@ -2792,7 +3048,14 @@ def report(cwd: Path) -> str:
                 ]
             )
         )
-    lines += [found.string for found in events[:-1] if found[2] == "halt"]
+    for found in events[:-1]:
+        detail = found.string[found.end() :]
+        change, _, stage = detail.partition(": ")
+        skipped = found[2] == "rejoin" and detail.startswith("skipped — ")
+        if found[2] == "halt" or skipped:
+            lines.append(found.string)
+        elif found[2] == "rejoin" and not stage.startswith("still "):
+            lines.append(f"{change} · rejoined {stage}")
     lines.append(closing)
     return "\n".join(lines)
 
@@ -2820,6 +3083,8 @@ def main(argv_: list[str] | None = None) -> int:
     granting = commands.add_parser("grant", help="one more round past the cap")
     granting.add_argument("change_id", metavar="change-id")
     granting.add_argument("--executor", required=True, choices=("claude", "codex"))
+    rejoining = commands.add_parser("rejoin", help="the live run takes a version back")
+    rejoining.add_argument("change_id", metavar="change-id", nargs="?")
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -2849,6 +3114,8 @@ def main(argv_: list[str] | None = None) -> int:
             print(stop_run(cwd))
         elif args.command == "grant":
             return grant(cwd, args.change_id, args.executor)
+        elif args.command == "rejoin":
+            print(rejoin(cwd, args.change_id))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":
