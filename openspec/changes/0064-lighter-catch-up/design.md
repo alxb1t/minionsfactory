@@ -65,7 +65,8 @@ call `uv run --script ../mf-converge/scripts/gate_run.py`, each still printing `
 `replay(merge)`: a scratch worktree (`git worktree add --detach <tmp> <merge>^1`), `git merge --no-ff --no-commit <merge>^2`;
 on conflict, `changelog` when `CHANGELOG.md` is unmerged and `decisions` when `docs/decisions.md` is, each staged; any path left
 unmerged → exit 1. Then `git write-tree` against `git rev-parse <merge>^{tree}`: equal → print `replay: by rule — <paths>`,
-exit 0; else exit 1. The scratch worktree is removed in every case. A merge without two parents → exit 2.
+exit 0; else exit 1. The scratch worktree is removed in every case. A merge without two parents, or whose second parent
+is not an ancestor of the default branch (`git merge-base --is-ancestor`), → exit 2, before any scratch worktree.
 
 ### D4
 

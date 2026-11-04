@@ -35,9 +35,14 @@ None.
 ### Modified Capabilities
 
 - `sdd`:
-  - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — ADDED: replay, `## By rule`, the count.
+  - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — ADDED: replay, its ancestry check,
+    `## By rule`, the count.
   - *The integrate merge commit names every path it settled* — ADDED: the four body-line kinds.
   - *The skills run the repository's `make gate`* — MODIFIED: through `gate_run.py`, its record and its reuse.
+  - *The release ships only a reviewed head* — MODIFIED: a by-rule catch-up runs no verify round.
+  - *Converge keeps a status log* — MODIFIED: the `by rule` event.
+  - *The release records the gate's time* — MODIFIED: the time from a run or a reused record.
+  - *Independent workers have fresh contexts* — MODIFIED: `mode: by-rule`, `workers: 0`.
 
 ## Impact
 

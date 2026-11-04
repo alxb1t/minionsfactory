@@ -552,7 +552,8 @@ def replay(cwd: Path, merge: str) -> str:
     The merge is redone from its parents in a scratch worktree under the run
     directory, `changelog` and `decisions` settling their files. A path left
     unmerged, or another tree, stops with exit 1; a commit without two parents,
-    with exit 2. e.g. a merge settled in CHANGELOG.md → "replay: by rule — CHANGELOG.md"
+    or whose second parent the default branch does not hold, with exit 2.
+    e.g. a merge settled in CHANGELOG.md → "replay: by rule — CHANGELOG.md"
     """
     if merge.startswith("-"):
         raise Stop(2, f"integrate: cannot run — not a commit: {merge}")
@@ -560,6 +561,11 @@ def replay(cwd: Path, merge: str) -> str:
     parents = _git(cwd, "rev-list", "--parents", "-n", "1", sha).split()[1:]
     if len(parents) != 2:
         raise Stop(2, f"integrate: cannot run — {merge} is not a merge of two parents")
+    default = default_branch(cwd)
+    if _run(cwd, "merge-base", "--is-ancestor", parents[1], default).returncode != 0:
+        raise Stop(
+            2, f"integrate: cannot run — {merge}'s second parent is not on {default}"
+        )
     scratch = _run_dir(cwd) / "replay" / sha
     _drop(cwd, scratch)
     _git(cwd, "worktree", "add", "-q", "--detach", str(scratch), parents[0])

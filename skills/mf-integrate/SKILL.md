@@ -15,7 +15,9 @@ naming it.
 ```
   next version (the named id, or the lowest ready id) ─▶ ready? ─ no ─▶ halt, naming it
          │ yes
-  merge <default-branch> in its worktree ─▶ the rules ─▶ a semantic conflict? ─ yes ─▶ halt, merge open
+  merge <default-branch> in its worktree ─▶ the rules ─▶ resolve what both sides add
+         │
+  a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
   gate_run.py in the worktree ─▶ commit the merge, `Change: <id>` ─▶ a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
          │ no

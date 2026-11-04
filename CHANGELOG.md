@@ -15,13 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0064-lighter-catch-up`, phase 2).
 - `integrate.py replay <merge>` rebuilds a merge from its parents in a scratch worktree with the `changelog` and
   `decisions` rules alone and compares trees: equal exits 0, naming the paths; a path left unmerged or another tree
-  exits 1, so a merge someone judged never passes as the rules' (change `0064-lighter-catch-up`, phase 3).
+  exits 1, so a merge someone judged never passes as the rules'; a merge whose second parent the default branch does
+  not hold exits 2, so a merge of another branch never passes either (change `0064-lighter-catch-up`, phase 3).
 - `mf-converge`'s catch-up over merges only replays each one; when all replay, it writes both findings files clean
   with `## By rule`, logs `by rule`, and dispatches no worker, so a rule-settled `CHANGELOG.md` no longer costs a
   review round (change `0064-lighter-catch-up`, phase 4).
 - The integrate merge commit names every path it settled — `integrate.py changelog` or `decisions`, the union, the
   person, `test fixed — <what it now asserts>` — and a test fix never removes or loosens an assertion; the station's
-  *Why* and `README.md` name the union it resolves (change `0064-lighter-catch-up`, phase 5).
+  *Why*, its diagram and `README.md` name the union it resolves (change `0064-lighter-catch-up`, phase 5).
 - *The gate is run, never summarized* counts a recorded run of the exact tree and keeps the release's post-fold gate
   fresh; *Nothing reads as clean by being absent* gains clean by recomputation; D45 names `replay` and the body lines;
   `THREAT_MODEL.md` carries the forgeable gate record (change `0064-lighter-catch-up`, phase 6).

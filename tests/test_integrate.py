@@ -349,6 +349,18 @@ def test_replay_refuses_a_judged_merge(tmp_path: Path) -> None:
     assert result.stdout.startswith("integrate: cannot run — HEAD~1 is not a merge")
     assert _scratch_gone(root)
 
+    # A clean merge of a commit the default branch does not hold is no catch-up.
+    _git(root, "checkout", "-q", "-b", "side")
+    _commit(root, {"side.txt": "x\n"}, "side work")
+    _git(root, "checkout", "-q", "main")
+    _git(tree, "merge", "-q", "--no-ff", "-m", "chore(integrate): merge", "side")
+    result = _run(tree, "replay", "HEAD")
+    assert result.returncode == 2, result.stdout
+    assert result.stdout == (
+        "integrate: cannot run — HEAD's second parent is not on main\n"
+    )
+    assert _scratch_gone(root)
+
 
 def _spec(first: str) -> str:
     return (

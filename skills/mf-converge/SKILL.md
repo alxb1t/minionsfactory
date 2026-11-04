@@ -196,9 +196,12 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
 A merge the fixed rules reproduce is clean by recomputation: it holds nothing the rules did not decide, so no
 worker reads it.
 
-1. For each merge in the selection, run
+1. First run [Catch-up scope](#catch-up-scope)'s checks: the judged head on HEAD's first-parent chain, and each
+   merge of exactly two parents whose second parent is an ancestor of the default branch. One fails → **halt**,
+   naming it. Then, for each merge in the selection, run
    `uv run --script ../mf-integrate/scripts/integrate.py replay <merge>`, `../mf-integrate/` resolved from this
-   skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`.
+   skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`; `replay` exits 2 on a merge whose
+   second parent the default branch does not hold.
 2. Any exit 1 → the round as before, from item 5. Exit 2, or `uv` missing → **halt**, naming what it printed.
 3. Every exit 0 → in each findings file, set `head:` to `HEAD`, `round:` to the run's own count, `reviewed:` to
    today, `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`. Add a `## By rule`
