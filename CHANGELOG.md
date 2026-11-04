@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A person's commit past a converge halt voids it: the stage is `converge`, a waiting grant goes unspent, and
   `mf-converge` opens a run marked `· amended` from round 1, so a fix no longer costs a grant; a resumed `· grant` run
   stays a granted round, and a `.done` that is no regular file reads as not closed (change `0063-rejoin`, phase 1).
+- `conduct.py rejoin [<change-id>]` writes a request the live run polls: it takes back each requested version whose
+  stage is no halt, newly cut ones included, reads its models and probes a new executor first, halting only that
+  version on a failed probe; `report` names each `rejoined` version (change `0063-rejoin`, phase 2).
 
 ## [0.51.0] - 2026-11-04
 

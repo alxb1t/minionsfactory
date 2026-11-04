@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The stale halt
-- [ ] 2 — The request
+- [x] 2 — The request
 - [ ] 3 — Grant
 - [ ] 4 — The base
 - [ ] 5 — The docs
@@ -25,14 +25,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The request
 
-- [ ] 2.1 Add `REJOIN_POLL`, the `rejoin` subcommand, `take_requests`, the polling join loop, the start's deletion of requests,
+- [x] 2.1 Add `REJOIN_POLL`, the `rejoin` subcommand, `take_requests`, the polling join loop, the start's deletion of requests,
   and `rejoin` in `EVENTS`, per [D1](design.md#d1), [D2](design.md#d2) and [D7](design.md#d7); add
   `test_a_fixed_version_rejoins_a_live_run` and `test_a_version_cut_during_a_run_joins`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "rejoins_a_live_run or cut_during_a_run_joins"` reports `2 passed`.
-- [ ] 2.2 Add `self.probed` and `probe`'s `who`; add `test_a_new_executor_is_probed_mid_run`, a passing and a failing probe, per
+- [x] 2.2 Add `self.probed` and `probe`'s `who`; add `test_a_new_executor_is_probed_mid_run`, a passing and a failing probe, per
   [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k new_executor_is_probed_mid_run` reports `1 passed`.
-- [ ] 2.3 Add `report`'s `rejoined` line, a step in `test_a_fixed_version_rejoins_a_live_run`, per [D7](design.md#d7).
+- [x] 2.3 Add `report`'s `rejoined` line, a step in `test_a_fixed_version_rejoins_a_live_run`, per [D7](design.md#d7).
   Verify: `grep -n 'rejoined' skills/mf-ship/scripts/conduct.py` prints a line.
 
 ## 3 — Grant

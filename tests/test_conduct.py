@@ -14,6 +14,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -174,6 +175,45 @@ def _calls(path: Path) -> list[str]:
 def _log(root: Path) -> list[str]:
     logs = sorted((root / ".minions" / "runs").glob("*.md"))
     return logs[-1].read_text().splitlines()[2:]
+
+
+def _when_logged(
+    root: Path, said: tuple[str, ...], act: Callable[[], None], hold: Path
+) -> Callable[[], None]:
+    """Run `act` beside the run once its log holds each of `said`, then make `hold`.
+
+    Return the join, which raises what `act` raised.
+    """
+    raised: list[BaseException] = []
+
+    def logged() -> bool:
+        if not list((root / ".minions" / "runs").glob("*.md")):
+            return False
+        lines = _log(root)
+        return all(any(part in line for line in lines) for part in said)
+
+    def wait() -> None:
+        deadline = time.monotonic() + 60
+        while not logged() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # The halted version's thread returns after its halt line.
+        time.sleep(0.5)
+        try:
+            act()
+        except BaseException as error:
+            raised.append(error)
+        finally:
+            hold.touch()
+
+    thread = threading.Thread(target=wait)
+    thread.start()
+
+    def join() -> None:
+        thread.join(timeout=60)
+        if raised:
+            raise raised[0]
+
+    return join
 
 
 def test_status_reads_each_stage_from_disk(
@@ -1142,6 +1182,166 @@ def test_a_later_version_ships_past_a_halted_one(
     assert _log(root)[-1].endswith(
         " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
     )
+
+
+def test_a_fixed_version_rejoins_a_live_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("liar-0001-todo", "hold-0002-marks")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _version(root, "0003-hand", "- [ ] 1 — Hand **HUMAN**\n")
+    rejoin, stop = conduct["rejoin"], conduct["Stop"]
+    with pytest.raises(stop, match="^rejoin: no run is live — run /mf-ship$"):
+        rejoin(root, None)
+
+    def fix() -> None:
+        tasks = tree / "openspec/changes/0001-todo/tasks.md"
+        _commit(tree, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
+        _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+        fake("hold-0002-marks")
+        with pytest.raises(stop, match="no open version holds 0009-none"):
+            rejoin(root, "0009-none")
+        assert rejoin(root, None) == "rejoin: requested every halted version"
+
+    halted = (" · 0001-todo · halt — ", " · 0003-hand · halt — ")
+    join = _when_logged(root, halted, fix, hold)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    join()
+
+    lines = _log(root)
+    assert any(line.endswith(" · run · rejoin — 0001-todo: converge") for line in lines)
+    assert any(
+        line.endswith(
+            " · run · rejoin — 0003-hand: still human — phase 1 — Hand **HUMAN**"
+        )
+        for line in lines
+    )
+    made = _calls(calls)
+    assert made.count("build 0001-todo") == made.count("build 0002-marks") == 1
+    assert {"release 0001-todo", "release 0002-marks"} <= set(made)
+    assert lines[-1].endswith(
+        " · run · halt — halted 0003-hand · blocked none · released v0.1.0 v0.2.0"
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
+    assert said.index("0001-todo · rejoined converge") > halt
+    assert not any("0003-hand · rejoined" in line for line in said)
+
+
+def test_a_version_cut_during_a_run_joins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("hold-0001-todo")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def cut() -> None:
+        _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+        assert conduct["rejoin"](root, "0002-marks") == "rejoin: requested 0002-marks"
+
+    join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+
+    lines = _log(root)
+    assert any(line.endswith(" · run · rejoin — 0002-marks: build") for line in lines)
+    assert {"release 0001-todo", "release 0002-marks"} <= set(_calls(calls))
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+
+    stale = root / ".minions" / "runs" / "rejoin" / "all"
+    stale.touch()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert not stale.exists()
+
+
+def test_a_new_executor_is_probed_mid_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    probe = " · 0002-marks · spawn — probe-codex · model default · executor codex"
+    for missing, code in ((False, 0), (True, 1)):
+        scratch = tmp_path / f"missing-{missing}"
+        scratch.mkdir()
+        hold = scratch / "hold"
+        monkeypatch.setenv("FAKE_HOLD", str(hold))
+        calls = fake("hold-0001-todo")
+        calls.unlink(missing_ok=True)
+        conduct["main"].__globals__["_executor_missing"] = (
+            lambda name, missing=missing: missing and name == "codex"
+        )
+        root = _primary(scratch)
+        _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+        def cut(root: Path = root) -> None:
+            table = root / ".minions" / "models" / "0002-marks.toml"
+            table.parent.mkdir(parents=True)
+            table.write_text('[converge]\nexecutor = "codex"\n')
+            _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+            conduct["rejoin"](root, "0002-marks")
+
+        join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        join()
+
+        lines = _log(root)
+        made = _calls(calls)
+        assert "release 0001-todo" in made
+        if missing:
+            assert "build 0002-marks" not in made
+            assert made.count("probe") == 1
+            assert not any(" · rejoin — 0002-marks" in line for line in lines)
+            assert any(
+                line.endswith(
+                    " · 0002-marks · halt — probe-codex — codex is not on PATH"
+                )
+                for line in lines
+            )
+            assert lines[-1].endswith(
+                " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
+            )
+        else:
+            assert made.count("probe") == 2
+            taken = next(i for i, line in enumerate(lines) if "rejoin — 0002" in line)
+            assert any(line.endswith(probe) for line in lines[:taken])
+            assert any(
+                line.endswith(" · 0002-marks · check — probe-codex · pass")
+                for line in lines[:taken]
+            )
+            assert any(
+                line.endswith(
+                    " · 0002-marks · spawn — converge · model default · executor codex"
+                )
+                for line in lines
+            )
+            assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
 
 
 def test_a_station_runs_on_its_executor(

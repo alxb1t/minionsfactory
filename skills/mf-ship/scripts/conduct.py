@@ -10,6 +10,7 @@
     conduct.py run --executor claude|codex [--detach]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
+    conduct.py rejoin [<change-id>]
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
@@ -48,6 +49,7 @@ RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
+REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 MOVED = "delta: changed on the default branch: "
 # A started build's gate and rules: changed since its base, they halt it.
@@ -59,7 +61,7 @@ RELEASE = re.compile(r"chore\(release\): (\S+)")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "kept", "removed"),
+    *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -2001,6 +2003,7 @@ class Run:
         self.released: list[str] = []
         self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
+        self.probed: set[str] = set()
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2294,12 +2297,11 @@ class Run:
             self.halt("run", f"conduct.py failed: {error}")
 
     def read_plan(self, versions: list[Version]) -> None:
-        """Read each station's models and `AGENTS.md`'s `Ship` lines, once.
+        """Read each station's models, once per version: at the start, or as it joins.
 
-        A worker can write both. A table `_models` refuses stays out of the plan: it
+        A worker can write them. A table `_models` refuses stays out of the plan: it
         halts in `take`. Why: 0052-security-hardening design D4.
         """
-        self.lines = ship_lines(self.primary)
         for version, station in itertools.product(versions, STATIONS):
             try:
                 models = _models(
@@ -2314,16 +2316,62 @@ class Run:
         named = (executor for executor, *_ in self.plan.values())
         return list(dict.fromkeys((self.executor, *named)))
 
-    def probe(self, executor: str) -> None:
-        """Prove a sandboxed worker edits, commits and gates a scratch repo, or halt."""
+    def take_requests(self, threads: dict[str, threading.Thread]) -> bool:
+        """Start `take` for each requested open version no thread runs; True if any.
+
+        The requests are read and deleted. A version whose stage is a halt stays out,
+        logged; a taken one has its halts and blocks cleared, its models read and its
+        new executors probed first. Why: 0063-rejoin design D2.
+        """
+        names = _requests(self.runs)
+        if not names or self.stopped("run"):
+            return False
+        started = False
+        for version in open_versions(self.primary):
+            change = version.change
+            thread = threads.get(change)
+            if not names & {"all", change} or (thread and thread.is_alive()):
+                continue
+            try:
+                stage, why = stage_of(self.primary, version)
+            except Stop as stop:
+                self.halt(change, str(stop))
+                continue
+            if stage in HALTS:
+                self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
+                continue
+            with self.guard:
+                self.halts = [held for held in self.halts if held[0] != change]
+                self.blocked = [name for name in self.blocked if name != change]
+            self.read_plan([version])
+            named = (self.plan.get((change, station)) for station in STATIONS)
+            for executor in dict.fromkeys(models[0] for models in named if models):
+                if executor not in self.probed and not self.stopped(change):
+                    self.probe(executor, change)
+            if self.stopped(change):
+                continue
+            self.log.event("run", "rejoin", f"{change}: {stage}")
+            threads[change] = threading.Thread(
+                target=self.take, args=(version, threads)
+            )
+            threads[change].start()
+            started = True
+        return started
+
+    def probe(self, executor: str, who: str = "run") -> None:
+        """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
+
+        A failure halts `who`; a pass adds `executor` to `probed`.
+        Why: 0063-rejoin design D3.
+        """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
-            self.halt("run", f"{station} — {executor} is not on PATH")
+            self.halt(who, f"{station} — {executor} is not on PATH")
             return
         try:
             _unlinked(executor)
         except Stop as stop:
-            self.halt("run", f"{station} — {stop}")
+            self.halt(who, f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
         mark = Path.home() / KEPT_ORIGINS / f"probe-{executor}-{os.getpid()}"
@@ -2334,7 +2382,7 @@ class Run:
                 os.close(os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
             except OSError as error:
                 self.halt(
-                    "run", f"{station} — cannot write the probe mark: {error.strerror}"
+                    who, f"{station} — cannot write the probe mark: {error.strerror}"
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
@@ -2344,9 +2392,11 @@ class Run:
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             models = (executor, None, None)
             repo = _repo(scratch)
-            denied = self.spawn("run", station, scratch, PROBE, models, repo)
-            if denied is not None:
-                self.judge("run", station, check_probe(scratch, mark), denied)
+            denied = self.spawn(who, station, scratch, PROBE, models, repo)
+            if denied is not None and self.judge(
+                who, station, check_probe(scratch, mark), denied
+            ):
+                self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
@@ -2427,8 +2477,25 @@ class Run:
                 _close_releases(self.primary, sha)
         return True
 
+    def join(self, threads: dict[str, threading.Thread]) -> None:
+        """Wait for every thread, taking requests every `REJOIN_POLL` seconds.
+
+        With none alive, the requests are read once more. Why: 0063-rejoin design D1.
+        """
+        while True:
+            self.take_requests(threads)
+            for thread in [thread for thread in threads.values() if thread.is_alive()]:
+                thread.join(timeout=REJOIN_POLL)
+            alive = any(thread.is_alive() for thread in threads.values())
+            if not alive and not self.take_requests(threads):
+                return
+
     def ship(self) -> int:
-        """Run the loop; return 0 when every version shipped, else 1."""
+        """Run the loop; return 0 when every version shipped, else 1.
+
+        A request standing at the start is deleted: the run takes every open version.
+        """
+        _requests(self.runs)
         versions = open_versions(self.primary)
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
@@ -2455,6 +2522,7 @@ class Run:
             self.log.event("run", "done", "nothing to ship")
             return 0
         try:
+            self.lines = ship_lines(self.primary)
             self.read_plan(versions)
         except Stop as stop:
             self.halt("run", str(stop))
@@ -2482,8 +2550,7 @@ class Run:
                 )
             for thread in threads.values():
                 thread.start()
-            for thread in threads.values():
-                thread.join()
+            self.join(threads)
         if self.offline and not self.stopped("run"):
             self.push_left((0,))
         if self.halts or self.blocked:
@@ -2576,6 +2643,37 @@ def _log_stop(runs: Path) -> Path | None:
         with log.open("a") as file:
             file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
     return log
+
+
+def _requests(runs: Path) -> set[str]:
+    """Delete the rejoin requests in `runs`; return their names.
+
+    e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
+    """
+    folder = runs / "rejoin"
+    names = set()
+    for request in folder.iterdir() if folder.is_dir() else []:
+        names.add(request.name)
+        request.unlink(missing_ok=True)
+    return names
+
+
+def rejoin(cwd: Path, change: str | None) -> str:
+    """Ask the live run to take back `change`, or every version, and return the line.
+
+    Why: 0063-rejoin design D1.
+    """
+    primary = primary_of(cwd)
+    runs = primary / ".minions" / "runs"
+    if _claim(runs / "active") != "live":
+        raise Stop(2, "rejoin: no run is live — run /mf-ship")
+    if change is not None and change not in (
+        version.change for version in open_versions(primary)
+    ):
+        raise Stop(2, f"rejoin: cannot run — no open version holds {change}")
+    (runs / "rejoin").mkdir(parents=True, exist_ok=True)
+    (runs / "rejoin" / (change or "all")).touch()
+    return f"rejoin: requested {change or 'every halted version'}"
 
 
 def grant(cwd: Path, change: str, executor: str) -> int:
@@ -2762,7 +2860,10 @@ def _change_number(change: str) -> int:
 
 
 def report(cwd: Path) -> str:
-    """Return the last run's close-out: its waits, each version, the halts, the end."""
+    """Return the last run's close-out: its waits, each version, the halts, the end.
+
+    A version that rejoined has a `rejoined` line after the halts before it.
+    """
     primary = primary_of(cwd)
     runs = primary / ".minions"
     if (log := last_log(runs / "runs")) is None:
@@ -2818,7 +2919,12 @@ def report(cwd: Path) -> str:
                 ]
             )
         )
-    lines += [found.string for found in events[:-1] if found[2] == "halt"]
+    for found in events[:-1]:
+        change, _, stage = found.string[found.end() :].partition(": ")
+        if found[2] == "halt":
+            lines.append(found.string)
+        elif found[2] == "rejoin" and not stage.startswith("still "):
+            lines.append(f"{change} · rejoined {stage}")
     lines.append(closing)
     return "\n".join(lines)
 
@@ -2846,6 +2952,8 @@ def main(argv_: list[str] | None = None) -> int:
     granting = commands.add_parser("grant", help="one more round past the cap")
     granting.add_argument("change_id", metavar="change-id")
     granting.add_argument("--executor", required=True, choices=("claude", "codex"))
+    rejoining = commands.add_parser("rejoin", help="the live run takes a version back")
+    rejoining.add_argument("change_id", metavar="change-id", nargs="?")
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -2875,6 +2983,8 @@ def main(argv_: list[str] | None = None) -> int:
             print(stop_run(cwd))
         elif args.command == "grant":
             return grant(cwd, args.change_id, args.executor)
+        elif args.command == "rejoin":
+            print(rejoin(cwd, args.change_id))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":
