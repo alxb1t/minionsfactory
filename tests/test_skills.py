@@ -437,13 +437,17 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # The stations run each bundled script from its owner's package: the owner by its own
 # path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
 # 0034-gate-recipe-hardening design D5; 0037-serial-integration design Tests;
-# 0040-mf-ship design D6.
+# 0040-mf-ship design D6; 0064-lighter-catch-up design D2.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
     ("mf-release", "scripts/next_tag.py"),
     ("mf-converge", "scripts/gate_check.py"),
     ("mf-release", "../mf-converge/scripts/gate_check.py"),
+    ("mf-converge", "scripts/gate_run.py"),
+    ("mf-build", "../mf-converge/scripts/gate_run.py"),
+    ("mf-integrate", "../mf-converge/scripts/gate_run.py"),
+    ("mf-release", "../mf-converge/scripts/gate_run.py"),
     ("mf-integrate", "scripts/integrate.py"),
     ("mf-ship", "scripts/conduct.py"),
 ]
@@ -466,6 +470,14 @@ def test_the_stations_run_the_bundled_metrics_script() -> None:
     assert _metrics_script_problems(_REPO) == []
 
 
+_GATE_RUN_UNNAMED = [
+    "skills/mf-converge/SKILL.md: scripts/gate_run.py: not named",
+    "skills/mf-build/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
+    "skills/mf-integrate/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
+    "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
+]
+
+
 def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> None:
     _plant(
         tmp_path,
@@ -483,6 +495,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: "
         "missing file",
+        *_GATE_RUN_UNNAMED,
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
     ]
@@ -497,6 +510,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-release/SKILL.md: scripts/next_tag.py: not named",
         "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
+        *_GATE_RUN_UNNAMED,
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
     ]
@@ -508,6 +522,28 @@ def test_mf_integrate_runs_its_script() -> None:
     skill = _REPO / "skills" / pair[0] / "SKILL.md"
     assert pair[1] in skill.read_text()
     assert _file_problem(skill.parent / pair[1]) is None
+
+
+# The release gates its folded tree fresh, so no record reaches a tag.
+# Why: 0064-lighter-catch-up design D2.
+_FRESH = "../mf-converge/scripts/gate_run.py --fresh"
+_RELEASE_CUT = "## Step 4 — Cut the version line"
+
+
+def _fresh_problems(base: Path) -> list[str]:
+    """Return a line when the release's Step 4 does not gate through `--fresh`."""
+    path = base / "skills" / "mf-release" / "SKILL.md"
+    text = path.read_text() if path.is_file() else ""
+    step = text.partition(f"\n{_RELEASE_CUT}\n")[2].split("\n## ", 1)[0]
+    return [] if _FRESH in step else [f"skills/mf-release/SKILL.md: no `{_FRESH}`"]
+
+
+def test_the_release_gates_its_fold_fresh(tmp_path: Path) -> None:
+    assert _fresh_problems(_REPO) == []
+
+    # A `--fresh` outside Step 4 does not count.
+    _plant(tmp_path, {"mf-release": f"## Step 1\n\n`{_FRESH}`\n\n{_RELEASE_CUT}\n"})
+    assert _fresh_problems(tmp_path) == [f"skills/mf-release/SKILL.md: no `{_FRESH}`"]
 
 
 # The plan station holds its parameters, naming the required brief, and its forbidden

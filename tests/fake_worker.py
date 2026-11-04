@@ -51,6 +51,50 @@ def _done(root: Path, change: str, head: str) -> None:
     (folder / f"{change}.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
+def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
+    """Return each merge's `replay` line when a catch-up selects merges that all replay.
+
+    None when no catch-up applies, the selection holds another commit, or one exits 1.
+    """
+    review = findings / f"{change}_review.md"
+    text = review.read_text() if review.is_file() else ""
+    found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
+    head = _git(tree, "rev-parse", "HEAD")
+    if not found or found[1] == head:
+        return None
+    span = f"{found[1]}..HEAD"
+    selected = _git(tree, "rev-list", "--first-parent", span).split()
+    merges = _git(tree, "rev-list", "--first-parent", "--merges", span).split()
+    if not merges or selected != merges:
+        return None
+    script = Path(__file__).resolve().parent.parent / "skills" / "mf-integrate"
+    lines = []
+    for merge in merges:
+        done = subprocess.run(
+            [sys.executable, str(script / "scripts" / "integrate.py"), "replay", merge],
+            cwd=tree,
+            capture_output=True,
+            text=True,
+        )
+        if done.returncode != 0:
+            return None
+        lines.append(f"- {merge}: {done.stdout.strip().removeprefix('replay: ')}")
+    return lines
+
+
+def _write_by_rule(findings: Path, change: str, head: str, lines: list[str]) -> None:
+    """Write both findings files clean at `head` with `## By rule`; log the round."""
+    for role in ("review", "security"):
+        text = f"---\nverdict: clean\nhead: {head}\nround: 2\nworkers: 0\n---\n"
+        text += "\n## By rule\n\n" + "\n".join(lines) + "\n"
+        (findings / f"{change}_{role}.md").write_text(text)
+    paths = "; ".join(line.split(" — ", 1)[1] for line in lines)
+    (findings / f"{change}_status_log.md").write_text(
+        "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
+        f"10:00:00 · round 2 · by rule — clean, {paths}\n"
+    )
+
+
 def _integrate(tree: Path, message: str, modes: set[str]) -> None:
     """Merge `main` into `tree`, or finish a merge a dead worker left open."""
     if _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False):
@@ -173,7 +217,13 @@ def _fake(prompt: str) -> None:
                 "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
             )
             return
-        log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+        findings = primary / ".minions" / "findings"
+        if "by-rule" in modes and (lines := _by_rule(here, findings, str(change))):
+            _write_by_rule(
+                findings, str(change), _git(here, "rev-parse", "HEAD"), lines
+            )
+            return
+        log = findings / f"{change}_status_log.md"
         held = log.read_text() if log.is_file() else ""
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
         if "amends" in modes:
