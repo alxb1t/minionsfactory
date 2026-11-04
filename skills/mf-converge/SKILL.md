@@ -84,6 +84,7 @@ The events, and no others:
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
+| `by rule` | `### By rule` | `clean`, then each merge's paths as `replay` printed them |
 | `backlog` | Step 9 | the cards written, moot and cleared, by id |
 | `halt` | wherever this skill halts | the reason, as reported, then `· head <sha>` |
 | `done` | Step 10 | rounds used, cards to the backlog |
@@ -151,6 +152,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
+| `by rule` | Step 9 |
 
 ## Catch-up round
 
@@ -164,13 +166,13 @@ not `HEAD`:
   judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
                │ yes
                ▼
-  the selection merges only? ── yes ─▶ its own count ─▶ freeze
-               │ no
-               ▼
-  round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
-               │ yes
-               ▼
-  freeze <head>..HEAD ─▶ Step 7 verify ─▶ Step 9 backlog ─▶ Step 10 report   (no pickup)
+  the selection merges only? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
+               │ yes, its own count          │ yes
+               ▼                             ▼
+  every merge replays? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+               │ yes                                                  │
+               ▼                                                      ▼
+  by rule: both files clean, no worker ─────────────────▶ Step 9 backlog ─▶ Step 10 report   (no pickup)
 ```
 
 Open the run marked `· catch-up`, and write `catch-up` to the status log.
@@ -180,12 +182,29 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
    only** → the run has **its own count**: one judge round and at most one fix round, and `round:` carries on past
    three. Any other selection counts against the cap of three: the files' `round:` is the last judged round, and at
    the cap → halt as drawn.
-3. **Run Step 1's preconditions**, then **freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
+3. **Run Step 1's preconditions.**
+4. **Merges only → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no worker.
+5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
    judged by what it decided; the gate judges the combined tree.
-4. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
+6. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
    count. A blocking finding open at the end of its own count is a `halt — cap reached`, as at the cap.
+
+### By rule
+
+A merge the fixed rules reproduce is clean by recomputation: it holds nothing the rules did not decide, so no
+worker reads it.
+
+1. For each merge in the selection, run
+   `uv run --script ../mf-integrate/scripts/integrate.py replay <merge>`, `../mf-integrate/` resolved from this
+   skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`.
+2. Any exit 1 → the round as before, from item 5. Exit 2, or `uv` missing → **halt**, naming what it printed.
+3. Every exit 0 → in each findings file, set `head:` to `HEAD`, `round:` to the run's own count, `reviewed:` to
+   today, `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`. Add a `## By rule`
+   section above its `## Resolution log`, one line per merge — `- <sha> (<parents>): <the paths replay printed>` —
+   and append `<date> · round N · by rule — clean` to the log.
+4. Write `by rule` to the status log: `round N · by rule — clean, <paths>`.
 
 ### Catch-up scope
 
@@ -302,8 +321,8 @@ reviewed: <YYYY-MM-DD>
 round: <int, bumped by each verify pass>
 open_blocking: <int>
 verdict: clean | changes-requested
-mode: parallel | sequential
-workers: <int, the workers this role used>
+mode: parallel | sequential | by-rule
+workers: <int, the workers this role used; 0 by rule>
 model: <the model, as the host reports it, or unknown>
 packet: <the documents included; then `skipped:` and those skipped>
 ---
@@ -529,7 +548,7 @@ station writes tests to them; review's test-cost pass judges by them.
 
 - **Never review in your own context.** Fresh workers cannot be dispatched, awaited and read from shared disk →
   **halt and say so**; never report a verdict you produced.
-- **Never edit a findings file.** The stations own their files; you read them.
+- **Never edit a findings file**, save [By rule](#by-rule)'s write. The stations own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert only: the log is the record of what the loop did.
 - **Never pick a non-`drift` card sized `a design change`, or an older backlog card.** Pickup takes this run's

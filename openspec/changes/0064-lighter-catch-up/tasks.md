@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The gate record
 - [x] 2 — The stations
 - [x] 3 — Replay
-- [ ] 4 — The by-rule catch-up
+- [x] 4 — The by-rule catch-up
 - [ ] 5 — The commit body
 - [ ] 6 — The record
 
@@ -31,7 +31,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The by-rule catch-up
 
-- [ ] 4.1 Add the by-rule path to *Catch-up round* in `skills/mf-converge/SKILL.md`; add a `by-rule` mode to `tests/fake_worker.py`
+- [x] 4.1 Add the by-rule path to *Catch-up round* in `skills/mf-converge/SKILL.md`; add a `by-rule` mode to `tests/fake_worker.py`
   and a step releasing a version caught up by rule to `test_a_ready_version_ships_past_a_slow_one` in `tests/test_conduct.py`, per
   [D4](design.md#d4).
   Verify: `grep -n '## By rule' skills/mf-converge/SKILL.md` prints a line, and
