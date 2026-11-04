@@ -273,6 +273,7 @@ _ALSO_WRITTEN = (
     "CONTRIBUTING.md",
     "THREAT_MODEL.md",
     "docs/decisions.md",
+    ".betterleaks.toml",
 )
 _VALIDATE = "openspec validate --all --strict --no-interactive"
 
@@ -364,6 +365,7 @@ def test_the_layout_scan_reports_every_breach(tmp_path: Path) -> None:
         f"{_TEMPLATES}: no template for `CONTRIBUTING.md`",
         f"{_TEMPLATES}: no template for `THREAT_MODEL.md`",
         f"{_TEMPLATES}: no template for `docs/decisions.md`",
+        f"{_TEMPLATES}: no template for `.betterleaks.toml`",
         f"{_TEMPLATES}: `.gitignore` does not name `{_RUN_OUTPUT}`",
         f"{_TEMPLATES}: `Makefile` does not name `{_VALIDATE}`",
     ]

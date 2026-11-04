@@ -1,8 +1,15 @@
-# The gate's secret scan: Betterleaks' default rules, and MF's fixture paths allowlisted.
+# The gate's secret scan: Betterleaks' default rules, a lone AWS key id, and MF's fixture
+# paths and every path `.gitignore` names allowlisted, so the scan reads what git can track.
 # Why: 0065-gate-hardening design D6.
 
 [extend]
 useDefault = true
+
+[[rules]]
+id = "aws-access-key-id"
+description = "a lone AWS access key id: the default aws-access-token rule needs its secret beside it"
+regex = '''\b(?:AKIA|ASIA)[0-9A-Z]{16}\b'''
+keywords = ["akia", "asia"]
 
 [[allowlists]]
 description = "plants a key per rule in tmp_path, the scan's own twin"
@@ -14,4 +21,18 @@ paths = ['''(?:^|/)\.minions/''']
 
 [[allowlists]]
 description = "gitignored bytecode: the compiler folds a test's key parts into one constant"
-paths = ['''(?:^|/)__pycache__/''']
+paths = ['''(?:^|/)__pycache__/''', '''\.py[cod]$''']
+
+[[allowlists]]
+description = "gitignored and never committed: local secrets, the venvs, packaging, caches, coverage and editor files"
+paths = [
+  '''(?:^|/)\.env$''',
+  '''(?:^|/)\.venv/''',
+  '''(?:^|/)venv/''',
+  '''\.egg-info/''',
+  '''(?:^|/)\.DS_Store$''',
+  '''(?:^|/)\.(?:idea|vscode)/''',
+  '''(?:^|/)\.(?:ruff|pytest)_cache(?:/|$)''',
+  '''(?:^|/)\.coverage[^/]*$''',
+  '''(?:^|/)coverage\.xml$''',
+]

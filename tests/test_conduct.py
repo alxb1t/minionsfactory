@@ -2296,6 +2296,22 @@ def test_a_secret_in_the_push_range_halts_the_run(
     assert _git(root, "ls-remote", "origin") == pushed
     assert _calls(calls) == []
 
+    # A key that only a merge commit adds, staged while the merge was open, halts too.
+    tip = _git(root, "rev-parse", "main")
+    _git(root, "switch", "-q", "-c", "side")
+    _commit(root, {"side.txt": "x\n"}, "a side commit")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "--no-commit", "side")
+    _commit(root, {"merged.txt": f"token: {key}\n"}, "a merge")
+    merge = _git(root, "rev-parse", "HEAD")
+    assert _git(root, "rev-list", "--count", "--merges", f"{tip}..{merge}") == "1"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_scan"](root, tip, merge)
+    assert str(stopped.value) == (
+        "conduct: halt — the push range holds a secret: github-pat in merged.txt"
+        f" at {merge[:7]}; nothing pushed"
+    )
+
     # A scan that fails, or cannot start, halts as a hit does.
     failing = tmp_path / "failing-scan"
     failing.write_text("#!/bin/sh\necho 'no repo here' >&2\nexit 1\n")

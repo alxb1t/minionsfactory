@@ -32,8 +32,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   to its release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
   authorizes nothing once it is on `origin`. The push check reads history in a clean scratch repo, through objects alone,
   with replacement disabled; no worker-written ref, graft or `shallow` file reaches it. Before any push, Betterleaks scans
-  each pushed branch's range from the offline base in such a scratch repo, with no system config or attributes, so no
-  worker-written filter runs; a hit halts the run, its secret redacted, and a run without Betterleaks does not start.
+  each pushed branch's range from the offline base, each merge by what it adds to the automatic merge, in such a scratch repo, with no
+  system config or attributes, so no worker-written filter runs; a hit halts the run, its secret redacted, and a run
+  without Betterleaks does not start.
 - **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
 
 ## Entry points

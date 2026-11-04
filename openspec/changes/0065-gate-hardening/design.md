@@ -102,7 +102,9 @@ The `B023` and `B904` hits are fixed. `addopts = ["--strict-markers"]`.
 
 ### D6
 
-`betterleaks dir . --no-banner --redact` in the gate; `.betterleaks.toml` allowlists MF's fixture paths, each with a reason. CI
+`betterleaks dir . --no-banner --redact` in the gate; `.betterleaks.toml` allowlists MF's fixture paths and each path `.gitignore`
+names, each with a reason, so the scan reads what git can track and a gitignored `.env` or `.venv/` never turns it red; it adds an
+`aws-access-key-id` rule, a lone `AKIA` or `ASIA` id, which the retired shape caught and the default rule skips without its secret. CI
 installs `betterleaks_1.9.0_linux_x64.tar.gz` from the `betterleaks/betterleaks` v1.9.0 release, checked against
 `f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7` with `sha256sum -c`, before `make gate`. `docs/decisions.md`
 gains a decision: a gate tool off PyPI is operator tooling — on `PATH`, its version in `AGENTS.md` (`betterleaks 1.9.0`), installed
@@ -111,7 +113,9 @@ retire to the scan (the `## Tests` table).
 
 ### D7
 
-`_scan(primary, base, sha)` runs `betterleaks git --no-banner --redact --exit-code 3 --log-opts=<base>..<sha> <scratch>` against
+`_scan(primary, base, sha)` runs `betterleaks git --no-banner --redact --exit-code 3 --log-opts='--remerge-diff
+<base>..<sha>' <scratch>` — `git log -p` prints no merge's diff, so a merge is read by what it adds to the automatic merge of
+its parents; a clean merge adds nothing, so a hit names the commit that brought the key — against
 `_scratch`'s bare repo borrowing the primary's objects, `GIT_CONFIG_NOSYSTEM=1` and `GIT_ATTR_NOSYSTEM=1`, so no worker-written
 config or attributes — `diff.*.textconv` among them — run. `Run.push` scans each heads ref's range before its first push; exit 3 →
 `Stop(1, "conduct: halt — the push range holds a secret: <rule> in <file> at <commit>; nothing pushed")`, the report read with
@@ -121,7 +125,8 @@ betterleaks`. Pays `0051·S6`.
 ### D8
 
 `Makefile.tmpl`'s `gate` adds `betterleaks dir . --no-banner --redact`, and a `check` target holds `openspec validate --all
---strict --no-interactive`; `skills/mf-bootstrap/SKILL.md` Step 1 adds `betterleaks version` runs. `CODING_STANDARDS.md.tmpl`
+--strict --no-interactive`; `.gitignore.tmpl` gains `.env`, `.venv/` and `node_modules/`, and `.betterleaks.toml.tmpl` allowlists
+each path it names, as D6 does for MF; `skills/mf-bootstrap/SKILL.md` Step 1 adds `betterleaks version` runs. `CODING_STANDARDS.md.tmpl`
 gains the recipes — Python: Ruff `B`/`S`, ty, deptry, `--strict-markers`, diff-cover; TS: `tsc`/`vue-tsc --noEmit`, Oxlint, knip,
 vitest coverage and diff-cover on lcov; Docker: Hadolint — the any-stack rule (one tool per job from format, lint, types, tests with
 coverage, security patterns, recorded in the target's `docs/decisions.md`), and the `slow` rule with `make check`.
@@ -131,11 +136,13 @@ coverage, security patterns, recorded in the target's `docs/decisions.md`), and 
 `uv run pytest -q --collect-only tests/` collects `116` at the cut. No end-to-end test (`T1`). The tests added, unit or
 integration: `test_the_isolation_fixture_holds_home_under_tmp_path` (`T2`: a new fixture), `test_betterleaks_finds_a_planted_key`
 (the scan's own twin, `T6`), `test_a_secret_in_the_push_range_halts_the_run` and `test_a_run_without_betterleaks_stops_at_start`
-(new conductor paths), and a step in `test_the_bootstrap_templates_cover_the_target_layout`.
+(new conductor paths), and a step in `test_the_bootstrap_templates_cover_the_target_layout`. Converge round 1 adds
+`test_the_gate_scan_skips_what_git_ignores`, over MF's and the template's `.gitignore` and `.betterleaks.toml`, and a step in
+`test_a_secret_in_the_push_range_halts_the_run` with a key only a merge commit adds.
 
 | removed or merged | carried by |
 |---|---|
-| the Anthropic, GitHub, AWS and private-key shapes in `_SHAPES`, with their cases in `test_the_guardrail_scan_reports_a_planted_path_and_key` | `test_betterleaks_finds_a_planted_key`, which plants each of the four in `tmp_path` and asserts the scan's exit and rule ids |
+| the Anthropic, GitHub, AWS and private-key shapes in `_SHAPES`, with their cases in `test_the_guardrail_scan_reports_a_planted_path_and_key` | `test_betterleaks_finds_a_planted_key`, which plants in `tmp_path`, scanned under the gate's `.betterleaks.toml`, an Anthropic key, a private key, a token per GitHub prefix (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`), a lone `AKIA` and `ASIA` id, and an id with its secret — and asserts the scan's exit and each file's rule id |
 
 ## Dependencies
 

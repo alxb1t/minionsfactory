@@ -1,2 +1,7 @@
 # Run output, not source: `git add -A` would sweep it into history.
 .minions/
+
+# Local secrets and installed dependencies: never committed, and never scanned by the gate.
+.env
+.venv/
+node_modules/

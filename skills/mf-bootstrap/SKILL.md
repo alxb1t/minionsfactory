@@ -1,6 +1,6 @@
 ---
 name: mf-bootstrap
-description: Bootstrap a new repo for the mf-* line — write the gate, openspec/, AGENTS.md, CODING_STANDARDS.md, CONTRIBUTING.md, THREAT_MODEL.md, docs/decisions.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
+description: Bootstrap a new repo for the mf-* line — write the gate and its .betterleaks.toml, openspec/, AGENTS.md, CODING_STANDARDS.md, CONTRIBUTING.md, THREAT_MODEL.md, docs/decisions.md, CHANGELOG.md, README.md and .gitignore from templates, run the gate, and commit once on main. Use in a new directory, or a freshly created repo, before the first mf-cut-change.
 ---
 
 # mf-bootstrap — a new repo the line can cut in
@@ -23,7 +23,7 @@ A template's **target path** is its path under `templates/`, beside this file, w
 
 | target path | when it already exists |
 |---|---|
-| `Makefile` · `AGENTS.md` · `CHANGELOG.md` · `CODING_STANDARDS.md` · `CONTRIBUTING.md` · `THREAT_MODEL.md` · `docs/decisions.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
+| `Makefile` · `.betterleaks.toml` · `AGENTS.md` · `CHANGELOG.md` · `CODING_STANDARDS.md` · `CONTRIBUTING.md` · `THREAT_MODEL.md` · `docs/decisions.md` · `openspec/config.yaml` · `openspec/specs/.gitkeep` · `openspec/changes/archive/.gitkeep` | halt |
 | `README.md` | skip it; the file stays as it is |
 | `.gitignore` | append the template's lines, starting on a new line, when no line reads `.minions/`; else leave it |
 

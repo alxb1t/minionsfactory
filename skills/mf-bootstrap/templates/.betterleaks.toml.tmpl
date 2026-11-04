@@ -1,0 +1,14 @@
+# The gate's secret scan: Betterleaks' default rules, and every path `.gitignore` names
+# allowlisted, so the scan reads what git can track. A path `.gitignore` gains joins this list.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "gitignored and never committed: run output, local secrets, installed dependencies"
+paths = [
+  '''(?:^|/)\.minions/''',
+  '''(?:^|/)\.env$''',
+  '''(?:^|/)\.venv/''',
+  '''(?:^|/)node_modules/''',
+]

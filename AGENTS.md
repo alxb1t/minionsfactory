@@ -29,7 +29,7 @@ is the only list of the commands; the skills and CI (`.github/workflows/ci.yml`)
 them. **`make check`** runs its fast steps, no `slow` test, between build phases.
 
 The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, resolved on `PATH`, its allowlist in
-`.betterleaks.toml`.
+`.betterleaks.toml`, which names each path `.gitignore` names: the scan reads what git can track.
 
 ## Layout — where things live here
 

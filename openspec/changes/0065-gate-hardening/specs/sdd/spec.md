@@ -16,13 +16,18 @@ gate otherwise; its last phase SHALL end on a green gate. The input contract's `
 
 ### Requirement: The conductor scans a push for secrets
 
-Before it pushes, `conduct.py` SHALL scan each pushed range with `betterleaks git`, from a scratch repo that borrows the primary's
-objects and reads no repo config or attributes, and SHALL halt the run on a hit, naming the rule, the file and the commit, the
-secret redacted, pushing nothing. A run SHALL stop at its start when `betterleaks` is not on `PATH`, naming its install.
+Before it pushes, `conduct.py` SHALL scan each pushed range with `betterleaks git`, each merge commit by what it adds to the automatic merge of its parents,
+from a scratch repo that borrows the primary's objects and reads no repo config or attributes, and SHALL halt the run on a hit,
+naming the rule, the file and the commit, the secret redacted, pushing nothing. A run SHALL stop at its start when `betterleaks`
+is not on `PATH`, naming its install.
 
 #### Scenario: A secret in the push range
 - **WHEN** a release's commits hold a string a Betterleaks rule matches
 - **THEN** the run halts before any push, naming the rule, the file and the commit, and the secret is not in the log
+
+#### Scenario: A secret only a merge adds
+- **WHEN** a merge commit in the push range adds a string a Betterleaks rule matches, which neither parent holds
+- **THEN** the scan halts, naming the rule, the file and the merge commit
 
 #### Scenario: No Betterleaks
 - **WHEN** `betterleaks` is not on `PATH`
@@ -35,20 +40,25 @@ secret redacted, pushing nothing. A run SHALL stop at its start when `betterleak
 `skills/mf-bootstrap/templates/` SHALL hold a template for every entry of the target layout that D18 in
 `docs/decisions.md` draws: for a directory, a template under it; for a file, the file. `.minions/` SHALL be a line
 of the `.gitignore` template, not a template under it. The templates SHALL also hold `CHANGELOG.md`, `README.md`,
-`CODING_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md` and `docs/decisions.md`. A template's target path SHALL
-be its path under `templates/` without the `.tmpl` suffix. The `Makefile` template's `gate` recipe SHALL run
+`CODING_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md`, `docs/decisions.md` and `.betterleaks.toml`. A template's
+target path SHALL be its path under `templates/` without the `.tmpl` suffix. The `Makefile` template's `gate` recipe SHALL run
 `openspec validate --all --strict --no-interactive` and `betterleaks dir . --no-banner --redact`, and its `check` recipe the
-same lines but the scan.
+same lines but the scan. The `.betterleaks.toml` template SHALL allowlist each path the `.gitignore` template names, so the
+scan reads what git can track.
 
 #### Scenario: Every entry of D18's tree has a template
 - **WHEN** D18's tree is read from `docs/decisions.md` and the templates are listed
 - **THEN** each directory entry other than `.minions/` has a template under it
 - **AND** each file entry has a template
 - **AND** the `.gitignore` template holds the line `.minions/`
-- **AND** `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md` and
-  `docs/decisions.md` have templates
+- **AND** `CHANGELOG.md`, `README.md`, `CODING_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md`,
+  `docs/decisions.md` and `.betterleaks.toml` have templates
 
 #### Scenario: The gate template validates the specs
 - **WHEN** the `Makefile` template is read
 - **THEN** it names `openspec validate --all --strict --no-interactive` and `betterleaks dir . --no-banner --redact`
 - **AND** it holds a `check` target
+
+#### Scenario: The gate's scan skips what git ignores
+- **WHEN** a key sits in each path the `.gitignore` template names, and in a file git would track
+- **THEN** the scan, under the `.betterleaks.toml` template, reports the tracked file alone

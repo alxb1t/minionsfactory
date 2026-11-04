@@ -1157,9 +1157,10 @@ def _scan(primary: Path, base: str | None, sha: str) -> None:
 
     Betterleaks reads a scratch repo with `primary`'s objects, no system config and no
     attributes, so no worker-written filter or `textconv` runs; its report is redacted.
-    Why: 0065-gate-hardening design D7.
+    `git log -p` prints no merge's diff, so a merge is read by what it adds to the
+    automatic merge of its parents. Why: 0065-gate-hardening design D7.
     """
-    span = f"{base}..{sha}" if base else sha
+    span = "--remerge-diff " + (f"{base}..{sha}" if base else sha)
     with _scratch() as scratch:
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
