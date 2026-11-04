@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The record names every wait: the `start` line's `origin: unreachable — pushes wait`, a `push — waiting` event per
   failed read or push and per local release, the close's `· unpushed <names>`, and `report`'s `run · waited` lines, so
   the person sees what is local only (change `0062-offline-origin`, phase 4).
+- `mf-ship`'s skill names `conduct.py anchor` and the no-offline-base halt, D47 and D51 record the waits and the
+  offline base, and `THREAT_MODEL.md` names the ledger's window an outage holds open and the anchor's trust in the
+  tracking ref (change `0062-offline-origin`, phase 5).
 
 ## [0.50.0] - 2026-11-03
 

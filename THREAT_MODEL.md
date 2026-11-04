@@ -77,4 +77,8 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone.
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.
+- An outage holds that window open: while `origin` cannot be read, a run releases locally, and each head authorizes a
+  release until its push lands.
+- `conduct.py anchor` trusts the tracking ref once: the person's session checks that it is on the default branch and a
+  tagged release merge, so a ref a past worker moved to a forged release merge would pass.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.

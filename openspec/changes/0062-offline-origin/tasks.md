@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — The waits
 - [x] 3 — The local release
 - [x] 4 — The record
-- [ ] 5 — The docs
+- [x] 5 — The docs
 
 ## 1 — The offline base
 
@@ -52,12 +52,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The docs
 
-- [ ] 5.1 Add `anchor` to the command table, and the no-offline-base halt to the halt table, in `skills/mf-ship/SKILL.md`, per
+- [x] 5.1 Add `anchor` to the command table, and the no-offline-base halt to the halt table, in `skills/mf-ship/SKILL.md`, per
   [D6](design.md#d6).
   Verify: `grep -n 'conduct.py anchor' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 5.2 Amend D47 in `docs/decisions.md`: a failed read of `origin` waits, and the first offline base needs the person; amend
+- [x] 5.2 Amend D47 in `docs/decisions.md`: a failed read of `origin` waits, and the first offline base needs the person; amend
   D51: the offline base stands beside the kept URLs, per [D2](design.md#d2) and [D6](design.md#d6).
   Verify: `grep -n 'offline base' docs/decisions.md` prints a line.
-- [ ] 5.3 Add to `THREAT_MODEL.md` *Known gaps*: the ledger's window held open by an outage, and the anchor's one trust in the
+- [x] 5.3 Add to `THREAT_MODEL.md` *Known gaps*: the ledger's window held open by an outage, and the anchor's one trust in the
   tracking ref, per the design's *Risks*.
   Verify: `grep -n 'conduct.py anchor' THREAT_MODEL.md` prints a line.

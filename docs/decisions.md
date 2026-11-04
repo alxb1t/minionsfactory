@@ -447,17 +447,22 @@ station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, nev
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
 `after:`, a failed probe halts the run, and a re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
-run, a default-branch commit or version tag no release made, a claimed group it cannot kill, or a precondition it stops on, a skill with no link among them,
-needs the person.**
+run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
+offline base, or a precondition it stops on, a skill with no link among them, needs the person.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
 - **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
   worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
+- **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;
+  a push `origin` refuses halts. Past `RETRIES` at the start, the run builds, converges and releases locally, judged against
+  the **offline base**, and each release and the close push what is pending. The first offline base needs the person:
+  `conduct.py anchor`, in their session.
 - **Accepts:** what a command `Ship tools:` names runs, inside the sandbox.
 - **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
-  bypass permission prompts: the list blocks what is off it.
+  bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
+  version held until `origin` answers.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
@@ -470,6 +475,9 @@ hostile repo needs a container.**
 - **Why:** measured, a script deleted a file in `~` under the allowlist and under auto mode, and the sandbox refused it. The
   conductor runs outside the sandbox, so what a worker wrote must steer none of its remote calls, and a repo's config outlasts
   the run that wrote it, so the URLs stand where no worker writes.
+- **Offline base:** beside the kept URLs stands `<digest>.pushed`, the default-branch sha a run last saw on `origin`,
+  written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
+  no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker · a domain `Ship network:` lists · a release forged on a head before that head lands
   on `origin`.
