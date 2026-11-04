@@ -1,5 +1,8 @@
-"""Guardrail scan: no tracked file holds a home path or a key."""
+"""Guardrail scans: no tracked file holds a home path, and Betterleaks finds a key."""
 
+import base64
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -11,10 +14,6 @@ _REPO = Path(__file__).resolve().parent.parent
 # Why: 0023-backlog-paydown design B6.
 _SHAPES = {
     "home path": re.compile("/(" + "Users" + "|" + "home" + r")/[A-Za-z][\w.-]*"),
-    "Anthropic key": re.compile("sk" + "-ant-"),
-    "GitHub token": re.compile("gh" + "[pousr]_|github" + "_pat_"),
-    "AWS key id": re.compile("A" + "[KS]IA" + "[0-9A-Z]{16}"),
-    "private key": re.compile("-----" + "BEGIN [A-Z ]*" + "PRIVATE KEY" + "-----"),
 }
 
 
@@ -57,17 +56,57 @@ def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None
     assert "probe = yes" in (Path.home() / ".gitconfig").read_text()
 
 
+def _noise(size: int, seed: str) -> str:
+    """Return `size` URL-safe base64 characters drawn from `seed`'s digest."""
+    digest = hashlib.sha512(seed.encode()).digest() * 2
+    return base64.urlsafe_b64encode(digest).decode().replace("=", "")[:size]
+
+
+def test_betterleaks_finds_a_planted_key(tmp_path: Path) -> None:
+    # Each key is built from parts so this file never matches itself.
+    aws = base64.b32encode(hashlib.sha256(b"aws").digest()).decode()[:16]
+    pem = "\n".join(_noise(64, f"pem{n}").replace("-", "+") for n in range(4))
+    planted = {
+        "anthropic-api-key": "sk-" + "an" + "t-api03-" + _noise(93, "a") + "AA",
+        "github-pat": "gh"
+        + "p_"
+        + _noise(36, "gh").replace("-", "x").replace("_", "y"),
+        # The AWS rule needs the id's secret beside it.
+        "aws-access-token": "AK"
+        + "IA"
+        + aws
+        + "\naws_secret_access_key = "
+        + base64.b64encode(hashlib.sha256(b"aws-secret").digest()).decode()[:40],
+        "private-key": (
+            "-----BEGIN RSA " + "PRIVATE KEY-----\n" + pem + "\n-----END RSA "
+            "PRIVATE KEY-----"
+        ),
+    }
+    scanned = tmp_path / "scanned"
+    scanned.mkdir()
+    for rule, key in planted.items():
+        (scanned / f"{rule}.txt").write_text(f"value: {key}\n")
+    report = tmp_path / "report.json"
+
+    done = subprocess.run(
+        ["betterleaks", "dir", str(scanned), "--no-banner", "--redact"]
+        + ["--report-format", "json", "--report-path", str(report)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert done.returncode == 1, done.stderr
+    found = json.loads(report.read_text())
+    assert sorted(hit["RuleID"] for hit in found) == sorted(planted)
+    assert not any(key in report.read_text() for key in planted.values())
+
+
 def test_the_guardrail_scan_reports_a_planted_path_and_key(tmp_path: Path) -> None:
     # A staged file is listed before any commit; an untracked one is not.
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     planted = (
         ("See /" + "Users/someone/notes.", "home path"),
         ("Home: `/" + "home/someone`.", "home path"),
-        ("Key: " + "sk" + "-ant-x", "Anthropic key"),
-        *(("Token: " + "gh" + p + "_x", "GitHub token") for p in "pousr"),
-        ("Token: " + "github" + "_pat_x", "GitHub token"),
-        *(("Id: " + p + "IA" + "A" * 16, "AWS key id") for p in ("AK", "AS")),
-        ("-----" + "BEGIN RSA " + "PRIVATE KEY" + "-----", "private key"),
     )
     text = "\n".join(("Read me.", *(line for line, _ in planted)))
     (tmp_path / "notes.md").write_text(text)

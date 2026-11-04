@@ -23,5 +23,15 @@ jobs:
           version: "0.12.19"
           python-version: "3.12"
 
+      - name: Install Betterleaks
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSLO https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz
+          echo "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7  betterleaks_1.9.0_linux_x64.tar.gz" | sha256sum -c
+          mkdir betterleaks-1.9.0
+          tar -xzf betterleaks_1.9.0_linux_x64.tar.gz -C betterleaks-1.9.0
+          sudo install betterleaks-1.9.0/betterleaks /usr/local/bin/betterleaks
+          betterleaks version
+
       - name: Gate
         run: make gate DIFF_BASE=origin/main

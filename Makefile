@@ -14,6 +14,7 @@ gate:
 	uv run ruff check .
 	uv run ty check
 	uv run zizmor .github/workflows/ci.yml
+	betterleaks dir . --no-banner --redact
 	uv run coverage run -m pytest -q -n auto
 	uv run coverage combine -q
 	uv run coverage xml -q

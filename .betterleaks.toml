@@ -1,0 +1,13 @@
+# The gate's secret scan: Betterleaks' default rules, and MF's fixture paths allowlisted.
+# Why: 0065-gate-hardening design D6.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "plants a key per rule in tmp_path, the scan's own twin"
+paths = ['''(?:^|/)tests/test_guardrails\.py$''']
+
+[[allowlists]]
+description = "gitignored run output: worker logs quote the planted keys"
+paths = ['''(?:^|/)\.minions/''']

@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 - [x] 2 — Pins
 - [x] 3 — Lint
 - [x] 4 — Coverage
-- [ ] 5 — Secrets
+- [x] 5 — Secrets
 - [ ] 6 — The push
 - [ ] 7 — Targets
 
@@ -75,16 +75,16 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 5 — Secrets
 
-- [ ] 5.1 Add the scan to the gate in `Makefile`, `gate` named, and `.betterleaks.toml` with each allowlisted path's reason, per
+- [x] 5.1 Add the scan to the gate in `Makefile`, `gate` named, and `.betterleaks.toml` with each allowlisted path's reason, per
   [D6](design.md#d6):
   ```diff
   + 	betterleaks dir . --no-banner --redact
   ```
   Verify: `grep -n 'betterleaks dir' Makefile` prints a line, and `betterleaks dir . --no-banner --redact` exits 0.
-- [ ] 5.2 Install Betterleaks by checksum in `.github/workflows/ci.yml`; add the operator-tooling decision to `docs/decisions.md`;
+- [x] 5.2 Install Betterleaks by checksum in `.github/workflows/ci.yml`; add the operator-tooling decision to `docs/decisions.md`;
   record `betterleaks 1.9.0` and the new gate steps in `AGENTS.md`, per [D6](design.md#d6).
   Verify: `grep -n 'f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7' .github/workflows/ci.yml` prints a line.
-- [ ] 5.3 Retire the four key shapes from `_SHAPES` and their cases in `tests/test_guardrails.py`, and add
+- [x] 5.3 Retire the four key shapes from `_SHAPES` and their cases in `tests/test_guardrails.py`, and add
   `test_betterleaks_finds_a_planted_key`, per the design's `## Tests` table.
   Verify: `grep -n 'ant-' tests/test_guardrails.py` prints nothing, and `uv run pytest -q tests/test_guardrails.py -k planted_key` reports `1 passed`.
 

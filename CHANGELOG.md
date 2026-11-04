@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The gate runs the tests under `coverage`, its subprocesses included, and `diff-cover` fails it below 100% of the
   lines changed since `DIFF_BASE` — `main` here, `origin/main` in CI — so no changed line goes unrun
   (change `0065-gate-hardening`, phase 4).
+- The gate scans the tree with Betterleaks, `.betterleaks.toml` allowlisting the planted-key test and `.minions/`,
+  each with its reason; CI installs `betterleaks 1.9.0` by checksum; D52 makes a gate tool off PyPI operator tooling;
+  the guardrail's four key shapes retire to the scan, which a planted key of each proves (change
+  `0065-gate-hardening`, phase 5).
 
 ## [0.53.0] - 2026-11-04
 
