@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The offline base
+- [x] 1 — The offline base
 - [ ] 2 — The waits
 - [ ] 3 — The local release
 - [ ] 4 — The record
@@ -12,11 +12,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The offline base
 
-- [ ] 1.1 Add `_pushed_file`, `_keep_base` and `_offline_base`, and write the base in `_unpushed` and `push_left`, in
+- [x] 1.1 Add `_pushed_file`, `_keep_base` and `_offline_base`, and write the base in `_unpushed` and `push_left`, in
   `skills/mf-ship/scripts/conduct.py`; add `test_a_good_read_keeps_the_offline_base` to `tests/test_conduct.py`, per
   [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k good_read_keeps_the_offline_base` reports `1 passed`.
-- [ ] 1.2 Add the `anchor` subcommand and its checks; add `test_anchor_seeds_the_offline_base`, per [D6](design.md#d6).
+- [x] 1.2 Add the `anchor` subcommand and its checks; add `test_anchor_seeds_the_offline_base`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k anchor_seeds_the_offline_base` reports `1 passed`.
 
 ## 2 — The waits

@@ -934,6 +934,40 @@ def _default_file(primary: Path) -> Path:
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.default"
 
 
+def _pushed_file(primary: Path) -> Path:
+    """Return the offline base's file: the default branch's sha origin last listed.
+
+    Why: 0062-offline-origin design D1.
+    """
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.pushed"
+
+
+def _keep_base(primary: Path, sha: str) -> str | None:
+    """Keep `sha` as the offline base, over an older one; return why it could not.
+
+    Owner-only, through a temp file and `os.replace`. Where the home folder refuses
+    it, this process is itself in a sandbox, and nothing is kept.
+    """
+    file = _pushed_file(primary)
+    try:
+        file.parent.mkdir(mode=0o700, exist_ok=True)
+        fd, temp = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}-")
+        with os.fdopen(fd, "w") as kept:
+            kept.write(f"{sha}\n")
+        os.replace(temp, file)
+    except OSError as error:
+        return error.strerror or type(error).__name__
+    return None
+
+
+def _offline_base(primary: Path) -> str | None:
+    """Return the offline base's sha, or None when none stands."""
+    file = _pushed_file(primary)
+    if not file.is_file():
+        return None
+    return file.read_text().strip() or None
+
+
 def _origin_head(primary: Path, url: str) -> str | None:
     """Return the branch `url`'s own HEAD names, or None when it names none.
 
@@ -1218,6 +1252,7 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
             " lacks: a person fetches",
         )
     if first_read:
+        _keep_base(primary, base)
         _close_releases(primary, base)
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
@@ -2190,8 +2225,8 @@ class Run:
         remote call: the URLs are the ones read before the first worker, so a worker
         steers none. A held key is refused first, so the halt names it. The default
         branch is the one origin's HEAD names, and the one a run kept. Its push
-        removes entries whose heads are now on it; a head already there authorizes
-        nothing even when cleanup did not run.
+        keeps the offline base and removes entries whose heads are now on it; a head
+        already there authorizes nothing even when cleanup did not run.
         Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2.
         """
         try:
@@ -2220,6 +2255,7 @@ class Run:
             self.log.event("run", "push", name)
             if kind == "heads":
                 _git(self.primary, "update-ref", f"refs/remotes/origin/{name}", sha)
+                _keep_base(self.primary, sha)
                 _close_releases(self.primary, sha)
         return True
 
@@ -2412,6 +2448,46 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
     return f"approve-gate: approved — {hashed} · {change}"
 
 
+def anchor(cwd: Path) -> str:
+    """Seed the first offline base from the default branch's tracking ref, checked.
+
+    A person's session alone: no worker can write the home folder, and the tracking
+    ref is one a worker writes. Why: 0062-offline-origin design D6.
+    """
+    primary = primary_of(cwd)
+    _refuse_config_commands(primary)
+    if _claim(primary / ".minions" / "runs" / "active") == "live":
+        raise Stop(2, "anchor: cannot run — a run is live: .minions/runs/active exists")
+    file = _pushed_file(primary)
+    if file.is_file():
+        raise Stop(
+            2,
+            f"anchor: cannot run — an offline base stands:"
+            f" ~/{KEPT_ORIGINS}/{file.name}",
+        )
+    named = _default_file(primary)
+    default = named.read_text() if named.is_file() else default_branch(primary)
+    tracking = f"origin/{default}"
+    sha = _maybe(
+        primary, "rev-parse", "-q", "--verify", f"refs/remotes/{tracking}^{{commit}}"
+    )
+    if sha is None:
+        raise Stop(2, f"anchor: cannot run — {tracking} is missing")
+    sha = sha.strip()
+    tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    if not _history_ancestor(primary, sha, tip):
+        raise Stop(2, f"anchor: cannot run — {tracking} is not on {default}")
+    if not _merges_a_release(primary, sha, _release_tags(primary)):
+        raise Stop(2, f"anchor: cannot run — {tracking} is no release merge")
+    if why := _keep_base(primary, sha):
+        raise Stop(
+            2,
+            f"anchor: cannot write the offline base — {why}; a sandbox refuses the"
+            " home folder: run it outside one",
+        )
+    return f"anchor: {sha} · {_subject(primary, sha)}"
+
+
 def agent(cwd: Path, executor: str, prompt: str) -> int:
     """Run one worker in `cwd` under the run's permissions; return its exit code."""
     if _executor_missing(executor):
@@ -2587,6 +2663,7 @@ def main(argv_: list[str] | None = None) -> int:
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
+    commands.add_parser("anchor", help="a person seeds the first offline base")
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:
@@ -2609,6 +2686,8 @@ def main(argv_: list[str] | None = None) -> int:
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
+        elif args.command == "anchor":
+            print(anchor(cwd))
         else:
             print(report(cwd))
     except Stop as stop:

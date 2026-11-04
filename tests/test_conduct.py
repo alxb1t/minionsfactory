@@ -2395,6 +2395,92 @@ def test_no_worker_pushes(
     assert "remote.x.promisor" in capsys.readouterr().out
 
 
+def _with_origin(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a primary, its `origin` a bare repo holding its `main`, and that repo."""
+    root = _primary(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    return root, origin
+
+
+def test_a_good_read_keeps_the_offline_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, origin = _with_origin(tmp_path)
+    base = conduct["_offline_base"]
+
+    def run() -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 0
+        )
+
+    assert base(root) is None
+    run()
+    assert base(root) == _git(root, "rev-parse", "main")
+    assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
+
+    # The release's push moves origin's main, and the base with it.
+    read = _git(root, "rev-parse", "main")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    run()
+    pushed = _git(root, "rev-parse", "main")
+    assert pushed != read
+    assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
+    assert base(root) == pushed
+
+
+def test_anchor_seeds_the_offline_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setenv("HOME", str(tmp_path / "operator-home"))
+    (tmp_path / "operator-home").mkdir()
+    root = _primary(tmp_path)
+
+    def anchor(code: int) -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "anchor", monkeypatch=monkeypatch) == code
+        return capsys.readouterr().out.strip()
+
+    assert anchor(2) == "anchor: cannot run — origin/main is missing"
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    assert anchor(2) == "anchor: cannot run — origin/main is no release merge"
+    _released(root, "v0.1.0")
+    _git(root, "push", "-q", "origin", "main")
+    tracked = _git(root, "rev-parse", "origin/main").strip()
+    off = _git(root, "commit-tree", "-p", "main", "-m", "off", "main^{tree}").strip()
+    _git(root, "update-ref", "refs/remotes/origin/main", off)
+    assert anchor(2) == "anchor: cannot run — origin/main is not on main"
+    _git(root, "update-ref", "refs/remotes/origin/main", tracked)
+
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text("Mon Nov  3 10:00:00 2026")
+    assert anchor(2) == (
+        "anchor: cannot run — a run is live: .minions/runs/active exists"
+    )
+    shutil.rmtree(active)
+    assert conduct["_offline_base"](root) is None
+    assert anchor(0) == f"anchor: {tracked} · Merge branch 'release-v0.1.0'"
+    assert conduct["_offline_base"](root) == tracked
+    assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
+    name = conduct["_pushed_file"](root).name
+    assert anchor(2) == (
+        f"anchor: cannot run — an offline base stands: ~/.mf-ship-origin/{name}"
+    )
+
+
 def test_the_plan_is_read_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
