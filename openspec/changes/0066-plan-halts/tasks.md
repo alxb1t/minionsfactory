@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 3 — The edited check
 - [x] 4 — The cut
 - [x] 5 — The record
-- [ ] 6 — The calibration
+- [x] 6 — The calibration
 
 ## 1 — The search script
 
@@ -44,6 +44,6 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 6 — The calibration
 
-- [ ] 6.1 Run the plan review as a fresh subagent on the three cuts [D8](design.md#d8) names, and record each doubt and its
+- [x] 6.1 Run the plan review as a fresh subagent on the three cuts [D8](design.md#d8) names, and record each doubt and its
   `path:line` in the phase's CHANGELOG entry, headed `plan review calibration`.
   Verify: `grep -n 'plan review calibration' CHANGELOG.md` prints a line.

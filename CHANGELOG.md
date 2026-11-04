@@ -24,6 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D7 names the search script and the plan review, and the cut runs no gate; D40 counts the plan reviewer among the
   fresh workers; D46 names the cut among the standards' readers; the cut's self-check exception names its fresh
   review (change `0066-plan-halts`, phase 5).
+- **plan review calibration** — the plan review, run as a fresh subagent on replayed cuts, caught the `0060` backtick
+  needle and the isekai `0093` drawer premise; each doubt, at the cut it read (change `0066-plan-halts`, phase 6):
+  - `0060-gate-planning` at `1e127bf`: 5.1's `'a ## Progress. box is unticked'` cannot match D5's text, a backtick
+    before `##` (`tasks.md:48`, `design.md:94`) · 1.1's new halt text breaks existing assertions no task names
+    (`tests/test_gate_check.py:86`, `:108`, `:225`, `:257`) · 2.1's gpunit `0017` task text is not in the repo
+    (`design.md:109`) · 4.1's `approve-gate` from the primary finds no cut commit
+    (`skills/mf-converge/scripts/gate_check.py:83-92`, `design.md:85`).
+  - isekai `0093` fixture: 3.2's narrowed viewport cannot let one grid set the width over
+    `min-width: max(50vw, 480px)` (`ui/src/app.css:510`) · below a 580px viewport the floor beats
+    `max-width: calc(100vw - 100px)` (`ui/src/app.css:511`) · 3.2's `0091·R4` and `0091·R9` steps have no design
+    and no `Verify:` (`tasks.md:9`, `design.md:7`).
+  - `0061-conflict-resolve` at `b3974cb`: 1.1 renumbers Step 3 and leaves its references stale
+    (`skills/mf-integrate/SKILL.md:75-77`, `:97`) · 1.2's `grep -c '## Resolved'` prints `2` if the template
+    names it too (`skills/mf-integrate/SKILL.md:102-108`) · 2.1's search misses a phrase wrapped across lines
+    (`skills/mf-integrate/SKILL.md:97-98`), and checks `:138` not at all · 2.1 leaves the new wording at `:69`
+    to the worker · the one-line counts can break on a rewrap (`docs/decisions.md:432`,
+    `skills/mf-integrate/SKILL.md:143`).
 
 ## [0.54.0] - 2026-11-05
 
