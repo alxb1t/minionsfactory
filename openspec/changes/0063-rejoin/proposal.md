@@ -21,9 +21,10 @@ touched `AGENTS.md` halted each started version at the next start.
 ## What Changes
 
 - **A rejoin request** — `conduct.py rejoin [<id>]` writes `.minions/runs/rejoin/<id>`; `/mf-ship` sends it when a run is live;
-  the live run polls the folder and takes back every version whose stage on disk is no longer a halt, newly cut ones included.
-- **A new executor mid-run** — the live run probes it before its first worker; a failed probe halts only that executor's
-  versions.
+  the live run polls the folder and takes back every version whose stage on disk is no longer a halt, newly cut ones included,
+  but none whose models file changed since the run read it.
+- **A new executor mid-run** — the live run probes it once, before its first worker; a failed probe halts only that
+  executor's versions.
 - **A fix voids a converge halt** — the halt's head the findings files' `head:`, and `HEAD` past it → the stage is `converge`,
   and converge opens a run marked `· amended`, from round 1.
 - **`grant`** — names `/mf-ship` when it refuses; during a live run it writes the grant and a request; the run logs `grant`.
@@ -42,7 +43,10 @@ None.
   - *A halted version rejoins a live run* — ADDED: the request, the poll, the versions taken, the probe, the close.
   - *A converge halt answered by the person converges afresh* — ADDED: the void halt, the `· amended` run, a resumed grant.
   - *The ship station takes cut versions to the default branch* — MODIFIED: a started version behind a gate change merged in.
-  - *A run's plan is read once* — MODIFIED: a joining version's models read as it joins.
+  - *A run's plan is read once* — MODIFIED: a joining version's models read as it joins; one whose models file left the
+    plan stays out.
+  - *A station's executor comes from the models file* — MODIFIED: a failed probe at the start stops the run; one for a
+    joining version halts only the versions on its executor.
   - *A person can grant one more round* — MODIFIED: the refusal names `/mf-ship`; a grant during a live run.
 
 ## Impact

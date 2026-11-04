@@ -872,6 +872,11 @@ def test_after_waits_for_its_dependency(
         clashed_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False
     )
     assert merged not in _git(clashed, "log", "--format=%s", "0001-todo")
+    # A worker can name the default branch: the remedy line quotes it.
+    hostile = "x$(touch pwned)"
+    remedy = f"merge {shlex.quote(hostile)}, then re-run"
+    with pytest.raises(conduct["Stop"], match=re.escape(remedy) + "$"):
+        conduct["Run"](clashed, "claude").settle(clashed_tree, "0001-todo", hostile)
 
     # Twin: a started version behind a `main` that changed neither builds.
     moved, _ = behind("moved", "moved.txt", started=True)
@@ -1280,6 +1285,17 @@ def test_a_fixed_version_rejoins_a_live_run(
     assert said.index("0001-todo · rejoined converge") > halt
     assert not any("0003-hand · rejoined" in line for line in said)
 
+    # A skipped request names no version: report keeps its line as it stands.
+    log = conduct["last_log"](root / ".minions" / "runs")
+    skipped = "10:00:00 · run · rejoin — skipped — conduct: cannot run — git failed"
+    *body, closing = log.read_text().splitlines()
+    log.write_text("\n".join([*body, skipped, closing]) + "\n")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    assert "skipped — conduct · rejoined cannot run — git failed" not in said
+    assert skipped in said
+
 
 def test_a_version_cut_during_a_run_joins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1293,7 +1309,8 @@ def test_a_version_cut_during_a_run_joins(
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
     def cut() -> None:
-        # A folder no unlink removes: the poll skips it, and the run goes on (R2).
+        # A folder no unlink removes: the poll skips it, and the run goes on.
+        # Why: 0063-rejoin design D2.
         (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
         _version(root, "0002-marks", "- [ ] 1 — Marks\n")
         assert conduct["rejoin"](root, "0002-marks") == "rejoin: requested 0002-marks"
@@ -1318,6 +1335,17 @@ def test_a_version_cut_during_a_run_joins(
     )
     assert not stale.exists()
 
+    # A worker may link the folder elsewhere: the poll reads no link, deletes nothing.
+    # Why: 0063-rejoin design D2.
+    elsewhere = tmp_path / "operator-files"
+    elsewhere.mkdir()
+    (elsewhere / "kept-urls").touch()
+    (elsewhere / "kept.gate").mkdir()
+    shutil.rmtree(stale.parent)
+    stale.parent.symlink_to(elsewhere)
+    assert conduct["_requests"](root / ".minions" / "runs") == set()
+    assert (elsewhere / "kept-urls").is_file()
+
 
 def test_a_new_executor_is_probed_mid_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1332,18 +1360,24 @@ def test_a_new_executor_is_probed_mid_run(
         monkeypatch.setenv("FAKE_HOLD", str(hold))
         calls = fake("hold-0001-todo")
         calls.unlink(missing_ok=True)
+        asked: list[str] = []
         conduct["main"].__globals__["_executor_missing"] = (
-            lambda name, missing=missing: missing and name == "codex"
+            lambda name, missing=missing, asked=asked: (
+                asked.append(name) or (missing and name == "codex")
+            )
         )
         root = _primary(scratch)
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+        # A failed probe is kept: a second version on codex halts on it, unprobed.
+        joining = ("0002-marks", "0003-hand") if missing else ("0002-marks",)
 
-        def cut(root: Path = root) -> None:
-            table = root / ".minions" / "models" / "0002-marks.toml"
-            table.parent.mkdir(parents=True)
-            table.write_text('[converge]\nexecutor = "codex"\n')
-            _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-            conduct["rejoin"](root, "0002-marks")
+        def cut(root: Path = root, joining: tuple[str, ...] = joining) -> None:
+            for change in joining:
+                table = root / ".minions" / "models" / f"{change}.toml"
+                table.parent.mkdir(parents=True, exist_ok=True)
+                table.write_text('[converge]\nexecutor = "codex"\n')
+                _version(root, change, "- [ ] 1 — Marks\n")
+            conduct["rejoin"](root, None if missing else "0002-marks")
 
         join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
         assert (
@@ -1358,15 +1392,18 @@ def test_a_new_executor_is_probed_mid_run(
         if missing:
             assert "build 0002-marks" not in made
             assert made.count("probe") == 1
-            assert not any(" · rejoin — 0002-marks" in line for line in lines)
-            assert any(
-                line.endswith(
-                    " · 0002-marks · halt — probe-codex — codex is not on PATH"
+            assert asked.count("codex") == 1
+            for change in joining:
+                assert not any(f" · rejoin — {change}" in line for line in lines)
+                assert any(
+                    line.endswith(
+                        f" · {change} · halt — probe-codex — codex is not on PATH"
+                    )
+                    for line in lines
                 )
-                for line in lines
-            )
             assert lines[-1].endswith(
-                " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
+                " · run · halt — halted 0002-marks 0003-hand · blocked none"
+                " · released v0.1.0"
             )
         else:
             assert made.count("probe") == 2
@@ -2963,6 +3000,27 @@ def test_the_plan_is_read_once(
         for line in _log(root)
     )
 
+    # A request takes back no version whose models file left the run's plan: the plan
+    # stays as read, and the halt stands. Why: 0063-rejoin design D2.
+    conductor = conduct["Run"](root, "claude")
+    conductor.take = lambda *args: None
+    conductor.read_plan([conduct["find_version"](root, "0001-todo")])
+    read = dict(conductor.plan)
+    table = root / ".minions" / "models" / "0001-todo.toml"
+    table.write_text('[converge]\nexecutor = "codex"\n')
+    changed = "conduct: halt — models/0001-todo.toml changed during the run"
+    conductor.halt("0001-todo", changed)
+    request = root / ".minions" / "runs" / "rejoin" / "0001-todo"
+    request.parent.mkdir(parents=True, exist_ok=True)
+    request.touch()
+    assert not conductor.take_requests({})
+    last = conductor.log.path.read_text().splitlines()[-1]
+    assert last.endswith(
+        " · run · rejoin — 0001-todo: still halted — models/0001-todo.toml changed"
+        " during the run"
+    )
+    assert conductor.plan == read and conductor.stopped("0001-todo")
+
     def domains(*args: object) -> list[str]:
         command = argv(*args)
         settings = json.loads(command[command.index("--settings") + 1])
@@ -3318,9 +3376,17 @@ def test_a_grant_buys_one_round(
     )
 
     calls.unlink()
+    # A grants folder a worker linked elsewhere lists nothing on the start line.
+    elsewhere = tmp_path / "operator-files"
+    elsewhere.mkdir()
+    (elsewhere / "kept-urls").touch()
+    grants.parent.rmdir()
+    grants.parent.symlink_to(elsewhere)
     run()
     assert _calls(calls) == []
     assert " · grant " not in _log(root)[0]
+    grants.parent.unlink()
+    grants.parent.mkdir()
 
     log.write_text(capped)
     active = root / ".minions" / "runs" / "active"
@@ -3356,22 +3422,28 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
 
     _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
     fixed = _git(tree, "rev-parse", "HEAD")
-    # The lock case comes first, as in mf-converge's Resuming a run (R3).
+    # The lock case comes first, as in mf-converge's Resuming a run.
+    # Why: 0063-rejoin design D4.
     locked = f"halt — waited 2 minutes for .minions/backlog.lock · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
     lock = ("converge", "halted on the backlog lock: resumes at Step 9")
     assert stage_of(root, version) == lock
-    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's (R3).
+    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
+    # and a person's commit past it answers none (0063-rejoin design D4).
     for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
         own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
         log.write_text(f"# t\n\n## Run {run}\n{own}\n")
         assert stage_of(root, version) == ("converge-halted", own)
         assert check(root, "converge", version) == f"the status log halts: {own}"
+        _commit(tree, {"later.txt": "later\n"}, "a person's commit past the halt")
+        assert stage_of(root, version) == ("converge-halted", own)
+        _git(tree, "reset", "-q", "--hard", fixed)
     log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
     amended = ("converge", "amended: HEAD past the halted head")
     assert stage_of(root, version) == amended
     assert check(root, "converge", version) == "the status log has no done"
-    # A rewritten history answers no halt: converge would halt it again (R1).
+    # A rewritten history answers no halt: converge would halt it again.
+    # Why: 0063-rejoin design D4.
     _git(tree, "reset", "-q", "--soft", "HEAD~2")
     _git(tree, "commit", "-q", "-m", "the cut and the fix, squashed")
     assert stage_of(root, version) == ("converge-halted", capped)

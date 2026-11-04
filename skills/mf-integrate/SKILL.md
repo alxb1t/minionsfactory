@@ -67,7 +67,7 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
 converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
 `conduct.py` opens the merge of a cut-only branch — a dependent's, or one the default branch passed before its first
-worker — before its build.
+worker — before its build, or of a started one behind a gate change, its changelog and decisions conflicts settled.
 
 Then, in the worktree:
 
@@ -106,7 +106,8 @@ Then, in the worktree:
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
    requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a cut-only branch — a
-   dependent's, or one the default branch passed before its first worker — gave them nothing to settle: only the paths count, and item 3 does not run. Nothing left → Step 4.
+   dependent's, or one the default branch passed before its first worker — gave them nothing to settle, or `conduct.py`
+   settled a started one's changelog and decisions conflicts behind a gate change: only the paths count, and item 3 does not run. Nothing left → Step 4.
 5. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 

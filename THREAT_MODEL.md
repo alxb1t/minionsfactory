@@ -41,7 +41,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/`.
 - Rejoin requests, `.minions/runs/rejoin/`: a worker can write one, and the live run then reads a version's stage from disk
-  again, which it already trusts — the class *Out of scope* accepts.
+  again, which it already trusts, and the models file of a version cut since its start — the class *Out of scope* accepts.
+  A version the run's plan holds stays out while its models file differs, so a version halted on a models change does not
+  rejoin on the new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it.
 
 ## Out of scope
 

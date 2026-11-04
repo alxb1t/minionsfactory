@@ -7,10 +7,13 @@ live. The live run SHALL check that folder at most every 10 seconds and before i
 open version the request names — every one for a request with no id — whose stage on disk is no longer a halt: a halted one,
 a blocked one, and one cut after the run started. A version still at a halt SHALL stay out, logged with why. The poll SHALL
 not end the run's loop while a version's thread runs: an entry it cannot delete SHALL be no request, and a version it fails
-to take SHALL halt alone. A taken version
+to take SHALL halt alone. A request folder that is a link SHALL hold no request, and the poll SHALL delete nothing through
+it. A version the run's plan already holds SHALL stay out, logged, while its models file differs from what the run read;
+any other taken version
 SHALL have its models file read as it joins, then go through the run's base check, its dependencies, its stations and the
 merge lock, as at a run's start, with its halts and blocks cleared. Its executor's probe SHALL run once in the run, before
-the first worker on it; a failed probe SHALL halt only the versions on that executor. The run SHALL log a `rejoin` event per
+the first worker on it; a failed probe SHALL halt only the versions on that executor, each later one with that probe's
+reason and no second probe. The run SHALL log a `rejoin` event per
 version taken, delete the requests it read, and a run's start SHALL delete every request it finds. A run-level halt SHALL
 end the run, as before; a request reaches no ended run.
 
@@ -27,12 +30,14 @@ end the run, as before; a request reaches no ended run.
 - **THEN** the live run takes it, and builds it beside the others
 - **AND WHEN** a folder stands in `.minions/runs/rejoin/` beside the request
 - **THEN** the poll skips it, and the run goes on
+- **AND WHEN** `.minions/runs/rejoin` is a link to another folder
+- **THEN** the poll reads no request there, and deletes nothing in it
 
 #### Scenario: A new executor
 - **WHEN** a taken version's models file names an executor the run has not probed
 - **THEN** the run probes it before that version's first worker, and the version goes on
 - **AND WHEN** that probe fails
-- **THEN** only the versions on that executor halt, and the others release
+- **THEN** only the versions on that executor halt, the probe run once for them all, and the others release
 
 #### Scenario: A request at the close
 - **WHEN** a request lands after the last version's thread ends
@@ -144,14 +149,17 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 
 `conduct.py` SHALL read every open version's executors, models and efforts, and `AGENTS.md`'s `Ship network:` and `Ship tools:`
 lines, once, before the first worker, and SHALL halt a
-version whose models file later differs. A version that joins a live run SHALL have its own executors, models and efforts
-read once as it joins; the `Ship` lines SHALL stay as the run read them. An `AGENTS.md` that declares `Ship loopback:` SHALL halt the run, naming the line
+version whose models file later differs. A version cut during a live run SHALL have its own executors, models and efforts
+read once as it joins; a rejoin request SHALL take back no version whose models file differs from what the run read, and
+the `Ship` lines SHALL stay as the run read them. An `AGENTS.md` that declares `Ship loopback:` SHALL halt the run, naming the line
 as removed. It SHALL halt a version before
 integrate when the default branch holds a first-parent commit past `origin` that merges no release.
 
 #### Scenario: A worker edits the models file
 - **WHEN** a worker changes a later station's `executor`
 - **THEN** that version halts, and no worker starts on the new executor
+- **AND WHEN** a rejoin request then names that version
+- **THEN** it stays out, the run logs why, and the plan stays as the run read it
 
 #### Scenario: A person commits to main during a run
 - **WHEN** the default branch gains a person's commit while a version builds
@@ -168,6 +176,24 @@ integrate when the default branch holds a first-parent commit past `origin` that
 #### Scenario: A run in a loopback repo
 - **WHEN** a run starts in a repo that declares no `Ship loopback:`
 - **THEN** its log holds no `loopback` event, and no worker's sandbox has `allowLocalBinding`
+
+### Requirement: A station's executor comes from the models file
+
+`.minions/models/<change-id>.toml` MAY name `executor = "claude"` or `"codex"` in any station's table; absent, the station
+runs on the run's executor. Integrate SHALL use the `[release]` table. `conduct.py` SHALL halt a version, before its
+worker starts, on an `executor` it does not know and on a `codex` station with a `claude-*` model. It SHALL run one probe
+worker per distinct executor named across the open versions and the run's own; a failed probe at the start SHALL stop the
+run, and one for a joining version SHALL halt only the versions on its executor.
+A station on Codex SHALL report no denial, and converge's tokens SHALL read `unavailable`.
+
+#### Scenario: Converge on Codex beside a build on Claude
+- **WHEN** a version's models file names `executor = "codex"` under `[converge]`
+- **THEN** its converge runs as `codex exec`, and its build and release as `claude -p`
+- **AND** the run probes both executors before any station
+
+#### Scenario: A model the executor cannot run
+- **WHEN** a table names `executor = "codex"` and `model = "claude-opus-5-5"`
+- **THEN** that version halts naming the table, and no worker starts for it
 
 ### Requirement: A person can grant one more round
 

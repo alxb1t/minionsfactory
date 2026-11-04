@@ -2021,7 +2021,9 @@ class Run:
         self.released: list[str] = []
         self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
+        self.planned: set[str] = set()
         self.probed: set[str] = set()
+        self.refused: dict[str, str] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2263,7 +2265,8 @@ class Run:
 
         Why: 0063-rejoin design D6.
         """
-        run = f"git -C {shlex.quote(str(tree))} merge {default}, then re-run"
+        at, branch = shlex.quote(str(tree)), shlex.quote(default)
+        run = f"git -C {at} merge {branch}, then re-run"
         if not _merge_open(tree):
             raise Stop(
                 1, f"conduct: halt — merging {default} into {change} failed: {run}"
@@ -2286,10 +2289,11 @@ class Run:
         )
 
     def catch_up(self, version: Version) -> None:
-        """Merge the default branch into a cut-only version behind it.
+        """Merge the default branch into a version behind it.
 
-        A started version with an unticked phase and no open merge, behind a default
-        branch that changed `GATE_FILES`, gets it merged in by `merge_in`. One
+        A cut-only version gets it merged in by `merge_in`, and so does a started one
+        with an unticked phase and no open merge, behind a default branch that changed
+        `GATE_FILES`. One
         with an unticked phase and a merge open with no note stops with 1, naming the
         commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
         finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
@@ -2351,13 +2355,18 @@ class Run:
         halts in `take`. Why: 0052-security-hardening design D4.
         """
         for version, station in itertools.product(versions, STATIONS):
-            try:
-                models = _models(
-                    self.primary / ".minions", version.change, station, self.executor
-                )
-            except (Stop, ValueError):
-                continue
-            self.plan[version.change, station] = models
+            self.planned.add(version.change)
+            if (models := self.models(version.change, station)) is not None:
+                self.plan[version.change, station] = models
+
+    def models(
+        self, change: str, station: str
+    ) -> tuple[str, str | None, str | None] | None:
+        """Return one station's models as `_models` reads them; None on a refusal."""
+        try:
+            return _models(self.primary / ".minions", change, station, self.executor)
+        except (Stop, ValueError):
+            return None
 
     def executors(self) -> list[str]:
         """Return the run's executor, then each other one the plan names."""
@@ -2396,11 +2405,23 @@ class Run:
         return started
 
     def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
-        """Start `take` for a requested version whose stage is no halt; True if so."""
+        """Start `take` for a requested version whose stage is no halt; True if so.
+
+        One the run's plan holds stays out while its models file differs: a worker can
+        write it. An executor whose probe failed halts it with that probe's reason,
+        probed no second time. Why: 0063-rejoin design D2, D3.
+        """
         change = version.change
         stage, why = stage_of(self.primary, version)
         if stage in HALTS:
             self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
+            return False
+        if change in self.planned and any(
+            self.models(change, station) != self.plan.get((change, station))
+            for station in STATIONS
+        ):
+            moved = f"models/{change}.toml changed during the run"
+            self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
@@ -2408,8 +2429,17 @@ class Run:
         self.read_plan([version])
         named = (self.plan.get((change, station)) for station in STATIONS)
         for executor in dict.fromkeys(models[0] for models in named if models):
-            if executor not in self.probed and not self.stopped(change):
-                self.probe(executor, change)
+            if executor in self.probed or self.stopped(change):
+                continue
+            if (refused := self.refused.get(executor)) is not None:
+                self.halt(change, refused)
+                continue
+            self.probe(executor, change)
+            if executor not in self.probed:
+                with self.guard:
+                    self.refused[executor] = next(
+                        reason for who, reason in reversed(self.halts) if who == change
+                    )
         if self.stopped(change):
             return False
         self.log.event("run", "rejoin", f"{change}: {stage}")
@@ -2563,9 +2593,9 @@ class Run:
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         folder = self.primary / ".minions" / "grants"
-        standing = (
-            sorted(file.name for file in folder.iterdir()) if folder.is_dir() else []
-        )
+        # A worker may link the folder elsewhere: a link lists nothing.
+        listed = folder.is_dir() and not folder.is_symlink()
+        standing = sorted(file.name for file in folder.iterdir()) if listed else []
         grants = f" · grant {' '.join(standing)}" if standing else ""
         self.log.event(
             "run",
@@ -2713,13 +2743,16 @@ def _requests(runs: Path) -> set[str]:
     """Delete the rejoin requests in `runs`; return their names.
 
     An entry `unlink` refuses, a folder say, is no request, and an unreadable folder
-    holds none: the poll runs beside live threads. Why: 0063-rejoin design D2.
+    holds none: the poll runs beside live threads. A folder that is a link holds
+    none: a worker may write it, and the conductor deletes outside the sandbox.
+    Why: 0063-rejoin design D2.
     e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
     """
     folder = runs / "rejoin"
     names = set()
     try:
-        entries = list(folder.iterdir()) if folder.is_dir() else []
+        listed = folder.is_dir() and not folder.is_symlink()
+        entries = list(folder.iterdir()) if listed else []
     except OSError:
         return names
     for request in entries:
@@ -2957,7 +2990,8 @@ def _change_number(change: str) -> int:
 def report(cwd: Path) -> str:
     """Return the last run's close-out: its waits, each version, the halts, the end.
 
-    A version that rejoined has a `rejoined` line after the halts before it.
+    A version that rejoined has a `rejoined` line after the halts before it; a
+    skipped request, which names no version, keeps its line as it stands.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions"
@@ -3015,8 +3049,10 @@ def report(cwd: Path) -> str:
             )
         )
     for found in events[:-1]:
-        change, _, stage = found.string[found.end() :].partition(": ")
-        if found[2] == "halt":
+        detail = found.string[found.end() :]
+        change, _, stage = detail.partition(": ")
+        skipped = found[2] == "rejoin" and detail.startswith("skipped — ")
+        if found[2] == "halt" or skipped:
             lines.append(found.string)
         elif found[2] == "rejoin" and not stage.startswith("still "):
             lines.append(f"{change} · rejoined {stage}")

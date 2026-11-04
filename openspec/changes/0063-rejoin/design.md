@@ -41,8 +41,8 @@ grant; `grant` never refuses without naming what to run; a sibling's release no 
 | id | decision | because | rejected |
 |---|---|---|---|
 | [D1](#d1) | A request file, `.minions/runs/rejoin/<id>` or `…/all`, polled by the main loop every `REJOIN_POLL` seconds | a signal still needs the loop to wake | a signal; a second run |
-| [D2](#d2) | The run takes every requested open version whose stage is no halt; clears its halts and blocks; reads its models; starts `take` | the stage is read from disk, as D47 has it | keeping state for a version |
-| [D3](#d3) | A new executor is probed in the live run, once; a failure halts only its versions | the running versions never touch it | waiting for the next run |
+| [D2](#d2) | The run takes every requested open version whose stage is no halt, and whose models file is as the run read it; clears its halts and blocks; reads its models; starts `take` | the stage is read from disk, as D47 has it; a worker can write the models file, which 0052 D4 reads once | keeping state for a version; re-reading a held version's models |
+| [D3](#d3) | A new executor is probed in the live run, once; a failure halts only its versions, each later one with its reason | the running versions never touch it | waiting for the next run; a probe per version |
 | [D4](#d4) | A converge halt names its head; it is void when that head is the findings `head:` and `HEAD` descends past it; converge opens a `· amended` run from round 1 | a commit past the judged head at a halt is never converge's own; converge counts from `round:` | voiding in the conductor alone (F4); voiding on `head:` not `HEAD` alone, which reads converge's own fix and catch-up halts, and a rewritten history, as answered |
 | [D5](#d5) | `grant` names `/mf-ship` when it refuses; during a live run it writes the grant and a request | isekai #15 and 15:40 | — |
 | [D6](#d6) | `merge_in` settles `CHANGELOG.md` and `docs/decisions.md` conflicts with `integrate.py`'s rules; `catch_up` merges a started version behind a gate change | a sibling release that touched `AGENTS.md` halted each started version | merging by an agent |
@@ -59,16 +59,20 @@ with `timeout=REJOIN_POLL`; with none alive, `take_requests` once more, and brea
 ### D2
 
 `take_requests(threads)` reads and deletes the request files, then for each open version (`open_versions` read again) a request
-names, whose thread is not alive: `stage_of` in `HALTS` → log `rejoin — <id>: still <stage> — <why>`, and skip; else remove its
-entries from `self.halts` and `self.blocked`, read its models into `self.plan` (`read_plan([version])`), probe its executors
-not yet probed (D3), log `rejoin — <id>: <stage>`, and start `take`. A `run` halt in `self.halts` stops it all, as before.
-The poll runs beside live threads, so it raises nothing: an entry `unlink` refuses is no request, a failed `open_versions`
-logs `rejoin — skipped — <why>`, and a failure taking one version halts that version.
+names, whose thread is not alive: `stage_of` in `HALTS` → log `rejoin — <id>: still <stage> — <why>`, and skip; a version
+`self.planned` holds — read at the start, or as it joined — whose models file differs from `self.plan` in any station → log
+`rejoin — <id>: still halted — models/<id>.toml changed during the run`, and skip, so a worker's edit never reaches the plan;
+else remove its entries from `self.halts` and `self.blocked`, read its models into `self.plan` (`read_plan([version])`), probe
+its executors not yet probed (D3), log `rejoin — <id>: <stage>`, and start `take`. A `run` halt in `self.halts` stops it all,
+as before. The poll runs beside live threads, so it raises nothing: an entry `unlink` refuses is no request, a failed
+`open_versions` logs `rejoin — skipped — <why>`, and a failure taking one version halts that version. A request folder that
+is a link holds no request: a worker can plant one, and the unsandboxed conductor would delete through it.
 
 ### D3
 
 `self.probed: set[str]`, filled by the start's probes. `probe(executor, who)` halts `who`: `"run"` at the start, as before;
-in `take_requests`, each taken version on that executor, the station `probe-<executor>`.
+in `take_requests`, each taken version on that executor, the station `probe-<executor>`. A failed mid-run probe's reason goes
+in `self.refused: dict[str, str]`, and a later version on that executor halts with it, with no second probe.
 
 ### D4
 
@@ -92,15 +96,18 @@ the grant file and `.minions/runs/rejoin/<id>`, print `grant: recorded — the l
 
 `merge_in(tree, change, default)`: the merge through `_maybe`; on a conflict, run `changelog(tree)` when `CHANGELOG.md` is
 unmerged and `decisions(tree)` when `docs/decisions.md` is, staging each; any path still unmerged, or a rule that stops →
-`git merge --abort` and `Stop(1, …)` naming the paths and `git -C <tree> merge <default>`. Then the delta check and the commit,
+`git merge --abort` and `Stop(1, …)` naming the paths and `git -C <tree> merge <default>`, both quoted: a worker can name the
+default branch through `origin/HEAD`. Then the delta check and the commit,
 as before. `catch_up`'s gate-change case calls `merge_in` instead of halting. Both rules are loaded with `delta`, by `runpy`.
 
 ### D7
 
-- **`rejoin — <id>: <stage>`**, and `rejoin — <id>: still <stage> — <why>`.
+- **`rejoin — <id>: <stage>`**, `rejoin — <id>: still <stage> — <why>`, `rejoin — <id>: still halted — models/<id>.toml
+  changed during the run`, and `rejoin — skipped — <why>`, which names no version.
 - **`grant — <id>: one more round past the cap`**, logged by `advance` when it sends `grant=yes`.
-- **The `start` line** gains `· grant <ids>` for the grant files standing at the start.
-- **`report`** prints a `rejoined` line per version that rejoined, after its halts.
+- **The `start` line** gains `· grant <ids>` for the grant files standing at the start; a grants folder that is a link lists
+  none.
+- **`report`** prints a `rejoined` line per version that rejoined, after its halts, and a skipped request's line as it stands.
 - **`EVENTS`** gains `rejoin` and `grant`, so `verify_log` reads them.
 
 ## Tests
@@ -115,8 +122,12 @@ adds four integration tests on the fake worker, no end-to-end run (`T1`); none i
 | `test_a_version_cut_during_a_run_joins` | the same, with a version cut mid-run |
 | `test_a_new_executor_is_probed_mid_run` | the probe tests run at the start only |
 
-Extended: `test_a_grant_buys_one_round` (the refusals, a grant during a live run), `test_after_waits_for_its_dependency` (the
-started version merged in), `test_a_build_dead_in_simplify_resumes_at_it` (a FIFO at `.done`, `0055·S2`).
+Extended: `test_a_grant_buys_one_round` (the refusals, a grant during a live run, a linked grants folder),
+`test_after_waits_for_its_dependency` (the started version merged in, the quoted remedy), `test_the_plan_is_read_once` (a
+request after a models change), `test_a_build_dead_in_simplify_resumes_at_it` (a FIFO at `.done`, `0055·S2`).
+
+`test_a_version_cut_during_a_run_joins` re-opens the cut-and-rejoin state `test_a_new_executor_is_probed_mid_run` reaches;
+the two stay apart in this change, and merging them is left to a later cut's `## Tests` table (`T5`).
 
 ## Dependencies
 
@@ -124,8 +135,9 @@ None.
 
 ## Risks / Trade-offs
 
-- **A worker can write a request**: it makes the run read a stage from disk again, which D47 already trusts — the class
-  `THREAT_MODEL.md`'s *Out of scope* accepts.
+- **A worker can write a request**: it makes the run read a stage from disk again, which D47 already trusts, and the models
+  file of a version cut since the start; a version the run read keeps that plan — the class `THREAT_MODEL.md`'s *Out of
+  scope* accepts.
 - **A rejoining version's stations read today's skills**, not those its run started with — the same as any station today.
 - **An amended run restarts the count**, so a person's fix buys three rounds, not one; re-plan at the cap is its limit.
 
