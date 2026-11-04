@@ -11,7 +11,8 @@ description: Finalize a built change — verify every release precondition, fold
 
 Why a separate station: **the loop that declared convergence does not also archive and tag on it.** When converge
 ran, you re-read its verdicts from disk yourself; when it did not, you are the only check after the build, and
-say so. Either way you re-run the gate yourself and inherit nothing.
+say so. Either way you gate it yourself: a recorded run of this exact tree counts, and the gate after the fold
+runs fresh.
 
 Before work, read root `AGENTS.md` and the mandatory context it names. Missing root `AGENTS.md` → **halt**,
 naming it.
@@ -46,8 +47,11 @@ It replaces Step 5's ask, never a check. Echo `merge: yes (mf-ship)`. Any other 
 
 ## Where the constants come from — disk, never a guess
 
-The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
-`make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
+The gate is **`make gate`**, run from the repository root as
+`uv run --script ../mf-converge/scripts/gate_run.py`, `../mf-converge/` resolved from this skill's package. It
+records a green run by its tree and reuses that record on the same settled tree and dry run; `--fresh` runs
+`make gate` whatever stands recorded. Its exit is the gate's, and `uv` missing → **halt**, naming it. Before the
+first gate run in a session, run `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
 `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no root `Makefile`, when `make -n gate` exits
 non-zero (no `gate` target), or when it prints no command — an empty recipe, or only `is up to date` or
 `Nothing to be done`. Never infer a gate or run a command you found instead: it exits 0 over nothing and releases
@@ -92,9 +96,10 @@ Never glob `.minions/findings/*`: it keeps the *previous* change's files, and a 
 work is what keying every path by the change id prevents. An absent file is never a reason to search;
 precondition 4 says what absence means.
 
-1. **The gate is green, re-run in this session** — not inherited from `mf-converge`'s report, not read from a
-   log. Red → halt; the build owns it. **Time this run** for Step 4.1's `Gate:` line, in one shell command:
-   `s=$(date +%s); make gate; e=$?; echo "gate: $(( $(date +%s) - s ))s, exit $e"`.
+1. **The gate is green, gated in this session** — through `gate_run.py`, not inherited from `mf-converge`'s
+   report, not read from a log. Red → halt; the build owns it. **Its time** for Step 4.1's `Gate:` line is the
+   seconds its last line prints: `gate: green — <tree> · <n>s`, the run's, or
+   `gate: reused — <tree> · <n>s · <date>`, the record's.
 2. If converge ran (precondition 4): **review is clean** — `.minions/findings/<change-id>_review.md` exists, says
    `verdict: clean`, and **every** blocking finding is `verified`, not merely `fixed`: `fixed` is the producer's
    claim. Else → halt.
@@ -199,8 +204,9 @@ binding check covers it, and a gate without one gives a separate step nothing to
    file records `unidentified`. Exit 2, any other non-zero exit, a missing script or a missing `uv` → **halt**,
    nothing committed. A data file whose `version` is not `<version>` → **halt**, nothing committed: Step 3's write
    was missed. Stage `metrics/changes/<change-id>.json` by name.
-3. **Re-run the full gate — before anything is committed or tagged.** The fold and the archive moved files the
-   gate reads, so Step 1's green says nothing about this tree. **Red → halt: report it and stop, and never repair
+3. **Re-run the full gate, fresh — before anything is committed or tagged:**
+   `uv run --script ../mf-converge/scripts/gate_run.py --fresh`. The fold and the archive moved files the gate
+   reads, so Step 1's green says nothing about this tree, and no record reaches a tag. **Red → halt: report it and stop, and never repair
    it by weakening anything.** Nothing is committed or tagged yet: report the staged fold and archive move and the
    uncommitted changelog cut and version bump, and name reverting them as the human's. Why this order: a commit
    and tag over a red tree would make precondition 5 halt every retry — a state this station may not undo, since

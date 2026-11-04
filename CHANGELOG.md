@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mf-converge/scripts/gate_run.py` runs `make gate` and records a green run in `.minions/gate/<tree>` by its
   tree and dry-run hash; a later call on the same settled tree and dry run reuses it, `--fresh` runs whatever stands,
   and a red run records nothing, so one tree is never gated twice (change `0064-lighter-catch-up`, phase 1).
+- `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` gate through `gate_run.py`; the release takes its `Gate:`
+  time from the run's or the record's line, and gates its folded tree with `--fresh`, so no record reaches a tag
+  (change `0064-lighter-catch-up`, phase 2).
 
 ## [0.52.0] - 2026-11-04
 

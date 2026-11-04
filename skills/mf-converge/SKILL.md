@@ -44,7 +44,9 @@ The **run directory** is `.minions/` beside the primary checkout:
 
 ## Where the constants come from — disk, never a guess
 
-The gate is **`make gate`**, run from the repository root. Before the first gate run in a session, run
+The gate is **`make gate`**, run from the repository root as `uv run --script <this package>/scripts/gate_run.py`.
+It records a green run by its tree and reuses that record on the same settled tree and dry run; its exit is the
+gate's, and `uv` missing → **halt**, naming it. Before the first gate run in a session, run
 `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
 `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no root `Makefile`, when `make -n gate` exits
 non-zero (no `gate` target), or when it prints no command — an empty recipe, or only `is up to date` or
@@ -218,7 +220,7 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
 3. **The derived range is non-empty** — Step 2. Halt if `base` equals `HEAD`.
 4. **The root `Makefile` has a `gate` target that runs a command** — the dry run of *Where the constants come
    from* passed.
-5. **The gate is green before round 1** — run `make gate` yourself. Red → halt; `mf-build` owns it. Skipped, a
+5. **The gate is green before round 1** — run the gate yourself, through `gate_run.py`. Red → halt; `mf-build` owns it. Skipped, a
    red gate is blamed on a station's findings and the fix pass chases the wrong thing.
 6. **The gate changes only as the cut planned.** Run
    `uv run --script <this package>/scripts/gate_check.py --change <change-id> --base <base>`, `<base>` being
@@ -404,7 +406,7 @@ record drifts.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself, and write `verify` to the status log. Dispatch review and security again as **fresh**
+Re-run the gate yourself, through `gate_run.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
 workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
 own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
 counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a

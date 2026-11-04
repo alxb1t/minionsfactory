@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The gate record
-- [ ] 2 — The stations
+- [x] 2 — The stations
 - [ ] 3 — Replay
 - [ ] 4 — The by-rule catch-up
 - [ ] 5 — The commit body
@@ -18,7 +18,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The stations
 
-- [ ] 2.1 Gate through `gate_run.py` in `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-integrate/SKILL.md`
+- [x] 2.1 Gate through `gate_run.py` in `skills/mf-build/SKILL.md`, `skills/mf-converge/SKILL.md`, `skills/mf-integrate/SKILL.md`
   and `skills/mf-release/SKILL.md`, the release's Step 4.3 with `--fresh` and precondition 1's time from the run's line; add their
   checks to `tests/test_skills.py`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_skills.py` reports no failure, and `grep -n 'gate_run.py --fresh' skills/mf-release/SKILL.md` prints a line.

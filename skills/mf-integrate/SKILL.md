@@ -17,7 +17,7 @@ naming it.
          │ yes
   merge <default-branch> in its worktree ─▶ the rules ─▶ a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
-  make gate in the worktree ─▶ commit the merge, `Change: <id>` ─▶ a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
+  gate_run.py in the worktree ─▶ commit the merge, `Change: <id>` ─▶ a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
          │ no
   Next: /mf-converge, then /mf-release
 ```
@@ -136,8 +136,11 @@ Then, in the worktree:
 ## Step 4 — Gate and commit
 
 1. In the worktree, run `make -n gate` and paste its output; halt, naming the worktree's `Makefile`, when it
-   exits non-zero or prints no command. Then `make gate`. **Red → halt** with the merge open, commit nothing, write
-   `.minions/integrate/<change-id>.red` holding `gate red` and the date, and never weaken the gate to pass.
+   exits non-zero or prints no command. Then, in the worktree, `make gate`, run as
+   `uv run --script ../mf-converge/scripts/gate_run.py`, `../mf-converge/` resolved from this skill's package: it
+   records a green run by the staged tree, which the merge commit holds, so a later station on that tree can reuse
+   it. **Red → halt** with the merge open, commit nothing, write `.minions/integrate/<change-id>.red` holding
+   `gate red` and the date, and never weaken the gate to pass.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
    nothing — else **halt**: the commit must hold the tree the gate judged.
 3. **Commit the merge**, one body line per hunk `.minions/integrate/<change-id>.resolved` holds, before the trailer

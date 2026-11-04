@@ -92,7 +92,10 @@ Then read:
    not re-derive or re-litigate it. Where the build disagrees with a decision it settled, **halt**.
 2. **Where the work stands** — the `## Progress` list and `git log`, never memory. Re-read both at the start of
    every pass; resume is free.
-3. **The gate** — `make gate`, from the repository root. Before the first gate run in a session, run
+3. **The gate** — `make gate`, from the repository root, run as
+   `uv run --script ../mf-converge/scripts/gate_run.py`, `../mf-converge/` resolved from this skill's package. It
+   records a green run by its tree and reuses that record on the same settled tree and dry run; its exit is the
+   gate's, and `uv` missing → **halt**, naming it. Before the first gate run in a session, run
    `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
    `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no root `Makefile`, when `make -n gate` exits
    non-zero (no `gate` target), or when it prints no command — an empty recipe, or only `is up to date` or
@@ -147,7 +150,7 @@ ticking the `N.M` boxes with the phase's box at item 5.
    describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
    has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
    Never change code to make it pass.
-3. **Run the full gate** — `make gate`. It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
+3. **Run the full gate** — `make gate`, through `gate_run.py` (Step 1). It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
    a blanket suppression, a loosened config: that is a plan problem, so halt (stop-condition 5). A test deleted
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
