@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — The stations
 - [x] 3 — Replay
 - [x] 4 — The by-rule catch-up
-- [ ] 5 — The commit body
+- [x] 5 — The commit body
 - [ ] 6 — The record
 
 ## 1 — The gate record
@@ -39,7 +39,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The commit body
 
-- [ ] 5.1 Write Step 4.3's body lines, the test-fixed rule and *Why a station* in `skills/mf-integrate/SKILL.md`, and the integrate
+- [x] 5.1 Write Step 4.3's body lines, the test-fixed rule and *Why a station* in `skills/mf-integrate/SKILL.md`, and the integrate
   line in `README.md`, per [D5](design.md#d5).
   Verify: `grep -n 'integrate.py changelog' skills/mf-integrate/SKILL.md` prints a line, and `grep -n 'test fixed —' skills/mf-integrate/SKILL.md` prints a line.
 

@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-converge`'s catch-up over merges only replays each one; when all replay, it writes both findings files clean
   with `## By rule`, logs `by rule`, and dispatches no worker, so a rule-settled `CHANGELOG.md` no longer costs a
   review round (change `0064-lighter-catch-up`, phase 4).
+- The integrate merge commit names every path it settled — `integrate.py changelog` or `decisions`, the union, the
+  person, `test fixed — <what it now asserts>` — and a test fix never removes or loosens an assertion; the station's
+  *Why* and `README.md` name the union it resolves (change `0064-lighter-catch-up`, phase 5).
 
 ## [0.52.0] - 2026-11-04
 
