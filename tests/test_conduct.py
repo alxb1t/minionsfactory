@@ -190,6 +190,13 @@ def test_status_reads_each_stage_from_disk(
         return capsys.readouterr().out.strip()
 
     assert stage() == "0001-todo · build"
+    _git(root, "remote", "add", "origin", "https://example.invalid/r.git")
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+    assert capsys.readouterr().out.strip() == (
+        "conduct: halt — origin has no main: push it by hand"
+    )
+    _git(root, "remote", "remove", "origin")
     stray = root.parent / "0009-stray"
     _git(root, "worktree", "add", "-q", "-b", "0009-stray", str(stray))
     _commit(stray, {"stray.txt": "x\n"}, "not a version")
@@ -1753,7 +1760,7 @@ def test_a_rerun_pushes_what_a_release_left(
     for key in ("remote.origin.uploadpack", "remote.origin.receivepack"):
         _git(root, "config", key, str(planted))
     conductor.git_state = conduct["_git_state"](root)
-    conductor.push_left()
+    conductor.push_left((0,))
     assert not ran.exists()
     assert conduct["_pushed"](root, "release-v0.2.0", "v0.2.0") is False
     assert not ran.exists()
@@ -1762,7 +1769,7 @@ def test_a_rerun_pushes_what_a_release_left(
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(decoy))
     _git(root, "remote", "set-url", "origin", str(decoy))
     conductor.git_state = conduct["_git_state"](root)
-    conductor.push_left()
+    conductor.push_left((0,))
     assert _git(decoy, "for-each-ref") == ""
     conductor.log.path.unlink()
     module["_refuse_config_commands"] = refuse
@@ -1827,7 +1834,7 @@ def test_a_rerun_pushes_what_a_release_left(
             assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
             assert "points origin at a local repo" in capsys.readouterr().out
             conductor = conduct["Run"](root, "claude")
-            conductor.push_left()
+            conductor.push_left((0,))
             assert [who for who, _ in conductor.halts] == ["run"]
             conductor.log.path.unlink()
             assert not ran.exists()
@@ -2479,6 +2486,96 @@ def test_anchor_seeds_the_offline_base(
     assert anchor(2) == (
         f"anchor: cannot run — an offline base stands: ~/.mf-ship-origin/{name}"
     )
+
+
+def test_a_run_goes_on_while_origin_is_down(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    module = conduct["main"].__globals__
+    module["RETRIES"], module["PUSH_RETRIES"] = (0, 0, 0), (0, 0)
+    root, origin = _with_origin(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    away = tmp_path / "origin.away"
+    origin.rename(away)
+
+    def run() -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 1
+        )
+        log = conduct["last_log"](root / ".minions" / "runs")
+        return [line.split(" · ", 1)[1] for line in log.read_text().splitlines()[2:]]
+
+    # No offline base: the run halts before any worker.
+    lines = run()
+    assert lines[0].startswith("run · start — executor claude")
+    assert lines[1:] == [
+        "run · halt — conduct: halt — cannot read origin, and no offline base: a"
+        " person runs conduct.py anchor",
+        "run · halt — halted run · blocked none · released none",
+    ]
+    assert _calls(calls) == []
+
+    # Past the offline base, a commit no release explains halts the run.
+    conduct["_keep_base"](root, _git(root, "rev-parse", "main").strip())
+    _commit(root, {"mine.txt": "x\n"}, "a person's commit")
+    mine = _git(root, "rev-parse", "--short=7", "main").strip()
+    assert run()[1] == (
+        f"run · halt — conduct: halt — main holds {mine}, no run's release: a person"
+        " reads it, then git push origin main"
+    )
+    assert _calls(calls) == []
+    _git(root, "reset", "-q", "--hard", "HEAD~1")
+
+    lines = run()
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert lines[-3:] == [
+        "0001-todo · check — release · fail — v0.1.0 is not on origin",
+        "0001-todo · halt — release check fail — v0.1.0 is not on origin",
+        "run · halt — halted 0001-todo · blocked none · released none",
+    ]
+    assert not origin.exists()
+
+
+def test_the_remote_calls_carry_the_ssh_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+    monkeypatch.delenv("GIT_SSH", raising=False)
+    root = _primary(tmp_path)
+    folder = tmp_path / "ssh-bin"
+    folder.mkdir()
+    said = tmp_path / "ssh-calls.txt"
+    ssh = folder / "ssh"
+    ssh.write_text(f'#!/bin/sh\necho "$*" >> {shlex.quote(str(said))}\nexit 255\n')
+    ssh.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+
+    def reached() -> str:
+        said.unlink(missing_ok=True)
+        url = "ssh://example.invalid/r.git"
+        assert conduct["_outside"](root, "ls-remote", "--", url).returncode != 0
+        return said.read_text()
+
+    assert "-o ConnectTimeout=15 -o BatchMode=yes" in reached()
+    # Twin: the operator's own ssh command stands.
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -o Operator=yes")
+    assert "Operator=yes" in reached()
+    assert "BatchMode" not in reached()
+    monkeypatch.delenv("GIT_SSH_COMMAND")
+    _git(root, "config", "--global", "core.sshCommand", "ssh -o Global=yes")
+    assert "Global=yes" in reached()
+    assert "BatchMode" not in reached()
 
 
 def test_the_plan_is_read_once(

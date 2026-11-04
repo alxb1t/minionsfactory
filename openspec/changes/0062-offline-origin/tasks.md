@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The offline base
-- [ ] 2 — The waits
+- [x] 2 — The waits
 - [ ] 3 — The local release
 - [ ] 4 — The record
 - [ ] 5 — The docs
@@ -21,13 +21,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The waits
 
-- [ ] 2.1 Add `Unreachable`, `RETRIES` and the offline judge; read `origin` before the `start` line; halt with no offline base;
+- [x] 2.1 Add `Unreachable`, `RETRIES` and the offline judge; read `origin` before the `start` line; halt with no offline base;
   add `test_a_run_goes_on_while_origin_is_down`, its run stopping at the release check, per [D2](design.md#d2) and
   [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k run_goes_on_while_origin_is_down` reports `1 passed`.
-- [ ] 2.2 Add the ssh options to `_outside`; add `test_the_remote_calls_carry_the_ssh_options`, per [D3](design.md#d3).
+- [x] 2.2 Add the ssh options to `_outside`; add `test_the_remote_calls_carry_the_ssh_options`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k remote_calls_carry_the_ssh_options` reports `1 passed`.
-- [ ] 2.3 Name a missing `origin/<default>` in `_unpushed`'s no-read path; add its step to
+- [x] 2.3 Name a missing `origin/<default>` in `_unpushed`'s no-read path; add its step to
   `test_status_reads_each_stage_from_disk`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k status_reads_each_stage_from_disk` reports `1 passed`, and
   `grep -n 'push it by hand' skills/mf-ship/scripts/conduct.py` prints a line.
