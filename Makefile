@@ -1,4 +1,4 @@
-.PHONY: fix gate install-skills uninstall-skills
+.PHONY: fix gate check install-skills uninstall-skills
 
 fix:
 	uv run ruff format .
@@ -11,7 +11,13 @@ gate:
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run ty check
-	uv run pytest -q
+	uv run pytest -q -n auto
+
+check:
+	uv run ruff format --check .
+	uv run ruff check .
+	uv run ty check
+	uv run pytest -q -n auto -m "not slow"
 
 # Symlink the mf- execution-line skills into the operator's personal skills
 # directory — `SKILLS_DIR`, which defaults to `~/.agents/skills` and is the ONE place

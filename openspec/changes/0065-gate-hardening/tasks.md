@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## Progress
 
-- [ ] 1 — Speed
+- [x] 1 — Speed
 - [ ] 2 — Pins
 - [ ] 3 — Lint
 - [ ] 4 — Coverage
@@ -14,13 +14,13 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 1 — Speed
 
-- [ ] 1.1 Add `pytest-xdist` to the dev group (`uv add --dev 'pytest-xdist>=3.8.0'`), the isolation fixture in `tests/conftest.py`
+- [x] 1.1 Add `pytest-xdist` to the dev group (`uv add --dev 'pytest-xdist>=3.8.0'`), the isolation fixture in `tests/conftest.py`
   with `test_the_isolation_fixture_holds_home_under_tmp_path`, and fix each test the parallel run shows sharing state, per
   [D1](design.md#d1).
   Verify: `uv run pytest -q -n auto` reports no failure.
-- [ ] 1.2 Register `slow` in `pyproject.toml` and mark each test *The measurement* lists over 5 s, per [D1](design.md#d1).
+- [x] 1.2 Register `slow` in `pyproject.toml` and mark each test *The measurement* lists over 5 s, per [D1](design.md#d1).
   Verify: `uv run pytest -q --collect-only -m slow` reports `17 tests collected`.
-- [ ] 1.3 Run the gate's tests on every core and add a `check` target, in `Makefile`, `gate` named, per [D1](design.md#d1):
+- [x] 1.3 Run the gate's tests on every core and add a `check` target, in `Makefile`, `gate` named, per [D1](design.md#d1):
   ```diff
   - .PHONY: fix gate install-skills uninstall-skills
   + .PHONY: fix gate check install-skills uninstall-skills
@@ -33,7 +33,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
   + 	uv run pytest -q -n auto -m "not slow"
   ```
   Verify: `make -n check` prints `uv run pytest -q -n auto -m "not slow"`.
-- [ ] 1.4 Run `make check` after each phase but the last in `skills/mf-build/SKILL.md`; reword `I8` there and in
+- [x] 1.4 Run `make check` after each phase but the last in `skills/mf-build/SKILL.md`; reword `I8` there and in
   `skills/mf-cut-change/SKILL.md`; add the `slow` line beside `T1` in both, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_skills.py` reports no failure, and `grep -n 'make -n check' skills/mf-build/SKILL.md` prints a line.
 

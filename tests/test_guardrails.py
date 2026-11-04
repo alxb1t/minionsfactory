@@ -1,5 +1,6 @@
 """Guardrail scan: no tracked file holds a home path or a key."""
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -44,6 +45,16 @@ def _hits(root: Path) -> list[str]:
 
 def test_no_tracked_file_holds_a_home_path_or_a_key() -> None:
     assert _hits(_REPO) == []
+
+
+def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None:
+    names = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "GIT_CONFIG_GLOBAL")
+    assert Path.home().is_relative_to(tmp_path)
+    assert all(Path(os.environ[name]).is_relative_to(tmp_path) for name in names)
+
+    subprocess.run(["git", "config", "--global", "mf.probe", "yes"], check=True)
+
+    assert "probe = yes" in (Path.home() / ".gitconfig").read_text()
 
 
 def test_the_guardrail_scan_reports_a_planted_path_and_key(tmp_path: Path) -> None:

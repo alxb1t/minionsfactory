@@ -300,6 +300,7 @@ def test_status_reads_each_stage_from_disk(
     assert stage().endswith(" · released")
 
 
+@pytest.mark.slow
 def test_each_check_passes_only_on_disk_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -544,6 +545,7 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     assert conduct["last_log"](runs) == second.path
 
 
+@pytest.mark.slow
 def test_a_ready_version_ships_past_a_slow_one(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -646,6 +648,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     )
 
 
+@pytest.mark.slow
 def test_after_waits_for_its_dependency(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -959,6 +962,7 @@ def test_after_waits_for_its_dependency(
     )
 
 
+@pytest.mark.slow
 def test_a_halted_dependency_blocks_a_chain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1100,6 +1104,7 @@ def test_run_halts_on_a_human_phase(
     assert _calls(calls) == []
 
 
+@pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1233,6 +1238,7 @@ def test_a_later_version_ships_past_a_halted_one(
     )
 
 
+@pytest.mark.slow
 def test_a_fixed_version_rejoins_a_live_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1352,6 +1358,7 @@ def test_a_version_cut_during_a_run_joins(
     assert (elsewhere / "kept-urls").is_file()
 
 
+@pytest.mark.slow
 def test_a_new_executor_is_probed_mid_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1546,6 +1553,7 @@ def test_a_models_mismatch_halts_its_version(
     )
 
 
+@pytest.mark.slow
 def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1769,6 +1777,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not any(" · unlock — " in line for line in _log(root))
 
 
+@pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1946,6 +1955,7 @@ def test_a_rerun_recovers_a_dead_release(
     )
 
 
+@pytest.mark.slow
 def test_a_rerun_pushes_what_a_release_left(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2155,6 +2165,7 @@ def test_a_rerun_pushes_what_a_release_left(
     assert status() == "status: none — no open version"
 
 
+@pytest.mark.slow
 def test_a_run_pushes_only_tagged_merges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2243,6 +2254,7 @@ def test_a_run_pushes_only_tagged_merges(
     assert conduct["_ledger_heads"](root) == set()
 
 
+@pytest.mark.slow
 def test_a_forged_release_is_not_pushed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2467,6 +2479,7 @@ def test_a_forged_release_is_not_pushed(
     assert _calls(calls) == []
 
 
+@pytest.mark.slow
 def test_no_worker_pushes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2700,6 +2713,7 @@ def _with_origin(tmp_path: Path) -> tuple[Path, Path]:
     return root, origin
 
 
+@pytest.mark.slow
 def test_a_good_read_keeps_the_offline_base(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2787,6 +2801,7 @@ def test_anchor_seeds_the_offline_base(
     )
 
 
+@pytest.mark.slow
 def test_a_run_goes_on_while_origin_is_down(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2869,6 +2884,7 @@ def test_a_run_goes_on_while_origin_is_down(
     assert len(conduct["_ledger_heads"](root)) == 2
 
 
+@pytest.mark.slow
 def test_a_local_release_is_pushed_when_origin_returns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
