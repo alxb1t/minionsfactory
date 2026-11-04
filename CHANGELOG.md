@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `conduct.py` keeps an offline base, `~/.mf-ship-origin/<digest>.pushed`, after every good read of `origin` and every
-  default-branch push, and `conduct.py anchor` lets a person seed the first one from a checked tracking ref, so a run
-  has a base to judge against while `origin` is down (change `0062-offline-origin`, phase 1).
+  default-branch push, and `conduct.py anchor` lets a person seed the first one from a checked tracking ref, written
+  only on `--yes <sha>` after it prints the sha and subject, so a run has a base to judge against while `origin` is
+  down (change `0062-offline-origin`, phase 1).
 - A failed read of `origin` is a wait, not a halt: three tries at the start, then the run goes on judged against the
   offline base, or halts naming `conduct.py anchor` with none; remote calls pass `ssh -o ConnectTimeout=15 -o
   BatchMode=yes` when the operator set no ssh command, and `status` names a missing `origin/<default>` (change

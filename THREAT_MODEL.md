@@ -80,5 +80,6 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - An outage holds that window open: while `origin` cannot be read, a run releases locally, and each head authorizes a
   release until its push lands.
 - `conduct.py anchor` trusts the tracking ref once: the person's session checks that it is on the default branch and a
-  tagged release merge, so a ref a past worker moved to a forged release merge would pass.
+  tagged release merge, and writes it only on `--yes <sha>` after printing its sha and subject, so a ref a past worker
+  moved to a forged release merge passes unless the person compares it with `origin` or its release.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.

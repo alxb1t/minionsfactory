@@ -2598,11 +2598,12 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
     return f"approve-gate: approved — {hashed} · {change}"
 
 
-def anchor(cwd: Path) -> str:
+def anchor(cwd: Path, yes: str | None) -> str:
     """Seed the first offline base from the default branch's tracking ref, checked.
 
     A person's session alone: no worker can write the home folder, and the tracking
-    ref is one a worker writes. Why: 0062-offline-origin design D6.
+    ref is one a worker writes, so it writes only the sha the person names with
+    `yes` after seeing it. Why: 0062-offline-origin design D6.
     """
     primary = primary_of(cwd)
     _refuse_config_commands(primary)
@@ -2628,6 +2629,14 @@ def anchor(cwd: Path) -> str:
         raise Stop(2, f"anchor: cannot run — {tracking} is not on {default}")
     if not _merges_a_release(primary, sha, _release_tags(primary)):
         raise Stop(2, f"anchor: cannot run — {tracking} is no release merge")
+    if yes is None:
+        raise Stop(
+            1,
+            f"anchor: check {sha} · {_subject(primary, sha)} against origin's"
+            f" {default}, then run conduct.py anchor --yes {sha}",
+        )
+    if yes != sha:
+        raise Stop(2, f"anchor: cannot run — {tracking} is {sha}, not {yes}")
     if why := _keep_base(primary, sha):
         raise Stop(
             2,
@@ -2818,7 +2827,10 @@ def main(argv_: list[str] | None = None) -> int:
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
-    commands.add_parser("anchor", help="a person seeds the first offline base")
+    anchoring = commands.add_parser(
+        "anchor", help="a person seeds the first offline base"
+    )
+    anchoring.add_argument("--yes", metavar="sha")
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:
@@ -2842,7 +2854,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
-            print(anchor(cwd))
+            print(anchor(cwd, args.yes))
         else:
             print(report(cwd))
     except Stop as stop:

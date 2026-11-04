@@ -2452,9 +2452,9 @@ def test_anchor_seeds_the_offline_base(
     (tmp_path / "operator-home").mkdir()
     root = _primary(tmp_path)
 
-    def anchor(code: int) -> str:
+    def anchor(code: int, *args: str) -> str:
         capsys.readouterr()
-        assert _main(conduct, root, "anchor", monkeypatch=monkeypatch) == code
+        assert _main(conduct, root, "anchor", *args, monkeypatch=monkeypatch) == code
         return capsys.readouterr().out.strip()
 
     assert anchor(2) == "anchor: cannot run — origin/main is missing"
@@ -2479,8 +2479,19 @@ def test_anchor_seeds_the_offline_base(
         "anchor: cannot run — a run is live: .minions/runs/active exists"
     )
     shutil.rmtree(active)
+
+    # The person sees the sha and subject, and names the sha they checked.
+    assert anchor(1) == (
+        f"anchor: check {tracked} · Merge branch 'release-v0.1.0' against origin's"
+        f" main, then run conduct.py anchor --yes {tracked}"
+    )
+    assert anchor(2, "--yes", off) == (
+        f"anchor: cannot run — origin/main is {tracked}, not {off}"
+    )
     assert conduct["_offline_base"](root) is None
-    assert anchor(0) == f"anchor: {tracked} · Merge branch 'release-v0.1.0'"
+    assert anchor(0, "--yes", tracked) == (
+        f"anchor: {tracked} · Merge branch 'release-v0.1.0'"
+    )
     assert conduct["_offline_base"](root) == tracked
     assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
     name = conduct["_pushed_file"](root).name

@@ -48,8 +48,8 @@ default branch still halts the run; the person sees what is local only.
 | [D3](#d3) | Three tries at the start, two per release, one before the close; ssh options when the operator set none | a dead host must not hang a run, nor a prompt block it | a background retry thread |
 | [D4](#d4) | A release made offline passes as released locally | merge and tag are local; the push already resumes at the next read | holding the version |
 | [D5](#d5) | The record: the `start` line, `push — waiting`, the close's `· unpushed`, `report` | the person must see what is local only | a new `status` form: `run · unpushed` already prints it (F5) |
-| [D6](#d6) | `conduct.py anchor` seeds the first base from the tracking ref, checked, in a person's session | the first outage finds no base; the person's session is not a run's | automatic trust of the tracking ref at a run's start |
-| [D7](#d7) | The cards: `0049·S7` checked and closed with its evidence; `0051·R12` named | `_pushed` and `_unpushed` are opened | — |
+| [D6](#d6) | `conduct.py anchor` seeds the first base from the tracking ref, checked, on the person's `--yes <sha>`, in a person's session | the first outage finds no base; the person's session is not a run's | automatic trust of the tracking ref at a run's start |
+| [D7](#d7) | The cards: `0049·S7` checked and left open; `0051·R12` paid down | `_pushed` and `_unpushed` are opened; `_pushed`'s half of `0049·S7` was closed at the base (F8), and `_dirty`'s and `_unmerged`'s half stands | closing `0049·S7` on its remote half |
 
 ### D1
 
@@ -107,14 +107,17 @@ ledger keeps the head; the next good read pushes it (`_unpushed`) and `_close_re
 `conduct.py anchor`, a subcommand: exit 2, naming the check, when `.minions/runs/active` is live, `.pushed` stands, the default
 branch's tracking ref is missing, it is not an ancestor of the local default branch (`_history_ancestor`), or it is no release
 merge (`_merges_a_release(primary, sha, _release_tags(primary))`). The default branch is `<digest>.default`'s name, else
-`default_branch`. Otherwise it writes `.pushed` and prints `anchor: <sha> · <subject>`, exit 0. It needs a person's session: no
-worker can write the home folder (D51, F7). `skills/mf-ship/SKILL.md` names it in the command table and in the halt table, beside
+`default_branch`. With no `--yes`, it prints `anchor: check <sha> · <subject> against origin's <default>, then run conduct.py
+anchor --yes <sha>`, exit 1, and writes nothing; a `--yes` sha other than the ref's is exit 2. With the ref's sha it writes
+`.pushed` and prints `anchor: <sha> · <subject>`, exit 0. It needs a person's session: no worker can write the home folder
+(D51, F7). `skills/mf-ship/SKILL.md` names it in the command table and in the halt table, beside
 D6's halt.
 
 ### D7
 
 `0049·S7`: the build runs its *Still true?* — read `_pushed` — and records in the commit body that its remote call goes through
-`_outside`, so the card closes with that evidence. `0051·R12`: the no-read path checks `origin/<default>` with `_maybe(…,
+`_outside`. That was so at the base (F8), and `_dirty` and `_unmerged` still refuse the config and read the tree in separate git
+calls, so the card stays open, as `THREAT_MODEL.md` *Known gaps* names it, and the proposal's `backlog:` lists `0051·R12` alone. `0051·R12`: the no-read path checks `origin/<default>` with `_maybe(…,
 "rev-parse", "--verify", …)`, and on `None` stops `Stop(1, "conduct: halt — origin has no <default>: push it by hand")`.
 
 ## Tests
@@ -141,8 +144,8 @@ None.
 
 - **The ledger's window** stays open for the outage's length: a head authorizes a release until it lands on `origin`. Same class,
   held longer; `THREAT_MODEL.md` *Known gaps* says so.
-- **The anchor trusts the tracking ref** once, checked by the person's session; a ref a past worker moved to a forged release
-  merge would pass. `THREAT_MODEL.md` names it.
+- **The anchor trusts the tracking ref** once, checked by the person's session and written on their `--yes <sha>`; a ref a past
+  worker moved to a forged release merge passes unless the person compares it with `origin`. `THREAT_MODEL.md` names it.
 - **A long outage** releases several versions locally; the next good read pushes them in one go, judged as today.
 
 ## Verdict
