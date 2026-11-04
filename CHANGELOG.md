@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `skills/mf-converge/scripts/gate_run.py` runs `make gate` and records a green run in `.minions/gate/<tree>` by its
+  tree and dry-run hash; a later call on the same settled tree and dry run reuses it, `--fresh` runs whatever stands,
+  and a red run records nothing, so one tree is never gated twice (change `0064-lighter-catch-up`, phase 1).
+
 ## [0.52.0] - 2026-11-04
 
 Gate: local 6m10s · CI not read under mf-ship · 0.51.0: local 6m25s · CI not read under mf-ship

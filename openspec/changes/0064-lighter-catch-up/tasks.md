@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The gate record
+- [x] 1 — The gate record
 - [ ] 2 — The stations
 - [ ] 3 — Replay
 - [ ] 4 — The by-rule catch-up
@@ -13,7 +13,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The gate record
 
-- [ ] 1.1 Write `skills/mf-converge/scripts/gate_run.py` and `tests/test_gate_run.py`, per [D1](design.md#d1).
+- [x] 1.1 Write `skills/mf-converge/scripts/gate_run.py` and `tests/test_gate_run.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_gate_run.py` reports no failure, and `grep -n -- '--fresh' skills/mf-converge/scripts/gate_run.py` prints a line.
 
 ## 2 — The stations
