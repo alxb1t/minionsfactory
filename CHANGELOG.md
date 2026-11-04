@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The integrate merge commit names every path it settled — `integrate.py changelog` or `decisions`, the union, the
   person, `test fixed — <what it now asserts>` — and a test fix never removes or loosens an assertion; the station's
   *Why* and `README.md` name the union it resolves (change `0064-lighter-catch-up`, phase 5).
+- *The gate is run, never summarized* counts a recorded run of the exact tree and keeps the release's post-fold gate
+  fresh; *Nothing reads as clean by being absent* gains clean by recomputation; D45 names `replay` and the body lines;
+  `THREAT_MODEL.md` carries the forgeable gate record (change `0064-lighter-catch-up`, phase 6).
 
 ## [0.52.0] - 2026-11-04
 

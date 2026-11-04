@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 3 — Replay
 - [x] 4 — The by-rule catch-up
 - [x] 5 — The commit body
-- [ ] 6 — The record
+- [x] 6 — The record
 
 ## 1 — The gate record
 
@@ -45,6 +45,6 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 6 — The record
 
-- [ ] 6.1 Amend *The gate is run, never summarized* and *Nothing reads as clean by being absent* in `docs/principles.md`, D45 in
+- [x] 6.1 Amend *The gate is run, never summarized* and *Nothing reads as clean by being absent* in `docs/principles.md`, D45 in
   `docs/decisions.md`, and *Known gaps* in `THREAT_MODEL.md`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_principles.py` reports no failure, and `grep -n 'gate_run' docs/principles.md` prints a line.

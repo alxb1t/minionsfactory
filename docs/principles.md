@@ -61,11 +61,14 @@ read-only except for their own findings file.**
 
 **A missing findings file is not clean. A station that resolved zero files must not write `clean`, except when
 each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A review
-without its stale-claim pass is not clean.**
+without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a merges-only
+catch-up whose every merge `integrate.py replay` rebuilds by the fixed rules alone.**
 
-- **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass.
-- **Held by:** `mf-converge` Step 5; `mf-release` precondition 4, which states a skip and halts on a lone patch
-  or findings file; the *Never* lists of `mf-converge` and `mf-release`.
+- **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
+  rules rebuild to its exact tree decided nothing a reader could judge.
+- **Held by:** `mf-converge` Step 5 and its *By rule*; `mf-release` precondition 4, which states a skip and halts
+  on a lone patch or findings file; the *Never* lists of `mf-converge` and `mf-release`;
+  `tests/test_integrate.py::test_replay_refuses_a_judged_merge`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
   ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)).
 
@@ -84,12 +87,15 @@ What "done" means, and how it is observed.
 
 ### The gate is run, never summarized
 
-**A green gate is `make gate` exiting zero, observed by the station that needs the assurance. Each station runs it
-itself; the release re-runs it and inherits nothing.**
+**A green gate is `make gate` exiting zero, observed by the station that needs the assurance. Each station gates
+itself through `gate_run.py`: a recorded run of this exact tree counts; the release's post-fold gate runs fresh.**
 
-- **Why:** "it passed" is a claim about the gate, not the gate.
-- **Held by:** `mf-build` Step 1, `mf-converge` and `mf-release`, each printing `make -n gate` before its first
-  `make gate`; `mf-release` precondition 1.
+- **Why:** "it passed" is a claim about the gate, not the gate. A record is keyed by the tree and the dry run, so it
+  holds what a run of that tree said, and the fresh run keeps a forged one from a tag.
+- **Held by:** `mf-build` Step 1, `mf-converge`, `mf-integrate` and `mf-release`, each printing `make -n gate`
+  before its first gate run; `mf-release` precondition 1 and Step 4.3's `--fresh`;
+  `tests/test_gate_run.py::test_reuse_is_refused_on_a_dirty_tree` and
+  `tests/test_gate_run.py::test_fresh_runs_whatever_stands_and_records`.
 
 ### Never weaken the gate to pass
 
