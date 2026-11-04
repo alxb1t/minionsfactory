@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53
 ```
 
 ## The shape
@@ -462,7 +462,9 @@ request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back e
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
-offline base, or a precondition it stops on, a skill with no link among them, needs the person.**
+offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
+step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
+person once a rescue, where one runs, has left it halted.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
@@ -498,3 +500,22 @@ hostile repo needs a container.**
   on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service.
+
+### D53 · A rescue amends the plan, never the code or a decision
+
+**On a build check, converge-cap or integrate halt, `conduct.py` runs `mf-rescue` in the halted version's thread. It may
+fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
+change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
+on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
+a commit at a converge or integrate halt keeps the halt. A version gets at most `RESCUES = 3` a run, and none for a
+sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
+none. A timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped
+release get none: they need the person.**
+
+- **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
+  missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
+  whole change after it.
+- **Accepts:** a wrong amend that passes the path check, which converge then reads · a rescue's spend, bounded per version.
+- **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/build/<id>.halt` · a prompt in
+  `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
+  that changes a decision.

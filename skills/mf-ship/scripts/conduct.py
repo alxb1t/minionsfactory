@@ -3238,8 +3238,10 @@ def _change_number(change: str) -> int:
 def report(cwd: Path) -> str:
     """Return the last run's close-out: its waits, each version, the halts, the end.
 
-    A version that rejoined has a `rejoined` line after the halts before it; a
-    skipped request, which names no version, keeps its line as it stands.
+    A version that rejoined has a `rejoined` line after the halts before it, and one
+    rescued a `rescued <sub-task> · <sha>` or `diagnosed <file>` line; a skipped
+    request, which names no version, keeps its line as it stands.
+    Why: 0067-rescue design D6.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions"
@@ -3304,6 +3306,9 @@ def report(cwd: Path) -> str:
             lines.append(found.string)
         elif found[2] == "rejoin" and not stage.startswith("still "):
             lines.append(f"{change} · rejoined {stage}")
+        elif found[2] == "rescue":
+            kind, _, rest = stage.partition(" · ")
+            lines.append(f"{change} · {'rescued' if kind == 'fixed' else kind} {rest}")
     lines.append(closing)
     return "\n".join(lines)
 

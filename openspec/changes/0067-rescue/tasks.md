@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The halt file
 - [x] 2 — The skill
 - [x] 3 — The conductor
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The halt file
 
@@ -37,6 +37,6 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The record
 
-- [ ] 4.1 Add the rescue lines to `report`; `mf-rescue` to `AGENTS.md`'s skills list and `skills/mf-ship/SKILL.md`'s halt table;
+- [x] 4.1 Add the rescue lines to `report`; `mf-rescue` to `AGENTS.md`'s skills list and `skills/mf-ship/SKILL.md`'s halt table;
   amend D47 and add D53 in `docs/decisions.md`; name the class in `THREAT_MODEL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'D53' docs/decisions.md` prints a line, and `grep -n 'mf-rescue' AGENTS.md` prints a line.

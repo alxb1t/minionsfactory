@@ -17,7 +17,7 @@ preconditions ─▶ status ─▶ every open version at a halt stage or waiting
                   probe worker ─▶ check probe
                     │
   each version, in parallel: wait for its after: ─▶ build ─▶ converge
-      a halt stops only its version, and blocks what names it; a crash stops the run
+      a halt gets its rescue, then stops only its version, and blocks what names it; a crash stops the run
                     │  ready, one at a time
   integrate ─▶ converge (catch-up) ─▶ release, by its stage
                     │  every thread joined, no rejoin request left
@@ -83,6 +83,7 @@ Run `status` and paste its output.
 | `conduct: halt — the repo's git config …` | report it in full, then stop: a person moves the key or removes it, or repoints `origin`; a key holding LFS's own value stays, and that repo releases by hand, since a run cannot upload its objects. When it says `origin` left the URLs a run kept, no re-run clears it: a person reads `git remote -v`, then repoints `origin`, or removes the file the halt names to keep the new URLs |
 | `conduct: halt — git names a repo outside this folder …` | report it in full, then stop: a worker may have redirected git, and a person removes the `commondir` file in `.git`, or restores `.git` |
 | `conduct: halt — cannot read origin, and no offline base …`, in `report` | report it in full, then stop: `origin` is down and no offline base stands, so a person runs `uv run --script <this package>/scripts/conduct.py anchor` outside a sandbox, checks the sha it prints, runs it again with `--yes <sha>`, then re-runs |
+| `<change-id> · diagnosed .minions/rescue/<change-id>.md`, in `report` | report it in full, with that file: the halt's `mf-rescue` found it needs the person, and its proposal says what to decide or run before a re-run. A `<change-id> · rescued <sub-task> · <sha>` line is an amend the run took and went on past |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

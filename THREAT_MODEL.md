@@ -48,6 +48,7 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   again, which it already trusts, and the models file of a version cut since its start — the class *Out of scope* accepts.
   A version the run's plan holds stays out while its models file differs, so a version halted on a models change does not
   rejoin on the new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it.
+  It reads and empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either.
 
 ## Out of scope
 
@@ -56,7 +57,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
   this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with
   credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a new
-  class blocks, anchors included.
+  class blocks, anchors included. A rescue writing the plan the build is then judged by is in this class
+  ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
+  only when it touches the change's `tasks.md` and `design.md` alone, and converge reviews the whole change after it.
 
 ## Known gaps
 

@@ -1211,7 +1211,10 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
 
 
 def test_a_rescue_fixes_a_plan_halt_in_its_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     calls = fake("halt-0001-todo", "rescue-fix")
@@ -1245,11 +1248,19 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
         for line in lines
     )
     assert lines[-1].endswith(" · run · done — released v0.1.0")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
+    assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
 
 
 @pytest.mark.slow
 def test_a_rescue_diagnoses_a_decision_halt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     calls = fake("halt-0001-todo", "rescue-diagnose")
@@ -1272,6 +1283,11 @@ def test_a_rescue_diagnoses_a_decision_halt(
         line.endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
         for line in lines
     )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    first, second = (line for line in lines if " · 0001-todo · halt — " in line)
+    assert said[-4:] == [first, f"0001-todo · diagnosed {diagnosis}", second, lines[-1]]
 
     # The diagnosis an earlier rescue left is not this one's.
     calls.unlink()

@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RESCUES = 3` a version a run, one per sub-task; `[rescue]` in the models file, else `[build]`, and `skip = true`
   turns it off. The rejoin and grants folders are read and emptied through a directory descriptor, so a link swapped
   in deletes nothing (change `0067-rescue`, phase 3).
+- `conduct.py report` prints `<id> · rescued <sub-task> · <sha>` and `<id> · diagnosed <file>` after a version's halts.
+  D53 records the rescue, D47 makes it a halt's first step, the threat model names it in the accepted class, and
+  `AGENTS.md`, `README.md` and `mf-ship`'s halt table name `mf-rescue` (change `0067-rescue`, phase 4).
 
 ## [0.54.0] - 2026-11-05
 
