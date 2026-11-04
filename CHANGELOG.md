@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A started version whose base `main` passed changing its gate gets `main` merged in, conflicts in `CHANGELOG.md`
   and `docs/decisions.md` settled by `integrate.py`'s rules, so a sibling's release no longer halts it; any other
   conflict aborts the merge and halts, naming the paths and the merge to run (change `0063-rejoin`, phase 4).
+- `mf-ship` sends `conduct.py rejoin` when a run is live and names `rejoin` and `grant`'s refusals in its table; D47
+  records the rejoin mailbox and the mid-run probe, and `THREAT_MODEL.md` lists `.minions/runs/rejoin/` as an entry
+  point (change `0063-rejoin`, phase 5).
 
 ## [0.51.0] - 2026-11-04
 

@@ -40,6 +40,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/`.
+- Rejoin requests, `.minions/runs/rejoin/`: a worker can write one, and the live run then reads a version's stage from disk
+  again, which it already trusts — the class *Out of scope* accepts.
 
 ## Out of scope
 

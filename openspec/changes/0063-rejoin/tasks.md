@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — The request
 - [x] 3 — Grant
 - [x] 4 — The base
-- [ ] 5 — The docs
+- [x] 5 — The docs
 
 ## 1 — The stale halt
 
@@ -51,9 +51,9 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The docs
 
-- [ ] 5.1 Add `rejoin [<change-id>]` to the command table, `run · live`'s request to Step 2, and the `grant` row's refusal to
+- [x] 5.1 Add `rejoin [<change-id>]` to the command table, `run · live`'s request to Step 2, and the `grant` row's refusal to
   `skills/mf-ship/SKILL.md`, per [D1](design.md#d1) and [D5](design.md#d5).
   Verify: `grep -n 'conduct.py rejoin\|rejoin \[<change-id>\]' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 5.2 Amend D47 in `docs/decisions.md`: a live run takes a rejoin request, a mailbox that holds no state; add
+- [x] 5.2 Amend D47 in `docs/decisions.md`: a live run takes a rejoin request, a mailbox that holds no state; add
   `.minions/runs/rejoin/` to `THREAT_MODEL.md`'s *Entry points*, per the design's *Risks*.
   Verify: `grep -n 'rejoin' docs/decisions.md` prints a line, and `grep -n 'runs/rejoin' THREAT_MODEL.md` prints a line.

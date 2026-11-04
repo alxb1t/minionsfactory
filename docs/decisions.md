@@ -446,14 +446,17 @@ its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `int
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
-`after:`, a failed probe halts the run, and a re-run resumes from
+`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A live run takes a rejoin
+request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back each requested version whose stage on disk is
+no longer a halt, a version cut since its start included. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person.**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
-- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, and a
+- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, at the
+  start or before a joining version's first worker on it, and a
   worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
 - **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;
