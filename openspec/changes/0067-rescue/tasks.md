@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The halt file
 - [x] 2 — The skill
-- [ ] 3 — The conductor
+- [x] 3 — The conductor
 - [ ] 4 — The record
 
 ## 1 — The halt file
@@ -23,15 +23,15 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The conductor
 
-- [ ] 3.1 Add `Run.rescue`, `PROMPTS["rescue"]`, `RESCUES`, `self.rescues`, the path check and `rescue` in `EVENTS`, called where
+- [x] 3.1 Add `Run.rescue`, `PROMPTS["rescue"]`, `RESCUES`, `self.rescues`, the path check and `rescue` in `EVENTS`, called where
   [D3](design.md#d3) names; add the `rescue-fix`, `rescue-diagnose` and `rescue-wild` modes to `tests/fake_worker.py` and
   `test_a_rescue_fixes_a_plan_halt_in_its_run`, `test_a_rescue_diagnoses_a_decision_halt`, `test_a_rescue_outside_the_plan_halts`
   and `test_a_sub_task_is_rescued_once`, per [D3](design.md#d3) and [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue` reports `4 passed`.
-- [ ] 3.2 Read `[rescue]` with the build's table as its fallback and `skip = true`, in `_table`, `_models` and `read_plan`; add
+- [x] 3.2 Read `[rescue]` with the build's table as its fallback and `skip = true`, in `_table`, `_models` and `read_plan`; add
   `test_rescue_skip_runs_none`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue_skip_runs_none` reports `1 passed`.
-- [ ] 3.3 Read and empty the rejoin and grants folders by directory descriptor; add `test_a_linked_rejoin_folder_deletes_nothing`,
+- [x] 3.3 Read and empty the rejoin and grants folders by directory descriptor; add `test_a_linked_rejoin_folder_deletes_nothing`,
   per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k linked_rejoin_folder_deletes_nothing` reports `1 passed`.
 

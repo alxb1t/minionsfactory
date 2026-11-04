@@ -30,6 +30,7 @@ import runpy
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -62,6 +63,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
+    "rescue",
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -69,6 +71,12 @@ AMENDED = "amended: HEAD past the halted head"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
+# The rescue is no stage: it runs in a halted version's thread, and its models are
+# planned with the stations'. Why: 0067-rescue design D3, D5.
+PLANNED = (*STATIONS, "rescue")
+RESCUED = ("converge-halted", "integrating")
+RESCUES = 3
+AMENDS = ("tasks.md", "design.md")
 ROLES = ("review", "security")
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
@@ -129,6 +137,7 @@ PROMPTS = {
     "converge": "Run the mf-converge skill for change {change}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
+    "rescue": "Run the mf-rescue skill for change {change}.",
 }
 SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
@@ -1633,17 +1642,17 @@ class RunLog:
             self.lock.rmdir()
 
 
-def _table(runs: Path, change: str, name: str) -> dict[str, object]:
-    """Return a table of the cut's models file; no file or no table is empty."""
+def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
+    """Return a table of the cut's models file; None with no file or no such table."""
     path = runs / "models" / f"{change}.toml"
     if not path.is_file():
-        return {}
+        return None
     try:
         data = tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as error:
         raise Stop(1, f"conduct: halt — models/{path.name}: {error}") from None
     table = data.get(name)
-    return table if isinstance(table, dict) else {}
+    return table if isinstance(table, dict) else None
 
 
 def _models(
@@ -1651,10 +1660,13 @@ def _models(
 ) -> tuple[str, str | None, str | None]:
     """Return the station's executor, model and effort from the cut's models file.
 
-    Integrate uses the `[release]` table. An absent executor is the run's, `run`;
-    an absent model or effort is None. A table no executor can run halts the version.
+    Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
+    An absent executor is the run's, `run`; an absent model or effort is None. A
+    table no executor can run halts the version. Why: 0067-rescue design D5.
     """
-    table = _table(runs, change, "release" if station == "integrate" else station)
+    names = {"integrate": ("release",), "rescue": ("rescue", "build")}
+    tables = (_table(runs, change, name) for name in names.get(station, (station,)))
+    table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
     model = model if isinstance(model, str) else None
@@ -1664,6 +1676,77 @@ def _models(
     if executor == "codex" and (model or "").startswith("claude"):
         raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
     return str(executor), model, effort if isinstance(effort, str) else None
+
+
+def _skips_rescue(runs: Path, change: str) -> bool:
+    """Return whether the cut's models file says `[rescue] skip = true`."""
+    table = _table(runs, change, "rescue")
+    return table is not None and table.get("skip") is True
+
+
+def _amend(
+    tree: Path, change: str, before: str, amends: tuple[str, ...]
+) -> tuple[str | None, str]:
+    """Return the rescue's amend past `before`, or None and why it is none.
+
+    An amend is one commit, its subject the amend's, with a `Rescue:` trailer,
+    touching the change's `amends` files alone; with no `amends` there is none. No
+    commit is (None, ""). Why: 0067-rescue design D3.
+    """
+    if not _ancestor(tree, before, "HEAD"):
+        return None, f"rescue moved HEAD off {before[:7]}"
+    commits = _git(tree, "rev-list", f"{before}..HEAD").split()
+    allowed = {f"openspec/changes/{change}/{name}" for name in amends}
+    listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
+    paths = {path for sha in commits for path in _git(tree, *listed, sha).splitlines()}
+    if touched := sorted(paths - allowed):
+        return None, f"rescue touched {' '.join(touched)}"
+    if not commits:
+        return None, ""
+    sha = commits[0]
+    trailer = _git(tree, "log", "-1", "--format=%(trailers:key=Rescue)", sha)
+    named = _subject(tree, sha) == f"docs({change}): amend the change directory"
+    if len(commits) > 1 or not amends or not named or not trailer.strip():
+        return None, f"rescue commit {sha[:7]} is not one amend with a Rescue: trailer"
+    return sha, ""
+
+
+def _mtime(path: Path) -> int | None:
+    """Return a regular file's modification time in nanoseconds, else None."""
+    try:
+        status = path.lstat()
+    except OSError:
+        return None
+    return status.st_mtime_ns if stat.S_ISREG(status.st_mode) else None
+
+
+def _entries(folder: Path, empty: bool) -> list[str]:
+    """Return the names in `folder`, deleting each when `empty`; none through a link.
+
+    The folder is opened once, following no link, and read and emptied through that
+    descriptor, so a link swapped in after the listing deletes nothing. An entry
+    `unlink` refuses, a folder say, is left and not named. Why: 0067-rescue design D7.
+    """
+    try:
+        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return []
+    try:
+        names = sorted(os.listdir(fd))
+        if not empty:
+            return names
+        deleted = []
+        for name in names:
+            try:
+                os.unlink(name, dir_fd=fd)
+            except OSError:
+                continue
+            deleted.append(name)
+        return deleted
+    except OSError:
+        return []
+    finally:
+        os.close(fd)
 
 
 def reach(primary: Path) -> list[Path]:
@@ -2120,6 +2203,8 @@ class Run:
         self.planned: set[str] = set()
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
+        self.rescues: dict[str, list[str]] = {}
+        self.skips: set[str] = set()
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2218,13 +2303,76 @@ class Run:
         self.halt(who, f"{stage} check fail — {reason}{named}")
         return False
 
+    def rescued(self, change: str, held: str) -> str:
+        """Return ` · rescued <sub-tasks>` when a halt on `held` gets no rescue.
+
+        Else "". Why: 0067-rescue design D4.
+        """
+        with self.guard:
+            done = self.rescues.get(change, [])
+        if held in done or len(done) >= RESCUES:
+            return f" · rescued {' '.join(done)}"
+        return ""
+
+    def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
+        """Run a halted version's rescue on `held`; True when its amend cleared it.
+
+        The amend may touch the change's `amends` files alone: none at a converge or
+        integrate halt, which a rescue diagnoses. Any other outcome halts the version
+        again, naming what the rescue left. A halted run, a skip or a spent rescue
+        starts none. Why: 0067-rescue design D2, D3.
+        """
+        change, tree = version.change, version.tree
+        spent = change in self.skips or self.rescued(change, held)
+        if tree is None or spent or self.stopped("run"):
+            return False
+        with self.guard:
+            self.rescues.setdefault(change, []).append(held)
+        models = self.planned_models(change, "rescue")
+        before = _git(tree, "rev-parse", "HEAD").strip()
+        diagnosis = self.primary / ".minions" / "rescue" / f"{change}.md"
+        written = _mtime(diagnosis)
+        prompt = PROMPTS["rescue"].format(change=change)
+        if self.spawn(change, "rescue", tree, prompt, models) is None:
+            return False
+        sha, why = _amend(tree, change, before, amends)
+        if sha is not None:
+            self.log.event("run", "rescue", f"{change}: fixed · {held} · {sha[:7]}")
+            with self.guard:
+                self.halts = [halt for halt in self.halts if halt[0] != change]
+            return True
+        name = f".minions/rescue/{change}.md"
+        if not why and _mtime(diagnosis) not in (None, written):
+            self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+            why = f"rescue diagnosed — {name}"
+        self.halt(change, why or "rescue wrote no amend and no diagnosis")
+        return False
+
+    def planned_models(
+        self, change: str, station: str
+    ) -> tuple[str, str | None, str | None]:
+        """Return a station's models as the run planned them; a change halts."""
+        models = _models(self.primary / ".minions", change, station, self.executor)
+        if models != self.plan.get((change, station)):
+            raise Stop(
+                1, f"conduct: halt — models/{change}.toml changed during the run"
+            )
+        return models
+
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
-        """Run the version's stations to a stage in `stop_at`, a release or a halt."""
+        """Run the version's stations to a stage in `stop_at`, a release or a halt.
+
+        A build check, converge or integrate halt gets its rescue first.
+        """
         try:
             while not self.stopped(version.change):
                 stage, why = stage_of(self.primary, version)
                 if stage in STUCK:
-                    self.halt(version.change, f"{stage} — {why}")
+                    rescued = stage in RESCUED
+                    spent = self.rescued(version.change, stage) if rescued else ""
+                    self.halt(version.change, f"{stage} — {why}{spent}")
+                    if rescued:
+                        self.rescue(version, stage, ())
                     return
                 if stage in stop_at:
                     return
@@ -2250,13 +2398,7 @@ class Run:
                             f"{version.change}: one more round past the cap",
                         )
                 prompt = PROMPTS[stage].format(change=version.change, grant=clause)
-                models = _models(minions, version.change, stage, self.executor)
-                if models != self.plan.get((version.change, stage)):
-                    raise Stop(
-                        1,
-                        f"conduct: halt — models/{version.change}.toml changed during"
-                        " the run",
-                    )
+                models = self.planned_models(version.change, stage)
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
@@ -2272,7 +2414,14 @@ class Run:
                     self.waited(str(down))
                     self.offline = True
                     reason = check(self.primary, stage, version, True, True)
+                held = stage
+                if stage == "build" and reason is not None:
+                    found = _build_halt(minions, cwd, version.change)
+                    held = found[0] if found else stage
+                    reason += self.rescued(version.change, held)
                 if not self.judge(version.change, stage, reason, denied):
+                    if stage == "build" and self.rescue(version, held, AMENDS):
+                        continue
                     return
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
@@ -2428,7 +2577,7 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block."""
         try:
-            for station in STATIONS:
+            for station in PLANNED:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
@@ -2448,12 +2597,21 @@ class Run:
         """Read each station's models, once per version: at the start, or as it joins.
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. Why: 0052-security-hardening design D4.
+        halts in `take`. The rescue's skip is read with them.
+        Why: 0052-security-hardening design D4; 0067-rescue design D5.
         """
-        for version, station in itertools.product(versions, STATIONS):
+        for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
             if (models := self.models(version.change, station)) is not None:
                 self.plan[version.change, station] = models
+        for version in versions:
+            try:
+                skips = _skips_rescue(self.primary / ".minions", version.change)
+            except (Stop, ValueError):
+                continue
+            if skips:
+                with self.guard:
+                    self.skips.add(version.change)
 
     def models(
         self, change: str, station: str
@@ -2514,7 +2672,7 @@ class Run:
             return False
         if change in self.planned and any(
             self.models(change, station) != self.plan.get((change, station))
-            for station in STATIONS
+            for station in PLANNED
         ):
             moved = f"models/{change}.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
@@ -2523,7 +2681,7 @@ class Run:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
         self.read_plan([version])
-        named = (self.plan.get((change, station)) for station in STATIONS)
+        named = (self.plan.get((change, station)) for station in PLANNED)
         for executor in dict.fromkeys(models[0] for models in named if models):
             if executor in self.probed or self.stopped(change):
                 continue
@@ -2697,10 +2855,8 @@ class Run:
         self.push_left(RETRIES)
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
-        folder = self.primary / ".minions" / "grants"
         # A worker may link the folder elsewhere: a link lists nothing.
-        listed = folder.is_dir() and not folder.is_symlink()
-        standing = sorted(file.name for file in folder.iterdir()) if listed else []
+        standing = _entries(self.primary / ".minions" / "grants", empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
         self.log.event(
             "run",
@@ -2853,20 +3009,7 @@ def _requests(runs: Path) -> set[str]:
     Why: 0063-rejoin design D2.
     e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
     """
-    folder = runs / "rejoin"
-    names = set()
-    try:
-        listed = folder.is_dir() and not folder.is_symlink()
-        entries = list(folder.iterdir()) if listed else []
-    except OSError:
-        return names
-    for request in entries:
-        try:
-            request.unlink(missing_ok=True)
-        except OSError:
-            continue
-        names.add(request.name)
-    return names
+    return set(_entries(runs / "rejoin", empty=True))
 
 
 def rejoin(cwd: Path, change: str | None) -> str:
