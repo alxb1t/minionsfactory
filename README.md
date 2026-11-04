@@ -28,7 +28,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-simplify`](skills/mf-simplify/SKILL.md) | simplify a built change's own lines, gated per angle, before review |
 | [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
-| [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules, when its base moved |
+| [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules and the union of what both sides only add, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 | [`mf-ship`](skills/mf-ship/SKILL.md) | take every cut version to the default branch unattended — build, converge, integrate, release |
 | [`mf-review-metrics`](skills/mf-review-metrics/SKILL.md) | draw one page of review metrics across repos — per model — from past findings; an operator tool |

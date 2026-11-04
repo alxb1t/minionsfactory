@@ -551,7 +551,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake("slow-0001-todo")
+    calls = fake("slow-0001-todo", "by-rule")
     root = _primary(tmp_path)
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
@@ -576,6 +576,10 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert "chore(integrate): merge main into 0001-todo" in _git(
         root, "log", "--format=%s", "main"
     )
+    # The catch-up over the integrate merge replays by rule, with no worker.
+    findings = root / ".minions" / "findings"
+    assert "\n## By rule\n" in (findings / "0001-todo_review.md").read_text()
+    assert " · by rule — clean, " in (findings / "0001-todo_status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
@@ -588,8 +592,9 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
     assert report[0].startswith("0001-todo · v0.2.0 · merge ")
+    # The by-rule catch-up is the merges-only count's round: one past the judged one.
     assert report[0].endswith(
-        " · no origin · round 1 · cards none · denied none · metrics: none"
+        " · no origin · round 2 · cards none · denied none · metrics: none"
     )
     assert report[-1] == lines[-1]
     for change in ("0001-todo", "0002-marks"):

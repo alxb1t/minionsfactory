@@ -290,6 +290,16 @@ def _integer(text: str | None) -> int | None:
     return int(text) if text and text.isdecimal() else None
 
 
+def _workers(front: dict[str, str]) -> int | None:
+    """Return a file's workers; a by-rule catch-up's `0` is a gap.
+
+    Why: by rule overwrites the judged round's count and keeps its `model:`.
+    """
+    if front.get("mode") == "by-rule":
+        return None
+    return _integer(front.get("workers"))
+
+
 def _packet(text: str | None) -> tuple[int | None, int | None]:
     """Return the entries included and skipped.
 
@@ -350,7 +360,7 @@ def read_change(repo: Path, change: str) -> Record:
         "reviewed": _first(fronts, "reviewed"),
         "model": _first(fronts, "model"),
         "mode": _first(fronts, "mode"),
-        "workers": _total(_integer(front.get("workers")) for front in fronts),
+        "workers": _total(_workers(front) for front in fronts),
         "packet_included": included,
         "packet_skipped": skipped,
         "rounds": _integer(_first(fronts, "round")),

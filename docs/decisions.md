@@ -428,15 +428,17 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 ### D45 · One station merges the default branch into the next version
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
-applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, naming it in the
-merge commit, hands a semantic conflict to the person with the merge open, gates, and commits the merge; converge's
-catch-up judges the merge by its remerge-diff. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
+applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, hands a semantic
+conflict to the person with the merge open, gates, and commits the merge, its body naming every path it settled: a rule,
+the union, the person, a test fixed. Converge's catch-up judges the merge by its remerge-diff, unless
+`integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
 its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules and halts on any other, runs
 `integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
-  read, and what the merge decided is exactly what review must see.
+  read, and what the merge decided is exactly what review must see. A merge the rules rebuild decided nothing, and
+  replay recomputes it rather than trusting the commit body.
 - **Rejected:** `merge=union` — it drops a blank line and hides the result from the remerge-diff · rebasing a judged
   branch · resolving silently against either design.
 
