@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The fake worker and the fake `ps` start under `python -S`, so coverage's `.pth` no longer starts in them; their own
   children still inherit coverage (change `0075-test-speed`, phase 1).
 - The tests that repeat another's assertions go, each mapped to the test that carries it: the forged release's ref and
-  hand-release cases, `test_a_good_read_keeps_the_offline_base`, most of the include-topology grid,
-  `test_mf_integrate_runs_its_script` and `test_the_release_gates_its_fold_fresh`;
+  hand-release cases, `test_a_good_read_keeps_the_offline_base`, most of the include-topology grid and
+  `test_mf_integrate_runs_its_script`; `test_the_release_gates_its_fold_fresh`, a phrase scan, is retired by D42;
   `test_a_version_cut_during_a_run_joins` merges into `test_a_new_executor_is_probed_mid_run` (change
   `0075-test-speed`, phase 2).
 - `test_a_forged_release_is_not_pushed`, `test_after_waits_for_its_dependency`, `test_a_rerun_recovers_a_dead_release`
