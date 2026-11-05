@@ -4373,6 +4373,72 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
     assert _git(root, "tag", "-l") == "v0.1.0"
 
+    # The person's amends answer a clean catch-up halt, a verify halt and an
+    # `amend needed` halt; any other commit past the halt does not.
+    # Why: 0071-ship-fixes design D5, D6.
+    (tmp_path / "caught").mkdir()
+    base = _primary(tmp_path / "caught")
+    cut = _version(base, "0001-todo", "- [x] 1 — Todo\n")
+    _done(base, "0001-todo", _git(cut, "rev-parse", "HEAD"))
+    _findings(base, "0001-todo", _git(cut, "rev-parse", "HEAD"))
+    _commit(base, {"README.md": "x\n"}, "main moves")
+    message = "chore(integrate): merge main into 0001-todo"
+    _git(cut, "merge", "-q", "--no-ff", "-m", message, "main")
+    merged = _git(cut, "rev-parse", "HEAD")
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    design = "openspec/changes/0001-todo/design.md"
+    amend = "docs(0001-todo): amend the change directory"
+    _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
+    amended_head = _git(cut, "rev-parse", "HEAD")
+    log = base / ".minions" / "findings" / "0001-todo_status_log.md"
+    version = conduct["find_version"](base, "0001-todo")
+    halts = {
+        "2 — d · catch-up": "halt — red",
+        "3 — d": "halt — verify: halt — 1.1",
+        "4 — d": "halt — amend needed — R1",
+    }
+    for run, why in halts.items():
+        halt = f"10:00:00 · round 1 · {why} · head {merged}"
+        log.write_text(f"# t\n\n## Run {run}\n{halt}\n")
+        assert stage_of(base, version) == amended
+        for files, message in (
+            ({"src.txt": "x\n"}, "a person's commit past the halt"),
+            ({design: "x\n", "src.txt": "x\n"}, amend),
+        ):
+            _commit(cut, files, message)
+            assert stage_of(base, version) == ("converge-halted", halt)
+            _git(cut, "reset", "-q", "--hard", amended_head)
+        _git(cut, "switch", "-q", "-c", "side", "HEAD~1")
+        _commit(cut, {design: "side\n"}, amend)
+        _git(cut, "switch", "-q", "0001-todo")
+        _git(cut, "merge", "-q", "--no-ff", "-X", "theirs", "-m", amend, "side")
+        assert stage_of(base, version) == ("converge-halted", halt)
+        _git(cut, "reset", "-q", "--hard", amended_head)
+        _git(cut, "branch", "-q", "-D", "side")
+        _git(cut, "reset", "-q", "--soft", "HEAD~2")
+        _git(cut, "commit", "-q", "-m", amend)
+        assert stage_of(base, version) == ("converge-halted", halt)
+        _git(cut, "reset", "-q", "--hard", amended_head)
+    # A catch-up halt over a findings file no longer clean is converge's own.
+    review = base / ".minions" / "findings" / "0001-todo_review.md"
+    clean = review.read_text()
+    review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
+    halt = f"10:00:00 · round 1 · halt — red · head {merged}"
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n")
+    assert stage_of(base, version) == ("converge-halted", halt)
+    review.write_text(clean)
+    assert stage_of(base, version) == amended
+
+    calls = fake("by-rule")
+    calls.unlink()
+    assert (
+        _main(conduct, base, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert f"- {amended_head} — the person's amend" in review.read_text()
+    assert _git(base, "tag", "-l") == "v0.1.0"
+
 
 def test_a_missing_skill_stops_a_run(
     tmp_path: Path,

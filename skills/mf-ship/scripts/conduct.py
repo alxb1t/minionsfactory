@@ -493,16 +493,23 @@ def _run_end(runs: Path, change: str) -> str | None:
     return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
 
 
-def _granted_run(runs: Path, change: str) -> bool:
-    """Return whether the newest converge run is a granted round, marked `· grant`.
+def _run_marked(runs: Path, change: str, mark: str) -> bool:
+    """Return whether the newest converge run's heading ends ` · <mark>`.
 
-    Why: 0070-cap-policy design D2.
-    e.g. "## Run 4 — 2026-11-05 10:04 · grant" → True
+    e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
     log = runs / "findings" / f"{change}_status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next((line for line in lines if line.startswith("## Run")), "")
-    return heading.rstrip().endswith(" · grant")
+    return heading.rstrip().endswith(f" · {mark}")
+
+
+def _granted_run(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run is a granted round, marked `· grant`.
+
+    Why: 0070-cap-policy design D2.
+    """
+    return _run_marked(runs, change, "grant")
 
 
 def _closed(runs: Path, tree: Path, change: str) -> bool:
@@ -577,13 +584,56 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     return end if end and _is_event(end, "halt") else None
 
 
+def _amendable(runs: Path, change: str, halt: str) -> bool:
+    """Return whether the person's amend answers a converge halt of this kind.
+
+    The kinds: a halt in a catch-up run with both findings files still clean, a
+    `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5.
+    """
+    if "verify: halt" in halt or "amend needed" in halt:
+        return True
+    if not _run_marked(runs, change, "catch-up"):
+        return False
+    files = (runs / "findings" / f"{change}_{role}.md" for role in ROLES)
+    return all(
+        file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
+        for file in files
+    )
+
+
+def _amended_only(tree: Path, change: str, halted: str) -> bool:
+    """Return whether only the person's amends of the change directory follow `halted`.
+
+    `halted` is an ancestor of `HEAD` and not it, and each commit past it has one
+    parent, the amend's subject, and paths under `openspec/changes/<change>/` alone.
+    Why: 0071-ship-fixes design D5.
+    """
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    if halted == head or not _ancestor(tree, halted, "HEAD"):
+        return False
+    folder = f"openspec/changes/{change}/"
+    subject = f"docs({change}): amend the change directory"
+    listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
+    for line in _git(tree, "rev-list", "--parents", f"{halted}..HEAD").splitlines():
+        sha, *parents = line.split()
+        paths = _git(tree, *listed, sha).split()
+        if (
+            len(parents) != 1
+            or _subject(tree, sha) != subject
+            or not all(path.startswith(folder) for path in paths)
+        ):
+            return False
+    return True
+
+
 def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     """Return whether a person's commit answered a converge halt.
 
     The halt names the head it stopped at, both findings files judged that head,
     and `HEAD` descends from it and is not it. A halt past the judged head — after
     converge's own fix, or in a catch-up run — names no head the files judged, and a
-    rewritten history leaves no descendant. Why: 0063-rejoin design D4.
+    rewritten history leaves no descendant. A halt the person's amend answers is
+    answered by amends alone past its head. Why: 0071-ship-fixes design D5.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -595,6 +645,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     halted = halted.strip()
     if halted == _git(tree, "rev-parse", "HEAD").strip():
         return False
+    if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
+        return True
     for role in ROLES:
         file = runs / "findings" / f"{change}_{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None

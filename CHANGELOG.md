@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A version blocked by a dependency comes back when that dependency's thread starts again, so a rejoin of the
   dependency alone brings its chain; a rejoin re-reads only an unplanned version's models, and a `merge_in` commit no
   longer marks a cut-only version started (change `0071-ship-fixes`, phase 3).
+- The person's `docs(<id>): amend the change directory` commits answer a clean catch-up halt, a `verify: halt` and an
+  `amend needed` halt, so the run takes the version back with no worker; a catch-up over merges and amends has its
+  own count and passes by rule (change `0071-ship-fixes`, phase 4).
 
 ## [0.59.0] - 2026-11-05
 

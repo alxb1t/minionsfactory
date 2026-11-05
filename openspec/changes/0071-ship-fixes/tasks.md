@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — Integrate commits, then gates
 - [x] 2 — The changelog renumber
 - [x] 3 — Dependents come back
-- [ ] 4 — An amend answers a halt
+- [x] 4 — An amend answers a halt
 - [ ] 5 — The fixer and rescue
 
 ## 1 — Integrate commits, then gates
@@ -44,11 +44,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — An amend answers a halt
 
-- [ ] 4.1 Add `_amended_only` to `skills/mf-ship/scripts/conduct.py` and call it from `_answered`, per [D5](design.md#d5); let
+- [x] 4.1 Add `_amended_only` to `skills/mf-ship/scripts/conduct.py` and call it from `_answered`, per [D5](design.md#d5); let
   `tests/fake_worker.py`'s by-rule mimic take merges and amends, per [D6](design.md#d6); extend
   `test_a_fix_after_a_cap_halt_converges_afresh` with the halts the design's `## Tests` names, each answered by the person's amend.
   Verify: `uv run pytest -q tests/test_conduct.py -k fix_after_a_cap_halt_converges_afresh` reports `1 passed`.
-- [ ] 4.2 State the answer rule at `skills/mf-converge/SKILL.md`'s void-halt paragraph, per [D5](design.md#d5), and **merges and
+- [x] 4.2 State the answer rule at `skills/mf-converge/SKILL.md`'s void-halt paragraph, per [D5](design.md#d5), and **merges and
   amends** in its catch-up diagram, cap item, By rule and `docs/principles.md`'s catch-up line, per [D6](design.md#d6).
   Verify: `grep -n 'Merges and amends' skills/mf-converge/SKILL.md` prints a line.
 

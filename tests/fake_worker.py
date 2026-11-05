@@ -88,10 +88,21 @@ def _done(root: Path, change: str, head: str) -> None:
     (folder / f"{change}.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
-def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
-    """Return each merge's `replay` line when a catch-up selects merges that all replay.
+def _person_amends(tree: Path, change: str, sha: str) -> bool:
+    """Return whether `sha` is the person's amend of the change directory."""
+    subject = _git(tree, "log", "-1", "--format=%s", sha)
+    listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only", sha)
+    folder = f"openspec/changes/{change}/"
+    return subject == f"docs({change}): amend the change directory" and all(
+        path.startswith(folder) for path in _git(tree, *listed).split()
+    )
 
-    None when no catch-up applies, the selection holds another commit, or one exits 1.
+
+def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
+    """Return a line per commit when a catch-up selects merges that replay and amends.
+
+    A merge's line is its `replay` line; an amend's names the person's amend. None
+    when no catch-up applies, the selection holds another commit, or one exits 1.
     """
     review = findings / f"{change}_review.md"
     text = review.read_text() if review.is_file() else ""
@@ -102,20 +113,25 @@ def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
     span = f"{found[1]}..HEAD"
     selected = _git(tree, "rev-list", "--first-parent", span).split()
     merges = _git(tree, "rev-list", "--first-parent", "--merges", span).split()
-    if not merges or selected != merges:
+    if not selected or not all(
+        sha in merges or _person_amends(tree, change, sha) for sha in selected
+    ):
         return None
     script = Path(__file__).resolve().parent.parent / "skills" / "mf-integrate"
     lines = []
-    for merge in merges:
+    for sha in selected:
+        if sha not in merges:
+            lines.append(f"- {sha} — the person's amend")
+            continue
         done = subprocess.run(
-            [sys.executable, str(script / "scripts" / "integrate.py"), "replay", merge],
+            [sys.executable, str(script / "scripts" / "integrate.py"), "replay", sha],
             cwd=tree,
             capture_output=True,
             text=True,
         )
         if done.returncode != 0:
             return None
-        lines.append(f"- {merge}: {done.stdout.strip().removeprefix('replay: ')}")
+        lines.append(f"- {sha}: {done.stdout.strip().removeprefix('replay: ')}")
     return lines
 
 
