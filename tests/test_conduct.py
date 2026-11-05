@@ -115,7 +115,7 @@ def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     folder = tmp_path / "ps-bin"
     folder.mkdir()
     fake = folder / "ps"
-    fake.write_text(f"#!{sys.executable}{_FAKE_PS}")
+    fake.write_text(f"#!{sys.executable} -S{_FAKE_PS}")
     fake.chmod(0o755)
     registry = tmp_path / "ps-registry"
     registry.mkdir()
@@ -165,7 +165,9 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
     monkeypatch.setenv("HOME", str(home))
 
     def modes(*names: str) -> Path:
-        monkeypatch.setenv("MF_SHIP_AGENT", shlex.join([sys.executable, str(_WORKER)]))
+        monkeypatch.setenv(
+            "MF_SHIP_AGENT", shlex.join([sys.executable, "-S", str(_WORKER)])
+        )
         monkeypatch.setenv("FAKE_CALLS", str(calls))
         monkeypatch.setenv("FAKE_MODE", ",".join(names))
         return calls
@@ -5337,6 +5339,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     calls = fake("deny", "heredoc")
     assert argv("claude", "Do it.", root, None, None, repo) == [
         sys.executable,
+        "-S",
         str(_WORKER),
         f"Do it.\n\n{rules}",
     ]

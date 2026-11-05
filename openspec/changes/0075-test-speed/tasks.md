@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The fakes start bare
+- [x] 1 — The fakes start bare
 - [ ] 2 — The deletions and the merge
 - [ ] 3 — The longest tests split
 - [ ] 4 — The rest split
 
 ## 1 — The fakes start bare
 
-- [ ] 1.1 Start the fake worker and the fake `ps` under `python -S`, and add `"-S"` to the argv assertion, in
+- [x] 1.1 Start the fake worker and the fake `ps` under `python -S`, and add `"-S"` to the argv assertion, in
   `tests/test_conduct.py`, per [D1](design.md#d1).
   Verify: `grep -n 'sys.executable, "-S"' tests/test_conduct.py` prints a line, `grep -n 'sys.executable} -S' tests/test_conduct.py`
   prints a line, and `uv run pytest -q tests/test_conduct.py -k "probe_halts_on_a_write_out or a_ready_version_ships_past_a_slow_one or worker_carries_the_allowlist"` reports `3 passed`.

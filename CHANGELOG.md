@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The fake worker and the fake `ps` start under `python -S`, so coverage's `.pth` no longer starts in them; their own
+  children still inherit coverage (change `0075-test-speed`, phase 1).
+
 ## [0.61.0] - 2026-11-05
 
 Gate: local 2m32s · CI not read under mf-ship · 0.60.0: local 2m32s · CI not read under mf-ship
