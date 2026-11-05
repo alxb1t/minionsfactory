@@ -75,8 +75,9 @@ SHALL be its last result event's cumulative `total_cost_usd` and `modelUsage`, i
 a station with no log and a log with no result event SHALL be a gap, and a station the run log shows spawned more times than
 the logs read SHALL be marked `<read> of <spawns>`. The status log's tokens SHALL be read per role, in every form a `verdicts` line
 holds; a line naming both roles SHALL be recorded under the role `both`, credited to neither. A Codex worker's tokens SHALL be read from its session — the
-last `token_count` event's totals, its model and effort from `turn_context` — matched to its round by the repo's origin URL, or
-its worktree, and the round's freeze-to-verdicts window, the guardian sessions left out. It SHALL write `review-metrics.json`
+last `token_count` event's totals, its model and effort from `turn_context` — matched to its round by its parent's `cwd` — the change's worktree, or the primary
+when no other version's round overlaps — and the round's freeze-to-verdicts window, the guardian sessions left out, and never
+into a round its line names `executor claude`. It SHALL write `review-metrics.json`
 beside the page: one record per round and role, with its executor, model, effort, tokens and source, a gap as `null`. It SHALL read no tier, and SHALL count a file's `inconclusive` sections only when the file holds
 `## Refuted`, the review method's mark. It SHALL give numbers, never a recommendation.
 

@@ -120,7 +120,10 @@ with a `thread_spawn` source, its role from `agent_path`'s last segment when it 
 repo's `origin` URL, else the parent's `cwd` among `git worktree list` — run without
 failing on a repo that is no git repo — and the round's window — from the last `freeze` line before the round's `fan-out`, whatever round
 it names (Step 6's re-freeze is logged under the round it closes), to its `verdicts` plus one minute —
-local times to UTC by `zoneinfo`; every session in a window summed. `main` writes `out.with_name("review-metrics.json")` through `_write`:
+local times to UTC by `zoneinfo`; every session in a window summed. A session is the change's only when its parent's `cwd` is
+that change's worktree — its last path part the change id — or, for a session run in the primary, when no other version of the repo
+has a round overlapping the window; any other is no round's. A record whose `verdicts` line names `executor claude` is never filled
+from a session. `main` writes `out.with_name("review-metrics.json")` through `_write`:
 `{"generated", "records": [{repo, change, run, round, role, executor, model, effort, tokens, sessions, source}]}`, `source`
 `status-log` or `codex-session`, a gap `null`. `skills/mf-review-metrics/SKILL.md` names the file.
 
