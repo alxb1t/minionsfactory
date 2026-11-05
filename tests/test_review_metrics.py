@@ -322,6 +322,11 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     )
     noise = ('{"type": "result", cut', {"type": "assistant"}, ["result"])
     _run_log(tmp_path, "A/0050-x_converge.log", *noise, first, last)
+    # A later spawn in the stamp keeps its own log; a station named `converge-x` is
+    # no converge's.
+    one_more = _result(0.5, 2, 2000, m={"inputTokens": 4})
+    _run_log(tmp_path, "A/0050-x_converge-2.log", one_more)
+    _run_log(tmp_path, "A/0050-x_converge-x.log", last)
     _run_log(tmp_path, "A/0050-x_build.log", {"type": "assistant"})
     _run_log(tmp_path, "A/0050-xy_rescue.log", last)
     _run_log(
@@ -329,9 +334,10 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
         "A.md",
         "10:00:00 · 0050-x · spawn — converge · model default",
         "10:05:00 · 0050-x · finish — converge · exit 0 · 300s",
-        "10:06:00 · 0050-x · spawn — converge · model default",
+        "10:06:00 · 0050-x · spawn — converge · model default · effort high",
         "10:07:00 · 0050-xy · spawn — converge · model default",
         "10:08:00 · 0050-x · spawn — converge-x · model default",
+        "10:09:00 · 0050-x · spawn — converge · model default",
     )
     one = _result(0.25, 1, 1000, m=dict.fromkeys(review_metrics.TOKENS, 1))
     _run_log(tmp_path, "B/0050-x_converge.log", one)
@@ -339,9 +345,9 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     _run_log(tmp_path, "B.md", "11:00:00 · 0050-x · spawn — converge · model m")
 
     record = _record(tmp_path, "0050-x")
-    assert (record["cost_converge"], record["turns_converge"]) == (1.5, 15)
-    assert (record["tokens_converge"], record["seconds_converge"]) == (376, 91)
-    assert (record["logs_converge"], record["spawns_converge"]) == (2, 3)
+    assert (record["cost_converge"], record["turns_converge"]) == (2.0, 17)
+    assert (record["tokens_converge"], record["seconds_converge"]) == (380, 93)
+    assert (record["logs_converge"], record["spawns_converge"]) == (3, 4)
     for station in ("build", "release", "integrate", "rescue"):
         assert record[f"cost_{station}"] is None
         assert record[f"tokens_{station}"] is None
@@ -350,7 +356,7 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     headers, rows = review_metrics.cost_table([record])
     assert headers == ["change", *review_metrics.STATIONS]
     assert rows == [
-        ["0050-x", "—", "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3", "—", "—", "—"]
+        ["0050-x", "—", "$2.00 · 17 turns · 380 tokens · 93 s · 3 of 4", "—", "—", "—"]
     ]
 
     bare = tmp_path / "bare"

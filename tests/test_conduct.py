@@ -1924,7 +1924,9 @@ def test_a_station_runs_on_its_executor(
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     minions = root / ".minions"
     (minions / "models").mkdir(parents=True)
-    table = '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\n'
+    table = (
+        '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\neffort = "high"\n'
+    )
     (minions / "models" / "0001-todo.toml").write_text(table)
     started: list[tuple[str, str]] = []
     argv = conduct["argv"]
@@ -1941,7 +1943,7 @@ def test_a_station_runs_on_its_executor(
     assert models(minions, "0001-todo", "integrate", "claude") == (
         "claude",
         "opus",
-        None,
+        "high",
     )
 
     assert (
@@ -1959,7 +1961,8 @@ def test_a_station_runs_on_its_executor(
     ]
     assert "build · model default" in spawned
     assert "converge · model default · executor codex" in spawned
-    assert "release · model opus" in spawned
+    # A models file's effort is in the spawn line; none, and the line reads as before.
+    assert "release · model opus · effort high" in spawned
     assert started == [
         ("probe", "claude"),
         ("probe", "codex"),
@@ -4121,6 +4124,10 @@ def test_a_small_cap_is_granted_automatically(
     )
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
+    # Each converge spawn in the run keeps its own log.
+    stamp = sorted((minions / "runs").glob("*.md"))[-1].with_suffix("")
+    logs = sorted(path.name for path in stamp.glob("0002-marks_converge*.log"))
+    assert logs == ["0002-marks_converge-2.log", "0002-marks_converge.log"]
 
     # The granted round is checked as a person's is: one with no `done` halts there.
     calls.unlink()

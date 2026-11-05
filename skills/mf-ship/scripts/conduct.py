@@ -2111,6 +2111,24 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
     return ["-c", f"projects={{{table}}}"]
 
 
+def _free_log(folder: Path, who: str, station: str) -> Path:
+    """Return the first free of `<who>_<station>.log`, `-2.log`, … in `folder`, made.
+
+    e.g. a converge's second spawn in a stamp → `0001-todo_converge-2.log`.
+    Why: 0077-run-metrics design D2.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    name, n = f"{who}_{station}", 1
+    while True:
+        out = folder / (f"{name}.log" if n == 1 else f"{name}-{n}.log")
+        try:
+            os.close(os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666))
+        except FileExistsError:
+            n += 1
+        else:
+            return out
+
+
 def work(
     command: list[str], cwd: Path, out: Path, claim: Path | None
 ) -> tuple[int, bool]:
@@ -2491,6 +2509,7 @@ class Run:
         self.skips: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
+        self.outs: dict[tuple[str, str], Path] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2558,8 +2577,13 @@ class Run:
             executor, prompt, cwd, model, effort, repo or self.repo, self.lines
         )
         other = f" · executor {executor}" if executor != self.executor else ""
-        self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
-        out = self.runs / self.log.stamp / f"{who}_{station}.log"
+        shown = f" · effort {effort}" if effort else ""
+        self.log.event(
+            who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
+        )
+        out = _free_log(self.runs / self.log.stamp, who, station)
+        with self.guard:
+            self.outs[who, station] = out
         started = time.monotonic()
         code, killed = work(command, cwd, out, self.runs / "active")
         seconds = round(time.monotonic() - started)
@@ -3244,7 +3268,8 @@ class Run:
             models = (executor, None, None)
             repo = _repo(scratch)
             denied = self.spawn(who, station, scratch, PROBE, models, repo)
-            out = self.runs / self.log.stamp / f"{who}_{station}.log"
+            with self.guard:
+                out = self.outs[who, station]
             if denied is not None and self.judge(
                 who,
                 station,

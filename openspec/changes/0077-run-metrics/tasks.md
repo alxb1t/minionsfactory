@@ -4,18 +4,18 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — Converge's record
+- [x] 1 — Converge's record
 - [ ] 2 — The run's time and loop
 - [ ] 3 — The run's cost and review yield
 - [ ] 4 — The review metrics data
 
 ## 1 — Converge's record
 
-- [ ] 1.1 Rewrite the `verdicts` row and example in `skills/mf-converge/SKILL.md`, and add the `**Round**` row and its example line to
+- [x] 1.1 Rewrite the `verdicts` row and example in `skills/mf-converge/SKILL.md`, and add the `**Round**` row and its example line to
   `skills/mf-converge/references/worker.md`'s card, per [D1](design.md#d1).
   Verify: `grep -n 'effort <e> · tokens <n>' skills/mf-converge/SKILL.md` prints a line, and
   `grep -n '^| \*\*Round\*\* |' skills/mf-converge/references/worker.md` prints a line.
-- [ ] 1.2 Log the effort in the spawn line, and give a later spawn in a stamp its own log, in `skills/mf-ship/scripts/conduct.py`;
+- [x] 1.2 Log the effort in the spawn line, and give a later spawn in a stamp its own log, in `skills/mf-ship/scripts/conduct.py`;
   glob both log names in `review_metrics.py`'s `_cost_logs`, and name the newest build log in `skills/mf-rescue/SKILL.md`'s input
   row, per [D1](design.md#d1) and [D2](design.md#d2); extend `test_a_station_runs_on_its_executor` and
   `test_a_small_cap_is_granted_automatically` in `tests/test_conduct.py`, and `test_run_logs_give_cost_turns_and_tokens_per_station`

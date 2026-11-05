@@ -141,6 +141,7 @@ field — never a heading, since the backlog's headings are its changes. This re
 | **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran` |
 | **Verdict** | `confirmed`, or `plausible` and what would confirm it |
 | **Priority** | `<severity> · <role> · <category>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level |
+| **Round** | the round the card was found |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
@@ -158,6 +159,7 @@ and name things rather than count them: "the review and security files", not "th
   - **Evidence:** `body = request.body.read()` at `src/upload.py:42` — no length check before it · read.
   - **Verdict:** confirmed.
   - **Priority:** medium · security · stability — one request can exhaust memory.
+  - **Round:** 1
   - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
   - **Trigger:** the next change that opens `src/upload.py`.
   - **Still true?** `grep -n 'request.body.read()' src/upload.py`

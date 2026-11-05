@@ -79,7 +79,7 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after each read | each file's `verdict` and `open_blocking`, ending `tokens <n>` from the worker's output, or `tokens unavailable` |
+| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor, model and effort from the version's models file `[converge]`, else the run's, `default` where none is known; `tokens` the worker's figure, or `unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -94,7 +94,8 @@ The events, and no others:
 
 ## Run 2 — 2026-09-28 10:04
 10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
-10:09:02 · round 1 · verdicts — review clean · security clean · tokens unavailable
+10:09:05 · round 1 · verdicts — security clean · open_blocking 0 · executor claude · model default · effort default · tokens unavailable
+10:09:02 · round 1 · verdicts — review clean · open_blocking 0 · executor claude · model opus · effort high · tokens 97960
 10:04:20 · round 1 · fan-out — review and security dispatched · 2 workers
 10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
 

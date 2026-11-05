@@ -347,7 +347,8 @@ def _spent(events: list[dict[str, Any]]) -> Record:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Why: 0076-context-cost design D1.
+    Each spawn's log counts: `<change>_<station>.log` and `-<n>.log` after it.
+    Why: 0076-context-cost design D1; 0077-run-metrics design D2.
     """
     runs = repo / RUNS
     stamps = sorted(path for path in runs.glob("*") if path.is_dir())
@@ -364,7 +365,11 @@ def _cost_logs(repo: Path, change: str) -> Record:
     record: Record = {}
     for station in STATIONS:
         logs = [
-            path for s in stamps if (path := s / f"{change}_{station}.log").is_file()
+            path
+            for s in stamps
+            for pattern in (f"{change}_{station}.log", f"{change}_{station}-[0-9]*.log")
+            for path in sorted(s.glob(pattern))
+            if path.is_file()
         ]
         found = [_results(path) for path in logs]
         spent = [_spent(events) for events in found]
