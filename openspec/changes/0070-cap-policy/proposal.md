@@ -19,7 +19,7 @@ small cards is a grant's job, a cap that recurs is a plan's.
 ## What Changes
 
 - **The card reader** — the conductor reads the open blocking cards and their sizes from the findings files.
-- **The automatic grant** — at a cap of small cards, once per version per run, the conductor spawns converge with `grant=yes`.
+- **The automatic grant** — at a cap of small cards no granted round reached, the conductor spawns converge with `grant=yes`.
 - **The re-plan halt** — any other cap, and a granted round that blocks again, halts as `re-plan`; the rescue names `/mf-plan`.
 - **`[converge] auto_grant`** — default `true`; `false` turns it off for a version.
 

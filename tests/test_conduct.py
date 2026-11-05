@@ -3822,6 +3822,20 @@ def test_a_small_cap_is_granted_automatically(
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
 
+    # The granted round is checked as a person's is: one with no `done` halts there.
+    calls.unlink()
+    fake("cap-small", "grant-unfinished")
+    tree = _version(root, "0003-tags", "- [x] 1 — Tags\n")
+    _done(root, "0003-tags", _git(tree, "rev-parse", "HEAD"))
+    assert run() == 1
+    assert _calls(calls) == [
+        "probe",
+        "converge 0003-tags",
+        "converge 0003-tags and grant=yes",
+    ]
+    unfinished = " · 0003-tags · check — converge · fail — the status log has no done"
+    assert any(line.endswith(unfinished) for line in _log(root))
+
 
 def _replanned(root: Path, ids: str) -> list[str]:
     """Return the run log; 0001-todo's `re-plan` halt is the last before its rescue."""
@@ -3861,10 +3875,12 @@ def test_an_auto_granted_round_that_blocks_halts_as_replan(
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
 
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run() == 1
 
     assert _calls(calls) == [
         "probe",
@@ -3876,6 +3892,14 @@ def test_an_auto_granted_round_that_blocks_halts_as_replan(
     granted = [line for line in lines if " · run · grant — " in line]
     assert len(granted) == 1
     assert granted[0].endswith(" · run · grant — 0001-todo: automatic · R1 S1")
+
+    # A later run grants no round past a granted round's cap: a re-plan, no worker.
+    calls.unlink()
+    assert run() == 1
+    assert _calls(calls) == []
+    lines = _log(root)
+    assert not any(" · grant — " in line for line in lines)
+    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
 
 
 def test_auto_grant_false_grants_none(
@@ -3906,6 +3930,15 @@ def test_auto_grant_false_grants_none(
     assert run() == 1
     assert _calls(calls) == []
     assert _log(root)[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+
+    # So does one the version's own pass meets, as beside a version that builds.
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    conductor.skips.add("0001-todo")
+    conductor.advance(version, ())
+    assert conductor.halts[-1] == ("0001-todo", "re-plan: R1 S1")
+    conductor.log.path.unlink()
 
     # Twin: `true`, an absent key, another table and no file each allow it.
     auto = conduct["_auto_grants"]
