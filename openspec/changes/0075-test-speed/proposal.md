@@ -22,7 +22,8 @@ is no coverage source.
 - **The fakes start bare** — the fake worker and the fake `ps` run under `python -S`, so coverage's `.pth` never loads in them.
 - **Deletions** — five mutation cases and the hand-release case of the forged-release test, `test_a_good_read_keeps_the_offline_base`
   (`0062·R6`), most of `tests/test_gate_check.py`'s topology grid,
-  `test_mf_integrate_runs_its_script` and `test_the_release_gates_its_fold_fresh`, each mapped to the test that carries it.
+  `test_mf_integrate_runs_its_script`, mapped to the test that carries it, and `test_the_release_gates_its_fold_fresh`, retired by
+  D42.
 - **A merge** — `test_a_version_cut_during_a_run_joins` into `test_a_new_executor_is_probed_mid_run` (`0063·R8`).
 - **Splits** — the forged-release, after-waits, rerun-recovers, dependency-chain, no-worker-pushes, pushes-only-tagged,
   rerun-pushes, local-release and origin-down tests, one test per independent case or primary.
