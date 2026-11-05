@@ -2048,6 +2048,12 @@ def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
     return mark
 
 
+def _unmark(pin: dict[str, Any], mark: Path | None) -> None:
+    """Remove this run's live mark, when it still holds this run's pid."""
+    if mark and pin["holder"](mark) == os.getpid():
+        mark.unlink()
+
+
 def _unlinked(executor: str) -> None:
     """Stop with 2 when a skill beside this one is not linked where `executor` looks.
 
@@ -2777,19 +2783,23 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
 
     A stale claim is cleared before the detach, so what stops that reaches the caller.
-    The live mark comes first; the last run to end moves the links before it goes.
-    Why: 0068-pinned-release design D2 and D3.
+    The live mark comes first, and a stop before the claim removes it; the last run to
+    end moves the links before it goes. Why: 0068-pinned-release design D2 and D3.
     """
     pin = _pin()
     mark = _mark_live(pin, primary_of(cwd))
-    primary = preconditions(cwd, executor)
-    if not (started := _ps(os.getpid(), "lstart=")):
-        raise Stop(2, "run: cannot run — ps cannot read this run's start time")
-    runs = primary / ".minions" / "runs"
-    runs.mkdir(parents=True, exist_ok=True)
-    active = runs / "active"
-    if _claim(active) == "stale":
-        _clear(active)
+    try:
+        primary = preconditions(cwd, executor)
+        if not (started := _ps(os.getpid(), "lstart=")):
+            raise Stop(2, "run: cannot run — ps cannot read this run's start time")
+        runs = primary / ".minions" / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        active = runs / "active"
+        if _claim(active) == "stale":
+            _clear(active)
+    except Stop:
+        _unmark(pin, mark)
+        raise
     if detach:
         with (runs / "detached.log").open("a") as sink:
             child = subprocess.Popen(
@@ -2806,6 +2816,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         active.mkdir()
     except FileExistsError:
+        _unmark(pin, mark)
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
@@ -2826,8 +2837,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             if moved := pin["move"](mark):
                 print(moved)
         finally:
-            if mark and pin["holder"](mark) == os.getpid():
-                mark.unlink()
+            _unmark(pin, mark)
             shutil.rmtree(active)
 
 

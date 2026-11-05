@@ -108,7 +108,8 @@ cut:
 2. Rebuild the environment from `<container>/<repo>`, since `.venv` records the old path:
    `rm -rf .venv && uv sync --locked`.
 3. Re-pin the skills from `<container>/<repo>`, since the install's `source` still names the old path:
-   `make install-skills TAG=<tag>`, the tag linked now.
+   `make install-skills TAG=<tag>`, the tag linked now. This holds the tag; once a run at the new path has kept
+   `origin`'s URLs, a bare `make install-skills` follows releases again.
 4. Update the planning side's path to the repo.
 
 A version whose base moved is brought onto the default branch by `mf-integrate`, run in the primary

@@ -3719,6 +3719,26 @@ def test_a_run_marks_itself_live(
     assert seen == [f"{os.getpid()}\n"]
     assert not mark.exists()
 
+    (root / "stray.txt").write_text("")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert not mark.exists()
+    (root / "stray.txt").unlink()
+
+    claim = conduct["_claim"]
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    conduct["run"].__globals__["_claim"] = lambda path: "none"
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert not mark.exists()
+    conduct["run"].__globals__["_claim"] = claim
+    active.rmdir()
+
     other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     try:
         mark.write_text(f"{other.pid}\n")

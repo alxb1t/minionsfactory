@@ -298,7 +298,8 @@ def describe() -> str:
         if (version := root / "VERSION").is_file():
             parts.append(f"mf {version.read_text().strip()}")
         else:
-            done = _git(root, "describe", "--tags", "--always", "--dirty")
+            # No `--dirty`: its index refresh runs a clean filter the checkout names.
+            done = _git(root, "describe", "--tags", "--always")
             parts.append(f"mf live {done.stdout.strip() or 'unknown'}")
     source = _read("source")
     if pending := _read("pending"):

@@ -83,7 +83,8 @@ pending release waits for the next run's end or the person's next install.
 
 ### D4
 
-`ship()`'s `start` line ends `· mf <tag>` from the linked tree's `VERSION`, `· mf live <describe>` when the links point at a checkout,
+`ship()`'s `start` line ends `· mf <tag>` from the linked tree's `VERSION`, `· mf live <describe>` when the links point at a checkout
+(`git describe --tags --always`, no `--dirty`, whose index refresh runs a clean filter),
 `· pending <tag>` while `pending` stands, and `· skipped <tag>: not on origin` for a tag the move skipped. `mf_version` reads
 `Path(package).parents[2] / "VERSION"` — the tree's root, `<tag>/VERSION` — on its existing not-in-a-checkout path
 (`metrics.py:260-261`, `:268-270`).
@@ -107,7 +108,7 @@ line and `skills/mf-ship/SKILL.md`'s preconditions name `make install-skills` as
 
 `git grep -c '^def test_' main -- tests/` totals the suite at the cut. Added, integration on a scratch `HOME`, an MF clone and a bare
 `origin` (`T1`, `slow` above 5 s): `tests/test_pin.py` — a bare install from `origin`, `TAG=<tag>` and `live` holds, a refused
-non-link, a pending write under a live mark, a stale mark ignored, a planted replace ref not reaching the export,
+non-link, a pending write under a live mark, a stale mark ignored, a planted replace ref or moved tag not reaching the export,
 a repo planted above the scratch supplying no config, uninstall. In
 `tests/test_conduct.py`: `test_a_run_marks_itself_live`, `test_the_last_run_moves_the_links`, a step in
 `test_a_missing_skill_stops_a_run` for a mixed install. In `tests/test_metrics.py`: `mf_version` from `VERSION`. None deleted.

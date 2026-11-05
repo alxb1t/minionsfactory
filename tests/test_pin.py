@@ -7,6 +7,7 @@ under the autouse `isolated_home`. Why: 0068-pinned-release design D1, D2 and D3
 import json
 import os
 import runpy
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -178,8 +179,15 @@ def test_a_tag_or_live_holds_the_links(tmp_path: Path, isolated_home: Path) -> N
         isolated_home, root / "skills", ("build", "ship")
     )
     assert hold.read_text() == "live\n"
-    described = _git(root, "describe", "--tags", "--always", "--dirty")
+    described = _git(root, "describe", "--tags", "--always")
     assert pin["describe"]() == f" · mf live {described}"
+    ran = tmp_path / "ran"
+    _git(root, "config", "filter.probe.clean", f"touch {shlex.quote(str(ran))}; cat")
+    (root / ".git" / "info").mkdir(exist_ok=True)
+    (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
+    os.utime(root / "skills" / "mf-build" / "SKILL.md", (0, 0))
+    assert pin["describe"]() == f" · mf live {described}"
+    assert not ran.exists()
 
     assert pin["install"](root, None) == "pin: linked v0.2.0"
     assert not hold.exists()
@@ -341,6 +349,9 @@ def test_a_planted_replace_ref_does_not_reach_the_export(
     forged = _git(root, "hash-object", "-w", str(planted))
     _git(root, "replace", real, forged)
     assert _git(root, "show", "v0.2.0:skills/mf-build/SKILL.md") == "planted"
+    _commit(root, {"skills/mf-build/SKILL.md": "moved\n"}, "moved")
+    _git(root, "tag", "-f", "-a", "-m", "v0.2.0", "v0.2.0")
+    assert _git(root, "show", "v0.2.0:skills/mf-build/SKILL.md") == "moved"
 
     assert pin["install"](root, None) == "pin: linked v0.2.0"
 
