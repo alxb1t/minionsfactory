@@ -72,18 +72,23 @@ the tests `_load("debt")`. The F7 sites stay.
 
 ### D3
 
-`Run.migrate_debt()`, called in `ship()` before `_clear_stale_lock`: with `.minions/backlog.md` and no `debt.md`, rename it, remove a
-`backlog.lock` older than `LOCK_STALE` and log `unlock`, as `ship()` logs `_clear_stale_lock`'s, and log `move — .minions/backlog.md →
-.minions/debt.md`. With neither old file, nothing. A stale `backlog.lock` with no `backlog.md` is removed and logged `unlock`, as
-`_clear_stale_lock` logs. With both `backlog.md` and `debt.md`, or a `backlog.lock` younger than `LOCK_STALE`, the run halts before
+`Run.migrate_debt()`, called in `ship()` before `_clear_stale_lock`: a `backlog.lock` older than `LOCK_STALE` is removed and logged
+`unlock`, as `ship()` logs `_clear_stale_lock`'s, with or without an old file. With `.minions/backlog.md` and no `debt.md`, the move
+takes `.minions/debt.lock` with `mkdir`, as every writer of `debt.md` does — a `debt.lock` older than `LOCK_STALE` is removed first —
+then links the old file to `debt.md` and unlinks it, so a `debt.md` made since the check is never replaced, releases `debt.lock`, and
+logs `move — .minions/backlog.md → .minions/debt.md`. With no old file, nothing moves, whatever stands at the old lock. The run halts before
 any worker — `self.halt("run", <why>)`, `self.log.event("run", "halt", self.closing())`, `return 1`, as the `Stop` path does,
-before `if not versions` — naming them: a person or a hand-run writer holds them.
+before `if not versions` — naming the cause, when an old file stands and: `debt.md` stands too, or `debt.md` appears before the link;
+the old file is a link, which the move would turn into a second name of its target; a `backlog.lock` younger than `LOCK_STALE` is held,
+or is a plain file; or a young `debt.lock` is held. Each is a person or a hand-run writer holding it.
 
 ## Tests
 
 `git grep -c '^def test_' 5b8eb77 -- tests/test_conduct.py tests/test_metric_scripts.py tests/test_review_metrics.py` counts the
 files at the cut. Added: `test_a_run_moves_an_old_backlog_to_the_debt` (`tests/test_conduct.py`) — the move, a second start moving
-nothing, a stale old lock removed, both files halting, a young old lock halting — `T2`: no test starts a run beside an old file.
+nothing, a stale old lock removed, a linked old file halting, both files halting, a young old lock halting beside an old file and not
+without one, a plain file at the old lock halting, a young `debt.lock` halting, a stale one removed and the move releasing its own —
+`T2`: no test starts a run beside an old file.
 Extended: `test_a_stale_lock_is_cleared_and_converge_resumes` with the new lock and a halt naming the old one;
 `test_a_fix_after_a_cap_halt_converges_afresh`, whose lock-halt line reads the new text;
 `test_backlog_cards_are_unavailable_without_a_backlog` and `test_the_backlog_is_read_from_the_primary_run_directory`
@@ -97,7 +102,8 @@ None.
 
 ## Risks / Trade-offs
 
-- **A hand-run converge writing the old file mid-run:** the young old lock halts the move; a person settles it.
+- **A hand-run converge writing the old file or the debt mid-run:** a young old lock beside an old file, or a young `debt.lock`, halts
+  the move, and the link never replaces a `debt.md` made since the check; a person settles it.
 - **A missed live site:** `git grep -n -i backlog` over the live paths is the build's last check, F7's sites the only matches.
 - **A repo not run since the upgrade:** `mf-plan` and the cut read its old `backlog.md`; its next run moves it.
 
