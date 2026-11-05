@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cut and review skills; `scripts/metrics/backlog.py` is `debt.py`, the metric id kept (change `0079-debt-rename`, phase 2).
 - `conduct.py run` moves an old `.minions/backlog.md` to `debt.md` and clears a stale `backlog.lock` at its start, under the
   claim; both files, or a young old lock, halt the run before any worker (change `0079-debt-rename`, phase 3).
+- The move holds `.minions/debt.lock` and never replaces a `debt.md`: a young lock, or a debt file a hand-run converge
+  wrote since the check, halts the run (change `0079-debt-rename`, converge).
 
 ## [0.64.0] - 2026-11-06
 

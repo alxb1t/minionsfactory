@@ -3392,22 +3392,42 @@ class Run:
             if not alive and not self.take_requests(threads):
                 return
 
+    def unlock(self, name: str) -> None:
+        """Remove the lock `name` when stale, logging its age."""
+        if (age := _clear_stale_lock(self.primary, name)) is not None:
+            self.log.event("run", "unlock", f"{name}, {age}s old")
+
     def migrate_debt(self) -> str | None:
         """Move an old `backlog.md` to `debt.md`; return why the run must halt.
 
         A stale `backlog.lock` is removed. Both files, or a lock still standing,
-        halt: a person or a hand-run writer holds them. Why: 0079-debt-rename design D3.
+        halt: a person or a hand-run writer holds them. The move holds `debt.lock`,
+        as every writer of `debt.md` does. Why: 0079-debt-rename design D3.
         """
         old, new = self.primary / OLD_DEBT, self.primary / DEBT
+        both = f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
         if old.is_file() and new.exists():
-            return f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
-        if (age := _clear_stale_lock(self.primary, OLD_DEBT_LOCK)) is not None:
-            self.log.event("run", "unlock", f"{OLD_DEBT_LOCK}, {age}s old")
+            return both
+        self.unlock(OLD_DEBT_LOCK)
         if (self.primary / OLD_DEBT_LOCK).exists():
             return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
-        if old.is_file():
-            old.rename(new)
-            self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
+        if not old.is_file():
+            return None
+        self.unlock(DEBT_LOCK)
+        lock = self.primary / DEBT_LOCK
+        try:
+            lock.mkdir()
+        except FileExistsError:
+            return f"{DEBT_LOCK} is held: a person or a hand-run writer holds it"
+        try:
+            # A link never replaces: a debt file made since the check stands.
+            os.link(old, new)
+            old.unlink()
+        except FileExistsError:
+            return both
+        finally:
+            lock.rmdir()
+        self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
         return None
 
     def ship(self) -> int:
@@ -3447,8 +3467,7 @@ class Run:
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
-        if (age := _clear_stale_lock(self.primary)) is not None:
-            self.log.event("run", "unlock", f"{DEBT_LOCK}, {age}s old")
+        self.unlock(DEBT_LOCK)
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0

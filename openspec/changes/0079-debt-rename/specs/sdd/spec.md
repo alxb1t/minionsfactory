@@ -117,7 +117,8 @@ repository. `conduct.py` alone SHALL halt on that answer outside the repo it nam
 can write what steers it. Converge and the release SHALL write `.minions/debt.md` only while holding `.minions/debt.lock`,
 created with `mkdir`, halting after two minutes of waiting and naming the lock. A run holding the claim SHALL remove a
 `debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
-claim, and halt naming both when both files stand or the old lock is younger than ten minutes.
+claim, and halt naming both when both files stand or the old lock is younger than ten minutes. The move SHALL hold
+`.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT replace a `debt.md`.
 
 #### Scenario: A release in a linked worktree after a converge in another
 - **WHEN** converge ran in one worktree of a change and the release runs in another worktree of the same repository
@@ -136,7 +137,7 @@ claim, and halt naming both when both files stand or the old lock is younger tha
 #### Scenario: A run moves an old backlog
 - **WHEN** a run starts beside a `.minions/backlog.md` and no `.minions/debt.md`
 - **THEN** it moves the file, removes any stale `backlog.lock`, logs both, and a second start moves nothing
-- **AND WHEN** both files stand, or a `backlog.lock` younger than ten minutes
+- **AND WHEN** both files stand, or a `backlog.lock` or `debt.lock` younger than ten minutes
 - **THEN** the run halts, naming them, and starts no worker
 
 ### Requirement: A halt stops only its version, and a re-run resumes

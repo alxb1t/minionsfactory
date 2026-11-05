@@ -2293,7 +2293,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
 
 
 def test_a_run_moves_an_old_backlog_to_the_debt(
-    tmp_path: Path, fake: Callable[..., Path]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     fake()
@@ -2301,8 +2301,9 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     minions = root / ".minions"
     minions.mkdir(exist_ok=True)
     old, new = minions / "backlog.md", minions / "debt.md"
-    lock = minions / "backlog.lock"
+    lock, held = minions / "backlog.lock", minions / "debt.lock"
     moved = " · run · move — .minions/backlog.md → .minions/debt.md"
+    both = "run · halt — .minions/backlog.md and .minions/debt.md both stand"
 
     def start() -> tuple[int, str]:
         conductor = conduct["Run"](root, "claude")
@@ -2310,10 +2311,10 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
         logs = (minions / "runs").glob("*.md")
         return code, "".join(log.read_text() for log in sorted(logs))
 
-    def stale_lock() -> None:
-        lock.mkdir()
+    def stale_lock(path: Path = lock) -> None:
+        path.mkdir()
         past = time.time() - 601
-        os.utime(lock, (past, past))
+        os.utime(path, (past, past))
 
     old.write_text("# Backlog\n\n## 0001-a\n\n- **0001·R1 — a**\n")
     code, text = start()
@@ -2344,13 +2345,48 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     old.write_text("# Backlog\n")
     code, text = start()
     assert code == 1 and old.is_file() and new.is_file()
-    assert "run · halt — .minions/backlog.md and .minions/debt.md both stand" in text
+    assert both in text
     new.unlink()
     lock.mkdir()
     code, text = start()
     assert code == 1 and old.is_file() and not new.exists() and lock.is_dir()
     assert "run · halt — .minions/backlog.lock is held" in text
     assert text.count(moved) == 2
+
+    # A young debt lock halts the move: a hand-run converge writes the debt.
+    lock.rmdir()
+    held.mkdir()
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and held.is_dir()
+    assert "run · halt — .minions/debt.lock is held" in text
+    assert text.count(moved) == 2
+
+    # Twin: a stale debt lock is removed, and the move releases its own.
+    held.rmdir()
+    stale_lock(held)
+    code, text = start()
+    assert code == 0 and not old.exists() and new.is_file() and not held.exists()
+    assert (
+        len(re.findall(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old", text))
+        == 1
+    )
+    assert text.count(moved) == 3
+
+    # A debt file its lock's holder writes after the check stands, not replaced.
+    new.unlink()
+    old.write_text("# Backlog\n")
+    module = conduct["Run"].migrate_debt.__globals__
+    clear = module["_clear_stale_lock"]
+
+    def write_debt(primary: Path, name: str = ".minions/debt.lock") -> int | None:
+        if name.endswith("backlog.lock"):
+            new.write_text("# Debt\n\n## 0002-b\n\n- **0002·R1 — b**\n")
+        return clear(primary, name)
+
+    monkeypatch.setitem(module, "_clear_stale_lock", write_debt)
+    code, text = start()
+    assert code == 1 and old.is_file() and "0002·R1" in new.read_text()
+    assert text.count(both) == 2 and text.count(moved) == 3
 
 
 @pytest.mark.slow
