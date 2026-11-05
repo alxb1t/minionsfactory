@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-11-05
+
+Gate: local 2m6s · CI not read under mf-ship · 0.61.0: local 2m32s · CI not read under mf-ship
+
 - The review metrics page draws a cost table per repo: each change's build, converge, integrate, release and rescue,
   with their dollars, turns, tokens and seconds, read from the run logs; D50 names the run logs (change
   `0076-context-cost`, phase 1).
