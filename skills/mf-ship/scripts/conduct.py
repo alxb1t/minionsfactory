@@ -2721,12 +2721,23 @@ class Run:
         The branch stays. A worker can write the worktree entry, so its path is checked
         against `Worktrees:`, read before the first worker. The removal deletes the
         tree's ignored paths, so they are listed first and logged; a failed listing
-        keeps the tree. Why: 0057-run-fixes design D3.
+        keeps the tree. A changed or refused config and a link at the cut's path keep it
+        too, before git runs. Why: 0057-run-fixes design D3; 0072-paydown design D2.
         """
         tree, change = version.tree, version.change
         if tree is None:
             return
-        if tree.resolve() != (self.worktrees / change).resolve():
+        try:
+            if changed := _config_changed(self.primary, self.git_state):
+                raise changed
+            _refuse_config_commands(tree)
+        except Stop as stop:
+            self.log.event(change, "kept", f"{tree}: {stop}")
+            return
+        if (self.worktrees / change).is_symlink():
+            self.log.event(change, "kept", f"{tree}: a link at the cut's path")
+            return
+        if tree != self.worktrees.resolve() / change:
             self.log.event(change, "kept", f"{tree}: not at the cut's path")
             return
         listing = ("ls-files", "--others", "--ignored", "--exclude-standard")

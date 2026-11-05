@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The probe's .arch
-- [ ] 2 — remove_tree refuses first
+- [x] 2 — remove_tree refuses first
 - [ ] 3 — The record
 
 ## 1 — The probe's .arch
@@ -18,7 +18,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — remove_tree refuses first
 
-- [ ] 2.1 Add the config refusal and the link check to `Run.remove_tree`, in `skills/mf-ship/scripts/conduct.py`, per
+- [x] 2.1 Add the config refusal and the link check to `Run.remove_tree`, in `skills/mf-ship/scripts/conduct.py`, per
   [D2](design.md#d2); extend `test_a_ready_version_ships_past_a_slow_one` with a link at the cut's path, a refused config, and a tree
   git refuses to remove.
   Verify: `uv run pytest -q tests/test_conduct.py -k ready_version_ships_past_a_slow_one` reports `1 passed`, and
