@@ -232,12 +232,19 @@ def _fake(prompt: str) -> None:
         )
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
-        files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}
+        # A build ticks each phase before the first unticked HUMAN one, and stops there.
+        lines = tasks.read_text().splitlines(keepends=True)
+        human = [i for i, line in enumerate(lines) if "[ ]" in line and "HUMAN" in line]
+        stop = human[0] if human else len(lines)
+        built = "".join(lines[:stop])
+        files = {str(tasks): built.replace("- [ ]", "- [x]") + "".join(lines[stop:])}
         if f"after-self-{change}" in modes:
             proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
             files[str(tasks.with_name("proposal.md"))] = proposal
-        if "- [ ]" in tasks.read_text():
+        if "- [ ]" in built:
             _commit(here, files, "build")
+        if human:
+            return
         if "dies-simplify" in modes:
             sys.exit(1)
         _done(primary, str(change), _git(here, "rev-parse", "HEAD"))

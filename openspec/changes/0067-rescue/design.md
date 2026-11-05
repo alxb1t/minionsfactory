@@ -67,8 +67,9 @@ trailer. **Diagnose** — a design premise the code rules out, a converge cap, i
 
 ### D3
 
-`Run.rescue(version, why)`, called in `advance` where a version halts on its build check (`:2251`), at `converge-halted` and
-`integrating` (`:2204`) — never after a `spawn` that returned `None`, nor at `human` or `released`. It spawns
+`Run.rescue(version, why)`, called in `advance` where a version halts on its build check (`:2251`), on its converge or integrate
+check when its stage on disk is then `converge-halted` or `integrating` (`:2251`), and at those two stages (`:2204`) — never after
+a `spawn` that returned `None`, nor on a build stopped at a `**HUMAN` phase, nor at `human` or `released`. It spawns
 `PROMPTS["rescue"]` — "Run the mf-rescue skill for change {change}." — in the version's worktree. After it: a new commit whose
 subject is `docs(<id>): amend the change directory` with a `Rescue:` trailer, every path in it under
 `openspec/changes/<id>/` and named `tasks.md` or `design.md` → log `rescue — <id>: fixed · <sub-task> · <short sha>`, remove the
@@ -98,7 +99,8 @@ class, bounded by the path check and converge's review. `AGENTS.md`'s skills lis
 
 `_requests` and the grants read open the folder with `os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)`, list it with
 `os.listdir(fd)`, and delete with `os.unlink(name, dir_fd=fd)`; a link at the folder or swapped in after the listing deletes
-nothing. Pays `0063·S5`.
+nothing. `stage_of` reads a version's grant, and `advance` deletes it, through such a descriptor too: a link at the folder holds no
+grant. Pays `0063·S5`.
 
 ## Tests
 

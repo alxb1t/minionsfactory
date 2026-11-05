@@ -52,6 +52,7 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 
 | the halt | kind | the fix |
 |---|---|---|
+| a `**HUMAN` phase — the halt's phase, or its sub-task's, is marked `**HUMAN` | diagnosis | — |
 | a `Verify:` that cannot pass — its search matches a line no task touches, its expected output is wrong at `HEAD` | fix | the `Verify:` the task's own result passes |
 | a reader a deletion missed — a file the change turns red that no task names | fix | the file, named in the task that turns it red |
 | a task two readings would build differently | fix | the reading `design.md`'s decisions settle; neither settled → diagnosis |

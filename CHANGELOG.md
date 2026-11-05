@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New station `mf-rescue`: it reads a halted version's halt, then fixes a plan halt with one amend commit to
   `tasks.md` and `design.md`'s prose, carrying a `Rescue:` trailer, or writes `.minions/rescue/<id>.md` for the
   person, so a simple plan halt needs no person (change `0067-rescue`, phase 2).
-- `conduct.py` starts `mf-rescue` in a version's thread on a build check, converge or integrate halt: an amend of
-  `tasks.md` and `design.md` alone clears a build halt and the version goes on; anything else keeps it halted. At most
+- `conduct.py` starts `mf-rescue` in a version's thread on a build check, converge or integrate halt, in the run it
+  halts in, and never on a build stopped at a `**HUMAN` phase: an amend of `tasks.md` and `design.md` alone clears a
+  build halt and the version goes on; anything else keeps it halted. At most
   `RESCUES = 3` a version a run, one per sub-task; `[rescue]` in the models file, else `[build]`, and `skip = true`
   turns it off. The rejoin and grants folders are read and emptied through a directory descriptor, so a link swapped
   in deletes nothing (change `0067-rescue`, phase 3).

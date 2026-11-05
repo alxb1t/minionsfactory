@@ -789,7 +789,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "converge", "halted on the backlog lock: resumes at Step 9"
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
-        if "cap reached" in halt and (runs / "grants" / change).is_file():
+        if "cap reached" in halt and _granted(runs, change, take=False):
             return "converge", "granted"
         return "converge-halted", halt
     if end is not None and not _converge_done(runs, change):
@@ -1749,6 +1749,28 @@ def _entries(folder: Path, empty: bool) -> list[str]:
         os.close(fd)
 
 
+def _granted(runs: Path, change: str, take: bool) -> bool:
+    """Return whether `runs/grants` holds `change`'s grant, deleting it when `take`.
+
+    The folder is opened following no link, and the grant read and deleted through
+    that descriptor, so a link at the folder holds no grant and loses no file. Only a
+    regular file is a grant. Why: 0067-rescue design D7.
+    """
+    try:
+        fd = os.open(runs / "grants", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return False
+    try:
+        status = os.stat(change, dir_fd=fd, follow_symlinks=False)
+        if take and stat.S_ISREG(status.st_mode):
+            os.unlink(change, dir_fd=fd)
+        return stat.S_ISREG(status.st_mode)
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+
+
 def reach(primary: Path) -> list[Path]:
     """Return what a worker may edit: the primary and each linked worktree.
 
@@ -2348,6 +2370,25 @@ class Run:
         self.halt(change, why or "rescue wrote no amend and no diagnosis")
         return False
 
+    def held(self, version: Version, stage: str, tree: Path) -> str | None:
+        """Return what a failed check at `stage` is rescued on, or None for no rescue.
+
+        A build halt is held on its sub-task, else `build`; one at a `**HUMAN` phase
+        gets none, as it needs the person. A converge or integrate halt is held on its
+        stage on disk, when that is in `RESCUED`. Why: 0067-rescue design D3.
+        """
+        change = version.change
+        if stage == "build":
+            unticked = _unticked(tree, change)
+            if unticked is not None and "**HUMAN" in unticked[1]:
+                return None
+            found = _build_halt(self.primary / ".minions", tree, change)
+            return found[0] if found else stage
+        if stage in ("converge", "integrate"):
+            disk = stage_of(self.primary, version)[0]
+            return disk if disk in RESCUED else None
+        return None
+
     def planned_models(
         self, change: str, station: str
     ) -> tuple[str, str | None, str | None]:
@@ -2386,11 +2427,9 @@ class Run:
                     return
                 minions = self.primary / ".minions"
                 clause = ""
-                granted = minions / "grants" / version.change
-                if stage == "converge" and granted.is_file():
+                if stage == "converge" and _granted(minions, version.change, take=True):
                     # An amended run starts from round 1: the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
-                    granted.unlink()
                     if clause:
                         self.log.event(
                             "run",
@@ -2414,13 +2453,12 @@ class Run:
                     self.waited(str(down))
                     self.offline = True
                     reason = check(self.primary, stage, version, True, True)
-                held = stage
-                if stage == "build" and reason is not None:
-                    found = _build_halt(minions, cwd, version.change)
-                    held = found[0] if found else stage
-                    reason += self.rescued(version.change, held)
+                held = None if reason is None else self.held(version, stage, cwd)
+                if held is not None:
+                    reason = f"{reason}{self.rescued(version.change, held)}"
                 if not self.judge(version.change, stage, reason, denied):
-                    if stage == "build" and self.rescue(version, held, AMENDS):
+                    amends = AMENDS if stage == "build" else ()
+                    if held is not None and self.rescue(version, held, amends):
                         continue
                     return
                 if stage == "release":

@@ -1109,6 +1109,21 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == []
 
+    # A build that stops at a HUMAN phase gets no rescue: the phase needs the person.
+    stops = tmp_path / "stops"
+    stops.mkdir()
+    built = _primary(stops)
+    _version(built, "0001-todo", "- [ ] 1 — Todo\n- [ ] 2 — Ship **HUMAN**\n")
+    fake("rescue-fix")
+    assert (
+        _main(conduct, built, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert _log(built)[-2].endswith(
+        " · 0001-todo · halt — build check fail — phase 2 unticked"
+    )
+
 
 @pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
@@ -3802,6 +3817,7 @@ def test_a_grant_buys_one_round(
             == 1
         )
 
+    fake("grant-halts", "rescue-diagnose")
     run()
     assert "converge 0001-todo and grant=yes" in _calls(calls)
     assert not grants.exists()
@@ -3813,6 +3829,11 @@ def test_a_grant_buys_one_round(
         line.endswith(" · run · grant — 0001-todo: one more round past the cap")
         for line in lines
     )
+    # The cap reached in the run gets its rescue in that run.
+    assert _calls(calls)[-1] == "rescue 0001-todo"
+    diagnosis = ".minions/rescue/0001-todo.md"
+    assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
+    assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
 
     calls.unlink()
     # A grants folder a worker linked elsewhere lists nothing on the start line.
@@ -3824,6 +3845,17 @@ def test_a_grant_buys_one_round(
     run()
     assert _calls(calls) == []
     assert " · grant " not in _log(root)[0]
+    # A grant behind that link is none, and the run deletes nothing through it.
+    (elsewhere / "0001-todo").touch()
+    run()
+    assert (elsewhere / "0001-todo").is_file()
+    assert _calls(calls) == []
+    # Nor does a converge that starts with the folder linked.
+    log.unlink()
+    run()
+    assert (elsewhere / "0001-todo").is_file()
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    calls.unlink()
     grants.parent.unlink()
     grants.parent.mkdir()
 
