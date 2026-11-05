@@ -257,7 +257,8 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
    Step 2's merge-base. Exit 0 → pass: a planned change, or one a person approved with
    `/mf-ship approve-gate <change-id> <hash>`, which the script's halt names, and every `Verify:` the plan's. Exit 1 →
    **halt**, copying what it prints to the report and the status log; a `verify: halt` names a `Verify:` edited since
-   the cut, which no approval clears: the person's `docs(<change-id>): amend the change directory` commit does. Exit 2,
+   the cut, which no approval clears: the person's `docs(<change-id>): amend the change directory` commit does. Its
+   status-log halt is one line, `verify: halt — <sub-task ids>`, the ids the script names. Exit 2,
    or `uv` missing → **halt**: the gate or `tasks.md` cannot be read, and it names the side or the file. A branch does
    not certify its own weakened gate: the approval is the person's, kept in the home folder.
 
@@ -419,6 +420,8 @@ dispatch and again at its commit. The fixer:
 - **touches no frontmatter counter** — not `round`, `head` or `open_blocking` — and **never writes
   `verdict: clean`**. Those are the verify pass's;
 - marks a finding it believes wrong `wontfix` **with a justification**, never silently;
+- **never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is `wontfix`, naming the amend
+  the person commits, and the round halts `amend needed — <card ids>`;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
   backlog — only you do, in Step 9; a second writer would duplicate ids;
 - **commits** the fix staged **by name** (never `git add -A`), Conventional Commits, the message ending with
@@ -438,7 +441,7 @@ record drifts.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself, through `gate_run.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
+Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
 workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
 own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
 counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a

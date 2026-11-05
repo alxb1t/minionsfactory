@@ -344,6 +344,15 @@ def _fake(prompt: str) -> None:
             )
             return
         findings = primary / ".minions" / "findings"
+        if "verify-halts" in modes:
+            # Step 1.6's halt on a `Verify:` edited since the cut: no round ran.
+            head = _git(here, "rev-parse", "HEAD")
+            findings.mkdir(parents=True, exist_ok=True)
+            (findings / f"{change}_status_log.md").write_text(
+                "# t\n\n## Run 1 — d\n"
+                f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}\n"
+            )
+            return
         if "by-rule" in modes and (lines := _by_rule(here, findings, str(change))):
             _write_by_rule(
                 findings, str(change), _git(here, "rev-parse", "HEAD"), lines

@@ -4440,6 +4440,69 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     assert _git(base, "tag", "-l") == "v0.1.0"
 
 
+def test_a_verify_halt_is_diagnosed_without_a_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("verify-halts")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    head = _git(tree, "rev-parse", "HEAD")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo"]
+    name = ".minions/rescue/0001-todo.md"
+    halt = f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}"
+    assert (root / name).read_text() == (
+        f"# 0001-todo — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
+        "cause: a Verify: changed since the cut\n"
+        "proposal: commit docs(0001-todo): amend the change directory, then"
+        " conduct.py rejoin 0001-todo, or /mf-ship with no run live\n"
+    )
+    lines = _log(root)
+    assert any(
+        line.endswith(f" · run · rescue — 0001-todo: diagnosed · {name}")
+        for line in lines
+    )
+    assert any(
+        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {name}")
+        for line in lines
+    )
+
+    # The run's diagnosis writes through no link, counts no rescue, and a skip skips it.
+    version = conduct["find_version"](root, "0001-todo")
+    outside = tmp_path / "outside.md"
+    outside.write_text("the person's\n")
+    (root / name).unlink()
+    (root / name).symlink_to(outside)
+    conductor = conduct["Run"](root, "claude")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert outside.read_text() == "the person's\n"
+    assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
+    assert conductor.rescues == {}
+    (root / name).unlink()
+    conductor.skips.add("0001-todo")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert not (root / name).exists()
+
+    # The person's amend answers it, and the run converges afresh and releases.
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    amend = "docs(0001-todo): amend the change directory"
+    _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
+    calls = fake()
+    calls.unlink()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+
+
 def test_a_missing_skill_stops_a_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -2555,12 +2555,17 @@ class Run:
         The amend may touch the change's `amends` files alone: none at a converge or
         integrate halt, which a rescue diagnoses. Any other outcome halts the version
         again, naming what the rescue left, and one at such a halt is then checked for
-        an answer on disk. A halted run, a skip or a spent rescue starts none.
-        Why: 0067-rescue design D2, D3.
+        an answer on disk. A halted run, a skip or a spent rescue starts none. A
+        converge `verify: halt` the run diagnoses itself, with no worker.
+        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
         if tree is None or spent or self.stopped("run"):
+            return False
+        halt = _converge_halt(self.primary / ".minions", change)
+        if held == "converge-halted" and halt and "verify: halt" in halt:
+            self.diagnose(change, halt)
             return False
         with self.guard:
             self.rescues.setdefault(change, []).append(held)
@@ -2587,6 +2592,30 @@ class Run:
         finally:
             if held in RESCUED:
                 self.hold(version, tree, before)
+
+    def diagnose(self, change: str, halt: str) -> None:
+        """Write the run's diagnosis of a verify halt, through no link, and halt on it.
+
+        Why: 0071-ship-fixes design D8.
+        """
+        name = f".minions/rescue/{change}.md"
+        folder = self.primary / ".minions" / "rescue"
+        text = (
+            f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
+            "cause: a Verify: changed since the cut\n"
+            f"proposal: commit docs({change}): amend the change directory, then"
+            f" conduct.py rejoin {change}, or /mf-ship with no run live\n"
+        )
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            with os.fdopen(os.open(folder / f"{change}.md", flags, 0o644), "w") as file:
+                file.write(text)
+        except OSError as error:
+            self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
+            return
+        self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+        self.halt(change, f"rescue diagnosed — {name}")
 
     def hold(self, version: Version, tree: Path, before: str) -> None:
         """Keep a version halted for the run when its rescue answered its halt on disk.

@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — The changelog renumber
 - [x] 3 — Dependents come back
 - [x] 4 — An amend answers a halt
-- [ ] 5 — The fixer and rescue
+- [x] 5 — The fixer and rescue
 
 ## 1 — Integrate commits, then gates
 
@@ -54,16 +54,16 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The fixer and rescue
 
-- [ ] 5.1 Add the fixer's plan rule to `skills/mf-converge/SKILL.md`'s Step 6, `gate_check.py` to Step 7, and the one-line
+- [x] 5.1 Add the fixer's plan rule to `skills/mf-converge/SKILL.md`'s Step 6, `gate_check.py` to Step 7, and the one-line
   `verify: halt` to Step 1.6, per [D7](design.md#d7).
   Verify: `grep -n 'never edits the change' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 5.2 Write a verify halt's diagnosis in `rescue()` with no worker, in `skills/mf-ship/scripts/conduct.py`, per
+- [x] 5.2 Write a verify halt's diagnosis in `rescue()` with no worker, in `skills/mf-ship/scripts/conduct.py`, per
   [D8](design.md#d8); add the `verify-halts` mode to `tests/fake_worker.py` and `test_a_verify_halt_is_diagnosed_without_a_worker`
   to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k verify_halt_is_diagnosed_without_a_worker` reports `1 passed`.
-- [ ] 5.3 Add the verify-halt row and the command to `skills/mf-rescue/SKILL.md`'s table and proposal template, per
+- [x] 5.3 Add the verify-halt row and the command to `skills/mf-rescue/SKILL.md`'s table and proposal template, per
   [D8](design.md#d8).
   Verify: `grep -n 'conduct.py rejoin <change-id>' skills/mf-rescue/SKILL.md` prints a line.
-- [ ] 5.4 Amend D45, D47 and D53 in `docs/decisions.md`, and the rejoin, `run · live`, diagnosed and `integrating` lines in `skills/mf-ship/SKILL.md`, per
+- [x] 5.4 Amend D45, D47 and D53 in `docs/decisions.md`, and the rejoin, `run · live`, diagnosed and `integrating` lines in `skills/mf-ship/SKILL.md`, per
   [D9](design.md#d9).
   Verify: `grep -c 'converge or integrate halt was answered while its rescue ran' skills/mf-ship/SKILL.md` prints `2`.

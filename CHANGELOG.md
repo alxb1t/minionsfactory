@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The person's `docs(<id>): amend the change directory` commits answer a clean catch-up halt, a `verify: halt` and an
   `amend needed` halt, so the run takes the version back with no worker; a catch-up over merges and amends has its
   own count and passes by rule (change `0071-ship-fixes`, phase 4).
+- The converge fixer never edits the change's `tasks.md` or `design.md`, and Step 7 runs `gate_check.py`; `conduct.py`
+  diagnoses a converge `verify: halt` itself, with no rescue worker, and a rescue proposal names the command the run
+  takes back. D45, D47 and D53 record it (change `0071-ship-fixes`, phase 5).
 
 ## [0.59.0] - 2026-11-05
 
