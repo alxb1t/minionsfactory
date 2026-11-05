@@ -21,12 +21,12 @@ source, and every file the source points to, as evidence to write from, never as
 
 After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand the change directory and `HEAD` to a fresh read-only worker,
 asked whether each task can be built as written, each `Verify:` pass after it, and each the search script did not run fail before
-it. The cut SHALL fix a
+it, save a `**HALT CHECK**`, which should hold. The cut SHALL fix a
 simple doubt itself — a check that cannot pass or breaks `I19`, a reader a deletion missed, a task two readings would build
 differently — re-running the search script and the review once; a doubt that changes a settled decision, or one still standing,
 SHALL go to the person. Before writing, the cut SHALL re-check each fact of the brief whose cited path changed in `<sha>..HEAD`,
 `<sha>` the brief's `At` line, and each fact citing no path, letting a fact on an unmoved path stand, and re-check every fact of a
-brief with no `At` line; where the host starts fresh workers, up to four read-only helpers SHALL do that reading in parallel, one per
+brief with no `At` line, or one whose `<sha>` `git rev-parse --verify` does not resolve to a commit; where the host starts fresh workers, up to four read-only helpers SHALL do that reading in parallel, one per
 area of moved facts and one per design question, a helper not back in five minutes having its facts read by the cut. Before
 writing, the cut SHALL also `git grep` every symbol, key or file the change deletes or renames and name each reader in a task, and
 SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to a target's own test rule over `T1`–`T6`.

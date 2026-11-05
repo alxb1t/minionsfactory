@@ -49,10 +49,11 @@ time Step 5 writes the brief, so it names the commit the newest round read.
 
 ### D2
 
-Step 2 reads the brief's `At` line, and with one runs `git diff --name-only <sha>..HEAD --no-renames`: a fact whose cited paths
-that command prints none of stands, and each other fact — a moved path, or no path — is a **moved fact**. With no `At` line, or a
-source that is the conversation, every fact is a moved fact. Step 2's own read of "the code the source names" is the moved facts' code, and the
-code the phases name for the design. Step 3 re-checks each moved fact against `HEAD`, from the helpers' answers or its own read;
+Step 2 reads the brief's `At` line, and with one first requires `git rev-parse --verify --quiet '<sha>^{commit}'` to exit 0,
+then runs `git diff --name-only <sha>..HEAD --no-renames`: a fact whose cited paths that command prints none of stands, and
+each other fact — a moved path, or no path — is a **moved fact**. With no `At` line, an `At` line naming no commit, or a
+source that is the conversation, every fact is a moved fact. Step 2's own read of "the code the source names" is the moved
+facts' code, and the code the phases name for the design. Step 3 re-checks each moved fact against `HEAD`, from the helpers' answers or its own read;
 the deleted-name grep stays whole. In the I10 row's "how" cell of `skills/mf-cut-change/SKILL.md`, "checking each one in Step 3"
 → "re-checking each moved one in Step 3, an unmoved path's standing"; the cell's `after:` clause is kept.
 
@@ -69,8 +70,8 @@ list.
 ### D4
 
 Step 8.5's question reads "can each task be built as written, each `Verify:` pass after it, and each the search script did not run
-— a test, a command — fail before it?": the searches' "before" is the script's, so the reviewer reads only their "after". Its table
-and the second review stay as they are.
+— a test, a command — fail before it, save a `**HALT CHECK**`, which should hold?": the searches' "before" is the script's, so
+the reviewer reads only their "after". Its table and the second review stay as they are.
 
 ### D5
 
