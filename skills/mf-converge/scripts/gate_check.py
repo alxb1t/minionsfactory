@@ -5,10 +5,14 @@
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
     gate_check.py --change <id> --base <rev> [--head <tree-ish>] [--digest]
+    gate_check.py --verify --change <id>
     gate_check.py --tasks <tasks.md>
 
 Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read. A halt names the
 hash a person approves; `--digest` prints it alone.
+`--verify` compares each `Verify:` with the cut's and its amends', with the decision
+ids an integrate merge renumbered; `--change` does too, after its gate check.
+Why: 0066-plan-halts design D3.
 `--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
 It reads makefiles and dry runs; a file read at parse time, or a program the
 recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
@@ -35,9 +39,14 @@ CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 PINNED = {"LC_ALL": "C"}
 CHANGE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
+SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 GATE_MAKEFILE = re.compile(r"`(?:[^`\s]*/)?Makefile`|`[^`\s]*\.mk`")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
+# `integrate.py`'s: the decisions file, a decision's heading, and a cited id.
+DECISIONS = "docs/decisions.md"
+DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
+CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 
 
 class Stop(Exception):
@@ -180,6 +189,104 @@ def check_tasks(path: Path) -> str:
             + "\n".join(problems),
         )
     return "gate: every task that names a gate makefile quotes its lines"
+
+
+def checks(tasks: str) -> dict[str, str]:
+    r"""Map each sub-task to its `Verify:` and what follows, wrapped lines joined.
+
+    The marker counts outside a backticked span alone: a task may name `Verify:`.
+    e.g. "- [ ] 1.1 x\n  Verify: `ls` prints a." → {"1.1": "Verify: `ls` prints a."}
+    """
+    found: dict[str, str] = {}
+    for lines in subtasks(tasks):
+        text = " ".join(lines)
+        masked = SPAN.sub(lambda span: " " * len(span[0]), text)
+        if (at := masked.find("Verify:")) >= 0:
+            found[lines[0].split()[0]] = text[at:]
+    return found
+
+
+def _show(rev: str, path: str) -> str:
+    """Return a file's text at `rev`; a path the commit lacks reads as empty."""
+    listed = _git("ls-tree", "--name-only", rev, "--", path)
+    return _git("show", f"{rev}:{path}") if listed else ""
+
+
+def renumbered(merge: str) -> dict[int, int]:
+    """Return the decision ids `integrate.py decisions` moves in a merge, by its rule.
+
+    The first parent's new ids move past the second parent's highest, when the
+    lowest collides. e.g. base none, ours D2, theirs D2 → {2: 3}
+    Why: 0066-plan-halts design D3.
+    """
+    ours, theirs = _git("rev-list", "--parents", "-n", "1", merge).split()[1:]
+    base = _git("merge-base", ours, theirs).strip()
+    base_ids, our_ids, their_ids = (
+        {int(n) for n in DECISION.findall(_show(rev, DECISIONS))}
+        for rev in (base, ours, theirs)
+    )
+    top = max(their_ids, default=0)
+    new = sorted(our_ids - base_ids)
+    ids: dict[int, int] = {}
+    if new and new[0] <= top:
+        ids = {old: top + i for i, old in enumerate(new, 1)}
+    return ids
+
+
+def check_verify(change: str) -> str:
+    """Return the passing verdict; a `Verify:` edited since the cut raises `Stop`.
+
+    The plan is `tasks.md` at the cut, then at each later commit titled
+    `docs(<id>): amend the change directory` that touches it; a merge of two
+    parents that touches it moves the plan's decision citations as integrate does.
+    """
+    cut = cut_commit(change)
+    path = f"openspec/changes/{change}/tasks.md"
+    amend = f"docs({change}): amend the change directory"
+    plan, planned = cut, checks(_git("show", f"{cut}:{path}"))
+    walk = ["--topo-order", "--reverse", "--format=%h%x09%p%x09%s", f"{cut}..HEAD"]
+    log = _git("log", *walk, "--", path)
+    for sha, parents, subject in (line.split("\t", 2) for line in log.splitlines()):
+        if subject == amend:
+            plan, planned = sha, checks(_git("show", f"{sha}:{path}"))
+        elif len(parents.split()) == 2 and (ids := renumbered(sha)):
+            plan = sha
+            planned = {name: _recite(text, ids) for name, text in planned.items()}
+    committed = checks(_git("show", f"HEAD:{path}"))
+    try:
+        current = checks(Path(path).read_text())
+    except OSError as error:
+        raise Stop(2, f"gate: cannot check — {path}: {error.strerror}") from None
+    edits = []
+    for name in sorted(planned.keys() | current.keys(), key=_subtask_order):
+        was, now = planned.get(name), current.get(name)
+        if was != now:
+            where = " · uncommitted" if committed.get(name) != now else ""
+            none = "(no Verify:)"
+            edits.append(f"  {name}{where}\n  - {was or none}\n  + {now or none}")
+    if edits:
+        raise Stop(
+            1,
+            f"verify: halt — a `Verify:` differs from the plan at {plan}; the build "
+            "never amends one:\n" + "\n".join(edits),
+        )
+    return f"verify: every `Verify:` is the plan's at {plan}"
+
+
+def _recite(text: str, ids: dict[int, int]) -> str:
+    """Return `text` with each decision id `ids` moves cited anew.
+
+    e.g. "`grep -c '^### D2 ' x`", {2: 3} → "`grep -c '^### D3 ' x`"
+    """
+    return CITATION.sub(lambda m: f"{m[1]}{ids.get(int(m[2]), m[2])}", text)
+
+
+def _subtask_order(name: str) -> tuple[int, ...]:
+    """Return a sub-task id's sort key.
+
+    e.g. "1.10" → (1, 10)
+    """
+    return tuple(int(part) for part in name.split("."))
 
 
 def export(rev: str, dest: Path, side: str) -> None:
@@ -456,13 +563,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--digest", action="store_true", help="print the hash a person approves"
     )
+    parser.add_argument(
+        "--verify", action="store_true", help="compare each Verify: with the plan's"
+    )
     args = parser.parse_args(argv)
+    if args.verify and (args.base, args.tasks, args.digest) != (None, None, False):
+        parser.error("--verify takes --change alone")
     if args.tasks is None:
-        if args.change is None or args.base is None:
+        if args.change is None or (args.base is None and not args.verify):
             parser.error("--change and --base are required without --tasks")
         if not CHANGE_ID.fullmatch(args.change):
             parser.error(f"--change: not a change id: {args.change}")
-        for flag, rev in (("--base", args.base), ("--head", args.head)):
+        for flag, rev in (("--base", args.base or "HEAD"), ("--head", args.head)):
             if rev.startswith("-"):
                 parser.error(f"{flag}: not a commit: {rev}")
     elif args.change is not None or args.base is not None or args.digest:
@@ -470,10 +582,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.tasks is not None:
             print(check_tasks(args.tasks))
+        elif args.verify:
+            print(check_verify(args.change))
         elif args.digest:
             print(gate_hash(read_gate(args.change, args.base, args.head)))
         else:
             print(check(args.change, args.base, args.head))
+            check_verify(args.change)
     except Stop as stop:
         print(stop)
         return stop.code

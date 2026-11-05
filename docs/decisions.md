@@ -86,9 +86,14 @@ is kept beside them. `design.md` carries the measurement behind each decision, n
 ### D7 · The cut writes to the build's input contract
 
 **`mf-build` owns the list of what a change must meet (`I1…`) and the prose rules (`P1…`); `mf-cut-change` carries
-the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)).**
+the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). It
+runs each `Verify:` search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks
+whether each task can be built as written; it runs no gate.**
 
-- **Why:** a change the build cannot run is cheapest to catch at the cut.
+- **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
+  read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change
+  directory re-proves the base.
+- **Rejected:** the cut reading its own plan · the full gate at the cut.
 - **Held in step by:** the id scans in `tests/test_skills.py`.
 
 ### D8 · The OpenSpec CLI is recorded, not pinned, and stays out of this repo's gate
@@ -118,8 +123,8 @@ a deleted capability leaves no marker directory behind.**
 ### D38 · The cut commits without waiting
 
 **`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
-that is not `None.`, and a self-check item the cut cannot meet, still wait for the person's OK. Starting
-`/mf-build` is the OK for the `Verify:` commands.**
+that is not `None.`, a self-check item the cut cannot meet, and a plan-review doubt left to the person still wait for
+the person's OK. Starting `/mf-build` is the OK for the `Verify:` commands.**
 
 - **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
   every time.
@@ -219,9 +224,10 @@ code. Fold and archive land in one commit.**
 
 ### D40 · Workers are fresh and observable
 
-**A checker or verification worker is a new host subagent or fresh agent process receiving explicit task inputs,
-without the build transcript. The conductor dispatches, waits and reads findings from shared disk; role identity
-persists in that file. Dispatch prefers parallel; workers may run sequentially on one freeze.**
+**A checker, a verification worker or the cut's plan reviewer is a new host subagent or fresh agent process
+receiving explicit task inputs, without the producer's transcript. The conductor dispatches, waits and reads findings
+from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
+freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
@@ -295,8 +301,8 @@ install nothing ([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 
 **`CODING_STANDARDS.md` holds a repo's coding rules, `CONTRIBUTING.md` how a change lands and the evidence it
 carries; `AGENTS.md` names both mandatory context. `mf-build`'s rules are the portable default: a project rule that
-names one replaces it. `mf-bootstrap` writes both; an existing repo adopts them by hand, and the build and converge
-read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` its `AGENTS.md` does not name.**
+names one replaces it. `mf-bootstrap` writes both; an existing repo adopts them by hand, and the cut, the build and
+converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` its `AGENTS.md` does not name.**
 
 - **Why:** a rule needs one home every station reads; where none is written, an agent invents one.
 - **Rejected:** one combined file · the rules in `AGENTS.md` · a precedence between the coding filenames ·

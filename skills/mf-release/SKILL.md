@@ -128,9 +128,11 @@ precondition 4 says what absence means.
 8. **The gate changes only as the cut planned.** Run
    `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base>`, `../mf-converge/`
    resolved from this skill's package, `<base>` being `git merge-base <default-branch> HEAD`. Exit 0 → pass: a
-   planned change, or one a person approved with `/mf-ship approve-gate <change-id> <hash>`. Exit 1 → **halt**, copying
-   what it prints to the report. Exit 2, or `uv` missing → **halt**: the gate cannot be read, and it names the side.
-   A branch does not release its own weakened gate: the approval is the person's, kept in the home folder.
+   planned change, or one a person approved with `/mf-ship approve-gate <change-id> <hash>`, and every `Verify:` the
+   plan's. Exit 1 → **halt**, copying what it prints to the report; a `verify: halt` names a `Verify:` edited since the
+   cut, which no approval clears: the person's `docs(<change-id>): amend the change directory` commit does. Exit 2, or
+   `uv` missing → **halt**: the gate or `tasks.md` cannot be read, and it names the side or the file. A branch does not
+   release its own weakened gate: the approval is the person's, kept in the home folder.
 9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
    the way out:
 

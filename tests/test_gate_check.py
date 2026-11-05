@@ -508,6 +508,106 @@ def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
     assert not _halted(lapsed, "added: Makefile: SHELL := /bin/sh"), lapsed.stdout
 
 
+def test_an_edited_verify_halts(tmp_path: Path) -> None:
+    check = "Verify: `grep -n x README.md` prints a line."
+    tasks = (
+        "## Progress\n\n- [ ] 1 — One\n\n## 1 — One\n\n"
+        f"- [ ] 1.1 Edit `README.md` before the first `Verify:`.\n  {check}\n"
+        "- [ ] 1.2 List it.\n  Verify: `ls` prints `README.md`.\n"
+    )
+    base = _branch(tmp_path, {"Makefile": _GATE}, tasks, {"README.md": "x\n"})
+    path = tmp_path / "openspec" / "changes" / _CHANGE / "tasks.md"
+    design = f"openspec/changes/{_CHANGE}/design.md"
+    cut = _git(tmp_path, "log", "--diff-filter=A", "--format=%h", "--", design)
+
+    def verify(*extra: str) -> subprocess.CompletedProcess[str]:
+        argv = [sys.executable, str(_SCRIPT), "--verify", "--change", _CHANGE, *extra]
+        return subprocess.run(argv, cwd=tmp_path, capture_output=True, text=True)
+
+    # A ticked box is the build's: its check is still the plan's.
+    path.write_text(tasks.replace("- [ ] 1.1", "- [x] 1.1"))
+    passed = verify()
+    assert passed.returncode == 0, passed.stdout
+    assert passed.stdout == f"verify: every `Verify:` is the plan's at {cut}\n"
+
+    narrowed = "Verify: `grep -n x README.md` prints nothing."
+    path.write_text(tasks.replace(check, narrowed))
+    edit = f"  1.1 · uncommitted\n  - {check}\n  + {narrowed}\n"
+    halted = verify()
+    assert halted.returncode == 1, halted.stdout
+    assert halted.stdout.startswith(
+        f"verify: halt — a `Verify:` differs from the plan at {cut}"
+    )
+    assert halted.stdout.endswith(f":\n{edit}"), halted.stdout
+    # `--change` compares them too, after its gate check.
+    gated = _check(tmp_path, base)
+    assert gated.returncode == 1, gated.stdout
+    assert gated.stdout.startswith("gate: no unplanned change\nverify: halt — ")
+
+    # A phase commit's edit halts, committed.
+    _commit(tmp_path, {}, "build: narrow the check")
+    committed = verify()
+    assert committed.returncode == 1, committed.stdout
+    assert committed.stdout.endswith(f"\n  1.1\n  - {check}\n  + {narrowed}\n")
+
+    # The person's amend is the plan from there on.
+    amended = tasks.replace(check, narrowed)
+    _commit(
+        tmp_path,
+        {
+            str(path.relative_to(tmp_path)): amended
+            + "- [ ] 1.3 More.\n  Verify: `ls`.\n"
+        },
+        f"docs({_CHANGE}): amend the change directory",
+    )
+    amend = _git(tmp_path, "rev-parse", "--short", "HEAD")
+    assert verify().stdout == f"verify: every `Verify:` is the plan's at {amend}\n"
+    # A check dropped from the plan halts, as one added would.
+    path.write_text(amended)
+    dropped = verify()
+    assert dropped.returncode == 1, dropped.stdout
+    assert dropped.stdout.endswith(
+        "\n  1.3 · uncommitted\n  - Verify: `ls`.\n  + (no Verify:)\n"
+    )
+
+    # An integrate merge renumbers a cited decision: the plan moves with it, and
+    # any other edit the merge makes still halts.
+    cited = "Verify: `grep -c '^### D2 ' docs/decisions.md` prints `1`."
+    ours = f"{amended}- [ ] 1.3 Cite D2.\n  {cited}\n"
+    decisions = "docs/decisions.md"
+    tasks_path = str(path.relative_to(tmp_path))
+    _commit(
+        tmp_path,
+        {tasks_path: ours, decisions: "### D2 · ours\n"},
+        f"docs({_CHANGE}): amend the change directory",
+    )
+    branch = _git(tmp_path, "branch", "--show-current")
+    _git(tmp_path, "switch", "-q", "-c", "trunk", base)
+    _commit(tmp_path, {decisions: "### D2 · theirs\n"}, "theirs")
+    _git(tmp_path, "switch", "-q", branch)
+    _git(tmp_path, "merge", "-q", "--no-ff", "--no-commit", "-s", "ours", "trunk")
+    listed = "Verify: `ls` prints `README.md`."
+    merged = ours.replace("D2", "D3").replace(listed, "Verify: `ls` prints a line.")
+    _commit(
+        tmp_path,
+        {tasks_path: merged, decisions: "### D2 · theirs\n### D3 · ours\n"},
+        "chore(integrate): merge trunk",
+    )
+    merge = _git(tmp_path, "rev-parse", "--short", "HEAD")
+    assert verify().stdout == (
+        f"verify: halt — a `Verify:` differs from the plan at {merge}; the build "
+        f"never amends one:\n  1.2\n  - {listed}\n  + Verify: `ls` prints a line.\n"
+    )
+
+    path.unlink()
+    missing = verify()
+    assert missing.returncode == 2, missing.stdout
+    assert missing.stdout.startswith(
+        f"gate: cannot check — openspec/changes/{_CHANGE}/tasks.md: "
+    )
+    assert verify("--base", base).returncode == 2
+
+
 def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
     prose = (
         '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`.\n'

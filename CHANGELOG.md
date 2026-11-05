@@ -25,6 +25,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   D53 records the rescue, D47 makes it a halt's first step, the threat model names it in the accepted class, and
   `AGENTS.md`, `README.md` and `mf-ship`'s halt table name `mf-rescue` (change `0067-rescue`, phase 4).
 
+## [0.55.0] - 2026-11-05
+
+Gate: local 2m12s · CI not read under mf-ship · 0.54.0: local 1m49s · CI not read under mf-ship
+
+- `skills/mf-cut-change/scripts/verify_check.py` runs each `grep` and `git grep` a `Verify:` names over HEAD's tree,
+  or the revision a `git grep` names, as argv with no shell, and prints every match as `path:line`; a `$(…)`, shell
+  variable, loop or `cd` a shell would read, not one quoted, an option outside the search's fixed list, a pager's
+  among them, a path outside the repository, or an exact count beside more matches, exits 1, and a `git grep` git
+  refuses exits 2, so a stray match or an unrunnable check shows at the cut (change `0066-plan-halts`, phase 1).
+- Input-contract item `I19`: a `Verify:` is one plain command — no `$(…)`, shell variable, loop or `cd`, and a search
+  with the script's options alone and no path outside the repository — and an exact count only when the count is the
+  point, so a check runs under a worker's shell rules (change `0066-plan-halts`, phase 2).
+- `gate_check.py --verify --change <id>` compares each `Verify:` in the working tree with the cut's, or its latest
+  `docs(<id>): amend the change directory` commit's, with the decision ids an integrate merge renumbered, and halts on
+  an edit, naming it and whether it is uncommitted; `--change` runs it after its gate check, as converge's and the
+  release's preconditions say, and the build runs it before a phase's first check, a HUMAN phase's too, so a narrowed
+  check never passes for the plan (change `0066-plan-halts`, phase 3).
+- The cut reads the target's standards, `git grep`s what a task deletes, runs `verify_check.py` in place of the gate
+  and has a fresh worker review the plan before its commit; `I3` reads the checks the cut runs, so a plan the code
+  cannot satisfy halts at the cut, not in the build (change `0066-plan-halts`, phase 4).
+- D7 names the search script and the plan review, and the cut runs no gate; D38 waits on a plan-review doubt left to
+  the person; D40 counts the plan reviewer among the fresh workers; D46 names the cut among the standards' readers; the cut's self-check exception names its fresh
+  review (change `0066-plan-halts`, phase 5).
+- **plan review calibration** — the plan review, run as a fresh subagent on replayed cuts, caught the `0060` backtick
+  needle and the isekai `0093` drawer premise; each doubt, at the cut it read (change `0066-plan-halts`, phase 6):
+  - `0060-gate-planning` at `1e127bf`: 5.1's `'a ## Progress. box is unticked'` cannot match D5's text, a backtick
+    before `##` (`tasks.md:48`, `design.md:94`) · 1.1's new halt text breaks existing assertions no task names
+    (`tests/test_gate_check.py:86`, `:108`, `:225`, `:257`) · 2.1's gpunit `0017` task text is not in the repo
+    (`design.md:109`) · 4.1's `approve-gate` from the primary finds no cut commit
+    (`skills/mf-converge/scripts/gate_check.py:83-92`, `design.md:85`).
+  - isekai `0093` fixture: 3.2's narrowed viewport cannot let one grid set the width over
+    `min-width: max(50vw, 480px)` (`ui/src/app.css:510`) · below a 580px viewport the floor beats
+    `max-width: calc(100vw - 100px)` (`ui/src/app.css:511`) · 3.2's `0091·R4` and `0091·R9` steps have no design
+    and no `Verify:` (`tasks.md:9`, `design.md:7`).
+  - `0061-conflict-resolve` at `b3974cb`: 1.1 renumbers Step 3 and leaves its references stale
+    (`skills/mf-integrate/SKILL.md:75-77`, `:97`) · 1.2's `grep -c '## Resolved'` prints `2` if the template
+    names it too (`skills/mf-integrate/SKILL.md:102-108`) · 2.1's search misses a phrase wrapped across lines
+    (`skills/mf-integrate/SKILL.md:97-98`), and checks `:138` not at all · 2.1 leaves the new wording at `:69`
+    to the worker · the one-line counts can break on a rewrap (`docs/decisions.md:432`,
+    `skills/mf-integrate/SKILL.md:143`).
+
 ## [0.54.0] - 2026-11-05
 
 Gate: local 1m49s · CI not read under mf-ship · 0.53.0: local 6m11s · CI not read under mf-ship
