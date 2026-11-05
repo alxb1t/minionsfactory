@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-05
+
+Gate: local 2m41s · CI not read under mf-ship · 0.55.0: local 2m12s · CI not read under mf-ship
+
 - `mf-build` writes `.minions/build/<id>.halt` on every halt — the sub-task, the stop, one line of evidence, the head —
   and `conduct.py`'s build check names its sub-task and stop in the halt line when it names `HEAD`, so a halt says
   where it stopped (change `0067-rescue`, phase 1).
