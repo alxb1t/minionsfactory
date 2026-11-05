@@ -50,6 +50,10 @@ RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
+DEBT = ".minions/debt.md"
+DEBT_LOCK = ".minions/debt.lock"
+OLD_DEBT = ".minions/backlog.md"
+OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
@@ -64,7 +68,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    "rescue",
+    *("rescue", "move"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -560,12 +564,12 @@ def _is_event(line: str, event: str) -> bool:
     return line.split(" — ")[0].endswith(f" · {event}")
 
 
-def _clear_stale_lock(primary: Path) -> int | None:
-    """Remove a `backlog.lock` older than `LOCK_STALE`; return its age in seconds.
+def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
+    """Remove the lock `name` older than `LOCK_STALE`; return its age in seconds.
 
     A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
     """
-    lock = primary / ".minions" / "backlog.lock"
+    lock = primary / name
     if not lock.is_dir():
         return None
     age = round(time.time() - lock.stat().st_mtime)
@@ -879,8 +883,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
-        if ".minions/backlog.lock" in halt:
-            return "converge", "halted on the backlog lock: resumes at Step 9"
+        if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
+            return "converge", "halted on the debt lock: resumes at Step 9"
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
         if "cap reached" in halt and _granted(runs, change, take=False):
@@ -3388,6 +3392,51 @@ class Run:
             if not alive and not self.take_requests(threads):
                 return
 
+    def unlock(self, name: str) -> None:
+        """Remove the lock `name` when stale, logging its age."""
+        if (age := _clear_stale_lock(self.primary, name)) is not None:
+            self.log.event("run", "unlock", f"{name}, {age}s old")
+
+    def migrate_debt(self) -> str | None:
+        """Move an old `backlog.md` to `debt.md`; return why the run must halt.
+
+        A stale `backlog.lock` is removed. Both files, an old file that is a link,
+        or beside the old file a lock still standing, halt: a person or a hand-run
+        writer holds them. The move holds `debt.lock`, as every writer of `debt.md`
+        does. Why: 0079-debt-rename design D3.
+        """
+        old, new = self.primary / OLD_DEBT, self.primary / DEBT
+        both = f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
+        if old.is_file() and new.exists():
+            return both
+        self.unlock(OLD_DEBT_LOCK)
+        if not old.is_file():
+            return None
+        if old.is_symlink():
+            # A link would make the debt a second name of the file it names.
+            return f"{OLD_DEBT} is a link: a person settles what it names"
+        old_lock = self.primary / OLD_DEBT_LOCK
+        if old_lock.is_dir():
+            return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
+        if old_lock.exists():
+            return f"{OLD_DEBT_LOCK} is a file, not a lock: a person removes it"
+        self.unlock(DEBT_LOCK)
+        lock = self.primary / DEBT_LOCK
+        try:
+            lock.mkdir()
+        except FileExistsError:
+            return f"{DEBT_LOCK} is held: a person or a hand-run writer holds it"
+        try:
+            # A link never replaces: a debt file made since the check stands.
+            os.link(old, new)
+            old.unlink()
+        except FileExistsError:
+            return both
+        finally:
+            lock.rmdir()
+        self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
+        return None
+
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1.
 
@@ -3421,8 +3470,11 @@ class Run:
             return 1
         if unkept := _keep_origin(self.primary):
             self.log.event("run", "unkept", unkept)
-        if (age := _clear_stale_lock(self.primary)) is not None:
-            self.log.event("run", "unlock", f".minions/backlog.lock, {age}s old")
+        if why := self.migrate_debt():
+            self.halt("run", why)
+            self.log.event("run", "halt", self.closing())
+            return 1
+        self.unlock(DEBT_LOCK)
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
@@ -3790,14 +3842,14 @@ def _merge_commit(primary: Path, version: Version) -> str | None:
     return None
 
 
-def _cards(backlog: Path, change: str) -> list[str]:
-    """Return the ids of the cards under the change's backlog heading.
+def _cards(debt: Path, change: str) -> list[str]:
+    """Return the ids of the cards under the change's debt heading.
 
     e.g. "- **0016·R5 — a title**" → "0016·R5"
     """
     ids: list[str] = []
     inside = False
-    for line in backlog.read_text().splitlines() if backlog.is_file() else []:
+    for line in debt.read_text().splitlines() if debt.is_file() else []:
         if line.startswith("## "):
             inside = line.strip() == f"## {change}"
         elif inside and (card := re.match(r"- \*\*(\S+) — ", line)):
@@ -3886,7 +3938,7 @@ def report(cwd: Path) -> str:
                     f"merge {_merge_commit(primary, version) or 'none'}",
                     {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
                     f"round {round_ or 'none'}",
-                    f"cards {' '.join(_cards(runs / 'backlog.md', change)) or 'none'}",
+                    f"cards {' '.join(_cards(runs / 'debt.md', change)) or 'none'}",
                     f"denied {', '.join(denied.get(change, [])) or 'none'}",
                     f".minions/metrics/{change}.html"
                     if page.is_file()

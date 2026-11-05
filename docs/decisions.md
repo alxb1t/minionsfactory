@@ -191,22 +191,22 @@ be clean.**
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts.
-- **A repeat goes up one level:** a finding that repeats a backlog card.
+- **A repeat goes up one level:** a finding that repeats a debt card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
   drift tier keeps prose out of the loop.
 
-### D16 · Deferred work is a card in the repo's backlog
+### D16 · Deferred work is a card in the repo's debt file
 
 **Once the loop is clean, converge fixes this run's small cards and its drift in one more round. Everything else
 becomes a card — why, when, what, priority, fix and size, trigger, still true? — in the gitignored
-`.minions/backlog.md`: one file per repository, in the primary's `.minions/`, shared by every worktree and written
-under `.minions/backlog.lock`. A card is a finding of the check loop, or of the hand read that stands in for it;
-work with no finding behind it is planning, and lives outside the repo. The backlog never blocks a release; a
+`.minions/debt.md`: one file per repository, in the primary's `.minions/`, shared by every worktree and written
+under `.minions/debt.lock`. A card is a finding of the check loop, or of the hand read that stands in for it;
+work with no finding behind it is planning, and lives outside the repo. The debt never blocks a release; a
 paydown change lists the cards it closes and its release deletes them.**
 
-- **Why:** small fixes are cheapest while the context is fresh. A backlog that blocks would block every release, and
+- **Why:** small fixes are cheapest while the context is fresh. A debt that blocks would block every release, and
   one kept outside the repo cannot cite `path:line`.
-- **Accepts:** the backlog is gitignored, so it lives on one machine. Reopen when a second person or a cloud run
+- **Accepts:** the debt file is gitignored, so it lives on one machine. Reopen when a second person or a cloud run
   needs to read it.
 
 ### D17 · The release verifies, folds, archives, tags, and on the person's yes merges and pushes

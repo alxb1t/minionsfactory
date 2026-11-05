@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-11-06
+
+Gate: local 1m21s · CI not read under mf-ship · 0.64.0: local 1m27s · CI not read under mf-ship
+
+- The deferred work's file, lock, status-log event and proposal key are `.minions/debt.md`, `.minions/debt.lock`, `debt` and
+  `debt:` in `conduct.py`, converge, the release and the run and review metrics; each reader still takes the old name
+  (change `0079-debt-rename`, phase 1).
+- The word "backlog" leaves the live record for "debt": D15, D16, the principles, `AGENTS.md`, `THREAT_MODEL.md`, the plan,
+  cut and review skills; `scripts/metrics/backlog.py` is `debt.py`, the metric id kept (change `0079-debt-rename`, phase 2).
+- `conduct.py run` moves an old `.minions/backlog.md` to `debt.md` and clears a stale `backlog.lock` at its start, under the
+  claim; both files, or a young old lock, halt the run before any worker (change `0079-debt-rename`, phase 3).
+- The move holds `.minions/debt.lock` and never replaces a `debt.md`: a young lock, or a debt file a hand-run converge
+  wrote since the check, halts the run (change `0079-debt-rename`, converge).
+- An old lock halts the move only beside an old file, and a plain file there halts naming its kind; an old file that is a
+  link halts rather than make the debt a second name of its target (change `0079-debt-rename`, converge).
+- Converge's stations read an old `.minions/backlog.md` when no `debt.md` stands, and converge's Step 9 and the release's
+  paydown halt while one stands, a re-run resuming after `/mf-ship` moves it (change `0079-debt-rename`, converge).
+
 ## [0.64.0] - 2026-11-06
 
 Gate: local 1m27s · CI not read under mf-ship · 0.63.0: local 1m43s · CI not read under mf-ship

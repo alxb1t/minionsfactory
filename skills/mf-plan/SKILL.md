@@ -51,7 +51,7 @@ Read the target only at `<ref>`, never its working tree: the tree may be a build
 
 | allowed | never |
 |---|---|
-| `git show <ref>:<path>` · `git grep <pattern> <ref>` · `git log <ref>` · `git ls-tree <ref>` · `git diff <a> <b>` · `git rev-parse` · reading `.minions/backlog.md` from disk | `switch` · `checkout` · `stash` · `reset` · `commit` · `branch` · `merge` · `rebase` · editing a file in the target · `make gate` · a metric collection |
+| `git show <ref>:<path>` · `git grep <pattern> <ref>` · `git log <ref>` · `git ls-tree <ref>` · `git diff <a> <b>` · `git rev-parse` · reading `.minions/debt.md`, else an old `.minions/backlog.md`, from disk | `switch` · `checkout` · `stash` · `reset` · `commit` · `branch` · `merge` · `rebase` · editing a file in the target · `make gate` · a metric collection |
 
 **Helpers.** Where the host can start fresh workers, fact-finding goes to read-only helpers by default, each given
 `<ref>`, the question, and the allowed list; each returns conclusions with `path:line` at `<sha>`, not file
@@ -66,8 +66,8 @@ Before the first round, report each as a fact. The checks are independent: with 
 
 | check | how |
 |---|---|
-| triggered cards | each card's **Trigger** in `.minions/backlog.md` against the version; matches proposed as `backlog: [<ids>]` |
-| the paydown line | more than ten `- **<4 digits>·` lines (`grep -cE '^- \*\*[0-9]{4}·' .minions/backlog.md`) → recommend a paydown version first |
+| triggered cards | each card's **Trigger** in `.minions/debt.md` against the version; matches proposed as `debt: [<ids>]` |
+| the paydown line | more than ten `- **<4 digits>·` lines (`grep -cE '^- \*\*[0-9]{4}·' .minions/debt.md`) → recommend a paydown version first |
 | the bump | `minor` or `patch`, a patch against what root `AGENTS.md` says one may hold; a mismatch goes to the person |
 | decisions touched | `docs/decisions.md` at `<ref>`, when present: each decision the version adds or overturns, named |
 | a split | a version whose one diff would be too large for review is proposed as two |
@@ -75,7 +75,8 @@ Before the first round, report each as a fact. The checks are independent: with 
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
 | parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file, with `after:` suggested when one needs the other's code |
 
-No `.minions/backlog.md` → say so, and skip the backlog checks.
+No `.minions/debt.md` → read an old `.minions/backlog.md` a run has not moved yet, in its place; neither → say so,
+and skip the debt checks.
 
 ## Step 4 — The rounds
 
@@ -145,7 +146,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   - <a question still on the frontier — removed when it is empty>
 
   ## For the cut
-  <the change id and bump proposed · `backlog: [ids]` · the conditions — filled when the frontier is empty>
+  <the change id and bump proposed · `debt: [ids]` · the conditions — filled when the frontier is empty>
   ```
 
 ## Never

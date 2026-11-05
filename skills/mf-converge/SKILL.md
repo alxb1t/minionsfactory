@@ -23,7 +23,7 @@ Before work, read root `AGENTS.md`, the mandatory context it names, and the chan
   5 ◀── 7 verify ◀── 6 fix ◀──────── cards picked ──────── 8 pickup
         cap three                                               │ none picked, or pickup done
                                                                 ▼
-                                                     9 backlog ─▶ 10 report
+                                                       9 debt ─▶ 10 report
 ```
 
 ## Parameter — the change id
@@ -40,7 +40,7 @@ The **run directory** is `.minions/` beside the primary checkout:
 `$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
-**The backlog** is `.minions/backlog.md`: one gitignored file for every change, the only copy of the deferred work.
+**The debt** is `.minions/debt.md`: one gitignored file for every change, the only copy of the deferred work.
 
 ## Where the constants come from — disk, never a guess
 
@@ -85,15 +85,15 @@ The events, and no others:
 | `pickup` | Step 8 | the picked ids, or `none` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
 | `by rule` | `### By rule` | `clean`, then each merge's paths as `replay` printed them |
-| `backlog` | Step 9 | the cards written, moot and cleared, by id |
+| `debt` | Step 9 | the cards written, moot and cleared, by id |
 | `halt` | wherever this skill halts | the reason, as reported, then `· head <sha>` |
-| `done` | Step 10 | rounds used, cards to the backlog |
+| `done` | Step 10 | rounds used, cards to the debt |
 
 ```
 # 0018-converge-status-log — converge status
 
 ## Run 2 — 2026-09-28 10:04
-10:21:40 · round 1 · done — converged in 1 round · 0 cards to backlog
+10:21:40 · round 1 · done — converged in 1 round · 0 cards to debt
 10:09:05 · round 1 · verdicts — security clean · open_blocking 0 · executor claude · model default · effort default · tokens unavailable
 10:09:02 · round 1 · verdicts — review clean · open_blocking 0 · executor claude · model opus · effort high · tokens 97960
 10:04:20 · round 1 · fan-out — review and security dispatched · 2 workers
@@ -133,8 +133,8 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
 **A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
 
-The top line is a `halt` naming `.minions/backlog.lock` → continue that run at Step 9 when both findings files are clean
-at `HEAD`; else halt, naming the file.
+The top line is a `halt` naming `.minions/debt.lock`, or an older `.minions/backlog.lock` → continue that run at
+Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
 
 The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
 `git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
@@ -159,7 +159,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
-| `backlog` | Step 10 |
+| `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
 | `by rule` | Step 9 |
 
@@ -181,7 +181,7 @@ not `HEAD`:
   every merge replays? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
                │ yes                                                  │
                ▼                                                      ▼
-  by rule: both files clean, no worker ─────────────────▶ Step 9 backlog ─▶ Step 10 report   (no pickup)
+  by rule: both files clean, no worker ─────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
 ```
 
 Open the run marked `· catch-up`, and write `catch-up` to the status log.
@@ -277,8 +277,8 @@ files. Give each:
   design's `## Tests` table;
 - its mode and reference;
 - the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
-- `.minions/backlog.md`, read-only, when it exists, and the repeat rule of
-  [review and security](references/worker.md#review-and-security).
+- `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
+  repeat rule of [review and security](references/worker.md#review-and-security).
 
 Write `fan-out` to the status log at dispatch.
 
@@ -331,7 +331,7 @@ dispatch and again at its commit. The fixer:
 - **never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is `wontfix`, naming the amend
   the person commits, and the round halts `amend needed — <card ids>`;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
-  backlog — only you do, in Step 9; a second writer would duplicate ids;
+  debt — only you do, in Step 9; a second writer would duplicate ids;
 - **commits** the fix staged **by name** (never `git add -A`), Conventional Commits, the message ending with
   `Co-Authored-By:` and `Change: <change-id>` **contiguous**: a blank line between them silently breaks the
   trailer block.
@@ -358,7 +358,7 @@ Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
 **The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends has
 [its own count](#catch-up-round). At the cap, **halt**: leave every findings file **exactly as it stands**, write
-nothing to the backlog — the findings files hold every card — and report the blocking findings still `open`,
+nothing to the debt — the findings files hold every card — and report the blocking findings still `open`,
 **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third opinion: a loop
 that cannot converge in three rounds is a plan problem, and the halt *is* the finding.
 
@@ -377,26 +377,28 @@ tier are on the card — and no human confirms it.
 4. **Send them by id to the Step 6 fix station**, then verify in a normal Step 7 round. A card first found in that
    round is not picked: one pickup per run.
 
-## Step 9 — Write the backlog
+## Step 9 — Write the debt
 
-Write the deferred work to `.minions/backlog.md`, once, after the loop is clean.
+Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
 
-**The lock:** before writing `.minions/backlog.md`, `mkdir .minions/backlog.lock`; it exists → wait 5 seconds and
-retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted.
+**The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
+retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old
+`.minions/backlog.md` stands → take no lock and halt, as on a held one: `.minions/debt.lock not taken — an old
+.minions/backlog.md stands; /mf-ship moves it at a run's start`. A re-run after the move resumes here.
 
 1. **Take every non-blocking card** in either findings file whose **Status** is not `verified`.
 2. **Run its Still true? check.** A card the check shows gone is **moot**: do not write it; name it in the
    report with the check's output.
-3. **Create the file if missing** — a `# Backlog` title, then one line: *Deferred work from converge, one heading
-   per change; a paydown change lists the ids it closes under `backlog:`.*
+3. **Create the file if missing** — a `# Debt` title, then one line: *Deferred work from converge, one heading
+   per change; a paydown change lists the ids it closes under `debt:`.*
 4. **Write each card under `## <change-id>`**, creating the heading if missing. Its title takes a qualified id —
    `- **R5 — …**` becomes `- **0016·R5 — …**`, the change's number before the id. Every other field is copied
    verbatim, in order.
-5. **Skip an id already in the backlog.** Never edit a card that is there; delete one only as item 6 says.
+5. **Skip an id already in the debt.** Never edit a card that is there; delete one only as item 6 says.
 6. **Clear a fixed repeat's old card.** For every `verified` card whose **Related** names `repeat of <id>`, run
    the old card's **Still true?** check. The defect is gone → delete that card, its list line and nested bullets,
    and a change heading left empty; name it in the report with the check's output.
-7. **Write `backlog` to the status log.**
+7. **Write `debt` to the status log.**
 
 ## Step 10 — Report, then stop
 
@@ -405,7 +407,7 @@ retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends
 
 Your sentences: the verdicts and the round, read from disk; each `inconclusive` section; each
 blocking finding's end state, by id; the cards
-written, by qualified id, and the backlog's total card count, so a vanished file shows as a drop; the exit code of
+written, by qualified id, and the debt's total card count, so a vanished file shows as a drop; the exit code of
 the gate you re-run at the end.
 
 Write `done` to the status log. The last line: `Next: /mf-release, in a fresh session.` Then **stop**.
@@ -417,9 +419,9 @@ Write `done` to the status log. The last line: `Next: /mf-release, in a fresh se
 - **Never edit a findings file**, save [By rule](#by-rule)'s write. The stations own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert only: the log is the record of what the loop did.
-- **Never pick a non-`drift` card sized `a design change`, or an older backlog card.** Pickup takes this run's
+- **Never pick a non-`drift` card sized `a design change`, or an older debt card.** Pickup takes this run's
   small cards and `drift` cards only.
-- **Never delete a backlog card, except a fixed repeat's** — Step 9 item 6. Any other deletion is a paydown
+- **Never delete a debt card, except a fixed repeat's** — Step 9 item 6. Any other deletion is a paydown
   change's release.
 - **Never weaken the gate**, and never accept a fix that passes only because a check was loosened. A test
   deleted or merged as `design.md`'s `## Tests` table names it is not a weakening.

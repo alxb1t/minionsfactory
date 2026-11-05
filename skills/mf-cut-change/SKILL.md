@@ -123,9 +123,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 
 - `proposal.md` opens with `bump: <bump>` frontmatter; the CLI neither emits nor checks it.
 - A version cut with `after` also lists them: `after: [0047-x]`.
-- A paydown change — cut to close cards from `.minions/backlog.md` — also lists their qualified ids there:
-  `backlog: [0012·S1, 0012·R4]`. `grep` each in `.minions/backlog.md`; an id not found goes to the human. The cut
-  leaves the backlog alone: `mf-release` deletes the cards.
+- A paydown change — cut to close cards from `.minions/debt.md` — also lists their qualified ids there:
+  `debt: [0012·S1, 0012·R4]`. `grep` each in `.minions/debt.md`; an id not found goes to the human. The cut
+  leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Each dependency

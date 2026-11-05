@@ -272,7 +272,7 @@ def test_the_status_log_gives_duration_tokens_and_the_cap(tmp_path: Path) -> Non
     capped = """# 0030-capped — converge status
 
 ## Run 2 — 2026-10-30 23:58
-00:01:00 · round 2 · done — converged in 2 rounds · 3 cards to backlog · gate exit 0
+00:01:00 · round 2 · done — converged in 2 rounds · 3 cards to debt · gate exit 0
 23:59:00 · round 1 · verdicts — review clean · tokens unavailable
 23:58:30 · round 1 · start — base a · head b · 3 commits · engine: generic
 

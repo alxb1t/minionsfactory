@@ -13,7 +13,7 @@ test-cost and coverage-trace passes, and red runs.
 range holds one; the change's proposal, design and tasks, its spec delta unless it declares `skip_specs: true`, and the
 living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root standards files, architecture
 decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your
-mode; your findings path; the backlog, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
+mode; your findings path; the debt, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
 symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
 range. An input missing or unusable → halt, naming it.
 
@@ -34,7 +34,7 @@ range. An input missing or unusable → halt, naming it.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed
    error. Always a card, never left to the fixer's judgement.
 
-Then run the contract's stale-claim, test-cost and coverage-trace passes, and check backlog repeats.
+Then run the contract's stale-claim, test-cost and coverage-trace passes, and check debt repeats.
 
 A section whose source document is missing, or reads `Not written yet:`, is **`inconclusive`**: say which document,
 check what can be checked without it, and go on. `inconclusive` never blocks and never reads as a pass.

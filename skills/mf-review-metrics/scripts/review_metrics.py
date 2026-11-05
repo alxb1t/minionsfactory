@@ -64,7 +64,7 @@ CHARTS = {
     "verified": "verified",
     "reopened": "reopened",
     "capped": "capped",
-    "to_backlog": "to backlog",
+    "to_backlog": "to debt",
     "duration": "duration (s)",
     "tokens": "tokens",
 }
@@ -537,7 +537,7 @@ def _status_log(path: Path) -> Record:
     engines = details("start", r"\bengine:? (\w[\w-]*)")
     verdicts = [detail for event, detail in events if event == "verdicts"]
     tokens = (figure for detail in verdicts for _, figure in _role_tokens(detail))
-    cards = details("done", r"\b(\d+) cards? to backlog")
+    cards = details("done", r"\b(\d+) cards? to (?:backlog|debt)")
     return {
         "engine": engines[0] if engines else None,
         "duration": _held(_run_seconds(run) for run in runs),
@@ -817,7 +817,7 @@ def _repo_table(records: list[Record]) -> Table:
             "median rounds",
             *(f"{field} per change" for field in per_change),
             "capped",
-            "to backlog",
+            "to debt",
         ],
         [
             [

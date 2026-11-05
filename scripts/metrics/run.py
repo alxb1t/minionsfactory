@@ -435,7 +435,7 @@ class Version:
         return round(self.role_tokens(role) / confirmed)
 
     def paid(self) -> list[str]:
-        """Return the card ids the proposal's `backlog:` lists, archived or active."""
+        """Return the card ids the proposal's `debt:` or `backlog:` lists."""
         folder = Path("openspec/changes")
         found = [
             path
@@ -445,7 +445,7 @@ class Version:
         if not found:
             raise Gap(f"no proposal.md for {self.change}")
         text = (self.root / found[0] / "proposal.md").read_text(encoding="utf-8")
-        listed = re.search(r"^backlog:[ \t]*\[(.*)\]", text, re.MULTILINE)
+        listed = re.search(r"^(?:debt|backlog):[ \t]*\[(.*)\]", text, re.MULTILINE)
         return [card.strip() for card in listed[1].split(",")] if listed else []
 
     def escapes(self) -> int:
@@ -462,10 +462,10 @@ class Version:
         )
 
     def debt(self) -> int:
-        """Return the cards under the version's heading in `.minions/backlog.md`."""
-        path = self.minions / "backlog.md"
+        """Return the cards under the version's heading in `.minions/debt.md`."""
+        path = self.minions / "debt.md"
         if not path.is_file():
-            raise Gap("no .minions/backlog.md")
+            raise Gap("no .minions/debt.md")
         text = path.read_text(encoding="utf-8")
         heading = rf"^## {re.escape(self.change)}[ \t]*\n(.*?)(?=^## |\Z)"
         section = re.search(heading, text, re.MULTILINE | re.DOTALL)

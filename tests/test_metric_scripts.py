@@ -317,25 +317,25 @@ def test_conformance_counts_trailers_amends_and_minions(tmp_path: Path) -> None:
 
 def test_backlog_cards_are_unavailable_without_a_backlog(tmp_path: Path) -> None:
     _git(tmp_path, "init", "-q")
-    backlog = _load("backlog")
-    assert backlog.cards(tmp_path) is None
+    debt = _load("debt")
+    assert debt.cards(tmp_path) is None
     done = subprocess.run(
-        [sys.executable, _SCRIPTS / "backlog.py"],
+        [sys.executable, _SCRIPTS / "debt.py"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
     )
     assert done.returncode != 0 and done.stdout == ""
-    assert done.stderr.splitlines()[0] == "no .minions/backlog.md"
+    assert done.stderr.splitlines()[0] == "no .minions/debt.md"
 
     _write(
         tmp_path,
         {
-            ".minions/backlog.md": "# Backlog\n\n- **0023·R7 — a**\n  - **0023·x**\n"
+            ".minions/debt.md": "# Debt\n\n- **0023·R7 — a**\n  - **0023·x**\n"
             "- **R1·b**\n- **0028·S1 — c**\n"
         },
     )
-    assert backlog.cards(tmp_path) == 2
+    assert debt.cards(tmp_path) == 2
 
 
 _RUN_A = """# Ship run 20261101-230000
@@ -621,9 +621,11 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
             ),
             ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
             "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
-            "backlog: [0000·R4, 0000·S2]\n---\n",
+            "debt: [0000·R4, 0000·S2]\n---\n",
             "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
-            ".minions/backlog.md": "# Backlog\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
+            "openspec/changes/archive/0004-w/proposal.md": "---\nbump: patch\n"
+            "backlog: [0000·R4]\n---\n",
+            ".minions/debt.md": "# Debt\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
             "## 0001-x\n\n- **0001·R2 — b**\n  - **Why:** c\n- **0001·S1 — d**\n",
         },
     )
@@ -657,6 +659,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert {metric: read(metric) for metric in expected} == expected
 
     assert read("debt-paid", "0002-y") == 0
+    assert read("debt-paid", "0004-w") == 1
     assert read("debt-added", "0002-y") == 0
     assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
     assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
@@ -682,8 +685,8 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("review-tokens-per-confirmed") == (
         "gap: no 20261102-090000/0001-x_converge-2.log"
     )
-    (tmp_path / ".minions/backlog.md").unlink()
-    assert read("debt-added") == "gap: no .minions/backlog.md"
+    (tmp_path / ".minions/debt.md").unlink()
+    assert read("debt-added") == "gap: no .minions/debt.md"
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:
@@ -692,6 +695,6 @@ def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> N
     _git(primary, "init", "-q")
     _git(primary, "commit", "-q", "--allow-empty", "-m", "base")
     _git(primary, "worktree", "add", "-q", "-b", "v0.2_x", str(worktree))
-    _write(primary, {".minions/backlog.md": "- **0023·a**\n- **0024·b**\n"})
+    _write(primary, {".minions/debt.md": "- **0023·a**\n- **0024·b**\n"})
 
-    assert _load("backlog").cards(worktree) == 2
+    assert _load("debt").cards(worktree) == 2

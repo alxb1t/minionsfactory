@@ -2266,11 +2266,12 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
 
     # Twin: a halt on anything else is the person's.
     assert halted("cap reached")[0] == "converge-halted"
-    assert halted("waited 2 minutes for .minions/backlog.lock") == (
-        "converge",
-        "halted on the backlog lock: resumes at Step 9",
-    )
-    lock = root / ".minions" / "backlog.lock"
+    for name in ("debt", "backlog"):
+        assert halted(f"waited 2 minutes for .minions/{name}.lock") == (
+            "converge",
+            "halted on the debt lock: resumes at Step 9",
+        )
+    lock = root / ".minions" / "debt.lock"
     lock.mkdir()
     stale = time.time() - 601
     os.utime(lock, (stale, stale))
@@ -2279,7 +2280,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
     assert not lock.exists()
     assert any(
-        re.search(r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old$", line)
+        re.search(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old$", line)
         for line in _log(root)
     )
 
@@ -2289,6 +2290,129 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert run() == 0
     assert lock.is_dir()
     assert not any(" · unlock — " in line for line in _log(root))
+
+
+def test_a_run_moves_an_old_backlog_to_the_debt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    minions.mkdir(exist_ok=True)
+    old, new = minions / "backlog.md", minions / "debt.md"
+    lock, held = minions / "backlog.lock", minions / "debt.lock"
+    moved = " · run · move — .minions/backlog.md → .minions/debt.md"
+    both = "run · halt — .minions/backlog.md and .minions/debt.md both stand"
+
+    def start() -> tuple[int, str]:
+        conductor = conduct["Run"](root, "claude")
+        code = conductor.ship()
+        logs = (minions / "runs").glob("*.md")
+        return code, "".join(log.read_text() for log in sorted(logs))
+
+    def stale_lock(path: Path = lock) -> None:
+        path.mkdir()
+        past = time.time() - 601
+        os.utime(path, (past, past))
+
+    old.write_text("# Backlog\n\n## 0001-a\n\n- **0001·R1 — a**\n")
+    code, text = start()
+    assert code == 0
+    assert not old.exists() and "0001·R1" in new.read_text()
+    assert text.count(moved) == 1
+
+    # Twin: a second start has nothing to move.
+    code, text = start()
+    assert code == 0 and text.count(moved) == 1
+
+    # A stale old lock with no old file is removed.
+    stale_lock()
+    code, text = start()
+    unlocked = r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old"
+    assert code == 0 and not lock.exists()
+    assert len(re.findall(unlocked, text)) == 1 and text.count(moved) == 1
+
+    # A linked old file halts: the debt never becomes a second name of its target.
+    new.unlink()
+    key = tmp_path / "id_ed25519"
+    key.write_text("key\n")
+    old.symlink_to(key)
+    code, text = start()
+    assert key.stat().st_nlink == 1 and not new.exists()
+    assert code == 1 and old.is_symlink()
+    assert "run · halt — .minions/backlog.md is a link" in text
+
+    # Beside an old file, the move follows it.
+    old.unlink()
+    old.write_text("# Backlog\n")
+    stale_lock()
+    code, text = start()
+    assert code == 0 and not lock.exists() and new.is_file()
+    assert len(re.findall(unlocked, text)) == 2 and text.count(moved) == 2
+
+    # Both files, or a young old lock, halt before any move.
+    old.write_text("# Backlog\n")
+    code, text = start()
+    assert code == 1 and old.is_file() and new.is_file()
+    assert both in text
+    new.unlink()
+    lock.mkdir()
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and lock.is_dir()
+    assert "run · halt — .minions/backlog.lock is held" in text
+    assert text.count(moved) == 2
+
+    # With no old file, neither a young old lock nor a plain file there halts.
+    old.unlink()
+    code, text = start()
+    assert code == 0 and lock.is_dir() and not new.exists()
+    lock.rmdir()
+    lock.write_text("")
+    code, text = start()
+    assert code == 0 and lock.is_file() and not new.exists()
+
+    # Beside an old file, a plain file at the old lock halts, naming its kind.
+    old.write_text("# Backlog\n")
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and lock.is_file()
+    assert "run · halt — .minions/backlog.lock is a file" in text
+    assert text.count(moved) == 2
+
+    # A young debt lock halts the move: a hand-run converge writes the debt.
+    lock.unlink()
+    held.mkdir()
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and held.is_dir()
+    assert "run · halt — .minions/debt.lock is held" in text
+    assert text.count(moved) == 2
+
+    # Twin: a stale debt lock is removed, and the move releases its own.
+    held.rmdir()
+    stale_lock(held)
+    code, text = start()
+    assert code == 0 and not old.exists() and new.is_file() and not held.exists()
+    assert (
+        len(re.findall(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old", text))
+        == 1
+    )
+    assert text.count(moved) == 3
+
+    # A debt file its lock's holder writes after the check stands, not replaced.
+    new.unlink()
+    old.write_text("# Backlog\n")
+    module = conduct["Run"].migrate_debt.__globals__
+    clear = module["_clear_stale_lock"]
+
+    def write_debt(primary: Path, name: str = ".minions/debt.lock") -> int | None:
+        if name.endswith("backlog.lock"):
+            new.write_text("# Debt\n\n## 0002-b\n\n- **0002·R1 — b**\n")
+        return clear(primary, name)
+
+    monkeypatch.setitem(module, "_clear_stale_lock", write_debt)
+    code, text = start()
+    assert code == 1 and old.is_file() and "0002·R1" in new.read_text()
+    assert text.count(both) == 2 and text.count(moved) == 3
 
 
 @pytest.mark.slow
@@ -4710,9 +4834,9 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     fixed = _git(tree, "rev-parse", "HEAD")
     # The lock case comes first, as in mf-converge's Resuming a run.
     # Why: 0063-rejoin design D4.
-    locked = f"halt — waited 2 minutes for .minions/backlog.lock · head {judged}"
+    locked = f"halt — waited 2 minutes for .minions/debt.lock · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
-    lock = ("converge", "halted on the backlog lock: resumes at Step 9")
+    lock = ("converge", "halted on the debt lock: resumes at Step 9")
     assert stage_of(root, version) == lock
     # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
     # and a person's commit past it answers none (0063-rejoin design D4).
