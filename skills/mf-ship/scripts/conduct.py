@@ -1546,6 +1546,21 @@ def probe_gate(mark: Path, native: str) -> str:
     )
 
 
+def _read_arch(arch: Path) -> tuple[str, int] | None:
+    """Return the first 64 bytes of `arch` and its link count, or None for a link.
+
+    The scratch folder is worker-written. e.g. `.arch` holding "i386" → ("i386", 1)
+    Why: 0072-paydown design D1.
+    """
+    try:
+        fd = os.open(arch, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    with os.fdopen(fd, "rb") as handle:
+        text = handle.read(64).decode(errors="replace").strip()
+        return text, os.fstat(handle.fileno()).st_nlink
+
+
 def check_probe(scratch: Path, mark: Path | None) -> str | None:
     """Return why the probe check fails, or None; the scratch gate leaves `.gated`.
 
@@ -1555,6 +1570,14 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     executor = mark.name.split("-")[1] if mark is not None else "the worker"
     if mark is not None and (not mark.is_file() or mark.stat().st_size):
         return f"{executor} wrote outside its reach: it runs unsandboxed"
+    arch = scratch / ".arch"
+    if arch.is_symlink() or arch.is_file():
+        native = _native()
+        shell, links = _read_arch(arch) or ("", 0)
+        if shell != native:
+            if links == 1 and re.fullmatch(r"[A-Za-z0-9_]{1,16}", shell):
+                return f"{executor}'s shell runs as {shell} on a {native} host"
+            return f"{executor}'s shell runs an unreadable .arch on a {native} host"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
@@ -1562,9 +1585,6 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
         return f"probe.txt reads {held.strip()!r}"
     if (scratch / ".gated").is_file():
         return None
-    arch, native = scratch / ".arch", _native()
-    if arch.is_file() and (shell := arch.read_text().strip()) != native:
-        return f"{executor}'s shell runs as {shell} on a {native} host"
     return "make gate left no .gated"
 
 

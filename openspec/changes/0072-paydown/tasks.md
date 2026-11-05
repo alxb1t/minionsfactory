@@ -4,13 +4,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The probe's .arch
+- [x] 1 — The probe's .arch
 - [ ] 2 — remove_tree refuses first
 - [ ] 3 — The record
 
 ## 1 — The probe's .arch
 
-- [ ] 1.1 Read `.arch` first and safely in `check_probe`, in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1); extend
+- [x] 1.1 Read `.arch` first and safely in `check_probe`, in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1); extend
   `test_a_probe_halts_on_a_write_out` in `tests/test_conduct.py` with direct `check_probe` calls on a scratch folder: a `.gated`
   beside a mismatched `.arch`, and a `.arch` link.
   Verify: `uv run pytest -q tests/test_conduct.py -k probe_halts_on_a_write_out` reports `1 passed`, and

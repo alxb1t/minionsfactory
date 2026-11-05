@@ -4693,6 +4693,27 @@ def test_a_probe_halts_on_a_write_out(
         f" {native} host\n"
     ) in log
 
+    # `.arch` is read before `probe.txt`, never through a link, named only as a shell.
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / ".gated").write_text("")
+    arch = scratch / ".arch"
+    arch.write_text("i386\n")
+    assert (
+        conduct["check_probe"](scratch, None)
+        == f"the worker's shell runs as i386 on a {native} host"
+    )
+    unreadable = f"the worker's shell runs an unreadable .arch on a {native} host"
+    arch.write_text("not an architecture\n")
+    assert conduct["check_probe"](scratch, None) == unreadable
+    arch.unlink()
+    arch.symlink_to(scratch / ".gated")
+    assert conduct["check_probe"](scratch, None) == unreadable
+    arch.unlink()
+    arch.write_text("i386\n")
+    os.link(arch, scratch / "twin")
+    assert conduct["check_probe"](scratch, None) == unreadable
+
     # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()
     fake()
