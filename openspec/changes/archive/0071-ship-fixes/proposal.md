@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.61
 backlog: [hand·N2, 0070·R8, 0061·R4, 0063·S2, 0057·R9, 0067·R8]
 ---
 

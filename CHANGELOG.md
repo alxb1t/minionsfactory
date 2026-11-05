@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-11-05
+
+Gate: local 2m32s · CI not read under mf-ship · 0.60.0: local 2m32s · CI not read under mf-ship
+
 - `mf-integrate` commits the merge, then gates it with `gate_run.py --tree <worktree>`, so diff-cover reads the
   branch's own lines; a red gate halts with the merge committed and `.red` naming its head, which `conduct.py` reads
   as halted only while it is `HEAD` (change `0071-ship-fixes`, phase 1).
