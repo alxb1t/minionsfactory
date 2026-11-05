@@ -841,13 +841,15 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if tree is None:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = primary / ".minions"
-    if (red := _red(primary, tree, change)) is not None:
+    red, merging = _red(primary, tree, change), _merge_open(tree)
+    if red is not None and not merging:
         if red == _git(tree, "rev-parse", "HEAD").strip():
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         return "integrate", "red gate on another head: integrate gates again"
-    if _merge_open(tree):
+    if merging:
         marks = runs / "integrate"
-        if (marks / f"{change}.red").is_file():
+        # A `.red` with a `head:` names a committed merge: an open one's is stale.
+        if red is None and (marks / f"{change}.red").is_file():
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
@@ -923,17 +925,19 @@ def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the integrate check fails, or None; an open merge names its note.
 
-    The subject read is the newest first-parent merge's, so the person's fix commit
-    after it passes. Why: 0071-ship-fixes design D2.
+    A `.red` with a `head:` fails it until a green gate deletes it. The subject
+    read is the newest first-parent merge's, so the person's fix commit after it
+    passes. Why: 0071-ship-fixes design D2.
     """
     note = f".minions/integrate/{version.change}"
+    red = _red(primary, tree, version.change)
     if _merge_open(tree):
-        if (primary / f"{note}.red").is_file():
+        if red is None and (primary / f"{note}.red").is_file():
             return f"integrate halted — red gate, see {note}.red"
         if (primary / f"{note}.md").is_file():
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
-    if _red(primary, tree, version.change) == _git(tree, "rev-parse", "HEAD").strip():
+    if red is not None:
         return f"integrate halted — red gate, see {note}.red"
     default = default_branch(primary)
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()

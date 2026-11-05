@@ -67,9 +67,9 @@ sides' intent and the union, then run `make gate` on the worktree through `skill
 <worktree>`, and end with `Next: /mf-converge, then /mf-release`, or with `Next: /mf-ship, in the primary.` for a version with an
 unticked phase. A red gate on a merged test the union broke SHALL be fixed once, when the fix keeps both sides' intent, by amending
 the merge commit, and gated again. Any other red gate SHALL halt with the merge committed and write
-`.minions/integrate/<change-id>.red` holding `head: <sha>`, the head the gate judged; `conduct.py` SHALL read the version as halted
-while that sha is `HEAD`, and as to integrate again once it is not. Its integrate check SHALL read the newest first-parent merge, so the person's fix
-commit after it passes. It SHALL NOT release, tag, push or rebase.
+`.minions/integrate/<change-id>.red` holding `head: <sha>`, the head the gate judged; with no merge open, `conduct.py` SHALL read
+the version as halted while that sha is `HEAD`, and as to integrate again once it is not. Its integrate check SHALL fail while that
+`.red` stands, and read the newest first-parent merge, so the person's fix commit after it passes once a green gate deletes it. It SHALL NOT release, tag, push or rebase.
 
 #### Scenario: The next version is ready
 - **WHEN** the version has every phase ticked and clean findings files

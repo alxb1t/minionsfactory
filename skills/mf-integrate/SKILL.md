@@ -89,7 +89,8 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
 
 ## Step 3 — Merge and apply the rules
 
-1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, then
+1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, and a
+   `<change-id>.red` an earlier merge's red gate left, then
    `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a failure here; the rules come
    next.
 2. **Apply the rules**, each run even when one before it exits 1, in this order — `decisions` renumbers the

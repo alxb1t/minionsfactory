@@ -289,6 +289,11 @@ def test_status_reads_each_stage_from_disk(
     _git(root, "config", "--unset", "filter.probe.clean")
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
+    # A red gate an earlier committed merge left hides no open merge's note.
+    older = _git(tree, "rev-parse", "HEAD~1")
+    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    assert stage() == "0001-todo · integrating"
+    assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.red").write_text("gate red\n")
     assert stage() == "0001-todo · integrating"
     assert stage_of(root, version)[1].startswith("red gate")
@@ -399,6 +404,14 @@ def test_each_check_passes_only_on_disk_evidence(
         "check: integrate · fail — integrate halted — semantic conflict,"
         " see .minions/integrate/0001-todo.md",
     )
+    older = _git(tree, "rev-parse", "HEAD")
+    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    assert check("integrate")[1].endswith(
+        "semantic conflict, see .minions/integrate/0001-todo.md"
+    )
+    (marks / "0001-todo.md").unlink()
+    assert check("integrate") == (1, "check: integrate · fail — a merge is still open")
+    (marks / "0001-todo.md").write_text("note\n")
     (marks / "0001-todo.red").write_text("gate red\n")
     assert check("integrate") == (
         1,
@@ -432,9 +445,14 @@ def test_each_check_passes_only_on_disk_evidence(
         "check: integrate · fail — integrate halted — red gate,"
         " see .minions/integrate/0001-todo.red",
     )
-    # The person's fix after the merge: the gate judged an ancestor.
+    # The person's fix after the merge: the gate judged an ancestor, and the
+    # check passes only once a green gate deletes `.red`.
     _commit(tree, {"fix.txt": "x\n"}, "fix the merged test")
-    assert check("integrate") == (0, "check: integrate · pass")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/integrate/0001-todo.red",
+    )
     red.unlink()
     assert check("integrate") == (0, "check: integrate · pass")
 
