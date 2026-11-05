@@ -49,7 +49,7 @@ A breach of any, found mid-build, is a halt naming the id.
 |---|---|---|
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
-| **I3** | leave `make gate` green on the cut commit | — |
+| **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | — |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
@@ -65,6 +65,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — (Step 2 checks the staged tree) |
+| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | — |
 
 ## Step 1 — Lift the context
 
@@ -122,8 +123,8 @@ Take the **first unticked `## Progress` phase** and finish its whole ritual, thr
 look at the next. Never batch phases: each must be reviewable and revertible on its own.
 
 **A HUMAN phase is done by a person, not by you.** Its `## Progress` line contains `**HUMAN`. Do none of its
-tasks; run its `Verify:` checks. Any fails → **halt** with the person's checklist and nothing else — the one halt
-not reported in full:
+tasks; run `gate_check.py --verify --change <change-id>` first, with item 2's exits, then its `Verify:` checks.
+A check fails → **halt** with the person's checklist and nothing else — the one halt not reported in full:
 
 ````
 <N> — <Title> · HUMAN
@@ -146,7 +147,10 @@ ticking the `N.M` boxes with the phase's box at item 5.
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
    effects behind the repo's declared seams, so the suite stays offline and deterministic. Write to `W`, `T`,
    `P` and `C` below.
-2. **Run each sub-task's `Verify:` — never summarize it** — and show the command's real output. A check you
+2. **Run each sub-task's `Verify:` — never summarize it** — and show the command's real output. Before the
+   phase's first one, run `uv run --script ../mf-converge/scripts/gate_check.py --verify --change <change-id>`,
+   resolved as in Step 1: exit 1 → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming
+   it. Never amend a `Verify:`. A check you
    describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
    has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
    Never change code to make it pass.

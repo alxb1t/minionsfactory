@@ -12,13 +12,14 @@ description: Cut a new in-repo change from a settled grilling — create its ver
 ```
   mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
                  │                  ▲
-                 └── I1 … I18 ──────┘   the input contract, owned by mf-build
+                 └── I1 … I19 ──────┘   the input contract, owned by mf-build
 ```
 
-Before work, read root `AGENTS.md`, the mandatory context it names, and the architecture decisions and threat model:
-the ones it names, else `docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present.
-They are shared context, not your source: design within the decisions in force. Missing root `AGENTS.md` → **halt**,
-naming it.
+Before work, read root `AGENTS.md`, the mandatory context it names, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md`
+or `CONTRIBUTING.md` it does not name, and the architecture decisions and threat model: the ones it names, else
+`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. They are shared context,
+not your source: design within the decisions in force. A target's own test rule that conflicts with `T1`–`T6` wins:
+plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt**, naming it.
 
 ## Parameters
 
@@ -74,6 +75,9 @@ Check each file, symbol, line number and count the source names against HEAD: a 
 be false now. One fails → put it to the human with the evidence, and **wait**. Never overturn a settled decision
 alone, and never record an overturn the human did not make.
 
+For each symbol, key or file a task deletes or renames, run `git grep -nw <name>` at `HEAD`. Name each reader it
+prints in a task, or in `design.md`'s `## Tests` table.
+
 ## Step 4 — Branch
 
 The branch is the change id. Root `AGENTS.md` decides where the branch lives:
@@ -112,33 +116,58 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 
 ## Step 8 — Self-check
 
-Build a table: each of `I1`…`I18`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
+Build a table: each of `I1`…`I19`, met or not, with its evidence. `I1` is met by Step 10's commit: mark it
 `at commit`. `I3` is checked on the tree about to be committed. Then:
 
 - **Run the plan check** — `uv run --script ../mf-converge/scripts/gate_check.py --tasks
   openspec/changes/<change-id>/tasks.md`, `../mf-converge/` resolved from this skill's package. Exit 1 → **halt**,
   naming each sub-task it prints and `I18`; commit nothing. Exit 2, or `uv` missing → **halt**, naming it.
 
-- **Read every `Verify:`; run none.** The build runs them, once the human starts it. Rewrite a check you can see
-  will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its needle
-  already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a
+- **Read every `Verify:`; run none as written.** The build runs them, once the human starts it. Rewrite a check you
+  can see will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its
+  needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a
   premise, and should hold.
+- **Run the search script** — `uv run --script scripts/verify_check.py openspec/changes/<change-id>/tasks.md`,
+  `scripts/` resolved from this skill's package. It runs each `grep` and `git grep` check's pattern over `HEAD`'s
+  tree — a `git grep` over the revision it names — as argv with no shell, and prints each match as
+  `<sub-task>: <path>:<line>: <text>`. A search takes only the options
+  `-c -e -E -F -G -h -H -i -l -L -n -o -q -r -R -s -v -w -x` and the long names the script lists, and no path that
+  is absolute, holds `..` or leaves the tree: anything else breaks `I19`. Exit 1, or exit 2 naming a
+  sub-task → rewrite that check, and re-run. Exit 2 naming none, or `uv` missing → **halt**, naming it.
+- **Account for every match** — a match on a line the task does not edit is a check that already holds or counts
+  wrong: rewrite it, or flag it to the human as above.
 - Check `P9`, `P12`, `P13` and `A2`.
-- `make gate` is green.
 
-This self-check is a declared exception to *no station verifies its own work*: the human's read of the committed
-change and `mf-build`'s Step 1 are the independent checks.
+This self-check is a declared exception to *no station verifies its own work*. The independent checks are Step
+8.5's fresh plan review, the human's read of the committed change, and `mf-build`'s Step 1.
+
+## Step 8.5 — Plan review
+
+A fresh read-only worker reads the plan before the commit: the host's subagent, on the session's model. Give
+it the change directory and `HEAD`'s sha, and one question: can each task be built as written, and each `Verify:`
+pass after it? It answers with doubts, each with its `path:line`.
+
+| the doubt | do |
+|---|---|
+| a check that cannot pass or breaks `I19`, a reader Step 3 missed, a task two readings would build differently | fix it without asking; then run the search script and the review once more |
+| one that changes a `design.md` decision or a brief's `## Decisions` row | wait for the person, in Step 9's table |
+| one still standing after the second review | wait for the person, in Step 9's table |
+
+A host with no fresh worker: read the plan yourself, with the same question, and name that read in the self-check
+table as the cut's own.
 
 ## Step 9 — Show, then commit
 
-Show the human what the change does, its phases, its decision ids, the self-check table, the file list, and every
-`Verify:` word for word. Then go to Step 10 and commit **without waiting** — except for these, which wait for the
-human's OK:
+Show the human what the change does, its phases, its decision ids, the self-check table, the file list, every
+`Verify:` and each match the search script printed, word for word, each plan-review doubt and what the cut did with
+it, and each target test rule planned to over `T1`–`T6`. Then go to Step 10 and commit **without waiting** — except
+for these, which wait for the human's OK:
 
 | waits for an OK | show |
 |---|---|
 | a `## Dependencies` that is not `None.` | it word for word; an OK for each package |
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
+| a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
 On edits, go back to Step 7. An edit the human asks for after the commit is a further commit on the branch,
 `docs(<change-id>): amend the change directory`, with the same trailer block.
@@ -154,7 +183,7 @@ message is
 
 ## Step 11 — Report
 
-**Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
+**Close-out:** at most three sentences — what happened, the checks' exit codes, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the branch, the worktree when Step 4 made one, the commit id, and `git status --porcelain` printing
@@ -170,7 +199,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 |---|---|---|
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
-| **I3** | leave `make gate` green on the cut commit | running `make gate` in Step 8 |
+| **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | Steps 7 and 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
@@ -186,6 +215,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | Step 1, for each `after` id; reading `proposal.md` |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | `gate_check.py --tasks openspec/changes/<change-id>/tasks.md` exits 0 |
+| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | `verify_check.py` in Step 8 |
 
 ## Prose rules
 
