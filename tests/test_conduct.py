@@ -301,6 +301,20 @@ def test_status_reads_each_stage_from_disk(
     assert stage() == "0001-todo · integrate"
     _git(tree, "merge", "--abort")
 
+    # A red gate over the committed merge names the head it judged.
+    message = "chore(integrate): merge main into 0001-todo"
+    _git(tree, "merge", "-q", "--no-ff", "-s", "ours", "-m", message, "main")
+    red = marks / "0001-todo.red"
+    head = _git(tree, "rev-parse", "HEAD")
+    for named in (head, head[:7]):
+        red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
+        assert stage() == "0001-todo · integrating"
+        assert stage_of(root, version)[1].startswith("red gate")
+    for named in (_git(tree, "rev-parse", "HEAD~1"), "0" * 40):
+        red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
+        assert stage() == "0001-todo · integrate"
+    red.unlink()
+
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     _git(tree, "tag", "v0.1.0")
     assert stage().endswith(" · released")
@@ -408,6 +422,18 @@ def test_each_check_passes_only_on_disk_evidence(
         "-m",
         "chore(integrate): merge main into 0001-todo",
     )
+    assert check("integrate") == (0, "check: integrate · pass")
+    red = marks / "0001-todo.red"
+    red.write_text(f"gate red\n2026-11-05\nhead: {_git(tree, 'rev-parse', 'HEAD')}\n")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/integrate/0001-todo.red",
+    )
+    # The person's fix after the merge: the gate judged an ancestor.
+    _commit(tree, {"fix.txt": "x\n"}, "fix the merged test")
+    assert check("integrate") == (0, "check: integrate · pass")
+    red.unlink()
     assert check("integrate") == (0, "check: integrate · pass")
 
     assert check("release") == (

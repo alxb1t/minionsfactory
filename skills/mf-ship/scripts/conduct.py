@@ -628,6 +628,24 @@ def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | N
     return None
 
 
+def _red(primary: Path, tree: Path, change: str) -> str | None:
+    r"""Return the full sha a `.red` file's `head:` names, else its raw text.
+
+    None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
+    e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
+    """
+    file = primary / ".minions" / "integrate" / f"{change}.red"
+    try:
+        text = file.read_text() if file.is_file() else ""
+    except (OSError, UnicodeDecodeError):
+        return None
+    found = re.search(r"^head:[ \t]*(\S+)", text, re.MULTILINE)
+    if found is None:
+        return None
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    return named.strip() if named else found[1]
+
+
 def _merge_open(tree: Path) -> bool:
     """Return whether a merge is open in `tree`."""
     return _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
@@ -771,6 +789,10 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if tree is None:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = primary / ".minions"
+    if (red := _red(primary, tree, change)) is not None:
+        if red == _git(tree, "rev-parse", "HEAD").strip():
+            return "integrating", f"red gate: .minions/integrate/{change}.red"
+        return "integrate", "red gate on another head: integrate gates again"
     if _merge_open(tree):
         marks = runs / "integrate"
         if (marks / f"{change}.red").is_file():
@@ -847,16 +869,23 @@ def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
 
 
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
-    """Return why the integrate check fails, or None; an open merge names its note."""
+    """Return why the integrate check fails, or None; an open merge names its note.
+
+    The subject read is the newest first-parent merge's, so the person's fix commit
+    after it passes. Why: 0071-ship-fixes design D2.
+    """
+    note = f".minions/integrate/{version.change}"
     if _merge_open(tree):
-        note = f".minions/integrate/{version.change}"
         if (primary / f"{note}.red").is_file():
             return f"integrate halted — red gate, see {note}.red"
         if (primary / f"{note}.md").is_file():
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
+    if _red(primary, tree, version.change) == _git(tree, "rev-parse", "HEAD").strip():
+        return f"integrate halted — red gate, see {note}.red"
     default = default_branch(primary)
-    subject = _subject(tree)
+    merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    subject = _subject(tree, merge) if merge else _subject(tree)
     if subject != f"chore(integrate): merge {default} into {version.change}":
         return f"HEAD is not the integrate commit: {subject}"
     if not _ancestor(tree, default, "HEAD"):

@@ -179,3 +179,18 @@ def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     assert (primary / ".minions" / "gate" / _git(worktree, "write-tree")).is_file()
     assert not (worktree / ".minions").exists()
     assert _gate(primary).stdout.startswith("gate: reused — ")
+
+    # `--tree` gates the worktree from the primary, and records it under the primary.
+    (worktree / "README.md").write_text("w\n")
+    _git(worktree, "commit", "-q", "-am", "edit")
+    tree = _git(worktree, "write-tree")
+    named = _gate(primary, "--tree", str(worktree))
+    assert named.returncode == 0, named.stdout
+    assert named.stdout.splitlines()[-1].startswith(f"gate: green — {tree} · ")
+    assert (primary / ".minions" / "gate" / tree).is_file()
+    assert _runs(log) == 2
+
+    missing = _gate(primary, "--tree", str(tmp_path / "gone"))
+    assert missing.returncode == 2, missing.stdout
+    assert missing.stdout.startswith("gate: cannot run — "), missing.stdout
+    assert _runs(log) == 2

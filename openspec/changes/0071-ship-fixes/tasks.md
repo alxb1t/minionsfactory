@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — Integrate commits, then gates
+- [x] 1 — Integrate commits, then gates
 - [ ] 2 — The changelog renumber
 - [ ] 3 — Dependents come back
 - [ ] 4 — An amend answers a halt
@@ -12,15 +12,15 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — Integrate commits, then gates
 
-- [ ] 1.1 Add `--tree <path>` to `skills/mf-converge/scripts/gate_run.py`'s `main` and docstring, per [D1](design.md#d1); extend
+- [x] 1.1 Add `--tree <path>` to `skills/mf-converge/scripts/gate_run.py`'s `main` and docstring, per [D1](design.md#d1); extend
   `test_records_go_under_the_primary_run_directory` in `tests/test_gate_run.py` with a commit in the worktree, a `--tree` run from
   the primary, and a missing path.
   Verify: `uv run pytest -q tests/test_gate_run.py -k records_go_under_the_primary_run_directory` reports `1 passed`.
-- [ ] 1.2 Add `_red` to `skills/mf-ship/scripts/conduct.py` and read it in `stage_of` and `_check_integrate`, per
+- [x] 1.2 Add `_red` to `skills/mf-ship/scripts/conduct.py` and read it in `stage_of` and `_check_integrate`, per
   [D2](design.md#d2); extend `test_status_reads_each_stage_from_disk` and `test_each_check_passes_only_on_disk_evidence` in
   `tests/test_conduct.py` with the `.red` and fix-commit cases the design's `## Tests` names.
   Verify: `uv run pytest -q tests/test_conduct.py -k "status_reads_each_stage_from_disk or each_check_passes_only_on_disk_evidence"` reports `2 passed`.
-- [ ] 1.3 Rewrite `skills/mf-integrate/SKILL.md`'s description, flow, Step 2 table, Step 4 and Never line to commit, then gate
+- [x] 1.3 Rewrite `skills/mf-integrate/SKILL.md`'s description, flow, Step 2 table, Step 4 and Never line to commit, then gate
   with `--tree`, and `skills/mf-release/SKILL.md`'s account of integrate, per [D2](design.md#d2).
   Verify: `grep -n 'gate_run.py --tree <worktree>' skills/mf-integrate/SKILL.md` prints a line.
 

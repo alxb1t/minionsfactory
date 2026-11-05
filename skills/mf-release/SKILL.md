@@ -136,7 +136,7 @@ precondition 4 says what absence means.
 9. **The base has not moved** — `git merge-base --is-ancestor <default-branch> HEAD` exits 0. Else → halt, naming
    the way out:
 
-       /mf-integrate <change-id>         # in the primary: merges, applies its rules, gates, commits
+       /mf-integrate <change-id>         # in the primary: merges, applies its rules, commits the merge, and gates
        /mf-converge                      # when converge ran: its catch-up round judges the merge
        /mf-release
 
