@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 - [x] 1 — The install
 - [x] 2 — The conductor
-- [ ] 3 — The version
+- [x] 3 — The version
 - [ ] 4 — The record
 
 ## 1 — The install
@@ -81,7 +81,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 3 — The version
 
-- [ ] 3.1 Read `VERSION` in `mf_version` in `skills/mf-build/scripts/metrics.py`, with its step in `tests/test_metrics.py`, per
+- [x] 3.1 Read `VERSION` in `mf_version` in `skills/mf-build/scripts/metrics.py`, with its step in `tests/test_metrics.py`, per
   [D4](design.md#d4).
   Verify: `grep -n 'VERSION' skills/mf-build/scripts/metrics.py` prints a line, and `uv run pytest -q tests/test_metrics.py` reports no failure.
 
