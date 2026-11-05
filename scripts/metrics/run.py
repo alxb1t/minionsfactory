@@ -46,7 +46,7 @@ USAGE = (
     "cache_read_input_tokens",
     "cache_creation_input_tokens",
 )
-ROLE = re.compile(r"\b(review|security)\b")
+ROLE = re.compile(r"\b(review|security)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
@@ -388,7 +388,7 @@ class Version:
                 message = event.get("message")
                 if event.get("subtype") == "task_started":
                     found = ROLE.search(str(event.get("description")))
-                    tasks[event.get("tool_use_id")] = found[1] if found else ""
+                    tasks[event.get("tool_use_id")] = found[1].lower() if found else ""
                 elif (
                     event.get("type") == "assistant"
                     and tasks.get(event.get("parent_tool_use_id")) == role

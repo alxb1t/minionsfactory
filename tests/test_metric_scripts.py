@@ -437,7 +437,8 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         "not json, holding tool_use_id",
         first,
         review,
-        _task("t2", "Converge security worker 0001"),
+        # A description names its role in any case.
+        _task("t2", "Security station, round 1"),
         _task("t3", "Converge fix station 0001"),
         # Each subagent turn counts once, by its message id, every token kind summed.
         _turn(
@@ -450,7 +451,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         _turn("t3", "m3", input_tokens=999),
         _turn(None, "m4", input_tokens=999),
     )
-    verify = _task("t4", "Converge review verify round 2")
+    verify = _task("t4", "Review station round 2")
     converge_2 = "20261101-230000/0001-x_converge-2.log"
     _worker_log(
         tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
