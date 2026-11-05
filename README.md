@@ -36,12 +36,19 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 
 ## Install
 
-The skills install into your personal skills directory as symlinks (the `Makefile` records why a symlink).
+One MF release is pinned per machine ([D55](docs/decisions.md#d55--one-pinned-mf-release-per-machine)): run in this
+checkout, `make install-skills` exports a tag's `skills/` into `~/.local/share/minionsfactory/<tag>/` and links every
+`mf-*` on `~/.claude/skills` and `~/.agents/skills` there. While a run is live the links stay; the last run to end moves
+them to the pending or newer release.
 
 ```bash
-make install-skills      # symlink skills/mf-* into your personal skills directory
-make uninstall-skills    # remove the symlinks into this checkout
+make install-skills              # the newest tag origin holds, then each newer one
+make install-skills TAG=v0.55.0  # hold this tag
+make install-skills TAG=live     # hold this checkout, to work on the skills
+make uninstall-skills            # remove the links into a release or this checkout
 ```
+
+A bare install reads the `origin` URLs a run kept: run `/mf-ship` once first, or install with `TAG=<tag>`.
 
 ## Execution
 
@@ -101,8 +108,9 @@ cut:
    name: `mv <repo> <repo>.tmp && mkdir <repo> && mv <repo>.tmp <repo>/<repo>`.
 2. Rebuild the environment from `<container>/<repo>`, since `.venv` records the old path:
    `rm -rf .venv && uv sync --locked`.
-3. Re-link the skills from `<container>/<repo>`, since the symlinks still point at the old path:
-   `make install-skills SKILLS_DIR=$HOME/.claude/skills`, naming the host's skills directory.
+3. Re-pin the skills from `<container>/<repo>`, since the install's `source` still names the old path:
+   `make install-skills TAG=<tag>`, the tag linked now. This holds the tag; once a run at the new path has kept
+   `origin`'s URLs, a bare `make install-skills` follows releases again.
 4. Update the planning side's path to the repo.
 
 A version whose base moved is brought onto the default branch by `mf-integrate`, run in the primary
