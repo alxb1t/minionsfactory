@@ -1,0 +1,49 @@
+{
+  "change": "0069-caffeinate",
+  "version": "v0.58",
+  "base": "f45cda3",
+  "analyzed": "eb9eb4d",
+  "measured_on": "local",
+  "collected_at": "2026-11-05T10:48:39+02:00",
+  "mf_version": "unknown",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 16628
+    },
+    "shared-context": {
+      "value": 8530
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 159
+    },
+    "gate-seconds": {
+      "value": 128
+    },
+    "hedge-words": {
+      "value": 1
+    },
+    "long-sentences": {
+      "value": 59
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 38
+    }
+  }
+}

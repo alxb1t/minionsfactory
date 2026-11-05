@@ -86,6 +86,7 @@ CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 SCANNER = "betterleaks"
+CAFFEINATE = "caffeinate"
 LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
@@ -2052,6 +2053,24 @@ def _executor_missing(executor: str) -> bool:
     return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
 
 
+def _hold_awake(pid: int) -> str:
+    """Hold the machine awake until `pid` exits; return the `start` line's field.
+
+    e.g. `awake: held`. Why: 0069-caffeinate design D1.
+    """
+    found = shutil.which(CAFFEINATE)
+    if found is None:
+        return "awake: not held — caffeinate not on PATH"
+    subprocess.Popen(
+        [found, "-is", "-w", str(pid)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return "awake: held"
+
+
 def _ps(pid: int, field: str) -> str:
     """Return the `ps` field for `pid`, or "" when it cannot.
 
@@ -2968,11 +2987,14 @@ class Run:
         standing = _entries(self.primary / ".minions" / "grants", empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
         release = _pin()["describe"]()
+        awake = (
+            "" if os.environ.get("MF_SHIP_AGENT") else f" · {_hold_awake(os.getpid())}"
+        )
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}{grants}{down}{release}",
+            f" · versions {names}{grants}{down}{release}{awake}",
         )
         for event in held:
             self.log.event(*event)

@@ -2680,6 +2680,48 @@ def test_a_run_without_betterleaks_stops_at_start(
     assert not (root / ".minions" / "runs").exists()
 
 
+def test_a_run_holds_the_machine_awake(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    folder = tmp_path / "caffeinate-bin"
+    folder.mkdir()
+    argv = tmp_path / "caffeinate-argv.txt"
+    tool = folder / "caffeinate"
+    tool.write_text(f'#!/bin/sh\necho "$@" >> {shlex.quote(str(argv))}\n')
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+
+    assert conduct["_hold_awake"](4242) == "awake: held"
+    deadline = time.monotonic() + 10
+    while not (argv.is_file() and argv.read_text()) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert argv.read_text() == "-is -w 4242\n"
+
+    conduct["_hold_awake"].__globals__["CAFFEINATE"] = "caffeinate-absent"
+    assert conduct["_hold_awake"](4242) == "awake: not held — caffeinate not on PATH"
+    assert argv.read_text() == "-is -w 4242\n"
+
+    # A run's `start` line ends with the field, after the release, and the run goes on
+    # without the tool.
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept.mkdir()
+    (kept / "pending").write_text("v9.9.9\n")
+    for name, field in (
+        ("caffeinate", "awake: held"),
+        ("caffeinate-absent", "awake: not held — caffeinate not on PATH"),
+    ):
+        conduct["_hold_awake"].__globals__["CAFFEINATE"] = name
+        conductor = conduct["Run"](root, "claude")
+        assert conductor.ship() == 0
+        lines = conductor.log.path.read_text().splitlines()[2:]
+        assert " · run · start — " in lines[0]
+        assert lines[0].endswith(f" · pending v9.9.9 · {field}")
+        assert lines[-1].endswith(" · run · done — nothing to ship")
+
+
 @pytest.mark.slow
 def test_a_forged_release_is_not_pushed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
