@@ -141,7 +141,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - the bundled metrics script's read-only git reads of its own package — `git ls-files` and `git describe` — or of
   the `VERSION` at its release's root ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
 - the review-metrics station's read-only reads of the `.minions/findings/` and `.minions/runs/` of repos the operator
-  names, and its page written to the path the operator gives — neither named in any repo
+  names and of the operator's Codex sessions, and its page and `review-metrics.json` written to the path the operator
+  gives — neither the repos nor the path named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it, the

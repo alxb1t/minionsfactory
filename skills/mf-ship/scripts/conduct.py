@@ -2111,15 +2111,40 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
     return ["-c", f"projects={{{table}}}"]
 
 
+def _free_log(folder: Path, who: str, station: str) -> tuple[Path, int]:
+    """Return the first free of `<who>_<station>.log`, `-2.log`, … in `folder`, made.
+
+    And a descriptor open on it for writing, made through the folder's own, so a
+    link a worker swaps in at either names no place outside the run directory.
+    e.g. a converge's second spawn in a stamp → `0001-todo_converge-2.log`.
+    Why: 0077-run-metrics design D2; 0071-ship-fixes design D8.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
+    name, n = f"{who}_{station}", 1
+    try:
+        while True:
+            log = f"{name}.log" if n == 1 else f"{name}-{n}.log"
+            try:
+                return folder / log, os.open(log, flags, 0o666, dir_fd=fd)
+            except FileExistsError:
+                n += 1
+    finally:
+        os.close(fd)
+
+
 def work(
-    command: list[str], cwd: Path, out: Path, claim: Path | None
+    command: list[str], cwd: Path, out: Path | int, claim: Path | None
 ) -> tuple[int, bool]:
     """Run one worker in its own process group, output to `out`, held in `claim`.
 
-    Return its exit code and whether `TIMEOUT` killed it.
+    `out` is a path, or a descriptor it closes. Return its exit code and whether
+    `TIMEOUT` killed it.
     """
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w") as sink:
+    if isinstance(out, Path):
+        out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w") as sink:
         try:
             worker = subprocess.Popen(
                 command,
@@ -2491,6 +2516,7 @@ class Run:
         self.skips: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
+        self.outs: dict[tuple[str, str], Path] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2558,10 +2584,15 @@ class Run:
             executor, prompt, cwd, model, effort, repo or self.repo, self.lines
         )
         other = f" · executor {executor}" if executor != self.executor else ""
-        self.log.event(who, "spawn", f"{station} · model {model or 'default'}{other}")
-        out = self.runs / self.log.stamp / f"{who}_{station}.log"
+        shown = f" · effort {effort}" if effort else ""
+        self.log.event(
+            who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
+        )
+        out, sink = _free_log(self.runs / self.log.stamp, who, station)
+        with self.guard:
+            self.outs[who, station] = out
         started = time.monotonic()
-        code, killed = work(command, cwd, out, self.runs / "active")
+        code, killed = work(command, cwd, sink, self.runs / "active")
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         denied = denials(out)
@@ -3244,7 +3275,8 @@ class Run:
             models = (executor, None, None)
             repo = _repo(scratch)
             denied = self.spawn(who, station, scratch, PROBE, models, repo)
-            out = self.runs / self.log.stamp / f"{who}_{station}.log"
+            with self.guard:
+                out = self.outs[who, station]
             if denied is not None and self.judge(
                 who,
                 station,

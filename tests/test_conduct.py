@@ -1952,7 +1952,9 @@ def test_a_station_runs_on_its_executor(
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     minions = root / ".minions"
     (minions / "models").mkdir(parents=True)
-    table = '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\n'
+    table = (
+        '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\neffort = "high"\n'
+    )
     (minions / "models" / "0001-todo.toml").write_text(table)
     started: list[tuple[str, str]] = []
     argv = conduct["argv"]
@@ -1969,7 +1971,7 @@ def test_a_station_runs_on_its_executor(
     assert models(minions, "0001-todo", "integrate", "claude") == (
         "claude",
         "opus",
-        None,
+        "high",
     )
 
     assert (
@@ -1987,7 +1989,8 @@ def test_a_station_runs_on_its_executor(
     ]
     assert "build · model default" in spawned
     assert "converge · model default · executor codex" in spawned
-    assert "release · model opus" in spawned
+    # A models file's effort is in the spawn line; none, and the line reads as before.
+    assert "release · model opus · effort high" in spawned
     assert started == [
         ("probe", "claude"),
         ("probe", "codex"),
@@ -4398,6 +4401,10 @@ def test_a_small_cap_is_granted_automatically(
     )
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
+    # Each converge spawn in the run keeps its own log.
+    stamp = sorted((minions / "runs").glob("*.md"))[-1].with_suffix("")
+    logs = sorted(path.name for path in stamp.glob("0002-marks_converge*.log"))
+    assert logs == ["0002-marks_converge-2.log", "0002-marks_converge.log"]
 
     # The granted round is checked as a person's is: one with no `done` halts there.
     calls.unlink()
@@ -5534,11 +5541,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     spawned: list[list[str]] = []
 
     def worker(
-        command: list[str], cwd: Path, out: Path, claim: Path | None
+        command: list[str], cwd: Path, out: Path | int, claim: Path | None
     ) -> tuple[int, bool]:
         spawned.append(command)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.touch()
+        with open(out, "w") as sink:
+            sink.write("streamed\n")
         return 0, False
 
     started = conduct["main"].__globals__["work"]
@@ -5602,6 +5609,23 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     commondir.write_text(f"{neighbour}/.git\n")
     assert next_roots() == [str(root / ".git"), str(root), str(tree)]
     commondir.write_text(kept)
+    # A worker that swaps a fresh log for a link before the spawn writes it gains
+    # nothing: the conductor writes the file it made, never the link's target.
+    target = tmp_path / "operator.rc"
+    target.write_text("kept\n")
+    made = conduct["_free_log"]
+
+    def swapped(folder: Path, who: str, station: str) -> object:
+        found = made(folder, who, station)
+        log = folder / f"{who}_{station}.log"
+        log.unlink()
+        log.symlink_to(target)
+        return found
+
+    conduct["main"].__globals__["_free_log"] = swapped
+    conductor.spawn("0009-swap", "build", tree, "Do it.", ("codex", None, None))
+    conduct["main"].__globals__["_free_log"] = made
+    assert target.read_text() == "kept\n"
     conduct["main"].__globals__["work"] = started
     conductor.log.path.unlink()
 

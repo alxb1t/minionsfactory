@@ -6,8 +6,10 @@ Why: 0045-review-metrics design D1…D7.
 import importlib.util
 import json
 import re
+import subprocess
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -24,6 +26,12 @@ def _load(path: Path) -> ModuleType:
 
 
 review_metrics = _load(_SCRIPT)
+
+
+@pytest.fixture(autouse=True)
+def _no_codex_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read Codex sessions from an empty folder, never the operator's."""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
 
 
 def _front(verdict: str = "clean", **fields: object) -> str:
@@ -304,6 +312,262 @@ def test_the_status_log_gives_duration_tokens_and_the_cap(tmp_path: Path) -> Non
     third = _record(tmp_path, "0032-none")
     assert (third["capped"], third["to_backlog"], third["engine"]) == (0, None, None)
 
+    # The JSON keeps each run, round and role; a line naming both roles and no
+    # figure is a gap for each.
+    rows = [
+        (r["change"], r["run"], r["round"], r["role"], r["tokens"])
+        for r in review_metrics.round_data(tmp_path)
+    ]
+    assert rows == [
+        ("0030-capped", 2, 1, "review", None),
+        ("0030-capped", 1, 1, "review", 1200),
+        ("0030-capped", 1, 1, "security", 300),
+        ("0031-one", 1, 1, "review", None),
+        ("0031-one", 1, 1, "security", None),
+    ]
+
+
+def test_tokens_are_read_per_role(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TZ", raising=False)
+    both = "verdicts — review clean · security clean · tokens"
+    claude = "executor claude · model opus · effort high"
+    codex = "executor codex · model default · effort default"
+    log = f"""# 0040-roles — converge status
+
+## Run 2 — 2026-10-31 23:58
+00:03:00 · round 5 · {both} 5000
+00:02:00 · round 4 · verdicts — review clean · {claude} · tokens 97960
+00:01:00 · round 4 · verdicts — security clean · {codex} · tokens unavailable
+00:00:30 · round 4 · fan-out — review and security dispatched · 2 workers
+23:59:00 · round 4 · freeze — a..b · 1 commit · 1 file
+
+## Run 1
+10:04:00 · round 3 · {both} 7 review, 8 security
+10:03:00 · round 2 · {both} 115k (review 63k, security 52k)
+10:02:00 · round 1 · {both} 128126 + 115356
+10:01:00 · round 1 · {both} review 45426, security 41346
+"""
+    _findings(tmp_path, "0040-roles_status_log.md", log)
+
+    rows = review_metrics.round_data(tmp_path)
+    figures = [(r["run"], r["round"], r["role"], r["tokens"]) for r in rows]
+    # Each role's figure is its own; a line naming both roles and one figure is
+    # recorded under `both`, credited to neither.
+    assert figures == [
+        (2, 5, "both", 5000),
+        (2, 4, "review", 97960),
+        (2, 4, "security", None),
+        (1, 3, "review", 7),
+        (1, 3, "security", 8),
+        (1, 2, "review", 63000),
+        (1, 2, "security", 52000),
+        (1, 1, "review", 128126),
+        (1, 1, "security", 115356),
+        (1, 1, "review", 45426),
+        (1, 1, "security", 41346),
+    ]
+    # D1's tail names the executor, model and effort; `default` is a gap.
+    named = [(r["executor"], r["model"], r["effort"]) for r in rows[1:3]]
+    assert named == [("claude", "opus", "high"), ("codex", None, None)]
+    assert {(r["sessions"], r["source"]) for r in rows} == {(None, "status-log")}
+    # The chart's tokens are the change's sum, each figure once.
+    assert _record(tmp_path, "0040-roles")["tokens"] == 5000 + 97960 + 15 + 115000 + (
+        128126 + 115356 + 45426 + 41346
+    )
+    # With no `$TZ`, a window is the system's local time in UTC.
+    local = review_metrics.datetime(2026, 11, 1, 0, 0, 30)
+    assert review_metrics._utc(local) == local.astimezone(review_metrics.UTC)
+
+
+def _session(root: Path, name: str, meta: object, *lines: object) -> None:
+    folder = root / "codex-home" / "sessions" / "2026" / "11" / "05"
+    folder.mkdir(parents=True, exist_ok=True)
+    text = [line if isinstance(line, str) else json.dumps(line) for line in lines]
+    first = meta if isinstance(meta, str) else json.dumps(meta)
+    (folder / name).write_text("".join(f"{line}\n" for line in [first, *text]))
+
+
+def _meta(
+    started: str, cwd: str, url: str, agent: str | None = None, parent: str = "P"
+) -> dict[str, Any]:
+    spawn = {"parent_thread_id": parent, "agent_path": agent}
+    source = {"subagent": {"thread_spawn": spawn}} if agent else "cli"
+    payload = {"id": agent or "P", "timestamp": started, "cwd": cwd, "source": source}
+    git = {"repository_url": url}
+    return {"type": "session_meta", "payload": payload | {"git": git}}
+
+
+def _worked(model: str, effort: str, *totals: int) -> list[object]:
+    context = {"type": "turn_context", "payload": {"model": model, "effort": effort}}
+    counts = [
+        {
+            "type": "event_msg",
+            "payload": {"type": "token_count", "info": {"total_token_usage": t}},
+        }
+        for t in ({"total_tokens": total} for total in totals)
+    ]
+    return [context, *counts]
+
+
+def test_codex_sessions_fill_the_rounds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TZ", "Europe/Berlin")
+    repo, tree = tmp_path / "repo", tmp_path / "0001-x"
+    repo.mkdir()
+    url = "git@example.invalid:o/r.git"
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", url], cwd=repo, check=True)
+    git = ["git", "-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
+    commit = [*git, "commit", "-q", "--allow-empty", "-m", "base"]
+    subprocess.run(commit, cwd=repo, check=True)
+    worktree = ["git", "worktree", "add", "-q", "-b", "0001-x", str(tree)]
+    subprocess.run(worktree, cwd=repo, check=True)
+    claude = "executor claude · model opus · effort high"
+    log = f"""# 0001-x — converge status
+
+## Run 1 — 2026-11-05 10:00
+10:30:00 · round 2 · verdicts — review clean · {claude} · tokens 900
+10:29:00 · round 2 · verdicts — security clean · tokens unavailable
+10:20:00 · round 2 · fan-out — review and security dispatched · 2 workers
+10:20:00 · round 1 · freeze — a..b · 1 commit · 1 file
+10:10:00 · round 1 · verdicts — review clean · security clean · tokens unavailable
+10:01:00 · round 1 · fan-out — review and security dispatched · 2 workers
+10:00:30 · round 1 · freeze — a..b · 2 commits · 3 files
+"""
+    _findings(repo, "0001-x_status_log.md", log)
+    # A version whose round overlaps 0001-x's round 1, run on Claude.
+    parallel = f"""# 0002-y — converge status
+
+## Run 1 — 2026-11-05 10:02
+10:09:00 · round 1 · verdicts — security clean · {claude} · tokens unavailable
+10:03:00 · round 1 · fan-out — security dispatched · 1 worker
+10:02:00 · round 1 · freeze — c..d · 1 commit · 1 file
+"""
+    _findings(repo, "0002-y_status_log.md", parallel)
+    other = "git@example.invalid:o/other.git"
+    # The conductor ran in the version's worktree; its review worker in another URL.
+    _session(
+        tmp_path, "a-parent.jsonl", _meta("2026-11-05T09:00:40Z", str(tree), other)
+    )
+    # Conductors in the primary and in 0002-y's worktree.
+    for parent, cwd in (("R", repo), ("Y", tmp_path / "0002-y")):
+        conductor = _meta("2026-11-05T09:00:00Z", str(cwd), url)
+        conductor["payload"]["id"] = parent
+        _session(tmp_path, f"a-{parent}.jsonl", conductor)
+    # The primary's worker while 0002-y's round overlaps, 0002-y's own, and one
+    # whose parent is no session are none of 0001-x's; the primary's worker in
+    # round 2, with no overlap, is.
+    for name, started, parent, total in (
+        ("k-primary", "09:07:00", "R", 40),
+        ("l-0002-y", "09:08:00", "Y", 50),
+        ("n-orphan", "09:09:00", "Q", 70),
+        ("m-primary", "09:25:00", "R", 60),
+    ):
+        meta = _meta(f"2026-11-05T{started}Z", "/w", url, "/root/security_r", parent)
+        _session(tmp_path, f"{name}.jsonl", meta, *_worked("g6", "low", total))
+    reviewer = _meta("2026-11-05T09:05:00Z", "/x", other, "/root/review_round1")
+    noise = ['{"type": "token_count", cut', '["token_count"]']
+    _session(
+        tmp_path, "b-review.jsonl", reviewer, *noise, *_worked("g1", "high", 9, 500)
+    )
+    for name, started, total in (("c-s1", "09:02:00", 100), ("d-s2", "09:06:00", 200)):
+        meta = _meta(f"2026-11-05T{started}Z", "/y", url, "/root/security_r1")
+        _session(tmp_path, f"{name}.jsonl", meta, *_worked("g2", "low", total))
+    # A guardian, a fix worker, one outside the repo, one past the window, and
+    # files that hold no session read as none.
+    guardian = _meta("2026-11-05T09:03:00Z", "/z", url)
+    guardian["payload"] |= {"id": "G", "source": {"subagent": {"other": "guardian"}}}
+    _session(tmp_path, "e-guardian.jsonl", guardian, *_worked("g3", "low", 7))
+    _session(
+        tmp_path,
+        "f-fix.jsonl",
+        _meta("2026-11-05T09:04:00Z", "/z", url, "/root/fix_r1"),
+    )
+    outside = _meta("2026-11-05T09:05:00Z", "/z", other, "/root/review_x", "nobody")
+    _session(tmp_path, "g-outside.jsonl", outside, *_worked("g4", "low", 7))
+    late = _meta("2026-11-05T09:25:00Z", "/z", url, "/root/review_round2")
+    _session(tmp_path, "h-late.jsonl", late, *_worked("g5", "low", 7))
+    _session(tmp_path, "i-undated.jsonl", _meta("never", "/z", url, "/root/review_1"))
+    _session(tmp_path, "j-broken.jsonl", "not json")
+    out = tmp_path / "site" / "page.html"
+
+    assert review_metrics.main(["--repo", str(repo), "--out", str(out)]) == 0
+
+    data = json.loads((tmp_path / "site" / "review-metrics.json").read_text())
+    assert re.fullmatch(
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", data["generated"]
+    )
+    assert data["records"] == [
+        {
+            "repo": "repo",
+            "change": "0001-x",
+            "run": 1,
+            "round": 2,
+            "role": "review",
+            "executor": "claude",
+            "model": "opus",
+            "effort": "high",
+            "tokens": 900,
+            "sessions": None,
+            "source": "status-log",
+        },
+        {
+            "repo": "repo",
+            "change": "0001-x",
+            "run": 1,
+            "round": 2,
+            "role": "security",
+            "executor": "codex",
+            "model": "g6",
+            "effort": "low",
+            "tokens": 60,
+            "sessions": 1,
+            "source": "codex-session",
+        },
+        {
+            "repo": "repo",
+            "change": "0001-x",
+            "run": 1,
+            "round": 1,
+            "role": "review",
+            "executor": "codex",
+            "model": "g1",
+            "effort": "high",
+            "tokens": 500,
+            "sessions": 1,
+            "source": "codex-session",
+        },
+        {
+            "repo": "repo",
+            "change": "0001-x",
+            "run": 1,
+            "round": 1,
+            "role": "security",
+            "executor": "codex",
+            "model": "g2",
+            "effort": "low",
+            "tokens": 300,
+            "sessions": 2,
+            "source": "codex-session",
+        },
+        {
+            "repo": "repo",
+            "change": "0002-y",
+            "run": 1,
+            "round": 1,
+            "role": "security",
+            "executor": "claude",
+            "model": "opus",
+            "effort": "high",
+            "tokens": None,
+            "sessions": None,
+            "source": "status-log",
+        },
+    ]
+
 
 def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None:
     _findings(tmp_path, "0050-x_review.md", _front())
@@ -322,6 +586,11 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     )
     noise = ('{"type": "result", cut', {"type": "assistant"}, ["result"])
     _run_log(tmp_path, "A/0050-x_converge.log", *noise, first, last)
+    # A later spawn in the stamp keeps its own log; a station named `converge-x` is
+    # no converge's.
+    one_more = _result(0.5, 2, 2000, m={"inputTokens": 4})
+    _run_log(tmp_path, "A/0050-x_converge-2.log", one_more)
+    _run_log(tmp_path, "A/0050-x_converge-x.log", last)
     _run_log(tmp_path, "A/0050-x_build.log", {"type": "assistant"})
     _run_log(tmp_path, "A/0050-xy_rescue.log", last)
     _run_log(
@@ -329,9 +598,10 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
         "A.md",
         "10:00:00 · 0050-x · spawn — converge · model default",
         "10:05:00 · 0050-x · finish — converge · exit 0 · 300s",
-        "10:06:00 · 0050-x · spawn — converge · model default",
+        "10:06:00 · 0050-x · spawn — converge · model default · effort high",
         "10:07:00 · 0050-xy · spawn — converge · model default",
         "10:08:00 · 0050-x · spawn — converge-x · model default",
+        "10:09:00 · 0050-x · spawn — converge · model default",
     )
     one = _result(0.25, 1, 1000, m=dict.fromkeys(review_metrics.TOKENS, 1))
     _run_log(tmp_path, "B/0050-x_converge.log", one)
@@ -339,9 +609,9 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     _run_log(tmp_path, "B.md", "11:00:00 · 0050-x · spawn — converge · model m")
 
     record = _record(tmp_path, "0050-x")
-    assert (record["cost_converge"], record["turns_converge"]) == (1.5, 15)
-    assert (record["tokens_converge"], record["seconds_converge"]) == (376, 91)
-    assert (record["logs_converge"], record["spawns_converge"]) == (2, 3)
+    assert (record["cost_converge"], record["turns_converge"]) == (2.0, 17)
+    assert (record["tokens_converge"], record["seconds_converge"]) == (380, 93)
+    assert (record["logs_converge"], record["spawns_converge"]) == (3, 4)
     for station in ("build", "release", "integrate", "rescue"):
         assert record[f"cost_{station}"] is None
         assert record[f"tokens_{station}"] is None
@@ -350,7 +620,7 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     headers, rows = review_metrics.cost_table([record])
     assert headers == ["change", *review_metrics.STATIONS]
     assert rows == [
-        ["0050-x", "—", "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3", "—", "—", "—"]
+        ["0050-x", "—", "$2.00 · 17 turns · 380 tokens · 93 s · 3 of 4", "—", "—", "—"]
     ]
 
     bare = tmp_path / "bare"

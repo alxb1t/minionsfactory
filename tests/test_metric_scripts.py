@@ -4,8 +4,11 @@ Why: 0030-change-impact design D7.
 """
 
 import importlib.util
+import json
+import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -333,6 +336,354 @@ def test_backlog_cards_are_unavailable_without_a_backlog(tmp_path: Path) -> None
         },
     )
     assert backlog.cards(tmp_path) == 2
+
+
+_RUN_A = """# Ship run 20261101-230000
+
+23:00:00 · run · start — executor claude · versions 0001-x 0002-y · mf v1
+23:00:20 · 0001-x · spawn — probe-codex · model default · executor codex
+23:00:30 · 0001-x · spawn — build · model m
+23:30:30 · 0001-x · finish — build · exit 0 · 1800s
+23:30:30 · 0001-x · spawn — converge · model m · effort high
+00:10:30 · 0001-x · finish — converge · exit 0 · 2400s
+00:10:30 · 0001-x · halt — converge check fail — the status log halts: cap
+00:10:31 · 0001-x · spawn — rescue · model m
+00:11:31 · 0001-x · finish — rescue · exit 0 · 60s
+00:11:31 · run · rescue — 0001-x: diagnosed · .minions/rescue/0001-x.md
+00:11:31 · 0001-x · halt — rescue diagnosed — .minions/rescue/0001-x.md
+00:12:00 · run · rejoin — 0001-x: still halted — answered
+00:21:31 · run · rejoin — 0001-x: converge
+00:21:31 · run · grant — 0001-x: one more round past the cap
+00:21:31 · 0001-x · spawn — converge · model m
+00:31:31 · 0001-x · finish — converge · exit 0 · 600s
+00:31:31 · 0002-y · halt — build check fail — phase 1 unticked
+00:31:31 · 0001-x · spawn — integrate · model m
+00:33:31 · 0001-x · finish — integrate · exit 0 · 120s
+00:33:31 · 0001-x · halt — integrate check fail — the gate is red
+00:34:00 · run · halt — halted 0001-x · blocked none · released none
+"""
+_RUN_B = """# Ship run 20261102-090000
+
+09:00:00 · run · start — executor claude · versions 0001-x · mf v1
+09:00:10 · 0001-x · spawn — converge · model m
+09:05:10 · 0001-x · finish — converge · exit 0 · 300s
+09:05:10 · 0001-x · halt — converge worker exit 1
+09:05:11 · run · grant — 0001-x: automatic · R1
+09:05:11 · 0001-x · spawn — converge · model m
+09:06:11 · 0001-x · finish — converge · exit 0 · 60s
+09:06:11 · 0001-x · spawn — release · model m
+09:08:11 · 0001-x · finish — release · exit 0 · 120s
+09:08:11 · run · rescue — 0001-x: fixed · 2.1 · abc1234
+09:09:00 · 0003-z · spawn — build · model m
+09:09:30 · 0005-v · spawn — release · model m
+"""
+_STATUS = """# 0001-x — converge status
+
+## Run 3 — 2026-11-02 09:05 · catch-up
+09:06:00 · round 7 · done — converged by rule
+
+## Run 2 — 2026-11-02 00:21 · grant
+00:30:00 · round 4 · done — converged in 4 rounds
+
+## Run 1 — 2026-11-01 23:30
+00:10:00 · round 3 · halt — cap reached, R3 open
+23:40:00 · round 1 · verdicts — security clean · open_blocking 0 · tokens unavailable
+23:39:00 · round 1 · verdicts — review changes-requested · open_blocking 2 · tokens 9
+"""
+
+
+def _commit(root: Path, message: str, when: str = "2026-11-01T12:00:00") -> str:
+    env = os.environ | {"GIT_COMMITTER_DATE": when, "GIT_AUTHOR_DATE": when}
+    subprocess.run(
+        ["git", "-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
+        + ["-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty"]
+        + ["-m", message],
+        cwd=root,
+        env=env,
+        check=True,
+    )
+    return _git(root, "rev-parse", "HEAD")
+
+
+def _run_fixture(root: Path) -> dict[str, str]:
+    """Return the env naming 0001-x, over a repo and a run directory of its run."""
+    _git(root, "init", "-q", "-b", "main")
+    base = _commit(root, "base")
+    _commit(root, "docs(0001-x): land the change directory", "2026-11-01T22:00:00")
+    _write(root, {"a.txt": "1\n2\n3\n4\n", "metrics/changes/0001-x.json": "{}\n"})
+    _git(root, "add", "a.txt", "metrics")
+    _commit(root, "feat(0001-x): one")
+    built = _commit(root, "feat(0001-x): two")
+    _git(root, "checkout", "-q", "-b", "side", base)
+    _commit(root, "feat: on the default branch")
+    _git(root, "checkout", "-q", "-b", "other", base)
+    unmerged = _commit(root, "feat: never merged")
+    _git(root, "checkout", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", "merge", "side")
+    head = _commit(root, "fix(0001-x): R1")
+    _write(
+        root,
+        {
+            ".minions/runs/20261101-230000.md": _RUN_A,
+            ".minions/runs/20261102-090000.md": _RUN_B,
+            # A later log in the same second sorts after its first.
+            ".minions/runs/20261102-090000-2.md": "# Ship run 20261102-090000-2\n\n"
+            "10:00:00 · 0001-x · spawn — release · model m\n"
+            "10:01:00 · 0001-x · finish — release · exit 0 · 60s\n",
+            ".minions/runs/notes.md": "12:00:00 · 0001-x · halt — build check fail\n",
+            ".minions/findings/0001-x_status_log.md": _STATUS,
+            ".minions/findings/0002-y_status_log.md": "# 0002-y\n\n## Run 1 — x\n",
+            # The first run halted before its fan-out; the next one holds round 1.
+            ".minions/findings/0004-w_status_log.md": "# 0004-w\n\n"
+            "## Run 2 — 2026-11-02 10:00\n"
+            "10:20:00 · round 1 · verdicts — review changes-requested"
+            " · open_blocking 1\n\n"
+            "## Run 1 — 2026-11-02 09:00\n"
+            "09:01:00 · round 1 · halt — the gate is red\n",
+            ".minions/build/0001-x.done": f"head: {built}\nsimplify: lean already\n",
+            ".minions/build/0002-y.done": f"head: {unmerged}\n",
+            ".minions/build/0004-w.done": f"head: {built}\n",
+        },
+    )
+    return {"MF_METRICS_CHANGE": "0001-x", "MF_METRICS_BASE": base} | {
+        "MF_METRICS_HEAD": head
+    }
+
+
+def _reader(root: Path, env: dict[str, str]) -> Callable[..., object]:
+    """Return a reader of one metric of a change: its number, or `gap: <why>`."""
+    run = _load("run")
+
+    def read(metric: str, change: str = "0001-x", **named: str) -> object:
+        given = env | {"MF_METRICS_CHANGE": change} | named
+        try:
+            return run.measure(root, [metric], given)
+        except run.Gap as gap:
+            return f"gap: {gap}"
+
+    return read
+
+
+def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    read = _reader(tmp_path, env)
+
+    expected = {
+        # A converge after the first integrate is a catch-up; midnight adds a day.
+        "lead-minutes": 720.0,
+        "build-minutes": 30.0,
+        "converge-minutes": 50.0,
+        "catch-up-minutes": 6.0,
+        "integrate-minutes": 2.0,
+        # Rescue and an automatic grant are the run's own; a refused rejoin answers
+        # nothing; the next run's start answers the integrate halt.
+        "wait-minutes": 516.5,
+        "converge-rounds": 4,
+        "blockers-round-1": 2,
+        "grants": 1,
+        "halts-build": 0,
+        "halts-converge": 2,
+        "halts-integrate": 1,
+        "halts-release": 0,
+        "rescues-fixed": 1,
+        "rescues-diagnosed": 1,
+        "build-commits": 3,
+        "fix-commits": 1,
+    }
+    assert {metric: read(metric) for metric in expected} == expected
+
+    # A version with a run log but no finish, release, status log or build mark.
+    assert read("build-minutes", "0003-z") == "gap: a build spawn with no finish"
+    assert read("lead-minutes", "0003-z") == "gap: no release spawn"
+    assert read("integrate-minutes", "0003-z") == 0
+    assert read("grants", "0003-z") == "gap: no 0003-z_status_log.md"
+    assert read("build-commits", "0003-z") == "gap: no head in 0003-z.done"
+    # A version released by hand: no run log, its commits and cards still read.
+    assert read("wait-minutes", "0004-w") == "gap: no run log names 0004-w"
+    assert read("halts-build", "0004-w") == "gap: no run log names 0004-w"
+    assert read("build-commits", "0004-w") == 3
+    assert read("blockers-round-1", "0004-w") == 1
+    assert read("converge-rounds", "0002-y") == "gap: no round in the status log"
+    assert read("blockers-round-1", "0002-y") == (
+        "gap: no round 1 verdicts with open_blocking"
+    )
+    assert read("fix-commits", "0002-y") == (
+        "gap: 0002-y.done's head is not in the version's history"
+    )
+    assert read("lead-minutes", "0005-v") == (
+        "gap: no commit `docs(0005-v): land the change directory`"
+    )
+
+    with pytest.raises(run.Gap, match="usage: run.py <id>, one of lead-minutes"):
+        run.measure(tmp_path, [], env)
+    with pytest.raises(run.Gap, match="no MF_METRICS_CHANGE"):
+        run.measure(tmp_path, ["grants"], {})
+    bare = {k: v for k, v in os.environ.items() if not k.startswith("MF_METRICS_")}
+    done = subprocess.run(
+        [sys.executable, _SCRIPTS / "run.py", "grants"],
+        cwd=tmp_path,
+        env=bare,
+        capture_output=True,
+        text=True,
+    )
+    assert (done.returncode, done.stdout) == (1, "")
+    assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
+
+
+def _worker_log(
+    root: Path, name: str, cost: float, tokens: int, *events: object
+) -> None:
+    """Write a worker log: `events`, then a result event of `cost` and `tokens`."""
+    result = {
+        "type": "result",
+        "total_cost_usd": cost,
+        "modelUsage": {"m": {"inputTokens": tokens, "outputTokens": "n/a"}},
+    }
+    lines = [e if isinstance(e, str) else json.dumps(e) for e in [*events, result]]
+    _write(root, {f".minions/runs/{name}": "".join(f"{line}\n" for line in lines)})
+
+
+def _task(tool: str, description: str) -> object:
+    return {"subtype": "task_started", "tool_use_id": tool, "description": description}
+
+
+def _turn(parent: str | None, message: str, **usage: int) -> object:
+    return {
+        "type": "assistant",
+        "parent_tool_use_id": parent,
+        "message": {"id": message, "usage": usage},
+    }
+
+
+def _role_file(cards: str, refuted: str = "## Refuted\n\n- **x.** why\n") -> str:
+    return (
+        f"---\nverdict: clean\n---\n\n## Findings\n\n{cards}\n{refuted}\n## Summary\n"
+    )
+
+
+def _finding(card: str, verdict: str, related: str) -> str:
+    return (
+        f"- **{card} — a defect**\n  - **Verdict:** {verdict}.\n"
+        f"  - **Priority:** nit · review · stability — why.\n"
+        f"  - **Related:** {related}.\n"
+    )
+
+
+def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    read = _reader(tmp_path, env)
+    first = {"type": "result", "total_cost_usd": 0.5, "modelUsage": {}}
+    review = _task("t1", "Converge review worker 0001")
+    _worker_log(tmp_path, "20261101-230000/0001-x_build.log", 1.0, 110)
+    _worker_log(
+        tmp_path,
+        "20261101-230000/0001-x_converge.log",
+        2.0,
+        500,
+        "not json, holding tool_use_id",
+        first,
+        review,
+        # A description names its role in any case.
+        _task("t2", "Security station, round 1"),
+        _task("t3", "Converge fix station 0001"),
+        # Each subagent turn counts once, by its message id, every token kind summed.
+        _turn(
+            "t1", "m1", input_tokens=10, output_tokens=5, cache_read_input_tokens=100
+        ),
+        _turn(
+            "t1", "m1", input_tokens=10, output_tokens=5, cache_read_input_tokens=100
+        ),
+        _turn("t2", "m2", input_tokens=30, cache_creation_input_tokens=0),
+        _turn("t3", "m3", input_tokens=999),
+        _turn(None, "m4", input_tokens=999),
+    )
+    verify = _task("t4", "Review station round 2")
+    converge_2 = "20261101-230000/0001-x_converge-2.log"
+    _worker_log(
+        tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
+    )
+    _worker_log(tmp_path, "20261101-230000/0001-x_rescue.log", 0.25, 5)
+    _worker_log(tmp_path, "20261101-230000/0001-x_integrate.log", 0.25, 5)
+    _worker_log(tmp_path, "20261102-090000/0001-x_converge.log", 0.1, 1)
+    _worker_log(tmp_path, "20261102-090000/0001-x_converge-2.log", 0.2, 2)
+    _worker_log(tmp_path, "20261102-090000/0001-x_release.log", 9.0, 900)
+    reviewed = _finding("R1", "confirmed", "repeat of `0000·R9`")
+    reviewed += _finding("R2", "plausible", "repeat of 0001·R1")
+    reviewed += _finding("R3", "`confirmed`", "repeat of 0000·R4")
+    refuted = "## Refuted\n\n- **x.** why\n- **y.** why\n"
+    _write(
+        tmp_path,
+        {
+            ".minions/findings/0001-x_review.md": _role_file(reviewed, refuted),
+            ".minions/findings/0001-x_security.md": _role_file(
+                _finding("S1", "plausible", "none")
+            ),
+            ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
+            "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
+            "backlog: [0000·R4, 0000·S2]\n---\n",
+            "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
+            ".minions/backlog.md": "# Backlog\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
+            "## 0001-x\n\n- **0001·R2 — b**\n  - **Why:** c\n- **0001·S1 — d**\n",
+        },
+    )
+
+    expected = {
+        # The release's own log is left out; a catch-up's logs are the converges
+        # spawned after the first integrate, the n-th spawn in a stamp its `-<n>.log`.
+        "cost-usd": 4.3,
+        "cost-usd-build": 1.0,
+        "cost-usd-converge": 2.5,
+        "cost-usd-catch-up": 0.3,
+        "cost-usd-integrate": 0.25,
+        "tokens": 673,
+        "tokens-build": 110,
+        "tokens-converge": 550,
+        "tokens-catch-up": 3,
+        "tokens-integrate": 5,
+        "cost-per-changed-line": 1.075,
+        "review-confirmed": 2,
+        "security-confirmed": 0,
+        "review-refuted": 2,
+        "security-refuted": 1,
+        "review-tokens-per-confirmed": 100,
+        "security-tokens-per-confirmed": "gap: no confirmed security card",
+        # R1 repeats an earlier change's card it does not pay; R3's is paid, and R2
+        # repeats its own change's.
+        "escapes": 1,
+        "debt-added": 2,
+        "debt-paid": 2,
+    }
+    assert {metric: read(metric) for metric in expected} == expected
+
+    assert read("debt-paid", "0002-y") == 0
+    assert read("debt-added", "0002-y") == 0
+    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
+    assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
+    assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
+    assert read("cost-usd-build", "0003-z") == (
+        "gap: no result event in 20261102-090000/0003-z_build.log"
+    )
+    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z_review.md")
+    # A security worker's turns are read, and no card to divide them by is a gap.
+    run = _load("run")
+    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("security") == 30
+    with pytest.raises(run.Gap, match="no review subagent event in a converge log"):
+        run.Version(tmp_path, "0002-y", "a", "b").role_tokens("review")
+    assert read("cost-per-changed-line", MF_METRICS_HEAD=env["MF_METRICS_BASE"]) == (
+        "gap: no line changed"
+    )
+
+    # A spawn whose log is gone is a gap, never a smaller sum.
+    (tmp_path / ".minions/runs/20261102-090000/0001-x_converge-2.log").unlink()
+    assert read("cost-usd") == (
+        "gap: no result event in 20261102-090000/0001-x_converge-2.log"
+    )
+    assert read("review-tokens-per-confirmed") == (
+        "gap: no 20261102-090000/0001-x_converge-2.log"
+    )
+    (tmp_path / ".minions/backlog.md").unlink()
+    assert read("debt-added") == "gap: no .minions/backlog.md"
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:

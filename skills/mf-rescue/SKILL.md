@@ -37,7 +37,7 @@ Read each, as it exists:
 |---|---|
 | `.minions/build/<change-id>.halt` | the build's `sub-task:`, `stop:`, `evidence:` and `head:` — per [`mf-build`](../mf-build/SKILL.md)'s stop-conditions |
 | the newest `.minions/runs/<stamp>.md` | the run log: the version's last `halt —` line |
-| `.minions/runs/<stamp>/<change-id>_build.log` | the build worker's output: its last lines |
+| the newest `.minions/runs/<stamp>/<change-id>_build*.log` | the build worker's output: its last lines |
 | `.minions/findings/<change-id>_status_log.md` | converge's rounds, for a converge halt |
 | `.minions/integrate/<change-id>.md`, `.red` | integrate's note or red gate |
 | `openspec/changes/<change-id>/` | the proposal, design, tasks and spec delta |

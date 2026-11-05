@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-11-06
+
+Gate: local 1m27s · CI not read under mf-ship · 0.63.0: local 1m43s · CI not read under mf-ship
+
+- Converge writes one `verdicts` line per role, naming its executor, model, effort and tokens, and a card gains
+  `**Round:**`; a spawn line names its effort, and a station spawned again in one stamp writes `-2.log` and on, which
+  the review metrics' cost table and the rescue read (change `0077-run-metrics`, phase 1).
+- `scripts/metrics/run.py` records a release's run in its data file: the lead, the minutes per stage and the person's
+  waits, converge's rounds, round 1's blockers and the grants, the halts by station, the rescues, and the build and
+  fix commits; a stage the run left no data for is a gap (change `0077-run-metrics`, phase 2).
+- The run metrics add the cost and tokens per station, from each spawn's log, the release's own left out, and the cost
+  per changed line; per role, the confirmed and refuted cards and the tokens per confirmed card, all turns; the escapes;
+  and the cards carried to the backlog and paid (change `0077-run-metrics`, phase 3).
+- The review metrics read the status log's tokens per role, in every form a `verdicts` line holds, fill a Codex round's
+  gap from the operator's Codex sessions, and write `review-metrics.json` beside the page: a record per round and role;
+  D50 records it (change `0077-run-metrics`, phase 4).
+
 ## [0.63.0] - 2026-11-05
 
 Gate: local 1m43s · CI not read under mf-ship · 0.62.1: local 1m43s · CI not read under mf-ship
