@@ -72,6 +72,9 @@ Every one holds, or **halt** naming the one that failed:
    `brew install betterleaks`; `conduct.py run` stops on it too, with no worker.
 5. **The executor**, from runtime evidence: Claude Code → `claude`; Codex → `codex`; any other → **halt**, naming
    it. Model, provider and editor names do not identify it.
+6. **The pin:** every `mf-*` on `~/.claude/skills` and `~/.agents/skills` links into one release, which
+   `make install-skills`, run in MF's checkout, installs. `conduct.py run` stops on a missing or mixed link, naming
+   `make install-skills`, with no worker; its `start` line names the release it runs on.
 
 ## Step 2 — State
 

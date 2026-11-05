@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-05
+
+Gate: local 3m38s · CI not read under mf-ship · 0.56.0: local 2m41s · CI not read under mf-ship
+
+- `make install-skills [TAG=<tag>|live]` runs `skills/mf-ship/scripts/pin.py`: it exports a release's `skills/` tree
+  into the data folder with a `VERSION`, links every `mf-*` on both hosts there, holds a named tag or `live`, and leaves
+  an install under a live run `pending`, so a run never reads skills moved under it (change `0068-pinned-release`,
+  phase 1).
+- `conduct.py run` marks itself live in `~/.mf-ship-origin/live/` first, and the last run to end moves the links to
+  the pending or newer release; the `start` line names the release, and a run stops when the `mf-*` links point into
+  more than one tree, so a release moves only at a quiet moment (change `0068-pinned-release`, phase 2).
+- `mf_version` reads the `VERSION` at an installed release's root when the collector is outside MF's checkout, so a
+  data file names the pinned release it ran on (change `0068-pinned-release`, phase 3).
+- D55, *One pinned MF release per machine*, with the principle's exceptions, the threat model's gaps, README,
+  `AGENTS.md` and `mf-ship`'s preconditions naming `make install-skills` as the pin (change `0068-pinned-release`,
+  phase 4).
+
 ## [0.56.0] - 2026-11-05
 
 Gate: local 2m41s · CI not read under mf-ship · 0.55.0: local 2m12s · CI not read under mf-ship

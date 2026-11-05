@@ -105,3 +105,8 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
 - A worker can forge a gate record in `.minions/gate/`, so a later station reuses a green no gate ran; the release's
   post-fold gate runs fresh, so a red tree never reaches a tag.
+- A station run by hand leaves no live mark, so an install or a run's end can move the `mf-*` links under it
+  ([D55](docs/decisions.md#d55--one-pinned-mf-release-per-machine)).
+- A `make install-skills TAG=<tag>` exports from the checkout, so a tag a worker moved or an object it rewrote in the
+  primary's `.git` reaches that tree. A tree a `TAG=<tag>` install or a hand pin exported is kept, and a later bare
+  install of that tag links it as it stands; a bare install clones `origin` for a tag with no tree.

@@ -386,6 +386,14 @@ def test_provenance_is_recorded_never_guessed(
     _git(host, "tag", "v9.9")
     assert {place: metrics.mf_version(host / place) for place in places} == places
 
+    # An installed release names itself in the `VERSION` at its tree's root.
+    release = tmp_path / "minionsfactory" / "v0.56.0"
+    (release / "skills/mf-build/scripts").mkdir(parents=True)
+    (release / "VERSION").write_text("v0.56.0\n")
+    assert metrics.mf_version(release / "skills/mf-build/scripts") == "v0.56.0"
+    monkeypatch.setenv("PATH", str(tmp_path / "no-git"))
+    assert metrics.mf_version(release / "skills/mf-build/scripts") == "v0.56.0"
+
 
 def test_the_page_defaults_to_the_primary_run_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
