@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The brief's At line
 - [x] 2 — Only moved facts, with helpers
 - [x] 3 — The review and the show
-- [ ] 4 — verify_check and a link
+- [x] 4 — verify_check and a link
 
 ## 1 — The brief's At line
 
@@ -31,7 +31,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — verify_check and a link
 
-- [ ] 4.1 Judge a `git grep`'s paths without the export, and turn a failed export into exit 2, in
+- [x] 4.1 Judge a `git grep`'s paths without the export, and turn a failed export into exit 2, in
   `skills/mf-cut-change/scripts/verify_check.py`, per [D6](design.md#d6); extend `test_what_cannot_run_exits_2` in
   `tests/test_verify_check.py` with a repository tracking a link out of its tree.
   Verify: `grep -n 'TarError' skills/mf-cut-change/scripts/verify_check.py` prints a line, and
