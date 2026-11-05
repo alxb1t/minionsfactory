@@ -24,7 +24,7 @@ context.**
 
 **`make gate`**, at the repository root, checks in order: the lock is in sync · format · lint (`D` docstrings, `ANN`
 annotations, `B` bug patterns and `S` security enabled) · strict types · the CI workflow's lint · the secret scan ·
-the tests on every core, under coverage · 100% coverage of the lines changed since `DIFF_BASE`. The `Makefile` recipe
+the tests on every core, under coverage, writing the junit report `.minions/test-report.xml` · 100% coverage of the lines changed since `DIFF_BASE`. The `Makefile` recipe
 is the only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies
 them. **`make check`** runs its fast steps, no `slow` test, between build phases.
 

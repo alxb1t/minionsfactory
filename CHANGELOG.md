@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/metrics/codebase.py` measures the codebase from the tree — the largest module, modules over 1,000 lines,
   functions over complexity 10 by Ruff's `C901`, suppressions, test lines per code line, Python lines and dependencies —
   and the catalogue's `code` group names each (change `0078-code-metrics`, phase 1).
+- The gate's pytest step writes the junit report `.minions/test-report.xml`; `codebase.py` reads the suite's seconds, the
+  slowest test, the tests' summed seconds, the tests over 5 s and total coverage from it, and a missing or stale report
+  is a gap (change `0078-code-metrics`, phase 2).
 
 ## [0.62.1] - 2026-11-05
 

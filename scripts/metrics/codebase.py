@@ -17,11 +17,16 @@ import tokenize
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
+from xml.parsers import expat
 
 ROOTS = ("skills", "scripts", "tests")
 CODE = ("skills", "scripts")
 BIG_MODULE_LINES = 1000
 COMPLEXITY = 10
+SLOW_SECONDS = 5
+REPORT = Path(".minions/test-report.xml")
+COVERAGE = Path("coverage.xml")
+COLLECTED = re.compile(r"(\d+) tests? collected")
 SUPPRESSION = re.compile(r"noqa|type:\s*ignore|pragma:\s*no cover")
 # PEP 723's own pattern for an inline script block.
 HEADER = re.compile(
@@ -127,6 +132,62 @@ def _dev_dependencies(root: Path) -> int:
     return sum(isinstance(item, str) for group in groups.values() for item in group)
 
 
+def stale(report_tests: int, collected: int) -> bool:
+    """Return whether a report counts other tests than the tree collects."""
+    return report_tests != collected
+
+
+def _collected(root: Path) -> int:
+    """Return the tests pytest collects in the tree; exit with why if none."""
+    done = subprocess.run(
+        ["uv", "run", "pytest", "--collect-only", "-q"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    found = COLLECTED.search(done.stdout)
+    if done.returncode != 0 or not found:
+        sys.exit(f"pytest collection failed (exit {done.returncode})")
+    return int(found.group(1))
+
+
+def _elements(path: Path) -> list[tuple[str, dict[str, str]]]:
+    """Return each element's name and attributes, in order; exit if unreadable.
+
+    Expat, not `xml.etree`: Ruff's `S314` flags the latter.
+    """
+    elements: list[tuple[str, dict[str, str]]] = []
+    parser = expat.ParserCreate()
+    parser.StartElementHandler = lambda name, attrs: elements.append((name, attrs))
+    try:
+        parser.Parse(path.read_bytes(), True)
+    except (OSError, expat.ExpatError):
+        sys.exit(f"no readable {path.name}")
+    return elements
+
+
+def _report(root: Path) -> tuple[float, list[float]]:
+    """Return the suite's seconds and each test's, from a report of this tree.
+
+    A report that counts other tests than the tree collects is stale: exit.
+    """
+    elements = _elements(root / REPORT)
+    suites = [attrs for name, attrs in elements if name == "testsuite"]
+    if not suites or not suites[0].get("tests", "").isdigit():
+        sys.exit(f"no testsuite in {REPORT.name}")
+    if stale(int(suites[0]["tests"]), _collected(root)):
+        sys.exit(f"{REPORT.name} is stale: it counts other tests than the tree")
+    times = [float(attrs["time"]) for name, attrs in elements if name == "testcase"]
+    return float(suites[0]["time"]), times
+
+
+def _total_coverage(root: Path) -> float:
+    """Return the gate's line coverage in percent, from a report of this tree."""
+    _report(root)
+    rates = [a["line-rate"] for n, a in _elements(root / COVERAGE) if n == "coverage"]
+    return round(float(rates[0]) * 100, 2)
+
+
 KINDS: dict[str, Callable[[Path], int | float]] = {
     "largest-module-lines": lambda root: max(
         (_lines(path) for path in _modules(root, ROOTS)), default=0
@@ -140,6 +201,11 @@ KINDS: dict[str, Callable[[Path], int | float]] = {
     "python-lines": lambda root: _total_lines(root, ROOTS),
     "dependencies": _dependencies,
     "dev-dependencies": _dev_dependencies,
+    "test-seconds": lambda root: round(_report(root)[0], 2),
+    "slowest-test-seconds": lambda root: round(max(_report(root)[1], default=0), 2),
+    "test-seconds-summed": lambda root: round(sum(_report(root)[1]), 2),
+    "slow-tests": lambda root: sum(t > SLOW_SECONDS for t in _report(root)[1]),
+    "total-coverage": _total_coverage,
 }
 
 
