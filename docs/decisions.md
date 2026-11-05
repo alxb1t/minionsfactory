@@ -291,7 +291,7 @@ install nothing ([D2](#d2--the-product-is-the-practice-and-its-skills)).**
 └── .minions/            run output, gitignored
 ```
 
-`.minions/` is the primary checkout's; `AGENTS.md` may declare `Worktrees:` and `Workspace setup:` ([D44](#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them)).
+`.minions/` is the primary checkout's, save the gate's own junit report, which sits in the checkout that ran it; `AGENTS.md` may declare `Worktrees:` and `Workspace setup:` ([D44](#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them)).
 
 `metrics/` is optional: a repo that adopts holds its catalogue and its data files there
 ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)); the bootstrap writes none.
