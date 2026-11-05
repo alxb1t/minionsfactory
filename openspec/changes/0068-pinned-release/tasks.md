@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 - [x] 1 — The install
 - [x] 2 — The conductor
 - [x] 3 — The version
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The install
 
@@ -87,7 +87,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 4 — The record
 
-- [ ] 4.1 Add the decision to `docs/decisions.md`, the exceptions to `docs/principles.md`, the gaps to `THREAT_MODEL.md`, and the
+- [x] 4.1 Add the decision to `docs/decisions.md`, the exceptions to `docs/principles.md`, the gaps to `THREAT_MODEL.md`, and the
   pin to `README.md` — its install section, the symlink line at `README.md:38`, the relink step — `AGENTS.md` and
   `skills/mf-ship/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'One pinned MF release per machine' docs/decisions.md` prints a line, and `grep -n 'SKILLS_DIR' README.md` prints nothing.

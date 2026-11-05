@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   more than one tree, so a release moves only at a quiet moment (change `0068-pinned-release`, phase 2).
 - `mf_version` reads the `VERSION` at an installed release's root when the collector is outside MF's checkout, so a
   data file names the pinned release it ran on (change `0068-pinned-release`, phase 3).
+- D55, *One pinned MF release per machine*, with the principle's exceptions, the threat model's gaps, README,
+  `AGENTS.md` and `mf-ship`'s preconditions naming `make install-skills` as the pin (change `0068-pinned-release`,
+  phase 4).
 
 ## [0.55.0] - 2026-11-05
 

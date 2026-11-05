@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D55
 ```
 
 ## The shape
@@ -504,3 +504,20 @@ hostile repo needs a container.**
   on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service.
+
+### D55 · One pinned MF release per machine
+
+**`make install-skills` exports a release's `skills/` tree into `$XDG_DATA_HOME/minionsfactory/<tag>/`, with a `VERSION`,
+and links every `mf-*` on `~/.claude/skills` and `~/.agents/skills` into it; bare, it takes the newest tag the kept `origin`
+holds, from a scratch clone, and `TAG=<tag>` or `TAG=live` holds the links. Each conductor marks itself live in
+`~/.mf-ship-origin/live/`, an install under a live run writes `pending`, and the links move only at the last live run's
+end or at an install with none live, to the pending release or a newer tag `origin` holds. Every tree is kept.**
+
+- **Why:** links into the live checkout let every MF release change the skills another repo's workers read mid-run. A
+  conductor already loaded would read new skills with old code, so no link moves at a run's start. A scratch clone shares
+  no object with the primary, so nothing planted there reaches the export.
+- **Accepts:** a station run by hand leaves no live mark, so the links can move under it · a `TAG=<tag>` install trusts
+  the checkout · a tag only the local repo holds is skipped, and the `start` line names it · after a reboot or a killed
+  run, a pending release waits for the next run's end or install.
+- **Rejected:** a Python package or a plugin · `SKILLS_DIR`, which names one host · a waiter process · a move at a run's
+  start · an `After release:` command · a pin per project.

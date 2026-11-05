@@ -137,14 +137,17 @@ is done on a commit and a ticked box together; a round number lives in the findi
 
 - **the operator's brief**, read and written at the path the operator gives, never named in the repo;
 - `mf-release`'s read-only remote CI lookup for its `Gate:` line;
-- the bundled metrics script's read-only git reads of its own package — `git ls-files` and `git describe`
-  ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
+- the bundled metrics script's read-only git reads of its own package — `git ls-files` and `git describe` — or of
+  the `VERSION` at its release's root ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
 - the review-metrics station's read-only reads of the `.minions/findings/` of repos the operator names, and its page
   written to the path the operator gives — neither named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it, the
-  default-branch sha a run last saw on `origin`, and a person's gate approval beside it, which `gate_check.py` reads.
+  default-branch sha a run last saw on `origin`, and a person's gate approval beside it, which `gate_check.py` reads;
+- `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending` and
+  `live/` beside the kept URLs, which `conduct.py` reads and writes too — named in no target repo
+  ([D55](decisions.md#d55--one-pinned-mf-release-per-machine)).
 
 **Installed skills, bundled references and bundled scripts are instruction-package material, not permission to
 read arbitrary outside files. Run output goes to the gitignored `.minions/`; the repo names no path, token or tool
