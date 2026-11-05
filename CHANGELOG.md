@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` starts `mf-rescue` in a version's thread on a build check, converge or integrate halt, in the run it
   halts in, and never on a build stopped at a `**HUMAN` phase: an amend of `tasks.md` and `design.md` alone clears a
   build halt and the version goes on; anything else keeps it halted, and a converge or integrate halt its rescue answers
-  on disk stays halted for the run, no rejoin request taking it back. At most
+  on disk stays halted for the run, no rejoin request taking it back; `conduct.py grant` refuses while that rescue
+  runs, so a grant then is the rescue's. At most
   `RESCUES = 3` a version a run, one per sub-task; `[rescue]` in the models file, else `[build]`, and `skip = true`
   turns it off. The rejoin and grants folders are read and emptied through a directory descriptor, so a link swapped
   in deletes nothing (change `0067-rescue`, phase 3).

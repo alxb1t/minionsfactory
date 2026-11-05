@@ -3881,6 +3881,20 @@ def test_a_grant_buys_one_round(
     active.mkdir()
     (active / "pid").write_text(str(os.getpid()))
     (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    # While the live run's rescue of the version runs, a grant is refused and writes
+    # nothing: one written then is the rescue's. Why: 0067-rescue design D3.
+    runs = root / ".minions" / "runs"
+    newest = conduct["last_log"](runs)
+    with newest.open("a") as file:
+        file.write("12:00:00 · 0001-todo · spawn — rescue · model default\n")
+    rescuing = (
+        "grant: cannot run — 0001-todo is at converge-halted with its rescue running:"
+        " grant once it ends"
+    )
+    assert grant() == (2, rescuing)
+    assert not grants.exists() and not (runs / "rejoin" / "0001-todo").exists()
+    with newest.open("a") as file:
+        file.write("12:00:09 · 0001-todo · finish — rescue · exit 0 · 9s\n")
     assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
     assert grants.is_file()
     assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()

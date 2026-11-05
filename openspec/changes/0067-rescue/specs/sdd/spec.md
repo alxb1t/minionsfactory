@@ -103,3 +103,81 @@ default-branch commit no ledger entry stands behind. A worker stopped by a usage
 #### Scenario: Grant takes only the cap
 - **WHEN** a person runs `/mf-ship grant <change-id>` on a version halted on anything but converge's cap
 - **THEN** it exits 2, and records nothing
+
+### Requirement: A person can grant one more round
+
+`/mf-ship grant <change-id>` SHALL work only on a version whose status log halted at the cap. It SHALL record the grant and
+start a run, or, with a run live, write that version's rejoin request. A refusal SHALL name the stage and the command to
+run instead: `/mf-ship`. With a run live, it SHALL refuse while the newest run log holds that version's rescue spawned and not
+finished, naming the stage and the rescue, and write nothing: a grant written then is the rescue's answer. `conduct.py` SHALL
+spend the grant when it spawns converge, with `grant=yes`. `skills/mf-converge/SKILL.md`
+SHALL open a run marked as the grant, send the open blockers to a fixer, verify one round, and on clean write the rest to
+the backlog with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
+
+#### Scenario: A grant on a version not at the cap
+- **WHEN** a person grants a version at any other stage, a grant already waiting included
+- **THEN** it refuses, naming the stage and `/mf-ship`, and no run starts
+
+#### Scenario: A grant during a live run
+- **WHEN** a person grants a version at the cap while a run is live
+- **THEN** the live run takes it back and spends the grant in its converge, and the run log holds a `grant` event
+
+#### Scenario: A grant during the version's rescue
+- **WHEN** a person grants a version at the cap while the live run's rescue of it runs
+- **THEN** it exits 2, naming the rescue, and writes no grant and no rejoin request
+- **AND WHEN** that rescue has finished, leaving the cap halt
+- **THEN** the grant goes to the live run, as in *A grant during a live run*
+
+#### Scenario: A grant is spent once
+- **WHEN** a granted round ends on a blocker
+- **THEN** the stage is `converge-halted`, and a run spends no second round
+
+### Requirement: A halted version rejoins a live run
+
+`conduct.py rejoin [<change-id>]` SHALL write a request in `.minions/runs/rejoin/`, and `/mf-ship` SHALL send it when a run is
+live. The live run SHALL check that folder at most every 10 seconds and before its close, and SHALL take into the run every
+open version the request names — every one for a request with no id — whose stage on disk is no longer a halt: a halted one,
+a blocked one, and one cut after the run started. A version still at a halt SHALL stay out, logged with why. The poll SHALL
+not end the run's loop while a version's thread runs: an entry it cannot delete SHALL be no request, and a version it fails
+to take SHALL halt alone. A request folder that is a link SHALL hold no request, and the poll SHALL delete nothing through
+it. A version the run's plan already holds SHALL stay out, logged, while its models file differs from what the run read, and
+a version whose rescue answered its converge or integrate halt on disk SHALL stay out, logged, for the rest of the run, both
+waiting for a re-run; any other taken version
+SHALL have its models file read as it joins, then go through the run's base check, its dependencies, its stations and the
+merge lock, as at a run's start, with its halts and blocks cleared. Its executor's probe SHALL run once in the run, before
+the first worker on it; a failed probe SHALL halt only the versions on that executor, each later one with that probe's
+reason and no second probe. The run SHALL log a `rejoin` event per
+version taken, delete the requests it read, and a run's start SHALL delete every request it finds. A run-level halt SHALL
+end the run, as before; a request reaches no ended run.
+
+#### Scenario: A fixed version rejoins
+- **WHEN** a version halts while another builds, the person fixes it on disk, and runs `/mf-ship`
+- **THEN** the live run logs `rejoin` for it, and it releases in the same run, the other version's stations untouched
+
+#### Scenario: A version still halted
+- **WHEN** a request names a version whose stage is still a halt
+- **THEN** it stays out, and the run logs why
+
+#### Scenario: A version its rescue answered
+- **WHEN** a version's rescue answered its converge or integrate halt on disk, and a request names it
+- **THEN** it stays out for the rest of the run, and the run logs it still halted, naming the answer
+
+#### Scenario: A version cut during the run
+- **WHEN** a version is cut while a run is live, and `/mf-ship` runs
+- **THEN** the live run takes it, and builds it beside the others
+- **AND WHEN** a folder stands in `.minions/runs/rejoin/` beside the request
+- **THEN** the poll skips it, and the run goes on
+- **AND WHEN** `.minions/runs/rejoin` is a link to another folder
+- **THEN** the poll reads no request there, and deletes nothing in it
+
+#### Scenario: A new executor
+- **WHEN** a taken version's models file names an executor the run has not probed
+- **THEN** the run probes it before that version's first worker, and the version goes on
+- **AND WHEN** that probe fails
+- **THEN** only the versions on that executor halt, the probe run once for them all, and the others release
+
+#### Scenario: A request at the close
+- **WHEN** a request lands after the last version's thread ends
+- **THEN** the run reads it before its close
+- **AND WHEN** a request outlives its run
+- **THEN** the next run's start deletes it, and takes every open version anyway

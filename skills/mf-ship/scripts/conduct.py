@@ -3104,11 +3104,30 @@ def _request(runs: Path, name: str) -> None:
     (runs / "rejoin" / name).touch()
 
 
+def _rescuing(runs: Path, change: str) -> bool:
+    """Return whether the newest run log's last rescue event for `change` is a spawn.
+
+    e.g. `… · 0001-todo · spawn — rescue · model default`, no `finish — rescue` after
+    """
+    log = last_log(runs)
+    lines = log.read_text(errors="replace").splitlines() if log else []
+    events = [
+        found[2]
+        for line in lines
+        if (found := EVENT.match(line))
+        and found[1] == change
+        and found[2] in ("spawn", "finish")
+        and line[found.end() :].startswith("rescue · ")
+    ]
+    return events[-1:] == ["spawn"]
+
+
 def grant(cwd: Path, change: str, executor: str) -> int:
     """Record one more round for a version halted at the cap, then start a run.
 
-    With a run live, the grant goes with a rejoin request instead.
-    Why: 0063-rejoin design D5.
+    With a run live, the grant goes with a rejoin request instead, and none while
+    that version's rescue runs: `Run.hold` takes a grant then for the rescue's.
+    Why: 0063-rejoin design D5; 0067-rescue design D3.
     """
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
@@ -3124,6 +3143,12 @@ def grant(cwd: Path, change: str, executor: str) -> int:
         )
     runs = primary / ".minions" / "runs"
     live = _claim(runs / "active") == "live"
+    if live and _rescuing(runs, change):
+        raise Stop(
+            2,
+            f"grant: cannot run — {change} is at {stage} with its rescue running:"
+            " grant once it ends",
+        )
     if not live:
         preconditions(cwd, executor)
     grants = primary / ".minions" / "grants"

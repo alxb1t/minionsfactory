@@ -77,7 +77,11 @@ version's halts (F4), and `advance` again; any other path → keep the halt, add
 `.minions/rescue/<id>.md` → log `rescue — <id>: diagnosed · .minions/rescue/<id>.md`, the halt naming the file. A rescue at a
 converge or integrate halt whose version's stage on disk is then no halt — a commit past the halted head, a settled merge, a
 removed note, a grant — adds the halt `rescue answered its halt — <stage>: <why>`, naming a moved `HEAD`, and `take_back` refuses
-that version for the rest of the run.
+that version for the rest of the run. So that a grant on disk then is the rescue's, `conduct.py grant` with a run live refuses
+while the newest run log holds the version's `spawn — rescue` with no `finish — rescue` after it, naming the rescue and writing
+nothing; the person grants once it ends. Rejected: `hold` counting only what the rescue did in the tree, which lets a grant the
+rescue writes take the version back (`0067·S2`). A grant landing between the rescue's `finish` and `hold`'s read is held for the
+run, its halt naming it, and the grant stays on disk for a re-run.
 
 ### D4
 
@@ -112,7 +116,8 @@ grant. Pays `0063·S5`.
 `test_a_sub_task_is_rescued_once` (the fourth halt beside it), `test_rescue_skip_runs_none` — `T2`: none reaches a rescue today —
 with `rescue-fix`, `rescue-diagnose`, `rescue-wild` and `halt-<id>` modes in `tests/fake_worker.py`; `test_a_linked_rejoin_folder_deletes_nothing`
 (unit). Extended: `tests/test_skills.py`'s scans read `mf-rescue` with the rest; `test_a_grant_buys_one_round`, now `slow`,
-with a `rescue-answers` mode whose grant and rejoin request leave the version halted. None deleted or merged.
+with a `rescue-answers` mode whose grant and rejoin request leave the version halted, and a step where a person's grant while
+the live run's rescue runs is refused and writes nothing, then is recorded once the rescue finished. None deleted or merged.
 
 ## Dependencies
 

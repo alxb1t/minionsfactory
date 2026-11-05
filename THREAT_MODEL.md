@@ -50,7 +50,7 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   rejoin on the new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it.
   It reads and empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either. A
   version whose rescue answered its converge or integrate halt on disk stays out for the run, so its own request cannot take
-  it past the cap or a merge note.
+  it past the cap or a merge note; a person's grant is refused while that rescue runs, so a grant then is the rescue's.
 
 ## Out of scope
 
