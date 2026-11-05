@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.1] - 2026-11-05
+
+Gate: local 2m33s · CI not read under mf-ship · 0.59.0: local 2m26s · CI not read under mf-ship
+
 - `check_probe` reads `.arch` right after the mark check, never through a link, at most 64 bytes, and names a shell only
   when `.arch` reads as an architecture; otherwise it fails as unreadable (change `0072-paydown`, phase 1).
 

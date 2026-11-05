@@ -12,7 +12,8 @@ the rest (D42).
 The `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` skills SHALL run the gate as `make gate`, from the repository
 root, through `skills/mf-converge/scripts/gate_run.py`, which records a green run in `.minions/gate/<tree>` — the tree, the
 dry run's hash, the date and the seconds — and on a later call reuses it when the worktree is clean, its tree is that tree,
-and `make -n gate` prints the same lines. A red run SHALL record nothing, and no record SHALL be written through a link, and `mf-release`'s gate after its fold SHALL run
+and `make -n gate` prints the same lines. A red run SHALL record nothing, and no record SHALL be written through a linked
+`.minions/gate` or staged record, and `mf-release`'s gate after its fold SHALL run
 fresh. Each SHALL print the output of `make -n gate` before its first gate run in a session. Each SHALL halt,
 naming the root `Makefile`, when that file is missing, has no `gate` target, or has a `gate` target that runs
 no command. No shipped skill SHALL name `.minions/minions.toml`.
@@ -1119,6 +1120,10 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 - **THEN** nothing is removed, and the run logs it
 - **AND WHEN** the worktree's ignored paths cannot be listed
 - **THEN** nothing is removed, and the run logs it
+- **AND WHEN** the repo's git config holds a key a run refuses, or changed since the run read it
+- **THEN** nothing is removed, and the run logs it
+- **AND WHEN** the `Worktrees:` path joined with the change id is a link
+- **THEN** nothing is removed, and the run logs it
 
 ### Requirement: The ship station judges every station from disk
 
@@ -1591,8 +1596,8 @@ first worker, and SHALL halt a version's merge when the local git config or `inf
 
 ### Requirement: A person can stop a run
 
-`/mf-ship stop` SHALL end the live run: the conductor, then each worker group in the claim, then a `halt — stopped by the
-person` line in the run log, then the claim. A group it cannot end SHALL keep the claim, and it SHALL still write that line and
+`/mf-ship stop` SHALL end the live run: the conductor, then each worker group in the claim and the claim, then a `halt — stopped
+by the person` line in the run log. A group it cannot end SHALL keep the claim, and it SHALL still write that line and
 exit 2, naming the group. A re-run SHALL resume from disk, and `conduct.py log --verify` SHALL pass the stopped run. With no live
 run it SHALL say so and exit 0.
 
