@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56
 ```
 
 ## The shape
@@ -471,7 +471,8 @@ disk: only a stage left in `HALTS`, a git config key or `origin` URL the run ref
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
 step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
-person once a rescue, where one runs, has left it halted.**
+person once a rescue, where one runs, has left it halted. A converge cap of small cards is the run's to grant, never
+past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap-policy)).**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
@@ -510,8 +511,8 @@ hostile repo needs a container.**
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
-**On a build check, converge-cap or integrate halt, `conduct.py` runs `mf-rescue` in the halted version's thread. It may
-fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
+**On a build check halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
+`conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
 on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
 a commit at a converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
@@ -550,3 +551,18 @@ end or at an install with none live, to the pending release or a newer tag `orig
   run, a pending release waits for the next run's end or install.
 - **Rejected:** a Python package or a plugin · `SKILLS_DIR`, which names one host · a waiter process · a move at a run's
   start · an `After release:` command · a pin per project.
+
+### D56 · The cap policy
+
+**At a converge cap, `conduct.py` reads the open blocking cards — review's `blocking`, security's `critical` and `high`
+— and their fix sizes; when each is `one line`, `a test` or `one line and a test`, the run spawns converge with
+`grant=yes` itself, with no grant file and no rescue, and checks that round as a person's grant's. Any other cap — a
+blocker sized `a design change`, no card read, a granted round's, automatic or a person's, in this run or an earlier
+one, a second cap in the run, or `[converge] auto_grant = false` in the models file — writes the version a last halt
+line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way back; a person's grant still buys a round.**
+
+- **Why:** a cap of small cards is a grant's job, and it waited a night for the person; a cap that recurs is the plan's,
+  each grant fixing one edge of a design and finding the next.
+- **Accepts:** a card sized small that is not, which costs one round: the size is the checker's word.
+- **Rejected:** the rescue judging the cap · a grant file the run writes · a new stage for the re-plan · an `AGENTS.md`
+  line for the setting · tracking a function across caps.

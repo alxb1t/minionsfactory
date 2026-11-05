@@ -45,6 +45,43 @@ def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> Non
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
+def _cards(
+    root: Path, change: str, head: str, size: str, granted: bool = False
+) -> None:
+    """Write both findings files capped at `head`, security's open blocker sized `size`.
+
+    Review's open blocker is sized `one line`; a nit, a `medium` and a verified
+    blocker, each sized `a design change`, block nothing. A `granted` round's run is
+    marked `· grant`, as `mf-converge` marks it.
+    """
+    folder = root / ".minions" / "findings"
+    folder.mkdir(parents=True, exist_ok=True)
+    cards = {
+        "review": [
+            ("R1", "blocking", "one line", "open"),
+            ("R2", "nit", "a design change", "open"),
+            ("R3", "blocking", "a design change", "verified — held"),
+        ],
+        "security": [
+            ("S1", "high", size, "open"),
+            ("S2", "medium", "a design change", "open"),
+        ],
+    }
+    for role, listed in cards.items():
+        text = f"---\nverdict: changes-requested\nhead: {head}\nround: 3\n---\n\n"
+        for card, severity, fix, status in listed:
+            text += (
+                f"- **{card} — a finding**\n"
+                f"  - **Priority:** {severity} · {role} · stability — why.\n"
+                f"  - **Fix:** a fix · size: {fix}.\n"
+                f"  - **Status:** {status}\n"
+            )
+        (folder / f"{change}_{role}.md").write_text(text)
+    run = "## Run 2 — d · grant\n" if granted else "## Run 1 — d\n"
+    log = folder / f"{change}_status_log.md"
+    log.write_text(f"# t\n\n{run}10:00:00 · round 3 · halt — cap reached\n")
+
+
 def _done(root: Path, change: str, head: str) -> None:
     folder = root / ".minions" / "build"
     folder.mkdir(parents=True, exist_ok=True)
@@ -265,6 +302,25 @@ def _fake(prompt: str) -> None:
             table = primary / ".minions" / "models" / f"{change}.toml"
             table.parent.mkdir(parents=True, exist_ok=True)
             table.write_text('[release]\nexecutor = "codex"\n')
+        # Each caps on cards of its size; `cap-again` caps a granted round too.
+        sizes = {
+            "cap-small": "a test",
+            "cap-design": "a design change",
+            "cap-again": "a test",
+        }
+        capping = [sizes[mode] for mode in sizes if mode in modes]
+        granted = "grant=yes" in clauses
+        if capping and (not granted or "cap-again" in modes):
+            head = _git(here, "rev-parse", "HEAD")
+            _cards(primary, str(change), head, capping[0], granted)
+            return
+        if granted and "grant-unfinished" in modes:
+            # A granted round whose host ended its turn mid-run: no `done`, exit 0.
+            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log.write_text(
+                "# t\n\n## Run 2 — d · grant\n10:00:00 · round 4 · fix — R1\n"
+            )
+            return
         if "grant-halts" in modes:
             log = primary / ".minions" / "findings" / f"{change}_status_log.md"
             log.write_text(

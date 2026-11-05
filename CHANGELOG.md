@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-11-05
+
+Gate: local 2m26s · CI not read under mf-ship · 0.58.0: local 2m8s · CI not read under mf-ship
+
+- `conduct.py` reads the open blocking cards and their sizes at a converge cap; when each is sized `one line`, `a
+  test` or `one line and a test`, it spawns converge with `grant=yes` itself, never past a granted round, logs
+  `grant — <id>: automatic · <ids>` and checks the round as a person's grant's, so a cap of small cards converges with no person (change `0070-cap-policy`, phase 1).
+- A cap the run does not grant — a blocker sized `a design change`, no card read, a granted round's cap, in this run or
+  an earlier one, or `[converge] auto_grant = false` — writes the version a last halt line, `re-plan: <ids>`, and `mf-rescue`'s diagnosis
+  names `/mf-plan … from=`: a cap that recurs is the plan's. A person's grant still buys a round (change
+  `0070-cap-policy`, phase 2).
+- D54 records the cap policy and D47 names it; `mf-ship`'s halt table gains the `re-plan` row, and `mf-converge`'s
+  granted round names the run's automatic grant (change `0070-cap-policy`, phase 3).
+
 ## [0.58.0] - 2026-11-05
 
 Gate: local 2m8s · CI not read under mf-ship · 0.57.0: local 3m38s · CI not read under mf-ship
