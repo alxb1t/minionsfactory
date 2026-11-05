@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.1] - 2026-11-05
+
+Gate: local 1m43s · CI not read under mf-ship · 0.62.0: local 2m6s · CI not read under mf-ship
+
 - The fake worker and the fake `ps` start under `python -S`, so coverage's `.pth` no longer starts in them; their own
   children still inherit coverage (change `0075-test-speed`, phase 1).
 - The tests that repeat another's assertions go, each mapped to the test that carries it: the forged release's ref and
