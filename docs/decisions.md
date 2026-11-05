@@ -437,7 +437,8 @@ the bootstrap templates — never that a sentence exists.**
 
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
 primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch.
-Every worktree shares the primary's `.minions/`; the release merges in the primary.**
+Every worktree shares the primary's `.minions/`, save the gate's own junit report, which sits in the checkout that ran
+it; the release merges in the primary.**
 
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids
   without a lock file.

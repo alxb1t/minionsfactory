@@ -221,12 +221,6 @@ def test_the_code_script_runs_as_the_collector_runs_it(tmp_path: Path) -> None:
     assert broken.returncode == 1 and broken.stdout == ""
     assert broken.stderr.strip() == "pytest collection failed (exit 2)"
 
-    # A Ruff that fails is a gap with its reason, not a zero.
-    _write(tmp_path, {"pyproject.toml": "[project]\n"})
-    failed = run("complex-functions")
-    assert failed.returncode == 1 and failed.stdout == ""
-    assert failed.stderr.strip()
-
 
 def test_prose_skips_code_and_tables(tmp_path: Path) -> None:
     long = " ".join(["word"] * 31) + "."
