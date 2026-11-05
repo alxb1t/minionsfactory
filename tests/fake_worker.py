@@ -108,6 +108,42 @@ def _integrate(tree: Path, message: str, modes: set[str]) -> None:
         _git(tree, "merge", "-q", "--no-ff", "-m", message, "main")
 
 
+_AMENDED = "Amended: 1.1\n"
+
+
+def _amended(tree: Path, change: str | None) -> bool:
+    """Return whether a rescue's fix stands in the change's `tasks.md`."""
+    tasks = tree / "openspec" / "changes" / str(change) / "tasks.md"
+    return _AMENDED in tasks.read_text()
+
+
+def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
+    """Amend the plan, hollowly, outside it or by a rewrite; diagnose, answer or die."""
+    tasks = f"openspec/changes/{change}/tasks.md"
+    message = f"docs({change}): amend the change directory\n\nfix\n\nRescue: 1.1"
+    text = (tree / tasks).read_text()
+    if "dies-rescue" in modes:
+        sys.exit(1)
+    if "rescue-fix" in modes:
+        _commit(tree, {tasks: text + _AMENDED}, message)
+    elif "rescue-hollow" in modes:
+        _commit(tree, {tasks: text + "Read again.\n"}, message)
+    elif "rescue-wild" in modes:
+        _commit(tree, {tasks: text + "Read again.\n", "src.py": "x = 1\n"}, message)
+    elif "rescue-rewrite" in modes:
+        _git(tree, "commit", "-q", "--amend", "-m", "rewritten")
+    elif "rescue-diagnose" in modes:
+        folder = primary / ".minions" / "rescue"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{change}.md").write_text("# diagnosis\n")
+    if "rescue-answers" in modes:
+        # A rescue answering its halt on disk with a grant, then asking to rejoin.
+        for name in ("grants", "runs/rejoin"):
+            folder = primary / ".minions" / name
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / change).touch()
+
+
 def _fake(prompt: str) -> None:
     """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
     modes = set(os.environ["FAKE_MODE"].split(","))
@@ -189,14 +225,32 @@ def _fake(prompt: str) -> None:
                 capture_output=True,
                 check=sandboxed and not translated,
             )
+    elif station == "rescue":
+        _rescue(here, primary, str(change), modes)
+    elif (
+        station == "build" and f"halt-{change}" in modes and not _amended(here, change)
+    ):
+        folder = primary / ".minions" / "build"
+        folder.mkdir(parents=True, exist_ok=True)
+        head = _git(here, "rev-parse", "HEAD")
+        (folder / f"{change}.halt").write_text(
+            f"sub-task: 1.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
+        )
     elif station == "build":
         tasks = here / "openspec" / "changes" / str(change) / "tasks.md"
-        files = {str(tasks): tasks.read_text().replace("- [ ]", "- [x]")}
+        # A build ticks each phase before the first unticked HUMAN one, and stops there.
+        lines = tasks.read_text().splitlines(keepends=True)
+        human = [i for i, line in enumerate(lines) if "[ ]" in line and "HUMAN" in line]
+        stop = human[0] if human else len(lines)
+        built = "".join(lines[:stop])
+        files = {str(tasks): built.replace("- [ ]", "- [x]") + "".join(lines[stop:])}
         if f"after-self-{change}" in modes:
             proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
             files[str(tasks.with_name("proposal.md"))] = proposal
-        if "- [ ]" in tasks.read_text():
+        if "- [ ]" in built:
             _commit(here, files, "build")
+        if human:
+            return
         if "dies-simplify" in modes:
             sys.exit(1)
         _done(primary, str(change), _git(here, "rev-parse", "HEAD"))
