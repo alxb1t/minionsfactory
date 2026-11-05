@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into the data folder with a `VERSION`, links every `mf-*` on both hosts there, holds a named tag or `live`, and leaves
   an install under a live run `pending`, so a run never reads skills moved under it (change `0068-pinned-release`,
   phase 1).
+- `conduct.py run` marks itself live in `~/.mf-ship-origin/live/` first, and the last run to end moves the links to
+  the pending or newer release; the `start` line names the release, and a run stops when the `mf-*` links point into
+  more than one tree, so a release moves only at a quiet moment (change `0068-pinned-release`, phase 2).
 
 ## [0.55.0] - 2026-11-05
 

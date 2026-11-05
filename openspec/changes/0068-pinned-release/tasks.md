@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 ## Progress
 
 - [x] 1 — The install
-- [ ] 2 — The conductor
+- [x] 2 — The conductor
 - [ ] 3 — The version
 - [ ] 4 — The record
 
@@ -72,11 +72,11 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## 2 — The conductor
 
-- [ ] 2.1 Write the live mark first in `run()` and remove it in its claimed `finally`, call `pin.move()` there when no other mark
+- [x] 2.1 Write the live mark first in `run()` and remove it in its claimed `finally`, call `pin.move()` there when no other mark
   stands, and name the release in `ship()`'s `start` line, in `skills/mf-ship/scripts/conduct.py`; add `test_a_run_marks_itself_live` and
   `test_the_last_run_moves_the_links` to `tests/test_conduct.py`, per [D2](design.md#d2), [D3](design.md#d3) and [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "marks_itself_live or last_run_moves_the_links"` reports `2 passed`.
-- [ ] 2.2 Check one tree in `_unlinked`, with the mixed install's step in `test_a_missing_skill_stops_a_run`, per [D5](design.md#d5).
+- [x] 2.2 Check one tree in `_unlinked`, with the mixed install's step in `test_a_missing_skill_stops_a_run`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k missing_skill_stops_a_run` reports `1 passed`.
 
 ## 3 — The version

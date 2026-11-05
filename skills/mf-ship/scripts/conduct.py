@@ -39,7 +39,7 @@ import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -51,6 +51,7 @@ LOCK_SECONDS = 30
 LOCK_STALE = 600
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
+PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
@@ -2023,19 +2024,52 @@ def _clear(active: Path) -> None:
     shutil.rmtree(active)
 
 
+def _pin() -> dict[str, Any]:
+    """Return `pin.py`'s namespace: the live marks, the links, the quiet move."""
+    return runpy.run_path(str(PIN))
+
+
+def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
+    """Write this run's live mark, holding its pid; return it, or None if not written.
+
+    A mark another live run holds stays: the parent that detached this run is not
+    another. Where the home folder refuses it, none is written.
+    Why: 0068-pinned-release design D2.
+    """
+    mark = Path.home() / KEPT_ORIGINS / "live" / _digest(primary)
+    if pin["holder"](mark) not in (None, os.getpid(), os.getppid()):
+        return None
+    try:
+        mark.parent.parent.mkdir(mode=0o700, exist_ok=True)
+        mark.parent.mkdir(mode=0o700, exist_ok=True)
+        mark.write_text(f"{os.getpid()}\n")
+    except OSError:
+        return None
+    return mark
+
+
 def _unlinked(executor: str) -> None:
     """Stop with 2 when a skill beside this one is not linked where `executor` looks.
 
-    A fake worker loads no skill.
+    Every `mf-*` link on both hosts must point into the tree beside this one. A fake
+    worker loads no skill. Why: 0068-pinned-release design D5.
     """
     if os.environ.get("MF_SHIP_AGENT"):
         return
+    here = Path(__file__).resolve().parents[1].parent
     linked = Path.home() / SKILLS[executor]
-    for skill in sorted(Path(__file__).resolve().parents[1].parent.glob("mf-*")):
+    for skill in sorted(here.glob("mf-*")):
         if skill.is_dir() and not (linked / skill.name).exists():
             raise Stop(
                 2, f"run: cannot run — {skill.name} is not linked; make install-skills"
             )
+    trees = _pin()["trees"]().items()
+    if astray := [link for tree, links in trees if tree != here for link in links]:
+        raise Stop(
+            2,
+            "run: cannot run — the mf-* links point into more than one tree:"
+            f" {', '.join(astray)}; make install-skills",
+        )
 
 
 def preconditions(cwd: Path, executor: str) -> Path:
@@ -2680,11 +2714,12 @@ class Run:
         listed = folder.is_dir() and not folder.is_symlink()
         standing = sorted(file.name for file in folder.iterdir()) if listed else []
         grants = f" · grant {' '.join(standing)}" if standing else ""
+        release = _pin()["describe"]()
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}{grants}{down}",
+            f" · versions {names}{grants}{down}{release}",
         )
         for event in held:
             self.log.event(*event)
@@ -2742,7 +2777,11 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
 
     A stale claim is cleared before the detach, so what stops that reaches the caller.
+    The live mark comes first; the last run to end moves the links before it goes.
+    Why: 0068-pinned-release design D2 and D3.
     """
+    pin = _pin()
+    mark = _mark_live(pin, primary_of(cwd))
     primary = preconditions(cwd, executor)
     if not (started := _ps(os.getpid(), "lstart=")):
         raise Stop(2, "run: cannot run — ps cannot read this run's start time")
@@ -2783,7 +2822,13 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code
     finally:
-        shutil.rmtree(active)
+        try:
+            if moved := pin["move"](mark):
+                print(moved)
+        finally:
+            if mark and pin["holder"](mark) == os.getpid():
+                mark.unlink()
+            shutil.rmtree(active)
 
 
 def stop_run(cwd: Path) -> str:
