@@ -357,6 +357,15 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     _findings(bare, "0051-y_review.md", _front())
     assert _record(bare, "0051-y")["cost_converge"] is None
 
+    timed_out = tmp_path / "timed-out"
+    _findings(timed_out, "0052-z_review.md", _front())
+    _run_log(timed_out, "A/0052-z_converge.log", {"type": "assistant"})
+    _run_log(timed_out, "A.md", "10:00:00 · 0052-z · spawn — converge · model m")
+    _run_log(timed_out, "B/0052-z_converge.log", one)
+    _run_log(timed_out, "B.md", "11:00:00 · 0052-z · spawn — converge · model m")
+    _, rows = review_metrics.cost_table([_record(timed_out, "0052-z")])
+    assert rows[0][2] == "$0.25 · 1 turns · 4 tokens · 1 s · 1 of 2"
+
 
 def test_the_page_draws_charts_and_lists_gaps(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]

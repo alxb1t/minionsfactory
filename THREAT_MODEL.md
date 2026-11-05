@@ -19,8 +19,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   worktrees, network on a short list and no loopback, no push. A Claude worker whose sandbox cannot
   start does not run, and each run's probe proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
-  `.mcp.json` start nothing, and no MCP server starts, the operator's own included; a Codex worker still starts the
-  operator's `mcp_servers`.
+  `.mcp.json` start nothing, and no MCP server starts, the operator's own included: the probe fails when its `init` event
+  lists one. A Codex worker still starts the operator's `mcp_servers`.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
@@ -76,6 +76,8 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
+- A Codex worker starts the operator's `mcp_servers`, its network off, so it reaches their tools until a change sets them
+  empty.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
 - A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
 - `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`

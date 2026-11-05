@@ -366,10 +366,12 @@ def _cost_logs(repo: Path, change: str) -> Record:
         logs = [
             path for s in stamps if (path := s / f"{change}_{station}.log").is_file()
         ]
-        spent = [_spent(_results(path)) for path in logs]
+        found = [_results(path) for path in logs]
+        spent = [_spent(events) for events in found]
         for key in ("cost", "turns", "tokens", "seconds"):
             record[f"{key}_{station}"] = _held(row[key] for row in spent)
         record[f"logs_{station}"] = len(logs)
+        record[f"read_{station}"] = sum(map(bool, found))
         record[f"spawns_{station}"] = spawns[station]
     return record
 
@@ -551,7 +553,8 @@ def _severity_table(records: list[Record]) -> Table:
 def _cost_cell(record: Record, station: str) -> str:
     """Return a station's spend; e.g. "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3".
 
-    `<logs> of <spawns>` ends it when the run logs name more spawns than logs found.
+    `<read> of <spawns>` ends it when the run logs name more spawns than logs read,
+    a log with no result event unread.
     """
     cost, turns, tokens, seconds = (
         record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
@@ -564,9 +567,9 @@ def _cost_cell(record: Record, station: str) -> str:
             if value is not None
         ),
     ]
-    logs, spawns = record[f"logs_{station}"], record[f"spawns_{station}"]
-    if spawns > logs:
-        parts.append(f"{logs} of {spawns}")
+    read, spawns = record[f"read_{station}"], record[f"spawns_{station}"]
+    if spawns > read:
+        parts.append(f"{read} of {spawns}")
     return " · ".join(parts)
 
 

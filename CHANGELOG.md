@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The review metrics page draws a cost table per repo: each change's build, converge, integrate, release and rescue,
   with their dollars, turns, tokens and seconds, read from the run logs; D50 names the run logs (change
   `0076-context-cost`, phase 1).
-- A Claude worker starts with `--strict-mcp-config`, so no MCP server starts, the operator's own included; D51 and
-  the threat model record it (change `0076-context-cost`, phase 2).
+- A Claude worker starts with `--strict-mcp-config`, so no MCP server starts, the operator's own included, and the
+  run's probe fails when its `init` event lists one; D51 and the threat model record it, and accept that a Codex worker
+  still starts the operator's `mcp_servers` (change `0076-context-cost`, phase 2).
 - Converge's review, security and fix workers load `skills/mf-converge/references/worker.md` — the findings file
   contract, review's passes, the verify pass, the catch-up scope, the card and the rules for tests — not the whole
   converge skill, which keeps the conductor's steps and links each moved part (change `0076-context-cost`, phase 3).
