@@ -1,6 +1,6 @@
 ---
 name: mf-review-metrics
-description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per model, and each station's cost, turns and tokens per change — from the .minions/findings and .minions/runs of the repos ~/.config/minionsfactory/review-metrics.toml names. Use to compare review models on data; an operator tool, never part of a run.
+description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per model, and each station's cost, turns and tokens per change — and its data, review-metrics.json, from the .minions/findings and .minions/runs of the repos ~/.config/minionsfactory/review-metrics.toml names and the operator's Codex sessions. Use to compare review models on data; an operator tool, never part of a run.
 ---
 
 # mf-review-metrics — what review found, and what it cost
@@ -17,6 +17,10 @@ None: the repos and the page's path are in `$XDG_CONFIG_HOME/minionsfactory/revi
 
 `uv run --script <this package>/scripts/review_metrics.py [overrides]`. Exit 2 → **halt**, copying what it printed:
 the config is missing or names no repo.
+
+Beside the page it writes `review-metrics.json`: one record per round and role — its executor, model, effort, tokens
+and source, a gap as `null`. A Codex worker's tokens come from its session in `$CODEX_HOME/sessions`, else
+`~/.codex/sessions`, matched to its round by the repo and the round's window.
 
 ## Report
 

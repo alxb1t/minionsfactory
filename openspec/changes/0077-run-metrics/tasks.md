@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — Converge's record
 - [x] 2 — The run's time and loop
 - [x] 3 — The run's cost and review yield
-- [ ] 4 — The review metrics data
+- [x] 4 — The review metrics data
 
 ## 1 — Converge's record
 
@@ -39,10 +39,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The review metrics data
 
-- [ ] 4.1 Parse the tokens per role, read the Codex sessions and write `review-metrics.json` in
+- [x] 4.1 Parse the tokens per role, read the Codex sessions and write `review-metrics.json` in
   `skills/mf-review-metrics/scripts/review_metrics.py`, and name the file in `skills/mf-review-metrics/SKILL.md`, per
   [D5](design.md#d5); add `test_tokens_are_read_per_role` and `test_codex_sessions_fill_the_rounds`, and extend
   `test_the_status_log_gives_duration_tokens_and_the_cap`, in `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "tokens_are_read_per_role or codex_sessions_fill_the_rounds or status_log_gives_duration"` reports `3 passed`.
-- [ ] 4.2 Amend D50 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 4.2 Amend D50 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'review-metrics.json' docs/decisions.md` prints a line.

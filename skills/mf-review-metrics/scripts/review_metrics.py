@@ -2,32 +2,54 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Draw one page of the findings, status logs and run logs of the repos named.
+"""Draw one page and its data from the repos named and the operator's Codex sessions.
+
+The repos' findings, status logs and run logs are read, none written.
 
     review_metrics.py [--config <path>] [--repo <path> …] [--out <path>]
 
+The data is `review-metrics.json`, beside the page.
 Exit 0 written · 2 cannot run · any other a crash.
-Why: 0045-review-metrics design D1…D4 and D7.
+Why: 0045-review-metrics design D1…D4 and D7; 0077-run-metrics design D5.
 """
 
 import argparse
+import functools
 import html
 import importlib.util
 import json
 import os
 import re
 import statistics
+import subprocess
 import sys
 import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FINDINGS = Path(".minions/findings")
 RUNS = Path(".minions/runs")
+DATA = "review-metrics.json"
 FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
 STATIONS = ("build", "converge", "integrate", "release", "rescue")
+ROLES = ("review", "security")
+# The forms a `verdicts` line names both roles' tokens in, and each one's scale.
+_TWO_ROLES = (
+    (re.compile(r"\btokens review (\d+), security (\d+)"), 1),
+    (re.compile(r"\btokens (\d+) \+ (\d+)"), 1),
+    (re.compile(r"\(review (\d+)k, security (\d+)k\)"), 1000),
+    (re.compile(r"\btokens (\d+) review, (\d+) security"), 1),
+)
+_TAIL = re.compile(r"executor (\S+) · model (\S+) · effort (\S+)")
+_ROUND_EVENT = re.compile(
+    r"^(\d\d:\d\d:\d\d) · round (\d+) · ([\w-]+) — (.*)$", re.MULTILINE
+)
+# why: a clock set back an hour is no midnight
+HALF_DAY = timedelta(hours=12)
 TOKENS = (
     "inputTokens",
     "outputTokens",
@@ -271,6 +293,216 @@ def _run_seconds(run: str) -> int | None:
     return (_seconds(events[0]) - _seconds(events[-1])) % DAY_SECONDS
 
 
+def _role_tokens(detail: str) -> list[tuple[str, int | None]]:
+    """Return a `verdicts` line's tokens per role; `both` takes a shared figure.
+
+    e.g. "review clean · tokens 9" → [("review", 9)],
+    "review clean · security clean · tokens unavailable" →
+    [("review", None), ("security", None)]. Why: 0077-run-metrics design D5.
+    """
+    for pattern, scale in _TWO_ROLES:
+        if found := pattern.search(detail):
+            return [(role, int(found[n]) * scale) for n, role in enumerate(ROLES, 1)]
+    named = [role for role in ROLES if re.search(rf"\b{role}\b", detail)]
+    if found := re.search(r"\btokens (\d+)(?:\s|$)", detail):
+        one = len(named) == 1 and detail.startswith(named[0])
+        return [(named[0] if one else "both", int(found[1]))]
+    return [(role, None) for role in named]
+
+
+def _named(text: str) -> str | None:
+    """Return a model, effort or executor name; `default` is none known."""
+    return None if text == "default" else text
+
+
+def _utc(local: datetime) -> datetime:
+    """Return a local time in UTC, by `$TZ`'s zone, else the system's."""
+    try:
+        zone = ZoneInfo(os.environ.get("TZ", "").removeprefix(":"))
+    except (ValueError, ZoneInfoNotFoundError):
+        return local.astimezone(UTC)
+    return local.replace(tzinfo=zone).astimezone(UTC)
+
+
+def _windows(heading: str, body: str) -> dict[str, tuple[datetime, datetime]]:
+    """Return each round's window in UTC; a heading with no date has none.
+
+    A window runs from the last freeze before the round's fan-out to its verdicts
+    plus a minute. e.g. a round 1 frozen at 16:02:32, its verdicts at 16:13:13 →
+    {"1": (16:02:32, 16:14:13)}, each in UTC.
+    """
+    dated = re.match(r"## Run \d+ — (\d{4}-\d\d-\d\d \d\d:\d\d)", heading)
+    if not dated:
+        return {}
+    last = datetime.strptime(dated[1], "%Y-%m-%d %H:%M")
+    lines: list[tuple[datetime, str, str]] = []
+    for time, round_, event, _ in reversed(_ROUND_EVENT.findall(body)):
+        clock = datetime.strptime(time, "%H:%M:%S").time()
+        at = datetime.combine(last.date(), clock)
+        last = at + timedelta(days=1) if last - at > HALF_DAY else at
+        lines.append((last, round_, event))
+    windows = {}
+    for end, round_, event in lines:
+        fan_outs = [
+            t for t, r, e in lines if (r, e) == (round_, "fan-out") and t <= end
+        ]
+        freezes = [
+            t for t, _, e in lines if e == "freeze" and fan_outs and t <= fan_outs[-1]
+        ]
+        if event == "verdicts" and freezes:
+            windows[round_] = (_utc(freezes[-1]), _utc(end + timedelta(minutes=1)))
+    return windows
+
+
+def _round_records(path: Path) -> list[Record]:
+    """Return a status log's tokens per run, round and role, with each round's window.
+
+    D1's tail names a record's executor, model and effort, else each is a gap.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    parts = re.split(r"^(## Run\b.*)$", text, flags=re.MULTILINE)[1:]
+    records: list[Record] = []
+    for heading, body in zip(parts[::2], parts[1::2], strict=True):
+        numbered = re.match(r"## Run (\d+)", heading)
+        run = int(numbered[1]) if numbered else None
+        windows = _windows(heading, body)
+        for _, round_, event, detail in _ROUND_EVENT.findall(body):
+            tail = _TAIL.search(detail)
+            names = [_named(name) for name in tail.groups()] if tail else [None] * 3
+            records += [
+                {
+                    "run": run,
+                    "round": int(round_),
+                    "role": role,
+                    **dict(zip(("executor", "model", "effort"), names, strict=True)),
+                    "tokens": tokens,
+                    "sessions": None,
+                    "source": "status-log",
+                    "window": windows.get(round_),
+                }
+                for role, tokens in _role_tokens(detail)
+                if event == "verdicts"
+            ]
+    return records
+
+
+def _dig(value: object, *keys: str) -> object:
+    """Return the value at `keys` in nested dicts, None where one is missing."""
+    for key in keys:
+        value = value.get(key) if isinstance(value, dict) else None
+    return value
+
+
+def _object(line: str) -> dict[str, Any]:
+    """Return a JSON line's object, an empty one for anything else."""
+    try:
+        found = json.loads(line)
+    except json.JSONDecodeError:
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def _session(path: Path) -> Record:
+    """Return a Codex session's id, cwd, start, repo URL, role and parent.
+
+    A review or security worker's model, effort and last cumulative tokens too.
+    """
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        meta = _dig(_object(next(lines, "")), "payload")
+        spawn = _dig(meta, "source", "subagent", "thread_spawn")
+        agent = str(_dig(spawn, "agent_path") or "").rpartition("/")[2]
+        role = next((role for role in ROLES if agent.startswith(role)), None)
+        session: Record = {
+            "id": _dig(meta, "id"),
+            "cwd": _dig(meta, "cwd"),
+            "url": _dig(meta, "git", "repository_url"),
+            "parent": _dig(spawn, "parent_thread_id"),
+            "role": role,
+            "model": None,
+            "effort": None,
+            "tokens": None,
+        }
+        started = _dig(meta, "timestamp")
+        try:
+            session["start"] = datetime.fromisoformat(str(started))
+        except ValueError:
+            session["start"] = None
+        for line in lines if role else ():
+            event = (
+                _object(line) if "turn_context" in line or "token_count" in line else {}
+            )
+            if event.get("type") == "turn_context" and session["model"] is None:
+                session["model"] = _dig(event, "payload", "model")
+                session["effort"] = _dig(event, "payload", "effort")
+            usage = _dig(event, "payload", "info", "total_token_usage", "total_tokens")
+            if _dig(event, "payload", "type") == "token_count" and _number(usage):
+                session["tokens"] = usage
+    return session
+
+
+def _sessions_folder() -> Path:
+    """Return the Codex sessions folder: `$CODEX_HOME/sessions`, else `~/.codex/`'s."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions"
+
+
+@functools.cache
+def _all_sessions(folder: Path) -> tuple[Record, ...]:
+    """Return every Codex session under `folder`, read once a run."""
+    return tuple(_session(path) for path in sorted(folder.glob("**/*.jsonl")))
+
+
+def _git_lines(repo: Path, *args: str) -> list[str]:
+    """Return a git command's stdout lines in `repo`, none when it fails."""
+    done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    return done.stdout.splitlines() if done.returncode == 0 else []
+
+
+def _codex_sessions(repo: Path) -> list[Record]:
+    """Return the Codex review and security workers of `repo`.
+
+    A worker's repo URL is `origin`'s, or its parent ran in one of the repo's
+    worktrees; a guardian or fix worker is none. Why: 0077-run-metrics design D5.
+    """
+    everything = _all_sessions(_sessions_folder())
+    origin = _git_lines(repo, "remote", "get-url", "origin")
+    trees = {
+        str(Path(line.removeprefix("worktree ")).resolve())
+        for line in _git_lines(repo, "worktree", "list", "--porcelain")
+        if line.startswith("worktree ")
+    }
+    cwds = {session["id"]: session["cwd"] for session in everything}
+
+    def ours(session: Record) -> bool:
+        parent = cwds.get(session["parent"])
+        if origin and session["url"] == origin[0]:
+            return True
+        return isinstance(parent, str) and str(Path(parent).resolve()) in trees
+
+    return [s for s in everything if s["role"] and s["start"] and ours(s)]
+
+
+def _filled(record: Record, sessions: list[Record]) -> Record:
+    """Return a round's record, its gap filled from the Codex workers in its window."""
+    window = record["window"]
+    if record["tokens"] is not None or not window or record["role"] not in ROLES:
+        return record
+    found = [
+        s
+        for s in sessions
+        if s["role"] == record["role"] and window[0] <= s["start"] <= window[1]
+    ]
+    if not found:
+        return record
+    return record | {
+        "executor": "codex",
+        "model": found[0]["model"],
+        "effort": found[0]["effort"],
+        "tokens": _held(s["tokens"] for s in found),
+        "sessions": len(found),
+        "source": "codex-session",
+    }
+
+
 def _status_log(path: Path) -> Record:
     """Return what a change's status log holds, every field a gap with no file."""
     if not path.is_file():
@@ -284,12 +516,13 @@ def _status_log(path: Path) -> Record:
         return [match.group(1) for match in found if match]
 
     engines = details("start", r"\bengine:? (\w[\w-]*)")
-    tokens = details("verdicts", r"\btokens (\d+)(?:\s|$)")
+    verdicts = [detail for event, detail in events if event == "verdicts"]
+    tokens = (figure for detail in verdicts for _, figure in _role_tokens(detail))
     cards = details("done", r"\b(\d+) cards? to backlog")
     return {
         "engine": engines[0] if engines else None,
         "duration": _held(_run_seconds(run) for run in runs),
-        "tokens": _held(map(int, tokens)),
+        "tokens": _held(tokens),
         "capped": int(bool(details("halt", r"\b(cap)\b"))),
         "to_backlog": _held(map(int, cards)),
     }
@@ -483,6 +716,22 @@ def read_repo(repo: Path) -> list[Record]:
         records,
         key=lambda r: (r["reviewed"] is None, r["reviewed"] or "", r["change"]),
     )
+
+
+def round_data(repo: Path) -> list[Record]:
+    """Return a record per run, round and role of the repo's status logs.
+
+    A round's gap is filled from the repo's Codex workers in its window.
+    """
+    sessions = _codex_sessions(repo)
+    rows = []
+    for path in sorted((repo / FINDINGS).glob("*_status_log.md")):
+        change = path.name.removesuffix("_status_log.md")
+        for record in _round_records(path):
+            filled = _filled(record, sessions)
+            del filled["window"]
+            rows.append({"repo": repo.name, "change": change, **filled})
+    return rows
 
 
 def load_chart() -> tuple[Chart, str]:
@@ -719,7 +968,7 @@ def summary(out: Path, read: list[tuple[str, list[Record]]]) -> str:
 
 
 def _write(path: Path, text: str) -> None:
-    """Write the page, its folder too."""
+    """Write the page or its data, its folder too."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -728,7 +977,10 @@ def _write(path: Path, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Draw the page of the repos the config or the flags name; return the exit code."""
+    """Draw the page and its data of the repos the config or the flags name.
+
+    Return the exit code.
+    """
     parser = argparse.ArgumentParser(
         prog="review_metrics.py",
         description=__doc__,
@@ -743,6 +995,11 @@ def main(argv: list[str] | None = None) -> int:
         chart, style = load_chart()
         read = [(repo.name, read_repo(repo)) for repo in repos]
         _write(out, render_page(read, chart, style))
+        data = {
+            "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "records": [row for repo in repos for row in round_data(repo)],
+        }
+        _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")
     except CannotRun as exc:
         print(exc, file=sys.stderr)
         return 2

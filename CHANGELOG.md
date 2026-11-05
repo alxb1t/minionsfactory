@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The run metrics add the cost and tokens per station, from each spawn's log, the release's own left out, and the cost
   per changed line; per role, the confirmed and refuted cards and the tokens per confirmed card, all turns; the escapes;
   and the cards carried to the backlog and paid (change `0077-run-metrics`, phase 3).
+- The review metrics read the status log's tokens per role, in every form a `verdicts` line holds, fill a Codex round's
+  gap from the operator's Codex sessions, and write `review-metrics.json` beside the page: a record per round and role;
+  D50 records it (change `0077-run-metrics`, phase 4).
 
 ## [0.62.0] - 2026-11-05
 
