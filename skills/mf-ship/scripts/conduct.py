@@ -3400,19 +3400,26 @@ class Run:
     def migrate_debt(self) -> str | None:
         """Move an old `backlog.md` to `debt.md`; return why the run must halt.
 
-        A stale `backlog.lock` is removed. Both files, or a lock still standing,
-        halt: a person or a hand-run writer holds them. The move holds `debt.lock`,
-        as every writer of `debt.md` does. Why: 0079-debt-rename design D3.
+        A stale `backlog.lock` is removed. Both files, an old file that is a link,
+        or beside the old file a lock still standing, halt: a person or a hand-run
+        writer holds them. The move holds `debt.lock`, as every writer of `debt.md`
+        does. Why: 0079-debt-rename design D3.
         """
         old, new = self.primary / OLD_DEBT, self.primary / DEBT
         both = f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
         if old.is_file() and new.exists():
             return both
         self.unlock(OLD_DEBT_LOCK)
-        if (self.primary / OLD_DEBT_LOCK).exists():
-            return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
         if not old.is_file():
             return None
+        if old.is_symlink():
+            # A link would make the debt a second name of the file it names.
+            return f"{OLD_DEBT} is a link: a person settles what it names"
+        old_lock = self.primary / OLD_DEBT_LOCK
+        if old_lock.is_dir():
+            return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
+        if old_lock.exists():
+            return f"{OLD_DEBT_LOCK} is a file, not a lock: a person removes it"
         self.unlock(DEBT_LOCK)
         lock = self.primary / DEBT_LOCK
         try:

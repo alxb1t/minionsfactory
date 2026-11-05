@@ -41,7 +41,7 @@ A paydown change lists the card ids it closes under the `debt:` key of its `prop
 
 ### Requirement: A repeated finding escalates
 
-Each station SHALL read `.minions/debt.md`. A finding that repeats a debt card SHALL name that card's id in its
+Each station SHALL read `.minions/debt.md`, else an old `.minions/backlog.md` a run has not moved. A finding that repeats a debt card SHALL name that card's id in its
 **Related** field as `repeat of <id>`, and SHALL go up one level: security by one step, a review `nit` or `drift` to
 `blocking`.
 
@@ -117,8 +117,10 @@ repository. `conduct.py` alone SHALL halt on that answer outside the repo it nam
 can write what steers it. Converge and the release SHALL write `.minions/debt.md` only while holding `.minions/debt.lock`,
 created with `mkdir`, halting after two minutes of waiting and naming the lock. A run holding the claim SHALL remove a
 `debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
-claim, and halt naming both when both files stand or the old lock is younger than ten minutes. The move SHALL hold
-`.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT replace a `debt.md`.
+claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
+ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
+follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT
+replace a `debt.md`.
 
 #### Scenario: A release in a linked worktree after a converge in another
 - **WHEN** converge ran in one worktree of a change and the release runs in another worktree of the same repository
@@ -137,8 +139,11 @@ claim, and halt naming both when both files stand or the old lock is younger tha
 #### Scenario: A run moves an old backlog
 - **WHEN** a run starts beside a `.minions/backlog.md` and no `.minions/debt.md`
 - **THEN** it moves the file, removes any stale `backlog.lock`, logs both, and a second start moves nothing
-- **AND WHEN** both files stand, or a `backlog.lock` or `debt.lock` younger than ten minutes
+- **AND WHEN** both files stand, the old file is a link, or beside it a `backlog.lock` that is a file or younger than ten
+  minutes, or a `debt.lock` younger than ten minutes
 - **THEN** the run halts, naming them, and starts no worker
+- **AND WHEN** no old file stands beside a young `backlog.lock`, or a file there
+- **THEN** the run goes on
 
 ### Requirement: A halt stops only its version, and a re-run resumes
 
@@ -157,7 +162,8 @@ in the home folder: a re-run derives every stage again and continues. A halt SHA
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
 `.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
-changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, or a
+changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, an old
+`.minions/backlog.md` beside `.minions/debt.md` or a file at `.minions/backlog.lock`, or one that is a link, or a
 default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset time named.
 
 #### Scenario: A HUMAN phase halts its version

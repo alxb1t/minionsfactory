@@ -231,8 +231,9 @@ binding check covers it, and a gate without one gives a separate step nothing to
    the release commit and the changelog entry **are** the release record; write no other narrative.
 6. **Clear the paid-down cards.** A paydown change lists the card ids it closed under `debt:`, else an older
    `backlog:`, in its `proposal.md` frontmatter, now under `openspec/changes/archive/<change-id>/`. Neither key →
-   record `debt: none`. Otherwise delete exactly those cards from `.minions/debt.md` — each card's list line and
-   nested bullets — and a change heading left empty. An id not found is reported, not a halt. Nothing to commit:
+   record `debt: none`. An old `.minions/backlog.md` stands → **halt**, naming it: `/mf-ship` moves it at a run's
+   start, and a re-run of this release resumes here. Otherwise delete exactly those cards from `.minions/debt.md`
+   — each card's list line and nested bullets — and a change heading left empty. An id not found is reported, not a halt. Nothing to commit:
    the debt is gitignored. **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`;
    it exists → wait 5 seconds and retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write
    ends, written or halted.

@@ -277,8 +277,8 @@ files. Give each:
   design's `## Tests` table;
 - its mode and reference;
 - the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
-- `.minions/debt.md`, read-only, when it exists, and the repeat rule of
-  [review and security](references/worker.md#review-and-security).
+- `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
+  repeat rule of [review and security](references/worker.md#review-and-security).
 
 Write `fan-out` to the status log at dispatch.
 
@@ -382,7 +382,9 @@ tier are on the card — and no human confirms it.
 Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
 
 **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
-retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted.
+retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old
+`.minions/backlog.md` stands → take no lock and halt, as on a held one: `.minions/debt.lock not taken — an old
+.minions/backlog.md stands; /mf-ship moves it at a run's start`. A re-run after the move resumes here.
 
 1. **Take every non-blocking card** in either findings file whose **Status** is not `verified`.
 2. **Run its Still true? check.** A card the check shows gone is **moot**: do not write it; name it in the

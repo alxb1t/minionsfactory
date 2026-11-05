@@ -2333,8 +2333,18 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert code == 0 and not lock.exists()
     assert len(re.findall(unlocked, text)) == 1 and text.count(moved) == 1
 
-    # Beside an old file, the move follows it.
+    # A linked old file halts: the debt never becomes a second name of its target.
     new.unlink()
+    key = tmp_path / "id_ed25519"
+    key.write_text("key\n")
+    old.symlink_to(key)
+    code, text = start()
+    assert key.stat().st_nlink == 1 and not new.exists()
+    assert code == 1 and old.is_symlink()
+    assert "run · halt — .minions/backlog.md is a link" in text
+
+    # Beside an old file, the move follows it.
+    old.unlink()
     old.write_text("# Backlog\n")
     stale_lock()
     code, text = start()
@@ -2353,8 +2363,24 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert "run · halt — .minions/backlog.lock is held" in text
     assert text.count(moved) == 2
 
-    # A young debt lock halts the move: a hand-run converge writes the debt.
+    # With no old file, neither a young old lock nor a plain file there halts.
+    old.unlink()
+    code, text = start()
+    assert code == 0 and lock.is_dir() and not new.exists()
     lock.rmdir()
+    lock.write_text("")
+    code, text = start()
+    assert code == 0 and lock.is_file() and not new.exists()
+
+    # Beside an old file, a plain file at the old lock halts, naming its kind.
+    old.write_text("# Backlog\n")
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and lock.is_file()
+    assert "run · halt — .minions/backlog.lock is a file" in text
+    assert text.count(moved) == 2
+
+    # A young debt lock halts the move: a hand-run converge writes the debt.
+    lock.unlink()
     held.mkdir()
     code, text = start()
     assert code == 1 and old.is_file() and not new.exists() and held.is_dir()

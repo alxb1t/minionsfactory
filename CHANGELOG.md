@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   claim; both files, or a young old lock, halt the run before any worker (change `0079-debt-rename`, phase 3).
 - The move holds `.minions/debt.lock` and never replaces a `debt.md`: a young lock, or a debt file a hand-run converge
   wrote since the check, halts the run (change `0079-debt-rename`, converge).
+- An old lock halts the move only beside an old file, and a plain file there halts naming its kind; an old file that is a
+  link halts rather than make the debt a second name of its target (change `0079-debt-rename`, converge).
+- Converge's stations read an old `.minions/backlog.md` when no `debt.md` stands, and converge's Step 9 and the release's
+  paydown halt while one stands, a re-run resuming after `/mf-ship` moves it (change `0079-debt-rename`, converge).
 
 ## [0.64.0] - 2026-11-06
 
