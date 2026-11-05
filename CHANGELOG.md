@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Run.remove_tree` keeps a released worktree, before git runs, when the git config changed or holds a key that could
   name a program, or when a link sits at the cut's path (change `0072-paydown`, phase 2).
 
+- The principles say `CI not read under mf-ship`, the threat model's pin gap names a run's end, and `mf-integrate`'s
+  additive test, note-halt line, close-out and `next_version` docstring say what the script does (change
+  `0072-paydown`, phase 3).
+
 ## [0.59.0] - 2026-11-05
 
 Gate: local 2m26s · CI not read under mf-ship · 0.58.0: local 2m8s · CI not read under mf-ship

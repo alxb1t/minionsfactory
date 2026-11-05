@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The probe's .arch
 - [x] 2 — remove_tree refuses first
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The probe's .arch
 
@@ -26,9 +26,9 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The record
 
-- [ ] 3.1 Reword `docs/principles.md`'s `CI none` line and `THREAT_MODEL.md`'s pin gap line, per [D4](design.md#d4).
+- [x] 3.1 Reword `docs/principles.md`'s `CI none` line and `THREAT_MODEL.md`'s pin gap line, per [D4](design.md#d4).
   Verify: `grep -n "a run's end that moves to that tag" THREAT_MODEL.md` prints a line, and
   `grep -n 'CI not read under mf-ship' docs/principles.md` prints a line.
-- [ ] 3.2 Reword `skills/mf-integrate/SKILL.md`'s Step 3 item 3, its note-halt line and its close-out, and `next_version`'s
+- [x] 3.2 Reword `skills/mf-integrate/SKILL.md`'s Step 3 item 3, its note-halt line and its close-out, and `next_version`'s
   docstring in `skills/mf-integrate/scripts/integrate.py`, per [D5](design.md#d5).
   Verify: `grep -n "is none of item 4's cases" skills/mf-integrate/SKILL.md` prints a line.
