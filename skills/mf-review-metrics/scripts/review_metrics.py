@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Draw one page of the review findings and status logs of the repos the operator names.
+"""Draw one page of the findings, status logs and run logs of the repos named.
 
     review_metrics.py [--config <path>] [--repo <path> …] [--out <path>]
 
@@ -13,6 +13,7 @@ Why: 0045-review-metrics design D1…D4 and D7.
 import argparse
 import html
 import importlib.util
+import json
 import os
 import re
 import statistics
@@ -24,7 +25,15 @@ from pathlib import Path
 from typing import Any
 
 FINDINGS = Path(".minions/findings")
+RUNS = Path(".minions/runs")
 FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
+STATIONS = ("build", "converge", "integrate", "release", "rescue")
+TOKENS = (
+    "inputTokens",
+    "outputTokens",
+    "cacheReadInputTokens",
+    "cacheCreationInputTokens",
+)
 DAY_SECONDS = 86400
 CHARTS = {
     "rounds": "rounds",
@@ -37,7 +46,8 @@ CHARTS = {
     "duration": "duration (s)",
     "tokens": "tokens",
 }
-# why: old cards hold free text in that field; mf-converge's card names the list
+# why: old cards hold free text in that field; the card in converge's worker reference
+# names the list
 CATEGORIES = (
     "security",
     "stability",
@@ -285,6 +295,87 @@ def _status_log(path: Path) -> Record:
     }
 
 
+def _results(path: Path) -> list[dict[str, Any]]:
+    """Return a worker log's `result` events; a line that is not JSON is none."""
+    events = []
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        for line in lines:
+            if '"result"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "result":
+                events.append(event)
+    return events
+
+
+def _number(value: object) -> Number | None:
+    """Return `value` when it is a number, else None; a bool is none."""
+    return (
+        value
+        if isinstance(value, int | float) and not isinstance(value, bool)
+        else None
+    )
+
+
+def _spent(events: list[dict[str, Any]]) -> Record:
+    """Return one log's cost, turns, tokens and seconds, each a gap with no event.
+
+    Why: `total_cost_usd` and `modelUsage` are cumulative, the rest per segment.
+    """
+    if not events:
+        return dict.fromkeys(("cost", "turns", "tokens", "seconds"))
+    usage = events[-1].get("modelUsage")
+    models = usage.values() if isinstance(usage, dict) else ()
+    tokens = [
+        _number(model.get(key))
+        for model in models
+        if isinstance(model, dict)
+        for key in TOKENS
+    ]
+    ms = _held(_number(event.get("duration_ms")) for event in events)
+    return {
+        "cost": _number(events[-1].get("total_cost_usd")),
+        "turns": _held(_number(event.get("num_turns")) for event in events),
+        "tokens": _held(tokens),
+        "seconds": None if ms is None else round(ms / 1000),
+    }
+
+
+def _cost_logs(repo: Path, change: str) -> Record:
+    """Return a change's cost, turns, tokens and seconds per station, over every run.
+
+    Why: 0076-context-cost design D1.
+    """
+    runs = repo / RUNS
+    stamps = sorted(path for path in runs.glob("*") if path.is_dir())
+    spawn = re.compile(
+        rf"^\d\d:\d\d:\d\d · {re.escape(change)} · spawn — ({'|'.join(STATIONS)})"
+        r"(?: ·|$)",
+        re.MULTILINE,
+    )
+    spawns = Counter(
+        found
+        for log in runs.glob("*.md")
+        for found in spawn.findall(log.read_text(encoding="utf-8", errors="replace"))
+    )
+    record: Record = {}
+    for station in STATIONS:
+        logs = [
+            path for s in stamps if (path := s / f"{change}_{station}.log").is_file()
+        ]
+        found = [_results(path) for path in logs]
+        spent = [_spent(events) for events in found]
+        for key in ("cost", "turns", "tokens", "seconds"):
+            record[f"{key}_{station}"] = _held(row[key] for row in spent)
+        record[f"logs_{station}"] = len(logs)
+        record[f"read_{station}"] = sum(map(bool, found))
+        record[f"spawns_{station}"] = spawns[station]
+    return record
+
+
 def _integer(text: str | None) -> int | None:
     """Return `text` as an int, or None; e.g. "3" → 3, "n/a" → None."""
     return int(text) if text and text.isdecimal() else None
@@ -321,13 +412,13 @@ def _first(fronts: list[dict[str, str]], key: str) -> str | None:
     return next((front[key] for front in fronts if front.get(key)), None)
 
 
-def _total(values: Iterable[int | None]) -> int | None:
+def _total(values: Iterable[Number | None]) -> Number | None:
     """Return the sum; a gap in any file, or no file, is a gap."""
     held = list(values)
     return None if None in held else _held(held)
 
 
-def _held(values: Iterable[int | None]) -> int | None:
+def _held(values: Iterable[Number | None]) -> Number | None:
     """Return the sum of the values held, a gap when none is.
 
     Why: a clean file has no card or log, and adds nothing to its sibling's counts.
@@ -367,6 +458,7 @@ def read_change(repo: Path, change: str) -> Record:
         "severity": _merged(files, "severity"),
         "categories": _merged(files, "categories"),
         **_status_log(folder / f"{change}_status_log.md"),
+        **_cost_logs(repo, change),
     }
     for key in ("findings", "blocking", "inconclusive"):
         record[key] = _total(found[key] for found in files)
@@ -458,6 +550,40 @@ def _severity_table(records: list[Record]) -> Table:
     return ["grade", "findings"], [[grade, str(count)] for grade, count in grades]
 
 
+def _cost_cell(record: Record, station: str) -> str:
+    """Return a station's spend; e.g. "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3".
+
+    `<read> of <spawns>` ends it when the run logs name more spawns than logs read,
+    a log with no result event unread.
+    """
+    cost, turns, tokens, seconds = (
+        record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
+    )
+    parts = [
+        f"${cost:.2f}" if cost is not None else GAP,
+        *(
+            f"{_figure(value)} {unit}"
+            for value, unit in ((turns, "turns"), (tokens, "tokens"), (seconds, "s"))
+            if value is not None
+        ),
+    ]
+    read, spawns = record[f"read_{station}"], record[f"spawns_{station}"]
+    if spawns > read:
+        parts.append(f"{read} of {spawns}")
+    return " · ".join(parts)
+
+
+def cost_table(records: list[Record]) -> Table:
+    """Return a row per change, a column per station, `—` where no log tells."""
+    return (
+        ["change", *STATIONS],
+        [
+            [record["change"], *(_cost_cell(record, s) for s in STATIONS)]
+            for record in records
+        ],
+    )
+
+
 def model_table(records: list[Record]) -> Table:
     """Return a row per model and engine, `unknown` for a gap."""
     groups: dict[tuple[str, ...], list[Record]] = {}
@@ -529,6 +655,8 @@ def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
         _html_table(_repo_table(records)),
         "<h3>findings per grade</h3>",
         _html_table(_severity_table(records)),
+        "<h3>cost</h3>",
+        _html_table(cost_table(records)),
         '<div class="charts">',
     ]
     for field, title in CHARTS.items():

@@ -296,8 +296,8 @@ renaming a thing other text refers to: a module, a file, a term, a rule.
 
 ## Rules for tests
 
-This skill owns this list. `mf-cut-change` and `mf-converge` carry the same ids; `tests/test_skills.py` fails if
-they differ. A test is paid for on every gate run, on every engine it runs on: the cheapest proof adds no run.
+This skill owns this list. `mf-cut-change` and `mf-converge`'s worker reference carry the same ids;
+`tests/test_skills.py` fails if they differ. A test is paid for on every gate run, on every engine it runs on: the cheapest proof adds no run.
 
 | id | rule | example / why |
 |---|---|---|

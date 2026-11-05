@@ -5,8 +5,9 @@ edits and commits are the fix station's. This is MF's method on every host.
 
 ## Inputs and contract
 
-Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope and The card. It owns the card, severity
-anchors, repeat escalation, counters, reviewed head, verify transitions and red runs. **The packet** is review's (see
+Load the contract, [converge's worker reference](worker.md): Review and security, Not clean, The verify pass,
+Catch-up scope and The card. It owns the card, severity anchors, repeat escalation, counters, reviewed head, verify transitions and red
+runs. **The packet** is review's (see
 [review](generic-review.md#inputs-and-contract)), read beyond the diff only to trace an input to its sink. An input
 missing or unusable → halt, naming it.
 
@@ -44,12 +45,12 @@ The frontmatter with every key the contract names, evidence-bearing cards, `## R
 range, the resolved file and commit counts, the threat model's state (read, `inconclusive`, changed by the range)
 and the packet's included and skipped documents. Over 1,500 changed lines, the Summary says
 `over the standard cap — consider a split`. An uninspected change cannot earn clean: report scope
-failure, per Step 5.
+failure, per [Not clean](worker.md#not-clean).
 
 ## Verify freshly
 
 On a verify dispatch, re-read your file. Judge each claimed fix against its scoped diff, source and regression proof:
-promote to `verified` or reopen with evidence; card a regression as new. Check red runs per Step 7, update counters
+promote to `verified` or reopen with evidence; card a regression as new. Check red runs per [the verify pass](worker.md#the-verify-pass), update counters
 and head, and append each transition to the Resolution log. Accept no fixer's or conductor's word that a fix is
 verified. Findings stay local.
 

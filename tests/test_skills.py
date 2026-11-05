@@ -17,6 +17,14 @@ _SHARED_OWNERS = ("mf-build", "mf-cut-change")
 _CONTRACT = "## Input contract"
 
 
+def _skill_file(name: str) -> str:
+    """Return a carrier's file under `skills/`: a skill's `SKILL.md`, or the path named.
+
+    e.g. "mf-build" → "mf-build/SKILL.md", "mf-converge/references/worker.md" → itself
+    """
+    return name if name.endswith(".md") else f"{name}/SKILL.md"
+
+
 def _section_labels(
     path: Path, heading: str, cell: str = r"\*\*(.+?)\*\*"
 ) -> list[str]:
@@ -58,13 +66,13 @@ def _shared_label_problems(
     problems: list[str] = []
     sets: dict[str, set[str]] = {}
     for name in owners:
-        path = base / "skills" / name / "SKILL.md"
+        path = base / "skills" / _skill_file(name)
         if not path.is_file():
-            problems.append(f"skills/{name}/SKILL.md: does not exist")
+            problems.append(f"skills/{_skill_file(name)}: does not exist")
             continue
         labels = _section_labels(path, heading)
         if not labels:
-            problems.append(f"skills/{name}/SKILL.md: no labels in `{heading}`")
+            problems.append(f"skills/{_skill_file(name)}: no labels in `{heading}`")
         sets[name] = set(labels)
     first = sets.get(owners[0])
     for name in owners[1:]:
@@ -72,7 +80,7 @@ def _shared_label_problems(
         if first and carried and first != carried:
             problems.append(
                 f"labels differ: only in {owners[0]} {sorted(first - carried)}, "
-                f"only in {name} {sorted(carried - first)}"
+                f"only in {name.split('/')[0]} {sorted(carried - first)}"
             )
     return problems
 
@@ -83,11 +91,12 @@ def _shared_id_problems(
     """Return one line per breach of the shared `heading` list in `base`'s skills."""
     problems = _shared_label_problems(base, heading, owners)
     for name in owners:
-        path = base / "skills" / name / "SKILL.md"
+        file = _skill_file(name)
+        path = base / "skills" / file
         ids = _section_ids(path, heading, letter) if path.is_file() else []
         if ids and sorted(ids) != list(range(1, max(ids) + 1)):
             problems.append(
-                f"skills/{name}/SKILL.md: ids do not run {letter}1…{letter}{max(ids)}"
+                f"skills/{file}: ids do not run {letter}1…{letter}{max(ids)}"
             )
     return problems
 
@@ -99,10 +108,11 @@ def _table_text(heading: str, *labels: str) -> str:
 
 
 def _plant(base: Path, texts: dict[str, str]) -> Path:
-    """Write each named skill's text under `base`, and return `base`."""
+    """Write each named carrier's text under `base`, and return `base`."""
     for name, text in texts.items():
-        (base / "skills" / name).mkdir(parents=True)
-        (base / "skills" / name / "SKILL.md").write_text(text)
+        path = base / "skills" / _skill_file(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
     return base
 
 
@@ -147,10 +157,10 @@ def test_the_prose_scan_reports_a_differing_id_and_a_gap(tmp_path: Path) -> None
     ]
 
 
-# The rules for tests: `mf-build` owns them, and the cut and converge carry the same
-# ids, since the fix station runs in a target repo and cannot be told to read the build.
-# Why: 0026-test-cost design B2.
-_TEST_RULE_CARRIERS = ("mf-build", "mf-cut-change", "mf-converge")
+# The rules for tests: `mf-build` owns them, and the cut and converge's worker reference
+# carry the same ids, since the fix station runs in a target repo and cannot be told to
+# read the build. Why: 0026-test-cost design B2; 0076-context-cost design D3.
+_TEST_RULE_CARRIERS = ("mf-build", "mf-cut-change", "mf-converge/references/worker.md")
 _TEST_RULES = "## Rules for tests"
 
 
@@ -168,22 +178,21 @@ def test_the_test_rule_scan_reports_each_differing_carrier_and_a_gap(
     ]
 
 
-# The card: `mf-converge` owns it, and no other skill carries a copy that could drift.
-# A label is the bold first cell of a table row. Why: 0016-backlog-in-repo design D8.
-_CARD_OWNER = "mf-converge"
+# The card: converge's worker reference owns it, and no skill carries a copy that could
+# drift. A label is the bold first cell of a table row.
+# Why: 0016-backlog-in-repo design D8; 0076-context-cost design D3.
+_CARD_OWNER = "mf-converge/references/worker.md"
 _CARD_HEADING = "## The card"
 
 
 def _card_owner_problems(base: Path) -> list[str]:
     """Return one line per breach of the one-card-owner rule in `base`'s skills."""
-    owner = base / "skills" / _CARD_OWNER / "SKILL.md"
+    owner = base / "skills" / _CARD_OWNER
     problems: list[str] = []
     if not owner.is_file():
-        problems.append(f"skills/{_CARD_OWNER}/SKILL.md: does not exist")
+        problems.append(f"skills/{_CARD_OWNER}: does not exist")
     elif not _section_labels(owner, _CARD_HEADING):
-        problems.append(
-            f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`"
-        )
+        problems.append(f"skills/{_CARD_OWNER}: no labels in `{_CARD_HEADING}`")
     for path in sorted((base / "skills").glob("*/SKILL.md")):
         if path != owner and _CARD_HEADING in path.read_text().splitlines():
             problems.append(
@@ -199,17 +208,20 @@ def test_only_converge_carries_the_card() -> None:
 def test_the_card_scan_reports_an_empty_owner_and_a_second_carrier(
     tmp_path: Path,
 ) -> None:
-    # The owner's row past `## Never` must not count as a card field.
+    # The owner's row past `## Never` must not count as a card field, and converge's own
+    # `SKILL.md` is a skill like any other.
     _plant(
         tmp_path,
         {
             _CARD_OWNER: f"{_CARD_HEADING}\n\n## Never\n\n| **Title** | — |\n",
+            "mf-converge": _table_text(_CARD_HEADING, "Title"),
             "mf-other": _table_text(_CARD_HEADING, "Title"),
         },
     )
 
     assert _card_owner_problems(tmp_path) == [
-        f"skills/{_CARD_OWNER}/SKILL.md: no labels in `{_CARD_HEADING}`",
+        f"skills/{_CARD_OWNER}: no labels in `{_CARD_HEADING}`",
+        f"skills/mf-converge/SKILL.md: carries `{_CARD_HEADING}`",
         f"skills/mf-other/SKILL.md: carries `{_CARD_HEADING}`",
     ]
 
@@ -390,7 +402,7 @@ def _resource_problems(base: Path) -> list[str]:
         for target in re.findall(
             r"\[[^\]]*\]\((references/[^)\s]+)\)", skill.read_text()
         ):
-            resolved = (package / target).resolve()
+            resolved = (package / target.partition("#")[0]).resolve()
             prefix = f"{skill.relative_to(base)}: {target}"
             if not resolved.is_relative_to(package):
                 problems.append(f"{prefix}: outside skill package")
@@ -416,7 +428,9 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
         {
             "mf-example": (
                 "[valid](references/valid.md)\n"
+                "[section](references/valid.md#a-heading)\n"
                 "[missing](references/missing.md)\n"
+                "[missing section](references/missing.md#a-heading)\n"
                 "[empty](references/empty.md)\n"
                 "[escape](references/../../outside.md)\n"
                 "[symlink](references/linked.md)\n"
@@ -436,6 +450,7 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 
     assert _resource_problems(tmp_path) == [
         "skills/mf-example/SKILL.md: references/missing.md: missing file",
+        "skills/mf-example/SKILL.md: references/missing.md#a-heading: missing file",
         "skills/mf-example/SKILL.md: references/empty.md: empty file",
         "skills/mf-example/SKILL.md: references/../../outside.md: "
         "outside skill package",

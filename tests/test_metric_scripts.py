@@ -50,12 +50,15 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
             "CODING_STANDARDS.md": "eleven",
             "CONTRIBUTING.md": "twelve thirteen",
             "THREAT_MODEL.md": "fourteen",
+            "skills/mf-converge/references/worker.md": "fifteen sixteen",
+            "skills/mf-converge/references/generic-review.md": "seventeen",
         },
     )
     reading_set = _load("reading_set")
 
     assert reading_set.words(tmp_path, "shared") == 9
-    assert reading_set.words(tmp_path, "converge") == 14
+    assert reading_set.words(tmp_path, "converge") == 16
+    assert reading_set.words(tmp_path, "worker") == 13
 
 
 def test_rule_ids_are_counted_once(tmp_path: Path) -> None:

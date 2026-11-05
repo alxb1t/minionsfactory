@@ -2,9 +2,9 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Print the words a station reads before it starts: `converge` or `shared`.
+"""Print the words a station reads before it starts: `converge`, `worker` or `shared`.
 
-Why: 0030-change-impact design D7.
+Why: 0030-change-impact design D7; 0076-context-cost design D4.
 """
 
 import sys
@@ -19,7 +19,18 @@ SHARED = (
 )
 SETS = {
     "shared": SHARED,
-    "converge": (*SHARED, "THREAT_MODEL.md", "skills/mf-converge/SKILL.md"),
+    "converge": (
+        *SHARED,
+        "THREAT_MODEL.md",
+        "skills/mf-converge/SKILL.md",
+        "skills/mf-converge/references/worker.md",
+    ),
+    "worker": (
+        *SHARED,
+        "THREAT_MODEL.md",
+        "skills/mf-converge/references/worker.md",
+        "skills/mf-converge/references/generic-review.md",
+    ),
 }
 
 

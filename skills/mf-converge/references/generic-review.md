@@ -5,9 +5,9 @@ fix station's. This is MF's method on every host.
 
 ## Inputs and contract
 
-Load the owning [converge contract](../SKILL.md): Steps 3–7, Catch-up scope, The card, Rules for tests. It owns the
-card, severity anchors, repeats, counters, reviewed head, the stale-claim, test-cost and coverage-trace passes, and
-red runs.
+Load the contract, [converge's worker reference](worker.md): Review and security, Not clean, The verify pass,
+Catch-up scope, The card and Rules for tests. It owns the card, severity anchors, repeats, counters, reviewed head, the stale-claim,
+test-cost and coverage-trace passes, and red runs.
 
 **The packet**, given up front: base and head ids, the judged range and patch; the simplify commit's body, when the
 range holds one; the change's proposal, design and tasks, its spec delta unless it declares `skip_specs: true`, and the
@@ -63,12 +63,12 @@ The frontmatter with every key the contract names, the cards, `## Refuted`, and 
 commit counts, each section's outcome (findings, none, or `inconclusive` and why), the passes run, and the packet's
 included and skipped documents. Over 1,500 changed lines, the Summary says
 `over the standard cap — consider a split`. An empty scope outside the checked empty-resolution case, or
-a materially incomplete scope, cannot earn clean: report scope failure, per Step 5.
+a materially incomplete scope, cannot earn clean: report scope failure, per [Not clean](worker.md#not-clean).
 
 ## Verify freshly
 
 On a verify dispatch, re-read your file. Judge each claimed fix against the fix range, source and regression proof:
-promote to `verified` or reopen with evidence; card a regression as new. Check red runs per Step 7, update counters
+promote to `verified` or reopen with evidence; card a regression as new. Check red runs per [the verify pass](worker.md#the-verify-pass), update counters
 and head, and append each transition to the Resolution log. Your role lives in the findings file; the fixer and
 conductor cannot supply your verdict. Findings stay on shared disk.
 
