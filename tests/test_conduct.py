@@ -3824,6 +3824,10 @@ def test_a_small_cap_is_granted_automatically(
     review.write_bytes(b"\xff")
     assert blockers(minions, "0001-todo") is None
     review.write_text(plain)
+    # A file with no card, as a station that found nothing writes it, holds none.
+    security.write_text("---\nverdict: clean\n---\n\n## Refuted\n\n## Summary\n")
+    assert blockers(minions, "0001-todo") == [("R1", "one line")]
+    security.write_text(cards)
 
     def run() -> int:
         return _main(

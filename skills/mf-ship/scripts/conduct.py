@@ -1739,6 +1739,8 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
         except (OSError, UnicodeDecodeError):
             return None
         starts = list(CARD.finditer(text))
+        if not starts:
+            continue
         ends = [card.start() for card in starts[1:]] + [len(text)]
         for title, end in zip(starts, ends, strict=True):
             card = text[title.start() : end]
