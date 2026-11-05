@@ -50,6 +50,8 @@ RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
+DEBT = ".minions/debt.md"
+DEBT_LOCK = ".minions/debt.lock"
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
@@ -561,11 +563,11 @@ def _is_event(line: str, event: str) -> bool:
 
 
 def _clear_stale_lock(primary: Path) -> int | None:
-    """Remove a `backlog.lock` older than `LOCK_STALE`; return its age in seconds.
+    """Remove a `debt.lock` older than `LOCK_STALE`; return its age in seconds.
 
     A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
     """
-    lock = primary / ".minions" / "backlog.lock"
+    lock = primary / DEBT_LOCK
     if not lock.is_dir():
         return None
     age = round(time.time() - lock.stat().st_mtime)
@@ -879,8 +881,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
-        if ".minions/backlog.lock" in halt:
-            return "converge", "halted on the backlog lock: resumes at Step 9"
+        if DEBT_LOCK in halt or ".minions/backlog.lock" in halt:
+            return "converge", "halted on the debt lock: resumes at Step 9"
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
         if "cap reached" in halt and _granted(runs, change, take=False):
@@ -3422,7 +3424,7 @@ class Run:
         if unkept := _keep_origin(self.primary):
             self.log.event("run", "unkept", unkept)
         if (age := _clear_stale_lock(self.primary)) is not None:
-            self.log.event("run", "unlock", f".minions/backlog.lock, {age}s old")
+            self.log.event("run", "unlock", f"{DEBT_LOCK}, {age}s old")
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
@@ -3790,14 +3792,14 @@ def _merge_commit(primary: Path, version: Version) -> str | None:
     return None
 
 
-def _cards(backlog: Path, change: str) -> list[str]:
-    """Return the ids of the cards under the change's backlog heading.
+def _cards(debt: Path, change: str) -> list[str]:
+    """Return the ids of the cards under the change's debt heading.
 
     e.g. "- **0016·R5 — a title**" → "0016·R5"
     """
     ids: list[str] = []
     inside = False
-    for line in backlog.read_text().splitlines() if backlog.is_file() else []:
+    for line in debt.read_text().splitlines() if debt.is_file() else []:
         if line.startswith("## "):
             inside = line.strip() == f"## {change}"
         elif inside and (card := re.match(r"- \*\*(\S+) — ", line)):
@@ -3886,7 +3888,7 @@ def report(cwd: Path) -> str:
                     f"merge {_merge_commit(primary, version) or 'none'}",
                     {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
                     f"round {round_ or 'none'}",
-                    f"cards {' '.join(_cards(runs / 'backlog.md', change)) or 'none'}",
+                    f"cards {' '.join(_cards(runs / 'debt.md', change)) or 'none'}",
                     f"denied {', '.join(denied.get(change, [])) or 'none'}",
                     f".minions/metrics/{change}.html"
                     if page.is_file()

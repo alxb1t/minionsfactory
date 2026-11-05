@@ -18,7 +18,7 @@ Before work, read root `AGENTS.md` and the mandatory context it names. Missing r
 naming it.
 
 ```
-  1 preconditions ─▶ 2 fold ─▶ 3 archive, staged ─▶ 4 changelog · version · gate · commit · tag · backlog
+  1 preconditions ─▶ 2 fold ─▶ 3 archive, staged ─▶ 4 changelog · version · gate · commit · tag · debt
                                                                                    │
                      6 report, stop ◀── no ── 5 "merge and push?" ◀────────────────┘
                            ▲                        │ yes
@@ -229,11 +229,11 @@ binding check covers it, and a gate without one gives a separate step nothing to
        Change: <change-id>
 5. **Tag** — annotated, on the release commit, **local only**: `git tag -a <tag> -m "<tag>"`. The tag,
    the release commit and the changelog entry **are** the release record; write no other narrative.
-6. **Clear the paid-down cards.** A paydown change lists the card ids it closed under `backlog:` in its
-   `proposal.md` frontmatter, now under `openspec/changes/archive/<change-id>/`. No `backlog:` key → record
-   `backlog: none`. Otherwise delete exactly those cards from `.minions/backlog.md` — each card's list line and
+6. **Clear the paid-down cards.** A paydown change lists the card ids it closed under `debt:`, else an older
+   `backlog:`, in its `proposal.md` frontmatter, now under `openspec/changes/archive/<change-id>/`. Neither key →
+   record `debt: none`. Otherwise delete exactly those cards from `.minions/debt.md` — each card's list line and
    nested bullets — and a change heading left empty. An id not found is reported, not a halt. Nothing to commit:
-   the backlog is gitignored. **The lock:** before writing `.minions/backlog.md`, `mkdir .minions/backlog.lock`;
+   the debt is gitignored. **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`;
    it exists → wait 5 seconds and retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write
    ends, written or halted.
 
@@ -287,7 +287,7 @@ authorizes nothing.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
 `converge ran`, or `converge: skipped — no findings files`; each `inconclusive` section, from
-the findings files' frontmatter and Summaries; the paid-down cards, or `backlog: none`; the metrics
+the findings files' frontmatter and Summaries; the paid-down cards, or `debt: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.

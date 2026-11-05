@@ -4,19 +4,19 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The file, the lock and the key
+- [x] 1 — The file, the lock and the key
 - [ ] 2 — The word
 - [ ] 3 — The move at a run's start
 
 ## 1 — The file, the lock and the key
 
-- [ ] 1.1 Rename the debt's file, lock, status-log event and word in `skills/mf-ship/scripts/conduct.py` and
+- [x] 1.1 Rename the debt's file, lock, status-log event and word in `skills/mf-ship/scripts/conduct.py` and
   `skills/mf-converge/SKILL.md`, and the key, file, lock, word and diagram in `skills/mf-release/SKILL.md`, each reader taking the old name too, per
   [D1](design.md#d1); extend `test_a_stale_lock_is_cleared_and_converge_resumes` and `test_a_fix_after_a_cap_halt_converges_afresh`
   in `tests/test_conduct.py`.
   Verify: `grep -n 'debt.lock' skills/mf-ship/scripts/conduct.py` prints a line, `grep -n 'Step 9 — Write the debt' skills/mf-converge/SKILL.md`
   prints a line, and `uv run pytest -q tests/test_conduct.py -k "stale_lock_is_cleared_and_converge_resumes or fix_after_a_cap_halt_converges_afresh"` reports `2 passed`.
-- [ ] 1.2 Read `debt.md` and either key in `scripts/metrics/run.py`, and either wording in
+- [x] 1.2 Read `debt.md` and either key in `scripts/metrics/run.py`, and either wording in
   `skills/mf-review-metrics/scripts/review_metrics.py`, per [D1](design.md#d1); extend `test_run_metrics_read_cost_and_review_yield`
   in `tests/test_metric_scripts.py` and `test_the_status_log_gives_duration_tokens_and_the_cap` in `tests/test_review_metrics.py`.
   Verify: `grep -n 'to (?:backlog|debt)' skills/mf-review-metrics/scripts/review_metrics.py` prints a line, and

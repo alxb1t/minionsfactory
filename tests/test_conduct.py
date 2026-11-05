@@ -2266,11 +2266,12 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
 
     # Twin: a halt on anything else is the person's.
     assert halted("cap reached")[0] == "converge-halted"
-    assert halted("waited 2 minutes for .minions/backlog.lock") == (
-        "converge",
-        "halted on the backlog lock: resumes at Step 9",
-    )
-    lock = root / ".minions" / "backlog.lock"
+    for name in ("debt", "backlog"):
+        assert halted(f"waited 2 minutes for .minions/{name}.lock") == (
+            "converge",
+            "halted on the debt lock: resumes at Step 9",
+        )
+    lock = root / ".minions" / "debt.lock"
     lock.mkdir()
     stale = time.time() - 601
     os.utime(lock, (stale, stale))
@@ -2279,7 +2280,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
     assert not lock.exists()
     assert any(
-        re.search(r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old$", line)
+        re.search(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old$", line)
         for line in _log(root)
     )
 
@@ -4710,9 +4711,9 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     fixed = _git(tree, "rev-parse", "HEAD")
     # The lock case comes first, as in mf-converge's Resuming a run.
     # Why: 0063-rejoin design D4.
-    locked = f"halt — waited 2 minutes for .minions/backlog.lock · head {judged}"
+    locked = f"halt — waited 2 minutes for .minions/debt.lock · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
-    lock = ("converge", "halted on the backlog lock: resumes at Step 9")
+    lock = ("converge", "halted on the debt lock: resumes at Step 9")
     assert stage_of(root, version) == lock
     # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
     # and a person's commit past it answers none (0063-rejoin design D4).

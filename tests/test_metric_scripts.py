@@ -621,9 +621,11 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
             ),
             ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
             "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
-            "backlog: [0000·R4, 0000·S2]\n---\n",
+            "debt: [0000·R4, 0000·S2]\n---\n",
             "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
-            ".minions/backlog.md": "# Backlog\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
+            "openspec/changes/archive/0004-w/proposal.md": "---\nbump: patch\n"
+            "backlog: [0000·R4]\n---\n",
+            ".minions/debt.md": "# Debt\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
             "## 0001-x\n\n- **0001·R2 — b**\n  - **Why:** c\n- **0001·S1 — d**\n",
         },
     )
@@ -657,6 +659,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert {metric: read(metric) for metric in expected} == expected
 
     assert read("debt-paid", "0002-y") == 0
+    assert read("debt-paid", "0004-w") == 1
     assert read("debt-added", "0002-y") == 0
     assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
     assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
@@ -682,8 +685,8 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("review-tokens-per-confirmed") == (
         "gap: no 20261102-090000/0001-x_converge-2.log"
     )
-    (tmp_path / ".minions/backlog.md").unlink()
-    assert read("debt-added") == "gap: no .minions/backlog.md"
+    (tmp_path / ".minions/debt.md").unlink()
+    assert read("debt-added") == "gap: no .minions/debt.md"
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:
