@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The brief's At line
-- [ ] 2 — Only moved facts, with helpers
+- [x] 2 — Only moved facts, with helpers
 - [ ] 3 — The review and the show
 - [ ] 4 — verify_check and a link
 
@@ -16,10 +16,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — Only moved facts, with helpers
 
-- [ ] 2.1 Read the `At` line and list the moved facts in `skills/mf-cut-change/SKILL.md`'s Step 2, re-check only those in Step 3,
+- [x] 2.1 Read the `At` line and list the moved facts in `skills/mf-cut-change/SKILL.md`'s Step 2, re-check only those in Step 3,
   and reword the I10 row's "how" cell, per [D2](design.md#d2).
   Verify: `grep -n 'git diff --name-only <sha>..HEAD' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 2.2 Add the helpers to `skills/mf-cut-change/SKILL.md`'s Step 2, per [D3](design.md#d3).
+- [x] 2.2 Add the helpers to `skills/mf-cut-change/SKILL.md`'s Step 2, per [D3](design.md#d3).
   Verify: `grep -n 'not back in five minutes' skills/mf-cut-change/SKILL.md` prints a line.
 
 ## 3 — The review and the show
