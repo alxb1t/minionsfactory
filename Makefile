@@ -15,7 +15,7 @@ gate:
 	uv run ty check
 	uv run zizmor .github/workflows/ci.yml
 	betterleaks dir . --no-banner --redact
-	uv run coverage run -m pytest -q -n auto
+	uv run coverage run -m pytest -q -n auto --junitxml=.minions/test-report.xml
 	uv run coverage combine -q
 	uv run coverage xml -q
 	uv run diff-cover coverage.xml --compare-branch=$(DIFF_BASE) --fail-under=100
