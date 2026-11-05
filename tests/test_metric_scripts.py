@@ -194,18 +194,24 @@ def test_the_code_script_runs_as_the_collector_runs_it(tmp_path: Path) -> None:
             text=True,
         )
 
+    def branching(name: str, ifs: int) -> str:
+        # Each `if` adds one to McCabe's base of one.
+        cases = "".join(f"    if x == {i}:\n        return {i}\n" for i in range(ifs))
+        return f"def {name}(x: int) -> int:\n{cases}    return x\n"
+
     _write(
         tmp_path,
         {
-            "skills/a.py": "x = 1\n",
+            # One function over complexity 10, and one at it, which is not over.
+            "skills/a.py": branching("over", 10) + branching("at", 9),
             "tests/test_a.py": "def test_a() -> None:\n    pass\n",
             ".minions/test-report.xml": '<testsuites><testsuite tests="1" time="0.5">'
             '<testcase name="test_a" time="0.25"/></testsuite></testsuites>',
         },
     )
-    assert run("python-lines").stdout == "3\n"
+    assert run("python-lines").stdout == "44\n"
     # Ruff and `pytest --collect-only` start as the collector starts them.
-    assert run("complex-functions").stdout == "0\n"
+    assert run("complex-functions").stdout == "1\n"
     assert run("slowest-test-seconds").stdout == "0.25\n"
     assert run("no-such-kind").returncode == 2
 
