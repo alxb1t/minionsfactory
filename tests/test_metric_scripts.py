@@ -83,6 +83,145 @@ def test_tests_collected_is_unavailable_on_a_broken_collection() -> None:
         tests_collected.collected("1 test collected, 1 error in 0.1s\n", 2)
 
 
+def test_code_metrics_read_the_tree(tmp_path: Path) -> None:
+    codebase = _load("codebase")
+    with pytest.raises(SystemExit, match="no code lines"):
+        codebase.count(tmp_path, "test-to-code-lines")
+    assert codebase.count(tmp_path, "largest-module-lines") == 0
+
+    header = '# /// script\n# dependencies = ["x", "y"]\n# ///\n'
+    # Only a comment suppresses: the same words in a string do not.
+    suppressed = "a = 1  # noqa: E501\nb = 2  # type: ignore\n"
+    unsuppressed = 'c = "# noqa"\n# pragma: no cover\n'
+    _write(
+        tmp_path,
+        {
+            "skills/a/s.py": header + suppressed + unsuppressed,
+            "skills/big.py": "x = 1\n" * 1001,
+            "tests/t.py": "x = 1\n" * 504,
+            "pyproject.toml": '[project]\ndependencies = ["a>=1"]\n\n'
+            '[dependency-groups]\ndev = ["p", "q"]\n'
+            'lint = [{include-group = "dev"}, "r"]\n',
+        },
+    )
+
+    expected = {
+        "largest-module-lines": 1001,
+        "modules-over-1000-lines": 1,
+        "suppressions": 3,
+        "test-to-code-lines": 0.5,
+        "python-lines": 1512,
+        "dependencies": 3,
+        "dev-dependencies": 3,
+    }
+    assert {kind: codebase.count(tmp_path, kind) for kind in expected} == expected
+
+
+def test_complex_functions_are_read_from_ruff(tmp_path: Path) -> None:
+    codebase = _load("codebase")
+    found = (
+        '[{"code": "C901", "filename": "a.py"}, {"code": "C901", "filename": "b.py"}]'
+    )
+    assert codebase.complex_count(found, 1, "") == 2
+    assert codebase.complex_count("[]", 0, "") == 0
+    with pytest.raises(SystemExit, match="invalid value"):
+        codebase.complex_count("", 2, "error: invalid value\nmore\n")
+    with pytest.raises(SystemExit, match="ruff exit 2"):
+        codebase.complex_count("", 2, "")
+
+    # A tree holding none of the roots runs no Ruff.
+    assert codebase.count(tmp_path, "complex-functions") == 0
+
+
+def test_test_metrics_read_the_junit_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    codebase = _load("codebase")
+    collected = [3]
+    monkeypatch.setattr(codebase, "_collected", lambda root: collected[0])
+    assert codebase.stale(3, 4) and not codebase.stale(3, 3)
+    kinds = [kind for kind in codebase.KINDS if kind.startswith(("test-s", "slow"))]
+    kinds += ["total-coverage"]
+
+    with pytest.raises(SystemExit, match="no readable test-report.xml"):
+        codebase.count(tmp_path, "test-seconds")
+
+    cases = "".join(
+        f'<testcase classname="t" name="n{i}" time="{seconds}"/>'
+        for i, seconds in enumerate(["0.5", "6.25", "5.0"])
+    )
+    report = f'<testsuite name="pytest" tests="3" time="12.5">{cases}</testsuite>'
+    _write(tmp_path, {".minions/test-report.xml": "<testsuites"})
+    with pytest.raises(SystemExit, match="no readable test-report.xml"):
+        codebase.count(tmp_path, "test-seconds")
+    _write(tmp_path, {".minions/test-report.xml": "<testsuites/>"})
+    with pytest.raises(SystemExit, match="no testsuite in test-report.xml"):
+        codebase.count(tmp_path, "test-seconds")
+
+    _write(
+        tmp_path,
+        {
+            ".minions/test-report.xml": f"<testsuites>{report}</testsuites>",
+            "coverage.xml": '<coverage line-rate="0.9876"><packages/></coverage>',
+        },
+    )
+    counts = {kind: codebase.count(tmp_path, kind) for kind in kinds}
+    assert counts == {
+        "test-seconds": 12.5,
+        "slowest-test-seconds": 6.25,
+        "test-seconds-summed": 11.75,
+        "slow-tests": 1,
+        "total-coverage": 98.76,
+    }
+
+    # A report of other tests is stale, so is the coverage beside it.
+    collected[0] = 4
+    for kind in kinds:
+        with pytest.raises(SystemExit, match="test-report.xml is stale"):
+            codebase.count(tmp_path, kind)
+    collected[0] = 3
+    (tmp_path / "coverage.xml").unlink()
+    with pytest.raises(SystemExit, match="no readable coverage.xml"):
+        codebase.count(tmp_path, "total-coverage")
+
+
+def test_the_code_script_runs_as_the_collector_runs_it(tmp_path: Path) -> None:
+    def run(kind: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, _SCRIPTS / "codebase.py", kind],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+    def branching(name: str, ifs: int) -> str:
+        # Each `if` adds one to McCabe's base of one.
+        cases = "".join(f"    if x == {i}:\n        return {i}\n" for i in range(ifs))
+        return f"def {name}(x: int) -> int:\n{cases}    return x\n"
+
+    _write(
+        tmp_path,
+        {
+            # One function over complexity 10, and one at it, which is not over.
+            "skills/a.py": branching("over", 10) + branching("at", 9),
+            "tests/test_a.py": "def test_a() -> None:\n    pass\n",
+            ".minions/test-report.xml": '<testsuites><testsuite tests="1" time="0.5">'
+            '<testcase name="test_a" time="0.25"/></testsuite></testsuites>',
+        },
+    )
+    assert run("python-lines").stdout == "44\n"
+    # Ruff and `pytest --collect-only` start as the collector starts them.
+    assert run("complex-functions").stdout == "1\n"
+    assert run("slowest-test-seconds").stdout == "0.25\n"
+    assert run("no-such-kind").returncode == 2
+
+    # A tree whose collection fails is a gap, whatever the report says.
+    _write(tmp_path, {"tests/test_b.py": "def ("})
+    broken = run("slow-tests")
+    assert broken.returncode == 1 and broken.stdout == ""
+    assert broken.stderr.strip() == "pytest collection failed (exit 2)"
+
+
 def test_prose_skips_code_and_tables(tmp_path: Path) -> None:
     long = " ".join(["word"] * 31) + "."
     limit = " ".join(["word"] * 30) + "."

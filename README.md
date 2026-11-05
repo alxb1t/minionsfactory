@@ -91,13 +91,13 @@ that does not is told so ([D43](docs/decisions.md#d43--project-health-is-measure
 
 Versions are built side by side, each in its own worktree beside a primary checkout that stays on the default
 branch ([D44](docs/decisions.md#d44--versions-run-side-by-side-in-worktrees-one-primary-merges-them)). A repo opts
-in by declaring `Worktrees:` in `AGENTS.md`; every worktree shares the primary's `.minions/`, and the release
-merges in the primary.
+in by declaring `Worktrees:` in `AGENTS.md`; every worktree shares the primary's `.minions/`, save the gate's own
+junit report, which sits in the checkout that ran it, and the release merges in the primary.
 
 ```
 <container>/
 ├── <repo>/            the primary checkout, named after the repository, on the default branch; .minions/ lives here
-├── 0033-<slug>/       a version's worktree, made by mf-cut-change
+├── 0033-<slug>/       a version's worktree, made by mf-cut-change; its gate writes .minions/test-report.xml here
 └── 0034-<slug>/       another, built side by side
 ```
 

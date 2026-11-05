@@ -60,6 +60,124 @@ noise = 5
 source = "station"
 
 [[metric]]
+id = "largest-module-lines"
+title = "Largest Python module"
+group = "code"
+unit = "lines"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["largest-module-lines"]
+
+[[metric]]
+id = "modules-over-1000-lines"
+title = "Python modules over 1,000 lines"
+group = "code"
+unit = "modules"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["modules-over-1000-lines"]
+
+[[metric]]
+id = "complex-functions"
+title = "Functions over complexity 10"
+group = "code"
+unit = "functions"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["complex-functions"]
+
+[[metric]]
+id = "suppressions"
+title = "Inline lint, type and coverage suppressions"
+group = "code"
+unit = "suppressions"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["suppressions"]
+
+[[metric]]
+id = "test-to-code-lines"
+title = "Test lines per code line"
+group = "code"
+unit = "ratio"
+better = "higher"
+script = "scripts/metrics/codebase.py"
+args = ["test-to-code-lines"]
+
+[[metric]]
+id = "python-lines"
+title = "Python lines"
+group = "code"
+unit = "lines"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["python-lines"]
+
+[[metric]]
+id = "dependencies"
+title = "Runtime dependencies"
+group = "code"
+unit = "packages"
+better = "lower"
+watch = 0
+script = "scripts/metrics/codebase.py"
+args = ["dependencies"]
+
+[[metric]]
+id = "dev-dependencies"
+title = "Development dependencies"
+group = "code"
+unit = "packages"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["dev-dependencies"]
+
+[[metric]]
+id = "test-seconds"
+title = "The suite's seconds"
+group = "code"
+unit = "seconds"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["test-seconds"]
+
+[[metric]]
+id = "slowest-test-seconds"
+title = "The slowest test"
+group = "code"
+unit = "seconds"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["slowest-test-seconds"]
+
+[[metric]]
+id = "test-seconds-summed"
+title = "The tests' summed seconds"
+group = "code"
+unit = "seconds"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["test-seconds-summed"]
+
+[[metric]]
+id = "slow-tests"
+title = "Tests over 5 s"
+group = "code"
+unit = "tests"
+better = "lower"
+script = "scripts/metrics/codebase.py"
+args = ["slow-tests"]
+
+[[metric]]
+id = "total-coverage"
+title = "Total line coverage"
+group = "code"
+unit = "percent"
+better = "higher"
+script = "scripts/metrics/codebase.py"
+args = ["total-coverage"]
+
+[[metric]]
 id = "hedge-words"
 title = "Hedge words in the skills"
 group = "clarity"
