@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The brief's At line
 - [x] 2 — Only moved facts, with helpers
-- [ ] 3 — The review and the show
+- [x] 3 — The review and the show
 - [ ] 4 — verify_check and a link
 
 ## 1 — The brief's At line
@@ -24,7 +24,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The review and the show
 
-- [ ] 3.1 Narrow Step 8.5's question and point Step 9 at `tasks.md`, in `skills/mf-cut-change/SKILL.md`, per [D4](design.md#d4)
+- [x] 3.1 Narrow Step 8.5's question and point Step 9 at `tasks.md`, in `skills/mf-cut-change/SKILL.md`, per [D4](design.md#d4)
   and [D5](design.md#d5); amend D7 and D40 in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -n 'the search script did not run' skills/mf-cut-change/SKILL.md` prints a line, and
   `grep -n 'lines it names' skills/mf-cut-change/SKILL.md` prints a line.

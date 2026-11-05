@@ -87,8 +87,9 @@ is kept beside them. `design.md` carries the measurement behind each decision, n
 
 **`mf-build` owns the list of what a change must meet (`I1…`) and the prose rules (`P1…`); `mf-cut-change` carries
 the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). It
-runs each `Verify:` search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks
-whether each task can be built as written; it runs no gate.**
+re-checks the facts whose files moved since the brief's `At` line, and its helpers read them. It runs each `Verify:`
+search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
+built as written; it runs no gate.**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
   read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change
@@ -227,7 +228,9 @@ code. Fold and archive land in one commit.**
 **A checker, a verification worker or the cut's plan reviewer is a new host subagent or fresh agent process
 receiving explicit task inputs, without the producer's transcript. The conductor dispatches, waits and reads findings
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
-freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.**
+freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file. The
+cut's helpers are fresh read-only workers, as its plan reviewer is, answering in the cut's thread and writing no
+file.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and

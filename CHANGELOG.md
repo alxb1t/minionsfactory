@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prints, or that cite none — read by up to four parallel read-only helpers, five minutes each (change
   `0074-lighter-cut`, phase 2).
 
+- The cut's plan reviewer reads only the "after" of the searches `verify_check.py` ran, and Step 9 names `tasks.md` for
+  the `Verify:` lines and quotes only the matches; D7 and D40 name the helpers (change `0074-lighter-cut`, phase 3).
+
 ## [0.59.1] - 2026-11-05
 
 Gate: local 2m33s · CI not read under mf-ship · 0.59.0: local 2m26s · CI not read under mf-ship

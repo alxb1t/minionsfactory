@@ -163,8 +163,9 @@ This self-check is a declared exception to *no station verifies its own work*. T
 ## Step 8.5 — Plan review
 
 A fresh read-only worker reads the plan before the commit: the host's subagent, on the session's model. Give
-it the change directory and `HEAD`'s sha, and one question: can each task be built as written, and each `Verify:`
-pass after it? It answers with doubts, each with its `path:line`.
+it the change directory and `HEAD`'s sha, and one question: can each task be built as written, each `Verify:` pass
+after it, and each the search script did not run — a test, a command — fail before it? A search's "before" is the
+script's, so the reviewer reads only its "after". It answers with doubts, each with its `path:line`.
 
 | the doubt | do |
 |---|---|
@@ -177,10 +178,10 @@ table as the cut's own.
 
 ## Step 9 — Show, then commit
 
-Show the human what the change does, its phases, its decision ids, the self-check table, the file list, every
-`Verify:` and each match the search script printed, word for word, each plan-review doubt and what the cut did with
-it, and each target test rule planned to over `T1`–`T6`. Then go to Step 10 and commit **without waiting** — except
-for these, which wait for the human's OK:
+Show the human what the change does, its phases, its decision ids, the self-check table, the file list, each match
+the search script printed, word for word, each plan-review doubt and what the cut did with it, and each target test
+rule planned to over `T1`–`T6`. The show echoes no `Verify:`: for the `Verify:` lines it names `tasks.md`. Then go to
+Step 10 and commit **without waiting** — except for these, which wait for the human's OK:
 
 | waits for an OK | show |
 |---|---|
