@@ -120,9 +120,9 @@ with your turn.
 
 ## A granted round
 
-`grant=yes`, from `mf-ship grant`: the person's one more round past the cap. Open a run marked `· grant`, naming it in its
-first event. Send the open blocking findings to a fresh Step 6 fixer by id, then verify in one Step 7 round. Both `clean` →
-Step 9, never Step 8. A blocker left → halt with `cap reached`.
+`grant=yes`, from `mf-ship grant` or a run's automatic grant at a cap of small cards: one more round past the cap. Open
+a run marked `· grant`, naming it in its first event. Send the open blocking findings to a fresh Step 6 fixer by id,
+then verify in one Step 7 round. Both `clean` → Step 9, never Step 8. A blocker left → halt with `cap reached`.
 
 ## Resuming a run
 

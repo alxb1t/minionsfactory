@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D54
 ```
 
 ## The shape
@@ -471,7 +471,8 @@ disk: only a stage left in `HALTS`, a git config key or `origin` URL the run ref
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
 step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
-person once a rescue, where one runs, has left it halted.**
+person once a rescue, where one runs, has left it halted. A converge cap of small cards is the run's to grant, once a
+version a run, and a `re-plan` halt needs the person ([D54](#d54--the-cap-policy)).**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
@@ -533,3 +534,18 @@ release get none: they need the person.**
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision · counting only what a rescue did in the tree as its answer — a grant it writes would take the
   version back.
+
+### D54 · The cap policy
+
+**At a converge cap, `conduct.py` reads the open blocking cards — review's `blocking`, security's `critical` and `high`
+— and their fix sizes; when each is `one line`, `a test` or `one line and a test`, the run spawns converge with
+`grant=yes` itself, once a version a run, with no grant file and no rescue. Any other cap — a blocker sized `a design
+change`, no card read, a second cap in the run, a person's grant's among them, or `[converge] auto_grant = false` in
+the models file — writes the version a last halt line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the
+way back; a person's grant still buys a round.**
+
+- **Why:** a cap of small cards is a grant's job, and it waited a night for the person; a cap that recurs is the plan's,
+  each grant fixing one edge of a design and finding the next.
+- **Accepts:** a card sized small that is not, which costs one round: the size is the checker's word.
+- **Rejected:** the rescue judging the cap · a grant file the run writes · a new stage for the re-plan · an `AGENTS.md`
+  line for the setting · tracking a function across caps.

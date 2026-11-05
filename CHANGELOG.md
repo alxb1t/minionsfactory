@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[converge] auto_grant = false` — writes the version a last halt line, `re-plan: <ids>`, and `mf-rescue`'s diagnosis
   names `/mf-plan … from=`: a cap that recurs is the plan's. A person's grant still buys a round (change
   `0070-cap-policy`, phase 2).
+- D54 records the cap policy and D47 names it; `mf-ship`'s halt table gains the `re-plan` row, and `mf-converge`'s
+  granted round names the run's automatic grant (change `0070-cap-policy`, phase 3).
 
 ## [0.56.0] - 2026-11-05
 

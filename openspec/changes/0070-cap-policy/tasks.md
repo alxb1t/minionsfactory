@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The automatic grant
 - [x] 2 — The re-plan
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The automatic grant
 
@@ -28,6 +28,6 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The record
 
-- [ ] 3.1 Amend D47 and add D54 in `docs/decisions.md`; add the `re-plan` row to `skills/mf-ship/SKILL.md`'s halt table, per
+- [x] 3.1 Amend D47 and add D54 in `docs/decisions.md`; add the `re-plan` row to `skills/mf-ship/SKILL.md`'s halt table, per
   [D5](design.md#d5).
   Verify: `grep -n 'D54' docs/decisions.md` prints a line, and `grep -n 're-plan' skills/mf-ship/SKILL.md` prints a line.
