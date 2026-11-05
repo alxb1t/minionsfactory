@@ -510,8 +510,8 @@ hostile repo needs a container.**
   written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
   no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
-  worker · a domain `Ship network:` lists · a release forged on a head before that head lands
-  on `origin`.
+  worker · a Claude worker starts no MCP server, the operator's own included · a domain `Ship network:` lists · a release
+  forged on a head before that head lands on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service.
 

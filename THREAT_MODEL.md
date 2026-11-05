@@ -19,7 +19,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   worktrees, network on a short list and no loopback, no push. A Claude worker whose sandbox cannot
   start does not run, and each run's probe proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
-  `.mcp.json` start nothing.
+  `.mcp.json` start nothing, and no MCP server starts, the operator's own included; a Codex worker still starts the
+  operator's `mcp_servers`.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a

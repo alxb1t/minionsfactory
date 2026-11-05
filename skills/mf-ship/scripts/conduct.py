@@ -2069,6 +2069,9 @@ def argv(
             # runs at a start, outside the sandbox.
             # Why: 0052-security-hardening design D1.
             *("--setting-sources", "user"),
+            # No MCP server starts, the operator's own included.
+            # Why: 0076-context-cost design D2.
+            *("--strict-mcp-config",),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.

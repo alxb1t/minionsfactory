@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The review metrics page draws a cost table per repo: each change's build, converge, integrate, release and rescue,
   with their dollars, turns, tokens and seconds, read from the run logs; D50 names the run logs (change
   `0076-context-cost`, phase 1).
+- A Claude worker starts with `--strict-mcp-config`, so no MCP server starts, the operator's own included; D51 and
+  the threat model record it (change `0076-context-cost`, phase 2).
 
 ## [0.61.0] - 2026-11-05
 

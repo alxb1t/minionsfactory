@@ -4978,6 +4978,9 @@ def test_a_claude_worker_starts_in_the_sandbox(
     # A project's settings and `.mcp.json` are worker-written, and run at a start.
     command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
     assert command[command.index("--setting-sources") + 1] == "user"
+    # No MCP server starts, the operator's own included.
+    assert command.index("--strict-mcp-config") < command.index("--allowedTools")
+    assert "--mcp-config" not in command
 
     # The conductor's uv environment is not the worker's `.venv`.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))

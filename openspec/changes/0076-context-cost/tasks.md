@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The cost reader
-- [ ] 2 — No MCP server at a worker's start
+- [x] 2 — No MCP server at a worker's start
 - [ ] 3 — The worker reference
 - [ ] 4 — The metric
 
@@ -20,11 +20,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — No MCP server at a worker's start
 
-- [ ] 2.1 Add `--strict-mcp-config` to the Claude branch of `argv` in `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2);
+- [x] 2.1 Add `--strict-mcp-config` to the Claude branch of `argv` in `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2);
   extend `test_a_claude_worker_starts_in_the_sandbox` in `tests/test_conduct.py`.
   Verify: `grep -n 'strict-mcp-config' skills/mf-ship/scripts/conduct.py` prints a line, and
   `uv run pytest -q tests/test_conduct.py -k "claude_worker_starts_in_the_sandbox or worker_carries_the_allowlist"` reports `2 passed`.
-- [ ] 2.2 Amend D51's *Accepts* in `docs/decisions.md` and `THREAT_MODEL.md`'s worker line, per [D5](design.md#d5).
+- [x] 2.2 Amend D51's *Accepts* in `docs/decisions.md` and `THREAT_MODEL.md`'s worker line, per [D5](design.md#d5).
   Verify: `grep -n 'starts no MCP server' docs/decisions.md` prints a line, and `grep -n 'no MCP server' THREAT_MODEL.md` prints a line.
 
 ## 3 — The worker reference
