@@ -308,9 +308,15 @@ class Version:
         return max(found)
 
     def blockers(self) -> int:
-        """Return round 1's open blocking findings, in the oldest run's verdicts."""
-        body = self.status_runs[-1][1] if self.status_runs else ""
-        lines = re.findall(r"^.* · round 1 · verdicts — .*$", body, re.MULTILINE)
+        """Return round 1's open blocking findings, in the oldest run with its verdicts.
+
+        A run that halted before its fan-out left none, so the next run holds them.
+        """
+        verdicts = r"^.* · round 1 · verdicts — .*$"
+        lines: list[str] = []
+        for _, body in reversed(self.status_runs):
+            if lines := re.findall(verdicts, body, re.MULTILINE):
+                break
         counts = [
             int(n) for line in lines for n in re.findall(r"open_blocking:? (\d+)", line)
         ]

@@ -5264,11 +5264,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     spawned: list[list[str]] = []
 
     def worker(
-        command: list[str], cwd: Path, out: Path, claim: Path | None
+        command: list[str], cwd: Path, out: Path | int, claim: Path | None
     ) -> tuple[int, bool]:
         spawned.append(command)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.touch()
+        with open(out, "w") as sink:
+            sink.write("streamed\n")
         return 0, False
 
     started = conduct["main"].__globals__["work"]
@@ -5332,6 +5332,23 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     commondir.write_text(f"{neighbour}/.git\n")
     assert next_roots() == [str(root / ".git"), str(root), str(tree)]
     commondir.write_text(kept)
+    # A worker that swaps a fresh log for a link before the spawn writes it gains
+    # nothing: the conductor writes the file it made, never the link's target.
+    target = tmp_path / "operator.rc"
+    target.write_text("kept\n")
+    made = conduct["_free_log"]
+
+    def swapped(folder: Path, who: str, station: str) -> object:
+        found = made(folder, who, station)
+        log = folder / f"{who}_{station}.log"
+        log.unlink()
+        log.symlink_to(target)
+        return found
+
+    conduct["main"].__globals__["_free_log"] = swapped
+    conductor.spawn("0009-swap", "build", tree, "Do it.", ("codex", None, None))
+    conduct["main"].__globals__["_free_log"] = made
+    assert target.read_text() == "kept\n"
     conduct["main"].__globals__["work"] = started
     conductor.log.path.unlink()
 

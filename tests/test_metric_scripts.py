@@ -294,6 +294,13 @@ def _run_fixture(root: Path) -> dict[str, str]:
             ".minions/runs/notes.md": "12:00:00 · 0001-x · halt — build check fail\n",
             ".minions/findings/0001-x_status_log.md": _STATUS,
             ".minions/findings/0002-y_status_log.md": "# 0002-y\n\n## Run 1 — x\n",
+            # The first run halted before its fan-out; the next one holds round 1.
+            ".minions/findings/0004-w_status_log.md": "# 0004-w\n\n"
+            "## Run 2 — 2026-11-02 10:00\n"
+            "10:20:00 · round 1 · verdicts — review changes-requested"
+            " · open_blocking 1\n\n"
+            "## Run 1 — 2026-11-02 09:00\n"
+            "09:01:00 · round 1 · halt — the gate is red\n",
             ".minions/build/0001-x.done": f"head: {built}\nsimplify: lean already\n",
             ".minions/build/0002-y.done": f"head: {unmerged}\n",
             ".minions/build/0004-w.done": f"head: {built}\n",
@@ -357,6 +364,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert read("wait-minutes", "0004-w") == "gap: no run log names 0004-w"
     assert read("halts-build", "0004-w") == "gap: no run log names 0004-w"
     assert read("build-commits", "0004-w") == 3
+    assert read("blockers-round-1", "0004-w") == 1
     assert read("converge-rounds", "0002-y") == "gap: no round in the status log"
     assert read("blockers-round-1", "0002-y") == (
         "gap: no round 1 verdicts with open_blocking"
