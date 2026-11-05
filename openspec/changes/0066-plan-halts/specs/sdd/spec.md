@@ -4,7 +4,8 @@
 
 The input contract SHALL hold `I19`: a `Verify:` is one plain command — no `$(…)`, no shell variable, no loop, no `cd` — and an
 exact count only when the count is the point. `skills/mf-cut-change/scripts/verify_check.py` SHALL exit 1 on a check that breaks
-the shape or passes a search an option outside its fixed list, 0 printing each search's matches as `path:line`, and 2 on a
+the shape or passes a search an option outside its fixed list or a path outside the repository, 0 printing each search's matches
+as `path:line`, and 2 on a
 `Verify:` it cannot parse or a `git grep` git refuses.
 
 #### Scenario: A loop in a check

@@ -8,10 +8,10 @@
 
 Exit 0 no break · 1 a check breaks `I19` · 2 a check cannot be parsed or run. Run
 from the repository root. A `grep` or `git grep` runs as argv, no shell, over HEAD's
-tree, or a revision a `git grep` names before `--`; each match prints as
-`<sub-task>: <path>:<line>: <text>`. A search takes the options below alone: any
-other, a pager's among them, breaks `I19`. Why: 0066-plan-halts design D1, review R1
-and security S1.
+tree, or the revision a `git grep` names; each match prints as
+`<sub-task>: <path>:<line>: <text>`. A search takes the options below alone, and no
+path outside the repository: any other option, a pager's among them, or such a
+path, breaks `I19`. Why: 0066-plan-halts design D1.
 """
 
 import argparse
@@ -23,7 +23,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 TIMEOUT_SECONDS = 60
@@ -96,10 +96,16 @@ class Command(NamedTuple):
 
 
 class Search(NamedTuple):
-    """The argv that prints a search's matching lines, and each option it refuses."""
+    """The argv that prints a search's matching lines, and what it would read.
+
+    `refused` holds each option it does not run, `paths` each file operand, and
+    `revision` the operand a `git grep` reads as one when git resolves it.
+    """
 
     argv: list[str]
     refused: list[str]
+    paths: list[str]
+    revision: str | None
 
 
 def _spawn(
@@ -177,38 +183,68 @@ def tokens(command: str) -> list[str]:
         raise Unparsed(f"{error}: `{command}`") from None
 
 
-def breaks(command: str, words: list[str]) -> list[str]:
-    """Return how a command breaks `I19`'s one plain command; none when it holds."""
-    found = ["`$(…)`"] if "$(" in command else []
+def masked(command: str, kinds: str = "'\"") -> str:
+    """Return `command`, each escaped character and each in a `kinds` quote `_`.
+
+    A shell reads no `$` or operator there, and the words keep their bounds.
+    e.g. `a '$x|' "$y"`, "'" → `a _____ "$y"`
+    """
+    out, quote, escaped = list(command), "", False
+    for i, char in enumerate(command):
+        if escaped or (quote != "'" and char == "\\"):
+            escaped, out[i] = not escaped, "_"
+            continue
+        inside = quote or (char if char in "'\"" else "")
+        if inside and inside in kinds:
+            out[i] = "_"
+        if not quote and char in "'\"":
+            quote = char
+        elif char == quote:
+            quote = ""
+    return "".join(out)
+
+
+def breaks(command: str, shell: list[str]) -> list[str]:
+    """Return how a command breaks `I19`'s one plain command; none when it holds.
+
+    `shell` is the command's words as a shell reads them, quoted text masked.
+    """
+    expands = masked(command, "'")
+    found = ["`$(…)`"] if "$(" in expands else []
     found += ["a backtick"] if "`" in command else []
     starts = [
         word
-        for i, word in enumerate(words)
-        if i == 0 or set(words[i - 1]) <= OPERATOR or words[i - 1] in ("do", "then")
+        for i, word in enumerate(shell)
+        if i == 0 or set(shell[i - 1]) <= OPERATOR or shell[i - 1] in ("do", "then")
     ]
-    if VARIABLE.search(command) or any(ASSIGNMENT.match(word) for word in starts):
+    if VARIABLE.search(expands) or any(ASSIGNMENT.match(word) for word in starts):
         found.append("a shell variable")
     found += ["a loop"] if LOOPS & set(starts) else []
     found += ["`cd`"] if "cd" in starts else []
     return found
 
 
-def search(words: list[str]) -> Search | None:
-    """Return the argv that prints a search's matching lines; None for no search.
+def plain(words: list[str], shell: list[str]) -> list[str]:
+    """Return the words before the first operator a shell reads, a quoted one not.
 
-    The words stop at the first operator; `-n` is added, and the flags that hide
-    lines dropped. A `git grep` reads HEAD's index, unless a word between its pattern
-    and `--` names a revision. e.g. "grep -c x a > o" → ["grep", "-H", "-n", "x", "a"]
+    e.g. ["grep", "|", "a", ">", "o"], ["grep", "___", "a", ">", "o"]
+    → ["grep", "|", "a"]
     """
-    plain: list[str] = []
-    for word in words:
-        if set(word) <= OPERATOR:
-            break
-        plain.append(word)
-    if plain[:1] == ["grep"]:
-        head, rest = ["grep", "-H", "-n"], plain[1:]
-    elif plain[:2] == ["git", "grep"]:
-        head, rest = ["git", "grep", "--cached", "--no-color", "-n"], plain[2:]
+    ends = [i for i, word in enumerate(shell) if set(word) <= OPERATOR]
+    return words[: (ends or [len(words)])[0]]
+
+
+def search(words: list[str]) -> Search | None:
+    """Return how a search's plain words run, printing its lines; None for no search.
+
+    `-n` is added, and the flags that hide lines dropped. A `git grep` reads HEAD's
+    index, unless its first operand after the pattern is a revision git resolves.
+    e.g. ["grep", "-c", "x", "a"] → (["grep", "-H", "-n", "x", "a"], [], ["a"], None)
+    """
+    if words[:1] == ["grep"]:
+        head, rest = ["grep", "-H", "-n"], words[1:]
+    elif words[:2] == ["git", "grep"]:
+        head, rest = ["git", "grep", "--no-color", "-n"], words[2:]
     else:
         return None
     kept: list[str] = []
@@ -234,9 +270,10 @@ def search(words: list[str]) -> Search | None:
             kept += [f"-{flags}"] if flags else []
         else:
             refused.append(word)
-    if head[0] == "git" and tail and operands[0 if pattern else 1 :]:
-        head.remove("--cached")
-    return Search(head + kept + tail, refused)
+    after = operands[0 if pattern else 1 :]
+    revision = after[0] if head[0] == "git" and after else None
+    paths = (operands + tail[1:])[0 if pattern else 1 :]
+    return Search(head + kept + tail, refused, paths, revision)
 
 
 class Head:
@@ -248,21 +285,36 @@ class Head:
         self.tree: Path | None = None
         self.env: dict[str, str] | None = None
 
-    def run(self, argv: list[str]) -> list[str]:
+    def run(self, query: Search) -> list[str]:
         """Return a search's output lines, run over HEAD: stdout, then stderr.
 
-        A `git grep` git refuses, a revision it cannot read among them, raises
-        `Unparsed`: it searched nothing.
+        A `git grep` reads HEAD's index, or the revision it names. One git refuses,
+        a revision it cannot read among them, raises `Unparsed`: it searched nothing.
         """
+        argv = query.argv
         if argv[0] == "grep":
             done = _spawn(argv, "grep", self.export())
+        elif query.revision is not None and self.resolves(query.revision):
+            done = _spawn(argv, "git grep", Path.cwd())
         else:
-            index = self.index() if "--cached" in argv else None
-            done = _spawn(argv, "git grep", Path.cwd(), index)
+            argv = [*argv[:2], "--cached", *argv[2:]]
+            done = _spawn(argv, "git grep", Path.cwd(), self.index())
         err = done.stderr.decode(errors="replace").splitlines()
         if argv[0] == "git" and done.returncode > 1:
             raise Unparsed(f"git grep failed: {(err or ['no message'])[0]}")
         return done.stdout.decode(errors="replace").splitlines() + err
+
+    def resolves(self, word: str) -> bool:
+        """Return whether git reads `word` as a revision, as `git grep` does."""
+        argv = ["git", "rev-parse", "--verify", "--quiet", word]
+        return _spawn(argv, "git rev-parse", Path.cwd()).returncode == 0
+
+    def outside(self, path: str) -> bool:
+        """Return whether a search's path is absolute, climbs, or leaves HEAD's tree."""
+        if PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts:
+            return True
+        tree = self.export().resolve()
+        return not (tree / path).resolve().is_relative_to(tree)
 
     def export(self) -> Path:
         """Return HEAD's tree, written out once."""
@@ -283,11 +335,11 @@ class Head:
 
 def check_command(subtask: str, command: Command, head: Head) -> bool:
     """Print a command's breaks, else its search's matches; return whether it broke."""
-    words = tokens(command.text)
-    if found := breaks(command.text, words):
+    words, shell = tokens(command.text), tokens(masked(command.text))
+    if found := breaks(command.text, shell):
         print(f"{subtask}: I19 — {' · '.join(found)}: `{command.text}`")
         return True
-    query = search(words)
+    query = search(plain(words, shell))
     if query is None:
         return False
     if query.refused:
@@ -297,8 +349,14 @@ def check_command(subtask: str, command: Command, head: Head) -> bool:
             f"`{command.text}`"
         )
         return True
+    if outside := [path for path in query.paths if head.outside(path)]:
+        print(
+            f"{subtask}: I19 — a path outside the repository: {' · '.join(outside)}: "
+            f"`{command.text}`"
+        )
+        return True
     matches = 0
-    for line in head.run(query.argv):
+    for line in head.run(query):
         if match := MATCH.fullmatch(line):
             matches += 1
             line = f"{match[1]}:{match[2]}: {match[3]}"

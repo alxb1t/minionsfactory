@@ -47,7 +47,8 @@ None.
 
 Changes `skills/mf-cut-change/SKILL.md`, `skills/mf-cut-change/scripts/verify_check.py` (new), `skills/mf-build/SKILL.md`,
 `skills/mf-converge/scripts/gate_check.py`, `docs/decisions.md` (D7, D38, D40, D46), `docs/principles.md`,
-`tests/test_verify_check.py` (new), `tests/test_gate_check.py`, `tests/test_skills.py` and `CHANGELOG.md`'s calibration record.
+`tests/test_verify_check.py` (new), `tests/test_gate_check.py`, `tests/test_skills.py`'s bundled-script list, the
+skill texts of `mf-converge` and `mf-release` on `--change`'s exits, and `CHANGELOG.md`'s calibration record.
 
 Dependencies: none. The gate recipe stays unchanged.
 

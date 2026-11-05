@@ -128,8 +128,11 @@ Build a table: each of `I1`…`I19`, met or not, with its evidence. `I1` is met 
   needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a
   premise, and should hold.
 - **Run the search script** — `uv run --script scripts/verify_check.py openspec/changes/<change-id>/tasks.md`,
-  `scripts/` resolved from this skill's package. It runs each `grep` and `git grep` check's pattern at `HEAD`, as
-  argv with no shell, and prints each match as `<sub-task>: <path>:<line>: <text>`. Exit 1, or exit 2 naming a
+  `scripts/` resolved from this skill's package. It runs each `grep` and `git grep` check's pattern over `HEAD`'s
+  tree — a `git grep` over the revision it names — as argv with no shell, and prints each match as
+  `<sub-task>: <path>:<line>: <text>`. A search takes only the options
+  `-c -e -E -F -G -h -H -i -l -L -n -o -q -r -R -s -v -w -x` and the long names the script lists, and no path that
+  is absolute, holds `..` or leaves the tree: anything else breaks `I19`. Exit 1, or exit 2 naming a
   sub-task → rewrite that check, and re-run. Exit 2 naming none, or `uv` missing → **halt**, naming it.
 - **Account for every match** — a match on a line the task does not edit is a check that already holds or counts
   wrong: rewrite it, or flag it to the human as above.
@@ -212,7 +215,7 @@ nothing there. Then suggest models, as [Suggesting models](#suggesting-models) s
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |
 | **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | Step 1, for each `after` id; reading `proposal.md` |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | `gate_check.py --tasks openspec/changes/<change-id>/tasks.md` exits 0 |
-| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd` — and an exact count only when the count is the point | `verify_check.py` in Step 8 |
+| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | `verify_check.py` in Step 8 |
 
 ## Prose rules
 

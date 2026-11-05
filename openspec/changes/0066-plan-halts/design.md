@@ -48,16 +48,17 @@ Read at `51ea75e` (v0.54.0).
 ### D1
 
 `skills/mf-cut-change/scripts/verify_check.py <tasks.md>`, a stdlib `uv run --script`. For each sub-task's `Verify:`, each backticked
-command: `$(`, a backtick inside, `for `, `while `, `cd `, a `NAME=` or `$NAME` → an `I19` break. A `grep …` or `git grep …` command is
-split with `shlex`, run as argv with `-n` added and no shell, in the repo at `HEAD` — a `git grep` at the revision it names before
-`--` — and each match printed `<sub-task>: <path>:<line>: <text>`. A search takes a fixed list of options; any other, a pager's among
-them, is a break. An exact count (`prints <n>`, `reports <n>`) on a search beside more matches than `<n>` lines is a break too. Exit 1
+command: `$(`, a backtick inside, `for `, `while `, `cd `, a `NAME=` or `$NAME` outside single quotes → an `I19` break; a quoted
+operator ends no command. A `grep …` or `git grep …` command is split with `shlex`, run as argv with `-n` added and no shell, in the
+repo at `HEAD` — a `git grep` at the revision it names, the first operand after its pattern that git resolves — and each match
+printed `<sub-task>: <path>:<line>: <text>`. A search takes a fixed list of options, and no path that is absolute, holds `..` or
+resolves outside the tree; any other option, a pager's among them, or such a path, is a break. An exact count (`prints <n>`, `reports <n>`) on a search beside more matches than `<n>` lines is a break too. Exit 1
 on a break, naming the sub-task; 0 when none; 2 when a `Verify:` cannot be parsed, or git refuses its `git grep`.
 
 ### D2
 
-`I19` — "make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd` — and an exact count only when the count is
-the point | `verify_check.py` in Step 8" — a row in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`; the diagram's
+`I19` — "make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s
+options alone and no path outside the repository — and an exact count only when the count is the point | `verify_check.py` in Step 8" — a row in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`; the diagram's
 `I1 … I18` → `I1 … I19`.
 
 ### D3
@@ -126,7 +127,8 @@ The review should doubt the task: narrowing the viewport cannot make one photogr
 `git grep -c '^def test_' main -- tests/` totals 131. Added, integration layer, no end-to-end (`T1`): `tests/test_verify_check.py`
 — the `720px`, `"stock_wait"` and `(D25)` replays printing their stray lines, `for i in $(seq 20)` exiting 1, an unparsable check
 exiting 2, no shell; in `tests/test_gate_check.py`, `test_an_edited_verify_halts`, a working-tree edit, a phase commit's edit and an
-amend's. Extended: the contract-id test with `I19`. None deleted or merged.
+amend's. The contract-id test carries `I19` unchanged. Extended: `test_the_stations_run_the_bundled_metrics_script`'s
+list with `verify_check.py`, and its scan test. None deleted or merged.
 
 ## Dependencies
 

@@ -80,6 +80,7 @@ def test_a_search_prints_the_lines_it_matches_at_head(
             "app/drawer.css": ".drawer {\n  width: 720px;\n}\n",
             "app/page.css": ".page { max-width: 720px; }\n",
             "app/states.py": 'STATES = ["ready", "stock_wait"]\n',
+            "app/schema.json": '{"$schema": "a|b"}\n',
             "docs/decisions.md": "## D24\n\nSee (D25).\n\n## D25\n",
         },
     )
@@ -113,12 +114,23 @@ def test_a_search_prints_the_lines_it_matches_at_head(
         "  Verify: `grep -n 'first' app/states.py` prints nothing.",
         # A revision before `--` is searched there, its name before each path.
         "1.4 x\n  Verify: `git grep -c 'stock_wait' HEAD -- app/` prints `1`.",
+        # A quoted `$` or operator is the pattern's, not the shell's.
+        "1.5 x\n  Verify: `grep -nF '$schema' app/schema.json` prints a line.",
+        "1.6 x\n  Verify: `grep -n '|' app/schema.json` prints a line.",
+        # A revision with no `--` after it is searched there too.
+        "1.7 x\n  Verify: `git grep -c 'stock_wait' HEAD` prints `1`.",
+        # An escaped `$` is the pattern's too.
+        "1.8 x\n  Verify: `grep -nF \\$schema app/schema.json` prints a line.",
     )
     code, out = _run(root, fits, capsys, monkeypatch)
     assert code == 0, out
     assert out.splitlines() == [
         "1.1: app/drawer.css:2:   width: 720px;",
         '1.4: HEAD:app/states.py:1: STATES = ["ready", "stock_wait"]',
+        '1.5: app/schema.json:1: {"$schema": "a|b"}',
+        '1.6: app/schema.json:1: {"$schema": "a|b"}',
+        '1.7: HEAD:app/states.py:1: STATES = ["ready", "stock_wait"]',
+        '1.8: app/schema.json:1: {"$schema": "a|b"}',
         "verify: every check is one plain command",
     ]
 
@@ -129,6 +141,10 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _repo(tmp_path / "repo", {"a.md": "x\n"})
+    # A file outside the repository, named whole or climbed to from the tree.
+    secret = tmp_path / "secret.md"
+    secret.write_text("x\n")
+    climb = "../" * 40 + str(secret).lstrip("/")
     tasks = _tasks(
         "1.1 x\n  Verify: `for i in $(seq 20); do make check; done` exits 0.",
         "1.2 x\n  Verify: `while true; do grep -n x a.md; done` prints `x`.",
@@ -140,6 +156,8 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         # An option outside the search's list may run a program: a pager, here.
         "1.7 x\n  Verify: `git grep --no-cached '--open-files-in-pager=touch pwned' "
         "-e x -- a.md` prints a line.",
+        f"1.8 x\n  Verify: `grep -n x {secret}` prints a line.",
+        f"1.9 x\n  Verify: `grep -rn x {climb}` prints a line.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
@@ -154,7 +172,9 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         "1.7: I19 — an option the search does not run: --no-cached · "
         "--open-files-in-pager=touch pwned: `git grep --no-cached "
         "'--open-files-in-pager=touch pwned' -e x -- a.md`",
-        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7",
+        f"1.8: I19 — a path outside the repository: {secret}: `grep -n x {secret}`",
+        f"1.9: I19 — a path outside the repository: {climb}: `grep -rn x {climb}`",
+        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9",
     ]
     assert not (root / "pwned").exists()
 
@@ -221,8 +241,8 @@ def test_what_cannot_run_exits_2(
     assert out.startswith("verify: cannot check — git archive failed: "), out
 
     root = _repo(tmp_path / "repo", {"a.md": "one\n"})
-    # A `git grep` git refuses ran nothing: a revision with no `--` after it.
-    tree = _tasks("1.1 x\n  Verify: `git grep -n one HEAD` prints a line.")
+    # A `git grep` git refuses ran nothing: a revision it cannot read.
+    tree = _tasks("1.1 x\n  Verify: `git grep -n one nosuch -- a.md` prints a line.")
     code, out = _run(root, tree, capsys, monkeypatch)
     assert code == 2, out
     assert out.startswith("verify: cannot check — 1.1: git grep failed: fatal: "), out

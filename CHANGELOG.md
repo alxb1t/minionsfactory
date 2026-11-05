@@ -8,18 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `skills/mf-cut-change/scripts/verify_check.py` runs each `grep` and `git grep` a `Verify:` names over HEAD's tree,
-  or the revision a `git grep` names before `--`, as argv with no shell, and prints every match as `path:line`; a
-  `$(…)`, shell variable, loop or `cd`, an option outside the search's fixed list, a pager's among them, or an exact
-  count beside more matches, exits 1, and a `git grep` git refuses exits 2, so a stray match or an unrunnable check
-  shows at the cut (change `0066-plan-halts`, phase 1).
-- Input-contract item `I19`: a `Verify:` is one plain command — no `$(…)`, shell variable, loop or `cd` — and an
-  exact count only when the count is the point, so a check runs under a worker's shell rules
-  (change `0066-plan-halts`, phase 2).
+  or the revision a `git grep` names, as argv with no shell, and prints every match as `path:line`; a `$(…)`, shell
+  variable, loop or `cd` a shell would read, not one quoted, an option outside the search's fixed list, a pager's
+  among them, a path outside the repository, or an exact count beside more matches, exits 1, and a `git grep` git
+  refuses exits 2, so a stray match or an unrunnable check shows at the cut (change `0066-plan-halts`, phase 1).
+- Input-contract item `I19`: a `Verify:` is one plain command — no `$(…)`, shell variable, loop or `cd`, and a search
+  with the script's options alone and no path outside the repository — and an exact count only when the count is the
+  point, so a check runs under a worker's shell rules (change `0066-plan-halts`, phase 2).
 - `gate_check.py --verify --change <id>` compares each `Verify:` in the working tree with the cut's, or its latest
   `docs(<id>): amend the change directory` commit's, with the decision ids an integrate merge renumbered, and halts on
-  an edit, naming it and whether it is uncommitted; `--change` runs it after its gate check, and the build runs it
-  before a phase's first check, a HUMAN phase's too, so a narrowed check never passes for the plan
-  (change `0066-plan-halts`, phase 3).
+  an edit, naming it and whether it is uncommitted; `--change` runs it after its gate check, as converge's and the
+  release's preconditions say, and the build runs it before a phase's first check, a HUMAN phase's too, so a narrowed
+  check never passes for the plan (change `0066-plan-halts`, phase 3).
 - The cut reads the target's standards, `git grep`s what a task deletes, runs `verify_check.py` in place of the gate
   and has a fresh worker review the plan before its commit; `I3` reads the checks the cut runs, so a plan the code
   cannot satisfy halts at the cut, not in the build (change `0066-plan-halts`, phase 4).
