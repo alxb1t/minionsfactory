@@ -470,6 +470,23 @@ def _recite(tree: Path, path: str, ids: dict[int, int], base: str) -> None:
         _write(tree, path, rewritten)
 
 
+def _renumber_changelog(tree: Path, ids: dict[int, int]) -> None:
+    """Renumber the `[Unreleased]` entries' citations; the released sections stay.
+
+    `CHANGELOG.md` is the `changelog` rule's output, so it is never recited.
+    Why: 0071-ship-fixes design D3.
+    """
+    target = _safe_path(tree, "CHANGELOG.md")
+    try:
+        text = target.read_text()
+    except (OSError, UnicodeDecodeError):
+        return
+    head, entries, rest = _split_changelog(text)
+    renumbered = head + _renumber(entries, ids) + rest
+    if renumbered != text:
+        _write(tree, "CHANGELOG.md", renumbered)
+
+
 def decisions(tree: Path) -> str:
     """Renumber the branch's new decisions past the default branch's, and merge."""
     base = _merge_base(tree)
@@ -490,8 +507,9 @@ def decisions(tree: Path) -> str:
     if not ids:
         return "decisions: no id collides"
     for path in _git(tree, "diff", "--name-only", base, "HEAD").splitlines():
-        if path != DECISIONS:
+        if path not in (DECISIONS, "CHANGELOG.md"):
             _recite(tree, path, ids, base)
+    _renumber_changelog(tree, ids)
     moves = ", ".join(f"D{old} → D{new}" for old, new in ids.items())
     return f"decisions: renumbered {moves}, citations with them"
 

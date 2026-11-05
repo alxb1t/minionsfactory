@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — Integrate commits, then gates
-- [ ] 2 — The changelog renumber
+- [x] 2 — The changelog renumber
 - [ ] 3 — Dependents come back
 - [ ] 4 — An amend answers a halt
 - [ ] 5 — The fixer and rescue
@@ -26,7 +26,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The changelog renumber
 
-- [ ] 2.1 Skip `CHANGELOG.md` in `decisions()`'s recite loop and renumber its `[Unreleased]` entries, in
+- [x] 2.1 Skip `CHANGELOG.md` in `decisions()`'s recite loop and renumber its `[Unreleased]` entries, in
   `skills/mf-integrate/scripts/integrate.py`, per [D3](design.md#d3); extend
   `test_decisions_renumbers_a_colliding_decision_and_its_citations` in `tests/test_integrate.py` with an `[Unreleased]` citation
   and a released one.

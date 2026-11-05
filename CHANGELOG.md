@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-integrate` commits the merge, then gates it with `gate_run.py --tree <worktree>`, so diff-cover reads the
   branch's own lines; a red gate halts with the merge committed and `.red` naming its head, which `conduct.py` reads
   as halted only while it is `HEAD` (change `0071-ship-fixes`, phase 1).
+- `integrate.py decisions` renumbers the citations in the branch's `[Unreleased]` entries and never recites
+  `CHANGELOG.md`, so a colliding decision no longer halts on the changelog's own merge (change `0071-ship-fixes`,
+  phase 2).
+- `0.59.0`'s entry calls the cap policy D54; it is D56.
 
 ## [0.59.0] - 2026-11-05
 

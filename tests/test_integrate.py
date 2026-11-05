@@ -200,7 +200,12 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     head = f"# Decisions\n\n```\n  {_MAP}\n```\n\n## Repo conventions\n"
     old = _decision(43, "Old") + _decision(44, "Older")
     root = _primary(
-        tmp_path, {"docs/decisions.md": head + old, "docs/shared.md": "## Common\n"}
+        tmp_path,
+        {
+            "docs/decisions.md": head + old,
+            "docs/shared.md": "## Common\n",
+            "CHANGELOG.md": f"{_HEAD}\n{_OLD}",
+        },
     )
     tree = _version(root, "0046-b")
     ours = head.replace("D44", "D44, D45") + old + _decision(45, "Branch")
@@ -211,19 +216,23 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
             "docs/decisions.md": ours,
             "docs/guide.md": cite,
             "docs/shared.md": "## Branch\nPer D45.\n\n## Common\n",
+            "CHANGELOG.md": f"{_HEAD}\n- D45 records the branch.\n\n{_OLD}",
         },
         "phase",
     )
     theirs = head.replace("D44", "D44, D45") + old + _decision(45, "Main")
+    released = "## [0.2.0] - 2026-02-02\n\n- D45 records main.\n"
     _commit(
         root,
         {
             "docs/decisions.md": theirs,
             "docs/shared.md": "## Common\n\n## Main\nPer D45.\n",
+            "CHANGELOG.md": f"{_HEAD}\n{released}\n{_OLD}",
         },
         "release",
     )
     _git(tree, "merge", "-q", "main", check=False)
+    assert _run(root, "changelog", str(tree)).returncode == 0
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == "docs/decisions.md"
 
     result = _run(root, "decisions", str(tree))
@@ -237,6 +246,10 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert (tree / "docs/guide.md").read_text() == guide
     assert (tree / "docs/shared.md").read_text() == (
         "## Branch\nPer D46.\n\n## Common\n\n## Main\nPer D45.\n"
+    )
+    # The branch's [Unreleased] entry is renumbered; the released one keeps its id.
+    assert (tree / "CHANGELOG.md").read_text() == (
+        f"{_HEAD}\n- D46 records the branch.\n\n{released}\n{_OLD}"
     )
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
     assert _git(tree, "diff", "--name-only") == ""
@@ -259,6 +272,10 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
         with pytest.raises(helpers["Stop"], match="unsafe path"):
             helpers["_recite"](tree, path, {45: 46}, "HEAD")
         assert external.read_text() == "Per D45.\n"
+    bare = tmp_path / "no-changelog"
+    bare.mkdir()
+    helpers["_renumber_changelog"](bare, {45: 46})
+    assert list(bare.iterdir()) == []
 
 
 def _changelog_merge(base: Path) -> tuple[Path, Path]:
