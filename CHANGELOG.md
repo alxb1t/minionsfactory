@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-11-06
+
+Gate: local 1m21s · CI not read under mf-ship · 0.64.0: local 1m27s · CI not read under mf-ship
+
 - The deferred work's file, lock, status-log event and proposal key are `.minions/debt.md`, `.minions/debt.lock`, `debt` and
   `debt:` in `conduct.py`, converge, the release and the run and review metrics; each reader still takes the old name
   (change `0079-debt-rename`, phase 1).

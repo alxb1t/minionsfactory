@@ -79,43 +79,6 @@ numbered from `P1` with no gap.
 - **THEN** the two sets are equal and non-empty
 - **AND** they run from `P1` upward with no number missing
 
-### Requirement: Converge keeps deferred work in one repository backlog
-
-`skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
-shows the defect, to one file, `.minions/backlog.md`, under a heading for its change. After both verdicts are
-clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
-sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
-round. It SHALL NOT name a per-version backlog file. It SHALL delete a backlog card only when a verified repeat of
-it was fixed and the card's **Still true?** check shows the defect gone.
-
-#### Scenario: Converge names the one backlog file and the pickup sizes
-- **WHEN** both verdicts are clean, a round remains under the cap, pickup has not run in this run, the run is not a
-  catch-up round, and open non-blocking cards are sized `one line`, `a test` or `one line and a test`, or are `drift`
-- **THEN** converge fixes exactly those cards and verifies them in a normal round
-
-#### Scenario: Converge writes the backlog
-- **WHEN** the loop ends clean with non-blocking cards still not `verified`
-- **THEN** converge writes each one whose **Still true?** check still shows the defect, and whose id is not yet in
-  the backlog, to `.minions/backlog.md` under its change's heading, and to no per-version file
-- **AND** it names each moot card, whose check shows the defect gone, in its report
-- **AND** it deletes an older card only when a verified repeat of it fixed the defect and its **Still true?**
-  check shows the defect gone
-
-### Requirement: The release does not read the backlog
-
-`skills/mf-release/SKILL.md` SHALL NOT hold a release on deferred work. It SHALL name no per-version backlog file.
-A paydown change lists the card ids it closes under the `backlog:` key of its `proposal.md` frontmatter:
-`skills/mf-cut-change/SKILL.md` SHALL write that key, and `mf-release` SHALL delete exactly those cards from
-`.minions/backlog.md` after the fold.
-
-#### Scenario: The release names no per-version backlog, and the paydown key is shared
-- **WHEN** `mf-release` runs while `.minions/backlog.md` holds open cards the change does not list
-- **THEN** it releases without reading or holding on them
-
-#### Scenario: A paydown change is released
-- **WHEN** the change's `proposal.md` lists card ids under `backlog:`
-- **THEN** `mf-release` deletes exactly those cards from `.minions/backlog.md` after the fold
-
 ### Requirement: The card is defined in converge alone
 
 `skills/mf-converge/references/worker.md`, converge's worker reference, SHALL own the card: a `## The card` section whose
@@ -194,12 +157,12 @@ text the code contradicts; `drift` SHALL NOT block. A spec scenario the code con
 
 ### Requirement: A repeated finding escalates
 
-Each station SHALL read `.minions/backlog.md`. A finding that repeats a backlog card SHALL name that card's id in its
+Each station SHALL read `.minions/debt.md`, else an old `.minions/backlog.md` a run has not moved. A finding that repeats a debt card SHALL name that card's id in its
 **Related** field as `repeat of <id>`, and SHALL go up one level: security by one step, a review `nit` or `drift` to
 `blocking`.
 
 #### Scenario: Converge names the repeat rule
-- **WHEN** a station's finding describes a defect already carded in `.minions/backlog.md`
+- **WHEN** a station's finding describes a defect already carded in `.minions/debt.md`
 - **THEN** its **Related** field names `repeat of <id>`
 - **AND** it goes up one level: security by one step, a review `nit` or `drift` to `blocking`
 
@@ -240,7 +203,7 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, the time taken from `date`. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
-`start`, `freeze`, `fan-out`, `verdicts`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `backlog`, `halt` and
+`start`, `freeze`, `fan-out`, `verdicts`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
 `done`, and a run SHALL end on `halt` or `done`. Each `verdicts` line SHALL name one role and end `executor <x> · model <m> ·
 effort <e> · tokens <n>`, the executor, model and effort from the version's models file, else the run's, and `tokens` the
 worker's figure or `unavailable`. The log SHALL NOT be a findings file: no station writes it and no
@@ -872,7 +835,7 @@ station's own report, or `unidentified`. None SHALL be guessed from a name.
 
 `skills/mf-plan/SKILL.md` SHALL read the target repository only at a named commit of its default branch, through
 `git show`, `git grep`, `git log`, `git ls-tree` and `git diff`, and SHALL read the working tree only for the
-gitignored `.minions/backlog.md`. It SHALL NOT switch, check out, stash, reset, commit, branch or edit in the target,
+gitignored `.minions/debt.md`, or an old `.minions/backlog.md` a run has not moved. It SHALL NOT switch, check out, stash, reset, commit, branch or edit in the target,
 nor run its gate or a metric collection. A helper it dispatches for facts SHALL be held to the same rule, and SHALL
 return conclusions citing `path:line` at that commit.
 
@@ -883,8 +846,8 @@ return conclusions citing `path:line` at that commit.
 
 ### Requirement: The plan station checks the line's rules before its first round
 
-Before its first round, `mf-plan` SHALL report as facts: the backlog cards whose trigger the version fires, proposed
-for `backlog:`; a recommendation to pay down first when the backlog holds more than ten open cards; whether
+Before its first round, `mf-plan` SHALL report as facts: the debt cards whose trigger the version fires, proposed
+for `debt:`; a recommendation to pay down first when the debt holds more than ten open cards; whether
 the version's bump fits the repository's rule for a patch; the decisions in force the version touches, naming any overturn; a split
 when one diff would be too large for review; re-measured facts when continuing a brief written against an older
 commit; and, when the target holds `metrics/catalogue.toml`, the metrics past their watch in the latest tracked data
@@ -949,23 +912,36 @@ switch in place.
 Every station and bundled script SHALL resolve the run directory as `.minions/` beside the primary checkout's git
 directory — `git rev-parse --path-format=absolute --git-common-dir`, its parent — from any worktree of the
 repository. `conduct.py` alone SHALL halt on that answer outside the repo it names until a run has kept that repo's URLs: a worker
-can write what steers it. Converge and the release SHALL write `.minions/backlog.md` only while holding `.minions/backlog.lock`,
+can write what steers it. Converge and the release SHALL write `.minions/debt.md` only while holding `.minions/debt.lock`,
 created with `mkdir`, halting after two minutes of waiting and naming the lock. A run holding the claim SHALL remove a
-`backlog.lock` older than ten minutes before its first worker, and log it.
+`debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
+claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
+ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
+follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT
+replace a `debt.md`.
 
 #### Scenario: A release in a linked worktree after a converge in another
 - **WHEN** converge ran in one worktree of a change and the release runs in another worktree of the same repository
 - **THEN** the release reads the same findings files, and does not read converge as skipped
 
 #### Scenario: Two converges write the backlog
-- **WHEN** a converge reaches Step 9 while another holds `.minions/backlog.lock`
+- **WHEN** a converge reaches Step 9 while another holds `.minions/debt.lock`
 - **THEN** it waits, writes once the lock is free, and removes the lock after its write
 
 #### Scenario: A dead worker left the lock
-- **WHEN** a run starts and `.minions/backlog.lock` is older than ten minutes
+- **WHEN** a run starts and `.minions/debt.lock` is older than ten minutes
 - **THEN** the run removes it and logs the removal before its first worker
 - **AND WHEN** the lock is younger
 - **THEN** the run leaves it
+
+#### Scenario: A run moves an old backlog
+- **WHEN** a run starts beside a `.minions/backlog.md` and no `.minions/debt.md`
+- **THEN** it moves the file, removes any stale `backlog.lock`, logs both, and a second start moves nothing
+- **AND WHEN** both files stand, the old file is a link, or beside it a `backlog.lock` that is a file or younger than ten
+  minutes, or a `debt.lock` younger than ten minutes
+- **THEN** the run halts, naming them, and starts no worker
+- **AND WHEN** no old file stands beside a young `backlog.lock`, or a file there
+- **THEN** the run goes on
 
 ### Requirement: The plan station checks which versions can run side by side
 
@@ -1348,9 +1324,10 @@ close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and 
 outside git and the run directory, except the claim, `origin`'s URLs, the offline base, the release ledger and a person's gate approval
 in the home folder: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
-`.minions/backlog.lock`, a release whose
+`.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
-changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, or a
+changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, an old
+`.minions/backlog.md` beside `.minions/debt.md` or a file at `.minions/backlog.lock`, or one that is a link, or a
 default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset time named.
 
 #### Scenario: A HUMAN phase halts its version
@@ -1444,16 +1421,16 @@ block its version, and an edit that leaves a running version `waiting` SHALL hal
 When the newest run of a status log ends on neither `halt` nor `done`, `conduct.py`'s stage SHALL be `converge`, whatever
 the findings files say, and `skills/mf-converge/SKILL.md` SHALL continue that run from its latest event: no new `## Run`
 heading, the round unchanged, and a pickup whose fix was never committed sent again. A run whose top line is a `halt` naming
-`.minions/backlog.lock` SHALL be continued the same way, at Step 9, when both findings files are clean at `HEAD`.
+`.minions/debt.lock`, or an older `.minions/backlog.lock`, SHALL be continued the same way, at Step 9, when both findings files are clean at `HEAD`.
 
 #### Scenario: A usage limit stops converge mid-pickup
 - **WHEN** a run's latest event is `pickup` and its findings files are clean at `HEAD`
 - **THEN** a re-run of `mf-ship` spawns converge, not the release
-- **AND** the same run sends the pickup, verifies, writes the backlog and ends on `done`, repeating no judged round
+- **AND** the same run sends the pickup, verifies, writes the debt and ends on `done`, repeating no judged round
 
 #### Scenario: A converge halted on the backlog lock
-- **WHEN** a run's top line is a `halt` naming `.minions/backlog.lock`, and both findings files are clean at `HEAD`
-- **THEN** a re-run of `mf-ship` spawns converge, which writes the backlog and ends on `done` in the same run, with no new round
+- **WHEN** a run's top line is a `halt` naming `.minions/debt.lock`, and both findings files are clean at `HEAD`
+- **THEN** a re-run of `mf-ship` spawns converge, which writes the debt and ends on `done` in the same run, with no new round
 - **AND WHEN** either findings file is not clean at `HEAD`
 - **THEN** converge halts, naming it
 
@@ -1674,7 +1651,7 @@ after the rescue's `finish` and before the run reads its outcome SHALL count as 
 left on disk for a re-run. `conduct.py` SHALL
 spend the grant when it spawns converge, with `grant=yes`. `skills/mf-converge/SKILL.md`
 SHALL open a run marked as the grant, send the open blockers to a fixer, verify one round, and on clean write the rest to
-the backlog with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
+the debt with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
 
 #### Scenario: A grant on a version not at the cap
 - **WHEN** a person grants a version at any other stage, a grant already waiting included
@@ -2103,7 +2080,7 @@ end the run, as before; a request reaches no ended run.
 
 ### Requirement: A converge halt answered by the person converges afresh
 
-Every converge `halt` line SHALL end `· head <sha>`, the `HEAD` it halted at. A converge halt other than the backlog lock's
+Every converge `halt` line SHALL end `· head <sha>`, the `HEAD` it halted at. A converge halt other than the debt lock's, or an older backlog lock's,
 SHALL be void when its head is both findings files' `head:` and `HEAD` is past it, a descendant that is not it: `conduct.py`'s
 stage SHALL be `converge`, and its converge check SHALL not read the old halt. A halt in a catch-up run whose findings files are
 both still clean, a Step 1.6 `verify: halt`, and a fix pass's `amend needed` halt SHALL also be void when `HEAD` is past its head and every commit since is the person's `docs(<id>): amend the
@@ -2514,3 +2491,40 @@ station in the same stamp to `<who>_<station>-<n>.log`, `n` from 2, so no spawn'
 #### Scenario: A converge spawned twice in a run
 - **WHEN** a version's converge is spawned, granted a round, and spawned again in the same run
 - **THEN** the run directory holds `<id>_converge.log` and `<id>_converge-2.log`
+
+### Requirement: Converge keeps deferred work in one repository debt file
+
+`skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
+shows the defect, to one file, `.minions/debt.md`, under a heading for its change. After both verdicts are
+clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
+round. It SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
+it was fixed and the card's **Still true?** check shows the defect gone.
+
+#### Scenario: Converge names the one debt file and the pickup sizes
+- **WHEN** both verdicts are clean, a round remains under the cap, pickup has not run in this run, the run is not a
+  catch-up round, and open non-blocking cards are sized `one line`, `a test` or `one line and a test`, or are `drift`
+- **THEN** converge fixes exactly those cards and verifies them in a normal round
+
+#### Scenario: Converge writes the debt
+- **WHEN** the loop ends clean with non-blocking cards still not `verified`
+- **THEN** converge writes each one whose **Still true?** check still shows the defect, and whose id is not yet in
+  the debt, to `.minions/debt.md` under its change's heading, and to no per-version file
+- **AND** it names each moot card, whose check shows the defect gone, in its report
+- **AND** it deletes an older card only when a verified repeat of it fixed the defect and its **Still true?**
+  check shows the defect gone
+
+### Requirement: The release does not read the debt
+
+`skills/mf-release/SKILL.md` SHALL NOT hold a release on deferred work. It SHALL name no per-version debt file.
+A paydown change lists the card ids it closes under the `debt:` key of its `proposal.md` frontmatter, an older proposal's `backlog:` read the same:
+`skills/mf-cut-change/SKILL.md` SHALL write that key, and `mf-release` SHALL delete exactly those cards from
+`.minions/debt.md` after the fold.
+
+#### Scenario: The release names no per-version debt, and the paydown key is shared
+- **WHEN** `mf-release` runs while `.minions/debt.md` holds open cards the change does not list
+- **THEN** it releases without reading or holding on them
+
+#### Scenario: A paydown change is released
+- **WHEN** the change's `proposal.md` lists card ids under `debt:`, or an older one's `backlog:`
+- **THEN** `mf-release` deletes exactly those cards from `.minions/debt.md` after the fold
