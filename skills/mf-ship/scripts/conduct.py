@@ -2069,6 +2069,9 @@ def argv(
             # runs at a start, outside the sandbox.
             # Why: 0052-security-hardening design D1.
             *("--setting-sources", "user"),
+            # No MCP server starts, the operator's own included.
+            # Why: 0076-context-cost design D2.
+            *("--strict-mcp-config",),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
@@ -2220,6 +2223,30 @@ def usage_limit(log: Path) -> str:
                 named = f" · resets {resets[1]}" if resets else ""
                 return f" · stopped by a usage limit{named}"
     return ""
+
+
+def mcp_started(executor: str, log: Path) -> str | None:
+    """Return why a worker's start fails the probe, or None when no MCP server started.
+
+    e.g. an `init` event's `"mcp_servers": [{"name": "runpod"}]` → "claude started an
+    MCP server: runpod". A log with no `init` event, as Codex's, passes. Why: D51.
+    """
+    names: list[str] = []
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"mcp_servers"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict) or event.get("subtype") != "init":
+                continue
+            servers = event.get("mcp_servers")
+            for server in servers if isinstance(servers, list) else [servers]:
+                name = server.get("name") if isinstance(server, dict) else server
+                names.append(str(name))
+    return f"{executor} started an MCP server: {', '.join(names)}" if names else None
 
 
 def _executor_missing(executor: str) -> bool:
@@ -3185,8 +3212,8 @@ class Run:
     def probe(self, executor: str, who: str = "run") -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
-        A failure halts `who`; a pass adds `executor` to `probed`.
-        Why: 0063-rejoin design D3.
+        Its log's `init` event lists no MCP server. A failure halts `who`; a pass adds
+        `executor` to `probed`. Why: 0063-rejoin design D3; D51.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
@@ -3217,8 +3244,12 @@ class Run:
             models = (executor, None, None)
             repo = _repo(scratch)
             denied = self.spawn(who, station, scratch, PROBE, models, repo)
+            out = self.runs / self.log.stamp / f"{who}_{station}.log"
             if denied is not None and self.judge(
-                who, station, check_probe(scratch, mark), denied
+                who,
+                station,
+                check_probe(scratch, mark) or mcp_started(executor, out),
+                denied,
             ):
                 self.probed.add(executor)
         finally:

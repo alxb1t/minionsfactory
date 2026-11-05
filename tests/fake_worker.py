@@ -256,6 +256,13 @@ def _fake(prompt: str) -> None:
     common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
     primary = Path(common).parent
     if station == "probe":
+        if "mcp" in modes:
+            servers = [
+                {"name": "runpod", "status": "connected", "source": "user"},
+                {"name": "claude.ai Claude Docs", "status": "connected"},
+            ]
+            init = {"type": "system", "subtype": "init", "mcp_servers": servers}
+            print(json.dumps(init))
         sandboxed = "unsandboxed" not in modes
         # The sandbox's stand-in: a read-only mark refuses the gate's write out.
         if sandboxed:

@@ -1,0 +1,52 @@
+{
+  "change": "0076-context-cost",
+  "version": "v0.62",
+  "base": "6647909",
+  "analyzed": "5c89d46",
+  "measured_on": "local",
+  "collected_at": "2026-11-05T18:55:52+02:00",
+  "mf_version": "v0.61.0",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 17605
+    },
+    "converge-worker-reading-set": {
+      "value": 13783
+    },
+    "shared-context": {
+      "value": 8964
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 165
+    },
+    "gate-seconds": {
+      "value": 126
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 68
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 22
+    }
+  }
+}

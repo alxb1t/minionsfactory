@@ -263,9 +263,9 @@ station says so.**
 
 ### D50 · Review metrics are read across repos and drawn on one page
 
-**`mf-review-metrics` reads the findings files and status logs of the repos the operator's config names, leniently —
-every unreadable field a gap — and writes one self-contained page: tables per repo and per model, charts over
-changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
+**`mf-review-metrics` reads the findings files, status logs and run logs of the repos the operator's config names,
+leniently — every unreadable field a gap — and writes one self-contained page: tables per repo and per model, charts
+over changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
@@ -510,8 +510,9 @@ hostile repo needs a container.**
   written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
   no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
-  worker · a domain `Ship network:` lists · a release forged on a head before that head lands
-  on `origin`.
+  worker · a Claude worker starts no MCP server, the operator's own included · a Codex worker starts the operator's
+  `mcp_servers`, until a change sets them empty · a domain `Ship network:` lists · a release forged on a head before that
+  head lands on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service.
 

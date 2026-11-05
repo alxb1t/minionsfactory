@@ -4978,6 +4978,9 @@ def test_a_claude_worker_starts_in_the_sandbox(
     # A project's settings and `.mcp.json` are worker-written, and run at a start.
     command = conduct["argv"]("claude", "Do it.", root, None, None, repo)
     assert command[command.index("--setting-sources") + 1] == "user"
+    # No MCP server starts, the operator's own included.
+    assert command.index("--strict-mcp-config") < command.index("--allowedTools")
+    assert "--mcp-config" not in command
 
     # The conductor's uv environment is not the worker's `.venv`.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
@@ -5064,6 +5067,25 @@ def test_a_probe_halts_on_a_write_out(
     arch.write_text("i386\n")
     os.link(arch, scratch / "twin")
     assert conduct["check_probe"](scratch, None) == unreadable
+
+    # A Claude worker's `init` event lists every MCP server it started.
+    calls.unlink()
+    fake("mcp")
+    assert run() == 1
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(
+            " · run · halt — probe check fail — claude started an MCP server:"
+            " runpod, claude.ai Claude Docs"
+        )
+        for line in _log(root)
+    )
+    none = {"type": "system", "subtype": "init", "mcp_servers": []}
+    other = {"type": "user", "mcp_servers": ["named in a tool result"]}
+    planted = tmp_path / "init.log"
+    cut = '{"mcp_servers": [cut\n{"type": "assistant"}\n'
+    planted.write_text(cut + f"{json.dumps(other)}\n{json.dumps(none)}\n")
+    assert conduct["mcp_started"]("claude", planted) is None
 
     # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()
