@@ -309,20 +309,31 @@ class Head:
         argv = ["git", "rev-parse", "--verify", "--quiet", word]
         return _spawn(argv, "git rev-parse", Path.cwd()).returncode == 0
 
-    def outside(self, path: str) -> bool:
-        """Return whether a search's path is absolute, climbs, or leaves HEAD's tree."""
+    def outside(self, path: str, git: bool) -> bool:
+        """Return whether a search's path is absolute, climbs, or leaves HEAD's tree.
+
+        `git` marks a `git grep`'s path: git refuses one out of the tree, so no export
+        runs. Why: 0074-lighter-cut design D6.
+        """
         if PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts:
             return True
+        if git:
+            return False
         tree = self.export().resolve()
         return not (tree / path).resolve().is_relative_to(tree)
 
     def export(self) -> Path:
-        """Return HEAD's tree, written out once."""
+        """Return HEAD's tree, written out once; a link out of it raises `Unparsed`."""
         if self.tree is None:
             archive = _git(["archive", "--format=tar", "HEAD"], "git archive")
             self.tree = self.scratch / "tree"
             with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-                tar.extractall(self.tree, filter="data")
+                try:
+                    tar.extractall(self.tree, filter="data")
+                except tarfile.TarError as error:
+                    raise Unparsed(
+                        f"HEAD's tree holds a link out of it: {error}"
+                    ) from None
         return self.tree
 
     def index(self) -> dict[str, str]:
@@ -349,7 +360,8 @@ def check_command(subtask: str, command: Command, head: Head) -> bool:
             f"`{command.text}`"
         )
         return True
-    if outside := [path for path in query.paths if head.outside(path)]:
+    git = query.argv[0] == "git"
+    if outside := [path for path in query.paths if head.outside(path, git)]:
         print(
             f"{subtask}: I19 — a path outside the repository: {' · '.join(outside)}: "
             f"`{command.text}`"

@@ -247,6 +247,25 @@ def test_what_cannot_run_exits_2(
     assert code == 2, out
     assert out.startswith("verify: cannot check — 1.1: git grep failed: fatal: "), out
 
+    # A tree tracking a link out of it: a `git grep` judges its paths with no export,
+    # and a `grep`, whose paths need one, cannot be judged.
+    linked = _repo(tmp_path / "linked", {"a.md": "one\n"})
+    (linked / "link").symlink_to("/usr/share")
+    _git(linked, "add", "link")
+    _git(linked, "commit", "-q", "-m", "link")
+    tracked = _tasks("1.1 x\n  Verify: `git grep -n one -- a.md` prints a line.")
+    code, out = _run(linked, tracked, capsys, monkeypatch)
+    assert (code, out.splitlines()) == (
+        0,
+        ["1.1: a.md:1: one", "verify: every check is one plain command"],
+    )
+    code, out = _run(linked, search, capsys, monkeypatch)
+    assert code == 2, out
+    assert out.startswith(
+        "verify: cannot check — 1.1: HEAD's tree holds a link out of it: "
+    ), out
+    assert "'link'" in out, out
+
     def missing(*_: object, **__: object) -> None:
         raise FileNotFoundError
 

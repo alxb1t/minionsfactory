@@ -24,6 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   diagnoses a converge `verify: halt` itself, with no rescue worker, and a rescue proposal names the command the run
   takes back. D45, D47 and D53 record it (change `0071-ship-fixes`, phase 5).
 
+## [0.60.0] - 2026-11-05
+
+Gate: local 2m32s · CI not read under mf-ship · 0.59.1: local 2m33s · CI not read under mf-ship
+
+- `mf-plan`'s brief carries `At <sha>, <YYYY-MM-DD>.` below its bold line, rewritten at every write, so the cut knows the
+  commit the facts were read at (change `0074-lighter-cut`, phase 1).
+
+- `mf-cut-change` re-checks only the brief's moved facts — those whose cited paths
+  `git diff --name-only <sha>..HEAD --no-renames` prints, a renamed file's old path included, or that cite none — read
+  by up to four parallel read-only helpers, five minutes each (change `0074-lighter-cut`, phase 2).
+
+- The cut's plan reviewer reads only the "after" of the searches `verify_check.py` ran, and Step 9 names `tasks.md` for
+  the `Verify:` lines and quotes only the matches; D7 and D40 name the helpers (change `0074-lighter-cut`, phase 3).
+
+- `verify_check.py` judges a `git grep`'s paths without exporting `HEAD`, and a `grep` over a tree holding a link out of
+  it exits 2 naming the sub-task, where it crashed (change `0074-lighter-cut`, phase 4, closes `0066·R12`).
+
 ## [0.59.1] - 2026-11-05
 
 Gate: local 2m33s · CI not read under mf-ship · 0.59.0: local 2m26s · CI not read under mf-ship
