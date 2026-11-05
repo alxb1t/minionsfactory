@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D54
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56
 ```
 
 ## The shape
@@ -472,7 +472,7 @@ run, a default-branch commit or version tag no release made, a claimed group it 
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
 step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
 person once a rescue, where one runs, has left it halted. A converge cap of small cards is the run's to grant, never
-past a granted round, and a `re-plan` halt needs the person ([D54](#d54--the-cap-policy)).**
+past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap-policy)).**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
@@ -511,7 +511,7 @@ hostile repo needs a container.**
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
-**On a build check halt, a converge cap the run does not grant ([D54](#d54--the-cap-policy)) or an integrate halt,
+**On a build check halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
 `conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
 on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
@@ -535,7 +535,24 @@ release get none: they need the person.**
   that changes a decision · counting only what a rescue did in the tree as its answer — a grant it writes would take the
   version back.
 
-### D54 · The cap policy
+### D55 · One pinned MF release per machine
+
+**`make install-skills` exports a release's `skills/` tree into `$XDG_DATA_HOME/minionsfactory/<tag>/`, with a `VERSION`,
+and links every `mf-*` on `~/.claude/skills` and `~/.agents/skills` into it; bare, it takes the newest tag the kept `origin`
+holds, from a scratch clone, and `TAG=<tag>` or `TAG=live` holds the links. Each conductor marks itself live in
+`~/.mf-ship-origin/live/`, an install under a live run writes `pending`, and the links move only at the last live run's
+end or at an install with none live, to the pending release or a newer tag `origin` holds. Every tree is kept.**
+
+- **Why:** links into the live checkout let every MF release change the skills another repo's workers read mid-run. A
+  conductor already loaded would read new skills with old code, so no link moves at a run's start. A scratch clone shares
+  no object with the primary, so nothing planted there reaches the export.
+- **Accepts:** a station run by hand leaves no live mark, so the links can move under it · a `TAG=<tag>` install trusts
+  the checkout · a tag only the local repo holds is skipped, and the `start` line names it · after a reboot or a killed
+  run, a pending release waits for the next run's end or install.
+- **Rejected:** a Python package or a plugin · `SKILLS_DIR`, which names one host · a waiter process · a move at a run's
+  start · an `After release:` command · a pin per project.
+
+### D56 · The cap policy
 
 **At a converge cap, `conduct.py` reads the open blocking cards — review's `blocking`, security's `critical` and `high`
 — and their fix sizes; when each is `one line`, `a test` or `one line and a test`, the run spawns converge with

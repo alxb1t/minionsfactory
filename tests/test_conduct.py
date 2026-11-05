@@ -2704,6 +2704,48 @@ def test_a_run_without_betterleaks_stops_at_start(
     assert not (root / ".minions" / "runs").exists()
 
 
+def test_a_run_holds_the_machine_awake(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    folder = tmp_path / "caffeinate-bin"
+    folder.mkdir()
+    argv = tmp_path / "caffeinate-argv.txt"
+    tool = folder / "caffeinate"
+    tool.write_text(f'#!/bin/sh\necho "$@" >> {shlex.quote(str(argv))}\n')
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+
+    assert conduct["_hold_awake"](4242) == "awake: held"
+    deadline = time.monotonic() + 10
+    while not (argv.is_file() and argv.read_text()) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert argv.read_text() == "-is -w 4242\n"
+
+    conduct["_hold_awake"].__globals__["CAFFEINATE"] = "caffeinate-absent"
+    assert conduct["_hold_awake"](4242) == "awake: not held — caffeinate not on PATH"
+    assert argv.read_text() == "-is -w 4242\n"
+
+    # A run's `start` line ends with the field, after the release, and the run goes on
+    # without the tool.
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept.mkdir()
+    (kept / "pending").write_text("v9.9.9\n")
+    for name, field in (
+        ("caffeinate", "awake: held"),
+        ("caffeinate-absent", "awake: not held — caffeinate not on PATH"),
+    ):
+        conduct["_hold_awake"].__globals__["CAFFEINATE"] = name
+        conductor = conduct["Run"](root, "claude")
+        assert conductor.ship() == 0
+        lines = conductor.log.path.read_text().splitlines()[2:]
+        assert " · run · start — " in lines[0]
+        assert lines[0].endswith(f" · pending v9.9.9 · {field}")
+        assert lines[-1].endswith(" · run · done — nothing to ship")
+
+
 @pytest.mark.slow
 def test_a_forged_release_is_not_pushed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -4254,6 +4296,124 @@ def test_a_missing_skill_stops_a_run(
             " make install-skills",
         )
     ]
+
+    (home / conduct["SKILLS"]["claude"] / "mf-ship").symlink_to(
+        _REPO / "skills/mf-ship"
+    )
+    other = tmp_path / "other" / "skills" / "mf-build"
+    (home / conduct["SKILLS"]["codex"] / "mf-build").symlink_to(other)
+    with pytest.raises(conduct["Stop"]) as stop:
+        conduct["_unlinked"]("claude")
+    assert str(stop.value) == (
+        "run: cannot run — the mf-* links point into more than one tree:"
+        " ~/.agents/skills/mf-build; make install-skills"
+    )
+
+
+def test_a_run_marks_itself_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    mark = Path.home() / ".mf-ship-origin" / "live" / conduct["_digest"](root)
+    seen: list[str | None] = []
+
+    def ship(self: object) -> int:
+        seen.append(mark.read_text() if mark.is_file() else None)
+        return 0
+
+    conduct["Run"].ship = ship
+
+    def run() -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 0
+        )
+
+    run()
+    assert seen == [f"{os.getpid()}\n"]
+    assert not mark.exists()
+
+    (root / "stray.txt").write_text("")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert not mark.exists()
+    (root / "stray.txt").unlink()
+
+    claim = conduct["_claim"]
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    conduct["run"].__globals__["_claim"] = lambda path: "none"
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 2
+    )
+    assert not mark.exists()
+    conduct["run"].__globals__["_claim"] = claim
+    active.rmdir()
+
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        mark.write_text(f"{other.pid}\n")
+        run()
+        assert seen[-1] == f"{other.pid}\n"
+        assert mark.read_text() == f"{other.pid}\n"
+    finally:
+        other.kill()
+        other.wait()
+
+    shutil.rmtree(mark.parent.parent)
+    mark.parent.parent.write_text("")
+    run()
+    assert seen[-1] is None
+
+
+def test_the_last_run_moves_the_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    pin = runpy.run_path(str(_SCRIPT.with_name("pin.py")))
+    root = _primary(tmp_path)
+    mf = tmp_path / "mf"
+    mf.mkdir()
+    _git(mf, "init", "-q", "-b", "main")
+    _commit(mf, {"skills/mf-build/SKILL.md": "1\n"}, "v1")
+    _git(mf, "tag", "v0.1.0")
+    _commit(mf, {"skills/mf-build/SKILL.md": "2\n"}, "v2")
+    _git(mf, "tag", "v0.2.0")
+    data = Path(os.environ["XDG_DATA_HOME"]) / "minionsfactory"
+    links = [Path.home() / folder / "mf-build" for folder in conduct["SKILLS"].values()]
+    assert pin["install"](mf, "v0.1.0") == "pin: linked v0.1.0"
+    other = Path.home() / ".mf-ship-origin" / "live" / "other"
+    other.parent.mkdir()
+    other.write_text(f"{os.getpid()}\n")
+    assert pin["install"](mf, "v0.2.0") == "pin: pending v0.2.0 — a run is live"
+
+    def run() -> list[str]:
+        capsys.readouterr()
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == 0
+        )
+        return capsys.readouterr().out.splitlines()
+
+    assert run()[1:] == []
+    assert _log(root)[0].endswith(" · versions none · mf v0.1.0 · pending v0.2.0")
+    assert [os.readlink(link) for link in links] == [
+        str(data / "v0.1.0" / "skills" / "mf-build")
+    ] * 2
+
+    other.unlink()
+    assert run()[1:] == ["pin: moved to v0.2.0"]
+    assert [os.readlink(link) for link in links] == [
+        str(data / "v0.2.0" / "skills" / "mf-build")
+    ] * 2
+    assert not (Path.home() / ".mf-ship-origin" / "pending").exists()
 
 
 def test_a_stale_claim_is_cleared(

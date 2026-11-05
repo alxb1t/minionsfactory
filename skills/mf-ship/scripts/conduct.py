@@ -40,7 +40,7 @@ import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -52,6 +52,7 @@ LOCK_SECONDS = 30
 LOCK_STALE = 600
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
+PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
@@ -89,6 +90,7 @@ CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 SCANNER = "betterleaks"
+CAFFEINATE = "caffeinate"
 LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
@@ -2120,6 +2122,24 @@ def _executor_missing(executor: str) -> bool:
     return not os.environ.get("MF_SHIP_AGENT") and shutil.which(executor) is None
 
 
+def _hold_awake(pid: int) -> str:
+    """Hold the machine awake until `pid` exits; return the `start` line's field.
+
+    e.g. `awake: held`. Why: 0069-caffeinate design D1.
+    """
+    found = shutil.which(CAFFEINATE)
+    if found is None:
+        return "awake: not held — caffeinate not on PATH"
+    subprocess.Popen(
+        [found, "-is", "-w", str(pid)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return "awake: held"
+
+
 def _ps(pid: int, field: str) -> str:
     """Return the `ps` field for `pid`, or "" when it cannot.
 
@@ -2219,19 +2239,58 @@ def _clear(active: Path) -> None:
     shutil.rmtree(active)
 
 
+def _pin() -> dict[str, Any]:
+    """Return `pin.py`'s namespace: the live marks, the links, the quiet move."""
+    return runpy.run_path(str(PIN))
+
+
+def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
+    """Write this run's live mark, holding its pid; return it, or None if not written.
+
+    A mark another live run holds stays: the parent that detached this run is not
+    another. Where the home folder refuses it, none is written.
+    Why: 0068-pinned-release design D2.
+    """
+    mark = Path.home() / KEPT_ORIGINS / "live" / _digest(primary)
+    if pin["holder"](mark) not in (None, os.getpid(), os.getppid()):
+        return None
+    try:
+        mark.parent.parent.mkdir(mode=0o700, exist_ok=True)
+        mark.parent.mkdir(mode=0o700, exist_ok=True)
+        mark.write_text(f"{os.getpid()}\n")
+    except OSError:
+        return None
+    return mark
+
+
+def _unmark(pin: dict[str, Any], mark: Path | None) -> None:
+    """Remove this run's live mark, when it still holds this run's pid."""
+    if mark and pin["holder"](mark) == os.getpid():
+        mark.unlink()
+
+
 def _unlinked(executor: str) -> None:
     """Stop with 2 when a skill beside this one is not linked where `executor` looks.
 
-    A fake worker loads no skill.
+    Every `mf-*` link on both hosts must point into the tree beside this one. A fake
+    worker loads no skill. Why: 0068-pinned-release design D5.
     """
     if os.environ.get("MF_SHIP_AGENT"):
         return
+    here = Path(__file__).resolve().parents[1].parent
     linked = Path.home() / SKILLS[executor]
-    for skill in sorted(Path(__file__).resolve().parents[1].parent.glob("mf-*")):
+    for skill in sorted(here.glob("mf-*")):
         if skill.is_dir() and not (linked / skill.name).exists():
             raise Stop(
                 2, f"run: cannot run — {skill.name} is not linked; make install-skills"
             )
+    trees = _pin()["trees"]().items()
+    if astray := [link for tree, links in trees if tree != here for link in links]:
+        raise Stop(
+            2,
+            "run: cannot run — the mf-* links point into more than one tree:"
+            f" {', '.join(astray)}; make install-skills",
+        )
 
 
 def preconditions(cwd: Path, executor: str) -> Path:
@@ -3069,11 +3128,15 @@ class Run:
         # A worker may link the folder elsewhere: a link lists nothing.
         standing = _entries(self.primary / ".minions" / "grants", empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
+        release = _pin()["describe"]()
+        awake = (
+            "" if os.environ.get("MF_SHIP_AGENT") else f" · {_hold_awake(os.getpid())}"
+        )
         self.log.event(
             "run",
             "start",
             f"executor {self.executor} · permissions: sandbox{worker}"
-            f" · versions {names}{grants}{down}",
+            f" · versions {names}{grants}{down}{release}{awake}",
         )
         for event in held:
             self.log.event(*event)
@@ -3139,15 +3202,23 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
 
     A stale claim is cleared before the detach, so what stops that reaches the caller.
+    The live mark comes first, and a stop before the claim removes it; the last run to
+    end moves the links before it goes. Why: 0068-pinned-release design D2 and D3.
     """
-    primary = preconditions(cwd, executor)
-    if not (started := _ps(os.getpid(), "lstart=")):
-        raise Stop(2, "run: cannot run — ps cannot read this run's start time")
-    runs = primary / ".minions" / "runs"
-    runs.mkdir(parents=True, exist_ok=True)
-    active = runs / "active"
-    if _claim(active) == "stale":
-        _clear(active)
+    pin = _pin()
+    mark = _mark_live(pin, primary_of(cwd))
+    try:
+        primary = preconditions(cwd, executor)
+        if not (started := _ps(os.getpid(), "lstart=")):
+            raise Stop(2, "run: cannot run — ps cannot read this run's start time")
+        runs = primary / ".minions" / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        active = runs / "active"
+        if _claim(active) == "stale":
+            _clear(active)
+    except Stop:
+        _unmark(pin, mark)
+        raise
     if detach:
         with (runs / "detached.log").open("a") as sink:
             child = subprocess.Popen(
@@ -3164,6 +3235,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         active.mkdir()
     except FileExistsError:
+        _unmark(pin, mark)
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
@@ -3180,7 +3252,12 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code
     finally:
-        shutil.rmtree(active)
+        try:
+            if moved := pin["move"](mark):
+                print(moved)
+        finally:
+            _unmark(pin, mark)
+            shutil.rmtree(active)
 
 
 def stop_run(cwd: Path) -> str:

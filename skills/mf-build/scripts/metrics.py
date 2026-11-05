@@ -246,7 +246,7 @@ def _derived(root: Path, change: str, base: str, head: str) -> dict[str, Value]:
 
 
 def mf_version(package: Path) -> str:
-    """Return `git describe` of the MF checkout holding `package`, else `unknown`.
+    """Return `git describe` of the MF checkout holding `package`, else its release.
 
     A checkout that tracks the collector anywhere but `MF_PATH` is not MF's.
     """
@@ -258,7 +258,7 @@ def mf_version(package: Path) -> str:
             text=True,
         )
         if tracked.returncode != 0 or tracked.stdout.strip() != MF_PATH.as_posix():
-            return "unknown"
+            return _installed(package)
         done = subprocess.run(
             ["git", "describe", "--tags", "--always", "--dirty"],
             cwd=package,
@@ -266,8 +266,18 @@ def mf_version(package: Path) -> str:
             text=True,
         )
     except OSError:
-        return "unknown"
+        return _installed(package)
     return (done.returncode == 0 and done.stdout.strip()) or "unknown"
+
+
+def _installed(package: Path) -> str:
+    """Return the `VERSION` at the root of the release tree holding `package`.
+
+    No such file is `unknown`. e.g. `<data>/v0.56.0/skills/mf-build/scripts` →
+    "v0.56.0". Why: 0068-pinned-release design D4.
+    """
+    version = package.parents[2] / "VERSION"
+    return (version.is_file() and version.read_text().strip()) or "unknown"
 
 
 def _write(root: Path, out: Path, text: str) -> None:

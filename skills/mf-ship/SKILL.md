@@ -72,6 +72,9 @@ Every one holds, or **halt** naming the one that failed:
    `brew install betterleaks`; `conduct.py run` stops on it too, with no worker.
 5. **The executor**, from runtime evidence: Claude Code → `claude`; Codex → `codex`; any other → **halt**, naming
    it. Model, provider and editor names do not identify it.
+6. **The pin:** every `mf-*` on `~/.claude/skills` and `~/.agents/skills` links into one release, which
+   `make install-skills`, run in MF's checkout, installs. `conduct.py run` stops on a missing or mixed link, naming
+   `make install-skills`, with no worker; its `start` line names the release it runs on.
 
 ## Step 2 — State
 
@@ -102,7 +105,7 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
 out refused. `conduct.py` holds the push, and scans each push range for secrets first.
-Converge runs MF's method.
+Converge runs MF's method. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop
 
