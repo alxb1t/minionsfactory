@@ -106,9 +106,9 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    open.
 3. **Resolve what both sides add.** For each path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    compare the base with each side. A hunk is **additive** when the union keeps every line, list item or sentence
-   each side added and every one each side removed, and changes nothing else. Resolve it to the union, write it to
-   `.minions/integrate/<change-id>.resolved` in item 5's `### <path>` form unless the file holds it already, and
-   stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent and
+   each side added and every one each side removed, and changes nothing else, and is none of item 4's cases.
+   Resolve it to the union, write it to `.minions/integrate/<change-id>.resolved` in item 5's `### <path>` form
+   unless the file holds it already, and stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent and
    removes or loosens no assertion; a fix that would is a semantic conflict, and Step 4.3 names each test fixed. A
    path with a hunk that is not additive stays unmerged. The note and the commit body read the hunks from that file,
    which only Step 4.5 deletes.
@@ -141,7 +141,8 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
 
    The default branch's change is the `Change:` trailer of the commits
    `git log <merge-base>..MERGE_HEAD -- <path>` lists; its design is `openspec/changes/archive/<id>/design.md`.
-   The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths, then /mf-integrate <change-id>`.
+   The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths; a union you change:
+   edit or drop its ### <path> in .minions/integrate/<change-id>.resolved, then /mf-integrate <change-id>`.
 
 ## Step 4 — Commit and gate
 
@@ -190,7 +191,8 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
 
 Your sentences: the version and its merge commit, each rule's printed line, and the gate's exit code. The last
 line: `Next: /mf-converge, then /mf-release`; converge's catch-up round replays the merge by the rules, or judges
-it by its remerge-diff. A version with an unticked phase, a cut-only branch merged before its build, ends `Next: /mf-ship, in the primary.`
+it by its remerge-diff. A version with an unticked phase,
+a cut-only branch merged before its build, or a started one behind a gate change, ends `Next: /mf-ship, in the primary.`
 
 ## Never
 

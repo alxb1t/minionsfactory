@@ -699,6 +699,80 @@ def test_a_ready_version_ships_past_a_slow_one(
         run.log.path.read_text()
     )
 
+    # A config that changed, or that git would run a program from, keeps the tree.
+    held = _version(root, "0005-config", "- [ ] 1 — Config\n")
+    kept = conduct["Version"]("0005-config", held)
+    _git(root, "config", "alias.planted", "!true")
+    run.remove_tree(kept)
+    assert held.is_dir()
+    assert (
+        f" · 0005-config · kept — {held}: the local git config changed during the"
+        " run: .git/config differs\n"
+    ) in run.log.path.read_text()
+    fresh = conduct["Run"](root, "claude")
+    fresh.remove_tree(kept)
+    assert held.is_dir()
+    assert (
+        f" · 0005-config · kept — {held}: conduct: halt — the repo's git config holds a"
+        " key that could name a program: alias.planted;"
+    ) in fresh.log.path.read_text()
+    _git(root, "config", "--unset", "alias.planted")
+    clean = conduct["Run"](root, "claude")
+
+    # A link at the cut's path keeps the tree it resolves to.
+    moved = tmp_path / "moved-0006-linked"
+    _git(root, "worktree", "move", str(_version(root, "0006-linked", "")), str(moved))
+    (root.parent / "0006-linked").symlink_to(moved)
+    clean.remove_tree(conduct["Version"]("0006-linked", moved))
+    assert moved.is_dir()
+    assert (
+        f" · 0006-linked · kept — {moved}: a link at the cut's path\n"
+    ) in clean.log.path.read_text()
+
+    # A tree git refuses to remove stays, its untracked file with it.
+    dirty = _version(root, "0007-dirty", "- [ ] 1 — Dirty\n")
+    (dirty / "notes.txt").write_text("x\n")
+    clean.remove_tree(conduct["Version"]("0007-dirty", dirty))
+    assert (dirty / "notes.txt").is_file()
+    assert f" · 0007-dirty · kept — {dirty}: fatal: " in clean.log.path.read_text()
+
+    # A link swapped in at the cut's path while the listing runs keeps the tree.
+    swap = _version(root, "0008-swapped", "- [ ] 1 — Swapped\n")
+    aside = tmp_path / "aside-0008-swapped"
+
+    def swapping(cwd: Path, *args: str) -> str | None:
+        paths = real(cwd, *args)
+        if args[0] == "ls-files":
+            _git(root, "worktree", "move", str(swap), str(aside))
+            swap.symlink_to(aside)
+        return paths
+
+    monkeypatch.setitem(found, "_maybe", swapping)
+    clean.remove_tree(conduct["Version"]("0008-swapped", swap))
+    monkeypatch.setitem(found, "_maybe", real)
+    assert aside.is_dir()
+    assert (
+        f" · 0008-swapped · kept — {swap}: a link at the cut's path\n"
+    ) in clean.log.path.read_text()
+
+    # A filter planted while the listing runs keeps the tree.
+    planted = _version(root, "0009-planted", "- [ ] 1 — Planted\n")
+
+    def planting(cwd: Path, *args: str) -> str | None:
+        paths = real(cwd, *args)
+        if args[0] == "ls-files":
+            _git(root, "config", "filter.planted.clean", "true")
+        return paths
+
+    monkeypatch.setitem(found, "_maybe", planting)
+    clean.remove_tree(conduct["Version"]("0009-planted", planted))
+    monkeypatch.setitem(found, "_maybe", real)
+    assert planted.is_dir()
+    assert (
+        f" · 0009-planted · kept — {planted}: the local git config changed during the"
+        " run: .git/config differs\n"
+    ) in clean.log.path.read_text()
+
 
 @pytest.mark.slow
 def test_after_waits_for_its_dependency(
@@ -4968,6 +5042,28 @@ def test_a_probe_halts_on_a_write_out(
         " · run · halt — probe check fail — claude's shell runs as i386 on a"
         f" {native} host\n"
     ) in log
+
+    # `.arch` is read before `probe.txt`, never through a link, named only as a shell.
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / ".gated").write_text("")
+    arch = scratch / ".arch"
+    arch.write_text("i386\n")
+    assert (
+        conduct["check_probe"](scratch, None)
+        == f"the worker's shell runs as i386 on a {native} host"
+    )
+    unreadable = f"the worker's shell runs an unreadable .arch on a {native} host"
+    arch.write_text("not an architecture\n")
+    assert conduct["check_probe"](scratch, None) == unreadable
+    arch.unlink()
+    (scratch / "target").write_text("i386\n")
+    arch.symlink_to(scratch / "target")
+    assert conduct["check_probe"](scratch, None) == unreadable
+    arch.unlink()
+    arch.write_text("i386\n")
+    os.link(arch, scratch / "twin")
+    assert conduct["check_probe"](scratch, None) == unreadable
 
     # Twin: a sandbox refuses the write, the shell runs native, and the run ships.
     calls.unlink()

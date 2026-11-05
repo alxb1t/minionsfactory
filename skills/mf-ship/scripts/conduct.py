@@ -1631,6 +1631,21 @@ def probe_gate(mark: Path, native: str) -> str:
     )
 
 
+def _read_arch(arch: Path) -> tuple[str, int] | None:
+    """Return the first 64 bytes of `arch` and its link count, or None for a link.
+
+    The scratch folder is worker-written. e.g. `.arch` holding "i386" → ("i386", 1)
+    Why: 0072-paydown design D1.
+    """
+    try:
+        fd = os.open(arch, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    with os.fdopen(fd, "rb") as handle:
+        text = handle.read(64).decode(errors="replace").strip()
+        return text, os.fstat(handle.fileno()).st_nlink
+
+
 def check_probe(scratch: Path, mark: Path | None) -> str | None:
     """Return why the probe check fails, or None; the scratch gate leaves `.gated`.
 
@@ -1640,6 +1655,14 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     executor = mark.name.split("-")[1] if mark is not None else "the worker"
     if mark is not None and (not mark.is_file() or mark.stat().st_size):
         return f"{executor} wrote outside its reach: it runs unsandboxed"
+    arch = scratch / ".arch"
+    if arch.is_symlink() or arch.is_file():
+        native = _native()
+        shell, links = _read_arch(arch) or ("", 0)
+        if shell != native:
+            if links == 1 and re.fullmatch(r"[A-Za-z0-9_]{1,16}", shell):
+                return f"{executor}'s shell runs as {shell} on a {native} host"
+            return f"{executor}'s shell runs an unreadable .arch on a {native} host"
     held = _show(scratch, "HEAD", "probe.txt")
     if held is None:
         return "HEAD holds no probe.txt"
@@ -1647,9 +1670,6 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
         return f"probe.txt reads {held.strip()!r}"
     if (scratch / ".gated").is_file():
         return None
-    arch, native = scratch / ".arch", _native()
-    if arch.is_file() and (shell := arch.read_text().strip()) != native:
-        return f"{executor}'s shell runs as {shell} on a {native} host"
     return "make gate left no .gated"
 
 
@@ -2817,24 +2837,49 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
+    def _keeps(self, tree: Path, change: str) -> str | None:
+        """Return why `remove_tree` keeps `tree`, or None to remove it.
+
+        A changed or refused config, a link at the cut's path, or another path keeps
+        it. e.g. a link at the cut's path → "a link at the cut's path"
+        Why: 0072-paydown design D2.
+        """
+        try:
+            if changed := _config_changed(self.primary, self.git_state):
+                raise changed
+            _refuse_config_commands(tree)
+        except Stop as stop:
+            return str(stop)
+        if (self.worktrees / change).is_symlink():
+            return "a link at the cut's path"
+        if tree != self.worktrees.resolve() / change:
+            return "not at the cut's path"
+        return None
+
     def remove_tree(self, version: Version) -> None:
         """Remove a released version's worktree at the cut's path; else log it kept.
 
         The branch stays. A worker can write the worktree entry, so its path is checked
         against `Worktrees:`, read before the first worker. The removal deletes the
         tree's ignored paths, so they are listed first and logged; a failed listing
-        keeps the tree. Why: 0057-run-fixes design D3.
+        keeps the tree. A changed or refused config and a link at the cut's path keep it
+        too, checked before the listing and again after it, which a worker can
+        lengthen, so only the gap before git's own call is left.
+        Why: 0057-run-fixes design D3; 0072-paydown design D2.
         """
         tree, change = version.tree, version.change
         if tree is None:
             return
-        if tree.resolve() != (self.worktrees / change).resolve():
-            self.log.event(change, "kept", f"{tree}: not at the cut's path")
+        if why := self._keeps(tree, change):
+            self.log.event(change, "kept", f"{tree}: {why}")
             return
         listing = ("ls-files", "--others", "--ignored", "--exclude-standard")
         ignored = _maybe(tree, *listing, "--directory")
         if ignored is None:
             why = "its ignored paths could not be listed"
+            self.log.event(change, "kept", f"{tree}: {why}")
+            return
+        if why := self._keeps(tree, change):
             self.log.event(change, "kept", f"{tree}: {why}")
             return
         done = _run(self.primary, "worktree", "remove", str(tree))

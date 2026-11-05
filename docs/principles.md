@@ -157,7 +157,8 @@ of the place its plan is kept.**
 
 - **Why:** a repo that writes outward needs a secret in its tree. One that reaches nothing can be published or
   handed over as it is, and the planning side can be swapped without touching it.
-- **Accepts:** without `gh` or a remote, the line says `CI none`.
+- **Accepts:** without `gh` or a remote, the line says `CI none`; under
+  `mf-ship`, `CI not read under mf-ship`.
 - **Held by:** each skill's rule never to write an absolute path;
   `tests/test_guardrails.py::test_no_tracked_file_holds_a_home_path`; the gate's secret scan, for a key.
 
