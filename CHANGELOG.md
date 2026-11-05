@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_a_forged_release_is_not_pushed`, `test_after_waits_for_its_dependency`, `test_a_rerun_recovers_a_dead_release`
   and `test_a_halted_dependency_blocks_a_chain` split into one test per independent case, so no one of them bounds the
   test step (change `0075-test-speed`, phase 3).
+- The push-guard and origin-down tests split the same way — `test_no_worker_pushes`, `test_a_run_pushes_only_tagged_merges`,
+  `test_a_rerun_pushes_what_a_release_left`, `test_a_local_release_is_pushed_when_origin_returns` and
+  `test_a_run_goes_on_while_origin_is_down` — so the test step is bound by the cores (change `0075-test-speed`, phase 4).
 
 ## [0.61.0] - 2026-11-05
 

@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The fakes start bare
 - [x] 2 — The deletions and the merge
 - [x] 3 — The longest tests split
-- [ ] 4 — The rest split
+- [x] 4 — The rest split
 
 ## 1 — The fakes start bare
 
@@ -46,13 +46,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The rest split
 
-- [ ] 4.1 Split `test_no_worker_pushes` and `test_a_run_pushes_only_tagged_merges` into the tests [D3](design.md#d3) names, in
+- [x] 4.1 Split `test_no_worker_pushes` and `test_a_run_pushes_only_tagged_merges` into the tests [D3](design.md#d3) names, in
   `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "no_worker_pushes or repointing_origin_reaches or redirected_git_dir or inside_a_worktree_reads or kept_urls_stand or refused_home_folder or planted_promisor or plain_commit_on_main or tagged_side_merge or no_run_made_is_not or bare_version_tag or the_persons_to_push or stray_tag_on_a_run_release"` reports `13 passed`.
-- [ ] 4.2 Split `test_a_rerun_pushes_what_a_release_left`, `test_a_local_release_is_pushed_when_origin_returns` and
+- [x] 4.2 Split `test_a_rerun_pushes_what_a_release_left`, `test_a_local_release_is_pushed_when_origin_returns` and
   `test_a_run_goes_on_while_origin_is_down` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "rerun_pushes_what_a_release_left or planted_remote_key_refuses or key_set_after_the_refusal or scratch_stands_outside or local_origin_url_is_refused or tag_alone_starts_one_run or pushed_when_origin_returns or lands_before_origin_flaps or goes_on_while_origin_is_down or no_offline_base_halts or past_the_offline_base_halts"` reports `11 passed`.
-- [ ] 4.3 Measure each test's own cost: the suite run serially, without coverage, so the load of a version building beside it
+- [x] 4.3 Measure each test's own cost: the suite run serially, without coverage, so the load of a version building beside it
   skews no test; no test's call over 20 s; a test over halts the build, naming it. The suite's wall time is the release's
   `gate-seconds`.
   Verify: `uv run pytest -q -p no:cacheprovider --durations=0 --durations-min=20` prints no `<secs>s call` line under its
