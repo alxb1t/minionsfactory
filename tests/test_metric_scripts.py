@@ -83,6 +83,57 @@ def test_tests_collected_is_unavailable_on_a_broken_collection() -> None:
         tests_collected.collected("1 test collected, 1 error in 0.1s\n", 2)
 
 
+def test_code_metrics_read_the_tree(tmp_path: Path) -> None:
+    codebase = _load("codebase")
+    with pytest.raises(SystemExit, match="no code lines"):
+        codebase.count(tmp_path, "test-to-code-lines")
+    assert codebase.count(tmp_path, "largest-module-lines") == 0
+
+    header = '# /// script\n# dependencies = ["x", "y"]\n# ///\n'
+    # Only a comment suppresses: the same words in a string do not.
+    suppressed = "a = 1  # noqa: E501\nb = 2  # type: ignore\n"
+    unsuppressed = 'c = "# noqa"\n# pragma: no cover\n'
+    _write(
+        tmp_path,
+        {
+            "skills/a/s.py": header + suppressed + unsuppressed,
+            "skills/big.py": "x = 1\n" * 1001,
+            "tests/t.py": "x = 1\n" * 504,
+            "pyproject.toml": '[project]\ndependencies = ["a>=1"]\n\n'
+            '[dependency-groups]\ndev = ["p", "q"]\n'
+            'lint = [{include-group = "dev"}, "r"]\n',
+        },
+    )
+
+    kinds = [kind for kind in codebase.KINDS if kind != "complex-functions"]
+    counts = {kind: codebase.count(tmp_path, kind) for kind in kinds}
+    assert counts == {
+        "largest-module-lines": 1001,
+        "modules-over-1000-lines": 1,
+        "suppressions": 3,
+        "test-to-code-lines": 0.5,
+        "python-lines": 1512,
+        "dependencies": 3,
+        "dev-dependencies": 3,
+    }
+
+
+def test_complex_functions_are_read_from_ruff(tmp_path: Path) -> None:
+    codebase = _load("codebase")
+    found = (
+        '[{"code": "C901", "filename": "a.py"}, {"code": "C901", "filename": "b.py"}]'
+    )
+    assert codebase.complex_count(found, 1, "") == 2
+    assert codebase.complex_count("[]", 0, "") == 0
+    with pytest.raises(SystemExit, match="invalid value"):
+        codebase.complex_count("", 2, "error: invalid value\nmore\n")
+    with pytest.raises(SystemExit, match="ruff exit 2"):
+        codebase.complex_count("", 2, "")
+
+    # A tree holding none of the roots runs no Ruff.
+    assert codebase.count(tmp_path, "complex-functions") == 0
+
+
 def test_prose_skips_code_and_tables(tmp_path: Path) -> None:
     long = " ".join(["word"] * 31) + "."
     limit = " ".join(["word"] * 30) + "."

@@ -4,12 +4,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The codebase
+- [x] 1 — The codebase
 - [ ] 2 — The tests
 
 ## 1 — The codebase
 
-- [ ] 1.1 Add `scripts/metrics/codebase.py` with the codebase's kinds, and their entries after `gate-seconds` in
+- [x] 1.1 Add `scripts/metrics/codebase.py` with the codebase's kinds, and their entries after `gate-seconds` in
   `metrics/catalogue.toml`, per [D1](design.md#d1) and [D4](design.md#d4); add `test_code_metrics_read_the_tree` and
   `test_complex_functions_are_read_from_ruff` to `tests/test_metric_scripts.py`, after
   `test_tests_collected_is_unavailable_on_a_broken_collection`.
