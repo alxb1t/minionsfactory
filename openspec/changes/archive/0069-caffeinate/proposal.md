@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.58
 after: [0068-pinned-release]
 ---
 
