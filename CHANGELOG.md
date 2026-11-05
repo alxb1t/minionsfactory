@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The push-guard and origin-down tests split the same way — `test_no_worker_pushes`, `test_a_run_pushes_only_tagged_merges`,
   `test_a_rerun_pushes_what_a_release_left`, `test_a_local_release_is_pushed_when_origin_returns` and
   `test_a_run_goes_on_while_origin_is_down` — so the test step is bound by the cores (change `0075-test-speed`, phase 4).
+- The split tests that run under 5 s serially drop `slow`, so `make check` runs them, and
+  `test_the_scratch_stands_outside_the_worktree` seeds `_with_origin` alone, with no run (change `0075-test-speed`,
+  converge fixes R2 and R3).
 
 ## [0.61.0] - 2026-11-05
 

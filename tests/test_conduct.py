@@ -903,7 +903,6 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     )
 
 
-@pytest.mark.slow
 def test_a_merge_in_refuses_a_planted_hook(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -958,7 +957,6 @@ _MERGED = "chore(integrate): merge main into 0001-todo"
 _GATE_HALT = "conduct: halt — main changed Makefile"
 
 
-@pytest.mark.slow
 def test_a_cut_only_version_merges_in_before_its_first_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -975,7 +973,6 @@ def test_a_cut_only_version_merges_in_before_its_first_worker(
     assert _MERGED in _git(cut_only, "log", "--format=%s", "0001-todo")
 
 
-@pytest.mark.slow
 def test_a_cut_only_version_merged_in_once_merges_again(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -993,7 +990,6 @@ def test_a_cut_only_version_merged_in_once_merges_again(
     assert _git(once, "rev-list", "--count", "--merges", "main..0001-todo") == "2"
 
 
-@pytest.mark.slow
 def test_a_clean_merge_in_builds_on_the_merge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1005,7 +1001,6 @@ def test_a_clean_merge_in_builds_on_the_merge(
     assert _MERGED in _git(gated, "log", "--format=%s", "0001-todo")
 
 
-@pytest.mark.slow
 def test_a_changelog_conflict_is_settled_by_rule(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1028,7 +1023,6 @@ def test_a_changelog_conflict_is_settled_by_rule(
     )
 
 
-@pytest.mark.slow
 def test_a_merge_in_conflict_halts_naming_the_merge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1057,7 +1051,6 @@ def test_a_merge_in_conflict_halts_naming_the_merge(
         conduct["Run"](clashed, "claude").settle(clashed_tree, "0001-todo", hostile)
 
 
-@pytest.mark.slow
 def test_a_started_version_behind_an_unchanged_gate_builds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1069,7 +1062,6 @@ def test_a_started_version_behind_an_unchanged_gate_builds(
     assert "build 0001-todo" in _calls(calls)
 
 
-@pytest.mark.slow
 def test_a_ticked_version_goes_to_integrate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1083,7 +1075,6 @@ def test_a_ticked_version_goes_to_integrate(
     assert not any(_GATE_HALT in line for line in _log(built))
 
 
-@pytest.mark.slow
 def test_an_open_merge_with_no_note_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1105,7 +1096,6 @@ def test_an_open_merge_with_no_note_halts(
     assert _git(opened_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
 
-@pytest.mark.slow
 def test_an_open_merge_with_its_note_halts_as_integrating(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1129,7 +1119,6 @@ def test_an_open_merge_with_its_note_halts_as_integrating(
     assert not any(_GATE_HALT in line for line in _log(noted))
 
 
-@pytest.mark.slow
 def test_a_started_dependents_open_merge_is_merge_ins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1191,7 +1180,6 @@ def test_a_halted_dependency_blocks_a_chain(
     assert report[2].endswith(" · blocked by 0002-marks")
 
 
-@pytest.mark.slow
 def test_a_lone_dependent_is_blocked_by_its_halt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1213,7 +1201,6 @@ def test_a_lone_dependent_is_blocked_by_its_halt(
     )
 
 
-@pytest.mark.slow
 def test_a_free_version_ships_past_a_blocked_chain(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -2710,13 +2697,12 @@ def test_a_key_set_after_the_refusal_reaches_nothing(
     assert _git(decoy, "for-each-ref") == ""
 
 
-@pytest.mark.slow
 def test_the_scratch_stands_outside_the_worktree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     fake()
-    root, _ = _left_unpushed(tmp_path, conduct, monkeypatch)
+    root, _ = _with_origin(tmp_path)
     # The scratch stands where no worker writes, and a sandboxed `status` still runs.
     with conduct["_scratch"]() as scratch:
         assert Path(scratch).parent == Path.home()
@@ -2728,7 +2714,6 @@ def test_the_scratch_stands_outside_the_worktree(
         assert conduct["_kept_origin"](root) is None
 
 
-@pytest.mark.slow
 def test_a_local_origin_url_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2763,7 +2748,6 @@ def test_a_local_origin_url_is_refused(
         assert conduct["NETWORK_URL"].fullmatch(url)
 
 
-@pytest.mark.slow
 def test_a_tag_alone_starts_one_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2824,7 +2808,6 @@ def _origin_judged(
     return conduct, root, halts_on
 
 
-@pytest.mark.slow
 def test_a_plain_commit_on_main_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2836,7 +2819,6 @@ def test_a_plain_commit_on_main_is_not_pushed(
     halts_on(_git(root, "rev-parse", "main")[:7])
 
 
-@pytest.mark.slow
 def test_a_tagged_side_merge_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2852,7 +2834,6 @@ def test_a_tagged_side_merge_is_not_pushed(
     halts_on(_git(root, "rev-parse", "main")[:7])
 
 
-@pytest.mark.slow
 def test_a_release_merge_no_run_made_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2871,7 +2852,6 @@ def test_a_release_merge_no_run_made_is_not_pushed(
     halts_on(_git(root, "rev-parse", "main")[:7])
 
 
-@pytest.mark.slow
 def test_a_bare_version_tag_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2884,7 +2864,6 @@ def test_a_bare_version_tag_is_not_pushed(
     assert _git(root, "ls-remote", "--tags", "origin") == ""
 
 
-@pytest.mark.slow
 def test_a_hand_release_is_the_persons_to_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3633,7 +3612,6 @@ def test_a_refused_home_folder_still_pushes(
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
 
-@pytest.mark.slow
 def test_a_planted_promisor_halts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3764,7 +3742,6 @@ def _waits(lines: list[str]) -> list[str]:
     return [line for line in lines if line.startswith("run · push — waiting: ")]
 
 
-@pytest.mark.slow
 def test_a_run_with_no_offline_base_halts_when_origin_is_down(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3784,7 +3761,6 @@ def test_a_run_with_no_offline_base_halts_when_origin_is_down(
     assert _calls(calls) == []
 
 
-@pytest.mark.slow
 def test_a_commit_past_the_offline_base_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
