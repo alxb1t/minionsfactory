@@ -453,10 +453,11 @@ def _git_lines(repo: Path, *args: str) -> list[str]:
 
 
 def _codex_sessions(repo: Path) -> list[Record]:
-    """Return the Codex review and security workers of `repo`.
+    """Return the Codex review and security workers of `repo`, each with its `tree`.
 
     A worker's repo URL is `origin`'s, or its parent ran in one of the repo's
-    worktrees; a guardian or fix worker is none. Why: 0077-run-metrics design D5.
+    worktrees; `tree` is where its parent ran, else None; a guardian or fix worker
+    is none. Why: 0077-run-metrics design D5.
     """
     home = os.environ.get("CODEX_HOME") or Path.home() / ".codex"
     everything = _all_sessions(Path(home) / "sessions")
@@ -468,24 +469,46 @@ def _codex_sessions(repo: Path) -> list[Record]:
     }
     cwds = {session["id"]: session["cwd"] for session in everything}
 
-    def ours(session: Record) -> bool:
+    def tree(session: Record) -> Path | None:
         parent = cwds.get(session["parent"])
+        return Path(parent).resolve() if isinstance(parent, str) else None
+
+    def ours(session: Record) -> bool:
         if origin and session["url"] == origin[0]:
             return True
-        return isinstance(parent, str) and str(Path(parent).resolve()) in trees
+        return str(tree(session)) in trees
 
-    return [s for s in everything if s["role"] and s["start"] and ours(s)]
+    return [
+        s | {"tree": tree(s)}
+        for s in everything
+        if s["role"] and s["start"] and ours(s)
+    ]
 
 
-def _filled(record: Record, sessions: list[Record]) -> Record:
-    """Return a round's record, its gap filled from the Codex workers in its window."""
+def _filled(
+    record: Record, sessions: list[Record], change: str, primary: Path | None
+) -> Record:
+    """Return a round's record, its gap filled from its change's Codex workers.
+
+    A worker is the change's when its parent ran in the change's worktree, or in
+    `primary`, None when another change's round overlaps; never for a round run on
+    `claude`. Why: 0077-run-metrics design D5.
+    """
     window = record["window"]
-    if record["tokens"] is not None or not window or record["role"] not in ROLES:
+    if (
+        record["tokens"] is not None
+        or record["executor"] == "claude"
+        or not window
+        or record["role"] not in ROLES
+    ):
         return record
     found = [
         s
         for s in sessions
-        if s["role"] == record["role"] and window[0] <= s["start"] <= window[1]
+        if s["role"] == record["role"]
+        and window[0] <= s["start"] <= window[1]
+        and s["tree"] is not None
+        and (s["tree"].name == change or s["tree"] == primary)
     ]
     if not found:
         return record
@@ -717,14 +740,28 @@ def read_repo(repo: Path) -> list[Record]:
 def round_data(repo: Path) -> list[Record]:
     """Return a record per run, round and role of the repo's status logs.
 
-    A round's gap is filled from the repo's Codex workers in its window.
+    A round's gap is filled from its change's Codex workers in its window.
     """
     sessions = _codex_sessions(repo)
+    logs = {
+        path.name.removesuffix("_status_log.md"): _round_records(path)
+        for path in sorted((repo / FINDINGS).glob("*_status_log.md"))
+    }
+    windows = {
+        change: [r["window"] for r in records if r["window"]]
+        for change, records in logs.items()
+    }
     rows = []
-    for path in sorted((repo / FINDINGS).glob("*_status_log.md")):
-        change = path.name.removesuffix("_status_log.md")
-        for record in _round_records(path):
-            filled = _filled(record, sessions)
+    for change, records in logs.items():
+        others = [w for name, held in windows.items() if name != change for w in held]
+        for record in records:
+            window = record["window"]
+            alone = window and not any(
+                start <= window[1] and window[0] <= end for start, end in others
+            )
+            filled = _filled(
+                record, sessions, change, repo.resolve() if alone else None
+            )
             del filled["window"]
             rows.append({"repo": repo.name, "change": change, **filled})
     return rows

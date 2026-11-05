@@ -438,18 +438,43 @@ def test_codex_sessions_fill_the_rounds(
 10:00:30 · round 1 · freeze — a..b · 2 commits · 3 files
 """
     _findings(repo, "0001-x_status_log.md", log)
+    # A version whose round overlaps 0001-x's round 1, run on Claude.
+    parallel = f"""# 0002-y — converge status
+
+## Run 1 — 2026-11-05 10:02
+10:09:00 · round 1 · verdicts — security clean · {claude} · tokens unavailable
+10:03:00 · round 1 · fan-out — security dispatched · 1 worker
+10:02:00 · round 1 · freeze — c..d · 1 commit · 1 file
+"""
+    _findings(repo, "0002-y_status_log.md", parallel)
     other = "git@example.invalid:o/other.git"
     # The conductor ran in the version's worktree; its review worker in another URL.
     _session(
         tmp_path, "a-parent.jsonl", _meta("2026-11-05T09:00:40Z", str(tree), other)
     )
+    # Conductors in the primary and in 0002-y's worktree.
+    for parent, cwd in (("R", repo), ("Y", tmp_path / "0002-y")):
+        conductor = _meta("2026-11-05T09:00:00Z", str(cwd), url)
+        conductor["payload"]["id"] = parent
+        _session(tmp_path, f"a-{parent}.jsonl", conductor)
+    # The primary's worker while 0002-y's round overlaps, 0002-y's own, and one
+    # whose parent is no session are none of 0001-x's; the primary's worker in
+    # round 2, with no overlap, is.
+    for name, started, parent, total in (
+        ("k-primary", "09:07:00", "R", 40),
+        ("l-0002-y", "09:08:00", "Y", 50),
+        ("n-orphan", "09:09:00", "Q", 70),
+        ("m-primary", "09:25:00", "R", 60),
+    ):
+        meta = _meta(f"2026-11-05T{started}Z", "/w", url, "/root/security_r", parent)
+        _session(tmp_path, f"{name}.jsonl", meta, *_worked("g6", "low", total))
     reviewer = _meta("2026-11-05T09:05:00Z", "/x", other, "/root/review_round1")
     noise = ['{"type": "token_count", cut', '["token_count"]']
     _session(
         tmp_path, "b-review.jsonl", reviewer, *noise, *_worked("g1", "high", 9, 500)
     )
     for name, started, total in (("c-s1", "09:02:00", 100), ("d-s2", "09:06:00", 200)):
-        meta = _meta(f"2026-11-05T{started}Z", "/y", url, "/root/security_r1", "Q")
+        meta = _meta(f"2026-11-05T{started}Z", "/y", url, "/root/security_r1")
         _session(tmp_path, f"{name}.jsonl", meta, *_worked("g2", "low", total))
     # A guardian, a fix worker, one outside the repo, one past the window, and
     # files that hold no session read as none.
@@ -495,12 +520,12 @@ def test_codex_sessions_fill_the_rounds(
             "run": 1,
             "round": 2,
             "role": "security",
-            "executor": None,
-            "model": None,
-            "effort": None,
-            "tokens": None,
-            "sessions": None,
-            "source": "status-log",
+            "executor": "codex",
+            "model": "g6",
+            "effort": "low",
+            "tokens": 60,
+            "sessions": 1,
+            "source": "codex-session",
         },
         {
             "repo": "repo",
@@ -527,6 +552,19 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 300,
             "sessions": 2,
             "source": "codex-session",
+        },
+        {
+            "repo": "repo",
+            "change": "0002-y",
+            "run": 1,
+            "round": 1,
+            "role": "security",
+            "executor": "claude",
+            "model": "opus",
+            "effort": "high",
+            "tokens": None,
+            "sessions": None,
+            "source": "status-log",
         },
     ]
 

@@ -20,7 +20,8 @@ the config is missing or names no repo.
 
 Beside the page it writes `review-metrics.json`: one record per round and role — its executor, model, effort, tokens
 and source, a gap as `null`. A Codex worker's tokens come from its session in `$CODEX_HOME/sessions`, else
-`~/.codex/sessions`, matched to its round by the repo and the round's window.
+`~/.codex/sessions`, matched to its round by the round's window and where its parent ran: the change's worktree, or the
+primary when no other version's round overlaps. A round its line names `executor claude` is never filled from a session.
 
 ## Report
 
