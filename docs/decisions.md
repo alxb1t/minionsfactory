@@ -507,7 +507,8 @@ hostile repo needs a container.**
 fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
 on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
-a commit at a converge or integrate halt keeps the halt. A version gets at most `RESCUES = 3` a run, and none for a
+a commit at a converge or integrate halt keeps the halt, and one that rescue answers on disk — a commit, a settled merge, a
+grant — stands for the run, no rejoin taking the version back. A version gets at most `RESCUES = 3` a run, and none for a
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped
 release get none: they need the person.**
@@ -515,7 +516,8 @@ release get none: they need the person.**
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
   whole change after it.
-- **Accepts:** a wrong amend that passes the path check, which converge then reads · a rescue's spend, bounded per version.
+- **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
+  which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version.
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/build/<id>.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision.

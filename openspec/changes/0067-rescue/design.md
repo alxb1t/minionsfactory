@@ -74,7 +74,10 @@ a `spawn` that returned `None`, nor on a build stopped at a `**HUMAN` phase, nor
 subject is `docs(<id>): amend the change directory` with a `Rescue:` trailer, every path in it under
 `openspec/changes/<id>/` and named `tasks.md` or `design.md` → log `rescue — <id>: fixed · <sub-task> · <short sha>`, remove the
 version's halts (F4), and `advance` again; any other path → keep the halt, adding `rescue touched <path>`; no commit and
-`.minions/rescue/<id>.md` → log `rescue — <id>: diagnosed · .minions/rescue/<id>.md`, the halt naming the file.
+`.minions/rescue/<id>.md` → log `rescue — <id>: diagnosed · .minions/rescue/<id>.md`, the halt naming the file. A rescue at a
+converge or integrate halt whose version's stage on disk is then no halt — a commit past the halted head, a settled merge, a
+removed note, a grant — adds the halt `rescue answered its halt — <stage>: <why>`, naming a moved `HEAD`, and `take_back` refuses
+that version for the rest of the run.
 
 ### D4
 
@@ -108,7 +111,8 @@ grant. Pays `0063·S5`.
 `test_a_rescue_fixes_a_plan_halt_in_its_run`, `test_a_rescue_diagnoses_a_decision_halt`, `test_a_rescue_outside_the_plan_halts`,
 `test_a_sub_task_is_rescued_once` (the fourth halt beside it), `test_rescue_skip_runs_none` — `T2`: none reaches a rescue today —
 with `rescue-fix`, `rescue-diagnose`, `rescue-wild` and `halt-<id>` modes in `tests/fake_worker.py`; `test_a_linked_rejoin_folder_deletes_nothing`
-(unit). Extended: `tests/test_skills.py`'s scans read `mf-rescue` with the rest. None deleted or merged.
+(unit). Extended: `tests/test_skills.py`'s scans read `mf-rescue` with the rest; `test_a_grant_buys_one_round`, now `slow`,
+with a `rescue-answers` mode whose grant and rejoin request leave the version halted. None deleted or merged.
 
 ## Dependencies
 
@@ -117,6 +121,8 @@ None.
 ## Risks / Trade-offs
 
 - **A wrong amend** passes the path check and is read by converge, which judges the whole change.
+- **What a rescue leaves uncommitted** the path check never reads: the next build pass takes it as its own, as it would the
+  halted build's, and converge judges it with the rest.
 - **A rescue's spend:** at most three a version a run.
 - **The pin:** the re-pin after this release links `mf-rescue`, or `_unlinked` stops every run.
 

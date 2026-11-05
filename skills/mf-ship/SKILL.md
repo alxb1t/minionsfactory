@@ -84,6 +84,7 @@ Run `status` and paste its output.
 | `conduct: halt — git names a repo outside this folder …` | report it in full, then stop: a worker may have redirected git, and a person removes the `commondir` file in `.git`, or restores `.git` |
 | `conduct: halt — cannot read origin, and no offline base …`, in `report` | report it in full, then stop: `origin` is down and no offline base stands, so a person runs `uv run --script <this package>/scripts/conduct.py anchor` outside a sandbox, checks the sha it prints, runs it again with `--yes <sha>`, then re-runs |
 | `<change-id> · diagnosed .minions/rescue/<change-id>.md`, in `report` | report it in full, with that file: the halt's `mf-rescue` found it needs the person, and its proposal says what to decide or run before a re-run. A `<change-id> · rescued <sub-task> · <sha>` line is an amend the run took and went on past |
+| `<change-id> · halt — rescue answered its halt — …`, in `report` | report it in full, then stop: the rescue at a converge cap or integrate halt left it answered on disk — a grant, a commit at the `HEAD` it names, a settled merge or a removed note — and a re-run goes on from that, so a person keeps or undoes it first |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

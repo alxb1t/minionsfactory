@@ -9,7 +9,9 @@ the `[rescue]` table's executor and model, the `[build]` table's when there is n
 fix a build halt on a `Verify:` that cannot pass, a reader a deletion missed, a task two readings would build differently, or an
 `Verify:` that is not one plain command — a `$(…)`, a shell variable, a loop or a `cd` — with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
 never `design.md`'s decisions table, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/rescue/<id>.md`.
-`conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on. A version SHALL
+`conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on. A version whose
+rescue at a converge or integrate halt leaves its stage on disk no halt SHALL stay halted for the run, a rejoin request taking it
+back none, the halt naming that stage and a moved `HEAD`. A version SHALL
 get at most `RESCUES = 3` rescues in a run, and none for a sub-task it rescued before; a timeout, a usage limit and D47's halts that
 need the person SHALL get none. The run SHALL log `rescue — <id>: fixed · <sub-task> · <commit>` or `rescue — <id>: diagnosed ·
 <file>`, and `report` SHALL print each. The rejoin folder and the grants folder SHALL be read and emptied through a directory file
@@ -26,6 +28,10 @@ descriptor opened without following a link.
 #### Scenario: A rescue outside the plan
 - **WHEN** a rescue's commit touches a file outside `tasks.md` and `design.md`
 - **THEN** the version halts, naming the file
+
+#### Scenario: A rescue that answers its cap
+- **WHEN** a rescue at a converge cap writes a grant and a rejoin request
+- **THEN** the run starts no further converge round, and logs the version still halted
 
 #### Scenario: The same sub-task again
 - **WHEN** a version halts again on a sub-task it was rescued from

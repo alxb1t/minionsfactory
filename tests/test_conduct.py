@@ -3761,6 +3761,7 @@ def test_stop_ends_a_live_run(
     foreign.wait(timeout=10)
 
 
+@pytest.mark.slow
 def test_a_grant_buys_one_round(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3834,6 +3835,22 @@ def test_a_grant_buys_one_round(
     diagnosis = ".minions/rescue/0001-todo.md"
     assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
     assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+
+    # A rescue that answers the cap on disk, here by a grant, and asks to rejoin keeps
+    # the halt for the run. Why: 0067-rescue design D3.
+    calls.unlink()
+    log.unlink()
+    fake("grant-halts", "rescue-answers")
+    run()
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    answered = "rescue answered its halt — converge: granted"
+    lines = _log(root)
+    assert any(line.endswith(f" · 0001-todo · halt — {answered}") for line in lines)
+    assert any(
+        line.endswith(f" · run · rejoin — 0001-todo: still halted — {answered}")
+        for line in lines
+    )
+    grants.unlink()
 
     calls.unlink()
     # A grants folder a worker linked elsewhere lists nothing on the start line.

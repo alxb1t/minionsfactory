@@ -2226,13 +2226,14 @@ class Run:
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
         self.rescues: dict[str, list[str]] = {}
+        self.answered: dict[str, str] = {}
         self.skips: set[str] = set()
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
-        """Record and log a halt; its version starts no new worker."""
+        """Record and log a halt; its version starts no new worker but its rescue."""
         with self.guard:
             self.halts.append((who, reason))
         self.log.event(who, "halt", reason)
@@ -2341,8 +2342,9 @@ class Run:
 
         The amend may touch the change's `amends` files alone: none at a converge or
         integrate halt, which a rescue diagnoses. Any other outcome halts the version
-        again, naming what the rescue left. A halted run, a skip or a spent rescue
-        starts none. Why: 0067-rescue design D2, D3.
+        again, naming what the rescue left, and one at such a halt is then checked for
+        an answer on disk. A halted run, a skip or a spent rescue starts none.
+        Why: 0067-rescue design D2, D3.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -2355,20 +2357,43 @@ class Run:
         diagnosis = self.primary / ".minions" / "rescue" / f"{change}.md"
         written = _mtime(diagnosis)
         prompt = PROMPTS["rescue"].format(change=change)
-        if self.spawn(change, "rescue", tree, prompt, models) is None:
+        try:
+            if self.spawn(change, "rescue", tree, prompt, models) is None:
+                return False
+            sha, why = _amend(tree, change, before, amends)
+            if sha is not None:
+                self.log.event("run", "rescue", f"{change}: fixed · {held} · {sha[:7]}")
+                with self.guard:
+                    self.halts = [halt for halt in self.halts if halt[0] != change]
+                return True
+            name = f".minions/rescue/{change}.md"
+            if not why and _mtime(diagnosis) not in (None, written):
+                self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+                why = f"rescue diagnosed — {name}"
+            self.halt(change, why or "rescue wrote no amend and no diagnosis")
             return False
-        sha, why = _amend(tree, change, before, amends)
-        if sha is not None:
-            self.log.event("run", "rescue", f"{change}: fixed · {held} · {sha[:7]}")
-            with self.guard:
-                self.halts = [halt for halt in self.halts if halt[0] != change]
-            return True
-        name = f".minions/rescue/{change}.md"
-        if not why and _mtime(diagnosis) not in (None, written):
-            self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
-            why = f"rescue diagnosed — {name}"
-        self.halt(change, why or "rescue wrote no amend and no diagnosis")
-        return False
+        finally:
+            if held in RESCUED:
+                self.hold(version, tree, before)
+
+    def hold(self, version: Version, tree: Path, before: str) -> None:
+        """Keep a version halted for the run when its rescue answered its halt on disk.
+
+        A rescue at a converge or integrate halt may only diagnose, yet a commit past
+        the halted head, a settled merge, a removed note or a grant it writes reads as
+        no halt, and its rejoin request would take the version back. The halt names
+        the stage on disk and a moved `HEAD`, for the person.
+        Why: 0067-rescue design D3.
+        """
+        stage, why = stage_of(self.primary, version)
+        if stage in HALTS:
+            return
+        head = _git(tree, "rev-parse", "HEAD").strip()
+        moved = f" · HEAD {head[:7]}" if head != before else ""
+        answered = f"rescue answered its halt — {stage}: {why}{moved}"
+        with self.guard:
+            self.answered[version.change] = answered
+        self.halt(version.change, answered)
 
     def held(self, version: Version, stage: str, tree: Path) -> str | None:
         """Return what a failed check at `stage` is rescued on, or None for no rescue.
@@ -2700,10 +2725,16 @@ class Run:
         """Start `take` for a requested version whose stage is no halt; True if so.
 
         One the run's plan holds stays out while its models file differs: a worker can
-        write it. An executor whose probe failed halts it with that probe's reason,
-        probed no second time. Why: 0063-rejoin design D2, D3.
+        write it, and so does one whose rescue answered its halt. An executor whose
+        probe failed halts it with that probe's reason, probed no second time.
+        Why: 0063-rejoin design D2, D3; 0067-rescue design D3.
         """
         change = version.change
+        with self.guard:
+            answered = self.answered.get(change)
+        if answered is not None:
+            self.log.event("run", "rejoin", f"{change}: still halted — {answered}")
+            return False
         stage, why = stage_of(self.primary, version)
         if stage in HALTS:
             self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")

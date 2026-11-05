@@ -118,7 +118,7 @@ def _amended(tree: Path, change: str | None) -> bool:
 
 
 def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
-    """Amend the plan, hollowly, outside it or by a rewrite; diagnose; or die."""
+    """Amend the plan, hollowly, outside it or by a rewrite; diagnose, answer or die."""
     tasks = f"openspec/changes/{change}/tasks.md"
     message = f"docs({change}): amend the change directory\n\nfix\n\nRescue: 1.1"
     text = (tree / tasks).read_text()
@@ -136,6 +136,12 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         folder = primary / ".minions" / "rescue"
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{change}.md").write_text("# diagnosis\n")
+    if "rescue-answers" in modes:
+        # A rescue answering its halt on disk with a grant, then asking to rejoin.
+        for name in ("grants", "runs/rejoin"):
+            folder = primary / ".minions" / name
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / change).touch()
 
 
 def _fake(prompt: str) -> None:
