@@ -61,6 +61,9 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 | converge's cap | diagnosis | — |
 | integrate's red gate or note | diagnosis | — |
 
+A cap whose last halt line says `re-plan: <ids>` is the plan's, not a grant's: the run refused its automatic grant. Its
+diagnosis's `proposal:` is `/mf-plan <change-id> depth=hard from=<its brief>`, and its `cause:` names the ids.
+
 A fix that needs any path but `openspec/changes/<change-id>/tasks.md` and `design.md`, a row of `design.md`'s
 `## Decisions` table, or a change to what a decision decides, is a diagnosis. Example: the delta names a requirement
 the fix renames → diagnosis.

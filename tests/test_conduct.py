@@ -3823,6 +3823,100 @@ def test_a_small_cap_is_granted_automatically(
     assert not (minions / "grants").exists()
 
 
+def _replanned(root: Path, ids: str) -> list[str]:
+    """Return the run log; 0001-todo's `re-plan` halt is the last before its rescue."""
+    lines = _log(root)
+    replan = f" · 0001-todo · halt — re-plan: {ids}"
+    at = next(i for i, line in enumerate(lines) if line.endswith(replan))
+    assert " · 0001-todo · spawn — rescue · " in lines[at + 1]
+    return lines
+
+
+def test_a_design_change_cap_halts_as_replan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("cap-design")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    lines = _replanned(root, "R1 S1")
+    assert not any(" · grant — " in line for line in lines)
+    assert not (root / ".minions" / "grants").exists()
+
+
+def test_an_auto_granted_round_that_blocks_halts_as_replan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("cap-again")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "converge 0001-todo",
+        "converge 0001-todo and grant=yes",
+        "rescue 0001-todo",
+    ]
+    lines = _replanned(root, "R1 S1")
+    granted = [line for line in lines if " · run · grant — " in line]
+    assert len(granted) == 1
+    assert granted[0].endswith(" · run · grant — 0001-todo: automatic · R1 S1")
+
+
+def test_auto_grant_false_grants_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("cap-small")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    minions = root / ".minions"
+    table = minions / "models" / "0001-todo.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text("[converge]\nauto_grant = false\n")
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run() == 1
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    lines = _replanned(root, "R1 S1")
+    assert not any(" · grant — " in line for line in lines)
+
+    # A cap standing at the start halts as a re-plan too, and starts no worker.
+    calls.unlink()
+    assert run() == 1
+    assert _calls(calls) == []
+    assert _log(root)[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+
+    # Twin: `true`, an absent key, another table and no file each allow it.
+    auto = conduct["_auto_grants"]
+    assert not auto(minions, "0001-todo")
+    for text in ("[converge]\nauto_grant = true\n", "[converge]\n", "[build]\n"):
+        table.write_text(text)
+        assert auto(minions, "0001-todo")
+    table.unlink()
+    assert auto(minions, "0001-todo")
+
+
 @pytest.mark.slow
 def test_a_grant_buys_one_round(
     tmp_path: Path,
@@ -3897,6 +3991,21 @@ def test_a_grant_buys_one_round(
     diagnosis = ".minions/rescue/0001-todo.md"
     assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
     assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+    # The granted round's cap is the run's second, and no card is read: a re-plan.
+    _replanned(root, "no open blocking card read")
+
+    # A person's grant still buys a round on a re-plan halt.
+    conduct["main"].__globals__["run"] = spy
+    assert grant() == (0, "")
+    conduct["main"].__globals__["run"] = runner
+    calls.unlink()
+    run()
+    assert _calls(calls) == [
+        "probe",
+        "converge 0001-todo and grant=yes",
+        "rescue 0001-todo",
+    ]
+    assert not grants.exists()
 
     # A rescue that answers the cap on disk, here by a grant, and asks to rejoin keeps
     # the halt for the run. Why: 0067-rescue design D3.
@@ -3960,7 +4069,7 @@ def test_a_grant_buys_one_round(
     assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
     assert grants.is_file()
     assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()
-    assert started == [(root, "claude", True)]
+    assert started == [(root, "claude", True)] * 2
     assert _calls(calls) == []
     shutil.rmtree(active)
 

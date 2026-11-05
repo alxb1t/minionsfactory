@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The automatic grant
-- [ ] 2 — The re-plan
+- [x] 2 — The re-plan
 - [ ] 3 — The record
 
 ## 1 — The automatic grant
@@ -18,12 +18,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The re-plan
 
-- [ ] 2.1 Halt a cap the rule refuses as `re-plan`; add the `cap-design` and `cap-again` modes and
+- [x] 2.1 Halt a cap the rule refuses as `re-plan`; add the `cap-design` and `cap-again` modes and
   `test_a_design_change_cap_halts_as_replan`, `test_an_auto_granted_round_that_blocks_halts_as_replan` and
   `test_auto_grant_false_grants_none`; add a person's grant on a re-plan halt to `test_a_grant_buys_one_round`, per [D3](design.md#d3)
   and [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "replan or auto_grant_false or grant_buys_one_round"` reports `4 passed`.
-- [ ] 2.2 Name `/mf-plan … from=` in `skills/mf-rescue/SKILL.md`'s cap diagnosis, per [D3](design.md#d3).
+- [x] 2.2 Name `/mf-plan … from=` in `skills/mf-rescue/SKILL.md`'s cap diagnosis, per [D3](design.md#d3).
   Verify: `grep -n 're-plan' skills/mf-rescue/SKILL.md` prints a line.
 
 ## 3 — The record

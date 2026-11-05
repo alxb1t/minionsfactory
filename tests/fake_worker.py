@@ -298,8 +298,15 @@ def _fake(prompt: str) -> None:
             table = primary / ".minions" / "models" / f"{change}.toml"
             table.parent.mkdir(parents=True, exist_ok=True)
             table.write_text('[release]\nexecutor = "codex"\n')
-        if "cap-small" in modes and "grant=yes" not in clauses:
-            _cards(primary, str(change), _git(here, "rev-parse", "HEAD"), "a test")
+        # Each caps on cards of its size; `cap-again` caps a granted round too.
+        sizes = {
+            "cap-small": "a test",
+            "cap-design": "a design change",
+            "cap-again": "a test",
+        }
+        capping = [sizes[mode] for mode in sizes if mode in modes]
+        if capping and ("grant=yes" not in clauses or "cap-again" in modes):
+            _cards(primary, str(change), _git(here, "rev-parse", "HEAD"), capping[0])
             return
         if "grant-halts" in modes:
             log = primary / ".minions" / "findings" / f"{change}_status_log.md"

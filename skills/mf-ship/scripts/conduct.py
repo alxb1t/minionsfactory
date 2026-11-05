@@ -2513,18 +2513,22 @@ class Run:
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
-        A cap the run grants gets its round, and a build check, converge or
-        integrate halt its rescue first.
+        A cap the run grants gets its round, and one it refuses a `re-plan` halt
+        line; a build check, converge or integrate halt then gets its rescue.
+        Why: 0070-cap-policy design D2, D3.
         """
         try:
             while not self.stopped(version.change):
                 stage, why = stage_of(self.primary, version)
                 if stage in STUCK:
-                    if self.auto_grant(version, why)[0]:
+                    granted, refused = self.auto_grant(version, why)
+                    if granted:
                         continue
                     rescued = stage in RESCUED
                     spent = self.rescued(version.change, stage) if rescued else ""
                     self.halt(version.change, f"{stage} — {why}{spent}")
+                    if refused:
+                        self.halt(version.change, f"re-plan: {refused}")
                     if rescued:
                         self.rescue(version, stage, ())
                     return
@@ -2573,10 +2577,12 @@ class Run:
                     reason = f"{reason}{self.rescued(version.change, held)}"
                 if not self.judge(version.change, stage, reason, denied):
                     amends = AMENDS if stage == "build" else ()
-                    if held is not None and (
-                        self.auto_grant(version, reason or "")[0]
-                        or self.rescue(version, held, amends)
-                    ):
+                    if held is None:
+                        return
+                    granted, refused = self.auto_grant(version, reason or "")
+                    if refused:
+                        self.halt(version.change, f"re-plan: {refused}")
+                    if granted or self.rescue(version, held, amends):
                         continue
                     return
                 if stage == "release":
@@ -3052,17 +3058,20 @@ class Run:
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }
-        # A cap the run grants is not stuck. Why: 0070-cap-policy design D2.
-        granted = any(
-            self._would_grant(version, stages[version.change][1])[0]
+        # A cap the run grants is not stuck. Why: 0070-cap-policy design D2, D3.
+        takes = {
+            version.change: self._would_grant(version, stages[version.change][1])
             for version in versions
-        )
+        }
+        granted = any(grants for grants, _ in takes.values())
         if not granted and all(stage in STUCK for stage, _ in stages.values()):
             for change, (stage, why) in stages.items():
                 if stage == "waiting":
                     self.block(change, why.removeprefix("after ").split()[0])
                 else:
                     self.halt(change, f"{stage} — {why}")
+                    if refused := takes[change][1]:
+                        self.halt(change, f"re-plan: {refused}")
         else:
             for executor in self.executors():
                 self.probe(executor)
