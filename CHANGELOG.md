@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `make install-skills [TAG=<tag>|live]` runs `skills/mf-ship/scripts/pin.py`: it exports a release's `skills/` tree
+  into the data folder with a `VERSION`, links every `mf-*` on both hosts there, holds a named tag or `live`, and leaves
+  an install under a live run `pending`, so a run never reads skills moved under it (change `0068-pinned-release`,
+  phase 1).
+
 ## [0.55.0] - 2026-11-05
 
 Gate: local 2m12s · CI not read under mf-ship · 0.54.0: local 1m49s · CI not read under mf-ship

@@ -4,17 +4,17 @@ Build the settled [design](design.md), one phase at a time. Every `Makefile` lin
 
 ## Progress
 
-- [ ] 1 — The install
+- [x] 1 — The install
 - [ ] 2 — The conductor
 - [ ] 3 — The version
 - [ ] 4 — The record
 
 ## 1 — The install
 
-- [ ] 1.1 Write `skills/mf-ship/scripts/pin.py` with `install`, `uninstall` and `move`, and `tests/test_pin.py`, per
+- [x] 1.1 Write `skills/mf-ship/scripts/pin.py` with `install`, `uninstall` and `move`, and `tests/test_pin.py`, per
   [D1](design.md#d1), [D2](design.md#d2) and [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_pin.py` reports no failure.
-- [ ] 1.2 Call it from the install recipes in `Makefile`, the `gate` recipe untouched and the blank lines between the blocks kept,
+- [x] 1.2 Call it from the install recipes in `Makefile`, the `gate` recipe untouched and the blank lines between the blocks kept,
   per [D1](design.md#d1):
   ```diff
   - # Symlink the mf- execution-line skills into the operator's personal skills
