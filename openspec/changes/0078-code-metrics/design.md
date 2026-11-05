@@ -95,10 +95,10 @@ The entries go in the table's order; `dependencies` also carries `watch = 0`.
 
 `git grep -c '^def test_' 9f6b755 -- tests/test_metric_scripts.py` counts the file at the cut. Added, on fixture trees:
 `test_code_metrics_read_the_tree` (sizes, suppressions as comments only, dependencies), `test_complex_functions_are_read_from_ruff`
-(the pure parser over a captured JSON, and a missing root), `test_test_metrics_read_the_junit_report` (a report, a missing one, a
+(the pure parser over a captured JSON, a non-zero Ruff exit, and a missing root), `test_test_metrics_read_the_junit_report` (a report, a missing one, a
 stale count, through `stale`), and `test_the_code_script_runs_as_the_collector_runs_it` — `[sys.executable,
 scripts/metrics/codebase.py, <kind>]` in a fixture tree, as `test_backlog_cards_are_unavailable_without_a_backlog` runs `backlog.py`,
-covering `__main__`, the Ruff and collect-only subprocesses and a non-zero Ruff exit — `T2`: no test reads the tree's shape. None
+covering `__main__` and the Ruff and collect-only subprocesses — `T2`: no test reads the tree's shape. None
 deleted.
 
 ## Dependencies
