@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The brief's At line
+- [x] 1 — The brief's At line
 - [ ] 2 — Only moved facts, with helpers
 - [ ] 3 — The review and the show
 - [ ] 4 — verify_check and a link
 
 ## 1 — The brief's At line
 
-- [ ] 1.1 Add `At <sha>, <YYYY-MM-DD>.` to `skills/mf-plan/SKILL.md`'s brief template and its Step 5, per [D1](design.md#d1).
+- [x] 1.1 Add `At <sha>, <YYYY-MM-DD>.` to `skills/mf-plan/SKILL.md`'s brief template and its Step 5, per [D1](design.md#d1).
   Verify: `grep -n 'At <sha>, <YYYY-MM-DD>' skills/mf-plan/SKILL.md` prints a line.
 
 ## 2 — Only moved facts, with helpers

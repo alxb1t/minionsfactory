@@ -101,7 +101,8 @@ frontier to empty: phases, and Acceptance as commands in `## Decisions` and `## 
 ## Step 5 — Write the brief
 
 Write the brief to `brief=` after every round, in [the brief's](#the-brief) sections: a thread can end anywhere,
-and a new one continues with `from=`. Settled questions move from `## Open` to `## Decisions`.
+and a new one continues with `from=`. Settled questions move from `## Open` to `## Decisions`. Each write sets the
+line below the bold line to `At <sha>, <YYYY-MM-DD>.`, Step 1's `<sha>`: the commit the newest round read.
 
 ## Step 6 — Close
 
@@ -124,6 +125,8 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   # <version name> · a minor | a patch · light | hard · <YYYY-MM-DD>
 
   **<what the version does, in one line>**
+
+  At <sha>, <YYYY-MM-DD>.
 
   ## Facts
   - <a fact> (`path:line` at `<sha>`)

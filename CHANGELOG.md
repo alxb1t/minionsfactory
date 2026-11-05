@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `mf-plan`'s brief carries `At <sha>, <YYYY-MM-DD>.` below its bold line, rewritten at every write, so the cut knows the
+  commit the facts were read at (change `0074-lighter-cut`, phase 1).
+
 ## [0.59.1] - 2026-11-05
 
 Gate: local 2m33s · CI not read under mf-ship · 0.59.0: local 2m26s · CI not read under mf-ship
