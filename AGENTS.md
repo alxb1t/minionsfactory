@@ -17,7 +17,7 @@ context.**
 
 **Before designing, building or reviewing — the cut, build and converge — also read [the threat model](THREAT_MODEL.md).**
 
-- **A patch** (`vX.Y.Z`) fixes what the line already does — backlog cards, a rule that misstates the behaviour, a
+- **A patch** (`vX.Y.Z`) fixes what the line already does — debt cards, a rule that misstates the behaviour, a
   defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.
 
 ## The quality gate — `make gate`
@@ -41,7 +41,7 @@ The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, r
 - **`docs/`** — the map, the principles, the decisions.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not
   pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.
-- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `backlog.md`, where
+- **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `debt.md`, where
   `mf-converge` keeps the deferred work: the only copy, one heading per change.
 - **`metrics/`** — MF's metrics: `catalogue.toml` declares what is measured, and `changes/` holds the data file
   each release records, per D43.

@@ -5,7 +5,7 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 
 ## Review and security
 
-**A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the backlog. The
+**A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the debt. The
 station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
 `nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing.
 
@@ -129,7 +129,7 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
 ## The card
 
 Every finding is a **card**: one top-level list line with its id and a plain title, then one nested bullet per
-field — never a heading, since the backlog's headings are its changes. This reference owns the card;
+field — never a heading, since the debt's headings are its changes. This reference owns the card;
 `tests/test_skills.py` fails if a skill carries it.
 
 | field | holds |

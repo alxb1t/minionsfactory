@@ -74,7 +74,7 @@ merges and the person's amends, whose every merge `integrate.py replay` rebuilds
 
 ### Every edit opens a round
 
-**A fix is followed by a fresh verify pass, counted. At the cap the loop stops: what is left goes to the backlog or
+**A fix is followed by a fresh verify pass, counted. At the cap the loop stops: what is left goes to the debt or
 halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.

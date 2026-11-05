@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The deferred work's file, lock, status-log event and proposal key are `.minions/debt.md`, `.minions/debt.lock`, `debt` and
   `debt:` in `conduct.py`, converge, the release and the run and review metrics; each reader still takes the old name
   (change `0079-debt-rename`, phase 1).
+- The word "backlog" leaves the live record for "debt": D15, D16, the principles, `AGENTS.md`, `THREAT_MODEL.md`, the plan,
+  cut and review skills; `scripts/metrics/backlog.py` is `debt.py`, the metric id kept (change `0079-debt-rename`, phase 2).
 
 ## [0.64.0] - 2026-11-06
 

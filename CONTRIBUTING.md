@@ -25,5 +25,5 @@ mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge or a ha
 - **A green `make check`** at every phase's commit, and a green `make gate` at the last.
 - **A `Change: <change-id>` trailer** on every commit
   ([D21](docs/decisions.md#d21--every-commit-names-its-change)).
-- **The check loop's findings**, in `.minions/findings/`, when converge ran. `.minions/backlog.md` holds only
-  check-loop findings ([D16](docs/decisions.md#d16--deferred-work-is-a-card-in-the-repos-backlog)).
+- **The check loop's findings**, in `.minions/findings/`, when converge ran. `.minions/debt.md` holds only
+  check-loop findings ([D16](docs/decisions.md#d16--deferred-work-is-a-card-in-the-repos-debt-file)).

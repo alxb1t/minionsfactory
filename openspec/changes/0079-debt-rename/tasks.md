@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The file, the lock and the key
-- [ ] 2 — The word
+- [x] 2 — The word
 - [ ] 3 — The move at a run's start
 
 ## 1 — The file, the lock and the key
@@ -24,12 +24,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The word
 
-- [ ] 2.1 Move `scripts/metrics/backlog.py` to `scripts/metrics/debt.py`, point the catalogue entry `open-backlog-cards` at it with the
+- [x] 2.1 Move `scripts/metrics/backlog.py` to `scripts/metrics/debt.py`, point the catalogue entry `open-backlog-cards` at it with the
   title "Open debt cards", retitle `debt-added` and `debt-paid`, and load it as `debt` in `tests/test_metric_scripts.py`, per
   [D2](design.md#d2).
   Verify: `grep -n 'scripts/metrics/debt.py' metrics/catalogue.toml` prints a line, and
   `uv run pytest -q tests/test_metric_scripts.py -k "unavailable_without_a_backlog or read_from_the_primary_run_directory"` reports `2 passed`.
-- [ ] 2.2 Rename the word in D15 and D16 of `docs/decisions.md`, `CONTRIBUTING.md`'s D16 link, `docs/principles.md`, `AGENTS.md`,
+- [x] 2.2 Rename the word in D15 and D16 of `docs/decisions.md`, `CONTRIBUTING.md`'s D16 link, `docs/principles.md`, `AGENTS.md`,
   `THREAT_MODEL.md`, `skills/mf-plan/SKILL.md`, `skills/mf-cut-change/SKILL.md`, `skills/mf-converge/references/worker.md` and
   `skills/mf-converge/references/generic-review.md`, per [D2](design.md#d2).
   Verify: `grep -n "card in the repo's debt file" docs/decisions.md` prints a line, `grep -n 'debt: \[<ids>\]' skills/mf-plan/SKILL.md`

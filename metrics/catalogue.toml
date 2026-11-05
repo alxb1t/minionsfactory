@@ -236,12 +236,12 @@ args = ["amends"]
 
 [[metric]]
 id = "open-backlog-cards"
-title = "Open backlog cards"
+title = "Open debt cards"
 group = "debt"
 unit = "cards"
 better = "lower"
 watch = 10
-script = "scripts/metrics/backlog.py"
+script = "scripts/metrics/debt.py"
 args = []
 
 # The version's run, read from the run directory and git; a stage the run left no
@@ -580,7 +580,7 @@ args = ["escapes"]
 
 [[metric]]
 id = "debt-added"
-title = "Cards carried to the backlog"
+title = "Cards carried to the debt"
 group = "run"
 unit = "cards"
 better = "lower"
@@ -589,7 +589,7 @@ args = ["debt-added"]
 
 [[metric]]
 id = "debt-paid"
-title = "Backlog cards paid"
+title = "Debt cards paid"
 group = "run"
 unit = "cards"
 better = "higher"
