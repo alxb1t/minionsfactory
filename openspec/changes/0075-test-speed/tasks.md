@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The fakes start bare
-- [ ] 2 — The deletions and the merge
+- [x] 2 — The deletions and the merge
 - [ ] 3 — The longest tests split
 - [ ] 4 — The rest split
 
@@ -18,16 +18,16 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The deletions and the merge
 
-- [ ] 2.1 Delete the forged release's `move`, `delete`, `replace`, `graft`, `shallow` and hand-release cases, folding `delete` into
+- [x] 2.1 Delete the forged release's `move`, `delete`, `replace`, `graft`, `shallow` and hand-release cases, folding `delete` into
   the `("resume", *views)` case, and delete `test_a_good_read_keeps_the_offline_base`, in `tests/test_conduct.py`,
   per [D2](design.md#d2) and the design's `## Tests` table.
   Verify: `grep -L 'def test_a_good_read_keeps_the_offline_base' tests/test_conduct.py` prints `tests/test_conduct.py`, and
   `uv run pytest -q tests/test_conduct.py -k "forged_release_is_not_pushed or after_waits_for_its_dependency"` reports `2 passed`.
-- [ ] 2.2 Merge `test_a_version_cut_during_a_run_joins` into `test_a_new_executor_is_probed_mid_run`, its assertions moved per
+- [x] 2.2 Merge `test_a_version_cut_during_a_run_joins` into `test_a_new_executor_is_probed_mid_run`, its assertions moved per
   [D2](design.md#d2), in `tests/test_conduct.py`.
   Verify: `grep -L 'def test_a_version_cut_during_a_run_joins' tests/test_conduct.py` prints `tests/test_conduct.py`, and
   `uv run pytest -q tests/test_conduct.py -k new_executor_is_probed_mid_run` reports `1 passed`.
-- [ ] 2.3 Cut `tests/test_gate_check.py`'s topology grid to the six topologies with `unplanned` and the two plan variants on
+- [x] 2.3 Cut `tests/test_gate_check.py`'s topology grid to the six topologies with `unplanned` and the two plan variants on
   `parent-after-link`, and
   delete `test_mf_integrate_runs_its_script`, `test_the_release_gates_its_fold_fresh` and its helpers from `tests/test_skills.py`,
   per the design's `## Tests` table.

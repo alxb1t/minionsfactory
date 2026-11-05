@@ -1787,56 +1787,6 @@ def test_a_fixed_version_rejoins_a_live_run(
     assert skipped in said
 
 
-def test_a_version_cut_during_a_run_joins(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
-    hold = tmp_path / "hold"
-    monkeypatch.setenv("FAKE_HOLD", str(hold))
-    calls = fake("hold-0001-todo")
-    root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-
-    def cut() -> None:
-        # A folder no unlink removes: the poll skips it, and the run goes on.
-        # Why: 0063-rejoin design D2.
-        (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
-        _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-        assert conduct["rejoin"](root, "0002-marks") == "rejoin: requested 0002-marks"
-
-    join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-    join()
-
-    lines = _log(root)
-    assert any(line.endswith(" · run · rejoin — 0002-marks: build") for line in lines)
-    assert {"release 0001-todo", "release 0002-marks"} <= set(_calls(calls))
-    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
-
-    stale = root / ".minions" / "runs" / "rejoin" / "all"
-    stale.touch()
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-    assert not stale.exists()
-
-    # A worker may link the folder elsewhere: the poll reads no link, deletes nothing.
-    # Why: 0063-rejoin design D2.
-    elsewhere = tmp_path / "operator-files"
-    elsewhere.mkdir()
-    (elsewhere / "kept-urls").touch()
-    (elsewhere / "kept.gate").mkdir()
-    shutil.rmtree(stale.parent)
-    stale.parent.symlink_to(elsewhere)
-    assert conduct["_requests"](root / ".minions" / "runs") == set()
-    assert (elsewhere / "kept-urls").is_file()
-
-
 @pytest.mark.slow
 def test_a_new_executor_is_probed_mid_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1867,12 +1817,17 @@ def test_a_new_executor_is_probed_mid_run(
             joining: tuple[str, ...] = joining,
             missing: bool = missing,
         ) -> None:
+            # A folder no unlink removes: the poll skips it, and the run goes on.
+            # Why: 0063-rejoin design D2.
+            (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
                 table = root / ".minions" / "models" / f"{change}.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
                 table.write_text('[converge]\nexecutor = "codex"\n')
                 _version(root, change, "- [ ] 1 — Marks\n")
-            conduct["rejoin"](root, None if missing else "0002-marks")
+            requested = conduct["rejoin"](root, None if missing else "0002-marks")
+            if not missing:
+                assert requested == "rejoin: requested 0002-marks"
 
         join = _when_logged(root, (" · 0001-todo · spawn — build",), cut, hold)
         assert (
@@ -1902,6 +1857,10 @@ def test_a_new_executor_is_probed_mid_run(
             )
         else:
             assert made.count("probe") == 2
+            assert "release 0002-marks" in made
+            assert any(
+                line.endswith(" · run · rejoin — 0002-marks: build") for line in lines
+            )
             taken = next(i for i, line in enumerate(lines) if "rejoin — 0002" in line)
             assert any(line.endswith(probe) for line in lines[:taken])
             assert any(
@@ -1915,6 +1874,32 @@ def test_a_new_executor_is_probed_mid_run(
                 for line in lines
             )
             assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+
+            stale = root / ".minions" / "runs" / "rejoin" / "all"
+            stale.touch()
+            assert (
+                _main(
+                    conduct,
+                    root,
+                    "run",
+                    "--executor",
+                    "claude",
+                    monkeypatch=monkeypatch,
+                )
+                == 0
+            )
+            assert not stale.exists()
+
+            # A worker may link the folder elsewhere: the poll reads no link, deletes
+            # nothing. Why: 0063-rejoin design D2.
+            elsewhere = scratch / "operator-files"
+            elsewhere.mkdir()
+            (elsewhere / "kept-urls").touch()
+            (elsewhere / "kept.gate").mkdir()
+            shutil.rmtree(stale.parent)
+            stale.parent.symlink_to(elsewhere)
+            assert conduct["_requests"](root / ".minions" / "runs") == set()
+            assert (elsewhere / "kept-urls").is_file()
 
 
 def test_a_station_runs_on_its_executor(
@@ -2943,19 +2928,13 @@ def test_a_forged_release_is_not_pushed(
         assert _git(root, "ls-remote", "origin") == listed
         assert _calls(calls) == []
 
-    # A worker writes the shape of a release, tagged, holding its tree.
-    _released(root, "v9.9.9", by_hand=True)
-    halts_on_main()
-    _git(root, "reset", "-q", "--hard", "HEAD~1")
-    _git(root, "tag", "-d", "v9.9.9")
-
     # A worker moves the local remote ref: the base is origin's own head.
     _commit(root, {"mine.txt": "x\n"}, "a plain commit")
     _git(root, "update-ref", "refs/remotes/origin/main", "main")
     halts_on_main()
     _git(root, "reset", "-q", "--hard", "HEAD~1")
 
-    # A pushed head is retired even if a concurrent worker moves its version ref, or
+    # A pushed head is retired even if a concurrent worker deletes its version ref, or
     # rewrites the release commit's history with a replace ref, a graft or `shallow`.
     module = conduct["main"].__globals__
     outside = module["_outside"]
@@ -2964,11 +2943,8 @@ def test_a_forged_release_is_not_pushed(
     views = ("replace", "graft", "shallow")
     cases = (
         ("keep",),
-        ("move",),
-        ("delete",),
         ("resume",),
-        *((view,) for view in views),
-        ("resume", *views),
+        ("resume", "delete", *views),
         ("hand-finished",),
         ("failed-push",),
     )
@@ -2986,7 +2962,6 @@ def test_a_forged_release_is_not_pushed(
             mutation: tuple[str, ...] = mutation,
             tag: str = tag,
             branch: str = branch,
-            head: str = head,
             commit: str = commit,
         ) -> subprocess.CompletedProcess[str]:
             if (
@@ -3001,8 +2976,6 @@ def test_a_forged_release_is_not_pushed(
                 and args[-1].endswith(f":refs/tags/{tag}")
                 and done.returncode == 0
             ):
-                if "move" in mutation:
-                    _git(root, "update-ref", branch, head)
                 if "delete" in mutation:
                     _git(root, "update-ref", "-d", branch)
                 # Each makes the release commit read as a root, its head gone.
@@ -3380,36 +3353,6 @@ def _with_origin(tmp_path: Path) -> tuple[Path, Path]:
     _git(root, "remote", "add", "origin", str(origin))
     _git(root, "push", "-q", "origin", "main")
     return root, origin
-
-
-@pytest.mark.slow
-def test_a_good_read_keeps_the_offline_base(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    fake()
-    root, origin = _with_origin(tmp_path)
-    base = conduct["_offline_base"]
-
-    def run() -> None:
-        assert (
-            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-            == 0
-        )
-
-    assert base(root) is None
-    run()
-    assert base(root) == _git(root, "rev-parse", "main")
-    assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
-
-    # The release's push moves origin's main, and the base with it.
-    read = _git(root, "rev-parse", "main")
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    run()
-    pushed = _git(root, "rev-parse", "main")
-    assert pushed != read
-    assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
-    assert base(root) == pushed
 
 
 def test_anchor_seeds_the_offline_base(
