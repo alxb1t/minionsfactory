@@ -2600,6 +2600,8 @@ class Run:
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
 
+        The folder is opened following no link, and the file created through that
+        descriptor, so a link at either names no place outside the run directory.
         Why: 0071-ship-fixes design D8.
         """
         name = f".minions/rescue/{change}.md"
@@ -2613,8 +2615,13 @@ class Run:
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
         try:
             folder.mkdir(parents=True, exist_ok=True)
-            with os.fdopen(os.open(folder / f"{change}.md", flags, 0o644), "w") as file:
-                file.write(text)
+            fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                file = os.open(f"{change}.md", flags, 0o644, dir_fd=fd)
+            finally:
+                os.close(fd)
+            with os.fdopen(file, "w") as out:
+                out.write(text)
         except OSError as error:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return

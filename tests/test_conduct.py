@@ -4504,21 +4504,28 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
     assert conductor.rescues == {}
     (root / name).unlink()
+    # A link at the rescue folder holds no diagnosis either.
+    folder, elsewhere = root / ".minions" / "rescue", tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    folder.rmdir()
+    folder.symlink_to(elsewhere)
+    conductor = conduct["Run"](root, "claude")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert list(elsewhere.iterdir()) == []
+    assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
+    folder.unlink()
+    folder.mkdir()
     conductor.skips.add("0001-todo")
     assert not conductor.rescue(version, "converge-halted", ())
     assert not (root / name).exists()
 
-    # The person's amend answers it, and the run converges afresh and releases.
+    # The person's amend answers it: the version converges afresh, as
+    # test_a_fix_after_a_cap_halt_converges_afresh runs an answered halt to release.
     tasks = "openspec/changes/0001-todo/tasks.md"
     amend = "docs(0001-todo): amend the change directory"
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
-    calls = fake()
-    calls.unlink()
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    amended = ("converge", "amended: HEAD past the halted head")
+    assert conduct["stage_of"](root, version) == amended
 
 
 def test_a_missing_skill_stops_a_run(

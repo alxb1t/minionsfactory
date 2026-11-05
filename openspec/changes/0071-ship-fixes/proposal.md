@@ -47,6 +47,7 @@ None.
   - *A converge halt answered by the person converges afresh* — MODIFIED: the person's amends answer a catch-up or verify halt.
   - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — MODIFIED: the selection may hold the person's
     amends.
+  - *A halt stops only its version, and a re-run resumes* — MODIFIED: a red gate halts with the merge committed.
   - *The integrate station renumbers the branch's changelog entries* — ADDED.
   - *A blocked dependent comes back with its dependency* — ADDED.
   - *The converge fixer leaves the plan to the person* — ADDED.

@@ -111,7 +111,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent and
    removes or loosens no assertion; a fix that would is a semantic conflict, and Step 4.3 names each test fixed. A
    path with a hunk that is not additive stays unmerged. The note and the commit body read the hunks from that file,
-   which only Step 4.4 deletes.
+   which only Step 4.5 deletes.
 4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
@@ -174,8 +174,10 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
 4. **Gate the committed merge:** `uv run --script ../mf-converge/scripts/gate_run.py --tree <worktree>`,
    `../mf-converge/` resolved from this skill's package. Diff-cover then reads the branch's own lines, and the run
    is recorded by the merge's tree. Red on a merged test the union broke → fix it per Step 3 item 3, once, stage it
-   by name, amend the merge commit — `git -C <worktree> commit --amend`, its message gaining the
-   `<path>: test fixed — …` line before the trailers, its parents kept — and gate again. Any other red → **halt**
+   by name, amend the merge commit when it is `HEAD` — `git -C <worktree> commit --amend`, its message gaining the
+   `<path>: test fixed — …` line before the trailers, its parents kept; past it, after the person's fix, commit the
+   test fix on its own, its message the `<path>: test fixed — …` line and the trailer block — and gate again. Any
+   other red → **halt**
    with the merge committed: write `.minions/integrate/<change-id>.red` holding `gate red`, the date and
    `head: <the full sha the gate judged>`, from `git -C <worktree> rev-parse HEAD`; never weaken the gate to pass.
 5. Green → delete `.minions/integrate/<change-id>.md`, `<change-id>.red` and `<change-id>.resolved` when they
