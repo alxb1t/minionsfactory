@@ -9,6 +9,7 @@ import os
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -223,17 +224,19 @@ def test_the_quiet_move_follows_origin(tmp_path: Path, isolated_home: Path) -> N
 
 
 def test_a_remote_call_takes_the_conductors_ssh_options(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin = _pin()
     printed = ("-c", "alias.env=!env", "env")
     monkeypatch.delenv("GIT_SSH", raising=False)
     monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
     ssh = pin["_conduct"]()["SSH_COMMAND"]
-    assert f"GIT_SSH_COMMAND={ssh}" in pin["_remote"](tmp_path, *printed).stdout
+    with pin["_scratch"]() as scratch:
+        assert f"GIT_SSH_COMMAND={ssh}" in pin["_remote"](scratch, *printed).stdout
 
-    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -o mine")
-    assert "GIT_SSH_COMMAND=ssh -o mine" in pin["_remote"](tmp_path, *printed).stdout
+        monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -o mine")
+        said = pin["_remote"](scratch, *printed).stdout
+        assert "GIT_SSH_COMMAND=ssh -o mine" in said
 
 
 def test_a_non_link_is_refused_and_left_untouched(
@@ -292,6 +295,14 @@ def test_a_live_run_leaves_the_install_pending(
         isolated_home, root / "skills", ("build", "ship")
     )
 
+    worktree = tmp_path / "worktree"
+    _git(root, "worktree", "add", "-q", str(worktree))
+    assert pin["install"](worktree, "live") == "pin: pending live — a run is live"
+    assert pin["move"](mine) == "pin: moved to live"
+    assert _links(isolated_home) == _into(
+        isolated_home, worktree.resolve() / "skills", ("build", "ship")
+    )
+
 
 def test_a_stale_mark_is_ignored(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
@@ -335,6 +346,30 @@ def test_a_planted_replace_ref_does_not_reach_the_export(
 
     tree = isolated_home / ".local/share/minionsfactory/v0.2.0/skills"
     assert (tree / "mf-build/SKILL.md").read_text() == "build 2\n"
+
+
+def test_a_repo_planted_above_the_scratch_supplies_no_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pin = _pin()
+    root = _mf(tmp_path)
+    origin = (tmp_path / "origin.git").as_uri()
+    _keep(pin, root, origin)
+    forged = tmp_path / "forged.git"
+    _git(tmp_path, "init", "-q", "--bare", str(forged))
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", f"url.{forged.as_uri()}.insteadOf", origin)
+    _git(tmp_path, "config", "core.sshCommand", "planted")
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.delenv("GIT_SSH", raising=False)
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+
+    assert pin["install"](root, None) == "pin: linked v0.2.0"
+
+    ssh = pin["_conduct"]()["SSH_COMMAND"]
+    with pin["_scratch"]() as scratch:
+        printed = pin["_remote"](scratch, "-c", "alias.env=!env", "env").stdout
+    assert f"GIT_SSH_COMMAND={ssh}" in printed
 
 
 def test_uninstall_removes_the_links_into_the_release_or_the_checkout(

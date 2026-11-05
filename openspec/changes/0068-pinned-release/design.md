@@ -55,10 +55,11 @@ conductor load it with `runpy`, as the conductor loads `integrate.py`, so its li
   a fresh scratch clone of that URL at that tag (`git clone --depth 1 --branch <tag>` into a temp folder, then its `skills/`); the hold
   `~/.mf-ship-origin/hold` cleared.
 - **`<tag>`:** `git archive <tag> skills` from the checkout; the hold written with the tag. **`live`:** each link to the checkout's
-  `skills/mf-*`; the hold written `live`.
+  `skills/mf-*`; the hold written `live`, and `~/.mf-ship-origin/checkout` the checkout's path, which a pending `live` links.
 - **the links:** every `mf-*` the tree holds, on `~/.claude/skills` and `~/.agents/skills`, by `os.symlink` to a temp name then
   `os.replace`; a destination that exists and is no link refused, untouched; a link whose skill the tree lacks removed.
 - **the source:** `~/.mf-ship-origin/source` holds the checkout's primary path.
+- **remote calls** run with `GIT_DIR` an empty bare repo in the conductor's `_scratch()`, as `_outside` does.
 - `pin.py uninstall` removes each `mf-*` link on both hosts that points into the data folder or the checkout.
 
 ### D2
@@ -98,7 +99,7 @@ than the one beside its own `__file__`:
 
 A new decision — *One pinned MF release per machine* — D55 at the cut, renumbered by `integrate.py` if another lands first: the
 tree, the hold, the quiet move, the scratch clone, Q15's gap. *The repo reaches nothing outside itself* lists the data folder and
-`source`, `hold`, `pending`, `live/`. `THREAT_MODEL.md` *Known gaps*: a station by hand leaves no live mark; a `TAG=<tag>` install
+`source`, `hold`, `pending`, `checkout`, `live/`. `THREAT_MODEL.md` *Known gaps*: a station by hand leaves no live mark; a `TAG=<tag>` install
 trusts the checkout. README's install section — its "the `Makefile` records why a symlink" line (`README.md:38`) among it — and relink step, `AGENTS.md`'s
 line and `skills/mf-ship/SKILL.md`'s preconditions name `make install-skills` as the pin.
 
@@ -106,7 +107,8 @@ line and `skills/mf-ship/SKILL.md`'s preconditions name `make install-skills` as
 
 `git grep -c '^def test_' main -- tests/` totals the suite at the cut. Added, integration on a scratch `HOME`, an MF clone and a bare
 `origin` (`T1`, `slow` above 5 s): `tests/test_pin.py` — a bare install from `origin`, `TAG=<tag>` and `live` holds, a refused
-non-link, a pending write under a live mark, a stale mark ignored, a planted replace ref not reaching the export, uninstall. In
+non-link, a pending write under a live mark, a stale mark ignored, a planted replace ref not reaching the export,
+a repo planted above the scratch supplying no config, uninstall. In
 `tests/test_conduct.py`: `test_a_run_marks_itself_live`, `test_the_last_run_moves_the_links`, a step in
 `test_a_missing_skill_stops_a_run` for a mixed install. In `tests/test_metrics.py`: `mf_version` from `VERSION`. None deleted.
 

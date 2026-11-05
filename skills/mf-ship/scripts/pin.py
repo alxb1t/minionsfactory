@@ -12,6 +12,7 @@ Why: 0068-pinned-release design D1, D2 and D3.
 """
 
 import argparse
+import contextlib
 import functools
 import os
 import re
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -139,15 +141,27 @@ def _out(cwd: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
-def _remote(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Return a remote git call from `cwd`, a scratch folder that is no repo.
+@contextlib.contextmanager
+def _scratch() -> Iterator[Path]:
+    """Yield an empty bare repo in the conductor's scratch folder, for remote calls.
 
-    It takes the conductor's timeout and, with no ssh command the operator set, its
-    ssh options.
+    Taken as `GIT_DIR`, it stops git finding a repo a worker planted above the folder.
+    Why: 0052-security-hardening design D9.
+    """
+    with _conduct()["_scratch"]() as scratch:
+        _out(Path(scratch), "init", "-q", "--bare", "--template=")
+        yield Path(scratch)
+
+
+def _remote(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Return a remote git call with `cwd`, a `_scratch` repo, as its `GIT_DIR`.
+
+    It reads the operator's config and no repo's above `cwd`. It takes the conductor's
+    timeout and, with no ssh command the operator set, its ssh options.
     """
     conduct = _conduct()
-    env = dict(os.environ)
-    named = _git(cwd, "config", "--get", "core.sshCommand").stdout.strip()
+    env = {**os.environ, "GIT_DIR": str(cwd)}
+    named = _git(cwd, "config", "--get", "core.sshCommand", env=env).stdout.strip()
     if not named and not any(env.get(name) for name in ("GIT_SSH_COMMAND", "GIT_SSH")):
         env["GIT_SSH_COMMAND"] = conduct["SSH_COMMAND"]
     return _git(cwd, *args, env=env, timeout=conduct["GIT_TIMEOUT"])
@@ -161,8 +175,8 @@ def _origin(primary: Path) -> str | None:
 
 def _held(url: str) -> list[str] | None:
     """Return the tags `url` lists, or None when it cannot be read."""
-    with tempfile.TemporaryDirectory(prefix="mf-pin-") as scratch:
-        done = _remote(Path(scratch), "ls-remote", "--tags", "--refs", "--", url)
+    with _scratch() as scratch:
+        done = _remote(scratch, "ls-remote", "--tags", "--refs", "--", url)
     if done.returncode != 0:
         return None
     return [line.partition("\trefs/tags/")[2] for line in done.stdout.splitlines()]
@@ -201,10 +215,10 @@ def _fetch(url: str, tag: str) -> Path:
     """
     if (data() / tag).is_dir():
         return data() / tag / "skills"
-    with tempfile.TemporaryDirectory(prefix="mf-pin-") as scratch:
-        clone = Path(scratch) / "clone"
+    with _scratch() as scratch:
+        clone = scratch / "clone"
         done = _remote(
-            Path(scratch),
+            scratch,
             *("clone", "-q", "--bare", "--depth", "1", "--branch", tag, "--template="),
             *("--", url, str(clone)),
         )
@@ -310,7 +324,7 @@ def move(mine: Path | None = None) -> str | None:
     try:
         target = _read("pending")
         if target == "live":
-            skills = Path(source) / "skills"
+            skills = Path(_read("checkout") or source) / "skills"
         elif target:
             skills = data() / target / "skills"
         elif _read("hold") or not (url := _origin(Path(source))):
@@ -353,6 +367,7 @@ def install(cwd: Path, release: str | None) -> str:
     elif release == "live":
         target, skills = release, checkout / "skills"
         _write("hold", release)
+        _write("checkout", str(checkout))
     elif _version(release):
         target, skills = release, _export(checkout, release)
         _write("hold", release)

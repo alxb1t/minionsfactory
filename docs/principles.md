@@ -145,8 +145,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it, the
   default-branch sha a run last saw on `origin`, and a person's gate approval beside it, which `gate_check.py` reads;
-- `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending` and
-  `live/` beside the kept URLs, which `conduct.py` reads and writes too — named in no target repo
+- `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,
+  `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too — named in no target repo
   ([D55](decisions.md#d55--one-pinned-mf-release-per-machine)).
 
 **Installed skills, bundled references and bundled scripts are instruction-package material, not permission to
