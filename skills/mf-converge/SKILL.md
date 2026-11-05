@@ -136,8 +136,14 @@ at `HEAD`; else halt, naming the file.
 The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
 `git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
 marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
-grant is needed, and the catch-up round does not apply. A halt naming no head, or one past the judged head — after
-this skill's own fix commit, or in a catch-up run — is no person's answer.
+grant is needed, and the catch-up round does not apply.
+
+**The person's amends** answer a halt in a catch-up run with both findings files still `verdict: clean`, a
+`verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
+one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
+alone. The answered catch-up halt runs the [Catch-up round](#catch-up-round) again; any other opens `· amended` from
+round 1, as above. Any other halt naming no head, or one past the judged head — after this skill's own fix commit,
+or in a catch-up run — is no person's answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
@@ -166,9 +172,9 @@ not `HEAD`:
   judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
                │ yes
                ▼
-  the selection merges only? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
-               │ yes, its own count          │ yes
-               ▼                             ▼
+  merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
+               │ yes, its own count  │ yes
+               ▼                     ▼
   every merge replays? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
                │ yes                                                  │
                ▼                                                      ▼
@@ -178,12 +184,14 @@ not `HEAD`:
 Open the run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
-2. **Cap** — enumerate the selection as [Catch-up scope](#catch-up-scope) does, once, at the run's start. **Merges
-   only** → the run has **its own count**: one judge round and at most one fix round, and `round:` carries on past
-   three. Any other selection counts against the cap of three: the files' `round:` is the last judged round, and at
-   the cap → halt as drawn.
+2. **Cap** — enumerate the selection as [Catch-up scope](#catch-up-scope) does, once, at the run's start.
+   **Merges and amends** — merges, and the person's `docs(<change-id>): amend the change directory` commits touching
+   `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at most one fix round,
+   and `round:` carries on past three. Any other selection counts against the cap of three: the files' `round:` is
+   the last judged round, and at the cap → halt as drawn.
 3. **Run Step 1's preconditions.**
-4. **Merges only → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no worker.
+4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
+   worker. A selection of amends alone, with no merge, passes by rule too.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
@@ -201,12 +209,12 @@ worker reads it.
    naming it. Then, for each merge in the selection, run
    `uv run --script ../mf-integrate/scripts/integrate.py replay <merge>`, `../mf-integrate/` resolved from this
    skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`; `replay` exits 2 on a merge whose
-   second parent the default branch does not hold.
+   second parent the default branch does not hold. Skip each amend: Step 1's gate and `gate_check.py` judged it.
 2. Any exit 1 → the round as before, from item 5. Exit 2, or `uv` missing → **halt**, naming what it printed.
 3. Every exit 0 → in each findings file, set `head:` to `HEAD`, `round:` to the run's own count, `reviewed:` to
    today, `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`. Add a `## By rule`
    section above its `## Resolution log`, one line per merge — `- <sha> (<parents>): <the paths replay printed>` —
-   and append `<date> · round N · by rule — clean` to the log.
+   and one per amend — `- <sha>: the person's amend` — and append `<date> · round N · by rule — clean` to the log.
 4. Write `by rule` to the status log: `round N · by rule — clean, <paths>`.
 
 ### Catch-up scope
@@ -249,7 +257,8 @@ runs the gate on HEAD under Step 7. The review still reports its stale-claim, te
    Step 2's merge-base. Exit 0 → pass: a planned change, or one a person approved with
    `/mf-ship approve-gate <change-id> <hash>`, which the script's halt names, and every `Verify:` the plan's. Exit 1 →
    **halt**, copying what it prints to the report and the status log; a `verify: halt` names a `Verify:` edited since
-   the cut, which no approval clears: the person's `docs(<change-id>): amend the change directory` commit does. Exit 2,
+   the cut, which no approval clears: the person's `docs(<change-id>): amend the change directory` commit does. Its
+   status-log halt is one line, `verify: halt — <sub-task ids>`, the ids the script names. Exit 2,
    or `uv` missing → **halt**: the gate or `tasks.md` cannot be read, and it names the side or the file. A branch does
    not certify its own weakened gate: the approval is the person's, kept in the home folder.
 
@@ -411,6 +420,8 @@ dispatch and again at its commit. The fixer:
 - **touches no frontmatter counter** — not `round`, `head` or `open_blocking` — and **never writes
   `verdict: clean`**. Those are the verify pass's;
 - marks a finding it believes wrong `wontfix` **with a justification**, never silently;
+- **never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is `wontfix`, naming the amend
+  the person commits, and the round halts `amend needed — <card ids>`;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
   backlog — only you do, in Step 9; a second writer would duplicate ids;
 - **commits** the fix staged **by name** (never `git add -A`), Conventional Commits, the message ending with
@@ -430,7 +441,7 @@ record drifts.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself, through `gate_run.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
+Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
 workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
 own findings file and the scoped fix diff. Each re-reads its file, promotes or reopens each finding, rewrites its
 counters, appends to its `## Resolution log`, and declares a verdict. Review runs all of Step 3's passes over this round's freeze, so a
@@ -442,7 +453,7 @@ parent; it checks that the run is there and fits the scenario.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
-**The cap is three rounds, and the pickup round counts.** A catch-up over merges only has
+**The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends has
 [its own count](#catch-up-round). At the cap, **halt**: leave every findings file **exactly as it stands**, write
 nothing to the backlog — the findings files hold every card — and report the blocking findings still `open`,
 **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third opinion: a loop

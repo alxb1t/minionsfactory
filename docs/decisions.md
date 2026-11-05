@@ -447,8 +447,9 @@ Every worktree shares the primary's `.minions/`; the release merges in the prima
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
 applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, hands a semantic
-conflict to the person with the merge open, gates, and commits the merge, its body naming every path it settled: a rule,
-the union, the person, a test fixed. Converge's catch-up judges the merge by its remerge-diff, unless
+conflict to the person with the merge open, and commits the merge, its body naming every path it settled: a rule,
+the union, the person, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
+the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
 its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules and halts on any other, runs
@@ -469,7 +470,9 @@ judged by its exit and a check on disk; a failed check halts its version, a halt
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A live run takes a rejoin
 request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
-whose halt was answered while its rescue ran, the person's own fix included, which waits for a re-run. A re-run resumes from
+whose converge or integrate halt was answered while its rescue ran, the person's own fix included, which waits for a re-run.
+A version taken back brings each version it blocked. A clean catch-up, verify or `amend needed` halt followed only by the
+person's `docs(<id>): amend the change directory` commits is answered. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
@@ -523,8 +526,9 @@ a settled merge, a removed note, a grant — counts as the rescue's answer, whoe
 taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
 ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
-none. A timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped
-release get none: they need the person.**
+none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
+command the run takes back. The converge fixer edits no plan: a card whose fix needs one halts `amend needed`. A
+timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the

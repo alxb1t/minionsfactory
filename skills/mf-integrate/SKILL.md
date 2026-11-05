@@ -1,6 +1,6 @@
 ---
 name: mf-integrate
-description: Merge the default branch into the next version — take the named version, or the lowest-id ready one, merge in its worktree, apply the bundled script's fixed rules to the CHANGELOG, decision ids and spec delta, hand a semantic conflict to the person with the merge open, gate, and commit the merge. Use in the primary checkout when a finished version's base has moved, before its catch-up round and release.
+description: Merge the default branch into the next version — take the named version, or the lowest-id ready one, merge in its worktree, apply the bundled script's fixed rules to the CHANGELOG, decision ids and spec delta, hand a semantic conflict to the person with the merge open, commit the merge, and gate. Use in the primary checkout when a finished version's base has moved, before its catch-up round and release.
 ---
 
 # mf-integrate — bring the next version onto the latest default branch
@@ -19,7 +19,9 @@ naming it.
          │
   a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
-  gate_run.py in the worktree ─▶ commit the merge, `Change: <id>` ─▶ a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
+  commit the merge, `Change: <id>` ─▶ gate_run.py --tree <worktree> ─ red ─▶ halt, merge committed, `.red`
+         │ green
+  a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
          │ no
   Next: /mf-converge, then /mf-release
 ```
@@ -77,14 +79,18 @@ Then, in the worktree:
 | `git -C <worktree> rev-parse -q --verify MERGE_HEAD` | and | then |
 |---|---|---|
 | succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
-| succeeds | `.minions/integrate/<change-id>.red` exists | the person fixed the merged tree: Step 3.4 |
 | succeeds | no note — a `.resolved` is not one | an interrupted run: Step 3.2 |
+| fails | `.red` names `HEAD` | **halt**, copying `.red` |
+| fails | `.red` names another commit, and `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | the person fixed or amended the committed merge: Step 4.4 |
 | fails | `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | nothing to merge: report it, and `Next: /mf-release` |
 | fails | otherwise | Step 3.1. `git -C <worktree> status --porcelain` prints something → **halt** |
 
+A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> rev-parse --verify <sha>^{commit}`.
+
 ## Step 3 — Merge and apply the rules
 
-1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, then
+1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, and a
+   `<change-id>.red` an earlier merge's red gate left, then
    `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a failure here; the rules come
    next.
 2. **Apply the rules**, each run even when one before it exits 1, in this order — `decisions` renumbers the
@@ -105,7 +111,7 @@ Then, in the worktree:
    unless the file holds it already, and stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent and
    removes or loosens no assertion; a fix that would is a semantic conflict, and Step 4.3 names each test fixed. A
    path with a hunk that is not additive stays unmerged. The note and the commit body read the hunks from that file,
-   which only Step 4.4 deletes.
+   which only Step 4.5 deletes.
 4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
@@ -138,16 +144,12 @@ Then, in the worktree:
    The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths; a union you change:
    edit or drop its ### <path> in .minions/integrate/<change-id>.resolved, then /mf-integrate <change-id>`.
 
-## Step 4 — Gate and commit
+## Step 4 — Commit and gate
 
 1. In the worktree, run `make -n gate` and paste its output; halt, naming the worktree's `Makefile`, when it
-   exits non-zero or prints no command. Then, in the worktree, `make gate`, run as
-   `uv run --script ../mf-converge/scripts/gate_run.py`, `../mf-converge/` resolved from this skill's package: it
-   records a green run by the staged tree, which the merge commit holds, so a later station on that tree can reuse
-   it. **Red → halt** with the merge open, commit nothing, write `.minions/integrate/<change-id>.red` holding
-   `gate red` and the date, and never weaken the gate to pass.
+   exits non-zero or prints no command.
 2. `git -C <worktree> diff --quiet` exits 0 and `git -C <worktree> ls-files --others --exclude-standard` prints
-   nothing — else **halt**: the commit must hold the tree the gate judged.
+   nothing — else **halt**: the gate judges the tree the commit holds.
 3. **Commit the merge**, one body line per path it settled, before the trailer block, which is contiguous:
 
    | line | for |
@@ -156,7 +158,7 @@ Then, in the worktree:
    | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered |
    | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/integrate/<change-id>.resolved` holds |
    | `<path>: the person` | each path the note named, after a note halt |
-   | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 fixed |
+   | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 or item 4 fixed |
 
        chore(integrate): merge <default-branch> into <branch>
 
@@ -170,8 +172,17 @@ Then, in the worktree:
    e.g. `skills/mf-ship/scripts/conduct.py EVENTS: the branch adds kept, removed; main drops loopback; union`.
    A merge git settled alone has no body lines.
 
-4. Delete `.minions/integrate/<change-id>.md`, `<change-id>.red` and `<change-id>.resolved` when they exist: the
-   merge settled it.
+4. **Gate the committed merge:** `uv run --script ../mf-converge/scripts/gate_run.py --tree <worktree>`,
+   `../mf-converge/` resolved from this skill's package. Diff-cover then reads the branch's own lines, and the run
+   is recorded by the merge's tree. Red on a merged test the union broke → fix it per Step 3 item 3, once, stage it
+   by name, amend the merge commit when it is `HEAD` — `git -C <worktree> commit --amend`, its message gaining the
+   `<path>: test fixed — …` line before the trailers, its parents kept; past it, after the person's fix, commit the
+   test fix on its own, its message the `<path>: test fixed — …` line and the trailer block — and gate again. Any
+   other red → **halt**
+   with the merge committed: write `.minions/integrate/<change-id>.red` holding `gate red`, the date and
+   `head: <the full sha the gate judged>`, from `git -C <worktree> rev-parse HEAD`; never weaken the gate to pass.
+5. Green → delete `.minions/integrate/<change-id>.md`, `<change-id>.red` and `<change-id>.resolved` when they
+   exist: the merge settled it.
 
 ## Step 5 — Report
 
@@ -188,7 +199,7 @@ a cut-only branch merged before its build, or a started one behind a gate change
 - **Never release, tag, push or rebase**, and never merge into the default branch: the release does.
 - **Never resolve a semantic conflict silently**: name each path the merge settled in its commit; a choice between
   behaviours halts. Never abort the person's open merge.
-- **Never commit over a red gate**, or weaken it to pass.
+- **Never release over a red gate**, or weaken it to pass.
 - **Never `git add -A`** — the rules stage what they write; the person stages a hand resolution by name.
 - **Never write a secret or a real absolute path from the machine the run is on** into a tracked file. The note is
   under `.minions/` and cites repository-relative paths.

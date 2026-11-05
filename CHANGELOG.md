@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-11-05
+
+Gate: local 2m32s · CI not read under mf-ship · 0.60.0: local 2m32s · CI not read under mf-ship
+
+- `mf-integrate` commits the merge, then gates it with `gate_run.py --tree <worktree>`, so diff-cover reads the
+  branch's own lines; a red gate halts with the merge committed and `.red` naming its head, which `conduct.py` reads
+  as halted only while it is `HEAD` (change `0071-ship-fixes`, phase 1).
+- `integrate.py decisions` renumbers the citations in the branch's `[Unreleased]` entries and never recites
+  `CHANGELOG.md`, so a colliding decision no longer halts on the changelog's own merge (change `0071-ship-fixes`,
+  phase 2).
+- `0.59.0`'s entry calls the cap policy D54; it is D56.
+- A version blocked by a dependency comes back when that dependency's thread starts again, so a rejoin of the
+  dependency alone brings its chain; a rejoin re-reads only an unplanned version's models, and a `merge_in` commit no
+  longer marks a cut-only version started (change `0071-ship-fixes`, phase 3).
+- The person's `docs(<id>): amend the change directory` commits answer a clean catch-up halt, a `verify: halt` and an
+  `amend needed` halt, so the run takes the version back with no worker; a catch-up over merges and amends has its
+  own count and passes by rule (change `0071-ship-fixes`, phase 4).
+- The converge fixer never edits the change's `tasks.md` or `design.md`, and Step 7 runs `gate_check.py`; `conduct.py`
+  diagnoses a converge `verify: halt` itself, with no rescue worker, and a rescue proposal names the command the run
+  takes back. D45, D47 and D53 record it (change `0071-ship-fixes`, phase 5).
+
 ## [0.60.0] - 2026-11-05
 
 Gate: local 2m32s · CI not read under mf-ship · 0.59.1: local 2m33s · CI not read under mf-ship

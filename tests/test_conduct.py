@@ -289,6 +289,11 @@ def test_status_reads_each_stage_from_disk(
     _git(root, "config", "--unset", "filter.probe.clean")
     (marks / "0001-todo.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
+    # A red gate an earlier committed merge left hides no open merge's note.
+    older = _git(tree, "rev-parse", "HEAD~1")
+    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    assert stage() == "0001-todo · integrating"
+    assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "0001-todo.red").write_text("gate red\n")
     assert stage() == "0001-todo · integrating"
     assert stage_of(root, version)[1].startswith("red gate")
@@ -300,6 +305,22 @@ def test_status_reads_each_stage_from_disk(
     (marks / "0001-todo.md").unlink()
     assert stage() == "0001-todo · integrate"
     _git(tree, "merge", "--abort")
+
+    # A red gate over the committed merge names the head it judged.
+    message = "chore(integrate): merge main into 0001-todo"
+    _git(tree, "merge", "-q", "--no-ff", "-s", "ours", "-m", message, "main")
+    red = marks / "0001-todo.red"
+    head = _git(tree, "rev-parse", "HEAD")
+    for named in (head, head[:7]):
+        red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
+        assert stage() == "0001-todo · integrating"
+        assert stage_of(root, version)[1].startswith("red gate")
+    for named in (_git(tree, "rev-parse", "HEAD~1"), "0" * 40):
+        red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
+        assert stage() == "0001-todo · integrate"
+    red.write_bytes(b"gate red\nhead: \xff\n")
+    assert conduct["_red"](root, tree, "0001-todo") is None
+    red.unlink()
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     _git(tree, "tag", "v0.1.0")
@@ -383,6 +404,14 @@ def test_each_check_passes_only_on_disk_evidence(
         "check: integrate · fail — integrate halted — semantic conflict,"
         " see .minions/integrate/0001-todo.md",
     )
+    older = _git(tree, "rev-parse", "HEAD")
+    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    assert check("integrate")[1].endswith(
+        "semantic conflict, see .minions/integrate/0001-todo.md"
+    )
+    (marks / "0001-todo.md").unlink()
+    assert check("integrate") == (1, "check: integrate · fail — a merge is still open")
+    (marks / "0001-todo.md").write_text("note\n")
     (marks / "0001-todo.red").write_text("gate red\n")
     assert check("integrate") == (
         1,
@@ -408,6 +437,23 @@ def test_each_check_passes_only_on_disk_evidence(
         "-m",
         "chore(integrate): merge main into 0001-todo",
     )
+    assert check("integrate") == (0, "check: integrate · pass")
+    red = marks / "0001-todo.red"
+    red.write_text(f"gate red\n2026-11-05\nhead: {_git(tree, 'rev-parse', 'HEAD')}\n")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/integrate/0001-todo.red",
+    )
+    # The person's fix after the merge: the gate judged an ancestor, and the
+    # check passes only once a green gate deletes `.red`.
+    _commit(tree, {"fix.txt": "x\n"}, "fix the merged test")
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/integrate/0001-todo.red",
+    )
+    red.unlink()
     assert check("integrate") == (0, "check: integrate · pass")
 
     assert check("release") == (
@@ -910,6 +956,17 @@ def test_after_waits_for_its_dependency(
         cut_only, "log", "--format=%s", "0001-todo"
     )
 
+    # A `merge_in` commit does not mark a cut-only version started: a later move of
+    # the default branch, outside `GATE_FILES`, is merged in too.
+    # Why: 0071-ship-fixes design D4.
+    once, cut = behind("merged-once", "Makefile", started=False)
+    caught = conduct["Run"](once, "claude")
+    caught.merge_in(cut, "0001-todo", "main")
+    _commit(once, {"README.md": "x\n"}, "main moves outside the gate")
+    caught.catch_up(conduct["find_version"](once, "0001-todo"))
+    assert conduct["_ancestor"](once, "main", "0001-todo")
+    assert _git(once, "rev-list", "--count", "--merges", "main..0001-todo") == "2"
+
     merged = "chore(integrate): merge main into 0001-todo"
     gated, _ = behind("started", "Makefile", started=True)
     assert (
@@ -1145,6 +1202,43 @@ def test_a_halted_dependency_blocks_a_chain(
         "0001-todo · halt — waiting — after 0001-todo",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0",
     ]
+
+    # A rejoin of the dependency alone brings back the chain it blocked.
+    # Why: 0071-ship-fixes design D4.
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    chain = tmp_path / "chain"
+    chain.mkdir()
+    hold = chain / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("liar-0001-todo", "hold-0004-free")
+    calls.unlink(missing_ok=True)
+    linked = _primary(chain)
+    first = _version(linked, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(linked, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(linked, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
+    _version(linked, "0004-free", "- [ ] 1 — Free\n")
+
+    def fix() -> None:
+        tasks = first / "openspec/changes/0001-todo/tasks.md"
+        _commit(first, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
+        _done(linked, "0001-todo", _git(first, "rev-parse", "HEAD"))
+        fake()
+        assert conduct["rejoin"](linked, "0001-todo") == "rejoin: requested 0001-todo"
+
+    said = (" · 0001-todo · halt — ", " · 0003-more · blocked — by 0002-marks")
+    join = _when_logged(linked, said, fix, hold)
+    assert (
+        _main(conduct, linked, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+    lines = _log(linked)
+    for change in ("0002-marks", "0003-more"):
+        assert any(
+            line.endswith(f" · run · rejoin — {change}: waiting") for line in lines
+        )
+        assert f"release {change}" in _calls(calls)
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0 v0.4.0")
 
 
 def test_run_halts_on_a_human_phase(
@@ -3615,6 +3709,52 @@ def test_the_plan_is_read_once(
     )
     assert conductor.plan == read and conductor.stopped("0001-todo")
 
+    # A rejoin of a planned version compares its models file and reads no plan again.
+    # Why: 0071-ship-fixes design D4.
+    again = conduct["Run"](root, "claude")
+    again.take = lambda *args: None
+    again.read_plan([conduct["find_version"](root, "0001-todo")])
+    again.probed |= {"claude", "codex"}
+    reads: list[object] = []
+    again.read_plan = reads.append
+    request.touch()
+    assert again.take_requests({})
+    assert reads == []
+    assert (
+        again.log.path.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · rejoin — 0001-todo: release")
+    )
+
+    # A blocked version's poll that cannot list the versions skips, raising nothing.
+    def unlisted(primary: Path) -> list[object]:
+        raise conduct["Stop"](2, "conduct: cannot run — git failed")
+
+    again.blocked.append("0002-none")
+    listing = conduct["main"].__globals__["open_versions"]
+    conduct["main"].__globals__["open_versions"] = unlisted
+    again._unblock({})
+    conduct["main"].__globals__["open_versions"] = listing
+    assert (
+        again.log.path.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · rejoin — skipped — conduct: cannot run — git failed")
+    )
+
+    # A take-back that fails halts its version and raises nothing.
+    version = conduct["find_version"](root, "0001-todo")
+    for raised, said in (
+        (conduct["Stop"](1, "conduct: halt — stopped"), "conduct: halt — stopped"),
+        (ValueError("broken"), "conduct.py failed: broken"),
+    ):
+
+        def failing(*args: object, raised: Exception = raised) -> bool:
+            raise raised
+
+        again.take_back = failing
+        assert not again.take_back_safely(version, {})
+        assert again.halts[-1] == ("0001-todo", said)
+
     def domains(*args: object) -> list[str]:
         command = argv(*args)
         settings = json.loads(command[command.index("--settings") + 1])
@@ -4324,6 +4464,142 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     assert not grants.exists()
     assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
     assert _git(root, "tag", "-l") == "v0.1.0"
+
+    # The person's amends answer a clean catch-up halt, a verify halt and an
+    # `amend needed` halt; any other commit past the halt does not.
+    # Why: 0071-ship-fixes design D5, D6.
+    (tmp_path / "caught").mkdir()
+    base = _primary(tmp_path / "caught")
+    cut = _version(base, "0001-todo", "- [x] 1 — Todo\n")
+    _done(base, "0001-todo", _git(cut, "rev-parse", "HEAD"))
+    _findings(base, "0001-todo", _git(cut, "rev-parse", "HEAD"))
+    _commit(base, {"README.md": "x\n"}, "main moves")
+    message = "chore(integrate): merge main into 0001-todo"
+    _git(cut, "merge", "-q", "--no-ff", "-m", message, "main")
+    merged = _git(cut, "rev-parse", "HEAD")
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    design = "openspec/changes/0001-todo/design.md"
+    amend = "docs(0001-todo): amend the change directory"
+    _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
+    amended_head = _git(cut, "rev-parse", "HEAD")
+    log = base / ".minions" / "findings" / "0001-todo_status_log.md"
+    version = conduct["find_version"](base, "0001-todo")
+    halts = {
+        "2 — d · catch-up": "halt — red",
+        "3 — d": "halt — verify: halt — 1.1",
+        "4 — d": "halt — amend needed — R1",
+    }
+    for run, why in halts.items():
+        halt = f"10:00:00 · round 1 · {why} · head {merged}"
+        log.write_text(f"# t\n\n## Run {run}\n{halt}\n")
+        assert stage_of(base, version) == amended
+        for files, message in (
+            ({"src.txt": "x\n"}, "a person's commit past the halt"),
+            ({design: "x\n", "src.txt": "x\n"}, amend),
+        ):
+            _commit(cut, files, message)
+            assert stage_of(base, version) == ("converge-halted", halt)
+            _git(cut, "reset", "-q", "--hard", amended_head)
+        _git(cut, "switch", "-q", "-c", "side", "HEAD~1")
+        _commit(cut, {design: "side\n"}, amend)
+        _git(cut, "switch", "-q", "0001-todo")
+        _git(cut, "merge", "-q", "--no-ff", "-X", "theirs", "-m", amend, "side")
+        assert stage_of(base, version) == ("converge-halted", halt)
+        _git(cut, "reset", "-q", "--hard", amended_head)
+        _git(cut, "branch", "-q", "-D", "side")
+        _git(cut, "reset", "-q", "--soft", "HEAD~2")
+        _git(cut, "commit", "-q", "-m", amend)
+        assert stage_of(base, version) == ("converge-halted", halt)
+        _git(cut, "reset", "-q", "--hard", amended_head)
+    # A catch-up halt over a findings file no longer clean is converge's own.
+    review = base / ".minions" / "findings" / "0001-todo_review.md"
+    clean = review.read_text()
+    review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
+    halt = f"10:00:00 · round 1 · halt — red · head {merged}"
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n")
+    assert stage_of(base, version) == ("converge-halted", halt)
+    review.write_text(clean)
+    assert stage_of(base, version) == amended
+
+    calls = fake("by-rule")
+    calls.unlink()
+    assert (
+        _main(conduct, base, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert f"- {amended_head} — the person's amend" in review.read_text()
+    assert _git(base, "tag", "-l") == "v0.1.0"
+
+
+def test_a_verify_halt_is_diagnosed_without_a_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("verify-halts")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    head = _git(tree, "rev-parse", "HEAD")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "converge 0001-todo"]
+    name = ".minions/rescue/0001-todo.md"
+    halt = f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}"
+    assert (root / name).read_text() == (
+        f"# 0001-todo — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
+        "cause: a Verify: changed since the cut\n"
+        "proposal: commit docs(0001-todo): amend the change directory, then"
+        " conduct.py rejoin 0001-todo, or /mf-ship with no run live\n"
+    )
+    lines = _log(root)
+    assert any(
+        line.endswith(f" · run · rescue — 0001-todo: diagnosed · {name}")
+        for line in lines
+    )
+    assert any(
+        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {name}")
+        for line in lines
+    )
+
+    # The run's diagnosis writes through no link, counts no rescue, and a skip skips it.
+    version = conduct["find_version"](root, "0001-todo")
+    outside = tmp_path / "outside.md"
+    outside.write_text("the person's\n")
+    (root / name).unlink()
+    (root / name).symlink_to(outside)
+    conductor = conduct["Run"](root, "claude")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert outside.read_text() == "the person's\n"
+    assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
+    assert conductor.rescues == {}
+    (root / name).unlink()
+    # A link at the rescue folder holds no diagnosis either.
+    folder, elsewhere = root / ".minions" / "rescue", tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    folder.rmdir()
+    folder.symlink_to(elsewhere)
+    conductor = conduct["Run"](root, "claude")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert list(elsewhere.iterdir()) == []
+    assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
+    folder.unlink()
+    folder.mkdir()
+    conductor.skips.add("0001-todo")
+    assert not conductor.rescue(version, "converge-halted", ())
+    assert not (root / name).exists()
+
+    # The person's amend answers it: the version converges afresh, as
+    # test_a_fix_after_a_cap_halt_converges_afresh runs an answered halt to release.
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    amend = "docs(0001-todo): amend the change directory"
+    _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
+    amended = ("converge", "amended: HEAD past the halted head")
+    assert conduct["stage_of"](root, version) == amended
 
 
 def test_a_missing_skill_stops_a_run(

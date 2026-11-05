@@ -4,10 +4,11 @@
 # ///
 """Run `make gate`, record a green run by its tree, and reuse the record.
 
-    gate_run.py [--fresh]
+    gate_run.py [--fresh] [--tree <path>]
 
-Run from the repository root. A worktree with no unstaged edit and no untracked file
-is settled; its key is `git write-tree`, so a staged merge and its commit share one.
+Run from the repository root, or name a worktree with `--tree`. A worktree with no
+unstaged edit and no untracked file is settled; its key is `git write-tree`, so a
+staged merge and its commit share one.
 A settled tree whose `.minions/gate/<tree>` holds the same `make -n gate` hash is
 reused; else `make gate` runs. `--fresh` runs it whatever stands. Exit 0 green,
 else `make`'s code; a red run records nothing. Why: 0064-lighter-catch-up design D1.
@@ -137,13 +138,23 @@ def gate(fresh: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the gate from the repository root; return its exit code."""
+    """Run the gate in the current directory or `--tree`; return its exit code."""
     parser = argparse.ArgumentParser(description="Run make gate, or reuse its record.")
     parser.add_argument(
         "--fresh", action="store_true", help="run make gate whatever stands recorded"
     )
+    parser.add_argument(
+        "--tree", type=Path, help="gate this worktree, not the current directory"
+    )
     args = parser.parse_args(argv)
     try:
+        if args.tree is not None:
+            try:
+                os.chdir(args.tree)
+            except OSError as error:
+                raise Stop(
+                    2, f"gate: cannot run — {args.tree}: {error.strerror}"
+                ) from None
         return gate(args.fresh)
     except Stop as stop:
         print(stop)

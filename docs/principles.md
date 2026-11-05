@@ -61,8 +61,8 @@ read-only except for their own findings file.**
 
 **A missing findings file is not clean. A station that resolved zero files must not write `clean`, except when
 each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A review
-without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a merges-only
-catch-up whose every merge `integrate.py replay` rebuilds by the fixed rules alone.**
+without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a catch-up over
+merges and the person's amends, whose every merge `integrate.py replay` rebuilds by the fixed rules alone.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
@@ -78,7 +78,8 @@ catch-up whose every merge `integrate.py replay` rebuilds by the fixed rules alo
 halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
-- **A merge:** a catch-up over merges only counts its own rounds: one judge round, at most one fix round.
+- **A merge:** a catch-up over merges and the person's amends counts its own rounds: one judge round, at most one
+  fix round.
 - **Held by:** `mf-converge` Step 7 and its catch-up round.
 
 ## The gate

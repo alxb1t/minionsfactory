@@ -493,16 +493,23 @@ def _run_end(runs: Path, change: str) -> str | None:
     return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
 
 
-def _granted_run(runs: Path, change: str) -> bool:
-    """Return whether the newest converge run is a granted round, marked `· grant`.
+def _run_marked(runs: Path, change: str, mark: str) -> bool:
+    """Return whether the newest converge run's heading ends ` · <mark>`.
 
-    Why: 0070-cap-policy design D2.
-    e.g. "## Run 4 — 2026-11-05 10:04 · grant" → True
+    e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
     log = runs / "findings" / f"{change}_status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next((line for line in lines if line.startswith("## Run")), "")
-    return heading.rstrip().endswith(" · grant")
+    return heading.rstrip().endswith(f" · {mark}")
+
+
+def _granted_run(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run is a granted round, marked `· grant`.
+
+    Why: 0070-cap-policy design D2.
+    """
+    return _run_marked(runs, change, "grant")
 
 
 def _closed(runs: Path, tree: Path, change: str) -> bool:
@@ -577,13 +584,56 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     return end if end and _is_event(end, "halt") else None
 
 
+def _amendable(runs: Path, change: str, halt: str) -> bool:
+    """Return whether the person's amend answers a converge halt of this kind.
+
+    The kinds: a halt in a catch-up run with both findings files still clean, a
+    `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5.
+    """
+    if "verify: halt" in halt or "amend needed" in halt:
+        return True
+    if not _run_marked(runs, change, "catch-up"):
+        return False
+    files = (runs / "findings" / f"{change}_{role}.md" for role in ROLES)
+    return all(
+        file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
+        for file in files
+    )
+
+
+def _amended_only(tree: Path, change: str, halted: str) -> bool:
+    """Return whether only the person's amends of the change directory follow `halted`.
+
+    `halted` is an ancestor of `HEAD` and not it, and each commit past it has one
+    parent, the amend's subject, and paths under `openspec/changes/<change>/` alone.
+    Why: 0071-ship-fixes design D5.
+    """
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    if halted == head or not _ancestor(tree, halted, "HEAD"):
+        return False
+    folder = f"openspec/changes/{change}/"
+    subject = f"docs({change}): amend the change directory"
+    listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
+    for line in _git(tree, "rev-list", "--parents", f"{halted}..HEAD").splitlines():
+        sha, *parents = line.split()
+        paths = _git(tree, *listed, sha).split()
+        if (
+            len(parents) != 1
+            or _subject(tree, sha) != subject
+            or not all(path.startswith(folder) for path in paths)
+        ):
+            return False
+    return True
+
+
 def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     """Return whether a person's commit answered a converge halt.
 
     The halt names the head it stopped at, both findings files judged that head,
     and `HEAD` descends from it and is not it. A halt past the judged head — after
     converge's own fix, or in a catch-up run — names no head the files judged, and a
-    rewritten history leaves no descendant. Why: 0063-rejoin design D4.
+    rewritten history leaves no descendant. A halt the person's amend answers is
+    answered by amends alone past its head. Why: 0071-ship-fixes design D5.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -595,6 +645,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     halted = halted.strip()
     if halted == _git(tree, "rev-parse", "HEAD").strip():
         return False
+    if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
+        return True
     for role in ROLES:
         file = runs / "findings" / f"{change}_{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
@@ -626,6 +678,24 @@ def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | N
         if not judged or (resolved or "").strip() != head:
             return f"{role}: judged {judged or 'no head'}, not {rev}"
     return None
+
+
+def _red(primary: Path, tree: Path, change: str) -> str | None:
+    r"""Return the full sha a `.red` file's `head:` names, else its raw text.
+
+    None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
+    e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
+    """
+    file = primary / ".minions" / "integrate" / f"{change}.red"
+    try:
+        text = file.read_text() if file.is_file() else ""
+    except (OSError, UnicodeDecodeError):
+        return None
+    found = re.search(r"^head:[ \t]*(\S+)", text, re.MULTILINE)
+    if found is None:
+        return None
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    return named.strip() if named else found[1]
 
 
 def _merge_open(tree: Path) -> bool:
@@ -771,9 +841,15 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if tree is None:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = primary / ".minions"
-    if _merge_open(tree):
+    red, merging = _red(primary, tree, change), _merge_open(tree)
+    if red is not None and not merging:
+        if red == _git(tree, "rev-parse", "HEAD").strip():
+            return "integrating", f"red gate: .minions/integrate/{change}.red"
+        return "integrate", "red gate on another head: integrate gates again"
+    if merging:
         marks = runs / "integrate"
-        if (marks / f"{change}.red").is_file():
+        # A `.red` with a `head:` names a committed merge: an open one's is stale.
+        if red is None and (marks / f"{change}.red").is_file():
             return "integrating", f"red gate: .minions/integrate/{change}.red"
         if (marks / f"{change}.md").is_file():
             return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
@@ -847,16 +923,25 @@ def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
 
 
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
-    """Return why the integrate check fails, or None; an open merge names its note."""
+    """Return why the integrate check fails, or None; an open merge names its note.
+
+    A `.red` with a `head:` fails it until a green gate deletes it. The subject
+    read is the newest first-parent merge's, so the person's fix commit after it
+    passes. Why: 0071-ship-fixes design D2.
+    """
+    note = f".minions/integrate/{version.change}"
+    red = _red(primary, tree, version.change)
     if _merge_open(tree):
-        note = f".minions/integrate/{version.change}"
-        if (primary / f"{note}.red").is_file():
+        if red is None and (primary / f"{note}.red").is_file():
             return f"integrate halted — red gate, see {note}.red"
         if (primary / f"{note}.md").is_file():
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
+    if red is not None:
+        return f"integrate halted — red gate, see {note}.red"
     default = default_branch(primary)
-    subject = _subject(tree)
+    merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    subject = _subject(tree, merge) if merge else _subject(tree)
     if subject != f"chore(integrate): merge {default} into {version.change}":
         return f"HEAD is not the integrate commit: {subject}"
     if not _ancestor(tree, default, "HEAD"):
@@ -2367,6 +2452,7 @@ class Run:
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
+        self.unblocked: set[tuple[str, threading.Thread]] = set()
         self.released: list[str] = []
         self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
@@ -2493,12 +2579,17 @@ class Run:
         The amend may touch the change's `amends` files alone: none at a converge or
         integrate halt, which a rescue diagnoses. Any other outcome halts the version
         again, naming what the rescue left, and one at such a halt is then checked for
-        an answer on disk. A halted run, a skip or a spent rescue starts none.
-        Why: 0067-rescue design D2, D3.
+        an answer on disk. A halted run, a skip or a spent rescue starts none. A
+        converge `verify: halt` the run diagnoses itself, with no worker.
+        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
         if tree is None or spent or self.stopped("run"):
+            return False
+        halt = _converge_halt(self.primary / ".minions", change)
+        if held == "converge-halted" and halt and "verify: halt" in halt:
+            self.diagnose(change, halt)
             return False
         with self.guard:
             self.rescues.setdefault(change, []).append(held)
@@ -2525,6 +2616,37 @@ class Run:
         finally:
             if held in RESCUED:
                 self.hold(version, tree, before)
+
+    def diagnose(self, change: str, halt: str) -> None:
+        """Write the run's diagnosis of a verify halt, through no link, and halt on it.
+
+        The folder is opened following no link, and the file created through that
+        descriptor, so a link at either names no place outside the run directory.
+        Why: 0071-ship-fixes design D8.
+        """
+        name = f".minions/rescue/{change}.md"
+        folder = self.primary / ".minions" / "rescue"
+        text = (
+            f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
+            "cause: a Verify: changed since the cut\n"
+            f"proposal: commit docs({change}): amend the change directory, then"
+            f" conduct.py rejoin {change}, or /mf-ship with no run live\n"
+        )
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                file = os.open(f"{change}.md", flags, 0o644, dir_fd=fd)
+            finally:
+                os.close(fd)
+            with os.fdopen(file, "w") as out:
+                out.write(text)
+        except OSError as error:
+            self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
+            return
+        self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+        self.halt(change, f"rescue diagnosed — {name}")
 
     def hold(self, version: Version, tree: Path, before: str) -> None:
         """Keep a version halted for the run when its rescue answered its halt on disk.
@@ -2841,12 +2963,12 @@ class Run:
     def catch_up(self, version: Version) -> None:
         """Merge the default branch into a version behind it.
 
-        A cut-only version gets it merged in by `merge_in`, and so does a started one
-        with an unticked phase and no open merge, behind a default branch that changed
-        `GATE_FILES`. One
-        with an unticked phase and a merge open with no note stops with 1, naming the
-        commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
-        finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
+        A cut-only version, its merges aside, gets it merged in by `merge_in`, and so
+        does a started one with an unticked phase and no open merge, behind a default
+        branch that changed `GATE_FILES`. One with an unticked phase and a merge open
+        with no note stops with 1, naming the commit that finishes it, unless its `HEAD`
+        lacks an `after:` id, a merge `ready` finishes. Any other goes on from its
+        stage. Why: 0057-run-fixes design D2; 0071-ship-fixes design D4.
         """
         change, default, tree = (
             version.change,
@@ -2856,7 +2978,8 @@ class Run:
         if tree is None or _ancestor(self.primary, default, change):
             return
         base = _git(self.primary, "merge-base", default, change).strip()
-        held = _git(self.primary, "rev-list", "--count", f"{base}..{change}").strip()
+        span = f"{base}..{change}"
+        held = _git(self.primary, "rev-list", "--count", "--no-merges", span).strip()
         if held == "1":
             self.merge_in(tree, change, default)
             return
@@ -2941,9 +3064,9 @@ class Run:
 
         The requests are read and deleted. A version whose stage is a halt stays out,
         logged; a taken one has its halts and blocks cleared, its models read and its
-        new executors probed first. It raises nothing: it runs beside live threads,
-        so a failure skips the request or halts that version. Why: 0063-rejoin
-        design D2.
+        new executors probed first. The blocked versions come back after them. It
+        raises nothing: it runs beside live threads, so a failure skips the request
+        or halts that version. Why: 0063-rejoin design D2; 0071-ship-fixes design D4.
         """
         names = _requests(self.runs)
         if not names or self.stopped("run"):
@@ -2959,21 +3082,63 @@ class Run:
             thread = threads.get(change)
             if not names & {"all", change} or (thread and thread.is_alive()):
                 continue
-            try:
-                started = self.take_back(version, threads) or started
-            except Stop as stop:
-                self.halt(change, str(stop))
-            except Exception as error:
-                self.halt(change, f"conduct.py failed: {error}")
+            started = self.take_back_safely(version, threads) or started
+        self._unblock(threads)
         return started
+
+    def _unblock(self, threads: dict[str, threading.Thread]) -> None:
+        """Take back each blocked version one of whose dependencies has a live thread.
+
+        Once per dependency thread, so a refused take-back logs once; in change-id
+        order, so a chain comes back in one pass. It raises nothing, as
+        `take_requests` does not. Why: 0071-ship-fixes design D4.
+        """
+        with self.guard:
+            waiting = bool(self.blocked)
+        if not waiting or self.stopped("run"):
+            return
+        try:
+            versions = open_versions(self.primary)
+        except Exception as error:
+            self.log.event("run", "rejoin", f"skipped — {error}")
+            return
+        for version in versions:
+            change = version.change
+            own = threads.get(change)
+            with self.guard:
+                blocked = change in self.blocked
+            if not blocked or (own and own.is_alive()):
+                continue
+            live = {
+                threads[name]
+                for name in _dependencies(self.primary, change)
+                if name in threads and threads[name].is_alive()
+            }
+            fresh = {(change, thread) for thread in live} - self.unblocked
+            if fresh:
+                self.unblocked |= fresh
+                self.take_back_safely(version, threads)
+
+    def take_back_safely(
+        self, version: Version, threads: dict[str, threading.Thread]
+    ) -> bool:
+        """Return `take_back`'s answer; a failure halts the version, raising nothing."""
+        try:
+            return self.take_back(version, threads)
+        except Stop as stop:
+            self.halt(version.change, str(stop))
+        except Exception as error:
+            self.halt(version.change, f"conduct.py failed: {error}")
+        return False
 
     def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Start `take` for a requested version whose stage is no halt; True if so.
 
         One the run's plan holds stays out while its models file differs: a worker can
-        write it, and so does one whose rescue answered its halt. An executor whose
-        probe failed halts it with that probe's reason, probed no second time.
-        Why: 0063-rejoin design D2, D3; 0067-rescue design D3.
+        write it, and so does one whose rescue answered its halt; only one the plan
+        lacks has its models read. An executor whose probe failed halts it with that
+        probe's reason, probed no second time. Why: 0063-rejoin design D2, D3;
+        0067-rescue design D3; 0071-ship-fixes design D4.
         """
         change = version.change
         with self.guard:
@@ -2995,7 +3160,8 @@ class Run:
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
-        self.read_plan([version])
+        if change not in self.planned:
+            self.read_plan([version])
         named = (self.plan.get((change, station)) for station in PLANNED)
         for executor in dict.fromkeys(models[0] for models in named if models):
             if executor in self.probed or self.stopped(change):
@@ -3145,12 +3311,14 @@ class Run:
         return True
 
     def join(self, threads: dict[str, threading.Thread]) -> None:
-        """Wait for every thread, taking requests every `REJOIN_POLL` seconds.
+        """Wait for every thread, taking requests and blocked versions every poll.
 
-        With none alive, the requests are read once more. Why: 0063-rejoin design D1.
+        A poll is `REJOIN_POLL` seconds. With none alive, the requests are read once
+        more. Why: 0063-rejoin design D1; 0071-ship-fixes design D4.
         """
         while True:
             self.take_requests(threads)
+            self._unblock(threads)
             for thread in [thread for thread in threads.values() if thread.is_alive()]:
                 thread.join(timeout=REJOIN_POLL)
             alive = any(thread.is_alive() for thread in threads.values())
