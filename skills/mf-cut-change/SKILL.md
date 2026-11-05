@@ -67,9 +67,10 @@ Read the source; `AGENTS.md`; `openspec/config.yaml` if present; the list of `op
 code; and the code the source's phases name, for the design. The source settles no decision → **halt**: there is
 nothing to cut yet.
 
-**Moved facts.** A `brief` with an `At <sha>, <YYYY-MM-DD>.` line → run `git diff --name-only <sha>..HEAD`. A fact
-whose cited paths it prints none of stands; each other fact — a moved path, or no path — is a **moved fact**. No `At`
-line, or the conversation as the source → every fact is a moved fact.
+**Moved facts.** A `brief` with an `At <sha>, <YYYY-MM-DD>.` line → run `git diff --name-only <sha>..HEAD --no-renames`,
+which prints a renamed file's old path as well as its new. A fact whose cited paths it prints none of stands; each other
+fact — a moved path, or no path — is a **moved fact**. No `At` line, or the conversation as the source → every fact is a
+moved fact.
 
 ```
 At 1df4e7a · the diff prints skills/mf-plan/SKILL.md

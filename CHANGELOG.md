@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-plan`'s brief carries `At <sha>, <YYYY-MM-DD>.` below its bold line, rewritten at every write, so the cut knows the
   commit the facts were read at (change `0074-lighter-cut`, phase 1).
 
-- `mf-cut-change` re-checks only the brief's moved facts — those whose cited paths `git diff --name-only <sha>..HEAD`
-  prints, or that cite none — read by up to four parallel read-only helpers, five minutes each (change
-  `0074-lighter-cut`, phase 2).
+- `mf-cut-change` re-checks only the brief's moved facts — those whose cited paths
+  `git diff --name-only <sha>..HEAD --no-renames` prints, a renamed file's old path included, or that cite none — read
+  by up to four parallel read-only helpers, five minutes each (change `0074-lighter-cut`, phase 2).
 
 - The cut's plan reviewer reads only the "after" of the searches `verify_check.py` ran, and Step 9 names `tasks.md` for
   the `Verify:` lines and quotes only the matches; D7 and D40 name the helpers (change `0074-lighter-cut`, phase 3).

@@ -49,9 +49,9 @@ time Step 5 writes the brief, so it names the commit the newest round read.
 
 ### D2
 
-Step 2 reads the brief's `At` line, and with one runs `git diff --name-only <sha>..HEAD`: a fact whose cited paths that command
-prints none of stands, and each other fact — a moved path, or no path — is a **moved fact**. With no `At` line, or a source that is
-the conversation, every fact is a moved fact. Step 2's own read of "the code the source names" is the moved facts' code, and the
+Step 2 reads the brief's `At` line, and with one runs `git diff --name-only <sha>..HEAD --no-renames`: a fact whose cited paths
+that command prints none of stands, and each other fact — a moved path, or no path — is a **moved fact**. With no `At` line, or a
+source that is the conversation, every fact is a moved fact. Step 2's own read of "the code the source names" is the moved facts' code, and the
 code the phases name for the design. Step 3 re-checks each moved fact against `HEAD`, from the helpers' answers or its own read;
 the deleted-name grep stays whole. In the I10 row's "how" cell of `skills/mf-cut-change/SKILL.md`, "checking each one in Step 3"
 → "re-checking each moved one in Step 3, an unmoved path's standing"; the cell's `after:` clause is kept.
@@ -105,7 +105,8 @@ None.
 
 - **A fact on an unmoved path that was wrong at the grilling:** it was checked at the brief's commit by `mf-plan`'s helpers; the plan
   review still reads the change against `HEAD`.
-- **A rename the diff shows as a delete:** the old path is printed, so its facts are re-checked.
+- **A rename:** `--no-renames` makes the diff show it as a delete and an add, so the old path is printed and its facts are
+  re-checked; without the flag git's rename detection prints the new path alone.
 
 ## Verdict
 
