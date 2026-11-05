@@ -150,7 +150,7 @@ None.
 ## Risks / Trade-offs
 
 - **Free text:** the status log is the conductor's prose; a form not in F8 reads as a gap, never a wrong number.
-- **Codex's tokens count cached input:** records keep the parts; the comparison reads like with like.
+- **Codex's tokens count cached input:**; the comparison reads like with like.
 
 ## Verdict
 
