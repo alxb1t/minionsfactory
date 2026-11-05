@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge's review, security and fix workers load `skills/mf-converge/references/worker.md` — the findings file
   contract, review's passes, the verify pass, the catch-up scope, the card and the rules for tests — not the whole
   converge skill, which keeps the conductor's steps and links each moved part (change `0076-context-cost`, phase 3).
+- The metrics catalogue measures `converge-worker-reading-set`, the words a review worker reads, and the converge
+  set counts the worker reference too (change `0076-context-cost`, phase 4).
 
 ## [0.61.0] - 2026-11-05
 

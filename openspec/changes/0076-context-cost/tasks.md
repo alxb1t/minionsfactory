@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The cost reader
 - [x] 2 — No MCP server at a worker's start
 - [x] 3 — The worker reference
-- [ ] 4 — The metric
+- [x] 4 — The metric
 
 ## 1 — The cost reader
 
@@ -41,7 +41,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The metric
 
-- [ ] 4.1 Add the `worker` set, `worker.md` in the `converge` set and the docstring's `worker` to `scripts/metrics/reading_set.py`, and
+- [x] 4.1 Add the `worker` set, `worker.md` in the `converge` set and the docstring's `worker` to `scripts/metrics/reading_set.py`, and
   `converge-worker-reading-set` to `metrics/catalogue.toml`, per [D4](design.md#d4); extend `test_reading_sets_count_words` in
   `tests/test_metric_scripts.py`.
   Verify: `grep -n "Converge worker's reading set" metrics/catalogue.toml` prints a line, and

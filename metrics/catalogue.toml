@@ -13,6 +13,16 @@ script = "scripts/metrics/reading_set.py"
 args = ["converge"]
 
 [[metric]]
+id = "converge-worker-reading-set"
+title = "Converge worker's reading set"
+group = "instruction load"
+unit = "words"
+better = "lower"
+noise = 50
+script = "scripts/metrics/reading_set.py"
+args = ["worker"]
+
+[[metric]]
 id = "shared-context"
 title = "Shared context every station reads"
 group = "instruction load"
