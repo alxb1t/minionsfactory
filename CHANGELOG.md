@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `check_probe` reads `.arch` right after the mark check, never through a link, at most 64 bytes, and names a shell only
   when `.arch` reads as an architecture; otherwise it fails as unreadable (change `0072-paydown`, phase 1).
 
-- `Run.remove_tree` keeps a released worktree, before git runs, when the git config changed or holds a key that could
-  name a program, or when a link sits at the cut's path (change `0072-paydown`, phase 2).
+- `Run.remove_tree` keeps a released worktree, before git runs and again after its ignored-path listing, when the git
+  config changed or holds a key that could name a program, or when a link sits at the cut's path (change
+  `0072-paydown`, phase 2, converge fixes S1 and S2).
 
 - The principles say `CI not read under mf-ship`, the threat model's pin gap names a run's end, and `mf-integrate`'s
   additive test, note-halt line, close-out and `next_version` docstring say what the script does (change

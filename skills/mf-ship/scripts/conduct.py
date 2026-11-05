@@ -2715,6 +2715,25 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
+    def _keeps(self, tree: Path, change: str) -> str | None:
+        """Return why `remove_tree` keeps `tree`, or None to remove it.
+
+        A changed or refused config, a link at the cut's path, or another path keeps
+        it. e.g. a link at the cut's path → "a link at the cut's path"
+        Why: 0072-paydown design D2.
+        """
+        try:
+            if changed := _config_changed(self.primary, self.git_state):
+                raise changed
+            _refuse_config_commands(tree)
+        except Stop as stop:
+            return str(stop)
+        if (self.worktrees / change).is_symlink():
+            return "a link at the cut's path"
+        if tree != self.worktrees.resolve() / change:
+            return "not at the cut's path"
+        return None
+
     def remove_tree(self, version: Version) -> None:
         """Remove a released version's worktree at the cut's path; else log it kept.
 
@@ -2722,28 +2741,23 @@ class Run:
         against `Worktrees:`, read before the first worker. The removal deletes the
         tree's ignored paths, so they are listed first and logged; a failed listing
         keeps the tree. A changed or refused config and a link at the cut's path keep it
-        too, before git runs. Why: 0057-run-fixes design D3; 0072-paydown design D2.
+        too, checked before the listing and again after it, which a worker can
+        lengthen, so only the gap before git's own call is left.
+        Why: 0057-run-fixes design D3; 0072-paydown design D2.
         """
         tree, change = version.tree, version.change
         if tree is None:
             return
-        try:
-            if changed := _config_changed(self.primary, self.git_state):
-                raise changed
-            _refuse_config_commands(tree)
-        except Stop as stop:
-            self.log.event(change, "kept", f"{tree}: {stop}")
-            return
-        if (self.worktrees / change).is_symlink():
-            self.log.event(change, "kept", f"{tree}: a link at the cut's path")
-            return
-        if tree != self.worktrees.resolve() / change:
-            self.log.event(change, "kept", f"{tree}: not at the cut's path")
+        if why := self._keeps(tree, change):
+            self.log.event(change, "kept", f"{tree}: {why}")
             return
         listing = ("ls-files", "--others", "--ignored", "--exclude-standard")
         ignored = _maybe(tree, *listing, "--directory")
         if ignored is None:
             why = "its ignored paths could not be listed"
+            self.log.event(change, "kept", f"{tree}: {why}")
+            return
+        if why := self._keeps(tree, change):
             self.log.event(change, "kept", f"{tree}: {why}")
             return
         done = _run(self.primary, "worktree", "remove", str(tree))

@@ -690,6 +690,43 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert (dirty / "notes.txt").is_file()
     assert f" · 0007-dirty · kept — {dirty}: fatal: " in clean.log.path.read_text()
 
+    # A link swapped in at the cut's path while the listing runs keeps the tree.
+    swap = _version(root, "0008-swapped", "- [ ] 1 — Swapped\n")
+    aside = tmp_path / "aside-0008-swapped"
+
+    def swapping(cwd: Path, *args: str) -> str | None:
+        paths = real(cwd, *args)
+        if args[0] == "ls-files":
+            _git(root, "worktree", "move", str(swap), str(aside))
+            swap.symlink_to(aside)
+        return paths
+
+    monkeypatch.setitem(found, "_maybe", swapping)
+    clean.remove_tree(conduct["Version"]("0008-swapped", swap))
+    monkeypatch.setitem(found, "_maybe", real)
+    assert aside.is_dir()
+    assert (
+        f" · 0008-swapped · kept — {swap}: a link at the cut's path\n"
+    ) in clean.log.path.read_text()
+
+    # A filter planted while the listing runs keeps the tree.
+    planted = _version(root, "0009-planted", "- [ ] 1 — Planted\n")
+
+    def planting(cwd: Path, *args: str) -> str | None:
+        paths = real(cwd, *args)
+        if args[0] == "ls-files":
+            _git(root, "config", "filter.planted.clean", "true")
+        return paths
+
+    monkeypatch.setitem(found, "_maybe", planting)
+    clean.remove_tree(conduct["Version"]("0009-planted", planted))
+    monkeypatch.setitem(found, "_maybe", real)
+    assert planted.is_dir()
+    assert (
+        f" · 0009-planted · kept — {planted}: the local git config changed during the"
+        " run: .git/config differs\n"
+    ) in clean.log.path.read_text()
+
 
 @pytest.mark.slow
 def test_after_waits_for_its_dependency(
@@ -4744,7 +4781,8 @@ def test_a_probe_halts_on_a_write_out(
     arch.write_text("not an architecture\n")
     assert conduct["check_probe"](scratch, None) == unreadable
     arch.unlink()
-    arch.symlink_to(scratch / ".gated")
+    (scratch / "target").write_text("i386\n")
+    arch.symlink_to(scratch / "target")
     assert conduct["check_probe"](scratch, None) == unreadable
     arch.unlink()
     arch.write_text("i386\n")

@@ -80,6 +80,9 @@ Carded in `.minions/backlog.md`, accepted until paid down: `0049·S5`, `0049·S7
 - `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
   still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.
+- A released worktree's config, link and path are checked again right before its removal, so a worker that changes one
+  between that check and git's own call still steers it: a filter it sets runs, and a link it swaps in points the removal
+  at another worktree.
 - A git too old to read `GIT_NO_LAZY_FETCH` still fetches for a promisor a worker plants, before the refusal.
 - A credential outside `SECRETS` and `TOKENS` stays readable by a script or the `Read` tool: the host has no list of its
   own. So does a repo's `.env`, and `conduct.py` pushes to `origin` what a worker commits and Betterleaks' rules miss.
