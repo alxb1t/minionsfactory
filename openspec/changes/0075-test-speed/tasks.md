@@ -52,6 +52,8 @@ Build the settled [design](design.md), one phase at a time.
 - [ ] 4.2 Split `test_a_rerun_pushes_what_a_release_left`, `test_a_local_release_is_pushed_when_origin_returns` and
   `test_a_run_goes_on_while_origin_is_down` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "rerun_pushes_what_a_release_left or planted_remote_key_refuses or key_set_after_the_refusal or scratch_stands_outside or local_origin_url_is_refused or tag_alone_starts_one_run or pushed_when_origin_returns or lands_before_origin_flaps or goes_on_while_origin_is_down or no_offline_base_halts or past_the_offline_base_halts"` reports `11 passed`.
-- [ ] 4.3 Measure the suite as the gate runs it: no test's call over 20 s; a test over halts the build, naming it.
-  Verify: `uv run coverage run -m pytest -q -n auto --durations=0 --durations-min=20` prints no `<secs>s call` line under its
+- [ ] 4.3 Measure each test's own cost: the suite run serially, without coverage, so the load of a version building beside it
+  skews no test; no test's call over 20 s; a test over halts the build, naming it. The suite's wall time is the release's
+  `gate-seconds`.
+  Verify: `uv run pytest -q -p no:cacheprovider --durations=0 --durations-min=20` prints no `<secs>s call` line under its
   `slowest durations` header.
