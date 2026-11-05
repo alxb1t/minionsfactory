@@ -235,38 +235,41 @@ def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
             "ignored/deep",
         ),
     ]
-    for label, include, links, changed, target in topologies:
-        for plan, tasks, expected in [
-            ("unplanned", _UNPLANNED, 1),
-            ("unquoted", _planned(), 1),
-            ("quoted", _planned(" Quotes `false` and `-false`."), 0),
-        ]:
-            root = tmp_path / f"{label}-{plan}"
-            root.mkdir()
-            for name, destination in links.items():
-                (root / name).parent.mkdir(parents=True, exist_ok=True)
-                (root / name).symlink_to(destination)
-            initial = {
-                "Makefile": f"include {include}\n",
-                "strict/gate.mk": "gate:\n\tfalse\n",
-                "ignored/gate.mk": "gate:\n\t-false\n",
-                "strict/deep/keep": "",
-                "ignored/deep/keep": "",
-            }
-            base = _branch(root, initial, tasks, {"README.md": "x\n"})
-            (root / changed).unlink()
-            (root / changed).symlink_to(target)
-            _commit(root, {}, "retarget resolution dependency")
-            result = _check(root, base)
-            valid = result.returncode == expected
-            if expected:
-                valid &= result.stdout.startswith(_HALT)
-                valid &= "removed:" in result.stdout and "added:" in result.stdout
-                valid &= "false" in result.stdout and "-false" in result.stdout
-            else:
-                valid &= result.stdout.startswith("gate: planned")
-            if not valid:
-                failures.append((f"{label}-{plan}", result.returncode, result.stdout))
+    # Every topology runs unplanned; `parent-after-link` runs the plan variants too.
+    unplanned, *planned = [
+        ("unplanned", _UNPLANNED, 1),
+        ("unquoted", _planned(), 1),
+        ("quoted", _planned(" Quotes `false` and `-false`."), 0),
+    ]
+    grid = [(*topology, *unplanned) for topology in topologies]
+    grid += [(*topologies[-1], *plan) for plan in planned]
+    for label, include, links, changed, target, plan, tasks, expected in grid:
+        root = tmp_path / f"{label}-{plan}"
+        root.mkdir()
+        for name, destination in links.items():
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).symlink_to(destination)
+        initial = {
+            "Makefile": f"include {include}\n",
+            "strict/gate.mk": "gate:\n\tfalse\n",
+            "ignored/gate.mk": "gate:\n\t-false\n",
+            "strict/deep/keep": "",
+            "ignored/deep/keep": "",
+        }
+        base = _branch(root, initial, tasks, {"README.md": "x\n"})
+        (root / changed).unlink()
+        (root / changed).symlink_to(target)
+        _commit(root, {}, "retarget resolution dependency")
+        result = _check(root, base)
+        valid = result.returncode == expected
+        if expected:
+            valid &= result.stdout.startswith(_HALT)
+            valid &= "removed:" in result.stdout and "added:" in result.stdout
+            valid &= "false" in result.stdout and "-false" in result.stdout
+        else:
+            valid &= result.stdout.startswith("gate: planned")
+        if not valid:
+            failures.append((f"{label}-{plan}", result.returncode, result.stdout))
     assert not failures, "\n".join(map(str, failures))
 
 

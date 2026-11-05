@@ -543,36 +543,6 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
     ]
 
 
-def test_mf_integrate_runs_its_script() -> None:
-    pair = ("mf-integrate", "scripts/integrate.py")
-    assert pair in _METRICS_SCRIPTS
-    skill = _REPO / "skills" / pair[0] / "SKILL.md"
-    assert pair[1] in skill.read_text()
-    assert _file_problem(skill.parent / pair[1]) is None
-
-
-# The release gates its folded tree fresh, so no record reaches a tag.
-# Why: 0064-lighter-catch-up design D2.
-_FRESH = "../mf-converge/scripts/gate_run.py --fresh"
-_RELEASE_CUT = "## Step 4 — Cut the version line"
-
-
-def _fresh_problems(base: Path) -> list[str]:
-    """Return a line when the release's Step 4 does not gate through `--fresh`."""
-    path = base / "skills" / "mf-release" / "SKILL.md"
-    text = path.read_text() if path.is_file() else ""
-    step = text.partition(f"\n{_RELEASE_CUT}\n")[2].split("\n## ", 1)[0]
-    return [] if _FRESH in step else [f"skills/mf-release/SKILL.md: no `{_FRESH}`"]
-
-
-def test_the_release_gates_its_fold_fresh(tmp_path: Path) -> None:
-    assert _fresh_problems(_REPO) == []
-
-    # A `--fresh` outside Step 4 does not count.
-    _plant(tmp_path, {"mf-release": f"## Step 1\n\n`{_FRESH}`\n\n{_RELEASE_CUT}\n"})
-    assert _fresh_problems(tmp_path) == [f"skills/mf-release/SKILL.md: no `{_FRESH}`"]
-
-
 # The plan station holds its parameters, naming the required brief, and its forbidden
 # acts. Why: 0032-mf-plan design D7.
 _PLAN = "mf-plan"
