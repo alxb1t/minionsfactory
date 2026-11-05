@@ -23,7 +23,7 @@ once, with no worker.
 
 - **Integrate commits, then gates** — `gate_run.py --tree <path>` gates a worktree from the primary; integrate commits the merge
   first, so diff-cover reads the branch's own lines; a red gate halts with the merge committed, `.red` naming it; a test the union
-  broke is fixed once in the merge commit.
+  broke is fixed once, in the merge commit, or past the person's fix in a commit of its own.
 - **The changelog renumber** — `integrate.py decisions` renumbers the branch's `[Unreleased]` entries, never recites `CHANGELOG.md`.
 - **Dependents come back** — a version blocked by a dependency comes back when that dependency's thread starts again; a rejoin
   re-reads only an unplanned version's plan; a merge commit alone does not mark a version started.
@@ -42,7 +42,9 @@ None.
 
 - `sdd`:
   - *The integrate station merges the default branch into the next version* — MODIFIED: commit, then gate the worktree; a red gate
-    after the commit; a broken test fixed in the merge commit.
+    after the commit; a broken test fixed in the merge commit, or past the person's fix in a commit of its own.
+  - *The integrate merge commit names every path it settled* — MODIFIED: a test fixed past the person's fix is named in its own
+    commit.
   - *The release ships only a reviewed head* — MODIFIED: a catch-up over merges and the person's amends has its own count.
   - *A converge halt answered by the person converges afresh* — MODIFIED: the person's amends answer a catch-up or verify halt.
   - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — MODIFIED: the selection may hold the person's

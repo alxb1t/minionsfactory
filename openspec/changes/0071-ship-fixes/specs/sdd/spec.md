@@ -66,7 +66,7 @@ items or sentences — and a merged test the union breaks when the fix keeps bot
 sides' intent and the union, then run `make gate` on the worktree through `skills/mf-converge/scripts/gate_run.py --tree
 <worktree>`, and end with `Next: /mf-converge, then /mf-release`, or with `Next: /mf-ship, in the primary.` for a version with an
 unticked phase. A red gate on a merged test the union broke SHALL be fixed once, when the fix keeps both sides' intent, by amending
-the merge commit, and gated again. Any other red gate SHALL halt with the merge committed and write
+the merge commit when it is `HEAD`, or, past the person's fix, by a commit of its own naming the test fixed, and gated again. Any other red gate SHALL halt with the merge committed and write
 `.minions/integrate/<change-id>.red` holding `head: <sha>`, the head the gate judged; with no merge open, `conduct.py` SHALL read
 the version as halted while that sha is `HEAD`, and as to integrate again once it is not. Its integrate check SHALL fail while that
 `.red` stands, and read the newest first-parent merge, so the person's fix commit after it passes once a green gate deletes it. It SHALL NOT release, tag, push or rebase.
@@ -99,6 +99,22 @@ the version as halted while that sha is `HEAD`, and as to integrate again once i
 - **WHEN** the branch adds items to a list and the default branch removes another item from it, on one line
 - **THEN** the station keeps the branch's items and the removal, commits the merge, and gates the worktree
 - **AND** the commit's body names the file, both sides' intent and the union
+
+### Requirement: The integrate merge commit names every path it settled
+
+`skills/mf-integrate/SKILL.md`'s merge commit SHALL hold one body line per path it settled: `<path>: integrate.py <rule>` for a
+fixed rule, the union line as before, `<path>: the person` after a note halt, and `<path>: test fixed — <what it now asserts>`
+for a test the integrator edited, which SHALL never remove or loosen an assertion. A test the integrator fixed past the person's
+fix SHALL be named in a commit of its own, its message that line and the trailer block, and the merge commit SHALL stay as it was.
+
+#### Scenario: A merge the rules and a person settled
+- **WHEN** a merge's `CHANGELOG.md` was settled by the rule and a requirement by the person after a note halt
+- **THEN** the commit body names `CHANGELOG.md: integrate.py changelog` and the requirement's path as `the person`
+
+#### Scenario: A test fixed past the person's fix
+- **WHEN** integrate halted on a red gate, the person committed a fix past the merge, and a merged test the union broke is still red
+- **THEN** the integrator commits the test fix on its own, its message `<path>: test fixed — …` and the trailer block, and the
+  merge commit names no test fixed
 
 ### Requirement: The release ships only a reviewed head
 
