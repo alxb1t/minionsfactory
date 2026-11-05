@@ -1,7 +1,7 @@
 # Cap policy — design
 
-At a converge cap the conductor reads the open blocking cards and their sizes; a cap of small cards gets one automatic grant a run,
-any other cap halts as a re-plan. Verdict at the end: ready to build.
+At a converge cap the conductor reads the open blocking cards and their sizes; a cap of small cards no granted round reached gets
+one automatic grant, any other cap halts as a re-plan. Verdict at the end: ready to build.
 
 ## Context
 
@@ -37,7 +37,7 @@ move: the build re-reads them by symbol.
 | id | decision | brief | rejected |
 |---|---|---|---|
 | [D1](#d1) | `_open_blockers(runs, change)` reads each open blocking card's id and size | Q3 | the rescue's judgement |
-| [D2](#d2) | `Run.auto_grant` at a cap — both places F2 names — spawns converge with `grant=yes`, never past a granted round | Q3, Q4 | a grant file |
+| [D2](#d2) | `Run.auto_grant` at a cap — both places F2 names — takes a `grant=yes` round that `advance` spawns, never past a granted round | Q3, Q4 | a grant file |
 | [D3](#d3) | Any other cap halts as `re-plan`, `cap reached` kept in its text; the rescue names `/mf-plan` | Q5 | a new stage |
 | [D4](#d4) | `[converge] auto_grant`, default `true`, read at plan time | Q7 | an `AGENTS.md` line |
 | [D5](#d5) | The record: D47 amended, D54, `mf-ship`'s halt table | Q6, Q8 | — |
@@ -47,20 +47,22 @@ move: the build re-reads them by symbol.
 `_open_blockers(runs, change) -> list[tuple[str, str]]`: for each of the review and security findings files, each card bullet
 `- **<id> — …**` whose `**Status:**` is `open` and whose `**Priority:**` severity blocks its role, the id and the `size:` after its
 `**Fix:**`, its trailing period stripped; a card with no size reads `a design change`. Review's severity `blocking`, security's
-`critical` or `high`, is the first ` · ` field of `**Priority:**`. A missing or unreadable file → `None`; `None` or `[]` grants nothing.
+`critical` or `high`, is the first ` · ` field of `**Priority:**`; backticks around a severity or a size are stripped. A missing
+or unreadable file, or one that is no regular file, → `None`; `None` or `[]` grants nothing.
 
 ### D2
 
-`Run.auto_grant(version, halt) -> tuple[bool, str]` — whether it granted, and the refused ids — before the rescue at both places F2
-names, its rule in a side-effect-free `_would_grant(version, halt) -> tuple[bool, str]`: `"cap reached"` in `halt`, `self.stopped("run")`
-false, the version's first cap in this run — `self.capped`, every cap counted, and `advance`'s grant clause adding the version when it
+`Run.auto_grant(version, stage, halt) -> tuple[bool, str]` — whether it granted, and the refused ids — before the rescue at both places
+F2 names, its rule in a side-effect-free `_would_grant(version, stage, halt) -> tuple[bool, str]`: `_is_cap(stage, halt)`, `stage`
+`converge-halted` and `"cap reached"` in `halt`, the post-spawn path's stage the one on disk only after a failed `converge` check, since
+another stage's text may name a cap; `self.stopped("run")` false, the version's first cap in this run — `self.capped`, every cap counted, and `advance`'s grant clause adding the version when it
 spends a person's grant, so a cap after it is the second — and no granted round's: the newest `## Run` heading of the status log not
 marked `· grant`, as `mf-converge`'s *A granted round* marks it, so a later run grants no round past one either,
 `self.grants_auto.get(change, True)`, and `_open_blockers` a non-empty list all sized `one line`, `a test` or `one line and a test` →
 remove its halts as `take_back` does, log `grant — <id>: automatic · <ids>`, and return `(True, "")`; the caller `continue`s
 `advance`'s loop, whose next pass takes stage `converge` without reading it and spawns `PROMPTS["converge"]` with `" and grant=yes"` on
 the path a person's grant takes, so `check` and `judge` judge the round — a cap there is the second, refused. The STUCK branch reads
-`if self.auto_grant(version, why): continue` before its halt; the post-spawn path reads
+`if self.auto_grant(version, stage, why): continue` before its halt; the post-spawn path reads
 `held is not None and (self.auto_grant(…) or self.rescue(…))`. It writes no grant file and starts no rescue, so `Run.hold` never
 reads it as a rescue's answer. `ship()`'s every-version-stuck shortcut (`conduct.py:2958-2963`) leaves out of its `all(...)` test a version whose cap
 `_would_grant` takes, so its thread starts; it calls nothing that spawns.
@@ -80,7 +82,7 @@ from=<its brief>` as the way back when the halt says `re-plan`.
 
 ### D5
 
-D47: a cap of small cards is the run's to grant once; a re-plan halt needs the person. D54, *The cap policy* — the sizes, never past a granted round,
+D47: a cap of small cards is the run's to grant, never past a granted round; a re-plan halt needs the person. D54, *The cap policy* — the sizes, never past a granted round,
 the re-plan halt, the setting. `skills/mf-ship/SKILL.md`'s halt table gains the `re-plan` row: run `/mf-plan … from=`, or grant.
 
 ## Tests

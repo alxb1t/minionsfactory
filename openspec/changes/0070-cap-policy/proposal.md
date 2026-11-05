@@ -34,6 +34,7 @@ None.
 - `sdd`:
   - *A run grants one round at a small cap, and halts a large one for a re-plan* — ADDED: the rule, the spawn, the re-plan halt,
     the setting, the person's grant.
+  - *A halted version is rescued in its run* — MODIFIED: a converge cap the run grants gets no rescue.
 
 ## Impact
 

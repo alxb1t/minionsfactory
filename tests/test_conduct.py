@@ -1124,6 +1124,30 @@ def test_run_halts_on_a_human_phase(
         " · 0001-todo · halt — build check fail — phase 2 unticked"
     )
 
+    # A HUMAN phase whose title names a cap, over small open blockers, gets no grant.
+    named = tmp_path / "named"
+    named.mkdir()
+    capped = _primary(named)
+    phase = 'phase 1 — Check the "cap reached" banner **HUMAN**'
+    tree = _version(capped, "0001-todo", f"- [ ] {phase.removeprefix('phase ')}\n")
+    _cards(capped, "0001-todo", _git(tree, "rev-parse", "HEAD"), "a test")
+    calls.unlink()
+    fake()
+    assert (
+        _main(conduct, capped, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == []
+    assert not any(" · grant — " in line or "re-plan" in line for line in _log(capped))
+    # Nor in the version's own pass, as beside a version that builds.
+    conductor = conduct["Run"](capped, "claude")
+    version = conduct["find_version"](capped, "0001-todo")
+    conductor.read_plan([version])
+    conductor.advance(version, ())
+    assert _calls(calls) == []
+    assert conductor.halts == [("0001-todo", f"human — {phase}")]
+    conductor.log.path.unlink()
+
 
 @pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
@@ -3784,6 +3808,22 @@ def test_a_small_cap_is_granted_automatically(
     security.write_text(unsized)
     assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
     security.write_text(cards)
+    # A Priority or a size wrapped in backticks, as stations write them, reads the same.
+    review = minions / "findings" / "0001-todo_review.md"
+    plain = review.read_text()
+    quoted = plain.replace(
+        "blocking · review · stability", "`blocking · review · stability`"
+    )
+    review.write_text(quoted.replace("size: one line.", "size: `one line`."))
+    assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
+    # One that is no regular file is unread: a device or a FIFO could hang the run.
+    review.unlink()
+    review.symlink_to(os.devnull)
+    assert blockers(minions, "0001-todo") is None
+    review.unlink()
+    review.write_bytes(b"\xff")
+    assert blockers(minions, "0001-todo") is None
+    review.write_text(plain)
 
     def run() -> int:
         return _main(
@@ -3909,27 +3949,23 @@ def test_auto_grant_false_grants_none(
     calls = fake("cap-small")
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
-    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _cards(root, "0001-todo", head, "a test")
     minions = root / ".minions"
     table = minions / "models" / "0001-todo.toml"
     table.parent.mkdir(parents=True)
     table.write_text("[converge]\nauto_grant = false\n")
 
-    def run() -> int:
-        return _main(
-            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
-        )
-
-    assert run() == 1
-    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
-    lines = _replanned(root, "R1 S1")
-    assert not any(" · grant — " in line for line in lines)
-
-    # A cap standing at the start halts as a re-plan too, and starts no worker.
-    calls.unlink()
-    assert run() == 1
+    # A cap of small cards standing at the start halts as a re-plan: no worker starts.
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
     assert _calls(calls) == []
-    assert _log(root)[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    lines = _log(root)
+    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert not any(" · grant — " in line for line in lines)
 
     # So does one the version's own pass meets, as beside a version that builds.
     conductor = conduct["Run"](root, "claude")

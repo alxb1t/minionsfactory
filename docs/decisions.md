@@ -511,8 +511,8 @@ hostile repo needs a container.**
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
-**On a build check, converge-cap or integrate halt, `conduct.py` runs `mf-rescue` in the halted version's thread. It may
-fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
+**On a build check halt, a converge cap the run does not grant ([D54](#d54--the-cap-policy)) or an integrate halt,
+`conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
 on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
 a commit at a converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,

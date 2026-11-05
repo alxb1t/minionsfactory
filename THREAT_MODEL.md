@@ -64,7 +64,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
-  build worker's, and converge reviews the whole change after it.
+  build worker's, and converge reviews the whole change after it. The automatic grant
+  ([D54](docs/decisions.md#d54--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
+  status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
+  one a version a run.
 
 ## Known gaps
 
