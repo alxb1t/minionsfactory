@@ -460,7 +460,7 @@ judged by its exit and a check on disk; a failed check halts its version, a halt
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A live run takes a rejoin
 request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
-whose rescue answered its halt, which waits for a re-run. A re-run resumes from
+whose halt was answered while its rescue ran, the person's own fix included, which waits for a re-run. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
@@ -508,9 +508,10 @@ hostile repo needs a container.**
 fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
 on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
-a commit at a converge or integrate halt keeps the halt, and one that rescue answers on disk — a commit, a settled merge, a
-grant — stands for the run, no rejoin taking the version back; a person's grant is refused while that rescue runs, so a
-grant then is the rescue's. A version gets at most `RESCUES = 3` a run, and none for a
+a commit at a converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
+a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, and stands for the run, no rejoin
+taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
+ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped
 release get none: they need the person.**
@@ -519,7 +520,9 @@ release get none: they need the person.**
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
   whole change after it.
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
-  which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version.
+  which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
+  person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
+  for a re-run.
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/build/<id>.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision · counting only what a rescue did in the tree as its answer — a grant it writes would take the

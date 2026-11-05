@@ -11,7 +11,8 @@ fix a build halt on a `Verify:` that cannot pass, a reader a deletion missed, a 
 never `design.md`'s decisions table, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/rescue/<id>.md`.
 `conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on. A version whose
 rescue at a converge or integrate halt leaves its stage on disk no halt SHALL stay halted for the run, a rejoin request taking it
-back none, the halt naming that stage and a moved `HEAD`. A version SHALL
+back none, the halt naming that stage and a moved `HEAD`: whatever answers the halt on disk while the rescue runs, or before
+the run reads its outcome, SHALL count as the rescue's answer, the person's own fix included, and wait for a re-run. A version SHALL
 get at most `RESCUES = 3` rescues in a run, and none for a sub-task it rescued before; a timeout, a usage limit and D47's halts that
 need the person SHALL get none. The run SHALL log `rescue — <id>: fixed · <sub-task> · <commit>` or `rescue — <id>: diagnosed ·
 <file>`, and `report` SHALL print each. The rejoin folder and the grants folder SHALL be read and emptied through a directory file
@@ -109,7 +110,9 @@ default-branch commit no ledger entry stands behind. A worker stopped by a usage
 `/mf-ship grant <change-id>` SHALL work only on a version whose status log halted at the cap. It SHALL record the grant and
 start a run, or, with a run live, write that version's rejoin request. A refusal SHALL name the stage and the command to
 run instead: `/mf-ship`. With a run live, it SHALL refuse while the newest run log holds that version's rescue spawned and not
-finished, naming the stage and the rescue, and write nothing: a grant written then is the rescue's answer. `conduct.py` SHALL
+finished, naming the stage and the rescue, and write nothing: a grant written then is the rescue's answer. A grant landing
+after the rescue's `finish` and before the run reads its outcome SHALL count as the rescue's answer too, held for the run and
+left on disk for a re-run. `conduct.py` SHALL
 spend the grant when it spawns converge, with `grant=yes`. `skills/mf-converge/SKILL.md`
 SHALL open a run marked as the grant, send the open blockers to a fixer, verify one round, and on clean write the rest to
 the backlog with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
@@ -125,8 +128,10 @@ the backlog with no pickup; a blocker left SHALL halt. The cap SHALL stay three.
 #### Scenario: A grant during the version's rescue
 - **WHEN** a person grants a version at the cap while the live run's rescue of it runs
 - **THEN** it exits 2, naming the rescue, and writes no grant and no rejoin request
-- **AND WHEN** that rescue has finished, leaving the cap halt
+- **AND WHEN** that rescue has finished and the run has read its outcome, leaving the cap halt
 - **THEN** the grant goes to the live run, as in *A grant during a live run*
+- **AND WHEN** the grant lands after the rescue's `finish` and before the run reads its outcome
+- **THEN** the run holds the version as the rescue answered it, and the grant stays on disk for a re-run
 
 #### Scenario: A grant is spent once
 - **WHEN** a granted round ends on a blocker
@@ -142,7 +147,9 @@ not end the run's loop while a version's thread runs: an entry it cannot delete 
 to take SHALL halt alone. A request folder that is a link SHALL hold no request, and the poll SHALL delete nothing through
 it. A version the run's plan already holds SHALL stay out, logged, while its models file differs from what the run read, and
 a version whose rescue answered its converge or integrate halt on disk SHALL stay out, logged, for the rest of the run, both
-waiting for a re-run; any other taken version
+waiting for a re-run. Anything that answers that halt on disk while its rescue runs, or before the run reads the rescue's
+outcome, SHALL count as the rescue's answer: the person's own commit past the halted head, settled merge or removed note, and
+a grant landing after the rescue's `finish`, included. Any other taken version
 SHALL have its models file read as it joins, then go through the run's base check, its dependencies, its stations and the
 merge lock, as at a run's start, with its halts and blocks cleared. Its executor's probe SHALL run once in the run, before
 the first worker on it; a failed probe SHALL halt only the versions on that executor, each later one with that probe's
@@ -151,7 +158,8 @@ version taken, delete the requests it read, and a run's start SHALL delete every
 end the run, as before; a request reaches no ended run.
 
 #### Scenario: A fixed version rejoins
-- **WHEN** a version halts while another builds, the person fixes it on disk, and runs `/mf-ship`
+- **WHEN** a version halts while another builds, the person fixes it on disk once any rescue of it has ended, and runs
+  `/mf-ship`
 - **THEN** the live run logs `rejoin` for it, and it releases in the same run, the other version's stations untouched
 
 #### Scenario: A version still halted
@@ -161,6 +169,8 @@ end the run, as before; a request reaches no ended run.
 #### Scenario: A version its rescue answered
 - **WHEN** a version's rescue answered its converge or integrate halt on disk, and a request names it
 - **THEN** it stays out for the rest of the run, and the run logs it still halted, naming the answer
+- **AND WHEN** the person's own commit, settled merge or removed note answered that halt while the rescue ran
+- **THEN** it counts as the rescue's answer: the version stays out, logged the same, and a re-run goes on from it
 
 #### Scenario: A version cut during the run
 - **WHEN** a version is cut while a run is live, and `/mf-ship` runs

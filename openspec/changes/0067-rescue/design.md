@@ -81,7 +81,8 @@ that version for the rest of the run. So that a grant on disk then is the rescue
 while the newest run log holds the version's `spawn — rescue` with no `finish — rescue` after it, naming the rescue and writing
 nothing; the person grants once it ends. Rejected: `hold` counting only what the rescue did in the tree, which lets a grant the
 rescue writes take the version back (`0067·S2`). A grant landing between the rescue's `finish` and `hold`'s read is held for the
-run, its halt naming it, and the grant stays on disk for a re-run.
+run, its halt naming it, and the grant stays on disk for a re-run; so is the person's own commit, settled merge or removed note
+landing while the rescue runs, which `hold` cannot tell from the rescue's.
 
 ### D4
 
