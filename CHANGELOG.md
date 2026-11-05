@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-11-06
+
+Gate: local 1m27s · CI not read under mf-ship · 0.63.0: local 1m43s · CI not read under mf-ship
+
 - Converge writes one `verdicts` line per role, naming its executor, model, effort and tokens, and a card gains
   `**Round:**`; a spawn line names its effort, and a station spawned again in one stamp writes `-2.log` and on, which
   the review metrics' cost table and the rescue read (change `0077-run-metrics`, phase 1).
