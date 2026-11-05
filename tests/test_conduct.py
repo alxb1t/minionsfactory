@@ -1109,6 +1109,21 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == []
 
+    # A build that stops at a HUMAN phase gets no rescue: the phase needs the person.
+    stops = tmp_path / "stops"
+    stops.mkdir()
+    built = _primary(stops)
+    _version(built, "0001-todo", "- [ ] 1 — Todo\n- [ ] 2 — Ship **HUMAN**\n")
+    fake("rescue-fix")
+    assert (
+        _main(conduct, built, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert _log(built)[-2].endswith(
+        " · 0001-todo · halt — build check fail — phase 2 unticked"
+    )
+
 
 @pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
@@ -1118,13 +1133,22 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     calls = fake("deny", "liar")
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    # A halt file naming another head is stale, and an unreadable one is none: the
+    # halt line leaves them out.
+    stale = root / ".minions" / "build" / "0001-todo.halt"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"\xff")
+    halt = conduct["_build_halt"]
+    assert halt(root / ".minions", tree, "0001-todo") is None
+    base = _git(root, "rev-parse", "HEAD")
+    stale.write_text(f"sub-task: 9.9\nstop: 1\nevidence: old\nhead: {base}\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
 
-    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
     lines = _log(root)
     assert any(re.search(r" · finish — build · exit 0 · \d+s$", line) for line in lines)
     assert any(
@@ -1133,6 +1157,20 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
             " · denied: Bash(rm -rf build)"
         )
         for line in lines
+    )
+
+    fake("halt-0001-todo")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    logs = (root / ".minions" / "runs").glob("*.md")
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+        )
+        for log in logs
+        for line in log.read_text().splitlines()
     )
 
     _commit(
@@ -1187,6 +1225,244 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     )
 
 
+def test_a_rescue_fixes_a_plan_halt_in_its_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-fix")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "rescue 0001-todo",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+    lines = _log(root)
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+        )
+        for line in lines
+    )
+    assert any(
+        line.endswith(f" · run · rescue — 0001-todo: fixed · 1.1 · {amend}")
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
+    assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
+
+
+@pytest.mark.slow
+def test_a_rescue_diagnoses_a_decision_halt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-diagnose")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
+    lines = _log(root)
+    diagnosis = ".minions/rescue/0001-todo.md"
+    assert any(
+        line.endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
+        for line in lines
+    )
+    assert any(
+        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+        for line in lines
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    first, second = (line for line in lines if " · 0001-todo · halt — " in line)
+    assert said[-4:] == [first, f"0001-todo · diagnosed {diagnosis}", second, lines[-1]]
+
+    # The diagnosis an earlier rescue left is not this one's.
+    calls.unlink()
+    fake("halt-0001-todo")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
+    assert _log(root)[-2].endswith(
+        " · 0001-todo · halt — rescue wrote no amend and no diagnosis"
+    )
+
+    # A rescue worker that fails halts as any worker does.
+    fake("halt-0001-todo", "dies-rescue")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue worker exit 1")
+
+
+def test_a_rescue_outside_the_plan_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-wild")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
+    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue touched src.py")
+    assert not any(" · run · rescue — " in line for line in _log(root))
+
+    # A rescue that rewrites the history its amend is judged against halts too.
+    before = _git(tree, "rev-parse", "HEAD")[:7]
+    fake("halt-0001-todo", "rescue-rewrite")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _log(root)[-2].endswith(
+        f" · 0001-todo · halt — rescue moved HEAD off {before}"
+    )
+
+    # An amend is one commit with the amend's subject and trailer, and none at a
+    # converge or integrate halt.
+    amend, tasks = conduct["_amend"], "openspec/changes/0001-todo/tasks.md"
+    start = _git(tree, "rev-parse", "HEAD")
+    named = "docs(0001-todo): amend the change directory\n\nRescue: 1.1"
+    _commit(tree, {tasks: "## Progress\n\n- [ ] 1 — Todo\n"}, named)
+    assert amend(tree, "0001-todo", start, ("tasks.md",))[0]
+    assert amend(tree, "0001-todo", start, ())[1] == f"rescue touched {tasks}"
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "an amend")
+    head = _git(tree, "rev-parse", "HEAD")[:7]
+    for since in (start, _git(tree, "rev-parse", "HEAD~1")):
+        assert amend(tree, "0001-todo", since, ("tasks.md",)) == (
+            None,
+            f"rescue commit {head} is not one amend with a Rescue: trailer",
+        )
+
+
+def test_a_sub_task_is_rescued_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-hollow")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "rescue 0001-todo",
+        "build 0001-todo",
+    ]
+    assert _log(root)[-2].endswith(
+        " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+        " · rescued 1.1"
+    )
+
+    # The fourth halt gets none, whatever its sub-task.
+    conductor = conduct["Run"](root, "claude")
+    conductor.rescues["0001-todo"] = ["1.1", "1.2", "1.3"]
+    assert conductor.rescued("0001-todo", "2.1") == " · rescued 1.1 1.2 1.3"
+    assert conductor.rescued("0001-todo", "1.2") == " · rescued 1.1 1.2 1.3"
+    assert conductor.rescued("0002-marks", "1.1") == ""
+
+
+def test_rescue_skip_runs_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-fix")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    minions = root / ".minions"
+    table = minions / "models" / "0001-todo.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text("[rescue]\nskip = true\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    # The rescue runs on its own table, else the build's: an empty one is not absent.
+    models = conduct["_models"]
+    table.write_text('[build]\nmodel = "m"\n')
+    assert models(minions, "0001-todo", "rescue", "claude") == ("claude", "m", None)
+    table.write_text('[build]\nmodel = "m"\n[rescue]\n')
+    assert models(minions, "0001-todo", "rescue", "claude") == ("claude", None, None)
+
+
+def test_a_linked_rejoin_folder_deletes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    runs = tmp_path / "runs"
+    folder = runs / "rejoin"
+    folder.mkdir(parents=True)
+    (folder / "all").touch()
+    elsewhere = tmp_path / "operator-files"
+    elsewhere.mkdir()
+    (elsewhere / "all").touch()
+    unlink = os.unlink
+
+    # A worker swaps the folder for a link once the run has listed it.
+    def swap(path: str | Path, *, dir_fd: int | None = None) -> None:
+        if not folder.is_symlink():
+            folder.rename(runs / "listed")
+            folder.symlink_to(elsewhere)
+        unlink(path, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "unlink", swap)
+    assert conduct["_requests"](runs) == {"all"}
+    assert (elsewhere / "all").is_file()
+    assert not (runs / "listed" / "all").exists()
+
+    # A folder that cannot be listed holds no request.
+    def refuse(fd: int) -> list[str]:
+        raise PermissionError(fd)
+
+    (runs / "listed" / "all").touch()
+    monkeypatch.setattr(os, "listdir", refuse)
+    assert conduct["_entries"](runs / "listed", empty=True) == []
+    assert (runs / "listed" / "all").is_file()
+
+
 def test_a_later_version_halts_and_the_earlier_ships(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1208,7 +1484,10 @@ def test_a_later_version_halts_and_the_earlier_ships(
     assert "release 0002-marks" not in _calls(calls)
     assert _git(root, "tag", "-l") == "v0.1.0"
     lines = _log(root)
-    halted = next(line for line in lines if " · 0002-marks · halt — " in line)
+    # The build check's halt, then its rescue's.
+    halts = [line for line in lines if " · 0002-marks · halt — " in line]
+    halted = halts[0]
+    assert halts[1].endswith(" · halt — rescue wrote no amend and no diagnosis")
     spawned = next(line for line in lines if " · 0001-todo · spawn — release" in line)
     assert lines.index(halted) < lines.index(spawned)
     assert lines[-1].endswith(
@@ -1221,7 +1500,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
-    assert report[-2:] == [halted, lines[-1]]
+    assert report[-3:] == [*halts, lines[-1]]
 
 
 def test_a_later_version_ships_past_a_halted_one(
@@ -1710,6 +1989,8 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     assert stage_of(root, find(root, "0001-todo")) == closing
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage_of(root, find(root, "0001-todo"))[0] == "converge"
+    marker.write_bytes(b"\xff")
+    assert stage_of(root, find(root, "0001-todo")) == closing
     marker.unlink()
     # A read of a FIFO waits for a writer.
     os.mkfifo(marker)
@@ -3480,6 +3761,7 @@ def test_stop_ends_a_live_run(
     foreign.wait(timeout=10)
 
 
+@pytest.mark.slow
 def test_a_grant_buys_one_round(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3536,6 +3818,7 @@ def test_a_grant_buys_one_round(
             == 1
         )
 
+    fake("grant-halts", "rescue-diagnose")
     run()
     assert "converge 0001-todo and grant=yes" in _calls(calls)
     assert not grants.exists()
@@ -3547,6 +3830,27 @@ def test_a_grant_buys_one_round(
         line.endswith(" · run · grant — 0001-todo: one more round past the cap")
         for line in lines
     )
+    # The cap reached in the run gets its rescue in that run.
+    assert _calls(calls)[-1] == "rescue 0001-todo"
+    diagnosis = ".minions/rescue/0001-todo.md"
+    assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
+    assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+
+    # A rescue that answers the cap on disk, here by a grant, and asks to rejoin keeps
+    # the halt for the run. Why: 0067-rescue design D3.
+    calls.unlink()
+    log.unlink()
+    fake("grant-halts", "rescue-answers")
+    run()
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    answered = "rescue answered its halt — converge: granted"
+    lines = _log(root)
+    assert any(line.endswith(f" · 0001-todo · halt — {answered}") for line in lines)
+    assert any(
+        line.endswith(f" · run · rejoin — 0001-todo: still halted — {answered}")
+        for line in lines
+    )
+    grants.unlink()
 
     calls.unlink()
     # A grants folder a worker linked elsewhere lists nothing on the start line.
@@ -3558,6 +3862,17 @@ def test_a_grant_buys_one_round(
     run()
     assert _calls(calls) == []
     assert " · grant " not in _log(root)[0]
+    # A grant behind that link is none, and the run deletes nothing through it.
+    (elsewhere / "0001-todo").touch()
+    run()
+    assert (elsewhere / "0001-todo").is_file()
+    assert _calls(calls) == []
+    # Nor does a converge that starts with the folder linked.
+    log.unlink()
+    run()
+    assert (elsewhere / "0001-todo").is_file()
+    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    calls.unlink()
     grants.parent.unlink()
     grants.parent.mkdir()
 
@@ -3566,6 +3881,20 @@ def test_a_grant_buys_one_round(
     active.mkdir()
     (active / "pid").write_text(str(os.getpid()))
     (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    # While the live run's rescue of the version runs, a grant is refused and writes
+    # nothing: one written then is the rescue's. Why: 0067-rescue design D3.
+    runs = root / ".minions" / "runs"
+    newest = conduct["last_log"](runs)
+    with newest.open("a") as file:
+        file.write("12:00:00 · 0001-todo · spawn — rescue · model default\n")
+    rescuing = (
+        "grant: cannot run — 0001-todo is at converge-halted with its rescue running:"
+        " grant once it ends"
+    )
+    assert grant() == (2, rescuing)
+    assert not grants.exists() and not (runs / "rejoin" / "0001-todo").exists()
+    with newest.open("a") as file:
+        file.write("12:00:09 · 0001-todo · finish — rescue · exit 0 · 9s\n")
     assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
     assert grants.is_file()
     assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()

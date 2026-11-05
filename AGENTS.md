@@ -35,7 +35,8 @@ The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, r
 
 - **`skills/`** — the `mf-*` skills, one `SKILL.md` each: plan, bootstrap, cut, build, converge, release,
   `mf-integrate`, which merges a moved base into the next version, `mf-ship`, which takes cut versions to the
-  default branch unattended, and `mf-simplify`, which the build runs to close a change. Tracked here;
+  default branch unattended, `mf-rescue`, which `mf-ship` runs on a halted version to amend its plan or diagnose the
+  halt, and `mf-simplify`, which the build runs to close a change. Tracked here;
   `make install-skills` pins one exported release per machine, both hosts linked to it, per D55.
 - **`docs/`** — the map, the principles, the decisions.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not

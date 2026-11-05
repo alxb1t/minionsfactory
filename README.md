@@ -31,6 +31,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules and the union of what both sides only add, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 | [`mf-ship`](skills/mf-ship/SKILL.md) | take every cut version to the default branch unattended — build, converge, integrate, release |
+| [`mf-rescue`](skills/mf-rescue/SKILL.md) | read a halted version's halt under `mf-ship`, then amend its plan or write a diagnosis for the person |
 | [`mf-review-metrics`](skills/mf-review-metrics/SKILL.md) | draw one page of review metrics across repos — per model — from past findings; an operator tool |
 
 ## Install
