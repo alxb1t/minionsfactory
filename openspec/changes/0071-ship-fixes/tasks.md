@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — Integrate commits, then gates
 - [x] 2 — The changelog renumber
-- [ ] 3 — Dependents come back
+- [x] 3 — Dependents come back
 - [ ] 4 — An amend answers a halt
 - [ ] 5 — The fixer and rescue
 
@@ -34,11 +34,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Dependents come back
 
-- [ ] 3.1 Add `Run._unblock`, called from `take_requests` and `join()`, and guard `take_back`'s `read_plan`, in
+- [x] 3.1 Add `Run._unblock`, called from `take_requests` and `join()`, and guard `take_back`'s `read_plan`, in
   `skills/mf-ship/scripts/conduct.py`, per [D4](design.md#d4); extend `test_a_halted_dependency_blocks_a_chain` with a rejoin of the
   dependency alone, and `test_the_plan_is_read_once` with a rejoin of a planned version.
   Verify: `uv run pytest -q tests/test_conduct.py -k "halted_dependency_blocks_a_chain or plan_is_read_once"` reports `2 passed`.
-- [ ] 3.2 Count `catch_up`'s commits with `--no-merges`, per [D4](design.md#d4); extend `test_after_waits_for_its_dependency` with a
+- [x] 3.2 Count `catch_up`'s commits with `--no-merges`, per [D4](design.md#d4); extend `test_after_waits_for_its_dependency` with a
   cut-only version holding a `merge_in` commit, behind a `README.md` change on the default branch.
   Verify: `uv run pytest -q tests/test_conduct.py -k after_waits_for_its_dependency` reports `1 passed`.
 

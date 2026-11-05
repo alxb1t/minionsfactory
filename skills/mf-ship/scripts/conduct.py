@@ -2376,6 +2376,7 @@ class Run:
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
+        self.unblocked: set[tuple[str, threading.Thread]] = set()
         self.released: list[str] = []
         self.offline = False
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
@@ -2825,12 +2826,12 @@ class Run:
     def catch_up(self, version: Version) -> None:
         """Merge the default branch into a version behind it.
 
-        A cut-only version gets it merged in by `merge_in`, and so does a started one
-        with an unticked phase and no open merge, behind a default branch that changed
-        `GATE_FILES`. One
-        with an unticked phase and a merge open with no note stops with 1, naming the
-        commit that finishes it, unless its `HEAD` lacks an `after:` id, a merge `ready`
-        finishes. Any other goes on from its stage. Why: 0057-run-fixes design D2.
+        A cut-only version, its merges aside, gets it merged in by `merge_in`, and so
+        does a started one with an unticked phase and no open merge, behind a default
+        branch that changed `GATE_FILES`. One with an unticked phase and a merge open
+        with no note stops with 1, naming the commit that finishes it, unless its `HEAD`
+        lacks an `after:` id, a merge `ready` finishes. Any other goes on from its
+        stage. Why: 0057-run-fixes design D2; 0071-ship-fixes design D4.
         """
         change, default, tree = (
             version.change,
@@ -2840,7 +2841,8 @@ class Run:
         if tree is None or _ancestor(self.primary, default, change):
             return
         base = _git(self.primary, "merge-base", default, change).strip()
-        held = _git(self.primary, "rev-list", "--count", f"{base}..{change}").strip()
+        span = f"{base}..{change}"
+        held = _git(self.primary, "rev-list", "--count", "--no-merges", span).strip()
         if held == "1":
             self.merge_in(tree, change, default)
             return
@@ -2925,9 +2927,9 @@ class Run:
 
         The requests are read and deleted. A version whose stage is a halt stays out,
         logged; a taken one has its halts and blocks cleared, its models read and its
-        new executors probed first. It raises nothing: it runs beside live threads,
-        so a failure skips the request or halts that version. Why: 0063-rejoin
-        design D2.
+        new executors probed first. The blocked versions come back after them. It
+        raises nothing: it runs beside live threads, so a failure skips the request
+        or halts that version. Why: 0063-rejoin design D2; 0071-ship-fixes design D4.
         """
         names = _requests(self.runs)
         if not names or self.stopped("run"):
@@ -2943,21 +2945,63 @@ class Run:
             thread = threads.get(change)
             if not names & {"all", change} or (thread and thread.is_alive()):
                 continue
-            try:
-                started = self.take_back(version, threads) or started
-            except Stop as stop:
-                self.halt(change, str(stop))
-            except Exception as error:
-                self.halt(change, f"conduct.py failed: {error}")
+            started = self.take_back_safely(version, threads) or started
+        self._unblock(threads)
         return started
+
+    def _unblock(self, threads: dict[str, threading.Thread]) -> None:
+        """Take back each blocked version one of whose dependencies has a live thread.
+
+        Once per dependency thread, so a refused take-back logs once; in change-id
+        order, so a chain comes back in one pass. It raises nothing, as
+        `take_requests` does not. Why: 0071-ship-fixes design D4.
+        """
+        with self.guard:
+            waiting = bool(self.blocked)
+        if not waiting or self.stopped("run"):
+            return
+        try:
+            versions = open_versions(self.primary)
+        except Exception as error:
+            self.log.event("run", "rejoin", f"skipped — {error}")
+            return
+        for version in versions:
+            change = version.change
+            own = threads.get(change)
+            with self.guard:
+                blocked = change in self.blocked
+            if not blocked or (own and own.is_alive()):
+                continue
+            live = {
+                threads[name]
+                for name in _dependencies(self.primary, change)
+                if name in threads and threads[name].is_alive()
+            }
+            fresh = {(change, thread) for thread in live} - self.unblocked
+            if fresh:
+                self.unblocked |= fresh
+                self.take_back_safely(version, threads)
+
+    def take_back_safely(
+        self, version: Version, threads: dict[str, threading.Thread]
+    ) -> bool:
+        """Return `take_back`'s answer; a failure halts the version, raising nothing."""
+        try:
+            return self.take_back(version, threads)
+        except Stop as stop:
+            self.halt(version.change, str(stop))
+        except Exception as error:
+            self.halt(version.change, f"conduct.py failed: {error}")
+        return False
 
     def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Start `take` for a requested version whose stage is no halt; True if so.
 
         One the run's plan holds stays out while its models file differs: a worker can
-        write it, and so does one whose rescue answered its halt. An executor whose
-        probe failed halts it with that probe's reason, probed no second time.
-        Why: 0063-rejoin design D2, D3; 0067-rescue design D3.
+        write it, and so does one whose rescue answered its halt; only one the plan
+        lacks has its models read. An executor whose probe failed halts it with that
+        probe's reason, probed no second time. Why: 0063-rejoin design D2, D3;
+        0067-rescue design D3; 0071-ship-fixes design D4.
         """
         change = version.change
         with self.guard:
@@ -2979,7 +3023,8 @@ class Run:
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
-        self.read_plan([version])
+        if change not in self.planned:
+            self.read_plan([version])
         named = (self.plan.get((change, station)) for station in PLANNED)
         for executor in dict.fromkeys(models[0] for models in named if models):
             if executor in self.probed or self.stopped(change):
@@ -3129,12 +3174,14 @@ class Run:
         return True
 
     def join(self, threads: dict[str, threading.Thread]) -> None:
-        """Wait for every thread, taking requests every `REJOIN_POLL` seconds.
+        """Wait for every thread, taking requests and blocked versions every poll.
 
-        With none alive, the requests are read once more. Why: 0063-rejoin design D1.
+        A poll is `REJOIN_POLL` seconds. With none alive, the requests are read once
+        more. Why: 0063-rejoin design D1; 0071-ship-fixes design D4.
         """
         while True:
             self.take_requests(threads)
+            self._unblock(threads)
             for thread in [thread for thread in threads.values() if thread.is_alive()]:
                 thread.join(timeout=REJOIN_POLL)
             alive = any(thread.is_alive() for thread in threads.values())

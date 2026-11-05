@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CHANGELOG.md`, so a colliding decision no longer halts on the changelog's own merge (change `0071-ship-fixes`,
   phase 2).
 - `0.59.0`'s entry calls the cap policy D54; it is D56.
+- A version blocked by a dependency comes back when that dependency's thread starts again, so a rejoin of the
+  dependency alone brings its chain; a rejoin re-reads only an unplanned version's models, and a `merge_in` commit no
+  longer marks a cut-only version started (change `0071-ship-fixes`, phase 3).
 
 ## [0.59.0] - 2026-11-05
 

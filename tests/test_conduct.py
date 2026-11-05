@@ -313,6 +313,8 @@ def test_status_reads_each_stage_from_disk(
     for named in (_git(tree, "rev-parse", "HEAD~1"), "0" * 40):
         red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
         assert stage() == "0001-todo · integrate"
+    red.write_bytes(b"gate red\nhead: \xff\n")
+    assert conduct["_red"](root, tree, "0001-todo") is None
     red.unlink()
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
@@ -862,6 +864,17 @@ def test_after_waits_for_its_dependency(
         cut_only, "log", "--format=%s", "0001-todo"
     )
 
+    # A `merge_in` commit does not mark a cut-only version started: a later move of
+    # the default branch, outside `GATE_FILES`, is merged in too.
+    # Why: 0071-ship-fixes design D4.
+    once, cut = behind("merged-once", "Makefile", started=False)
+    caught = conduct["Run"](once, "claude")
+    caught.merge_in(cut, "0001-todo", "main")
+    _commit(once, {"README.md": "x\n"}, "main moves outside the gate")
+    caught.catch_up(conduct["find_version"](once, "0001-todo"))
+    assert conduct["_ancestor"](once, "main", "0001-todo")
+    assert _git(once, "rev-list", "--count", "--merges", "main..0001-todo") == "2"
+
     merged = "chore(integrate): merge main into 0001-todo"
     gated, _ = behind("started", "Makefile", started=True)
     assert (
@@ -1097,6 +1110,43 @@ def test_a_halted_dependency_blocks_a_chain(
         "0001-todo · halt — waiting — after 0001-todo",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0",
     ]
+
+    # A rejoin of the dependency alone brings back the chain it blocked.
+    # Why: 0071-ship-fixes design D4.
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    chain = tmp_path / "chain"
+    chain.mkdir()
+    hold = chain / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("liar-0001-todo", "hold-0004-free")
+    calls.unlink(missing_ok=True)
+    linked = _primary(chain)
+    first = _version(linked, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(linked, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(linked, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
+    _version(linked, "0004-free", "- [ ] 1 — Free\n")
+
+    def fix() -> None:
+        tasks = first / "openspec/changes/0001-todo/tasks.md"
+        _commit(first, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
+        _done(linked, "0001-todo", _git(first, "rev-parse", "HEAD"))
+        fake()
+        assert conduct["rejoin"](linked, "0001-todo") == "rejoin: requested 0001-todo"
+
+    said = (" · 0001-todo · halt — ", " · 0003-more · blocked — by 0002-marks")
+    join = _when_logged(linked, said, fix, hold)
+    assert (
+        _main(conduct, linked, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+    lines = _log(linked)
+    for change in ("0002-marks", "0003-more"):
+        assert any(
+            line.endswith(f" · run · rejoin — {change}: waiting") for line in lines
+        )
+        assert f"release {change}" in _calls(calls)
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0 v0.4.0")
 
 
 def test_run_halts_on_a_human_phase(
@@ -3566,6 +3616,52 @@ def test_the_plan_is_read_once(
         " during the run"
     )
     assert conductor.plan == read and conductor.stopped("0001-todo")
+
+    # A rejoin of a planned version compares its models file and reads no plan again.
+    # Why: 0071-ship-fixes design D4.
+    again = conduct["Run"](root, "claude")
+    again.take = lambda *args: None
+    again.read_plan([conduct["find_version"](root, "0001-todo")])
+    again.probed |= {"claude", "codex"}
+    reads: list[object] = []
+    again.read_plan = reads.append
+    request.touch()
+    assert again.take_requests({})
+    assert reads == []
+    assert (
+        again.log.path.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · rejoin — 0001-todo: release")
+    )
+
+    # A blocked version's poll that cannot list the versions skips, raising nothing.
+    def unlisted(primary: Path) -> list[object]:
+        raise conduct["Stop"](2, "conduct: cannot run — git failed")
+
+    again.blocked.append("0002-none")
+    listing = conduct["main"].__globals__["open_versions"]
+    conduct["main"].__globals__["open_versions"] = unlisted
+    again._unblock({})
+    conduct["main"].__globals__["open_versions"] = listing
+    assert (
+        again.log.path.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · rejoin — skipped — conduct: cannot run — git failed")
+    )
+
+    # A take-back that fails halts its version and raises nothing.
+    version = conduct["find_version"](root, "0001-todo")
+    for raised, said in (
+        (conduct["Stop"](1, "conduct: halt — stopped"), "conduct: halt — stopped"),
+        (ValueError("broken"), "conduct.py failed: broken"),
+    ):
+
+        def failing(*args: object, raised: Exception = raised) -> bool:
+            raise raised
+
+        again.take_back = failing
+        assert not again.take_back_safely(version, {})
+        assert again.halts[-1] == ("0001-todo", said)
 
     def domains(*args: object) -> list[str]:
         command = argv(*args)
