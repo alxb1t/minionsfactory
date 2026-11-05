@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `conduct.py run` starts `caffeinate -is -w <its pid>` at its start, so a sleeping Mac stops no worker; the `start`
-  line ends `· awake: held` or `· awake: not held — caffeinate not on PATH`, fake workers start no hold, and `mf-ship`
-  Step 3 names the closed lid (change `0069-caffeinate`, phase 1).
+  line ends `· awake: held` or `· awake: not held — caffeinate not on PATH`, fake workers start no hold and name
+  none, and `mf-ship` Step 3 names the closed lid (change `0069-caffeinate`, phase 1).
 
 ## [0.57.0] - 2026-11-05
 

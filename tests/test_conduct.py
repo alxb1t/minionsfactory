@@ -2702,6 +2702,25 @@ def test_a_run_holds_the_machine_awake(
     assert conduct["_hold_awake"](4242) == "awake: not held — caffeinate not on PATH"
     assert argv.read_text() == "-is -w 4242\n"
 
+    # A run's `start` line ends with the field, after the release, and the run goes on
+    # without the tool.
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept.mkdir()
+    (kept / "pending").write_text("v9.9.9\n")
+    for name, field in (
+        ("caffeinate", "awake: held"),
+        ("caffeinate-absent", "awake: not held — caffeinate not on PATH"),
+    ):
+        conduct["_hold_awake"].__globals__["CAFFEINATE"] = name
+        conductor = conduct["Run"](root, "claude")
+        assert conductor.ship() == 0
+        lines = conductor.log.path.read_text().splitlines()[2:]
+        assert " · run · start — " in lines[0]
+        assert lines[0].endswith(f" · pending v9.9.9 · {field}")
+        assert lines[-1].endswith(" · run · done — nothing to ship")
+
 
 @pytest.mark.slow
 def test_a_forged_release_is_not_pushed(
