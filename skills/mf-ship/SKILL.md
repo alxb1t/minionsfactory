@@ -104,7 +104,7 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
 out refused. `conduct.py` holds the push, and scans each push range for secrets first.
-Converge runs MF's method.
+Converge runs MF's method. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop
 
