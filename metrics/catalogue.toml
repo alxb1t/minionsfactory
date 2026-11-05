@@ -125,3 +125,175 @@ better = "lower"
 watch = 10
 script = "scripts/metrics/backlog.py"
 args = []
+
+# The version's run, read from the run directory and git; a stage the run left no
+# data for is a gap. Why: 0077-run-metrics design D3.
+
+[[metric]]
+id = "diff-lines"
+title = "Lines changed"
+group = "run"
+unit = "lines"
+better = "lower"
+source = "station"
+
+[[metric]]
+id = "diff-files"
+title = "Files changed"
+group = "run"
+unit = "files"
+better = "lower"
+source = "station"
+
+[[metric]]
+id = "lead-minutes"
+title = "Lead time, the cut to the release"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["lead-minutes"]
+
+[[metric]]
+id = "build-minutes"
+title = "Build time"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["build-minutes"]
+
+[[metric]]
+id = "converge-minutes"
+title = "Converge time"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["converge-minutes"]
+
+[[metric]]
+id = "catch-up-minutes"
+title = "Catch-up time"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["catch-up-minutes"]
+
+[[metric]]
+id = "integrate-minutes"
+title = "Integrate time"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["integrate-minutes"]
+
+[[metric]]
+id = "wait-minutes"
+title = "Time halted, waiting for the person"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["wait-minutes"]
+
+[[metric]]
+id = "converge-rounds"
+title = "Converge rounds"
+group = "run"
+unit = "rounds"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["converge-rounds"]
+
+[[metric]]
+id = "blockers-round-1"
+title = "Blocking findings in round 1"
+group = "run"
+unit = "findings"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["blockers-round-1"]
+
+[[metric]]
+id = "grants"
+title = "Rounds granted past the cap"
+group = "run"
+unit = "grants"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["grants"]
+
+[[metric]]
+id = "halts-build"
+title = "Build halts"
+group = "run"
+unit = "halts"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["halts-build"]
+
+[[metric]]
+id = "halts-converge"
+title = "Converge halts"
+group = "run"
+unit = "halts"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["halts-converge"]
+
+[[metric]]
+id = "halts-integrate"
+title = "Integrate halts"
+group = "run"
+unit = "halts"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["halts-integrate"]
+
+[[metric]]
+id = "halts-release"
+title = "Release halts"
+group = "run"
+unit = "halts"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["halts-release"]
+
+[[metric]]
+id = "rescues-fixed"
+title = "Rescues that fixed the plan"
+group = "run"
+unit = "rescues"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["rescues-fixed"]
+
+[[metric]]
+id = "rescues-diagnosed"
+title = "Rescues that diagnosed the halt"
+group = "run"
+unit = "rescues"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["rescues-diagnosed"]
+
+[[metric]]
+id = "build-commits"
+title = "Build commits"
+group = "run"
+unit = "commits"
+better = "higher"
+script = "scripts/metrics/run.py"
+args = ["build-commits"]
+
+[[metric]]
+id = "fix-commits"
+title = "Commits after the build"
+group = "run"
+unit = "commits"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["fix-commits"]

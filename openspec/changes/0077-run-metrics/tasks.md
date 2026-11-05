@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — Converge's record
-- [ ] 2 — The run's time and loop
+- [x] 2 — The run's time and loop
 - [ ] 3 — The run's cost and review yield
 - [ ] 4 — The review metrics data
 
@@ -25,7 +25,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The run's time and loop
 
-- [ ] 2.1 Add `scripts/metrics/run.py` with the time and loop kinds, and their entries and the `diff-lines`, `diff-files` station
+- [x] 2.1 Add `scripts/metrics/run.py` with the time and loop kinds, and their entries and the `diff-lines`, `diff-files` station
   entries in `metrics/catalogue.toml`, per [D3](design.md#d3); add `test_run_metrics_read_the_run_logs` to
   `tests/test_metric_scripts.py`.
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k run_metrics_read_the_run_logs` reports `1 passed`.
