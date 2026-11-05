@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-11-05
+
+Gate: local 1m43s · CI not read under mf-ship · 0.62.1: local 1m43s · CI not read under mf-ship
+
 - `scripts/metrics/codebase.py` measures the codebase from the tree — the largest module, modules over 1,000 lines,
   functions over complexity 10 by Ruff's `C901`, suppressions, test lines per code line, Python lines and dependencies —
   and the catalogue's `code` group names each (change `0078-code-metrics`, phase 1).

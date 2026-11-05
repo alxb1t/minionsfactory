@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.63
 ---
 
 # Code metrics

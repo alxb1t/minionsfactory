@@ -1,0 +1,91 @@
+{
+  "change": "0078-code-metrics",
+  "version": "v0.63",
+  "base": "9f6b755",
+  "analyzed": "9caefc4",
+  "measured_on": "local",
+  "collected_at": "2026-11-05T23:44:32+02:00",
+  "mf_version": "v0.62.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 17659
+    },
+    "converge-worker-reading-set": {
+      "value": 13837
+    },
+    "shared-context": {
+      "value": 8997
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 209
+    },
+    "gate-seconds": {
+      "value": 103
+    },
+    "largest-module-lines": {
+      "value": 5736
+    },
+    "modules-over-1000-lines": {
+      "value": 2
+    },
+    "complex-functions": {
+      "value": 13
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.34
+    },
+    "python-lines": {
+      "value": 19373
+    },
+    "dependencies": {
+      "value": 0
+    },
+    "dev-dependencies": {
+      "value": 7
+    },
+    "test-seconds": {
+      "value": 100.8
+    },
+    "slowest-test-seconds": {
+      "value": 26.43
+    },
+    "test-seconds-summed": {
+      "value": 855.52
+    },
+    "slow-tests": {
+      "value": 68
+    },
+    "total-coverage": {
+      "value": 95.87
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 68
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 20
+    }
+  }
+}
