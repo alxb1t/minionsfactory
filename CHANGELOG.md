@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0079-debt-rename`, phase 1).
 - The word "backlog" leaves the live record for "debt": D15, D16, the principles, `AGENTS.md`, `THREAT_MODEL.md`, the plan,
   cut and review skills; `scripts/metrics/backlog.py` is `debt.py`, the metric id kept (change `0079-debt-rename`, phase 2).
+- `conduct.py run` moves an old `.minions/backlog.md` to `debt.md` and clears a stale `backlog.lock` at its start, under the
+  claim; both files, or a young old lock, halt the run before any worker (change `0079-debt-rename`, phase 3).
 
 ## [0.64.0] - 2026-11-06
 

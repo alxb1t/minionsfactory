@@ -2292,6 +2292,67 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not any(" · unlock — " in line for line in _log(root))
 
 
+def test_a_run_moves_an_old_backlog_to_the_debt(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    minions.mkdir(exist_ok=True)
+    old, new = minions / "backlog.md", minions / "debt.md"
+    lock = minions / "backlog.lock"
+    moved = " · run · move — .minions/backlog.md → .minions/debt.md"
+
+    def start() -> tuple[int, str]:
+        conductor = conduct["Run"](root, "claude")
+        code = conductor.ship()
+        logs = (minions / "runs").glob("*.md")
+        return code, "".join(log.read_text() for log in sorted(logs))
+
+    def stale_lock() -> None:
+        lock.mkdir()
+        past = time.time() - 601
+        os.utime(lock, (past, past))
+
+    old.write_text("# Backlog\n\n## 0001-a\n\n- **0001·R1 — a**\n")
+    code, text = start()
+    assert code == 0
+    assert not old.exists() and "0001·R1" in new.read_text()
+    assert text.count(moved) == 1
+
+    # Twin: a second start has nothing to move.
+    code, text = start()
+    assert code == 0 and text.count(moved) == 1
+
+    # A stale old lock with no old file is removed.
+    stale_lock()
+    code, text = start()
+    unlocked = r" · run · unlock — \.minions/backlog\.lock, 6\d\ds old"
+    assert code == 0 and not lock.exists()
+    assert len(re.findall(unlocked, text)) == 1 and text.count(moved) == 1
+
+    # Beside an old file, the move follows it.
+    new.unlink()
+    old.write_text("# Backlog\n")
+    stale_lock()
+    code, text = start()
+    assert code == 0 and not lock.exists() and new.is_file()
+    assert len(re.findall(unlocked, text)) == 2 and text.count(moved) == 2
+
+    # Both files, or a young old lock, halt before any move.
+    old.write_text("# Backlog\n")
+    code, text = start()
+    assert code == 1 and old.is_file() and new.is_file()
+    assert "run · halt — .minions/backlog.md and .minions/debt.md both stand" in text
+    new.unlink()
+    lock.mkdir()
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and lock.is_dir()
+    assert "run · halt — .minions/backlog.lock is held" in text
+    assert text.count(moved) == 2
+
+
 @pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,

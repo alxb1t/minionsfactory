@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The file, the lock and the key
 - [x] 2 — The word
-- [ ] 3 — The move at a run's start
+- [x] 3 — The move at a run's start
 
 ## 1 — The file, the lock and the key
 
@@ -37,6 +37,6 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The move at a run's start
 
-- [ ] 3.1 Add `Run.migrate_debt`, called in `ship()` before `_clear_stale_lock`, in `skills/mf-ship/scripts/conduct.py`, per
+- [x] 3.1 Add `Run.migrate_debt`, called in `ship()` before `_clear_stale_lock`, in `skills/mf-ship/scripts/conduct.py`, per
   [D3](design.md#d3); add `test_a_run_moves_an_old_backlog_to_the_debt` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k run_moves_an_old_backlog_to_the_debt` reports `1 passed`.

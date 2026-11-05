@@ -52,6 +52,8 @@ LOCK_SECONDS = 30
 LOCK_STALE = 600
 DEBT = ".minions/debt.md"
 DEBT_LOCK = ".minions/debt.lock"
+OLD_DEBT = ".minions/backlog.md"
+OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
@@ -66,7 +68,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    "rescue",
+    *("rescue", "move"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -562,12 +564,12 @@ def _is_event(line: str, event: str) -> bool:
     return line.split(" — ")[0].endswith(f" · {event}")
 
 
-def _clear_stale_lock(primary: Path) -> int | None:
-    """Remove a `debt.lock` older than `LOCK_STALE`; return its age in seconds.
+def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
+    """Remove the lock `name` older than `LOCK_STALE`; return its age in seconds.
 
     A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
     """
-    lock = primary / DEBT_LOCK
+    lock = primary / name
     if not lock.is_dir():
         return None
     age = round(time.time() - lock.stat().st_mtime)
@@ -881,7 +883,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if end is None and not _closed(runs, tree, change):
         return "build", "closing steps left"
     if halt := _converge_halt(runs, change):
-        if DEBT_LOCK in halt or ".minions/backlog.lock" in halt:
+        if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
@@ -3390,6 +3392,24 @@ class Run:
             if not alive and not self.take_requests(threads):
                 return
 
+    def migrate_debt(self) -> str | None:
+        """Move an old `backlog.md` to `debt.md`; return why the run must halt.
+
+        A stale `backlog.lock` is removed. Both files, or a lock still standing,
+        halt: a person or a hand-run writer holds them. Why: 0079-debt-rename design D3.
+        """
+        old, new = self.primary / OLD_DEBT, self.primary / DEBT
+        if old.is_file() and new.exists():
+            return f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
+        if (age := _clear_stale_lock(self.primary, OLD_DEBT_LOCK)) is not None:
+            self.log.event("run", "unlock", f"{OLD_DEBT_LOCK}, {age}s old")
+        if (self.primary / OLD_DEBT_LOCK).exists():
+            return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
+        if old.is_file():
+            old.rename(new)
+            self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
+        return None
+
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1.
 
@@ -3423,6 +3443,10 @@ class Run:
             return 1
         if unkept := _keep_origin(self.primary):
             self.log.event("run", "unkept", unkept)
+        if why := self.migrate_debt():
+            self.halt("run", why)
+            self.log.event("run", "halt", self.closing())
+            return 1
         if (age := _clear_stale_lock(self.primary)) is not None:
             self.log.event("run", "unlock", f"{DEBT_LOCK}, {age}s old")
         if not versions:
