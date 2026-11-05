@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — Converge's record
 - [x] 2 — The run's time and loop
-- [ ] 3 — The run's cost and review yield
+- [x] 3 — The run's cost and review yield
 - [ ] 4 — The review metrics data
 
 ## 1 — Converge's record
@@ -32,7 +32,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The run's cost and review yield
 
-- [ ] 3.1 Add the cost and review kinds to `scripts/metrics/run.py` and their entries to `metrics/catalogue.toml`, per
+- [x] 3.1 Add the cost and review kinds to `scripts/metrics/run.py` and their entries to `metrics/catalogue.toml`, per
   [D3](design.md#d3) and [D4](design.md#d4); add `test_run_metrics_read_cost_and_review_yield` to `tests/test_metric_scripts.py`.
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k run_metrics_read_cost_and_review_yield` reports `1 passed`, and
   `grep -n 'security-tokens-per-confirmed' metrics/catalogue.toml` prints a line.

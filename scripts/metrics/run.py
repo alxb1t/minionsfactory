@@ -8,19 +8,21 @@
 
 `MF_METRICS_CHANGE`, `_BASE` and `_HEAD` name the version. A metric the run left no
 data for exits 1, naming what it lacked: a gap, never a zero.
-Why: 0077-run-metrics design D3.
+Why: 0077-run-metrics design D3, D4.
 """
 
+import json
 import os
 import re
 import subprocess
 import sys
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
@@ -28,6 +30,26 @@ STATIONS = ("build", "converge", "integrate", "release", "rescue")
 HALT = re.compile(r"(\w+) (?:check fail|worker exit|timed out)\b")
 # why: a clock set back an hour is no midnight
 MIDNIGHT = timedelta(hours=12)
+STAGES = ("build", "converge", "catch-up", "integrate")
+# The stages a version's cost sums; the release's own log is still being written.
+SPENT = (*STAGES, "rescue")
+ROLES = ("review", "security")
+MODEL_USAGE = (
+    "inputTokens",
+    "outputTokens",
+    "cacheReadInputTokens",
+    "cacheCreationInputTokens",
+)
+USAGE = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+ROLE = re.compile(r"\b(review|security)\b")
+PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
+CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
+REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
 
 Number = int | float
 
@@ -96,6 +118,41 @@ def _versions(detail: str) -> list[str]:
 def _round(minutes: float) -> Number:
     """Return minutes to a tenth; e.g. 19.366 → 19.4."""
     return round(minutes, 1)
+
+
+def _json(path: Path, marker: str) -> Iterator[dict[str, Any]]:
+    """Yield a worker log's JSON objects on the lines holding `marker`."""
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        for line in lines:
+            if marker not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(event, dict):
+                yield event
+
+
+def _summed(usage: object, keys: tuple[str, ...]) -> int:
+    """Return the token counts `usage` holds under `keys`, a non-number none."""
+    held = usage if isinstance(usage, dict) else {}
+    values = (held.get(key) for key in keys)
+    return sum(v for v in values if isinstance(v, int) and not isinstance(v, bool))
+
+
+def _spent(path: Path, name: str) -> tuple[float, int]:
+    """Return a worker log's dollars and tokens: its last result event's totals.
+
+    Why: `total_cost_usd` and `modelUsage` are cumulative, per 0076-context-cost D1.
+    """
+    events = _json(path, '"result"') if path.is_file() else iter(())
+    results = [e for e in events if e.get("type") == "result"]
+    last = results[-1] if results else {}
+    cost, models = last.get("total_cost_usd"), last.get("modelUsage")
+    if not isinstance(cost, int | float) or not isinstance(models, dict):
+        raise Gap(f"no result event in {name}")
+    return cost, sum(_summed(model, MODEL_USAGE) for model in models.values())
 
 
 class Version:
@@ -284,13 +341,134 @@ class Version:
         count = ("rev-list", "--first-parent", "--no-merges", "--count", span)
         return int(_git(self.root, *count))
 
+    def log(self, spawn: Spawn) -> tuple[Path, str]:
+        """Return a spawn's worker log and its name in the run directory.
+
+        e.g. a stamp's second converge → `<stamp>/<change>_converge-2.log`. Why: D2.
+        """
+        n = f"-{spawn.n}" if spawn.n > 1 else ""
+        name = f"{spawn.stamp}/{self.change}_{spawn.station}{n}.log"
+        return self.minions / "runs" / name, name
+
+    def spent(self, stages: tuple[str, ...]) -> tuple[float, int]:
+        """Return the stages' dollars and tokens, each spawn's log read; none is 0."""
+        logs = [self.log(spawn) for stage in stages for spawn in self.stage(stage)]
+        spent = [_spent(*log) for log in logs]
+        return sum(cost for cost, _ in spent), sum(tokens for _, tokens in spent)
+
+    def lines(self) -> int:
+        """Return the lines the change adds and removes, `metrics/` left out."""
+        excluded = (".", ":(exclude)metrics")
+        numstat = _git(
+            self.root, "diff", "--numstat", self.base, self.head, "--", *excluded
+        )
+        rows = [line.split("\t") for line in numstat.splitlines()]
+        return sum(int(row[0]) + int(row[1]) for row in rows if row[0] != "-")
+
+    def per_line(self) -> Number:
+        """Return the dollars per changed line."""
+        lines = self.lines()
+        if not lines:
+            raise Gap("no line changed")
+        return round(self.spent(SPENT)[0] / lines, 4)
+
+    def role_tokens(self, role: str) -> int:
+        """Return a role's subagent tokens, all turns, over the converge logs.
+
+        A subagent's `assistant` events carry its Task's `tool_use_id`, which the
+        log's `task_started` event names. Why: 0077-run-metrics design D4.
+        """
+        total, seen = 0, set()
+        for spawn in (s for s in self.spawns if s.station == "converge"):
+            path, name = self.log(spawn)
+            if not path.is_file():
+                raise Gap(f"no {name}")
+            tasks: dict[object, str] = {}
+            for event in _json(path, "tool_use_id"):
+                message = event.get("message")
+                if event.get("subtype") == "task_started":
+                    found = ROLE.search(str(event.get("description")))
+                    tasks[event.get("tool_use_id")] = found[1] if found else ""
+                elif (
+                    event.get("type") == "assistant"
+                    and tasks.get(event.get("parent_tool_use_id")) == role
+                    and isinstance(message, dict)
+                    and message.get("id") not in seen
+                ):
+                    seen.add(message.get("id"))
+                    total += _summed(message.get("usage"), USAGE)
+        if not seen:
+            raise Gap(f"no {role} subagent event in a converge log")
+        return total
+
+    def cards(self, role: str) -> tuple[list[str], str]:
+        """Return a role's findings cards and its `## Refuted` section."""
+        path = self.minions / "findings" / f"{self.change}_{role}.md"
+        if not path.is_file():
+            raise Gap(f"no {path.name}")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        refuted = re.search(r"^## Refuted.*?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+        if not refuted:
+            raise Gap(f"no ## Refuted in {path.name}")
+        pieces = re.split(r"^(?=- \*\*|#)", text, flags=re.MULTILINE)
+        return [p for p in pieces if PRIORITY.search(p)], refuted[1]
+
+    def confirmed(self, role: str) -> int:
+        """Return a role's cards whose verdict is `confirmed`."""
+        return sum(bool(CONFIRMED.search(card)) for card in self.cards(role)[0])
+
+    def refuted(self, role: str) -> int:
+        """Return the entries of a role's `## Refuted` section."""
+        return len(re.findall(r"^- ", self.cards(role)[1], re.MULTILINE))
+
+    def per_confirmed(self, role: str) -> int:
+        """Return a role's tokens per confirmed card."""
+        confirmed = self.confirmed(role)
+        if not confirmed:
+            raise Gap(f"no confirmed {role} card")
+        return round(self.role_tokens(role) / confirmed)
+
+    def paid(self) -> list[str]:
+        """Return the card ids the proposal's `backlog:` lists, archived or active."""
+        folder = Path("openspec/changes")
+        found = [
+            path
+            for path in (folder / self.change, folder / "archive" / self.change)
+            if (self.root / path / "proposal.md").is_file()
+        ]
+        if not found:
+            raise Gap(f"no proposal.md for {self.change}")
+        text = (self.root / found[0] / "proposal.md").read_text(encoding="utf-8")
+        listed = re.search(r"^backlog:[ \t]*\[(.*)\]", text, re.MULTILINE)
+        return [card.strip() for card in listed[1].split(",")] if listed else []
+
+    def escapes(self) -> int:
+        """Return the cards repeating an earlier change's card it does not pay."""
+        own = int(re.sub(r"\D.*", "", self.change) or 0)
+        paid = self.paid()
+        return sum(
+            any(
+                int(number) < own and f"{number}·{card}" not in paid
+                for number, card in REPEAT.findall(text)
+            )
+            for role in ROLES
+            for text in self.cards(role)[0]
+        )
+
+    def debt(self) -> int:
+        """Return the cards under the version's heading in `.minions/backlog.md`."""
+        path = self.minions / "backlog.md"
+        if not path.is_file():
+            raise Gap("no .minions/backlog.md")
+        text = path.read_text(encoding="utf-8")
+        heading = rf"^## {re.escape(self.change)}[ \t]*\n(.*?)(?=^## |\Z)"
+        section = re.search(heading, text, re.MULTILINE | re.DOTALL)
+        return len(re.findall(r"^- \*\*", section[1], re.MULTILINE)) if section else 0
+
 
 METRICS: dict[str, Callable[[Version], Number]] = {
     "lead-minutes": Version.lead,
-    **{
-        f"{stage}-minutes": lambda v, s=stage: v.minutes(s)
-        for stage in ("build", "converge", "catch-up", "integrate")
-    },
+    **{f"{stage}-minutes": lambda v, s=stage: v.minutes(s) for stage in STAGES},
     "wait-minutes": Version.waits,
     "converge-rounds": Version.rounds,
     "blockers-round-1": Version.blockers,
@@ -303,6 +481,23 @@ METRICS: dict[str, Callable[[Version], Number]] = {
     "rescues-diagnosed": lambda v: v.rescues("diagnosed"),
     "build-commits": lambda v: v.commits(fixes=False),
     "fix-commits": lambda v: v.commits(fixes=True),
+    "cost-usd": lambda v: round(v.spent(SPENT)[0], 2),
+    **{
+        f"cost-usd-{stage}": lambda v, s=stage: round(v.spent((s,))[0], 2)
+        for stage in STAGES
+    },
+    "tokens": lambda v: v.spent(SPENT)[1],
+    **{f"tokens-{stage}": lambda v, s=stage: v.spent((s,))[1] for stage in STAGES},
+    "cost-per-changed-line": Version.per_line,
+    **{f"{role}-confirmed": lambda v, r=role: v.confirmed(r) for role in ROLES},
+    **{f"{role}-refuted": lambda v, r=role: v.refuted(r) for role in ROLES},
+    **{
+        f"{role}-tokens-per-confirmed": lambda v, r=role: v.per_confirmed(r)
+        for role in ROLES
+    },
+    "escapes": Version.escapes,
+    "debt-added": Version.debt,
+    "debt-paid": lambda v: len(v.paid()),
 }
 
 

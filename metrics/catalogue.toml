@@ -297,3 +297,183 @@ unit = "commits"
 better = "lower"
 script = "scripts/metrics/run.py"
 args = ["fix-commits"]
+
+[[metric]]
+id = "cost-usd"
+title = "Cost, the release's own left out"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-usd"]
+
+[[metric]]
+id = "cost-usd-build"
+title = "Build cost"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-usd-build"]
+
+[[metric]]
+id = "cost-usd-converge"
+title = "Converge cost"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-usd-converge"]
+
+[[metric]]
+id = "cost-usd-catch-up"
+title = "Catch-up cost"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-usd-catch-up"]
+
+[[metric]]
+id = "cost-usd-integrate"
+title = "Integrate cost"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-usd-integrate"]
+
+[[metric]]
+id = "tokens"
+title = "Tokens, the release's own left out"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["tokens"]
+
+[[metric]]
+id = "tokens-build"
+title = "Build tokens"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["tokens-build"]
+
+[[metric]]
+id = "tokens-converge"
+title = "Converge tokens"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["tokens-converge"]
+
+[[metric]]
+id = "tokens-catch-up"
+title = "Catch-up tokens"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["tokens-catch-up"]
+
+[[metric]]
+id = "tokens-integrate"
+title = "Integrate tokens"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["tokens-integrate"]
+
+[[metric]]
+id = "cost-per-changed-line"
+title = "Cost per changed line"
+group = "run"
+unit = "dollars"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["cost-per-changed-line"]
+
+[[metric]]
+id = "review-confirmed"
+title = "Review's confirmed cards"
+group = "run"
+unit = "cards"
+better = "higher"
+script = "scripts/metrics/run.py"
+args = ["review-confirmed"]
+
+[[metric]]
+id = "security-confirmed"
+title = "Security's confirmed cards"
+group = "run"
+unit = "cards"
+better = "higher"
+script = "scripts/metrics/run.py"
+args = ["security-confirmed"]
+
+[[metric]]
+id = "review-refuted"
+title = "Review's refuted candidates"
+group = "run"
+unit = "candidates"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["review-refuted"]
+
+[[metric]]
+id = "security-refuted"
+title = "Security's refuted candidates"
+group = "run"
+unit = "candidates"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["security-refuted"]
+
+[[metric]]
+id = "review-tokens-per-confirmed"
+title = "Review's tokens per confirmed card"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["review-tokens-per-confirmed"]
+
+[[metric]]
+id = "security-tokens-per-confirmed"
+title = "Security's tokens per confirmed card"
+group = "run"
+unit = "tokens"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["security-tokens-per-confirmed"]
+
+[[metric]]
+id = "escapes"
+title = "Cards repeating an earlier change's"
+group = "run"
+unit = "cards"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["escapes"]
+
+[[metric]]
+id = "debt-added"
+title = "Cards carried to the backlog"
+group = "run"
+unit = "cards"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["debt-added"]
+
+[[metric]]
+id = "debt-paid"
+title = "Backlog cards paid"
+group = "run"
+unit = "cards"
+better = "higher"
+script = "scripts/metrics/run.py"
+args = ["debt-paid"]

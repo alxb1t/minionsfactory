@@ -4,9 +4,11 @@ Why: 0030-change-impact design D7.
 """
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -269,6 +271,8 @@ def _run_fixture(root: Path) -> dict[str, str]:
     _git(root, "init", "-q", "-b", "main")
     base = _commit(root, "base")
     _commit(root, "docs(0001-x): land the change directory", "2026-11-01T22:00:00")
+    _write(root, {"a.txt": "1\n2\n3\n4\n", "metrics/changes/0001-x.json": "{}\n"})
+    _git(root, "add", "a.txt", "metrics")
     _commit(root, "feat(0001-x): one")
     built = _commit(root, "feat(0001-x): two")
     _git(root, "checkout", "-q", "-b", "side", base)
@@ -300,18 +304,26 @@ def _run_fixture(root: Path) -> dict[str, str]:
     }
 
 
-def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
-    env = _run_fixture(tmp_path)
+def _reader(root: Path, env: dict[str, str]) -> Callable[..., object]:
+    """Return a reader of one metric of a change: its number, or `gap: <why>`."""
     run = _load("run")
 
-    def read(metric: str, change: str = "0001-x") -> object:
+    def read(metric: str, change: str = "0001-x", **named: str) -> object:
+        given = env | {"MF_METRICS_CHANGE": change} | named
         try:
-            return run.measure(tmp_path, [metric], env | {"MF_METRICS_CHANGE": change})
+            return run.measure(root, [metric], given)
         except run.Gap as gap:
             return f"gap: {gap}"
 
-    values = {metric: read(metric) for metric in run.METRICS}
-    assert values == {
+    return read
+
+
+def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    read = _reader(tmp_path, env)
+
+    expected = {
         # A converge after the first integrate is a catch-up; midnight adds a day.
         "lead-minutes": 720.0,
         "build-minutes": 30.0,
@@ -333,6 +345,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "build-commits": 3,
         "fix-commits": 1,
     }
+    assert {metric: read(metric) for metric in expected} == expected
 
     # A version with a run log but no finish, release, status log or build mark.
     assert read("build-minutes", "0003-z") == "gap: a build spawn with no finish"
@@ -369,6 +382,160 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     )
     assert (done.returncode, done.stdout) == (1, "")
     assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
+
+
+def _worker_log(
+    root: Path, name: str, cost: float, tokens: int, *events: object
+) -> None:
+    """Write a worker log: `events`, then a result event of `cost` and `tokens`."""
+    result = {
+        "type": "result",
+        "total_cost_usd": cost,
+        "modelUsage": {"m": {"inputTokens": tokens, "outputTokens": "n/a"}},
+    }
+    lines = [e if isinstance(e, str) else json.dumps(e) for e in [*events, result]]
+    _write(root, {f".minions/runs/{name}": "".join(f"{line}\n" for line in lines)})
+
+
+def _task(tool: str, description: str) -> object:
+    return {"subtype": "task_started", "tool_use_id": tool, "description": description}
+
+
+def _turn(parent: str | None, message: str, **usage: int) -> object:
+    return {
+        "type": "assistant",
+        "parent_tool_use_id": parent,
+        "message": {"id": message, "usage": usage},
+    }
+
+
+def _role_file(cards: str, refuted: str = "## Refuted\n\n- **x.** why\n") -> str:
+    return (
+        f"---\nverdict: clean\n---\n\n## Findings\n\n{cards}\n{refuted}\n## Summary\n"
+    )
+
+
+def _finding(card: str, verdict: str, related: str) -> str:
+    return (
+        f"- **{card} — a defect**\n  - **Verdict:** {verdict}.\n"
+        f"  - **Priority:** nit · review · stability — why.\n"
+        f"  - **Related:** {related}.\n"
+    )
+
+
+def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    read = _reader(tmp_path, env)
+    first = {"type": "result", "total_cost_usd": 0.5, "modelUsage": {}}
+    review = _task("t1", "Converge review worker 0001")
+    _worker_log(tmp_path, "20261101-230000/0001-x_build.log", 1.0, 110)
+    _worker_log(
+        tmp_path,
+        "20261101-230000/0001-x_converge.log",
+        2.0,
+        500,
+        "not json, holding tool_use_id",
+        first,
+        review,
+        _task("t2", "Converge security worker 0001"),
+        _task("t3", "Converge fix station 0001"),
+        # Each subagent turn counts once, by its message id, every token kind summed.
+        _turn(
+            "t1", "m1", input_tokens=10, output_tokens=5, cache_read_input_tokens=100
+        ),
+        _turn(
+            "t1", "m1", input_tokens=10, output_tokens=5, cache_read_input_tokens=100
+        ),
+        _turn("t2", "m2", input_tokens=30, cache_creation_input_tokens=0),
+        _turn("t3", "m3", input_tokens=999),
+        _turn(None, "m4", input_tokens=999),
+    )
+    verify = _task("t4", "Converge review verify round 2")
+    converge_2 = "20261101-230000/0001-x_converge-2.log"
+    _worker_log(
+        tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
+    )
+    _worker_log(tmp_path, "20261101-230000/0001-x_rescue.log", 0.25, 5)
+    _worker_log(tmp_path, "20261101-230000/0001-x_integrate.log", 0.25, 5)
+    _worker_log(tmp_path, "20261102-090000/0001-x_converge.log", 0.1, 1)
+    _worker_log(tmp_path, "20261102-090000/0001-x_converge-2.log", 0.2, 2)
+    _worker_log(tmp_path, "20261102-090000/0001-x_release.log", 9.0, 900)
+    reviewed = _finding("R1", "confirmed", "repeat of `0000·R9`")
+    reviewed += _finding("R2", "plausible", "repeat of 0001·R1")
+    reviewed += _finding("R3", "`confirmed`", "repeat of 0000·R4")
+    refuted = "## Refuted\n\n- **x.** why\n- **y.** why\n"
+    _write(
+        tmp_path,
+        {
+            ".minions/findings/0001-x_review.md": _role_file(reviewed, refuted),
+            ".minions/findings/0001-x_security.md": _role_file(
+                _finding("S1", "plausible", "none")
+            ),
+            ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
+            "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
+            "backlog: [0000·R4, 0000·S2]\n---\n",
+            "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
+            ".minions/backlog.md": "# Backlog\n\n## 0000-old\n\n- **0000·R4 — a**\n\n"
+            "## 0001-x\n\n- **0001·R2 — b**\n  - **Why:** c\n- **0001·S1 — d**\n",
+        },
+    )
+
+    expected = {
+        # The release's own log is left out; a catch-up's logs are the converges
+        # spawned after the first integrate, the n-th spawn in a stamp its `-<n>.log`.
+        "cost-usd": 4.3,
+        "cost-usd-build": 1.0,
+        "cost-usd-converge": 2.5,
+        "cost-usd-catch-up": 0.3,
+        "cost-usd-integrate": 0.25,
+        "tokens": 673,
+        "tokens-build": 110,
+        "tokens-converge": 550,
+        "tokens-catch-up": 3,
+        "tokens-integrate": 5,
+        "cost-per-changed-line": 1.075,
+        "review-confirmed": 2,
+        "security-confirmed": 0,
+        "review-refuted": 2,
+        "security-refuted": 1,
+        "review-tokens-per-confirmed": 100,
+        "security-tokens-per-confirmed": "gap: no confirmed security card",
+        # R1 repeats an earlier change's card it does not pay; R3's is paid, and R2
+        # repeats its own change's.
+        "escapes": 1,
+        "debt-added": 2,
+        "debt-paid": 2,
+    }
+    assert {metric: read(metric) for metric in expected} == expected
+
+    assert read("debt-paid", "0002-y") == 0
+    assert read("debt-added", "0002-y") == 0
+    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
+    assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
+    assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
+    assert read("cost-usd-build", "0003-z") == (
+        "gap: no result event in 20261102-090000/0003-z_build.log"
+    )
+    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z_review.md")
+    # A security worker's turns are read, and no card to divide them by is a gap.
+    run = _load("run")
+    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("security") == 30
+    with pytest.raises(run.Gap, match="no review subagent event in a converge log"):
+        run.Version(tmp_path, "0002-y", "a", "b").role_tokens("review")
+    assert read("cost-per-changed-line", MF_METRICS_HEAD=env["MF_METRICS_BASE"]) == (
+        "gap: no line changed"
+    )
+
+    # A spawn whose log is gone is a gap, never a smaller sum.
+    (tmp_path / ".minions/runs/20261102-090000/0001-x_converge-2.log").unlink()
+    assert read("cost-usd") == (
+        "gap: no result event in 20261102-090000/0001-x_converge-2.log"
+    )
+    assert read("review-tokens-per-confirmed") == (
+        "gap: no 20261102-090000/0001-x_converge-2.log"
+    )
+    (tmp_path / ".minions/backlog.md").unlink()
+    assert read("debt-added") == "gap: no .minions/backlog.md"
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:

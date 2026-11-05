@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/metrics/run.py` records a release's run in its data file: the lead, the minutes per stage and the person's
   waits, converge's rounds, round 1's blockers and the grants, the halts by station, the rescues, and the build and
   fix commits; a stage the run left no data for is a gap (change `0077-run-metrics`, phase 2).
+- The run metrics add the cost and tokens per station, from each spawn's log, the release's own left out, and the cost
+  per changed line; per role, the confirmed and refuted cards and the tokens per confirmed card, all turns; the escapes;
+  and the cards carried to the backlog and paid (change `0077-run-metrics`, phase 3).
 
 ## [0.62.0] - 2026-11-05
 
