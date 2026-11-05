@@ -814,9 +814,14 @@ def test_after_waits_for_its_dependency(
     assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
 
-    other = tmp_path / "other"
-    other.mkdir()
-    second = _primary(other)
+
+@pytest.mark.slow
+def test_a_dependents_delta_halts_as_integrating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    second = _primary(tmp_path)
     living = "openspec/specs/sdd/spec.md"
     _commit(second, {living: "### Requirement: First\n\nThe base.\n"}, "spec")
     first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
@@ -825,7 +830,6 @@ def test_after_waits_for_its_dependency(
     tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
-    calls.unlink()
 
     def again(code: int) -> str:
         assert (
@@ -864,9 +868,15 @@ def test_after_waits_for_its_dependency(
     again(0)
     assert "build 0002-marks" in _calls(calls)
 
-    third = tmp_path / "third"
-    third.mkdir()
-    crashed = _primary(third)
+
+@pytest.mark.slow
+def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    module = conduct["main"].__globals__
+    crashed = _primary(tmp_path)
     _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
@@ -874,13 +884,9 @@ def test_after_waits_for_its_dependency(
         "def delta(tree):\n    raise OSError('no fork')\n\n"
         "changelog = decisions = delta\n"
     )
-    script = conduct["main"].__globals__["INTEGRATE"]
-    conduct["main"].__globals__["INTEGRATE"] = crash
-    calls.unlink()
-    assert (
-        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    script = module["INTEGRATE"]
+    monkeypatch.setitem(module, "INTEGRATE", crash)
+    assert _run_claude(conduct, crashed, monkeypatch) == 1
     assert "build 0002-marks" not in _calls(calls)
     assert any(
         line.endswith(
@@ -890,20 +896,20 @@ def test_after_waits_for_its_dependency(
         for line in _log(crashed)
     )
     assert _git(dependent, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
-    conduct["main"].__globals__["INTEGRATE"] = script
-    assert (
-        _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    monkeypatch.setitem(module, "INTEGRATE", script)
+    assert _run_claude(conduct, crashed, monkeypatch) == 0
     assert "chore(integrate): merge main into 0002-marks" in _git(
         crashed, "log", "--format=%s", "0002-marks"
     )
 
-    fourth = tmp_path / "fourth"
-    fourth.mkdir()
-    fifth = tmp_path / "fifth"
-    fifth.mkdir()
-    hooked = _primary(fifth)
+
+@pytest.mark.slow
+def test_a_merge_in_refuses_a_planted_hook(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    hooked = _primary(tmp_path)
     waiting = _version(hooked, "0002-marks", "- [ ] 1 — Marks\n")
     _commit(hooked, {"moved.txt": "x\n"}, "main moves")
     ran = tmp_path / "merge-hook-ran.txt"
@@ -915,53 +921,70 @@ def test_after_waits_for_its_dependency(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
-    planted = _primary(fourth)
+
+
+@pytest.mark.slow
+def test_the_integrate_script_is_loaded_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    module = conduct["main"].__globals__
+    planted = _primary(tmp_path)
     _version(planted, "0001-todo", "- [ ] 1 — Todo\n")
     _version(planted, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     held = tmp_path / "held.py"
-    held.write_text(script.read_text())
-    conduct["main"].__globals__["INTEGRATE"] = held
+    held.write_text(module["INTEGRATE"].read_text())
+    monkeypatch.setitem(module, "INTEGRATE", held)
     monkeypatch.setenv("FAKE_SCRIPT", str(held))
-    assert (
-        _main(conduct, planted, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, planted, monkeypatch) == 0
     assert held.read_text().startswith("raise OSError")
     assert "chore(integrate): merge main into 0002-marks" in _git(
         planted, "log", "--format=%s", "0002-marks"
     )
-    conduct["main"].__globals__["INTEGRATE"] = script
 
-    def behind(folder: str, moved: str, started: bool) -> tuple[Path, Path]:
-        """Return a primary whose `main` moved `moved` after `0001-todo`'s cut."""
-        (tmp_path / folder).mkdir()
-        base = _primary(tmp_path / folder)
-        cut = _version(base, "0001-todo", "- [ ] 1 — Todo\n")
-        if started:
-            _commit(cut, {"work.txt": "x\n"}, "build: a first part")
-        _commit(base, {moved: "x\n"}, "main moves")
-        calls.unlink(missing_ok=True)
-        return base, cut
 
-    cut_only, _ = behind("cut-only", "Makefile", started=False)
-    assert (
-        _main(conduct, cut_only, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+def _behind(tmp_path: Path, moved: str, started: bool) -> tuple[Path, Path]:
+    """Return a primary and `0001-todo`'s cut, `main` moved `moved` since."""
+    base = _primary(tmp_path)
+    cut = _version(base, "0001-todo", "- [ ] 1 — Todo\n")
+    if started:
+        _commit(cut, {"work.txt": "x\n"}, "build: a first part")
+    _commit(base, {moved: "x\n"}, "main moves")
+    return base, cut
+
+
+_MERGED = "chore(integrate): merge main into 0001-todo"
+_GATE_HALT = "conduct: halt — main changed Makefile"
+
+
+@pytest.mark.slow
+def test_a_cut_only_version_merges_in_before_its_first_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    cut_only, _ = _behind(tmp_path, "Makefile", started=False)
+    assert _run_claude(conduct, cut_only, monkeypatch) == 0
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
         "converge 0001-todo",
         "release 0001-todo",
     ]
-    assert "chore(integrate): merge main into 0001-todo" in _git(
-        cut_only, "log", "--format=%s", "0001-todo"
-    )
+    assert _MERGED in _git(cut_only, "log", "--format=%s", "0001-todo")
 
+
+@pytest.mark.slow
+def test_a_cut_only_version_merged_in_once_merges_again(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
     # A `merge_in` commit does not mark a cut-only version started: a later move of
     # the default branch, outside `GATE_FILES`, is merged in too.
     # Why: 0071-ship-fixes design D4.
-    once, cut = behind("merged-once", "Makefile", started=False)
+    once, cut = _behind(tmp_path, "Makefile", started=False)
     caught = conduct["Run"](once, "claude")
     caught.merge_in(cut, "0001-todo", "main")
     _commit(once, {"README.md": "x\n"}, "main moves outside the gate")
@@ -969,17 +992,26 @@ def test_after_waits_for_its_dependency(
     assert conduct["_ancestor"](once, "main", "0001-todo")
     assert _git(once, "rev-list", "--count", "--merges", "main..0001-todo") == "2"
 
-    merged = "chore(integrate): merge main into 0001-todo"
-    gated, _ = behind("started", "Makefile", started=True)
-    assert (
-        _main(conduct, gated, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-    assert _calls(calls)[1] == "build 0001-todo"
-    assert merged in _git(gated, "log", "--format=%s", "0001-todo")
 
-    (tmp_path / "logged").mkdir()
-    logged = _primary(tmp_path / "logged")
+@pytest.mark.slow
+def test_a_clean_merge_in_builds_on_the_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    gated, _ = _behind(tmp_path, "Makefile", started=True)
+    assert _run_claude(conduct, gated, monkeypatch) == 0
+    assert _calls(calls)[1] == "build 0001-todo"
+    assert _MERGED in _git(gated, "log", "--format=%s", "0001-todo")
+
+
+@pytest.mark.slow
+def test_a_changelog_conflict_is_settled_by_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    logged = _primary(tmp_path)
     entries = "# Changelog\n\n## [Unreleased]\n"
     _commit(logged, {"CHANGELOG.md": entries}, "changelog")
     logged_tree = _version(logged, "0001-todo", "- [ ] 1 — Todo\n")
@@ -987,25 +1019,24 @@ def test_after_waits_for_its_dependency(
     _commit(logged_tree, {"CHANGELOG.md": mine}, "build: a first part")
     release = f"{entries}\n## [0.1.0] - 2026-11-04\n\n- A release.\n"
     _commit(logged, {"Makefile": "x\n", "CHANGELOG.md": release}, "main releases")
-    calls.unlink(missing_ok=True)
-    assert (
-        _main(conduct, logged, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, logged, monkeypatch) == 0
     assert _calls(calls)[1] == "build 0001-todo"
-    assert merged in _git(logged, "log", "--format=%s", "0001-todo")
+    assert _MERGED in _git(logged, "log", "--format=%s", "0001-todo")
     assert _git(logged, "show", "0001-todo:CHANGELOG.md") == (
         "# Changelog\n\n## [Unreleased]\n\n- The branch's entry.\n\n"
         "## [0.1.0] - 2026-11-04\n\n- A release."
     )
 
-    clashed, clashed_tree = behind("clashed", "Makefile", started=False)
+
+@pytest.mark.slow
+def test_a_merge_in_conflict_halts_naming_the_merge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    clashed, clashed_tree = _behind(tmp_path, "Makefile", started=False)
     _commit(clashed_tree, {"Makefile": "y\n"}, "build: a first part")
-    calls.unlink(missing_ok=True)
-    assert (
-        _main(conduct, clashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, clashed, monkeypatch) == 1
     assert _calls(calls) == ["probe"]
     assert any(
         line.endswith(
@@ -1018,38 +1049,49 @@ def test_after_waits_for_its_dependency(
     assert not _git(
         clashed_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False
     )
-    assert merged not in _git(clashed, "log", "--format=%s", "0001-todo")
+    assert _MERGED not in _git(clashed, "log", "--format=%s", "0001-todo")
     # A worker can name the default branch: the remedy line quotes it.
     hostile = "x$(touch pwned)"
     remedy = f"merge {shlex.quote(hostile)}, then re-run"
     with pytest.raises(conduct["Stop"], match=re.escape(remedy) + "$"):
         conduct["Run"](clashed, "claude").settle(clashed_tree, "0001-todo", hostile)
 
+
+@pytest.mark.slow
+def test_a_started_version_behind_an_unchanged_gate_builds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
     # Twin: a started version behind a `main` that changed neither builds.
-    moved, _ = behind("moved", "moved.txt", started=True)
-    assert (
-        _main(conduct, moved, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    moved, _ = _behind(tmp_path, "moved.txt", started=True)
+    assert _run_claude(conduct, moved, monkeypatch) == 0
     assert "build 0001-todo" in _calls(calls)
 
-    gate_halt = "conduct: halt — main changed Makefile"
-    built, built_tree = behind("built", "Makefile", started=True)
+
+@pytest.mark.slow
+def test_a_ticked_version_goes_to_integrate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    built, built_tree = _behind(tmp_path, "Makefile", started=True)
     ticked = {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"}
     _commit(built_tree, ticked, "build")
-    assert (
-        _main(conduct, built, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, built, monkeypatch) == 0
     assert "integrate 0001-todo" in _calls(calls)
-    assert not any(gate_halt in line for line in _log(built))
+    assert not any(_GATE_HALT in line for line in _log(built))
 
-    opened, opened_tree = behind("opened", "Makefile", started=True)
+
+@pytest.mark.slow
+def test_an_open_merge_with_no_note_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    opened, opened_tree = _behind(tmp_path, "Makefile", started=True)
     _git(opened_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
-    assert (
-        _main(conduct, opened, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, opened, monkeypatch) == 1
     assert _calls(calls) == ["probe"]
     assert any(
         line.endswith(
@@ -1059,19 +1101,23 @@ def test_after_waits_for_its_dependency(
         )
         for line in _log(opened)
     )
-    assert not any(gate_halt in line for line in _log(opened))
+    assert not any(_GATE_HALT in line for line in _log(opened))
     assert _git(opened_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
+
+@pytest.mark.slow
+def test_an_open_merge_with_its_note_halts_as_integrating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
     # Twin: with its note beside it, the open merge is the `integrating` halt.
-    noted, noted_tree = behind("noted", "Makefile", started=True)
+    noted, noted_tree = _behind(tmp_path, "Makefile", started=True)
     _git(noted_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
     marks = noted / ".minions" / "integrate"
     marks.mkdir(parents=True)
     (marks / "0001-todo.md").write_text("## sdd: First\n")
-    assert (
-        _main(conduct, noted, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, noted, monkeypatch) == 1
     assert _calls(calls) == []
     assert any(
         line.endswith(
@@ -1080,21 +1126,23 @@ def test_after_waits_for_its_dependency(
         )
         for line in _log(noted)
     )
-    assert not any(gate_halt in line for line in _log(noted))
+    assert not any(_GATE_HALT in line for line in _log(noted))
 
+
+@pytest.mark.slow
+def test_a_started_dependents_open_merge_is_merge_ins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
     # Twin: a started dependent's open merge, its dependency shipped, is merge_in's.
-    (tmp_path / "dependent").mkdir()
-    shipped = _primary(tmp_path / "dependent")
+    shipped = _primary(tmp_path)
     waits = _version(shipped, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     _commit(waits, {"work.txt": "x\n"}, "build: a first part")
     archive = {"openspec/changes/archive/0001-todo/proposal.md": "x\n"}
     _commit(shipped, archive, "chore(release): 0001-todo")
     _git(waits, "merge", "-q", "--no-ff", "--no-commit", "main")
-    calls.unlink(missing_ok=True)
-    assert (
-        _main(conduct, shipped, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, shipped, monkeypatch) == 0
     assert _calls(calls)[1] == "build 0002-marks"
     assert "chore(integrate): merge main into 0002-marks" in _git(
         shipped, "log", "--format=%s", "0002-marks"
@@ -1142,17 +1190,18 @@ def test_a_halted_dependency_blocks_a_chain(
     assert report[2].startswith("0003-more · ")
     assert report[2].endswith(" · blocked by 0002-marks")
 
-    only = tmp_path / "only"
-    only.mkdir()
-    lone = _primary(only)
+
+@pytest.mark.slow
+def test_a_lone_dependent_is_blocked_by_its_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    lone = _primary(tmp_path)
     _version(lone, "0001-todo", "- [ ] 1 — Ship **HUMAN**\n")
     _version(lone, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     _version(lone, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
-    calls.unlink()
-    assert (
-        _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, lone, monkeypatch) == 1
     assert _calls(calls) == []
     lines = _log(lone)
     assert any(
@@ -1163,9 +1212,13 @@ def test_a_halted_dependency_blocks_a_chain(
         " · released none"
     )
 
-    edited = tmp_path / "edited"
-    edited.mkdir()
-    hand = _primary(edited)
+
+@pytest.mark.slow
+def test_a_free_version_ships_past_a_blocked_chain(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    calls = fake("liar-0001-todo")
+    hand = _primary(tmp_path)
     _version(hand, "0001-todo", "- [ ] 1 — Todo\n", after="0002-marks")
     _version(hand, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     _version(hand, "0003-self", "- [ ] 1 — Self\n", after="0003-self")
@@ -1190,31 +1243,35 @@ def test_a_halted_dependency_blocks_a_chain(
     assert " · run · halt — halted none · blocked " in lines[-1]
     assert lines[-1].endswith(" · released v0.1.0")
 
-    worked = tmp_path / "worked"
-    worked.mkdir()
-    late = _primary(worked)
+
+@pytest.mark.slow
+def test_a_dependent_waits_while_its_dependency_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("after-self-0001-todo", "slow-0002-marks")
+    late = _primary(tmp_path)
     _version(late, "0001-todo", "- [ ] 1 — Todo\n")
     _version(late, "0002-marks", "- [ ] 1 — Marks\n")
-    fake("after-self-0001-todo", "slow-0002-marks")
-    assert (
-        _main(conduct, late, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, late, monkeypatch) == 1
     assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
         "0001-todo · halt — waiting — after 0001-todo",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0",
     ]
 
+
+@pytest.mark.slow
+def test_a_rejoined_dependency_brings_its_chain_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
     # A rejoin of the dependency alone brings back the chain it blocked.
     # Why: 0071-ship-fixes design D4.
     conduct["main"].__globals__["REJOIN_POLL"] = 0.1
-    chain = tmp_path / "chain"
-    chain.mkdir()
-    hold = chain / "hold"
+    hold = tmp_path / "hold"
     monkeypatch.setenv("FAKE_HOLD", str(hold))
     calls = fake("liar-0001-todo", "hold-0004-free")
-    calls.unlink(missing_ok=True)
-    linked = _primary(chain)
+    linked = _primary(tmp_path)
     first = _version(linked, "0001-todo", "- [ ] 1 — Todo\n")
     _version(linked, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     _version(linked, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
@@ -1229,10 +1286,7 @@ def test_a_halted_dependency_blocks_a_chain(
 
     said = (" · 0001-todo · halt — ", " · 0003-more · blocked — by 0002-marks")
     join = _when_logged(linked, said, fix, hold)
-    assert (
-        _main(conduct, linked, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, linked, monkeypatch) == 0
     join()
     lines = _log(linked)
     for change in ("0002-marks", "0003-more"):
@@ -2315,9 +2369,31 @@ def test_a_rerun_recovers_a_dead_release(
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
     assert _git(root, "branch", "--no-merged", "main") == ""
 
+
+@pytest.mark.slow
+def test_a_release_cut_short_is_recovered(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-release-tag")
+    root = _primary(tmp_path)
+    # The fake worker numbers its tag by the tags it finds.
+    _released(root, "v0.1.0")
+    _released(root, "v0.2.0")
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+
+    def run(code: int) -> None:
+        assert _run_claude(conduct, root, monkeypatch) == code
+
+    def stage() -> str:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.strip()
+
     _version(root, "0003-more", "- [ ] 1 — More\n")
-    calls.unlink()
-    fake("dies-release-tag")
     run(1)
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert stage() == "0003-more · released"
@@ -2390,19 +2466,20 @@ def test_a_rerun_recovers_a_dead_release(
     _git(forged, "tag", "v9.0.0")
     assert last() == "0006-six · released"
 
-    other = tmp_path / "other"
-    other.mkdir()
-    second = _primary(other)
+
+@pytest.mark.slow
+def test_a_dead_integrate_is_resumed_by_a_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("dies-integrate")
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    second = _primary(tmp_path)
     moved = _version(second, "0001-todo", "- [x] 1 — Todo\n")
     _commit(moved, {"moved.txt": "theirs\n"}, "the version")
     _findings(second, "0001-todo", _git(moved, "rev-parse", "HEAD"))
     _commit(second, {"moved.txt": "ours\n"}, "main moves")
-    calls.unlink(missing_ok=True)
-    fake("dies-integrate")
-    assert (
-        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
+    assert _run_claude(conduct, second, monkeypatch) == 1
     assert _calls(calls) == ["probe", "integrate 0001-todo"]
     assert stage_of(second, find(second, "0001-todo")) == (
         "integrate",
@@ -2410,10 +2487,7 @@ def test_a_rerun_recovers_a_dead_release(
     )
     calls.unlink()
     fake()
-    assert (
-        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    assert _run_claude(conduct, second, monkeypatch) == 0
     assert _calls(calls) == [
         "probe",
         "integrate 0001-todo",
@@ -2901,53 +2975,46 @@ def test_a_run_holds_the_machine_awake(
         assert lines[-1].endswith(" · run · done — nothing to ship")
 
 
-@pytest.mark.slow
-def test_a_forged_release_is_not_pushed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+def _run_claude(
+    conduct: dict[str, Any], root: Path, monkeypatch: pytest.MonkeyPatch
+) -> int:
+    return _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+
+
+def _halts_on_main(
+    conduct: dict[str, Any], root: Path, calls: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Assert a run halts on `main`'s head, pushing nothing and starting no worker."""
+    listed = _git(root, "ls-remote", "origin")
+    name = _git(root, "rev-parse", "main")[:7]
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert f" · run · halt — conduct: halt — main holds {name}, no run's" in log
+    assert _git(root, "ls-remote", "origin") == listed
+    assert _calls(calls) == []
+
+
+_VIEWS = ("replace", "graft", "shallow")
+
+
+def _push_then_forge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    *cases: tuple[str, ...],
+) -> None:
+    """Push a run's release per case, mutated as it names, then forge one on its head.
+
+    The forged release halts the next run, and the pushed head is retired.
+    """
     conduct = _conduct()
     calls = fake()
-    root = _primary(tmp_path)
-    origin = tmp_path / "origin.git"
-    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
-    _git(root, "remote", "add", "origin", str(origin))
-    _git(root, "push", "-q", "origin", "main")
+    root, _ = _with_origin(tmp_path)
     conduct["_keep_origin"](root)
-
-    def run() -> int:
-        return _main(
-            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
-        )
-
-    def halts_on_main() -> None:
-        listed = _git(root, "ls-remote", "origin")
-        name = _git(root, "rev-parse", "main")[:7]
-        assert run() == 1
-        log = conduct["last_log"](root / ".minions" / "runs").read_text()
-        assert f" · run · halt — conduct: halt — main holds {name}, no run's" in log
-        assert _git(root, "ls-remote", "origin") == listed
-        assert _calls(calls) == []
-
-    # A worker moves the local remote ref: the base is origin's own head.
-    _commit(root, {"mine.txt": "x\n"}, "a plain commit")
-    _git(root, "update-ref", "refs/remotes/origin/main", "main")
-    halts_on_main()
-    _git(root, "reset", "-q", "--hard", "HEAD~1")
-
-    # A pushed head is retired even if a concurrent worker deletes its version ref, or
-    # rewrites the release commit's history with a replace ref, a graft or `shallow`.
     module = conduct["main"].__globals__
     outside = module["_outside"]
     close = module["_close_releases"]
     git_dir = root / ".git"
-    views = ("replace", "graft", "shallow")
-    cases = (
-        ("keep",),
-        ("resume",),
-        ("resume", "delete", *views),
-        ("hand-finished",),
-        ("failed-push",),
-    )
     for number, mutation in enumerate(cases, start=1):
         tag = f"v0.{number}.0"
         branch = f"refs/heads/release-{tag}"
@@ -2993,7 +3060,8 @@ def test_a_forged_release_is_not_pushed(
             # The conductor died after both pushes, before retiring the entry.
             module["_close_releases"] = lambda *_: None
         if "hand-finished" not in mutation:
-            assert run() == (1 if "failed-push" in mutation else 0)
+            code = 1 if "failed-push" in mutation else 0
+            assert _run_claude(conduct, root, monkeypatch) == code
         module["_outside"] = outside
         module["_close_releases"] = close
         if "failed-push" in mutation or "hand-finished" in mutation:
@@ -3021,7 +3089,7 @@ def test_a_forged_release_is_not_pushed(
                 conduct["_unpushed"](root, first_read=True)
             assert conduct["_ledger_heads"](root) == {head}, mutation
             module["_close_releases"] = close
-        halts_on_main()
+        _halts_on_main(conduct, root, calls, monkeypatch)
         assert conduct["_ledger_heads"](root) == set(), mutation
         _git(root, "reset", "-q", "--hard", "HEAD~1")
         _git(root, "tag", "-d", forged)
@@ -3031,8 +3099,62 @@ def test_a_forged_release_is_not_pushed(
         (git_dir / "info" / "grafts").unlink(missing_ok=True)
         (git_dir / "shallow").unlink(missing_ok=True)
 
+
+@pytest.mark.slow
+def test_a_forged_release_is_not_pushed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root, _ = _with_origin(tmp_path)
+    conduct["_keep_origin"](root)
+
+    # A worker moves the local remote ref: the base is origin's own head.
+    _commit(root, {"mine.txt": "x\n"}, "a plain commit")
+    _git(root, "update-ref", "refs/remotes/origin/main", "main")
+    _halts_on_main(conduct, root, calls, monkeypatch)
+
+
+@pytest.mark.slow
+def test_a_pushed_release_retires_its_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    _push_then_forge(tmp_path, monkeypatch, fake, ("keep",))
+
+
+@pytest.mark.slow
+def test_a_resumed_push_retires_at_the_next_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # The conductor dies after both pushes, before retiring the entry; a concurrent
+    # worker deletes its version ref, or rewrites the release commit's history with
+    # a replace ref, a graft or `shallow`.
+    cases = (("resume",), ("resume", "delete", *_VIEWS))
+    _push_then_forge(tmp_path, monkeypatch, fake, *cases)
+
+
+@pytest.mark.slow
+def test_a_release_a_person_landed_refuses_a_forged_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    _push_then_forge(tmp_path, monkeypatch, fake, ("hand-finished",), ("failed-push",))
+
+
+@pytest.mark.slow
+def test_local_history_records_no_forged_release(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _ = _with_origin(tmp_path)
+    conduct["_keep_origin"](root)
+    git_dir = root / ".git"
+    # A landed release merge, whose head the shallow view hides.
+    _released(root, "v0.1.0", by_hand=True)
+    _git(root, "push", "-q", "origin", "main", "v0.1.0")
+
     # Local history must not turn an unauthorized release into a recorded one.
-    for number, view in enumerate(views, start=20):
+    for number, view in enumerate(_VIEWS, start=20):
         tag = f"v9.{number}.0"
         base = _git(root, "rev-parse", "main")
         _released(root, tag, by_hand=True)
@@ -3067,6 +3189,19 @@ def test_a_forged_release_is_not_pushed(
         _git(root, "reset", "-q", "--hard", base)
         _git(root, "tag", "-d", tag)
         conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
+
+
+@pytest.mark.slow
+def test_a_forged_release_on_an_older_default_is_not_pushed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root, origin = _with_origin(tmp_path)
+    conduct["_keep_origin"](root)
+
+    def run() -> int:
+        return _run_claude(conduct, root, monkeypatch)
 
     # A worker points `origin/HEAD` at an older origin branch and forges a release
     # there, on a head that landed on origin's own default: the push judges `main`.

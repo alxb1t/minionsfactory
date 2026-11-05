@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The fakes start bare
 - [x] 2 — The deletions and the merge
-- [ ] 3 — The longest tests split
+- [x] 3 — The longest tests split
 - [ ] 4 — The rest split
 
 ## 1 — The fakes start bare
@@ -36,11 +36,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The longest tests split
 
-- [ ] 3.1 Split `test_a_forged_release_is_not_pushed` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
+- [x] 3.1 Split `test_a_forged_release_is_not_pushed` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "forged_release or pushed_release_retires or resumed_push_retires or person_landed_refuses or local_history_records"` reports `6 passed`.
-- [ ] 3.2 Split `test_after_waits_for_its_dependency` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
+- [x] 3.2 Split `test_after_waits_for_its_dependency` into the tests [D3](design.md#d3) names, in `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "after_waits_for_its_dependency or dependents_delta_halts or crashed_integrate_script or refuses_a_planted_hook or integrate_script_is_loaded_once or merges_in_before_its_first_worker or merged_in_once_merges_again or clean_merge_in_builds_on_the_merge or changelog_conflict_is_settled or conflict_halts_naming_the_merge or behind_an_unchanged_gate or ticked_version_goes_to_integrate or open_merge_with_no_note or open_merge_with_its_note or open_merge_is_merge_ins"` reports `15 passed`.
-- [ ] 3.3 Split `test_a_rerun_recovers_a_dead_release` and `test_a_halted_dependency_blocks_a_chain` into the tests
+- [x] 3.3 Split `test_a_rerun_recovers_a_dead_release` and `test_a_halted_dependency_blocks_a_chain` into the tests
   [D3](design.md#d3) names, in `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "rerun_recovers_a_dead_release or release_cut_short_is_recovered or dead_integrate_is_resumed or halted_dependency_blocks_a_chain or lone_dependent_is_blocked or free_version_ships_past or waits_while_its_dependency_works or rejoined_dependency_brings"` reports `8 passed`.
 
