@@ -310,11 +310,6 @@ def _role_tokens(detail: str) -> list[tuple[str, int | None]]:
     return [(role, None) for role in named]
 
 
-def _named(text: str) -> str | None:
-    """Return a model, effort or executor name; `default` is none known."""
-    return None if text == "default" else text
-
-
 def _utc(local: datetime) -> datetime:
     """Return a local time in UTC, by `$TZ`'s zone, else the system's."""
     try:
@@ -368,7 +363,12 @@ def _round_records(path: Path) -> list[Record]:
         windows = _windows(heading, body)
         for _, round_, event, detail in _ROUND_EVENT.findall(body):
             tail = _TAIL.search(detail)
-            names = [_named(name) for name in tail.groups()] if tail else [None] * 3
+            # `default` is no name known
+            names = (
+                [n if n != "default" else None for n in tail.groups()]
+                if tail
+                else [None] * 3
+            )
             records += [
                 {
                     "run": run,
@@ -440,11 +440,6 @@ def _session(path: Path) -> Record:
     return session
 
 
-def _sessions_folder() -> Path:
-    """Return the Codex sessions folder: `$CODEX_HOME/sessions`, else `~/.codex/`'s."""
-    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions"
-
-
 @functools.cache
 def _all_sessions(folder: Path) -> tuple[Record, ...]:
     """Return every Codex session under `folder`, read once a run."""
@@ -463,7 +458,8 @@ def _codex_sessions(repo: Path) -> list[Record]:
     A worker's repo URL is `origin`'s, or its parent ran in one of the repo's
     worktrees; a guardian or fix worker is none. Why: 0077-run-metrics design D5.
     """
-    everything = _all_sessions(_sessions_folder())
+    home = os.environ.get("CODEX_HOME") or Path.home() / ".codex"
+    everything = _all_sessions(Path(home) / "sessions")
     origin = _git_lines(repo, "remote", "get-url", "origin")
     trees = {
         str(Path(line.removeprefix("worktree ")).resolve())
