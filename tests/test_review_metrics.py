@@ -4,6 +4,7 @@ Why: 0045-review-metrics design D1…D7.
 """
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 from types import ModuleType
@@ -48,6 +49,25 @@ def _findings(root: Path, name: str, text: str) -> None:
 
 def _record(root: Path, change: str) -> dict[str, object]:
     return next(r for r in review_metrics.read_repo(root) if r["change"] == change)
+
+
+def _run_log(root: Path, name: str, *lines: object) -> None:
+    path = root / ".minions" / "runs" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = "".join(
+        (line if isinstance(line, str) else json.dumps(line)) + "\n" for line in lines
+    )
+    path.write_text(text, encoding="utf-8")
+
+
+def _result(cost: float, turns: int, ms: int, **tokens: dict[str, int]) -> object:
+    return {
+        "type": "result",
+        "total_cost_usd": cost,
+        "num_turns": turns,
+        "duration_ms": ms,
+        "modelUsage": tokens,
+    }
 
 
 def test_no_config_exits_2_naming_the_path(
@@ -285,6 +305,59 @@ def test_the_status_log_gives_duration_tokens_and_the_cap(tmp_path: Path) -> Non
     assert (third["capped"], third["to_backlog"], third["engine"]) == (0, None, None)
 
 
+def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None:
+    _findings(tmp_path, "0050-x_review.md", _front())
+    first = _result(0.5, 10, 60000, m={"inputTokens": 10, "outputTokens": 20})
+    last = _result(
+        1.25,
+        4,
+        30000,
+        m={
+            "inputTokens": 20,
+            "outputTokens": 40,
+            "cacheReadInputTokens": 300,
+            "cacheCreationInputTokens": 10,
+        },
+        h={"inputTokens": 1, "outputTokens": 1},
+    )
+    noise = ('{"type": "result", cut', {"type": "assistant"}, ["result"])
+    _run_log(tmp_path, "A/0050-x_converge.log", *noise, first, last)
+    _run_log(tmp_path, "A/0050-x_build.log", {"type": "assistant"})
+    _run_log(tmp_path, "A/0050-xy_rescue.log", last)
+    _run_log(
+        tmp_path,
+        "A.md",
+        "10:00:00 · 0050-x · spawn — converge · model default",
+        "10:05:00 · 0050-x · finish — converge · exit 0 · 300s",
+        "10:06:00 · 0050-x · spawn — converge · model default",
+        "10:07:00 · 0050-xy · spawn — converge · model default",
+        "10:08:00 · 0050-x · spawn — converge-x · model default",
+    )
+    one = _result(0.25, 1, 1000, m=dict.fromkeys(review_metrics.TOKENS, 1))
+    _run_log(tmp_path, "B/0050-x_converge.log", one)
+    _run_log(tmp_path, "B/0050-x_release.log", "codex: a text log")
+    _run_log(tmp_path, "B.md", "11:00:00 · 0050-x · spawn — converge · model m")
+
+    record = _record(tmp_path, "0050-x")
+    assert (record["cost_converge"], record["turns_converge"]) == (1.5, 15)
+    assert (record["tokens_converge"], record["seconds_converge"]) == (376, 91)
+    assert (record["logs_converge"], record["spawns_converge"]) == (2, 3)
+    for station in ("build", "release", "integrate", "rescue"):
+        assert record[f"cost_{station}"] is None
+        assert record[f"tokens_{station}"] is None
+    assert (record["logs_build"], record["logs_integrate"]) == (1, 0)
+
+    headers, rows = review_metrics.cost_table([record])
+    assert headers == ["change", *review_metrics.STATIONS]
+    assert rows == [
+        ["0050-x", "—", "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3", "—", "—", "—"]
+    ]
+
+    bare = tmp_path / "bare"
+    _findings(bare, "0051-y_review.md", _front())
+    assert _record(bare, "0051-y")["cost_converge"] is None
+
+
 def test_the_page_draws_charts_and_lists_gaps(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -308,6 +381,8 @@ def test_the_page_draws_charts_and_lists_gaps(
 10:00:00 · round 1 · start — base a · head b · engine generic
 """
     _findings(alpha, "0001-a_status_log.md", log)
+    spent = _result(2, 3, 4000, m={"outputTokens": 5})
+    _run_log(alpha, "20260101-100000/0001-a_converge.log", spent)
     _findings(alpha, "0002-b_review.md", _front(reviewed="2026-01-02"))
     _findings(beta, "0003-c_review.md", _front(reviewed="2026-02-01", round=3))
     before = sorted(tmp_path.rglob("*"))
@@ -328,7 +403,9 @@ def test_the_page_draws_charts_and_lists_gaps(
     assert "<tr><td>blocking</td><td>1</td></tr>" in page
     assert "<td>unknown</td>" in page
     assert page.count("<svg") == 2 * len(review_metrics.CHARTS)
-    assert "<li>beta: capped 1 · " in page
+    assert page.count("<h3>cost</h3>") == 2
+    assert "<td>$2.00 · 3 turns · 5 tokens · 4 s</td>" in page
+    assert "<li>beta: capped 1 · confirmed 1 · cost_build 1 · " in page
     assert "&lt;b&gt;m&lt;/b&gt;" in page
     assert "<b>m" not in page
     assert "<script" not in page
@@ -339,7 +416,9 @@ def test_the_page_draws_charts_and_lists_gaps(
     assert printed[2].startswith("| model | engine | changes |")
     assert "| unknown | generic | 1 | 2 (n=1) |" in "\n".join(printed)
     assert "<b>m" not in "\n".join(printed)
-    assert printed[-1].startswith("lacked: capped 2 · confirmed 2 · ")
+    assert printed[-1].startswith(
+        "lacked: capped 2 · confirmed 2 · cost_build 3 · cost_converge 2 · "
+    )
 
 
 def test_overrides_win_over_the_config(

@@ -263,9 +263,9 @@ station says so.**
 
 ### D50 · Review metrics are read across repos and drawn on one page
 
-**`mf-review-metrics` reads the findings files and status logs of the repos the operator's config names, leniently —
-every unreadable field a gap — and writes one self-contained page: tables per repo and per model, charts over
-changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
+**`mf-review-metrics` reads the findings files, status logs and run logs of the repos the operator's config names,
+leniently — every unreadable field a gap — and writes one self-contained page: tables per repo and per model, charts
+over changes through `mf-build`'s chart. Numbers only; it writes into no repo and is no station of the line.**
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.

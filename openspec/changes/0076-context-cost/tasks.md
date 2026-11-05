@@ -4,18 +4,18 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The cost reader
+- [x] 1 — The cost reader
 - [ ] 2 — No MCP server at a worker's start
 - [ ] 3 — The worker reference
 - [ ] 4 — The metric
 
 ## 1 — The cost reader
 
-- [ ] 1.1 Add `_cost_logs` and `cost_table` to `skills/mf-review-metrics/scripts/review_metrics.py`, and name cost in
+- [x] 1.1 Add `_cost_logs` and `cost_table` to `skills/mf-review-metrics/scripts/review_metrics.py`, and name cost in
   `skills/mf-review-metrics/SKILL.md`, per [D1](design.md#d1); add `_run_log` and `test_run_logs_give_cost_turns_and_tokens_per_station`
   to `tests/test_review_metrics.py`, and extend `test_the_page_draws_charts_and_lists_gaps`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "run_logs_give_cost or page_draws_charts_and_lists_gaps"` reports `2 passed`.
-- [ ] 1.2 Amend D50 in `docs/decisions.md`, per [D5](design.md#d5).
+- [x] 1.2 Amend D50 in `docs/decisions.md`, per [D5](design.md#d5).
   Verify: `grep -n 'status logs and run logs' docs/decisions.md` prints a line.
 
 ## 2 — No MCP server at a worker's start
