@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0076-context-cost`, phase 1).
 - A Claude worker starts with `--strict-mcp-config`, so no MCP server starts, the operator's own included; D51 and
   the threat model record it (change `0076-context-cost`, phase 2).
+- Converge's review, security and fix workers load `skills/mf-converge/references/worker.md` — the findings file
+  contract, review's passes, the verify pass, the catch-up scope, the card and the rules for tests — not the whole
+  converge skill, which keeps the conductor's steps and links each moved part (change `0076-context-cost`, phase 3).
 
 ## [0.61.0] - 2026-11-05
 

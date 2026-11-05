@@ -55,7 +55,7 @@ read-only except for their own findings file.**
 `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
-- **Held by:** `mf-converge` Steps 6 and 7; Step 7 reopens a test fix with no red run.
+- **Held by:** `mf-converge` Steps 6 and 7; its worker reference's verify pass reopens a test fix with no red run.
 
 ### Nothing reads as clean by being absent
 

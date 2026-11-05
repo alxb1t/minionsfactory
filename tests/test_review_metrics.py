@@ -230,8 +230,8 @@ def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     assert (prose["findings"], prose["categories"]) == (3, {})
     assert not any("tier" in record for record in review_metrics.read_repo(tmp_path))
 
-    skill = _REPO / "skills" / "mf-converge" / "SKILL.md"
-    listed = re.search(r"category one of (.*?);", skill.read_text(encoding="utf-8"))
+    worker = _REPO / "skills" / "mf-converge" / "references" / "worker.md"
+    listed = re.search(r"category one of (.*?);", worker.read_text(encoding="utf-8"))
     assert listed
     assert tuple(re.findall(r"`([^`]+)`", listed.group(1))) == (
         review_metrics.CATEGORIES

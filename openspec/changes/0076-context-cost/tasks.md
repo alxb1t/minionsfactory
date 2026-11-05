@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The cost reader
 - [x] 2 — No MCP server at a worker's start
-- [ ] 3 — The worker reference
+- [x] 3 — The worker reference
 - [ ] 4 — The metric
 
 ## 1 — The cost reader
@@ -29,12 +29,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The worker reference
 
-- [ ] 3.1 Move the worker's parts of `skills/mf-converge/SKILL.md` into `skills/mf-converge/references/worker.md`, link them from
+- [x] 3.1 Move the worker's parts of `skills/mf-converge/SKILL.md` into `skills/mf-converge/references/worker.md`, link them from
   `SKILL.md`, tell the conductor to load it, repoint every anchor to a moved heading, and point `generic-review.md` and
   `generic-security.md` at it, their Step 5 and Step 7 citations included, per [D3](design.md#d3).
   Verify: `grep -n '^## The card' skills/mf-converge/references/worker.md` prints a line, and
   `grep -L '^## The card' skills/mf-converge/SKILL.md` prints `skills/mf-converge/SKILL.md`.
-- [ ] 3.2 Point the readers [D3](design.md#d3) names at the worker reference: the card-owner, test-rule and resource scans in
+- [x] 3.2 Point the readers [D3](design.md#d3) names at the worker reference: the card-owner, test-rule and resource scans in
   `tests/test_skills.py`, the Priority regex in `tests/test_review_metrics.py`, and the prose in `skills/mf-build/SKILL.md` and
   `review_metrics.py`'s comment.
   Verify: `uv run pytest -q tests/test_skills.py tests/test_review_metrics.py` exits 0.

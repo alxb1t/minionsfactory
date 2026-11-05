@@ -46,7 +46,8 @@ CHARTS = {
     "duration": "duration (s)",
     "tokens": "tokens",
 }
-# why: old cards hold free text in that field; mf-converge's card names the list
+# why: old cards hold free text in that field; the card in converge's worker reference
+# names the list
 CATEGORIES = (
     "security",
     "stability",
