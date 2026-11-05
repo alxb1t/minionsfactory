@@ -78,6 +78,10 @@ RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("review", "security")
+# A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
+BLOCKS = {"review": ("blocking",), "security": ("critical", "high")}
+SMALL = ("one line", "a test", "one line and a test")
+CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 STOPPED = "stopped by the person"
@@ -1684,6 +1688,45 @@ def _skips_rescue(runs: Path, change: str) -> bool:
     return table is not None and table.get("skip") is True
 
 
+def _auto_grants(runs: Path, change: str) -> bool:
+    """Return whether the run may grant a cap: no `[converge] auto_grant = false`.
+
+    Why: 0070-cap-policy design D4.
+    """
+    table = _table(runs, change, "converge")
+    return table is None or table.get("auto_grant") is not False
+
+
+def _field(card: str, name: str) -> str:
+    """Return a card's `- **<name>:** <value>` value, or "" with none."""
+    found = re.search(rf"^[ \t]+- \*\*{name}:\*\*[ \t]*(.*)$", card, re.MULTILINE)
+    return found[1].strip() if found else ""
+
+
+def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
+    """Return each open blocking card's id and fix size; None when a file is unread.
+
+    A card with no size is `a design change`. Why: 0070-cap-policy design D1.
+    e.g. "- **R1 — …**", blocking, open, "· size: a test." → [("R1", "a test")]
+    """
+    found = []
+    for role in ROLES:
+        try:
+            text = (runs / "findings" / f"{change}_{role}.md").read_text()
+        except (OSError, UnicodeDecodeError):
+            return None
+        starts = list(CARD.finditer(text))
+        ends = [card.start() for card in starts[1:]] + [len(text)]
+        for title, end in zip(starts, ends, strict=True):
+            card = text[title.start() : end]
+            severity = _field(card, "Priority").split(" · ")[0].strip().lower()
+            if severity in BLOCKS[role] and re.match(r"open\b", _field(card, "Status")):
+                sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
+                size = sized[1].strip().rstrip(".") if sized else ""
+                found.append((title[1], size or "a design change"))
+    return found
+
+
 def _amend(
     tree: Path, change: str, before: str, amends: tuple[str, ...]
 ) -> tuple[str | None, str]:
@@ -2228,6 +2271,8 @@ class Run:
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
         self.skips: set[str] = set()
+        self.capped: set[str] = set()
+        self.grants_auto: dict[str, bool] = {}
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
@@ -2425,15 +2470,58 @@ class Run:
             )
         return models
 
+    def _would_grant(self, version: Version, halt: str) -> tuple[bool, str]:
+        """Return whether `halt` is a cap the run grants, and its open blockers' ids.
+
+        It grants a version's first cap in the run when every open blocker is small
+        and the models file allows it; the ids are "" at no cap. It changes nothing.
+        Why: 0070-cap-policy design D2.
+        """
+        change = version.change
+        if "cap reached" not in halt or self.stopped("run"):
+            return False, ""
+        blockers = _open_blockers(self.primary / ".minions", change)
+        if not blockers:
+            return False, "no open blocking card read"
+        with self.guard:
+            first = change not in self.capped
+            allowed = self.grants_auto.get(change, True)
+        small = all(size in SMALL for _, size in blockers)
+        return first and allowed and small, " ".join(card for card, _ in blockers)
+
+    def auto_grant(self, version: Version, halt: str) -> tuple[bool, str]:
+        """Spawn converge one round past a cap `_would_grant` takes; True if it did.
+
+        Else the refused ids, "" at no cap. Every cap counts towards the first; the
+        grant writes no grant file and starts no rescue. Why: 0070-cap-policy design D2.
+        """
+        change, tree = version.change, version.tree
+        granted, ids = self._would_grant(version, halt)
+        with self.guard:
+            if "cap reached" in halt:
+                self.capped.add(change)
+        if not granted or tree is None:
+            return False, ids
+        with self.guard:
+            self.halts = [held for held in self.halts if held[0] != change]
+        self.log.event("run", "grant", f"{change}: automatic · {ids}")
+        prompt = PROMPTS["converge"].format(change=change, grant=" and grant=yes")
+        models = self.planned_models(change, "converge")
+        self.spawn(change, "converge", tree, prompt, models)
+        return True, ""
+
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
-        A build check, converge or integrate halt gets its rescue first.
+        A cap the run grants gets its round, and a build check, converge or
+        integrate halt its rescue first.
         """
         try:
             while not self.stopped(version.change):
                 stage, why = stage_of(self.primary, version)
                 if stage in STUCK:
+                    if self.auto_grant(version, why)[0]:
+                        continue
                     rescued = stage in RESCUED
                     spent = self.rescued(version.change, stage) if rescued else ""
                     self.halt(version.change, f"{stage} — {why}{spent}")
@@ -2456,6 +2544,8 @@ class Run:
                     # An amended run starts from round 1: the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
                     if clause:
+                        with self.guard:
+                            self.capped.add(version.change)
                         self.log.event(
                             "run",
                             "grant",
@@ -2483,7 +2573,10 @@ class Run:
                     reason = f"{reason}{self.rescued(version.change, held)}"
                 if not self.judge(version.change, stage, reason, denied):
                     amends = AMENDS if stage == "build" else ()
-                    if held is not None and self.rescue(version, held, amends):
+                    if held is not None and (
+                        self.auto_grant(version, reason or "")[0]
+                        or self.rescue(version, held, amends)
+                    ):
                         continue
                     return
                 if stage == "release":
@@ -2660,8 +2753,10 @@ class Run:
         """Read each station's models, once per version: at the start, or as it joins.
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. The rescue's skip is read with them.
-        Why: 0052-security-hardening design D4; 0067-rescue design D5.
+        halts in `take`. The rescue's skip and `[converge] auto_grant` are read with
+        them.
+        Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
+        design D4.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -2670,10 +2765,12 @@ class Run:
         for version in versions:
             try:
                 skips = _skips_rescue(self.primary / ".minions", version.change)
+                grants = _auto_grants(self.primary / ".minions", version.change)
             except (Stop, ValueError):
                 continue
-            if skips:
-                with self.guard:
+            with self.guard:
+                self.grants_auto[version.change] = grants
+                if skips:
                     self.skips.add(version.change)
 
     def models(
@@ -2955,7 +3052,12 @@ class Run:
         stages = {
             version.change: stage_of(self.primary, version) for version in versions
         }
-        if all(stage in STUCK for stage, _ in stages.values()):
+        # A cap the run grants is not stuck. Why: 0070-cap-policy design D2.
+        granted = any(
+            self._would_grant(version, stages[version.change][1])[0]
+            for version in versions
+        )
+        if not granted and all(stage in STUCK for stage, _ in stages.values()):
             for change, (stage, why) in stages.items():
                 if stage == "waiting":
                     self.block(change, why.removeprefix("after ").split()[0])

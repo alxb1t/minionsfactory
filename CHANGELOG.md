@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `conduct.py` reads the open blocking cards and their sizes at a converge cap; when each is sized `one line`, `a
+  test` or `one line and a test`, it spawns converge with `grant=yes` itself, once a version a run, and logs
+  `grant — <id>: automatic · <ids>`, so a cap of small cards converges with no person (change `0070-cap-policy`, phase 1).
+
 ## [0.56.0] - 2026-11-05
 
 Gate: local 2m41s · CI not read under mf-ship · 0.55.0: local 2m12s · CI not read under mf-ship

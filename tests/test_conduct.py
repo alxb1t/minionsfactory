@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fake_worker import _IDENTITY, _commit, _done, _findings, _git
+from fake_worker import _IDENTITY, _cards, _commit, _done, _findings, _git
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -3759,6 +3759,68 @@ def test_stop_ends_a_live_run(
     assert stop() == "stop: none — no run is live"
     foreign.kill()
     foreign.wait(timeout=10)
+
+
+@pytest.mark.slow
+def test_a_small_cap_is_granted_automatically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("cap-small")
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+
+    # The run reads each open blocking card's id and size; a missing file is none.
+    blockers = conduct["_open_blockers"]
+    assert blockers(minions, "0001-todo") is None
+    _cards(root, "0001-todo", head, "a test")
+    assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
+    security = minions / "findings" / "0001-todo_security.md"
+    cards = security.read_text()
+    unsized = cards.replace("high ·", "critical ·").replace(" · size: a test.", "")
+    security.write_text(unsized)
+    assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
+    security.write_text(cards)
+
+    def run() -> int:
+        return _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    # A cap of small cards standing at the start gets its round in the run.
+    assert run() == 0
+    assert _calls(calls) == [
+        "probe",
+        "converge 0001-todo and grant=yes",
+        "release 0001-todo",
+    ]
+    lines = _log(root)
+    granted = " · run · grant — 0001-todo: automatic · R1 S1"
+    assert any(line.endswith(granted) for line in lines)
+    assert not (minions / "grants").exists()
+    assert not any(" · halt — " in line for line in lines)
+
+    # So does one reached inside the run, its halt cleared.
+    calls.unlink()
+    tree = _version(root, "0002-marks", "- [x] 1 — Marks\n")
+    _done(root, "0002-marks", _git(tree, "rev-parse", "HEAD"))
+    assert run() == 0
+    assert _calls(calls) == [
+        "probe",
+        "converge 0002-marks",
+        "converge 0002-marks and grant=yes",
+        "release 0002-marks",
+    ]
+    lines = _log(root)
+    assert any(
+        line.endswith(" · run · grant — 0002-marks: automatic · R1 S1")
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.2.0")
+    assert not (minions / "grants").exists()
 
 
 @pytest.mark.slow

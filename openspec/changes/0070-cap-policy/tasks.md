@@ -4,13 +4,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The automatic grant
+- [x] 1 — The automatic grant
 - [ ] 2 — The re-plan
 - [ ] 3 — The record
 
 ## 1 — The automatic grant
 
-- [ ] 1.1 Add `_open_blockers`, `_auto_grants`, `self.capped`, `self.grants_auto`, `_would_grant` and `Run.auto_grant`, called where
+- [x] 1.1 Add `_open_blockers`, `_auto_grants`, `self.capped`, `self.grants_auto`, `_would_grant` and `Run.auto_grant`, called where
   [D2](design.md#d2) names, in `skills/mf-ship/scripts/conduct.py`; add the `_cards` helper and the `cap-small` mode to
   `tests/fake_worker.py`, and `test_a_small_cap_is_granted_automatically` to `tests/test_conduct.py`, per [D1](design.md#d1),
   [D2](design.md#d2) and [D4](design.md#d4).
