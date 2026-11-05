@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-05
+
+Gate: local 2m12s · CI not read under mf-ship · 0.54.0: local 1m49s · CI not read under mf-ship
+
 - `skills/mf-cut-change/scripts/verify_check.py` runs each `grep` and `git grep` a `Verify:` names over HEAD's tree,
   or the revision a `git grep` names, as argv with no shell, and prints every match as `path:line`; a `$(…)`, shell
   variable, loop or `cd` a shell would read, not one quoted, an option outside the search's fixed list, a pager's
