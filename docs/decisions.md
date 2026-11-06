@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38                   D11…D17, D40, D43, D49, D50
+       D5…D10, D38, D58              D11…D17, D40, D43, D49, D50
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57
 ```
@@ -125,11 +125,27 @@ a deleted capability leaves no marker directory behind.**
 
 **`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
 that is not `None.`, a self-check item the cut cannot meet, and a plan-review doubt left to the person still wait for
-the person's OK. Starting `/mf-build` is the OK for the `Verify:` commands.**
+the person's OK; an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
+Starting `/mf-build` is the OK for the `Verify:` commands.**
 
 - **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
   every time.
 - **Accepts:** an edit after the read is a further commit on the branch, before the build.
+
+### D58 · A settled brief is cut by a conductor station
+
+**`conduct.py cut <slug> <bump> brief=<path>` queues a settled brief under the queue lock in the home folder, reserving
+its number in `.minions/cuts/<id>`. The run makes the branch and worktree, runs `mf-cut-change unattended=yes` sandboxed
+to that worktree, the run directory and the brief, checks the cut on disk and builds it. Unattended, the brief's switch
+`decide: recommended` takes the recommended option, logged in the brief; every other doubt halts at `cut-halted`, with no
+rescue, answered by a re-plan and `conduct.py rejoin <id>`. Queuing a cut is the person's yes to cut, run, merge and push
+it.**
+
+- **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
+- **Rejected:** a background subagent in the person's session · the id given at dispatch · an `AGENTS.md` switch · a
+  rescue for a cut halt · the parameters in `.minions/`, where a worker writes.
+- **Accepts:** a Codex cutter's root is its brief's folder, so `cut` and the station refuse a Codex brief that does not
+  stand alone in its folder: the person's other notes stay out of its reach.
 
 ## The check loop and the release
 
@@ -348,8 +364,10 @@ the proposal it archives.
 ### D20 · A change id is an identifier, numbered in cut order
 
 **`<digits>-<slug>`, never renamed once cut, and the name of its branch. The number is higher than every id on the
-default branch and on every open version branch; the cut takes the id it is given; a version is numbered at its
-release, so work carries a name, then an id, and a number last.**
+default branch and on every open version branch, and than every reservation in `.minions/cuts/`; the cut takes the id
+it is given, and `conduct.py cut` gives the next free one under its lock
+([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)); a version is numbered at its release, so work carries a
+name, then an id, and a number last.**
 
 Example: `0011-cut-and-gate`, on the branch `0011-cut-and-gate`.
 
@@ -419,7 +437,8 @@ Review judges each new test's cost and traces each removed one's proofs.**
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
 writes it to `.minions/changes/<change-id>/models.toml`, never into the change, for `mf-ship`; model selection and provider
-setup stay with the operator.**
+setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut writes those
+([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
@@ -437,13 +456,14 @@ the bootstrap templates — never that a sentence exists.**
 ### D44 · Versions run side by side in worktrees; one primary merges them
 
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
-primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch.
+primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch and
+every reservation `conduct.py cut` wrote under its lock ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
 Every worktree shares the primary's `.minions/`, save the gate's own junit report, which sits in the checkout that ran
 it; the release merges in the primary.**
 
-- **Why:** two writers in one checkout collide; git holds a branch in one worktree only; open branches reserve ids
-  without a lock file.
-- **Rejected:** host-managed worktrees — places MF cannot name · rebasing a judged branch · a reservation file.
+- **Why:** two writers in one checkout collide; git holds a branch in one worktree only; an open branch reserves its id
+  once its change is committed, and a queued cut's reservation before.
+- **Rejected:** host-managed worktrees — places MF cannot name · rebasing a judged branch.
 
 ### D45 · One station merges the default branch into the next version
 
@@ -469,8 +489,11 @@ its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `int
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
-`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A live run takes a rejoin
-request, `.minions/runs/rejoin/`, a mailbox that holds no state: it takes back each requested version whose stage on disk is
+`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A run takes
+each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, and its close,
+under the queue lock, starts the next run on a request or a cut it never read. A live run takes a rejoin request, in the
+home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state:
+it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
 whose converge or integrate halt was answered while its rescue ran, the person's own fix included, which waits for a re-run.
 A version taken back brings each version it blocked. A clean catch-up, verify or `amend needed` halt followed only by the
@@ -499,8 +522,10 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
-**Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, and its scripts reach no
-unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
+**Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
+the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter to
+the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
+reach no unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
 `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a
 hostile repo needs a container.**
@@ -580,9 +605,10 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing,discarded.patch}`, `rescue.md`,
-`release.held`, `gate-check/` and `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own
-`_change_dir`. `grants/`, `runs/`, `gate/`, `replay/`, `metrics/`, `awake/` and `debt.md` stay generic, the run's probe logging to
+`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved}`,
+`build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
+`logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
+`replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker, and a file
 beside its new one or a link halts it; a hand-run station or script on an old layout halts, naming `/mf-ship`, and
 `review_metrics.py` reads both.**
