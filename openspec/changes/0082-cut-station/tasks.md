@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The queue
-- [ ] 2 — The station
+- [x] 2 — The station
 - [ ] 3 — The unattended cut
 - [ ] 4 — The record
 
@@ -34,24 +34,24 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The station
 
-- [ ] 2.1 In `tests/fake_worker.py`, read the station with `Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?`, and add
+- [x] 2.1 In `tests/fake_worker.py`, read the station with `Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?`, and add
   the `cut-change` station: it commits `openspec/changes/<id>/proposal.md` and `tasks.md` as
   `docs(<id>): land the change directory` and writes `.minions/changes/<id>/models.toml`; under `cut-halts` it writes
   `.minions/changes/<id>/cut.halt` holding `<id> waits on one doubt: two readings · tasks.md:3` and commits nothing;
   `cut-empty`, `cut-dirty`, `cut-bare` and `dies-cut` as [the design's Tests](design.md#tests) name them.
   Verify: `grep -n 'cut-halts' tests/fake_worker.py` prints a line.
-- [ ] 2.2 Add `PROMPTS["cut"]`, `cut` to `EVENTS`, the queue read into `Run.seen` at `ship`'s start and in `take_requests`,
+- [x] 2.2 Add `PROMPTS["cut"]`, `cut` to `EVENTS`, the queue read into `Run.seen` at `ship`'s start and in `take_requests`,
   `Run.cut`, `_check_cut`, `Run.admit` moved out of `take_back`, and `Run.cut_halted` to
   `skills/mf-ship/scripts/conduct.py`, per [D4](design.md#d4) and [D6](design.md#d6); `_close` also starts the next run
   on a queued cut with no `halt` the run never read, per [D2](design.md#d2).
   Verify: `grep -n 'Run the mf-cut-change skill for change' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.3 Give `argv` and `spawn` a `brief: Path | None = None`, passed on only when set, that narrows the worker's reach to its worktree, the run
+- [x] 2.3 Give `argv` and `spawn` a `brief: Path | None = None`, passed on only when set, that narrows the worker's reach to its worktree, the run
   directory, the common directory and the brief, per [D5](design.md#d5).
   Verify: `grep -n 'brief: Path | None = None' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.4 Print `<id> · cut` and `<id> · cut-halted — <halt>` in `status`, and have `rejoin <id>` clear a queued cut's halt,
+- [x] 2.4 Print `<id> · cut` and `<id> · cut-halted — <halt>` in `status`, and have `rejoin <id>` clear a queued cut's halt,
   then request it or start a run, per [D6](design.md#d6).
   Verify: `grep -n 'cut-halted — ' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.5 Add `test_a_queued_cut_is_cut_then_built` and `test_a_cut_halt_is_shown_and_rejoin_cuts_again`, both `slow`, and
+- [x] 2.5 Add `test_a_queued_cut_is_cut_then_built` and `test_a_cut_halt_is_shown_and_rejoin_cuts_again`, both `slow`, and
   extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named` and `test_a_request_at_a_runs_close_starts_the_next_run`,
   in `tests/test_conduct.py`, per [the design's Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "queued_cut_is_cut or cut_halt_is_shown or carries_the_allowlist or request_at_a_runs_close"` reports `4 passed`.

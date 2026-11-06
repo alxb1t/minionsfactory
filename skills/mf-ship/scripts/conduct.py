@@ -74,7 +74,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move"),
+    *("rescue", "move", "cut"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -176,6 +176,10 @@ PROMPTS = {
     "integrate": "Run the mf-integrate skill for change {change}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}.",
+    "cut": (
+        "Run the mf-cut-change skill for change {change} with arguments"
+        " `{change} {bump} brief={brief}{after} unattended=yes`."
+    ),
 }
 SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
@@ -560,6 +564,42 @@ def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
         os.close(fd)
     with os.fdopen(file, "w") as out:
         out.write(text)
+
+
+def _remove_in(root: Path, *parts: str, name: str) -> None:
+    """Remove `root`'s file `parts`/`name` when it stands, through no link."""
+    fd = _folder_fd(root, *parts)
+    try:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(name, dir_fd=fd)
+    finally:
+        os.close(fd)
+
+
+def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
+    """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
+
+    Why: 0082-cut-station design D4.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    try:
+        halt = os.open("cut.halt", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+    except OSError:
+        halt = None
+    finally:
+        os.close(fd)
+    if halt is not None:
+        with os.fdopen(halt, errors="replace") as file:
+            return file.readline().strip()[:300]
+    if _subject(primary, change) != f"docs({change}): land the change directory":
+        return f"{change}: no cut commit at the branch's tip"
+    if not _holds(primary, change):
+        return f"{change}: the branch holds no openspec/changes/{change}/"
+    if _dirty(tree):
+        return "the tree is not clean"
+    if not (_change_dir(primary, change) / "models.toml").is_file():
+        return f"no .minions/changes/{change}/models.toml"
+    return None
 
 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
@@ -2162,22 +2202,26 @@ def argv(
     effort: str | None,
     repo: Repo,
     lines: ShipLines | None = None,
+    brief: Path | None = None,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
     `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
     `.git` no longer resolves to the common directory in `repo`. A run passes its
-    `lines`; without them, `AGENTS.md` is read here.
+    `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
+    reach to `cwd`, the run directory and the brief. Why: 0082-cut-station design D5.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
     primary, common = repo
-    trees = reach(primary)
+    trees = reach(primary) if brief is None else [cwd, primary / ".minions"]
+    edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
+        allowed += [f"Edit(/{path})" for path in edits]
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
             *("claude", "-p", prompt),
@@ -2185,7 +2229,10 @@ def argv(
             *(("--effort", effort) if effort else ()),
             *("--output-format", "stream-json", "--verbose"),
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
-            *("--settings", worker_settings(primary, trees, common, network)),
+            *(
+                "--settings",
+                worker_settings(primary, [*trees, *edits], common, network),
+            ),
             # A worker can write the project's settings and `.mcp.json`, and each
             # runs at a start, outside the sandbox.
             # Why: 0052-security-hardening design D1.
@@ -2198,7 +2245,9 @@ def argv(
     # Why: 0050-codex-review design D5.
     if common and _common_dir(primary) != common:
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
-    roots = [*([str(common)] if common else []), *(str(tree) for tree in trees)]
+    # Codex roots are folders: a cutter's holds its brief's.
+    folders = [*trees, *(path.parent for path in edits)]
+    roots = [*([str(common)] if common else []), *(str(tree) for tree in folders)]
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
@@ -2645,6 +2694,7 @@ class Run:
         self.lines = ShipLines([], [])
         self.guard = threading.Lock()
         self.merging = threading.Lock()
+        self.probing = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
         """Record and log a halt; its version starts no new worker but its rescue."""
@@ -2699,15 +2749,19 @@ class Run:
         prompt: str,
         models: tuple[str, str | None, str | None],
         repo: Repo | None = None,
+        brief: Path | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Return the denials, or None when a timeout or a failed exit halted `who`.
+        Return the denials, or None when a timeout or a failed exit halted `who`. A
+        cutter's `brief` goes to `argv`.
         """
         executor, model, effort = models
-        command = argv(
-            executor, prompt, cwd, model, effort, repo or self.repo, self.lines
-        )
+        held = (repo or self.repo, self.lines)
+        if brief is not None:
+            command = argv(executor, prompt, cwd, model, effort, *held, brief=brief)
+        else:
+            command = argv(executor, prompt, cwd, model, effort, *held)
         other = f" · executor {executor}" if executor != self.executor else ""
         shown = f" · effort {effort}" if effort else ""
         self.log.event(
@@ -3210,6 +3264,84 @@ class Run:
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
 
+    def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
+        """Cut a queued brief in its own worktree, check it on disk, then take it.
+
+        Every exit that keeps the queue entry sets its halt, so no close starts it
+        again. Why: 0082-cut-station design D4, D6.
+        """
+        try:
+            failed = self.cutting(change)
+        except Stop as stop:
+            failed = str(stop), False
+        except Exception as error:
+            failed = f"conduct.py failed: {error}", False
+        if failed is not None:
+            self.cut_halted(change, *failed)
+            return
+        version = Version(change, _worktrees(self.primary).get(change))
+        try:
+            if self.admit(version):
+                self.take(version, threads)
+        except Stop as stop:
+            self.halt(change, str(stop))
+        except Exception as error:
+            self.halt(change, f"conduct.py failed: {error}")
+
+    def cutting(self, change: str) -> tuple[str, bool] | None:
+        """Run the cutter and its check; return why it halts and if that is logged.
+
+        A branch that holds its change is checked, not cut again; one that holds
+        none is dropped with its worktree first. A dependency still queued is waited
+        for. None on a pass, its queue entry and reservation deleted.
+        """
+        entry = _cuts(self.primary)[change]
+        for named in entry["after"]:
+            while (queued := _cuts(self.primary).get(named)) is not None:
+                if queued.get("halt") is not None or self.stopped(named):
+                    return f"after {named} is cut-halted", False
+                time.sleep(REJOIN_POLL)
+        primary = self.primary
+        tree = (self.worktrees / change).resolve()
+        branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
+        _remove_in(primary / ".minions", "changes", change, name="cut.halt")
+        if not (branch and _holds(primary, change)):
+            if branch:
+                if (old := _worktrees(primary).get(change)) is not None:
+                    _git(primary, "worktree", "remove", "--force", str(old))
+                _git(primary, "branch", "-D", change)
+            default = default_branch(primary)
+            _git(primary, "worktree", "add", "-b", change, str(tree), default)
+            after = f" after={','.join(entry['after'])}" if entry["after"] else ""
+            prompt = PROMPTS["cut"].format(
+                change=change, bump=entry["bump"], brief=entry["brief"], after=after
+            )
+            models = (entry["executor"], entry["model"], entry["effort"])
+            brief = Path(entry["brief"])
+            if self.spawn(change, "cut", tree, prompt, models, brief=brief) is None:
+                with self.guard:
+                    why = next(r for who, r in reversed(self.halts) if who == change)
+                return why, True
+        why = _check_cut(primary, change, tree)
+        result = "pass" if why is None else f"fail — {why}"
+        self.log.event(change, "check", f"cut · {result}")
+        if why is not None:
+            return why, False
+        with _queue_lock(primary):
+            (_queue(primary) / "cuts" / change).unlink()
+            _remove_in(primary / ".minions", "cuts", name=change)
+        sha = _git(primary, "rev-parse", "--short=7", change).strip()
+        self.log.event("run", "cut", f"{change}: cut at {sha}")
+        return None
+
+    def cut_halted(self, change: str, reason: str, logged: bool) -> None:
+        """Set a queued cut's halt to `reason`, and log it unless `spawn` did."""
+        with _queue_lock(self.primary):
+            entry = _cuts(self.primary).get(change, {})
+            _write_cut(self.primary, change, {**entry, "halt": reason})
+        if not logged:
+            self.halt(change, f"cut-halted — {reason}")
+
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models, once per version: at the start, or as it joins.
 
@@ -3243,10 +3375,16 @@ class Run:
         except (Stop, ValueError):
             return None
 
-    def executors(self) -> list[str]:
-        """Return the run's executor, then each other one the plan names."""
+    def executors(self, *cutters: str) -> list[str]:
+        """Return the run's executor, then each other one the plan or `cutters` name."""
         named = (executor for executor, *_ in self.plan.values())
-        return list(dict.fromkeys((self.executor, *named)))
+        return list(dict.fromkeys((self.executor, *named, *cutters)))
+
+    def cut_halts(self, cuts: dict[str, dict[str, Any]]) -> None:
+        """Log each halted cut as a halt: it starts no thread and stops no other."""
+        for change, entry in cuts.items():
+            if entry["halt"] is not None:
+                self.halt(change, f"cut-halted — {entry['halt']}")
 
     def take_requests(self, threads: dict[str, threading.Thread]) -> bool:
         """Start `take` for each requested open version no thread runs; True if any.
@@ -3255,25 +3393,58 @@ class Run:
         logged; a taken one has its halts and blocks cleared, its models read and its
         new executors probed first. The blocked versions come back after them. It
         raises nothing: it runs beside live threads, so a failure skips the request
-        or halts that version. Why: 0063-rejoin design D2; 0071-ship-fixes design D4.
+        or halts that version. A queued cut the run has not read, or one a request
+        names, is taken first; a version the queue holds joins through its cut alone.
+        Why: 0063-rejoin design D2; 0071-ship-fixes design D4; 0082-cut-station
+        design D4.
         """
+        cuts = _cuts(self.primary)
         names = _requests(self.queue)
-        if not names or self.stopped("run"):
+        if self.stopped("run"):
             return False
+        started = False
+        for change, entry in cuts.items():
+            thread = threads.get(change)
+            seen = change in (self.seen or set()) and change not in names
+            if entry.get("halt") is not None or seen or (thread and thread.is_alive()):
+                continue
+            try:
+                started = self.take_cut(change, entry, threads) or started
+            except Exception as error:
+                self.halt(change, f"conduct.py failed: {error}")
+        if not names:
+            return started
         try:
             versions = open_versions(self.primary)
         except Exception as error:
             self.log.event("run", "rejoin", f"skipped — {error}")
-            return False
-        started = False
+            return started
         for version in versions:
             change = version.change
             thread = threads.get(change)
             if not names & {"all", change} or (thread and thread.is_alive()):
                 continue
+            if change in cuts:
+                continue
             started = self.take_back_safely(version, threads) or started
         self._unblock(threads)
         return started
+
+    def take_cut(
+        self, change: str, entry: dict[str, Any], threads: dict[str, threading.Thread]
+    ) -> bool:
+        """Start a queued cut's thread once its executor is probed; True if so."""
+        with self.guard:
+            self.halts = [held for held in self.halts if held[0] != change]
+        if self.seen is not None:
+            self.seen.add(change)
+        self.probe_for(change, [str(entry.get("executor"))])
+        if self.stopped(change):
+            return False
+        self.log.event("run", "cut", f"{change}: taken")
+        threads[change] = threading.Thread(target=self.cut, args=(change, threads))
+        threads[change].start()
+        return True
 
     def _unblock(self, threads: dict[str, threading.Thread]) -> None:
         """Take back each blocked version one of whose dependencies has a live thread.
@@ -3346,30 +3517,50 @@ class Run:
             moved = f"changes/{change}/models.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
+        if not self.admit(version):
+            return False
+        self.log.event("run", "rejoin", f"{change}: {stage}")
+        threads[change] = threading.Thread(target=self.take, args=(version, threads))
+        threads[change].start()
+        return True
+
+    def admit(self, version: Version) -> bool:
+        """Clear a joining version's halts, read its plan, probe its new executors.
+
+        Return whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station
+        design D4.
+        """
+        change = version.change
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
         if change not in self.planned:
             self.read_plan([version])
         named = (self.plan.get((change, station)) for station in PLANNED)
-        for executor in dict.fromkeys(models[0] for models in named if models):
-            if executor in self.probed or self.stopped(change):
-                continue
-            if (refused := self.refused.get(executor)) is not None:
-                self.halt(change, refused)
-                continue
-            self.probe(executor, change)
-            if executor not in self.probed:
-                with self.guard:
-                    self.refused[executor] = next(
-                        reason for who, reason in reversed(self.halts) if who == change
-                    )
-        if self.stopped(change):
-            return False
-        self.log.event("run", "rejoin", f"{change}: {stage}")
-        threads[change] = threading.Thread(target=self.take, args=(version, threads))
-        threads[change].start()
-        return True
+        self.probe_for(change, [models[0] for models in named if models])
+        return not self.stopped(change)
+
+    def probe_for(self, change: str, executors: list[str]) -> None:
+        """Probe each executor the run has not, once; a refused one halts `change`.
+
+        An executor whose probe failed halts it with that probe's reason, probed no
+        second time. Two threads never probe one executor at once.
+        """
+        with self.probing:
+            for executor in dict.fromkeys(executors):
+                if executor in self.probed or self.stopped(change):
+                    continue
+                if (refused := self.refused.get(executor)) is not None:
+                    self.halt(change, refused)
+                    continue
+                self.probe(executor, change)
+                if executor not in self.probed:
+                    with self.guard:
+                        self.refused[executor] = next(
+                            reason
+                            for who, reason in reversed(self.halts)
+                            if who == change
+                        )
 
     def probe(self, executor: str, who: str = "run") -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
@@ -3611,12 +3802,22 @@ class Run:
         """Run the loop; return 0 when every version shipped, else 1.
 
         A request standing at the start is deleted: the run takes every open version.
+        Every queued cut is read first; a version the queue holds goes through its
+        cut, and a halted cut starts no thread. Why: 0082-cut-station design D4.
         """
         self.seen = set()
         _requests(self.queue)
-        versions = open_versions(self.primary)
+        cuts = _cuts(self.primary)
+        self.seen |= set(cuts)
+        takeable = {change for change, entry in cuts.items() if entry["halt"] is None}
+        versions = [
+            version
+            for version in open_versions(self.primary)
+            if version.change not in cuts
+        ]
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
+        names += f" · cuts {' '.join(cuts)}" if cuts else ""
         self.log.held = []
         self.push_left(RETRIES)
         held, self.log.held = self.log.held, None
@@ -3646,7 +3847,11 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         self.unlock(DEBT_LOCK)
-        if not versions:
+        if not versions and not takeable:
+            if cuts:
+                self.cut_halts(cuts)
+                self.log.event("run", "halt", self.closing())
+                return 1
             self.log.event("run", "done", "nothing to ship")
             return 0
         try:
@@ -3665,7 +3870,8 @@ class Run:
             for version in versions
         }
         granted = any(grants for grants, _ in takes.values())
-        if not granted and all(stage in STUCK for stage, _ in stages.values()):
+        stuck = all(stage in STUCK for stage, _ in stages.values())
+        if not (granted or takeable) and stuck:
             for change, (stage, why) in stages.items():
                 if stage == "waiting":
                     self.block(change, why.removeprefix("after ").split()[0])
@@ -3674,7 +3880,8 @@ class Run:
                     if refused := takes[change][1]:
                         self.halt(change, f"re-plan: {refused}")
         else:
-            for executor in self.executors():
+            cutters = (str(cuts[change]["executor"]) for change in takeable)
+            for executor in self.executors(*cutters):
                 self.probe(executor)
                 if self.halts:
                     break
@@ -3684,9 +3891,16 @@ class Run:
                 threads[version.change] = threading.Thread(
                     target=self.take, args=(version, threads)
                 )
+            for change in sorted(takeable):
+                threads[change] = threading.Thread(
+                    target=self.cut, args=(change, threads)
+                )
             for thread in threads.values():
                 thread.start()
+            self.cut_halts(cuts)
             self.join(threads)
+        else:
+            self.cut_halts(cuts)
         if self.offline and not self.stopped("run"):
             self.push_left((0,))
         if self.halts or self.blocked:
@@ -3795,14 +4009,21 @@ def _start_run(primary: Path, executor: str) -> int:
 def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) -> None:
     """Remove the claim under the queue lock, then start the next run when one waits.
 
-    A run waits on a rejoin request; a run that never read the queue, `seen` None,
-    starts none. A lock the home folder refuses removes the claim and starts none.
+    A run waits on a rejoin request, or a queued cut with no halt the run never read
+    in `seen`; a run that never read the queue, `seen` None, starts none. A lock the
+    home folder refuses removes the claim and starts none.
     Why: 0082-cut-station design D2.
     """
     try:
         with _queue_lock(primary):
             shutil.rmtree(active)
-            if seen is None or not _requested(_queue(primary)):
+            if seen is None:
+                return
+            unread = any(
+                entry["halt"] is None and change not in seen
+                for change, entry in _cuts(primary).items()
+            )
+            if not (unread or _requested(_queue(primary))):
                 return
             pid = _start_run(primary, executor)
     except Stop as stop:
@@ -4027,12 +4248,22 @@ def _requested(queue: Path) -> bool:
 def rejoin(cwd: Path, change: str | None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    Why: 0063-rejoin design D1; 0082-cut-station design D3.
+    A queued cut's halt is cleared first; with no run live, one starts for it.
+    Why: 0063-rejoin design D1; 0082-cut-station design D3, D6.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
     with _queue_lock(primary):
-        if _claim(runs / "active") != "live":
+        live = _claim(runs / "active") == "live"
+        if change is not None and (entry := _cuts(primary).get(change)) is not None:
+            _write_cut(primary, change, {**entry, "halt": None})
+            if live:
+                _request(primary, change)
+                return f"rejoin: requested {change}"
+            preconditions(cwd, entry["executor"])
+            pid = _start_run(primary, entry["executor"])
+            return f"rejoin: requested {change} · run started · pid {pid}"
+        if not live:
             raise Stop(2, "rejoin: no run is live — run /mf-ship")
         if change is not None and change not in (
             version.change for version in open_versions(primary)
@@ -4222,11 +4453,20 @@ def status(cwd: Path) -> str:
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     # why: 0080-minions-layout design D4
     old = _old_files(primary)
+    cuts = _cuts(primary)
     lines += [
         f"{version.change} · old layout — a run moves it"
         if version.change in old
         else f"{version.change} · {stage_of(primary, version)[0]}"
         for version in open_versions(primary)
+        if version.change not in cuts
+    ]
+    # A queued cut's line stands for its version's. Why: 0082-cut-station design D6.
+    lines += [
+        f"{change} · cut"
+        if entry["halt"] is None
+        else f"{change} · cut-halted — {entry['halt']}"
+        for change, entry in cuts.items()
     ]
     return "\n".join(lines) or "status: none — no open version"
 

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `~/.mf-ship-origin/<digest>.queue/`, reserves it in `.minions/cuts/<id>`, and hands it to the live run or starts one;
   rejoin requests move to that queue, where no worker writes, and a run's close starts the next run on a standing request
   (change `0082-cut-station`, phase 1).
+- A run takes each queued cut: it makes the branch and worktree, spawns `mf-cut-change … unattended=yes` as the station
+  `cut`, sandboxed to that worktree, the run directory and the brief, checks the cut on disk, then builds it; a cut that
+  fails is `cut-halted`, shown by `status`, with no rescue, and `rejoin <id>` cuts it again (change `0082-cut-station`,
+  phase 2).
 
 ## [0.67.0] - 2026-11-06
 

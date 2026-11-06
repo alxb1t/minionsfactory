@@ -205,11 +205,38 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
             (folder / change).touch()
 
 
+def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -> None:
+    """Commit the change directory, write its models file; or halt, die, fall short."""
+    folder = _folder(primary, change)
+    folder.mkdir(parents=True, exist_ok=True)
+    if "dies-cut" in modes:
+        sys.exit(1)
+    if "cut-halts" in modes:
+        halt = f"{change} waits on one doubt: two readings · tasks.md:3\n"
+        (folder / "cut.halt").write_text(halt)
+        return
+    found = re.search(rf"`{change} (\w+) brief=\S+(?: after=(\S+))? ", prompt)
+    bump, after = (found[1], found[2]) if found else ("minor", None)
+    line = f"after: [{after.replace(',', ', ')}]\n" if after else ""
+    spec = f"openspec/changes/{change}"
+    files = {
+        f"{spec}/proposal.md": f"---\nbump: {bump}\n{line}---\n",
+        f"{spec}/tasks.md": "## Progress\n\n- [ ] 1 — One\n",
+    }
+    if "cut-empty" in modes:
+        files = {"cut.txt": "x\n"}
+    _commit(tree, files, f"docs({change}): land the change directory")
+    if "cut-dirty" in modes:
+        (tree / "stray.txt").write_text("x\n")
+    if "cut-bare" not in modes:
+        (folder / "models.toml").write_text("[build]\n[converge]\n[release]\n")
+
+
 def _fake(prompt: str) -> None:
     """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
     modes = set(os.environ["FAKE_MODE"].split(","))
     here = Path.cwd()
-    found = re.search(r"Run the mf-(\w+) skill(?: for change (\S+?)[ .])?", prompt)
+    found = re.search(r"Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
     # Every key=value clause but the one every release prompt carries.
     clauses = "".join(re.findall(r" (?:with|and) (?!merge=yes\b)\w+=\w+", prompt))
@@ -295,6 +322,8 @@ def _fake(prompt: str) -> None:
             )
     elif station == "rescue":
         _rescue(here, primary, str(change), modes)
+    elif station == "cut-change":
+        _cut(here, primary, str(change), prompt, modes)
     elif (
         station == "build" and f"halt-{change}" in modes and not _amended(here, change)
     ):
