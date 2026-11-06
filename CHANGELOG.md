@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The run goes on: the person's amends landing during a rescue let the version go on, logged `amended`; each poll, one
   `REJOIN_POLL` window, takes back a halted version whose stage or `HEAD` changed on disk, read the same at two polls,
   with no request; the close names what each halted version needs (change `0085-self-healing-ship`, phase 3).
+- The record: D60 states that a run heals its own halts; D47 and D53 take the `amend needed` rescue, the switch and the
+  person's amends; `THREAT_MODEL.md` and `mf-ship`'s skill say the same (change `0085-self-healing-ship`, phase 4).
 
 ## [0.69.0] - 2026-11-06
 

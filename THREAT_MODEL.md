@@ -61,8 +61,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   run's plan holds stays out while its models file differs, so a version halted on a models change does not rejoin on the
   new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it. It reads and
   empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either. A version whose
-  converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered it, so a
-  request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
+  converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered it, save by the
+  person's amends alone, which let it go on, so a request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
   person's own fix then, or a grant landing as it ends, waits for a re-run.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
@@ -79,7 +79,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
-  build worker's, and converge reviews the whole change after it. The automatic grant
+  build worker's, and converge reviews the whole change after it. Under a version's switch, a rescue commits a worker-written
+  card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
+  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.

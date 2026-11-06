@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60
 ```
 
 ## The shape
@@ -505,10 +505,12 @@ judged by its exit and a check on disk; a failed check halts its version, a halt
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A run takes
 each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, and its close,
 under the queue lock, starts the next run on a request or a cut it never read. A live run takes a rejoin request, in the
-home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state:
+home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state,
+and, at each poll, every halt answered on disk ([D60](#d60--a-run-heals-its-own-halts)):
 it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
-whose converge or integrate halt was answered while its rescue ran, the person's own fix included, which waits for a re-run.
+whose converge or integrate halt was answered while its rescue ran, the person's own fix included, save by the person's
+amends alone, which waits for a re-run.
 A version taken back brings each version it blocked. A clean catch-up, verify or `amend needed` halt followed only by the
 person's `docs(<id>): amend the change directory` commits is answered. A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
@@ -558,12 +560,14 @@ hostile repo needs a container.**
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
-**On a build check halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
-`conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
-change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
-on. Every other halt it diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file;
-a commit at a converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
-a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, and stands for the run, no rejoin
+**On a build check halt, a converge `amend needed` halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
+`conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt or an `amend needed` halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
+change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table, save under
+[D60](#d60--a-run-heals-its-own-halts)'s switch; the run then clears the halt and builds or converges on. Every other halt it
+diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file;
+a commit at any other converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
+a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, save the person's amends, which
+let the version go on, and stands for the run, no rejoin
 taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
 ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
@@ -580,8 +584,27 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
   for a re-run.
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/changes/<id>/build.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
-  that changes a decision · counting only what a rescue did in the tree as its answer — a grant it writes would take the
+  that changes a decision with no switch · counting only what a rescue did in the tree as its answer — a grant it writes would take the
   version back.
+
+### D60 · A run heals its own halts
+
+**The rescue amends the plan at converge's `amend needed` halt, as at a build halt, and diagnoses one whose cards include a
+security `critical` or `high`. Under a version's `decide = "recommended"`, at the top of its models file and read once with
+the plan, a rescue at a build or `amend needed` halt takes the fix a card's **Fix** or the plan proposes as its decision: it
+may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit carrying `Decided-by: rescue`, and the run logs it
+`decided`. It never edits the spec delta, code or a test, takes a security `critical` or `high` card, approves a gate
+makefile, settles an integrate conflict, releases, merges, pushes or answers a run-wide halt. The person's amends during a
+rescue let the version go on. At each poll the run takes back every halted version whose stage or `HEAD` changed on disk,
+read the same at two polls, with no request. The run ends when nothing can move, its close naming each halted version's
+need and each version a rescue decided for.**
+
+- **Why:** a supervising chat answered every halt of 2026-11-05/06, about 70% of them the line's own gaps, and most of the
+  rest a prose amend a fresh reader could write.
+- **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change
+  after it, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
+- **Rejected:** a supervisor role · `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the
+  run writes itself · a push notification.
 
 ### D55 · One pinned MF release per machine
 

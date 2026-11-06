@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — Rescue at amend needed
 - [x] 2 — The switch
 - [x] 3 — The run goes on
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — Rescue at amend needed
 
@@ -50,10 +50,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The record
 
-- [ ] 4.1 Add D60 and amend D47 and D53 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 4.1 Add D60 and amend D47 and D53 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -n '^### D60 · A run heals its own halts' docs/decisions.md` prints a line.
-- [ ] 4.2 Add the amends exception and the switch's line to `THREAT_MODEL.md`, per [D8](design.md#d8).
+- [x] 4.2 Add the amends exception and the switch's line to `THREAT_MODEL.md`, per [D8](design.md#d8).
   Verify: `grep -n 'Decided-by:' THREAT_MODEL.md` prints a line.
-- [ ] 4.3 Edit the `rejoin`, `run · live`, diagnosed and frozen rows and the closing sentence of `skills/mf-ship/SKILL.md`, per
+- [x] 4.3 Edit the `rejoin`, `run · live`, diagnosed and frozen rows and the closing sentence of `skills/mf-ship/SKILL.md`, per
   [D8](design.md#d8).
   Verify: `grep -n 'needs <id> <action>' skills/mf-ship/SKILL.md` prints a line.
