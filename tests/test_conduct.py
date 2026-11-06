@@ -2462,6 +2462,17 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     (folder / "0003-c").write_text("{")
     (folder / ".partial").write_text("{}")
     assert said("status") == ["0003-c · cut-halted — the queue entry is unreadable"]
+    # A rejoin refuses an unreadable entry and leaves it; one lacking a field is one.
+    for text in ("{", '{"halt": null}'):
+        (folder / "0003-c").write_text(text)
+        with pytest.raises(conduct["Stop"]) as refused:
+            conduct["rejoin"](root, "0003-c")
+        assert refused.value.code == 2
+        assert str(refused.value) == (
+            f"rejoin: cannot run — the queue entry {folder / '0003-c'} is unreadable:"
+            " remove it, then queue the cut again"
+        )
+        assert (folder / "0003-c").read_text() == text
     (folder / "0003-c").unlink()
 
     # Each check of the cut, and a failed exit, halts it with its line.
@@ -2525,6 +2536,9 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     # A take that fails halts the cut and raises nothing.
     conductor = conduct["Run"](root, "claude")
     conductor.seen = set()
+    # A halt for a cut whose entry is gone writes none back.
+    conductor.cut_halted("0015-g", "gone", True)
+    assert "0015-g" not in conduct["_cuts"](root)
 
     def refused(*args: object) -> bool:
         raise ValueError("refused")
@@ -2567,6 +2581,52 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert conductor.take_requests({})
     names["_requests"] = requests
     assert "0014-r" in taken
+
+    # A filter a worker planted halts the cut before git checks a worktree out.
+    def cutter(change: str, *args: object, **kwargs: object) -> None:
+        conductor.halts.append((change, "a cutter spawned"))
+
+    conductor.spawn = cutter
+    config, attributes = root / ".git" / "config", root / ".git" / "info" / "attributes"
+    held = config.read_text()
+    mark = tmp_path / "smudged"
+    _queued(conduct, root, "0016-p", brief)
+    _git(root, "config", "filter.planted.smudge", f"touch {mark}; cat")
+    attributes.parent.mkdir(exist_ok=True)
+    attributes.write_text("* filter=planted\n")
+    fresh = conduct["Run"](root, "claude")
+    fresh.spawn = cutter
+    changed = "the local git config changed during the run: .git/config differs"
+    for station, line in (
+        (conductor, changed),
+        (
+            fresh,
+            "conduct: halt — the repo's git config holds a key that could name a"
+            " program: filter.planted.smudge; move it to the global config or remove"
+            " it",
+        ),
+    ):
+        with pytest.raises(conduct["Stop"]) as stopped:
+            station.cutting("0016-p")
+        assert str(stopped.value) == line
+    assert not mark.exists()
+    assert not (root.parent / "0016-p").exists()
+    config.write_text(held)
+    attributes.unlink()
+
+    # A re-cut removes no worktree a worker repointed at its branch, only its own.
+    other = _version(root, "0017-o", "- [ ] 1 — Other\n")
+    (other / "notes.txt").write_text("x\n")
+    _git(root, "branch", "0018-v")
+    _queued(conduct, root, "0018-v", brief)
+    (root / ".git" / "worktrees" / "0017-o" / "HEAD").write_text(
+        "ref: refs/heads/0018-v\n"
+    )
+    assert conductor.cutting("0018-v") == (
+        f"the branch's worktree {other} is kept: not at the cut's path",
+        False,
+    )
+    assert (other / "notes.txt").is_file()
 
     # A passed cut whose admission fails halts its version alone.
     def admitted(version: object) -> bool:
@@ -6501,12 +6561,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     codex = argv("codex", "Cut.", tree, None, None, repo, brief=brief)
     roots = json.dumps([str(root / ".git"), str(tree), str(minions), str(brief.parent)])
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
-    # A Codex cutter's root is the brief's folder: it holds the brief alone.
+    # A Codex cutter's root is the brief's folder: it holds the brief alone, and the
+    # queued brief stays where it is.
     (brief.parent / "note.md").write_text("# note\n")
     alone = (
         f"conduct: halt — a Codex cutter writes its brief's whole folder, and"
-        f" {brief.parent} holds more than the brief: move the brief into a folder"
-        " of its own"
+        f" {brief.parent} holds more than the brief: remove every other file from it,"
+        " hidden ones too, then rejoin the cut"
     )
     with pytest.raises(conduct["Stop"]) as stopped:
         argv("codex", "Cut.", tree, None, None, repo, brief=brief)

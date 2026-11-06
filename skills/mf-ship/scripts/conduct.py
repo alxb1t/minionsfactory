@@ -66,6 +66,7 @@ MOVED = "delta: changed on the default branch: "
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -2194,12 +2195,12 @@ def worker_settings(
     return json.dumps({"sandbox": sandbox})
 
 
-def _brief_refused(brief: Path, executor: str) -> str | None:
+def _brief_refused(brief: Path, executor: str, remedy: str) -> str | None:
     """Return why a cutter may not be given `brief`, else None.
 
     The brief is a file, not a link a worker swapped in. A Codex cutter's root is the
-    brief's folder, so that folder holds the brief alone. Why: 0082-cut-station
-    design D5.
+    brief's folder, so that folder holds the brief alone; else the caller's `remedy`
+    follows, since a queued brief cannot move. Why: 0082-cut-station design D5.
     """
     try:
         regular = stat.S_ISREG(os.lstat(brief).st_mode)
@@ -2211,7 +2212,7 @@ def _brief_refused(brief: Path, executor: str) -> str | None:
     if executor == "codex" and beside != [brief.name]:
         return (
             f"a Codex cutter writes its brief's whole folder, and {brief.parent} holds"
-            " more than the brief: move the brief into a folder of its own"
+            f" more than the brief: {remedy}"
         )
     return None
 
@@ -2254,7 +2255,8 @@ def argv(
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
     primary, common = repo
-    if brief is not None and (why := _brief_refused(brief, executor)):
+    emptied = "remove every other file from it, hidden ones too, then rejoin the cut"
+    if brief is not None and (why := _brief_refused(brief, executor, emptied)):
         raise Stop(1, f"conduct: halt — {why}")
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
@@ -3333,8 +3335,9 @@ class Run:
         """Run the cutter and its check; return why it halts and if that is logged.
 
         A branch that holds its change is checked, not cut again; one that holds
-        none is dropped with its worktree first. A dependency still queued is waited
-        for. None on a pass, its queue entry and reservation deleted.
+        none is dropped with its worktree first, past the config refusals `merge_in`
+        runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
+        waited for. None on a pass, its queue entry and reservation deleted.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -3347,8 +3350,15 @@ class Run:
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
         _remove_in(primary / ".minions", "changes", change, name="cut.halt")
         if not (branch and _holds(primary, change)):
+            # A checkout runs the filters a live worker's config names, outside it.
+            if changed := _config_changed(primary, self.git_state):
+                raise changed
+            _refuse_config_commands(primary)
             if branch:
                 if (old := _worktrees(primary).get(change)) is not None:
+                    # A worker can point another tree's entry at this branch.
+                    if why := self._keeps(old, change):
+                        return f"the branch's worktree {old} is kept: {why}", False
                     _git(primary, "worktree", "remove", "--force", str(old))
                 _git(primary, "branch", "-D", change)
             default = default_branch(primary)
@@ -3369,17 +3379,21 @@ class Run:
         if why is not None:
             return why, False
         with _queue_lock(primary):
-            (_queue(primary) / "cuts" / change).unlink()
+            # The entry goes last, so a reservation that cannot go keeps it to halt.
             _remove_in(primary / ".minions", "cuts", name=change)
+            (_queue(primary) / "cuts" / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
         return None
 
     def cut_halted(self, change: str, reason: str, logged: bool) -> None:
-        """Set a queued cut's halt to `reason`, and log it unless `spawn` did."""
+        """Set a queued cut's halt to `reason`, and log it unless `spawn` did.
+
+        An entry gone stays gone: one written with no fields would halt every run.
+        """
         with _queue_lock(self.primary):
-            entry = _cuts(self.primary).get(change, {})
-            _write_cut(self.primary, change, {**entry, "halt": reason})
+            if (entry := _cuts(self.primary).get(change)) is not None:
+                _write_cut(self.primary, change, {**entry, "halt": reason})
         if not logged:
             self.halt(change, f"cut-halted — {reason}")
 
@@ -4150,7 +4164,7 @@ def _queue_lock(primary: Path) -> Iterator[None]:
 def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     """Return each queued cut's entry by its id, in id order.
 
-    An entry that is no JSON object holds only its halt.
+    An entry that is no JSON object, or lacks one of `CUT_KEYS`, holds only its halt.
     e.g. {"0003-a": {"bump": "minor", …, "halt": None}}
     """
     folder = _queue(primary) / "cuts"
@@ -4162,7 +4176,7 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
             entry = json.loads((folder / name).read_text())
         except (OSError, ValueError):
             entry = None
-        if not isinstance(entry, dict):
+        if not isinstance(entry, dict) or not CUT_KEYS <= entry.keys():
             entry = {"halt": "the queue entry is unreadable"}
         found[name] = entry
     return found
@@ -4219,7 +4233,8 @@ def cut(
     path = Path(brief.removeprefix("brief="))
     if not path.is_absolute() or not path.is_file():
         raise Stop(2, f"cut: cannot run — {brief} is not an absolute path to a file")
-    if why := _brief_refused(path.resolve(), executor):
+    moved = "move the brief into a folder of its own"
+    if why := _brief_refused(path.resolve(), executor, moved):
         raise Stop(2, f"cut: cannot run — {why}")
     ids = after.removeprefix("after=").split(",") if after else []
     primary = primary_of(cwd)
@@ -4295,14 +4310,22 @@ def _requested(queue: Path) -> bool:
 def rejoin(cwd: Path, change: str | None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    A queued cut's halt is cleared first; with no run live, one starts for it.
-    Why: 0063-rejoin design D1; 0082-cut-station design D3, D6.
+    A queued cut's halt is cleared first; with no run live, one starts for it. An
+    unreadable entry stops with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station
+    design D3, D6.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
     with _queue_lock(primary):
         live = _claim(runs / "active") == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
+            if not CUT_KEYS <= entry.keys():
+                name = _queue(primary) / "cuts" / change
+                raise Stop(
+                    2,
+                    f"rejoin: cannot run — the queue entry {name} is unreadable: remove"
+                    " it, then queue the cut again",
+                )
             _write_cut(primary, change, {**entry, "halt": None})
             if live:
                 _request(primary, change)
