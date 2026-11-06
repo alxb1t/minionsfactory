@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Load-bound tests get slack: the stale-lock test's young lock is `LOCK_STALE - 60` old, `tests/test_metrics.py`'s limit is
   5 s with its timeout in a `slow` test, and `_when_logged` polls the halted version's named thread
   (change `0084-ship-fixes-2`, phase 2).
+- Every worker's environment holds `TMPDIR=<primary>/.minions/tmp`, beside `UV_CACHE_DIR`, emptied at a run's start, so
+  `mktemp` lands inside the sandbox; `mf-release` Step 2 names `mktemp` for the fold (change `0084-ship-fixes-2`, phase 3).
 
 ## [0.67.0] - 2026-11-06
 

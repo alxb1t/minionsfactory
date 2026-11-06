@@ -163,6 +163,8 @@ Apply the change's `specs/` delta into `openspec/specs/`:
 
 A rename arrives as REMOVED (old title) + ADDED (new title): the fold has no rename operation.
 
+A scratch file for the fold is made with `mktemp`; a run's worker gets it under `.minions/tmp/`, inside its sandbox.
+
 **Capability preamble prose is kept verbatim.** The fold cannot reach it, so read it by eye: where the change made
 it false, **flag it for a hand-edit** in your report. Never silently rewrite it, and never silently leave it wrong.
 

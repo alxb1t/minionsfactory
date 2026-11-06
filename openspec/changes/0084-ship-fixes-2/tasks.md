@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The halt before round 1 answered
 - [x] 2 — The load-bound tests
-- [ ] 3 — A scratch folder for every worker
+- [x] 3 — A scratch folder for every worker
 
 ## 1 — The halt before round 1 answered
 
@@ -35,9 +35,9 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — A scratch folder for every worker
 
-- [ ] 3.1 Add `TMPDIR` to `argv`'s `env` prefix on both executors, and `_fresh_tmp`, called in `Run.ship`, to
+- [x] 3.1 Add `TMPDIR` to `argv`'s `env` prefix on both executors, and `_fresh_tmp`, called in `Run.ship`, to
   `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6); extend `test_a_claude_worker_starts_in_the_sandbox`,
   `test_a_worker_carries_the_allowlist_and_a_denial_is_named` and `test_a_stale_lock_is_cleared_and_converge_resumes` as `## Tests` says.
   Verify: `grep -n 'TMPDIR=' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 Add the `mktemp` line to `skills/mf-release/SKILL.md` Step 2, per [D6](design.md#d6).
+- [x] 3.2 Add the `mktemp` line to `skills/mf-release/SKILL.md` Step 2, per [D6](design.md#d6).
   Verify: `grep -n 'mktemp' skills/mf-release/SKILL.md` prints a line.

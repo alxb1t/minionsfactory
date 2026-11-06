@@ -2304,6 +2304,10 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     lock.mkdir()
     stale = time.time() - 601
     os.utime(lock, (stale, stale))
+    # A run starts its workers' scratch folder empty, and follows no link there.
+    scratch = root / ".minions" / "tmp"
+    scratch.mkdir()
+    (scratch / "left.txt").write_text("x\n")
 
     assert run() == 0
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
@@ -2312,13 +2316,22 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
         re.search(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old$", line)
         for line in _log(root)
     )
+    assert scratch.is_dir() and not list(scratch.iterdir())
 
     lock.mkdir()
     young = time.time() - (conduct["LOCK_STALE"] - 60)
     os.utime(lock, (young, young))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "kept.txt").write_text("x\n")
+    scratch.rmdir()
+    scratch.symlink_to(outside)
     assert run() == 0
     assert lock.is_dir()
     assert not any(" · unlock — " in line for line in _log(root))
+    assert not scratch.is_symlink() and scratch.is_dir()
+    assert not list(scratch.iterdir())
+    assert (outside / "kept.txt").read_text() == "x\n"
 
 
 def test_a_run_moves_an_old_backlog_to_the_debt(
@@ -5684,13 +5697,18 @@ def test_a_claude_worker_starts_in_the_sandbox(
     assert command.index("--strict-mcp-config") < command.index("--allowedTools")
     assert "--mcp-config" not in command
 
-    # The conductor's uv environment is not the worker's `.venv`.
+    # The conductor's uv environment is not the worker's `.venv`, and its scratch
+    # folder stands inside the sandbox.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
+    scratch = root / ".minions" / "tmp"
     for executor in ("claude", "codex"):
+        shutil.rmtree(scratch, ignore_errors=True)
         command = conduct["argv"](executor, "Do it.", root, None, None, repo)
         prefix = command[: command.index(executor)]
         shown = subprocess.run([*prefix, "env"], capture_output=True, text=True)
         assert "UV_CACHE_DIR=" in shown.stdout
+        assert f"TMPDIR={scratch}\n" in shown.stdout
+        assert scratch.is_dir()
         assert "VIRTUAL_ENV=" not in shown.stdout
 
     # No worker binds loopback, and a leftover line halts.
@@ -5855,10 +5873,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     monkeypatch.delenv("MF_SHIP_AGENT")
     hooks_off = list(conduct["HOOKS_OFF"])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
+    tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
     unset = ["env", "-u", "VIRTUAL_ENV"]
-    assert claude[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
-    claude = claude[len(hooks_off) + 4 :]
+    assert claude[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
+    claude = claude[len(hooks_off) + 5 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -5934,8 +5953,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    assert codex[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
-    codex = codex[len(hooks_off) + 4 :]
+    assert codex[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
+    codex = codex[len(hooks_off) + 5 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex

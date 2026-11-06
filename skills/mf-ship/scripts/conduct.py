@@ -694,6 +694,20 @@ def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
     return age
 
 
+def _fresh_tmp(primary: Path) -> None:
+    """Leave `.minions/tmp/`, the workers' `TMPDIR`, an empty folder.
+
+    A link or a file there is unlinked, never followed.
+    Why: 0084-ship-fixes-2 design D6.
+    """
+    tmp = primary / ".minions" / "tmp"
+    if tmp.is_dir() and not tmp.is_symlink():
+        shutil.rmtree(tmp)
+    elif os.path.lexists(tmp):
+        tmp.unlink()
+    tmp.mkdir(parents=True, exist_ok=True)
+
+
 def _converge_halt(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event when it is a halt, else None."""
     end = _run_end(runs, change)
@@ -708,10 +722,8 @@ def _run_started(runs: Path, change: str) -> bool:
     log = _change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), None
+        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
     )
-    if heading is None:
-        return False
     run = itertools.takewhile(
         lambda line: not line.startswith("## Run"), lines[heading + 1 :]
     )
@@ -2217,11 +2229,15 @@ def argv(
     primary, common = repo
     trees = reach(primary)
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    # A worker's `mktemp` lands inside its sandbox. Why: 0084-ship-fixes-2 design D6.
+    tmp = primary / ".minions" / "tmp"
+    tmp.mkdir(parents=True, exist_ok=True)
+    scratch = f"TMPDIR={tmp}"
     if executor == "claude":
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         return [
-            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
+            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -2244,7 +2260,7 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, path)
+    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch, path)
     return [
         *env,
         *("codex", "exec"),
@@ -3696,6 +3712,7 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         self.unlock(DEBT_LOCK)
+        _fresh_tmp(self.primary)
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
