@@ -50,12 +50,25 @@ ROLE = re.compile(r"\b(review|security)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
+# `conduct.py`'s: each old-layout path of a change, and a worker log's station part.
+OLD_LAYOUT = (
+    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
+    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
+    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
+    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
+    *("release/{}.held", "gate-check/{}"),
+)
+OLD_LOG = re.compile(r"[a-z][a-z-]*?(-\d+)?\.log")
 
 Number = int | float
 
 
 class Gap(Exception):
     """The run left no data for the metric; the message names what it lacked."""
+
+
+class OldLayout(Exception):
+    """The version's files sit at their old paths; the message names the first."""
 
 
 @dataclass(frozen=True)
@@ -85,6 +98,34 @@ def _git(root: Path, *args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=root, capture_output=True, text=True, check=True
     ).stdout.strip()
+
+
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
+def _old_layout(minions: Path, change: str) -> str | None:
+    """Return the change's first file at its old path, worker logs included, or None.
+
+    e.g. "0001-x" → ".minions/runs/20261101-230000/0001-x_build.log"
+    Why: 0080-minions-layout design D4.
+    """
+    held = [minions / name.format(change) for name in OLD_LAYOUT]
+    stamps = sorted(minions.glob("runs/*/"))
+    held += [
+        log
+        for stamp in stamps
+        if STAMP.fullmatch(stamp.name)
+        for log in sorted(stamp.glob(f"{change}_*.log"))
+        if OLD_LOG.fullmatch(log.name.removeprefix(f"{change}_"))
+    ]
+    found = next((path for path in held if os.path.lexists(path)), None)
+    return f".minions/{found.relative_to(minions)}" if found else None
 
 
 def _logs(runs: Path) -> list[tuple[Path, re.Match[str]]]:
@@ -163,6 +204,9 @@ class Version:
         self.root, self.change, self.base, self.head = root, change, base, head
         common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
         self.minions = Path(common).parent / ".minions"
+        self.folder = _change_dir(Path(common).parent, change)
+        if old := _old_layout(self.minions, change):
+            raise OldLayout(f"{old} is the old layout: /mf-ship moves it")
 
     def _names(self, event: Event) -> bool:
         """Return whether a run log line names the version."""
@@ -287,9 +331,9 @@ class Version:
     @cached_property
     def status_runs(self) -> list[tuple[str, str]]:
         """Return the status log's runs as heading and body, newest first."""
-        path = self.minions / "findings" / f"{self.change}_status_log.md"
+        path = self.folder / "status_log.md"
         if not path.is_file():
-            raise Gap(f"no {path.name}")
+            raise Gap(f"no {self.change}/{path.name}")
         parts = re.split(
             r"^(## Run\b.*)$", path.read_text(encoding="utf-8"), flags=re.MULTILINE
         )
@@ -329,32 +373,34 @@ class Version:
         return sum(h.rstrip().endswith("· grant") for h, _ in self.status_runs)
 
     def commits(self, fixes: bool) -> int:
-        """Return the commits up to the build's `.done` head, or after it, if `fixes`.
+        """Return the commits up to `build.done`'s head, or after it, if `fixes`.
 
         Counted along the first parent, merges left out.
         """
-        done = self.minions / "build" / f"{self.change}.done"
+        done = self.folder / "build.done"
+        name = f"{self.change}/{done.name}"
         found = done.is_file() and re.search(
             r"^head: ([0-9a-f]{7,40})\s*$", done.read_text(), re.MULTILINE
         )
         if not found:
-            raise Gap(f"no head in {done.name}")
+            raise Gap(f"no head in {name}")
         built = found[1]
         ancestor = ["git", "merge-base", "--is-ancestor", built, self.head]
         if subprocess.run(ancestor, cwd=self.root, capture_output=True).returncode:
-            raise Gap(f"{done.name}'s head is not in the version's history")
+            raise Gap(f"{name}'s head is not in the version's history")
         span = f"{built}..{self.head}" if fixes else f"{self.base}..{built}"
         count = ("rev-list", "--first-parent", "--no-merges", "--count", span)
         return int(_git(self.root, *count))
 
     def log(self, spawn: Spawn) -> tuple[Path, str]:
-        """Return a spawn's worker log and its name in the run directory.
+        """Return a spawn's worker log and its name in the change's `logs/`.
 
-        e.g. a stamp's second converge → `<stamp>/<change>_converge-2.log`. Why: D2.
+        e.g. a stamp's second converge → `<change>/logs/<stamp>-converge-2.log`.
+        Why: D2; 0080-minions-layout design D3.
         """
         n = f"-{spawn.n}" if spawn.n > 1 else ""
-        name = f"{spawn.stamp}/{self.change}_{spawn.station}{n}.log"
-        return self.minions / "runs" / name, name
+        log = f"{spawn.stamp}-{spawn.station}{n}.log"
+        return self.folder / "logs" / log, f"{self.change}/logs/{log}"
 
     def spent(self, stages: tuple[str, ...]) -> tuple[float, int]:
         """Return the stages' dollars and tokens, each spawn's log read; none is 0."""
@@ -409,13 +455,13 @@ class Version:
 
     def cards(self, role: str) -> tuple[list[str], str]:
         """Return a role's findings cards and its `## Refuted` section."""
-        path = self.minions / "findings" / f"{self.change}_{role}.md"
+        path = self.folder / f"{role}.md"
         if not path.is_file():
-            raise Gap(f"no {path.name}")
+            raise Gap(f"no {self.change}/{path.name}")
         text = path.read_text(encoding="utf-8", errors="replace")
         refuted = re.search(r"^## Refuted.*?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
         if not refuted:
-            raise Gap(f"no ## Refuted in {path.name}")
+            raise Gap(f"no ## Refuted in {self.change}/{path.name}")
         pieces = re.split(r"^(?=- \*\*|#)", text, flags=re.MULTILINE)
         return [p for p in pieces if PRIORITY.search(p)], refuted[1]
 
@@ -524,3 +570,6 @@ if __name__ == "__main__":
         print(measure(Path.cwd(), sys.argv[1:], dict(os.environ)))
     except Gap as gap:
         sys.exit(str(gap))
+    except OldLayout as old:
+        print(old, file=sys.stderr)
+        sys.exit(2)

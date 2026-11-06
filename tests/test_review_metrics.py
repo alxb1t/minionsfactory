@@ -50,9 +50,11 @@ def _card(number: int, priority: str, *fields: str) -> str:
 
 
 def _findings(root: Path, name: str, text: str) -> None:
-    folder = root / ".minions" / "findings"
+    found = re.fullmatch(r"(.+?)_(review|security|status_log)\.md", name)
+    assert found, name
+    folder = root / ".minions" / "changes" / found[1]
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / name).write_text(text, encoding="utf-8")
+    (folder / f"{found[2]}.md").write_text(text, encoding="utf-8")
 
 
 def _record(root: Path, change: str) -> dict[str, object]:
@@ -60,7 +62,14 @@ def _record(root: Path, change: str) -> dict[str, object]:
 
 
 def _run_log(root: Path, name: str, *lines: object) -> None:
-    path = root / ".minions" / "runs" / name
+    _log(root / ".minions" / "runs" / name, *lines)
+
+
+def _worker_log(root: Path, change: str, name: str, *lines: object) -> None:
+    _log(root / ".minions" / "changes" / change / "logs" / name, *lines)
+
+
+def _log(path: Path, *lines: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(
         (line if isinstance(line, str) else json.dumps(line)) + "\n" for line in lines
@@ -585,14 +594,14 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
         h={"inputTokens": 1, "outputTokens": 1},
     )
     noise = ('{"type": "result", cut', {"type": "assistant"}, ["result"])
-    _run_log(tmp_path, "A/0050-x_converge.log", *noise, first, last)
+    _worker_log(tmp_path, "0050-x", "A-converge.log", *noise, first, last)
     # A later spawn in the stamp keeps its own log; a station named `converge-x` is
     # no converge's.
     one_more = _result(0.5, 2, 2000, m={"inputTokens": 4})
-    _run_log(tmp_path, "A/0050-x_converge-2.log", one_more)
-    _run_log(tmp_path, "A/0050-x_converge-x.log", last)
-    _run_log(tmp_path, "A/0050-x_build.log", {"type": "assistant"})
-    _run_log(tmp_path, "A/0050-xy_rescue.log", last)
+    _worker_log(tmp_path, "0050-x", "A-converge-2.log", one_more)
+    _worker_log(tmp_path, "0050-x", "A-converge-x.log", last)
+    _worker_log(tmp_path, "0050-x", "A-build.log", {"type": "assistant"})
+    _worker_log(tmp_path, "0050-xy", "A-rescue.log", last)
     _run_log(
         tmp_path,
         "A.md",
@@ -604,8 +613,8 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
         "10:09:00 · 0050-x · spawn — converge · model default",
     )
     one = _result(0.25, 1, 1000, m=dict.fromkeys(review_metrics.TOKENS, 1))
-    _run_log(tmp_path, "B/0050-x_converge.log", one)
-    _run_log(tmp_path, "B/0050-x_release.log", "codex: a text log")
+    _worker_log(tmp_path, "0050-x", "B-converge.log", one)
+    _worker_log(tmp_path, "0050-x", "B-release.log", "codex: a text log")
     _run_log(tmp_path, "B.md", "11:00:00 · 0050-x · spawn — converge · model m")
 
     record = _record(tmp_path, "0050-x")
@@ -629,9 +638,9 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
 
     timed_out = tmp_path / "timed-out"
     _findings(timed_out, "0052-z_review.md", _front())
-    _run_log(timed_out, "A/0052-z_converge.log", {"type": "assistant"})
+    _worker_log(timed_out, "0052-z", "A-converge.log", {"type": "assistant"})
     _run_log(timed_out, "A.md", "10:00:00 · 0052-z · spawn — converge · model m")
-    _run_log(timed_out, "B/0052-z_converge.log", one)
+    _worker_log(timed_out, "0052-z", "B-converge.log", one)
     _run_log(timed_out, "B.md", "11:00:00 · 0052-z · spawn — converge · model m")
     _, rows = review_metrics.cost_table([_record(timed_out, "0052-z")])
     assert rows[0][2] == "$0.25 · 1 turns · 4 tokens · 1 s · 1 of 2"
@@ -661,7 +670,7 @@ def test_the_page_draws_charts_and_lists_gaps(
 """
     _findings(alpha, "0001-a_status_log.md", log)
     spent = _result(2, 3, 4000, m={"outputTokens": 5})
-    _run_log(alpha, "20260101-100000/0001-a_converge.log", spent)
+    _worker_log(alpha, "0001-a", "20260101-100000-converge.log", spent)
     _findings(alpha, "0002-b_review.md", _front(reviewed="2026-01-02"))
     _findings(beta, "0003-c_review.md", _front(reviewed="2026-02-01", round=3))
     before = sorted(tmp_path.rglob("*"))
@@ -735,5 +744,37 @@ def test_overrides_win_over_the_config(
     assert review_metrics.main(gone) == 2
     err = capsys.readouterr().err
     assert str((tmp_path / "missing").resolve()) in err
-    assert ".minions/findings" in err
+    assert "no .minions/changes or .minions/findings directory" in err
     assert not (tmp_path / "gone.html").exists()
+
+
+def test_both_layouts_are_read(tmp_path: Path) -> None:
+    moved, unmoved = tmp_path / "moved", tmp_path / "unmoved"
+    spent = _result(2, 3, 4000, m={"outputTokens": 5})
+    log = "## Run 1 — 2026-01-01 10:00\n10:01:00 · round 1 · verdicts — review clean\n"
+    _findings(moved, "0001-a_review.md", _front(reviewed="2026-01-01"))
+    _findings(moved, "0001-a_status_log.md", log)
+    _worker_log(moved, "0001-a", "20260101-100000-converge.log", spent)
+    unmoved_findings = unmoved / ".minions" / "findings"
+    unmoved_findings.mkdir(parents=True)
+    (unmoved_findings / "0002-b_review.md").write_text(_front(reviewed="2026-01-02"))
+    (unmoved_findings / "0002-b_status_log.md").write_text(log)
+    _run_log(unmoved, "20260102-100000/0002-b_converge.log", spent)
+    _run_log(unmoved, "20260102-100000/0002-bc_converge.log", spent)
+    # Per change, the new folder wins over a file left at its old path.
+    _findings(moved, "0003-c_review.md", _front(reviewed="2026-01-03"))
+    old = moved / ".minions" / "findings"
+    old.mkdir()
+    (old / "0003-c_review.md").write_text(_front(reviewed="2025-01-01"))
+    before = sorted(tmp_path.rglob("*"))
+
+    records = review_metrics.read_repo(moved) + review_metrics.read_repo(unmoved)
+    read = {r["change"]: (r["reviewed"], r["cost_converge"]) for r in records}
+    assert read == {
+        "0001-a": ("2026-01-01", 2.0),
+        "0002-b": ("2026-01-02", 2.0),
+        "0003-c": ("2026-01-03", None),
+    }
+    rounds = review_metrics.round_data(moved) + review_metrics.round_data(unmoved)
+    assert sorted({row["change"] for row in rounds}) == ["0001-a", "0002-b"]
+    assert sorted(tmp_path.rglob("*")) == before

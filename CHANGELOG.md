@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-11-06
+
+Gate: local 1m18s · CI 0m42s (CI at d897227) · 0.65.0: local 1m21s · CI not read under mf-ship
+
+- A change's review, security and status-log files and its diff patch live in `.minions/changes/<change-id>/`, found
+  through one `_change_dir` per script; `metrics.py`'s own helper is `_spec_dir` (change `0080-minions-layout`, phase 1).
+- A change's worker logs are `.minions/changes/<change-id>/logs/<stamp>-<station>[-<n>].log`, read there by the run and
+  review metrics and the rescue; the run's probe keeps `runs/<stamp>/run_<station>.log` (change `0080-minions-layout`, phase 2).
+- The models file, integrate's notes, build's marks, the rescue's diagnosis, the release's `held` and the gate-check
+  export move into the change's folder as `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing}`,
+  `rescue.md`, `release.held` and `gate-check/` (change `0080-minions-layout`, phase 3).
+- `conduct.py run` moves an old layout into `.minions/changes/` at its start, under the claim, leaving strays; a file
+  beside its new one, or a link, halts before any worker. `status` and `report` name an old layout, and `grant`,
+  `integrate.py`, `gate_check.py`, `run.py` and hand-run stations halt on it, naming `/mf-ship`
+  (change `0080-minions-layout`, phase 4).
+- `review_metrics.py` reads a repo no run has moved, the change's folder winning over its old files
+  (change `0080-minions-layout`, phase 4).
+- D57, *One folder per change in `.minions/`*, records the layout; the principles, `AGENTS.md`, `CONTRIBUTING.md` and its
+  bootstrap template and `THREAT_MODEL.md` name the change's folder (change `0080-minions-layout`, phase 5).
+
 ## [0.65.0] - 2026-11-06
 
 Gate: local 1m21s · CI not read under mf-ship · 0.64.0: local 1m27s · CI not read under mf-ship

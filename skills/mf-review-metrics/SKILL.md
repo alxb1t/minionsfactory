@@ -1,6 +1,6 @@
 ---
 name: mf-review-metrics
-description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per model, and each station's cost, turns and tokens per change — and its data, review-metrics.json, from the .minions/findings and .minions/runs of the repos ~/.config/minionsfactory/review-metrics.toml names and the operator's Codex sessions. Use to compare review models on data; an operator tool, never part of a run.
+description: Draw one HTML page of review metrics — rounds, findings, verdicts, workers, duration and tokens, per model, and each station's cost, turns and tokens per change — and its data, review-metrics.json, from the .minions/changes — in a repo no run has moved, the .minions/findings and .minions/runs — of the repos ~/.config/minionsfactory/review-metrics.toml names and the operator's Codex sessions. Use to compare review models on data; an operator tool, never part of a run.
 ---
 
 # mf-review-metrics — what review found, and what it cost

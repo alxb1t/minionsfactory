@@ -35,13 +35,17 @@ def _commit(root: Path, files: dict[str, str], message: str) -> None:
     _git(root, "commit", "-q", "-m", message)
 
 
+def _folder(root: Path, change: str) -> Path:
+    return root / ".minions" / "changes" / change
+
+
 def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> None:
-    folder = root / ".minions" / "findings"
+    folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     for role in ("review", "security"):
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
-        (folder / f"{change}_{role}.md").write_text(text)
-    log = folder / f"{change}_status_log.md"
+        (folder / f"{role}.md").write_text(text)
+    log = folder / "status_log.md"
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
 
 
@@ -54,7 +58,7 @@ def _cards(
     blocker, each sized `a design change`, block nothing. A `granted` round's run is
     marked `· grant`, as `mf-converge` marks it.
     """
-    folder = root / ".minions" / "findings"
+    folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     cards = {
         "review": [
@@ -76,16 +80,16 @@ def _cards(
                 f"  - **Fix:** a fix · size: {fix}.\n"
                 f"  - **Status:** {status}\n"
             )
-        (folder / f"{change}_{role}.md").write_text(text)
+        (folder / f"{role}.md").write_text(text)
     run = "## Run 2 — d · grant\n" if granted else "## Run 1 — d\n"
-    log = folder / f"{change}_status_log.md"
+    log = folder / "status_log.md"
     log.write_text(f"# t\n\n{run}10:00:00 · round 3 · halt — cap reached\n")
 
 
 def _done(root: Path, change: str, head: str) -> None:
-    folder = root / ".minions" / "build"
+    folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{change}.done").write_text(f"head: {head}\nsimplify: lean already\n")
+    (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
 def _person_amends(tree: Path, change: str, sha: str) -> bool:
@@ -98,13 +102,13 @@ def _person_amends(tree: Path, change: str, sha: str) -> bool:
     )
 
 
-def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
+def _by_rule(tree: Path, folder: Path, change: str) -> list[str] | None:
     """Return a line per commit when a catch-up selects merges that replay and amends.
 
     A merge's line is its `replay` line; an amend's names the person's amend. None
     when no catch-up applies, the selection holds another commit, or one exits 1.
     """
-    review = findings / f"{change}_review.md"
+    review = folder / "review.md"
     text = review.read_text() if review.is_file() else ""
     found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
     head = _git(tree, "rev-parse", "HEAD")
@@ -135,14 +139,14 @@ def _by_rule(tree: Path, findings: Path, change: str) -> list[str] | None:
     return lines
 
 
-def _write_by_rule(findings: Path, change: str, head: str, lines: list[str]) -> None:
+def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     """Write both findings files clean at `head` with `## By rule`; log the round."""
     for role in ("review", "security"):
         text = f"---\nverdict: clean\nhead: {head}\nround: 2\nworkers: 0\n---\n"
         text += "\n## By rule\n\n" + "\n".join(lines) + "\n"
-        (findings / f"{change}_{role}.md").write_text(text)
+        (folder / f"{role}.md").write_text(text)
     paths = "; ".join(line.split(" — ", 1)[1] for line in lines)
-    (findings / f"{change}_status_log.md").write_text(
+    (folder / "status_log.md").write_text(
         "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
         f"10:00:00 · round 2 · by rule — clean, {paths}\n"
     )
@@ -186,9 +190,9 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
     elif "rescue-rewrite" in modes:
         _git(tree, "commit", "-q", "--amend", "-m", "rewritten")
     elif "rescue-diagnose" in modes:
-        folder = primary / ".minions" / "rescue"
+        folder = _folder(primary, change)
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / f"{change}.md").write_text("# diagnosis\n")
+        (folder / "rescue.md").write_text("# diagnosis\n")
     if "rescue-answers" in modes:
         # A rescue answering its halt on disk with a grant, then asking to rejoin.
         for name in ("grants", "runs/rejoin"):
@@ -290,10 +294,10 @@ def _fake(prompt: str) -> None:
     elif (
         station == "build" and f"halt-{change}" in modes and not _amended(here, change)
     ):
-        folder = primary / ".minions" / "build"
+        folder = _folder(primary, str(change))
         folder.mkdir(parents=True, exist_ok=True)
         head = _git(here, "rev-parse", "HEAD")
-        (folder / f"{change}.halt").write_text(
+        (folder / "build.halt").write_text(
             f"sub-task: 1.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
         )
     elif station == "build":
@@ -322,7 +326,7 @@ def _fake(prompt: str) -> None:
             agents.write_text(agents.read_text() + line)
     elif station == "converge":
         if "plant-executor" in modes:
-            table = primary / ".minions" / "models" / f"{change}.toml"
+            table = _folder(primary, str(change)) / "models.toml"
             table.parent.mkdir(parents=True, exist_ok=True)
             table.write_text('[release]\nexecutor = "codex"\n')
         # Each caps on cards of its size; `cap-again` caps a granted round too.
@@ -339,33 +343,31 @@ def _fake(prompt: str) -> None:
             return
         if granted and "grant-unfinished" in modes:
             # A granted round whose host ended its turn mid-run: no `done`, exit 0.
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log = _folder(primary, str(change)) / "status_log.md"
             log.write_text(
                 "# t\n\n## Run 2 — d · grant\n10:00:00 · round 4 · fix — R1\n"
             )
             return
         if "grant-halts" in modes:
-            log = primary / ".minions" / "findings" / f"{change}_status_log.md"
+            log = _folder(primary, str(change)) / "status_log.md"
             log.write_text(
                 "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
             )
             return
-        findings = primary / ".minions" / "findings"
+        folder = _folder(primary, str(change))
         if "verify-halts" in modes:
             # Step 1.6's halt on a `Verify:` edited since the cut: no round ran.
             head = _git(here, "rev-parse", "HEAD")
-            findings.mkdir(parents=True, exist_ok=True)
-            (findings / f"{change}_status_log.md").write_text(
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "status_log.md").write_text(
                 "# t\n\n## Run 1 — d\n"
                 f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}\n"
             )
             return
-        if "by-rule" in modes and (lines := _by_rule(here, findings, str(change))):
-            _write_by_rule(
-                findings, str(change), _git(here, "rev-parse", "HEAD"), lines
-            )
+        if "by-rule" in modes and (lines := _by_rule(here, folder, str(change))):
+            _write_by_rule(folder, _git(here, "rev-parse", "HEAD"), lines)
             return
-        log = findings / f"{change}_status_log.md"
+        log = folder / "status_log.md"
         held = log.read_text() if log.is_file() else ""
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
         if "amends" in modes:

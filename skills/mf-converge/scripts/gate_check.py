@@ -47,6 +47,14 @@ READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
 DECISIONS = "docs/decisions.md"
 DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
 CITATION = re.compile(r"(\bD|#d)(\d+)\b")
+# `integrate.py`'s: each old-layout path of a change in the run directory.
+OLD_LAYOUT = (
+    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
+    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
+    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
+    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
+    *("release/{}.held", "gate-check/{}"),
+)
 
 
 class Stop(Exception):
@@ -97,9 +105,28 @@ def _primary() -> Path:
     return Path(common.strip()).parent
 
 
-def exports() -> Path:
-    """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
-    return _primary() / ".minions" / "gate-check"
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
+def _old_layout(primary: Path, change: str) -> str | None:
+    """Return the change's first file at its old path, or None.
+
+    e.g. "0001-todo" → ".minions/findings/0001-todo_review.md"
+    Why: 0080-minions-layout design D4.
+    """
+    held = (f".minions/{name.format(change)}" for name in OLD_LAYOUT)
+    return next((name for name in held if os.path.lexists(primary / name)), None)
+
+
+def exports(change: str) -> Path:
+    """Return the change's `gate-check/` in the primary's run directory."""
+    return _change_dir(_primary(), change) / "gate-check"
 
 
 def approval(change: str) -> str | None:
@@ -451,9 +478,13 @@ class Gate(NamedTuple):
 
 def read_gate(change: str, base: str, head: str) -> Gate:
     """Return the gate's edits and dry runs; an unreadable gate raises `Stop`."""
+    if old := _old_layout(_primary(), change):
+        raise Stop(
+            2, f"gate: cannot check — {old} is the old layout: /mf-ship moves it"
+        )
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
-    root = exports() / change
+    root = exports(change)
     shutil.rmtree(root, ignore_errors=True)
     try:
         base_files, base_lines = read_side(base, root / "base", "base")

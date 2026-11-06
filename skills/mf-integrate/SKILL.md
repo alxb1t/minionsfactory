@@ -19,7 +19,7 @@ naming it.
          │
   a semantic conflict? ─ yes ─▶ halt, merge open
          │ no
-  commit the merge, `Change: <id>` ─▶ gate_run.py --tree <worktree> ─ red ─▶ halt, merge committed, `.red`
+  commit the merge, `Change: <id>` ─▶ gate_run.py --tree <worktree> ─ red ─▶ halt, merge committed, `integrate.red`
          │ green
   a phase unticked? ─ yes ─▶ Next: /mf-ship, in the primary.
          │ no
@@ -69,6 +69,14 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 | 1 | **halt**, copying the line: the named version is not ready, or none is |
 | 2, or `uv` missing | **halt**, naming what it printed |
 
+A file of the version at one of its old paths, by exact name — `.minions/findings/<change-id>_review.md`,
+`_security.md`, `_status_log.md` or `_diff.patch`, `.minions/models/<change-id>.toml`,
+`.minions/integrate/<change-id>.md`, `.red` or `.resolved`, `.minions/build/<change-id>.done`, `.halt`, `.closing` or
+`.discarded.patch`, `.minions/rescue/<change-id>.md`, `.minions/release/<change-id>.held` or
+`.minions/gate-check/<change-id>/` — is an old layout: `next` exits 2, naming it and `/mf-ship`, whose run moves it,
+and so you halt before writing a file at a new path. Any other file is no old layout: a stray the move leaves never
+halts.
+
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
 converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
 `conduct.py` opens the merge of a cut-only branch — a dependent's, or one the default branch passed before its first
@@ -78,19 +86,19 @@ Then, in the worktree:
 
 | `git -C <worktree> rev-parse -q --verify MERGE_HEAD` | and | then |
 |---|---|---|
-| succeeds | `.minions/integrate/<change-id>.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
-| succeeds | no note — a `.resolved` is not one | an interrupted run: Step 3.2 |
-| fails | `.red` names `HEAD` | **halt**, copying `.red` |
-| fails | `.red` names another commit, and `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | the person fixed or amended the committed merge: Step 4.4 |
+| succeeds | `.minions/changes/<change-id>/integrate.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
+| succeeds | no note — an `integrate.resolved` is not one | an interrupted run: Step 3.2 |
+| fails | `integrate.red` names `HEAD` | **halt**, copying `integrate.red` |
+| fails | `integrate.red` names another commit, and `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | the person fixed or amended the committed merge: Step 4.4 |
 | fails | `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | nothing to merge: report it, and `Next: /mf-release` |
 | fails | otherwise | Step 3.1. `git -C <worktree> status --porcelain` prints something → **halt** |
 
-A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> rev-parse --verify <sha>^{commit}`.
+An `integrate.red` names the commit its `head:` line resolves to, by `git -C <worktree> rev-parse --verify <sha>^{commit}`.
 
 ## Step 3 — Merge and apply the rules
 
-1. **Merge, uncommitted:** delete a `.minions/integrate/<change-id>.resolved` an aborted merge left, and a
-   `<change-id>.red` an earlier merge's red gate left, then
+1. **Merge, uncommitted:** delete a `.minions/changes/<change-id>/integrate.resolved` an aborted merge left, and an
+   `integrate.red` an earlier merge's red gate left, then
    `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a failure here; the rules come
    next.
 2. **Apply the rules**, each run even when one before it exits 1, in this order — `decisions` renumbers the
@@ -107,7 +115,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
 3. **Resolve what both sides add.** For each path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    compare the base with each side. A hunk is **additive** when the union keeps every line, list item or sentence
    each side added and every one each side removed, and changes nothing else, and is none of item 4's cases.
-   Resolve it to the union, write it to `.minions/integrate/<change-id>.resolved` in item 5's `### <path>` form
+   Resolve it to the union, write it to `.minions/changes/<change-id>/integrate.resolved` in item 5's `### <path>` form
    unless the file holds it already, and stage the path by name. A merged test the union breaks is fixed when the fix keeps both sides' intent and
    removes or loosens no assertion; a fix that would is a semantic conflict, and Step 4.3 names each test fixed. A
    path with a hunk that is not additive stays unmerged. The note and the commit body read the hunks from that file,
@@ -118,7 +126,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a cut-only branch — a
    dependent's, or one the default branch passed before its first worker — gave them nothing to settle, or `conduct.py`
    settled a started one's changelog and decisions conflicts behind a gate change: only the paths count, and item 3 does not run. Nothing left → Step 4.
-5. **Hand it over.** Write `.minions/integrate/<change-id>.md`, then **halt** with the merge in progress. Never
+5. **Hand it over.** Write `.minions/changes/<change-id>/integrate.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 
    ```markdown
@@ -129,7 +137,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    - **Proposed:** <the resolution, at most three sentences>
    ```
 
-   The hunks `.minions/integrate/<change-id>.resolved` holds go under a last `## Resolved`, one `### <path>` each:
+   The hunks `.minions/changes/<change-id>/integrate.resolved` holds go under a last `## Resolved`, one `### <path>` each:
 
    ```markdown
    ### <path>
@@ -142,7 +150,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    The default branch's change is the `Change:` trailer of the commits
    `git log <merge-base>..MERGE_HEAD -- <path>` lists; its design is `openspec/changes/archive/<id>/design.md`.
    The halt's last line: `Next: resolve or accept the note in <worktree>, git add the paths; a union you change:
-   edit or drop its ### <path> in .minions/integrate/<change-id>.resolved, then /mf-integrate <change-id>`.
+   edit or drop its ### <path> in .minions/changes/<change-id>/integrate.resolved, then /mf-integrate <change-id>`.
 
 ## Step 4 — Commit and gate
 
@@ -156,7 +164,7 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    |---|---|
    | `<path>: integrate.py changelog` | `CHANGELOG.md`, when `changelog` wrote it |
    | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered |
-   | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/integrate/<change-id>.resolved` holds |
+   | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/changes/<change-id>/integrate.resolved` holds |
    | `<path>: the person` | each path the note named, after a note halt |
    | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 or item 4 fixed |
 
@@ -179,9 +187,9 @@ A `.red` names the commit its `head:` line resolves to, by `git -C <worktree> re
    `<path>: test fixed — …` line before the trailers, its parents kept; past it, after the person's fix, commit the
    test fix on its own, its message the `<path>: test fixed — …` line and the trailer block — and gate again. Any
    other red → **halt**
-   with the merge committed: write `.minions/integrate/<change-id>.red` holding `gate red`, the date and
+   with the merge committed: write `.minions/changes/<change-id>/integrate.red` holding `gate red`, the date and
    `head: <the full sha the gate judged>`, from `git -C <worktree> rev-parse HEAD`; never weaken the gate to pass.
-5. Green → delete `.minions/integrate/<change-id>.md`, `<change-id>.red` and `<change-id>.resolved` when they
+5. Green → delete `.minions/changes/<change-id>/integrate.md`, `integrate.red` and `integrate.resolved` when they
    exist: the merge settled it.
 
 ## Step 5 — Report

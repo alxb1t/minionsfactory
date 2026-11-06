@@ -31,10 +31,13 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+CHANGES = Path(".minions/changes")
+# A repo no run has moved keeps its files here, and its worker logs under `RUNS`.
 FINDINGS = Path(".minions/findings")
 RUNS = Path(".minions/runs")
 DATA = "review-metrics.json"
-FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
+FILES = ("review.md", "security.md", "status_log.md")
+OLD_FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
 STATIONS = ("build", "converge", "integrate", "release", "rescue")
 ROLES = ("review", "security")
 # The forms a `verdicts` line names both roles' tokens in, and each one's scale.
@@ -596,14 +599,28 @@ def _spent(events: list[dict[str, Any]]) -> Record:
     }
 
 
+def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
+    """Return each spawn's log of a station: `<stamp>-<station>.log`, then `-<n>.log`.
+
+    A change no run has moved keeps them as `runs/<stamp>/<change>_<station>.log`.
+    Why: 0077-run-metrics design D2; 0080-minions-layout design D3, D5.
+    """
+    if _moved(repo, change):
+        folder = _change_dir(repo, change) / "logs"
+        found = (folder.glob(f"*-{station}{n}.log") for n in ("", "-[0-9]*"))
+    else:
+        stamps = sorted(path for path in (repo / RUNS).glob("*") if path.is_dir())
+        names = (f"{change}_{station}.log", f"{change}_{station}-[0-9]*.log")
+        found = (stamp.glob(name) for stamp in stamps for name in names)
+    return [path for paths in found for path in sorted(paths) if path.is_file()]
+
+
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts: `<change>_<station>.log` and `-<n>.log` after it.
-    Why: 0076-context-cost design D1; 0077-run-metrics design D2.
+    Each spawn's log counts. Why: 0076-context-cost design D1.
     """
     runs = repo / RUNS
-    stamps = sorted(path for path in runs.glob("*") if path.is_dir())
     spawn = re.compile(
         rf"^\d\d:\d\d:\d\d · {re.escape(change)} · spawn — ({'|'.join(STATIONS)})"
         r"(?: ·|$)",
@@ -616,13 +633,7 @@ def _cost_logs(repo: Path, change: str) -> Record:
     )
     record: Record = {}
     for station in STATIONS:
-        logs = [
-            path
-            for s in stamps
-            for pattern in (f"{change}_{station}.log", f"{change}_{station}-[0-9]*.log")
-            for path in sorted(s.glob(pattern))
-            if path.is_file()
-        ]
+        logs = _station_logs(repo, change, station)
         found = [_results(path) for path in logs]
         spent = [_spent(events) for events in found]
         for key in ("cost", "turns", "tokens", "seconds"):
@@ -689,16 +700,50 @@ def _merged(rows: Iterable[Record], key: str) -> Counter[str]:
     return sum((row[key] for row in rows), Counter())
 
 
+def _change_dir(repo: Path, change: str) -> Path:
+    """Return the change's folder in the repo's run directory.
+
+    e.g. "0001-todo" → <repo>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return repo / CHANGES / change
+
+
+def _moved(repo: Path, change: str) -> bool:
+    """Return whether the change's folder holds its files: it wins over the old ones.
+
+    Why: 0080-minions-layout design D5.
+    """
+    return any((_change_dir(repo, change) / name).is_file() for name in FILES)
+
+
+def _file(repo: Path, change: str, name: str) -> Path:
+    """Return a change's file by its name in the change's folder, or its old path.
+
+    e.g. "review.md" → `changes/0001-x/review.md`, or `findings/0001-x_review.md`
+    """
+    if _moved(repo, change):
+        return _change_dir(repo, change) / name
+    return repo / FINDINGS / f"{change}_{name}"
+
+
+def _changes(repo: Path) -> set[str]:
+    """Return the changes with a file in their folder or, unmoved, in `findings/`."""
+    folders = (repo / CHANGES).iterdir() if (repo / CHANGES).is_dir() else ()
+    moved = {path.name for path in folders if _moved(repo, path.name)}
+    names = (path.name for path in (repo / FINDINGS).glob("*.md"))
+    return moved | {found[1] for name in names if (found := OLD_FILES.fullmatch(name))}
+
+
 def read_change(repo: Path, change: str) -> Record:
     """Return a change's record, each field parsed on its own, None when unreadable."""
-    folder = repo / FINDINGS
     files = [
         found
         for role, blocking in (
             ("review", ("blocking",)),
             ("security", ("critical", "high")),
         )
-        if (found := _findings_file(folder / f"{change}_{role}.md", blocking))
+        if (found := _findings_file(_file(repo, change, f"{role}.md"), blocking))
     ]
     fronts = [found["front"] for found in files]
     included, skipped = _packet(_first(fronts, "packet"))
@@ -714,7 +759,7 @@ def read_change(repo: Path, change: str) -> Record:
         "rounds": _integer(_first(fronts, "round")),
         "severity": _merged(files, "severity"),
         "categories": _merged(files, "categories"),
-        **_status_log(folder / f"{change}_status_log.md"),
+        **_status_log(_file(repo, change, "status_log.md")),
         **_cost_logs(repo, change),
     }
     for key in ("findings", "blocking", "inconclusive"):
@@ -726,11 +771,9 @@ def read_change(repo: Path, change: str) -> Record:
 
 def read_repo(repo: Path) -> list[Record]:
     """Return the repo's records in `reviewed` order, those with no date last."""
-    if not (repo / FINDINGS).is_dir():
-        raise CannotRun(f"{repo}: no {FINDINGS} directory")
-    names = (path.name for path in (repo / FINDINGS).glob("*.md"))
-    changes = {found.group(1) for name in names if (found := FILES.fullmatch(name))}
-    records = [read_change(repo, change) for change in changes]
+    if not (repo / CHANGES).is_dir() and not (repo / FINDINGS).is_dir():
+        raise CannotRun(f"{repo}: no {CHANGES} or {FINDINGS} directory")
+    records = [read_change(repo, change) for change in _changes(repo)]
     return sorted(
         records,
         key=lambda r: (r["reviewed"] is None, r["reviewed"] or "", r["change"]),
@@ -744,8 +787,9 @@ def round_data(repo: Path) -> list[Record]:
     """
     sessions = _codex_sessions(repo)
     logs = {
-        path.name.removesuffix("_status_log.md"): _round_records(path)
-        for path in sorted((repo / FINDINGS).glob("*_status_log.md"))
+        change: _round_records(path)
+        for change in sorted(_changes(repo))
+        if (path := _file(repo, change, "status_log.md")).is_file()
     }
     windows = {
         change: [r["window"] for r in records if r["window"]]

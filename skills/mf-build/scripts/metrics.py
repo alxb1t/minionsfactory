@@ -207,7 +207,7 @@ def run_directory(root: Path) -> Path:
     return Path(common).parent / ".minions"
 
 
-def _change_dir(root: Path, change: str) -> Path:
+def _spec_dir(root: Path, change: str) -> Path:
     """Return the change's directory relative to `root`, active or archived."""
     active = Path("openspec/changes") / change
     archived = Path("openspec/changes/archive") / change
@@ -220,9 +220,7 @@ def _change_dir(root: Path, change: str) -> Path:
 
 def change_version(root: Path, change: str) -> str:
     """Return the `version:` of the change's `proposal.md`, or `UNRELEASED`."""
-    text = (root / _change_dir(root, change) / "proposal.md").read_text(
-        encoding="utf-8"
-    )
+    text = (root / _spec_dir(root, change) / "proposal.md").read_text(encoding="utf-8")
     front = re.match(r"---\n(.*?)\n---", text, re.DOTALL)
     found = front and re.search(r"^version:\s*(\S+)", front.group(1), re.MULTILINE)
     return found.group(1) if found else UNRELEASED
@@ -235,7 +233,7 @@ def _derived(root: Path, change: str, base: str, head: str) -> dict[str, Value]:
     )
     rows = [line.split("\t") for line in numstat.splitlines() if line]
     lines = sum(int(row[0]) + int(row[1]) for row in rows if row[0] != "-")
-    tasks = root / _change_dir(root, change) / "tasks.md"
+    tasks = root / _spec_dir(root, change) / "tasks.md"
     values = {"diff-lines": {"value": lines}, "diff-files": {"value": len(rows)}}
     if not tasks.is_file():
         return values | {"phases": _unavailable(f"no tasks.md for {change}")}
@@ -520,7 +518,7 @@ def render_page(
     history.append(record)
     rows = moved(metrics, record, previous)
 
-    folder = _change_dir(root, change)
+    folder = _spec_dir(root, change)
     here = (root / out).parent
 
     def link(name: str) -> str:

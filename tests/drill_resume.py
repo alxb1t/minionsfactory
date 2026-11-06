@@ -144,11 +144,11 @@ def _cut(primary: Path, change: str) -> None:
     _git(tree, "add", ".")
     _git(tree, "commit", "-q", "-m", f"feat: add a note\n\nChange: {change}")
     table = '[converge]\nmodel = "sonnet"\n[release]\nmodel = "sonnet"\n'
-    _write(primary, {f".minions/models/{change}.toml": table})
+    _write(primary, {f".minions/changes/{change}/models.toml": table})
 
 
 def _status_log(primary: Path, change: str) -> Path:
-    return primary / ".minions" / "findings" / f"{change}_status_log.md"
+    return primary / ".minions" / "changes" / change / "status_log.md"
 
 
 def _active(primary: Path) -> Path:

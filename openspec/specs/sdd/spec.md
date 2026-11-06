@@ -199,7 +199,7 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 
 ### Requirement: Converge keeps a status log
 
-`skills/mf-converge/SKILL.md` SHALL have the conductor write `.minions/findings/<change-id>_status_log.md`: one line
+`skills/mf-converge/SKILL.md` SHALL have the conductor write `.minions/changes/<change-id>/status_log.md`: one line
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, the time taken from `date`. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
@@ -281,7 +281,7 @@ source, and every file the source points to, as evidence to write from, never as
 
 `skills/mf-converge/SKILL.md` and `skills/mf-release/SKILL.md` SHALL each run
 `skills/mf-converge/scripts/gate_check.py` before judging or releasing, and SHALL halt on its verdict. The script
-SHALL export the base and `HEAD` with `git archive` into fresh directories under `.minions/gate-check/`, run make
+SHALL export the base and `HEAD` with `git archive` into fresh directories under `.minions/changes/<change-id>/gate-check/`, run make
 there with `MAKEFLAGS` and `MFLAGS` cleared, and remove them when it ends. A **gate makefile** SHALL be any file in
 the `MAKEFILE_LIST` or a `Reading makefile` line of `make -pn -r -w -d gate` on either export. When no sub-task in
 `tasks.md` as the cut commit holds it names both `Makefile` and `` `gate` ``, a branch that changes a gate makefile,
@@ -340,7 +340,8 @@ halt.
 ### Requirement: No station deletes a findings file or the diff patch
 
 `skills/mf-converge/SKILL.md` and `skills/mf-release/SKILL.md` SHALL each forbid deleting, moving, renaming or
-emptying a findings file or the diff patch; clearing them SHALL be the human's act.
+emptying a findings file or the diff patch; clearing them SHALL be the human's act. The run's start-of-run move of an old
+layout into `.minions/changes/<change-id>/`, before any worker, is no station's act.
 
 #### Scenario: Both stations carry the rule
 - **WHEN** `mf-converge` or `mf-release` ends, clean or on a halt
@@ -707,7 +708,7 @@ Missing, empty and escaping targets SHALL fail the gate's resource-integrity che
 The cut SHALL bound model suggestions by the target's declared menu or the models exposed in the session.
 It SHALL suggest an effort setting only when that setting is supported. With no model menu it SHALL state the
 needed capability without inventing model names; with no effort control it SHALL omit the effort setting.
-It SHALL write the suggestion to `.minions/models/<change-id>.toml`, a table per station, as well as show it, and
+It SHALL write the suggestion to `.minions/changes/<change-id>/models.toml`, a table per station, as well as show it, and
 SHALL never write it into the change. Authentication and provider configuration SHALL remain the operator's
 responsibility.
 
@@ -718,7 +719,7 @@ responsibility.
 
 #### Scenario: The cut records its suggestion
 - **WHEN** the cut commits a change
-- **THEN** `.minions/models/<change-id>.toml` holds a `build`, a `converge` and a `release` table, each with its
+- **THEN** `.minions/changes/<change-id>/models.toml` holds a `build`, a `converge` and a `release` table, each with its
   `model`, and nothing under `openspec/changes/<change-id>/` names a model
 
 ### Requirement: Compatibility claims identify their evidence
@@ -918,7 +919,16 @@ created with `mkdir`, halting after two minutes of waiting and naming the lock. 
 claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
 ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
 follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT
-replace a `debt.md`.
+replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its review, security and status
+log files, its diff patch, its models file, integrate's notes, build's marks, rescue's diagnosis, release's `held`, its gate-check
+export and its worker logs — each script finding it through one `_change_dir(primary, id)`; `grants/`, `runs/`, `gate/`,
+`replay/`, `metrics/` and `debt.md` stay generic. A run SHALL move an old layout's files into it at its start, under its claim,
+before any worker, idempotently, leaving every file it does not name; a link at `changes/`, `changes/<change-id>/` or an old file
+SHALL halt, naming it, and so SHALL an old file beside its new one. `integrate.py`, `gate_check.py`, `run.py`, `conduct.py grant`, and a
+hand-run `mf-release`, `mf-integrate`, `mf-converge` or `mf-build`, finding a file of its change at its old path, SHALL halt, naming
+`/mf-ship` to move it, before writing a file at a new path;
+`conduct.py status` and `report` SHALL name such a change `old layout`, reading no stage; `review_metrics.py` SHALL read both
+layouts.
 
 #### Scenario: A release in a linked worktree after a converge in another
 - **WHEN** converge ran in one worktree of a change and the release runs in another worktree of the same repository
@@ -942,6 +952,14 @@ replace a `debt.md`.
 - **THEN** the run halts, naming them, and starts no worker
 - **AND WHEN** no old file stands beside a young `backlog.lock`, or a file there
 - **THEN** the run goes on
+
+#### Scenario: A run moves an old layout
+- **WHEN** a run starts beside `.minions/findings/<id>_review.md`, `models/<id>.toml`, `build/<id>.done` and a stray `findings/notes.txt`
+- **THEN** each moves into `.minions/changes/<id>/`, the stray stays, the version's stage reads as before, and a second start moves nothing
+
+#### Scenario: A hand-run release on an old layout
+- **WHEN** `mf-release` runs by hand for a change whose findings sit in `.minions/findings/`
+- **THEN** it halts, naming `/mf-ship`, and releases nothing
 
 ### Requirement: The plan station checks which versions can run side by side
 
@@ -967,7 +985,7 @@ sides' intent and the union, then run `make gate` on the worktree through `skill
 <worktree>`, and end with `Next: /mf-converge, then /mf-release`, or with `Next: /mf-ship, in the primary.` for a version with an
 unticked phase. A red gate on a merged test the union broke SHALL be fixed once, when the fix keeps both sides' intent, by amending
 the merge commit when it is `HEAD`, or, past the person's fix, by a commit of its own naming the test fixed, and gated again. Any other red gate SHALL halt with the merge committed and write
-`.minions/integrate/<change-id>.red` holding `head: <sha>`, the head the gate judged; with no merge open, `conduct.py` SHALL read
+`.minions/changes/<change-id>/integrate.red` holding `head: <sha>`, the head the gate judged; with no merge open, `conduct.py` SHALL read
 the version as halted while that sha is `HEAD`, and as to integrate again once it is not. Its integrate check SHALL fail while that
 `.red` stands, and read the newest first-parent merge, so the person's fix commit after it passes once a green gate deletes it. It SHALL NOT release, tag, push or rebase.
 
@@ -985,7 +1003,7 @@ the version as halted while that sha is `HEAD`, and as to integrate again once i
 
 #### Scenario: The merged tree fails the gate
 - **WHEN** `make gate` fails on the committed merge, on no test the union broke
-- **THEN** the station halts with the merge committed, and `.minions/integrate/<change-id>.red` names the head it gated
+- **THEN** the station halts with the merge committed, and `.minions/changes/<change-id>/integrate.red` names the head it gated
 
 #### Scenario: Coverage reads only the branch's lines
 - **WHEN** the default branch brought in lines the branch's tests do not cover
@@ -1020,7 +1038,7 @@ that the default branch changed since the branch's base. `.gitattributes` SHALL 
 When the delta check reports a changed requirement, or git leaves a conflict that is not additive (one side editing what the
 other removed, two values for one thing, designs that disagree, a choice between behaviours),
 `skills/mf-integrate/SKILL.md` SHALL halt with the merge in progress in the version's worktree, write
-`.minions/integrate/<change-id>.md` holding both intents and a proposed resolution, and continue from the open
+`.minions/changes/<change-id>/integrate.md` holding both intents and a proposed resolution, and continue from the open
 merge on its next run.
 
 #### Scenario: Both versions changed one requirement
@@ -1053,7 +1071,7 @@ never to a whole file unasked.
 every open version to the default branch: build, then converge, for every open version at once; then, one version
 at a time, in the order they are ready, integrate when its base moved, converge's catch-up round, and release with
 `merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor the models
-file names for it, or of the executor running `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/models/<change-id>.toml`
+file names for it, or of the executor running `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/changes/<change-id>/models.toml`
 names for it, or the executor's default. A worker SHALL run in an OS sandbox, Claude Code's or Codex's workspace-write, its writes reaching the primary and
 each open worktree and nothing outside them, under `conduct.py`'s allowlist on Claude Code, extended by `AGENTS.md`'s `Ship
 tools:` line, its prompt carrying the shell rules, and SHALL never run with permission prompts bypassed. A denial SHALL
@@ -1229,7 +1247,9 @@ write no findings file and hold no verdict.
 `skills/mf-review-metrics/scripts/review_metrics.py` SHALL read the repos named in
 `$XDG_CONFIG_HOME/minionsfactory/review-metrics.toml`, else `~/.config/minionsfactory/review-metrics.toml`, or in
 `--config` and `--repo`, and SHALL halt naming the config path when neither names a repo. It SHALL read each repo's
-`.minions/findings/` files and its run logs, `.minions/runs/<stamp>/<change>_<station>.log` and `<change>_<station>-<n>.log`, and the operator's Codex sessions,
+`.minions/changes/<change-id>/` files and its worker logs, `.minions/changes/<change>/logs/<stamp>-<station>.log` and
+`<stamp>-<station>-<n>.log` — in a repo no run has moved, the old `.minions/findings/` and `.minions/runs/<stamp>/<change>_<station>.log`
+and `-<n>.log` alike — and the operator's Codex sessions,
 `~/.codex/sessions/**/*.jsonl`, without writing to any repo,
 parse each field it can, record a field it cannot as a gap —
 never a zero — and write one self-contained HTML page, with no script, to the config's `out` or `--out`. The page
@@ -1248,6 +1268,10 @@ beside the page: one record per round and role, with its executor, model, effort
 #### Scenario: No config
 - **WHEN** the script runs with no config file and no `--repo`
 - **THEN** it exits 2, naming the config path it looked for, and writes nothing
+
+#### Scenario: A repo of each layout
+- **WHEN** one repo holds `.minions/changes/<id>/` and another the old `.minions/findings/` and `runs/<stamp>/` logs
+- **THEN** both repos' changes are read, with their cost, and neither is written
 
 #### Scenario: Files from every era
 - **WHEN** a repo holds a findings file with no cards, one with cards and no `## Refuted`, a status log, and a file with
@@ -1361,13 +1385,13 @@ default-branch commit no ledger entry stands behind. A worker stopped by a usage
 - **THEN** each version continues from its stage on disk, and the finished stations do not run again
 
 #### Scenario: The person resolves a semantic conflict
-- **WHEN** integrate halted on a semantic conflict, with the merge open and its note under `.minions/integrate/`
+- **WHEN** integrate halted on a semantic conflict, with the merge open and its note under `.minions/changes/<change-id>/`
 - **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
 - **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
 - **THEN** a re-run of `mf-ship` runs the catch-up round, then the release
 
 #### Scenario: The person fixes a red gate
-- **WHEN** integrate halted on a red gate, with the merge committed and `.minions/integrate/<change-id>.red` naming it
+- **WHEN** integrate halted on a red gate, with the merge committed and `.minions/changes/<change-id>/integrate.red` naming it
 - **THEN** a re-run of `mf-ship` halts again and integrates nothing
 - **AND WHEN** the person commits a fix past the merge
 - **THEN** a re-run of `mf-ship` integrates again, gating the fix, then runs the catch-up round and the release
@@ -1384,7 +1408,7 @@ change's design, and a MODIFIED title a delta takes from an `after:` change's de
 `conduct.py` SHALL start a dependent only once each id has released,
 and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta` on the open
 merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its note
-under `.minions/integrate/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
+under `.minions/changes/<change-id>/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
 has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency
 has not released. An `after:` edited past the cut SHALL stop no other version: an unreleased id that is not lower SHALL
 block its version, and an edit that leaves a running version `waiting` SHALL halt it.
@@ -1437,16 +1461,16 @@ heading, the round unchanged, and a pickup whose fix was never committed sent ag
 ### Requirement: A re-run recovers what a dead station left
 
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
-`integrate`. A version with every phase ticked, no converge run begun, and no `.minions/build/<change-id>.done`
+`integrate`. A version with every phase ticked, no converge run begun, and no `.minions/changes/<change-id>/build.done`
 naming `HEAD` SHALL be stage `build`, its closing steps left, and SHALL fail the build check: `skills/mf-build/SKILL.md`
-SHALL then run its simplify step and the metrics again, restoring first, saved to a patch under `.minions/build/`, a dirty
-tree whose paths are all in the change's range while its `.minions/build/<change-id>.closing` mark names `HEAD`, halting and
+SHALL then run its simplify step and the metrics again, restoring first, saved to a patch under `.minions/changes/<change-id>/`, a dirty
+tree whose paths are all in the change's range while its `.minions/changes/<change-id>/build.closing` mark names `HEAD`, halting and
 restoring nothing on a path outside it, a dirty tree with no such mark, or a patch an earlier save left, and SHALL write that file, naming `HEAD` and
 simplify's outcome, only once both are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
 archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
-worker died and the person left no `.minions/release/<change-id>.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
+worker died and the person left no `.minions/changes/<change-id>/release.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
 a run, push the default branch and each merged tag `origin` lacks, only when every first-parent commit past `origin`'s default
 branch, as `origin` lists it, is a merge of a tagged release holding that release's tree, whose release commit's parent is a
 head the release ledger holds that is not yet on `origin`, and every such tag is on such a release commit, and SHALL else halt, naming the commit or the
@@ -1559,14 +1583,14 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
   left uncommitted
 - **THEN** a re-run reads the stage as `build`, closing steps left, and its worker saves the edit to a patch, restores it
   and runs simplify again
-- **AND** the run converges only after `.minions/build/<change-id>.done` names `HEAD`
+- **AND** the run converges only after `.minions/changes/<change-id>/build.done` names `HEAD`
 
 #### Scenario: A dirty tree the build did not mark
 - **WHEN** every phase is ticked, no `.done` names `HEAD`, and the tree is dirty with no `.closing` mark naming `HEAD`
 - **THEN** `mf-build` halts naming the dirty paths, and restores nothing
 
 #### Scenario: A resume finds an earlier patch
-- **WHEN** a resume finds the tree dirty while `.closing` names `HEAD`, and `.minions/build/<change-id>.discarded.patch`
+- **WHEN** a resume finds the tree dirty while `.closing` names `HEAD`, and `.minions/changes/<change-id>/build.discarded.patch`
   already exists
 - **THEN** `mf-build` halts naming the dirty paths and the patch, restores nothing, and leaves the patch as it was
 
@@ -1575,12 +1599,12 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 - **THEN** the build check fails, the version halts, and no second build starts
 
 #### Scenario: A build closed before this rule
-- **WHEN** a version's phases are all ticked, its converge has begun, and no `.minions/build/<change-id>.done` exists
+- **WHEN** a version's phases are all ticked, its converge has begun, and no `.minions/changes/<change-id>/build.done` exists
 - **THEN** the stage is read from converge's status log, as before
 
 ### Requirement: A station's executor comes from the models file
 
-`.minions/models/<change-id>.toml` MAY name `executor = "claude"` or `"codex"` in any station's table; absent, the station
+`.minions/changes/<change-id>/models.toml` MAY name `executor = "claude"` or `"codex"` in any station's table; absent, the station
 runs on the run's executor. Integrate SHALL use the `[release]` table. `conduct.py` SHALL halt a version, before its
 worker starts, on an `executor` it does not know and on a `codex` station with a `claude-*` model. It SHALL run one probe
 worker per distinct executor named across the open versions and the run's own; a failed probe at the start SHALL stop the
@@ -1896,7 +1920,7 @@ integrate when the default branch holds a first-parent commit past `origin` that
 front, reading beyond the diff only to trace a named angle, and SHALL run review's stale-claim, test-cost and coverage-trace
 passes itself. It SHALL take no `tier=`, and SHALL halt, naming the parameter as removed, when one is given. The review and
 security files' frontmatter SHALL record `mode`, `workers`, `model` and `packet`, and no tier. The cut SHALL write no `tier` into
-`.minions/models/<change-id>.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge.
+`.minions/changes/<change-id>/models.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge.
 
 #### Scenario: Converge runs
 - **WHEN** converge runs
@@ -2277,10 +2301,10 @@ each phase's first `Verify:`, a HUMAN phase's included, and never amend a `Verif
 When a version halts on its build check, its converge cap the run does not grant, or integrate's red gate or note, `conduct.py` SHALL spawn the
 `mf-rescue` station in that version's thread, unless its models file's `[rescue]` table says `skip = true`; the station SHALL run on
 the `[rescue]` table's executor and model, the `[build]` table's when there is none. `skills/mf-build/SKILL.md` SHALL write
-`.minions/build/<id>.halt` on every halt — the sub-task, the stop condition, one line of evidence. `skills/mf-rescue/SKILL.md` SHALL
+`.minions/changes/<id>/build.halt` on every halt — the sub-task, the stop condition, one line of evidence. `skills/mf-rescue/SKILL.md` SHALL
 fix a build halt on a `Verify:` that cannot pass, a reader a deletion missed, a task two readings would build differently, or an
 `Verify:` that is not one plain command — a `$(…)`, a shell variable, a loop or a `cd` — with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
-never `design.md`'s decisions table, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/rescue/<id>.md`.
+never `design.md`'s decisions table, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/changes/<id>/rescue.md`.
 `conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on. A version whose
 rescue at a converge or integrate halt leaves its stage on disk no halt SHALL stay halted for the run, a rejoin request taking it
 back none, the halt naming that stage and a moved `HEAD`: whatever answers the halt on disk while the rescue runs, or before
@@ -2296,7 +2320,7 @@ descriptor opened without following a link.
 
 #### Scenario: A decision halt
 - **WHEN** a build halts on a design premise the code rules out
-- **THEN** the rescue writes `.minions/rescue/<id>.md`, and the version stays halted, its halt naming the file
+- **THEN** the rescue writes `.minions/changes/<id>/rescue.md`, and the version stays halted, its halt naming the file
 
 #### Scenario: A rescue outside the plan
 - **WHEN** a rescue's commit touches a file outside `tasks.md` and `design.md`
@@ -2434,7 +2458,7 @@ run `gate_check.py` as Step 1.6 does, after the gate.
 
 ### Requirement: A verify halt is diagnosed by the run
 
-When a version's converge halt is Step 1.6's `verify: halt`, `conduct.py` SHALL write its diagnosis to `.minions/rescue/<id>.md`
+When a version's converge halt is Step 1.6's `verify: halt`, `conduct.py` SHALL write its diagnosis to `.minions/changes/<id>/rescue.md`
 itself, from the halt line, through a file opened without following a link, start no rescue worker, and log `rescue — <id>: diagnosed
 · <file>`. The diagnosis, and every rescue proposal `skills/mf-rescue/SKILL.md` writes, SHALL name the command the run takes back:
 `conduct.py rejoin <id>` while a run is live, else `/mf-ship`. A version whose models file says `[rescue] skip = true` SHALL get no
@@ -2485,12 +2509,13 @@ zero. The cut's `diff-lines` and `diff-files` SHALL be the collector's station v
 
 ### Requirement: A station keeps a log per spawn
 
-`conduct.py` SHALL write each spawn's worker log to `.minions/runs/<stamp>/<who>_<station>.log`, and a later spawn of the same
-station in the same stamp to `<who>_<station>-<n>.log`, `n` from 2, so no spawn's log overwrites another's.
+`conduct.py` SHALL write each spawn's worker log to `.minions/changes/<change-id>/logs/<stamp>-<station>.log` for a change, and to
+`.minions/runs/<stamp>/run_<station>.log` for the run's own probe, and a later spawn of the same station in the same stamp to
+`-<n>.log`, `n` from 2, so no spawn's log overwrites another's; the newest is read by its stamp and `n`, never by the name's sort.
 
 #### Scenario: A converge spawned twice in a run
 - **WHEN** a version's converge is spawned, granted a round, and spawned again in the same run
-- **THEN** the run directory holds `<id>_converge.log` and `<id>_converge-2.log`
+- **THEN** the change's `logs/` holds `<stamp>-converge.log` and `<stamp>-converge-2.log`
 
 ### Requirement: Converge keeps deferred work in one repository debt file
 

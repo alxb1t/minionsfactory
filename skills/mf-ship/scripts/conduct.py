@@ -83,6 +83,28 @@ RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("review", "security")
+# Each old-layout path of a change, by its name in the change's folder.
+# Why: 0080-minions-layout design D1, D4.
+OLD_LAYOUT = {
+    "findings/{}_review.md": "review.md",
+    "findings/{}_security.md": "security.md",
+    "findings/{}_status_log.md": "status_log.md",
+    "findings/{}_diff.patch": "diff.patch",
+    "models/{}.toml": "models.toml",
+    "integrate/{}.md": "integrate.md",
+    "integrate/{}.red": "integrate.red",
+    "integrate/{}.resolved": "integrate.resolved",
+    "build/{}.done": "build.done",
+    "build/{}.halt": "build.halt",
+    "build/{}.closing": "build.closing",
+    "build/{}.discarded.patch": "build.discarded.patch",
+    "rescue/{}.md": "rescue.md",
+    "release/{}.held": "release.held",
+    "gate-check/{}": "gate-check",
+}
+OLD_ID = r"(\d{4}-[a-z0-9-]+)"
+OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
+OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
 BLOCKS = {"review": ("blocking",), "security": ("critical", "high")}
 SMALL = ("one line", "a test", "one line and a test")
@@ -485,9 +507,95 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
     return None
 
 
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
+def _folder_fd(root: Path, *parts: str) -> int:
+    """Return a descriptor on `root`'s folder `parts`, each made, none read as a link.
+
+    A link at any of `parts` raises `OSError`; `root` itself is followed.
+    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts:
+            try:
+                os.mkdir(part, dir_fd=fd)
+            except FileExistsError:
+                pass
+            inner = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+            )
+            os.close(fd)
+            fd = inner
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
+    """Write `text` to the change's file `name`, through no link; one raises `OSError`.
+
+    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        file = os.open(name, flags, 0o644, dir_fd=fd)
+    finally:
+        os.close(fd)
+    with os.fdopen(file, "w") as out:
+        out.write(text)
+
+
+def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
+    """Return each change's old-layout files, each with its path in the change's folder.
+
+    A file `OLD_LAYOUT` does not name stays out, prefix matches and strays alike.
+    e.g. `findings/0001-x_review.md` → {"0001-x": [(…, "review.md")]}
+    e.g. `runs/<stamp>/0001-x_converge-2.log` → `logs/<stamp>-converge-2.log`
+    Why: 0080-minions-layout design D4.
+    """
+    minions = primary / ".minions"
+    found: dict[str, list[tuple[Path, str]]] = {}
+    for old, new in OLD_LAYOUT.items():
+        folder, name = old.split("/")
+        pattern = re.compile(re.escape(name).replace(re.escape("{}"), OLD_ID))
+        listed = (minions / folder).iterdir() if (minions / folder).is_dir() else ()
+        for path in listed:
+            if matched := pattern.fullmatch(path.name):
+                found.setdefault(matched[1], []).append((path, new))
+    runs = minions / "runs"
+    stamps = runs.iterdir() if runs.is_dir() else ()
+    for stamp in (s for s in stamps if OLD_STAMP.fullmatch(s.name) and s.is_dir()):
+        for path in stamp.iterdir():
+            if matched := OLD_LOG.fullmatch(path.name):
+                change, station, n = matched[1], matched[2], matched[3] or ""
+                new = f"logs/{stamp.name}-{station}{n}.log"
+                found.setdefault(change, []).append((path, new))
+    return found
+
+
+def _old_layout(primary: Path, change: str) -> str | None:
+    """Return the change's first old-layout file, relative to the primary, or None.
+
+    Why: 0080-minions-layout design D4.
+    """
+    held = sorted(path for path, _ in _old_files(primary).get(change, []))
+    return str(held[0].relative_to(primary)) if held else None
+
+
 def _run_end(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event line, or None with no run."""
-    log = runs / "findings" / f"{change}_status_log.md"
+    log = _change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
         (i for i, line in enumerate(lines) if line.startswith("## Run")), None
@@ -502,7 +610,7 @@ def _run_marked(runs: Path, change: str, mark: str) -> bool:
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    log = runs / "findings" / f"{change}_status_log.md"
+    log = _change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next((line for line in lines if line.startswith("## Run")), "")
     return heading.rstrip().endswith(f" · {mark}")
@@ -517,12 +625,12 @@ def _granted_run(runs: Path, change: str) -> bool:
 
 
 def _closed(runs: Path, tree: Path, change: str) -> bool:
-    """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
+    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`.
 
     A missing or unreadable file is not closed, nor is one that is no regular file.
     Why: 0055-build-resume design D2.
     """
-    done = runs / "build" / f"{change}.done"
+    done = _change_dir(runs.parent, change) / "build.done"
     if not done.is_file():
         return False
     try:
@@ -537,12 +645,12 @@ def _closed(runs: Path, tree: Path, change: str) -> bool:
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
-    r"""Return `.minions/build/<change>.halt`'s sub-task and stop when it names `HEAD`.
+    r"""Return `build.halt`'s sub-task and stop when it names `HEAD`.
 
     None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
     e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
     """
-    file = runs / "build" / f"{change}.halt"
+    file = _change_dir(runs.parent, change) / "build.halt"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -598,7 +706,7 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
         return True
     if not _run_marked(runs, change, "catch-up"):
         return False
-    files = (runs / "findings" / f"{change}_{role}.md" for role in ROLES)
+    files = (_change_dir(runs.parent, change) / f"{role}.md" for role in ROLES)
     return all(
         file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
         for file in files
@@ -652,7 +760,7 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
         return True
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
@@ -671,7 +779,7 @@ def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | N
     """Return why converge is not clean at `rev`, or None when it is."""
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return f"no {role} findings file"
         text = file.read_text()
@@ -690,7 +798,7 @@ def _red(primary: Path, tree: Path, change: str) -> str | None:
     None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
     e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
     """
-    file = primary / ".minions" / "integrate" / f"{change}.red"
+    file = _change_dir(primary, change) / "integrate.red"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -812,9 +920,9 @@ def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str,
     that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
     runs = primary / ".minions"
-    if (runs / "release" / f"{change}.held").is_file():
+    if (_change_dir(primary, change) / "release.held").is_file():
         return "released", (
-            f"{tag}: .minions/release/{change}.held holds a person's no:"
+            f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
         )
     own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
@@ -846,17 +954,18 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = primary / ".minions"
     red, merging = _red(primary, tree, change), _merge_open(tree)
+    note = f".minions/changes/{change}/integrate"
     if red is not None and not merging:
         if red == _git(tree, "rev-parse", "HEAD").strip():
-            return "integrating", f"red gate: .minions/integrate/{change}.red"
+            return "integrating", f"red gate: {note}.red"
         return "integrate", "red gate on another head: integrate gates again"
     if merging:
-        marks = runs / "integrate"
+        marks = _change_dir(primary, change)
         # A `.red` with a `head:` names a committed merge: an open one's is stale.
-        if red is None and (marks / f"{change}.red").is_file():
-            return "integrating", f"red gate: .minions/integrate/{change}.red"
-        if (marks / f"{change}.md").is_file():
-            return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
+        if red is None and (marks / "integrate.red").is_file():
+            return "integrating", f"red gate: {note}.red"
+        if (marks / "integrate.md").is_file():
+            return "integrating", f"semantic conflict: {note}.md"
         if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
         return (
@@ -909,7 +1018,7 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     if _dirty(tree):
         return "the tree is not clean"
     if not _closed(primary / ".minions", tree, change):
-        return f"no .minions/build/{change}.done names HEAD"
+        return f"no .minions/changes/{change}/build.done names HEAD"
     return None
 
 
@@ -933,7 +1042,7 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     read is the newest first-parent merge's, so the person's fix commit after it
     passes. Why: 0071-ship-fixes design D2.
     """
-    note = f".minions/integrate/{version.change}"
+    note = f".minions/changes/{version.change}/integrate"
     red = _red(primary, tree, version.change)
     if _merge_open(tree):
         if red is None and (primary / f"{note}.red").is_file():
@@ -1771,13 +1880,15 @@ class RunLog:
 
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
     """Return a table of the cut's models file; None with no file or no such table."""
-    path = runs / "models" / f"{change}.toml"
+    path = _change_dir(runs.parent, change) / "models.toml"
     if not path.is_file():
         return None
     try:
         data = tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as error:
-        raise Stop(1, f"conduct: halt — models/{path.name}: {error}") from None
+        raise Stop(
+            1, f"conduct: halt — changes/{change}/models.toml: {error}"
+        ) from None
     table = data.get(name)
     return table if isinstance(table, dict) else None
 
@@ -1797,7 +1908,7 @@ def _models(
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
     model = model if isinstance(model, str) else None
-    file = f"models/{change}.toml"
+    file = f"changes/{change}/models.toml"
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
     if executor == "codex" and (model or "").startswith("claude"):
@@ -1842,7 +1953,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """
     found = []
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return None
         try:
@@ -2115,18 +2226,19 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
     return ["-c", f"projects={{{table}}}"]
 
 
-def _free_log(folder: Path, who: str, station: str) -> tuple[Path, int]:
-    """Return the first free of `<who>_<station>.log`, `-2.log`, … in `folder`, made.
+def _free_log(root: Path, parts: tuple[str, ...], name: str) -> tuple[Path, int]:
+    """Return the first free of `<name>.log`, `<name>-2.log`, … in `root`'s `parts`.
 
-    And a descriptor open on it for writing, made through the folder's own, so a
-    link a worker swaps in at either names no place outside the run directory.
-    e.g. a converge's second spawn in a stamp → `0001-todo_converge-2.log`.
-    Why: 0077-run-metrics design D2; 0071-ship-fixes design D8.
+    And a descriptor open on it for writing, made through the folders' own, so a
+    link a worker swaps in at any of them names no place outside the run directory.
+    e.g. a converge's second spawn in a stamp → `<stamp>-converge-2.log`.
+    Why: 0077-run-metrics design D2; 0071-ship-fixes design D8;
+    0080-minions-layout design D3, D6.
     """
-    folder.mkdir(parents=True, exist_ok=True)
-    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    folder = root.joinpath(*parts)
+    fd = _folder_fd(root, *parts)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
-    name, n = f"{who}_{station}", 1
+    n = 1
     try:
         while True:
             log = f"{name}.log" if n == 1 else f"{name}-{n}.log"
@@ -2592,7 +2704,12 @@ class Run:
         self.log.event(
             who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
         )
-        out, sink = _free_log(self.runs / self.log.stamp, who, station)
+        if who == "run":
+            out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
+        else:
+            parts = ("changes", who, "logs")
+            name = f"{self.log.stamp}-{station}"
+            out, sink = _free_log(self.primary / ".minions", parts, name)
         with self.guard:
             self.outs[who, station] = out
         started = time.monotonic()
@@ -2657,7 +2774,7 @@ class Run:
             self.rescues.setdefault(change, []).append(held)
         models = self.planned_models(change, "rescue")
         before = _git(tree, "rev-parse", "HEAD").strip()
-        diagnosis = self.primary / ".minions" / "rescue" / f"{change}.md"
+        diagnosis = _change_dir(self.primary, change) / "rescue.md"
         written = _mtime(diagnosis)
         prompt = PROMPTS["rescue"].format(change=change)
         try:
@@ -2669,7 +2786,7 @@ class Run:
                 with self.guard:
                     self.halts = [halt for halt in self.halts if halt[0] != change]
                 return True
-            name = f".minions/rescue/{change}.md"
+            name = f".minions/changes/{change}/rescue.md"
             if not why and _mtime(diagnosis) not in (None, written):
                 self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
                 why = f"rescue diagnosed — {name}"
@@ -2682,28 +2799,19 @@ class Run:
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
 
-        The folder is opened following no link, and the file created through that
-        descriptor, so a link at either names no place outside the run directory.
-        Why: 0071-ship-fixes design D8.
+        The folders are opened following no link, and the file created through their
+        descriptor, so a link at any names no place outside the run directory.
+        Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
         """
-        name = f".minions/rescue/{change}.md"
-        folder = self.primary / ".minions" / "rescue"
+        name = f".minions/changes/{change}/rescue.md"
         text = (
             f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
             "cause: a Verify: changed since the cut\n"
             f"proposal: commit docs({change}): amend the change directory, then"
             f" conduct.py rejoin {change}, or /mf-ship with no run live\n"
         )
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
         try:
-            folder.mkdir(parents=True, exist_ok=True)
-            fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            try:
-                file = os.open(f"{change}.md", flags, 0o644, dir_fd=fd)
-            finally:
-                os.close(fd)
-            with os.fdopen(file, "w") as out:
-                out.write(text)
+            _write_in_change(self.primary, change, "rescue.md", text)
         except OSError as error:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return
@@ -2755,7 +2863,8 @@ class Run:
         models = _models(self.primary / ".minions", change, station, self.executor)
         if models != self.plan.get((change, station)):
             raise Stop(
-                1, f"conduct: halt — models/{change}.toml changed during the run"
+                1,
+                f"conduct: halt — changes/{change}/models.toml changed during the run",
             )
         return models
 
@@ -2979,7 +3088,7 @@ class Run:
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
-        note = self.primary / ".minions" / "integrate" / f"{change}.md"
+        note = _change_dir(self.primary, change) / "integrate.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
             return
@@ -2988,8 +3097,15 @@ class Run:
         if not opened and _maybe(tree, *merge) is None:
             self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
-            note.parent.mkdir(parents=True, exist_ok=True)
-            note.write_text(_note(tree, change, moved))
+            text = _note(tree, change, moved)
+            # A link at the change's folder raises: the version halts, nothing written.
+            try:
+                _write_in_change(self.primary, change, "integrate.md", text)
+            except OSError as error:
+                name = f".minions/changes/{change}/integrate.md"
+                raise Stop(
+                    1, f"conduct: halt — cannot write {name} — {error.strerror}"
+                ) from None
             return
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
@@ -3049,8 +3165,10 @@ class Run:
             return
         at = shlex.quote(str(tree))
         if _merge_open(tree):
-            marks = self.primary / ".minions" / "integrate"
-            noted = any((marks / f"{change}{end}").is_file() for end in (".md", ".red"))
+            marks = _change_dir(self.primary, change)
+            noted = any(
+                (marks / f"integrate{end}").is_file() for end in (".md", ".red")
+            )
             after = _dependencies(self.primary, change)
             if noted or not all(_shipped(tree, "HEAD", name) for name in after):
                 return
@@ -3216,7 +3334,7 @@ class Run:
             self.models(change, station) != self.plan.get((change, station))
             for station in PLANNED
         ):
-            moved = f"models/{change}.toml changed during the run"
+            moved = f"changes/{change}/models.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
         with self.guard:
@@ -3437,6 +3555,49 @@ class Run:
         self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
         return None
 
+    def migrate_layout(self) -> str | None:
+        """Move each change's old-layout files into its folder; return why to halt.
+
+        Every file is checked before any moves: one beside its new path, or a link
+        at an old file, an old folder, `changes/` or a change's folder, halts with
+        nothing moved. A move links the file in and unlinks the old, so it never
+        replaces one. Why: 0080-minions-layout design D4, D6.
+        """
+        found = _old_files(self.primary)
+        minions = self.primary / ".minions"
+        runs = minions / "runs"
+        stamps = sorted(runs.iterdir()) if runs.is_dir() else []
+        folders = sorted({minions / old.split("/")[0] for old in OLD_LAYOUT})
+        olds = [*folders, runs, *(s for s in stamps if OLD_STAMP.fullmatch(s.name))]
+        for change, files in sorted(found.items()):
+            folder = _change_dir(self.primary, change)
+            links = [*olds, minions / "changes", folder, folder / "logs"]
+            for link in [*links, *(old for old, _ in files)]:
+                if link.is_symlink():
+                    named = link.relative_to(self.primary)
+                    return f"{named} is a link: a person settles what it names"
+            for old, new in files:
+                if os.path.lexists(folder / new):
+                    return (
+                        f"{old.relative_to(self.primary)} and"
+                        f" {(folder / new).relative_to(self.primary)} both stand:"
+                        " a person settles which to keep"
+                    )
+        for change, files in sorted(found.items()):
+            for old, new in files:
+                where, _, name = new.rpartition("/")
+                fd = _folder_fd(minions, "changes", change, *([where] if where else []))
+                try:
+                    if old.is_dir():
+                        os.rename(old, name, dst_dir_fd=fd)
+                    else:
+                        os.link(old, name, dst_dir_fd=fd)
+                        old.unlink()
+                finally:
+                    os.close(fd)
+            self.log.event("run", "move", f"{change}: {len(files)} files")
+        return None
+
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1.
 
@@ -3470,7 +3631,7 @@ class Run:
             return 1
         if unkept := _keep_origin(self.primary):
             self.log.event("run", "unkept", unkept)
-        if why := self.migrate_debt():
+        if why := self.migrate_debt() or self.migrate_layout():
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
@@ -3687,6 +3848,8 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
         raise Stop(2, f"grant: cannot run — no version branch holds {change}")
+    if old := _old_layout(primary, change):
+        raise Stop(2, f"grant: cannot run — {old} is the old layout: /mf-ship moves it")
     stage, why = stage_of(primary, version)
     if (stage, why) == ("converge", "granted"):
         raise Stop(2, f"grant: cannot run — {change} has a grant waiting: run /mf-ship")
@@ -3824,8 +3987,12 @@ def status(cwd: Path) -> str:
         lines.append(f"run · unpushed {' '.join(names)}")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
+    # why: 0080-minions-layout design D4
+    old = _old_files(primary)
     lines += [
-        f"{version.change} · {stage_of(primary, version)[0]}"
+        f"{version.change} · old layout — a run moves it"
+        if version.change in old
+        else f"{version.change} · {stage_of(primary, version)[0]}"
         for version in open_versions(primary)
     ]
     return "\n".join(lines) or "status: none — no open version"
@@ -3918,16 +4085,20 @@ def report(cwd: Path) -> str:
         if found[2] == "push"
         and (detail := found.string[found.end() :]).startswith("waiting: ")
     ]
+    old = _old_files(primary)
     for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
             lines.append(f"{change} · no version branch")
             continue
+        if change in old:
+            lines.append(f"{change} · old layout — a run moves it")
+            continue
         tag = _tag_of(primary, change)
         if tag is not None and not _tagged(primary, tag):
             tag = None
         pushed = _pushed(primary, change, tag) if tag is not None else False
-        review = runs / "findings" / f"{change}_review.md"
+        review = _change_dir(primary, change) / "review.md"
         round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
         page = runs / "metrics" / f"{change}.html"
         lines.append(

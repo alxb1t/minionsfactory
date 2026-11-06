@@ -6,6 +6,7 @@ Why: 0030-change-impact design D7.
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -349,8 +350,8 @@ _RUN_A = """# Ship run 20261101-230000
 00:10:30 · 0001-x · halt — converge check fail — the status log halts: cap
 00:10:31 · 0001-x · spawn — rescue · model m
 00:11:31 · 0001-x · finish — rescue · exit 0 · 60s
-00:11:31 · run · rescue — 0001-x: diagnosed · .minions/rescue/0001-x.md
-00:11:31 · 0001-x · halt — rescue diagnosed — .minions/rescue/0001-x.md
+00:11:31 · run · rescue — 0001-x: diagnosed · .minions/changes/0001-x/rescue.md
+00:11:31 · 0001-x · halt — rescue diagnosed — .minions/changes/0001-x/rescue.md
 00:12:00 · run · rejoin — 0001-x: still halted — answered
 00:21:31 · run · rejoin — 0001-x: converge
 00:21:31 · run · grant — 0001-x: one more round past the cap
@@ -431,18 +432,19 @@ def _run_fixture(root: Path) -> dict[str, str]:
             "10:00:00 · 0001-x · spawn — release · model m\n"
             "10:01:00 · 0001-x · finish — release · exit 0 · 60s\n",
             ".minions/runs/notes.md": "12:00:00 · 0001-x · halt — build check fail\n",
-            ".minions/findings/0001-x_status_log.md": _STATUS,
-            ".minions/findings/0002-y_status_log.md": "# 0002-y\n\n## Run 1 — x\n",
+            ".minions/changes/0001-x/status_log.md": _STATUS,
+            ".minions/changes/0002-y/status_log.md": "# 0002-y\n\n## Run 1 — x\n",
             # The first run halted before its fan-out; the next one holds round 1.
-            ".minions/findings/0004-w_status_log.md": "# 0004-w\n\n"
+            ".minions/changes/0004-w/status_log.md": "# 0004-w\n\n"
             "## Run 2 — 2026-11-02 10:00\n"
             "10:20:00 · round 1 · verdicts — review changes-requested"
             " · open_blocking 1\n\n"
             "## Run 1 — 2026-11-02 09:00\n"
             "09:01:00 · round 1 · halt — the gate is red\n",
-            ".minions/build/0001-x.done": f"head: {built}\nsimplify: lean already\n",
-            ".minions/build/0002-y.done": f"head: {unmerged}\n",
-            ".minions/build/0004-w.done": f"head: {built}\n",
+            ".minions/changes/0001-x/build.done": f"head: {built}\n"
+            "simplify: lean already\n",
+            ".minions/changes/0002-y/build.done": f"head: {unmerged}\n",
+            ".minions/changes/0004-w/build.done": f"head: {built}\n",
         },
     )
     return {"MF_METRICS_CHANGE": "0001-x", "MF_METRICS_BASE": base} | {
@@ -497,8 +499,8 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert read("build-minutes", "0003-z") == "gap: a build spawn with no finish"
     assert read("lead-minutes", "0003-z") == "gap: no release spawn"
     assert read("integrate-minutes", "0003-z") == 0
-    assert read("grants", "0003-z") == "gap: no 0003-z_status_log.md"
-    assert read("build-commits", "0003-z") == "gap: no head in 0003-z.done"
+    assert read("grants", "0003-z") == "gap: no 0003-z/status_log.md"
+    assert read("build-commits", "0003-z") == "gap: no head in 0003-z/build.done"
     # A version released by hand: no run log, its commits and cards still read.
     assert read("wait-minutes", "0004-w") == "gap: no run log names 0004-w"
     assert read("halts-build", "0004-w") == "gap: no run log names 0004-w"
@@ -509,7 +511,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "gap: no round 1 verdicts with open_blocking"
     )
     assert read("fix-commits", "0002-y") == (
-        "gap: 0002-y.done's head is not in the version's history"
+        "gap: 0002-y/build.done's head is not in the version's history"
     )
     assert read("lead-minutes", "0005-v") == (
         "gap: no commit `docs(0005-v): land the change directory`"
@@ -531,6 +533,33 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
 
 
+def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    # A stray the move leaves is no old layout.
+    strays = {
+        ".minions/runs/20261101-230000/0001-x_Notes.log": "x\n",
+        ".minions/findings/0001-x_review.run1.md": "x\n",
+        ".minions/findings/0001-xy_review.md": "x\n",
+    }
+    _write(tmp_path, strays)
+    assert run.measure(tmp_path, ["grants"], env) == 1
+
+    old = ".minions/runs/20261101-230000/0001-x_converge-2.log"
+    _write(tmp_path, {old: "x\n"})
+    said = f"{old} is the old layout: /mf-ship moves it"
+    with pytest.raises(run.OldLayout, match=re.escape(said)):
+        run.measure(tmp_path, ["grants"], env)
+    done = subprocess.run(
+        [sys.executable, _SCRIPTS / "run.py", "grants"],
+        cwd=tmp_path,
+        env=os.environ | env,
+        capture_output=True,
+        text=True,
+    )
+    assert (done.returncode, done.stdout, done.stderr) == (2, "", f"{said}\n")
+
+
 def _worker_log(
     root: Path, name: str, cost: float, tokens: int, *events: object
 ) -> None:
@@ -541,7 +570,7 @@ def _worker_log(
         "modelUsage": {"m": {"inputTokens": tokens, "outputTokens": "n/a"}},
     }
     lines = [e if isinstance(e, str) else json.dumps(e) for e in [*events, result]]
-    _write(root, {f".minions/runs/{name}": "".join(f"{line}\n" for line in lines)})
+    _write(root, {f".minions/changes/{name}": "".join(f"{line}\n" for line in lines)})
 
 
 def _task(tool: str, description: str) -> object:
@@ -575,10 +604,10 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     read = _reader(tmp_path, env)
     first = {"type": "result", "total_cost_usd": 0.5, "modelUsage": {}}
     review = _task("t1", "Converge review worker 0001")
-    _worker_log(tmp_path, "20261101-230000/0001-x_build.log", 1.0, 110)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-build.log", 1.0, 110)
     _worker_log(
         tmp_path,
-        "20261101-230000/0001-x_converge.log",
+        "0001-x/logs/20261101-230000-converge.log",
         2.0,
         500,
         "not json, holding tool_use_id",
@@ -599,15 +628,15 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         _turn(None, "m4", input_tokens=999),
     )
     verify = _task("t4", "Review station round 2")
-    converge_2 = "20261101-230000/0001-x_converge-2.log"
+    converge_2 = "0001-x/logs/20261101-230000-converge-2.log"
     _worker_log(
         tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
     )
-    _worker_log(tmp_path, "20261101-230000/0001-x_rescue.log", 0.25, 5)
-    _worker_log(tmp_path, "20261101-230000/0001-x_integrate.log", 0.25, 5)
-    _worker_log(tmp_path, "20261102-090000/0001-x_converge.log", 0.1, 1)
-    _worker_log(tmp_path, "20261102-090000/0001-x_converge-2.log", 0.2, 2)
-    _worker_log(tmp_path, "20261102-090000/0001-x_release.log", 9.0, 900)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-rescue.log", 0.25, 5)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-integrate.log", 0.25, 5)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-converge.log", 0.1, 1)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-converge-2.log", 0.2, 2)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-release.log", 9.0, 900)
     reviewed = _finding("R1", "confirmed", "repeat of `0000·R9`")
     reviewed += _finding("R2", "plausible", "repeat of 0001·R1")
     reviewed += _finding("R3", "`confirmed`", "repeat of 0000·R4")
@@ -615,11 +644,11 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     _write(
         tmp_path,
         {
-            ".minions/findings/0001-x_review.md": _role_file(reviewed, refuted),
-            ".minions/findings/0001-x_security.md": _role_file(
+            ".minions/changes/0001-x/review.md": _role_file(reviewed, refuted),
+            ".minions/changes/0001-x/security.md": _role_file(
                 _finding("S1", "plausible", "none")
             ),
-            ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
+            ".minions/changes/0002-y/review.md": _role_file(reviewed, ""),
             "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
             "debt: [0000·R4, 0000·S2]\n---\n",
             "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
@@ -661,13 +690,13 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("debt-paid", "0002-y") == 0
     assert read("debt-paid", "0004-w") == 1
     assert read("debt-added", "0002-y") == 0
-    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
-    assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
+    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y/review.md"
+    assert read("security-confirmed", "0003-z") == "gap: no 0003-z/security.md"
     assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
     assert read("cost-usd-build", "0003-z") == (
-        "gap: no result event in 20261102-090000/0003-z_build.log"
+        "gap: no result event in 0003-z/logs/20261102-090000-build.log"
     )
-    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z_review.md")
+    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z/review.md")
     # A security worker's turns are read, and no card to divide them by is a gap.
     run = _load("run")
     assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("security") == 30
@@ -678,12 +707,12 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     )
 
     # A spawn whose log is gone is a gap, never a smaller sum.
-    (tmp_path / ".minions/runs/20261102-090000/0001-x_converge-2.log").unlink()
+    (tmp_path / ".minions/changes/0001-x/logs/20261102-090000-converge-2.log").unlink()
     assert read("cost-usd") == (
-        "gap: no result event in 20261102-090000/0001-x_converge-2.log"
+        "gap: no result event in 0001-x/logs/20261102-090000-converge-2.log"
     )
     assert read("review-tokens-per-confirmed") == (
-        "gap: no 20261102-090000/0001-x_converge-2.log"
+        "gap: no 0001-x/logs/20261102-090000-converge-2.log"
     )
     (tmp_path / ".minions/debt.md").unlink()
     assert read("debt-added") == "gap: no .minions/debt.md"

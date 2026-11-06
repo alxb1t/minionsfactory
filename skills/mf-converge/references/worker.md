@@ -23,7 +23,7 @@ actually resolved; halt when the inputs cannot support a verdict.
 
 ### The findings file contract
 
-Each station writes **exactly one** file, `.minions/findings/<change-id>_<role>.md`, and nothing else. Something
+Each station writes **exactly one** file, `.minions/changes/<change-id>/<role>.md`, and nothing else. Something
 parses it, and it opens with this frontmatter, every key below:
 
 ```yaml

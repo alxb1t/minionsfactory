@@ -258,8 +258,8 @@ def test_status_reads_each_stage_from_disk(
     _commit(tree, {}, "build")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage().endswith(" · converge")
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
-    log.parent.mkdir(parents=True)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
     assert stage().endswith(" · converge-halted")
     log.write_text("# t\n\n## Run 2 — d\n10:00:00 · round 1 · done — ok\n")
@@ -272,8 +272,8 @@ def test_status_reads_each_stage_from_disk(
 
     _commit(tree, {"moved.txt": "y\n"}, "the version moves too")
     _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
-    marks = root / ".minions" / "integrate"
-    marks.mkdir(parents=True)
+    marks = root / ".minions" / "changes" / "0001-todo"
+    marks.mkdir(parents=True, exist_ok=True)
     stage_of, find = conduct["stage_of"], conduct["find_version"]
     version = find(root, "0001-todo")
     assert stage() == "0001-todo · integrate"
@@ -289,29 +289,29 @@ def test_status_reads_each_stage_from_disk(
         stage_of(root, version)
     assert not ran.exists()
     _git(root, "config", "--unset", "filter.probe.clean")
-    (marks / "0001-todo.md").write_text("note\n")
+    (marks / "integrate.md").write_text("note\n")
     assert stage_of(root, version)[1].startswith("semantic conflict")
     # A red gate an earlier committed merge left hides no open merge's note.
     older = _git(tree, "rev-parse", "HEAD~1")
-    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    (marks / "integrate.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
     assert stage() == "0001-todo · integrating"
     assert stage_of(root, version)[1].startswith("semantic conflict")
-    (marks / "0001-todo.red").write_text("gate red\n")
+    (marks / "integrate.red").write_text("gate red\n")
     assert stage() == "0001-todo · integrating"
     assert stage_of(root, version)[1].startswith("red gate")
     _git(tree, "checkout", "--theirs", "moved.txt")
     _git(tree, "add", "moved.txt")
     assert stage() == "0001-todo · integrating"
-    (marks / "0001-todo.red").unlink()
+    (marks / "integrate.red").unlink()
     assert stage_of(root, version)[1].startswith("semantic conflict")
-    (marks / "0001-todo.md").unlink()
+    (marks / "integrate.md").unlink()
     assert stage() == "0001-todo · integrate"
     _git(tree, "merge", "--abort")
 
     # A red gate over the committed merge names the head it judged.
     message = "chore(integrate): merge main into 0001-todo"
     _git(tree, "merge", "-q", "--no-ff", "-s", "ours", "-m", message, "main")
-    red = marks / "0001-todo.red"
+    red = marks / "integrate.red"
     head = _git(tree, "rev-parse", "HEAD")
     for named in (head, head[:7]):
         red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
@@ -347,7 +347,9 @@ def test_each_check_passes_only_on_disk_evidence(
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     assert check("build") == (1, "check: build · fail — phase 1 unticked")
     _commit(tree, {}, "build")
-    open_build = "check: build · fail — no .minions/build/0001-todo.done names HEAD"
+    open_build = (
+        "check: build · fail — no .minions/changes/0001-todo/build.done names HEAD"
+    )
     assert check("build") == (1, open_build)
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
     assert check("build") == (1, open_build)
@@ -374,8 +376,8 @@ def test_each_check_passes_only_on_disk_evidence(
 
     no_done = (1, "check: converge · fail — the status log has no done")
     assert check("converge") == no_done
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
-    log.parent.mkdir(parents=True)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
     assert check("converge") == (1, "check: converge · fail — no review findings file")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
@@ -398,27 +400,26 @@ def test_each_check_passes_only_on_disk_evidence(
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     assert check("integrate")[1].startswith("check: integrate · fail — HEAD is not")
     _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
-    marks = root / ".minions" / "integrate"
-    marks.mkdir()
-    (marks / "0001-todo.md").write_text("note\n")
+    marks = root / ".minions" / "changes" / "0001-todo"
+    (marks / "integrate.md").write_text("note\n")
     assert check("integrate") == (
         1,
         "check: integrate · fail — integrate halted — semantic conflict,"
-        " see .minions/integrate/0001-todo.md",
+        " see .minions/changes/0001-todo/integrate.md",
     )
     older = _git(tree, "rev-parse", "HEAD")
-    (marks / "0001-todo.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
+    (marks / "integrate.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
     assert check("integrate")[1].endswith(
-        "semantic conflict, see .minions/integrate/0001-todo.md"
+        "semantic conflict, see .minions/changes/0001-todo/integrate.md"
     )
-    (marks / "0001-todo.md").unlink()
+    (marks / "integrate.md").unlink()
     assert check("integrate") == (1, "check: integrate · fail — a merge is still open")
-    (marks / "0001-todo.md").write_text("note\n")
-    (marks / "0001-todo.red").write_text("gate red\n")
+    (marks / "integrate.md").write_text("note\n")
+    (marks / "integrate.red").write_text("gate red\n")
     assert check("integrate") == (
         1,
         "check: integrate · fail — integrate halted — red gate,"
-        " see .minions/integrate/0001-todo.red",
+        " see .minions/changes/0001-todo/integrate.red",
     )
     _git(tree, "merge", "--abort")
     _git(
@@ -440,12 +441,12 @@ def test_each_check_passes_only_on_disk_evidence(
         "chore(integrate): merge main into 0001-todo",
     )
     assert check("integrate") == (0, "check: integrate · pass")
-    red = marks / "0001-todo.red"
+    red = marks / "integrate.red"
     red.write_text(f"gate red\n2026-11-05\nhead: {_git(tree, 'rev-parse', 'HEAD')}\n")
     assert check("integrate") == (
         1,
         "check: integrate · fail — integrate halted — red gate,"
-        " see .minions/integrate/0001-todo.red",
+        " see .minions/changes/0001-todo/integrate.red",
     )
     # The person's fix after the merge: the gate judged an ancestor, and the
     # check passes only once a green gate deletes `.red`.
@@ -453,7 +454,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("integrate") == (
         1,
         "check: integrate · fail — integrate halted — red gate,"
-        " see .minions/integrate/0001-todo.red",
+        " see .minions/changes/0001-todo/integrate.red",
     )
     red.unlink()
     assert check("integrate") == (0, "check: integrate · pass")
@@ -633,9 +634,9 @@ def test_a_ready_version_ships_past_a_slow_one(
         root, "log", "--format=%s", "main"
     )
     # The catch-up over the integrate merge replays by rule, with no worker.
-    findings = root / ".minions" / "findings"
-    assert "\n## By rule\n" in (findings / "0001-todo_review.md").read_text()
-    assert " · by rule — clean, " in (findings / "0001-todo_status_log.md").read_text()
+    findings = root / ".minions" / "changes" / "0001-todo"
+    assert "\n## By rule\n" in (findings / "review.md").read_text()
+    assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
@@ -844,12 +845,12 @@ def test_a_dependents_delta_halts_as_integrating(
     assert "build 0002-marks" not in _calls(calls)
     halted = (
         " · 0002-marks · halt — integrating — semantic conflict:"
-        " .minions/integrate/0002-marks.md\n"
+        " .minions/changes/0002-marks/integrate.md\n"
     )
     assert halted in log
     assert " · run · halt — halted 0002-marks · blocked none · released v0.1.0" in log
     assert _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
-    note = second / ".minions" / "integrate" / "0002-marks.md"
+    note = second / ".minions" / "changes" / "0002-marks" / "integrate.md"
     held = note.read_text()
     assert held.startswith("## sdd: First\n")
     assert "`openspec/changes/0002-marks/design.md`" in held
@@ -861,6 +862,22 @@ def test_a_dependents_delta_halts_as_integrating(
     assert "build 0002-marks" not in _calls(calls)
     assert "release 0003-more" in _calls(calls)
     assert note.read_text() == held
+
+    # A link at the change's folder halts the version, not the run; nothing written.
+    marks, aside = note.parent, tmp_path / "aside"
+    marks.rename(aside)
+    (aside / "integrate.md").unlink()
+    marks.symlink_to(aside)
+    log = again(1)
+    assert (
+        " · 0002-marks · halt — conduct: halt — cannot write"
+        " .minions/changes/0002-marks/integrate.md — "
+    ) in log
+    assert " · run · halt — halted 0002-marks · blocked none · " in log
+    assert not (aside / "integrate.md").exists()
+    marks.unlink()
+    aside.rename(marks)
+    note.write_text(held)
 
     _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-marks")
     note.unlink()
@@ -1104,15 +1121,15 @@ def test_an_open_merge_with_its_note_halts_as_integrating(
     # Twin: with its note beside it, the open merge is the `integrating` halt.
     noted, noted_tree = _behind(tmp_path, "Makefile", started=True)
     _git(noted_tree, "merge", "-q", "--no-ff", "--no-commit", "main")
-    marks = noted / ".minions" / "integrate"
-    marks.mkdir(parents=True)
-    (marks / "0001-todo.md").write_text("## sdd: First\n")
+    marks = noted / ".minions" / "changes" / "0001-todo"
+    marks.mkdir(parents=True, exist_ok=True)
+    (marks / "integrate.md").write_text("## sdd: First\n")
     assert _run_claude(conduct, noted, monkeypatch) == 1
     assert _calls(calls) == []
     assert any(
         line.endswith(
             " · 0001-todo · halt — integrating — semantic conflict:"
-            " .minions/integrate/0001-todo.md"
+            " .minions/changes/0001-todo/integrate.md"
         )
         for line in _log(noted)
     )
@@ -1370,8 +1387,8 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     # A halt file naming another head is stale, and an unreadable one is none: the
     # halt line leaves them out.
-    stale = root / ".minions" / "build" / "0001-todo.halt"
-    stale.parent.mkdir(parents=True)
+    stale = root / ".minions" / "changes" / "0001-todo" / "build.halt"
+    stale.parent.mkdir(parents=True, exist_ok=True)
     stale.write_bytes(b"\xff")
     halt = conduct["_build_halt"]
     assert halt(root / ".minions", tree, "0001-todo") is None
@@ -1443,9 +1460,9 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     crashed = _primary(third)
     _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
     _version(crashed, "0002-marks", "- [ ] 1 — Marks\n")
-    models = crashed / ".minions" / "models"
+    models = crashed / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True)
-    (models / "0001-todo.toml").write_bytes(b"\xff")
+    (models / "models.toml").write_bytes(b"\xff")
     calls.unlink()
     fake()
     assert (
@@ -1524,7 +1541,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
     lines = _log(root)
-    diagnosis = ".minions/rescue/0001-todo.md"
+    diagnosis = ".minions/changes/0001-todo/rescue.md"
     assert any(
         line.endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
         for line in lines
@@ -1645,7 +1662,7 @@ def test_rescue_skip_runs_none(
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     minions = root / ".minions"
-    table = minions / "models" / "0001-todo.toml"
+    table = minions / "changes" / "0001-todo" / "models.toml"
     table.parent.mkdir(parents=True)
     table.write_text("[rescue]\nskip = true\n")
 
@@ -1661,6 +1678,12 @@ def test_rescue_skip_runs_none(
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", "m", None)
     table.write_text('[build]\nmodel = "m"\n[rescue]\n')
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", None, None)
+    # A table TOML cannot read halts, naming the file in the change's folder.
+    table.write_text("[build\n")
+    with pytest.raises(
+        conduct["Stop"], match=r"halt — changes/0001-todo/models\.toml: "
+    ):
+        models(minions, "0001-todo", "rescue", "claude")
 
 
 def test_a_linked_rejoin_folder_deletes_nothing(
@@ -1862,7 +1885,7 @@ def test_a_new_executor_is_probed_mid_run(
             # Why: 0063-rejoin design D2.
             (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
-                table = root / ".minions" / "models" / f"{change}.toml"
+                table = root / ".minions" / "changes" / change / "models.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
                 table.write_text('[converge]\nexecutor = "codex"\n')
                 _version(root, change, "- [ ] 1 — Marks\n")
@@ -1951,11 +1974,11 @@ def test_a_station_runs_on_its_executor(
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     minions = root / ".minions"
-    (minions / "models").mkdir(parents=True)
+    (minions / "changes" / "0001-todo").mkdir(parents=True)
     table = (
         '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\neffort = "high"\n'
     )
-    (minions / "models" / "0001-todo.toml").write_text(table)
+    (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
     started: list[tuple[str, str]] = []
     argv = conduct["argv"]
 
@@ -2003,8 +2026,8 @@ def test_a_station_runs_on_its_executor(
     other.mkdir()
     second = _primary(other)
     _version(second, "0001-todo", "- [ ] 1 — Todo\n")
-    (second / ".minions" / "models").mkdir(parents=True)
-    (second / ".minions" / "models" / "0001-todo.toml").write_text(table)
+    (second / ".minions" / "changes" / "0001-todo").mkdir(parents=True)
+    (second / ".minions" / "changes" / "0001-todo" / "models.toml").write_text(table)
     conduct["main"].__globals__["_executor_missing"] = lambda name: name == "codex"
     calls.unlink()
     assert (
@@ -2026,7 +2049,7 @@ def test_a_models_mismatch_halts_its_version(
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-    table = root / ".minions" / "models" / "0001-todo.toml"
+    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
     table.parent.mkdir(parents=True)
     table.write_text('[converge]\nexecutor = "gemini"\n')
 
@@ -2040,7 +2063,7 @@ def test_a_models_mismatch_halts_its_version(
     assert _calls(calls).count("probe") == 1
     assert any(
         line.endswith(
-            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml:"
+            " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
             " executor 'gemini' unknown"
         )
         for line in _log(root)
@@ -2058,7 +2081,7 @@ def test_a_models_mismatch_halts_its_version(
     assert _calls(calls).count("probe") == 1
     assert any(
         line.endswith(
-            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml:"
+            " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
             " converge on codex, model claude-opus-5-5"
         )
         for line in _log(root)
@@ -2157,8 +2180,8 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
         for line in _log(root)
     )
     head = _git(tree, "rev-parse", "HEAD")
-    findings = root / ".minions" / "findings"
-    assert f"head: {head}\n" in (findings / "0001-todo_review.md").read_text()
+    findings = root / ".minions" / "changes" / "0001-todo"
+    assert f"head: {head}\n" in (findings / "review.md").read_text()
     capsys.readouterr()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out.strip() == "0001-todo · converge"
@@ -2189,7 +2212,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     stage_of, find = conduct["stage_of"], conduct["find_version"]
-    marker = root / ".minions" / "build" / "0001-todo.done"
+    marker = root / ".minions" / "changes" / "0001-todo" / "build.done"
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -2219,8 +2242,8 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     os.mkfifo(marker)
     assert stage_of(root, find(root, "0001-todo")) == closing
     marker.unlink()
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
-    log.parent.mkdir(parents=True)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
     assert stage_of(root, find(root, "0001-todo")) == (
         "converge",
@@ -2252,7 +2275,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     stage_of, find = conduct["stage_of"], conduct["find_version"]
 
     def halted(why: str) -> tuple[str, str]:
@@ -2415,6 +2438,185 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert text.count(both) == 2 and text.count(moved) == 3
 
 
+def _old_layout(root: Path) -> tuple[Path, Path]:
+    """Return a built version and one halted in its build, their files at old paths.
+
+    The first is clean at its head; the second holds a build halt, a models file
+    and a gate-check export. Strays the move leaves stand beside them.
+    """
+    built = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    halted = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    head = _git(built, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _findings(root, "0001-todo", head)
+    minions = root / ".minions"
+    marks = minions / "changes" / "0002-marks"
+    (marks / "gate-check" / "base").mkdir(parents=True)
+    halt = f"sub-task: 1.1\nstop: 3\nhead: {_git(halted, 'rev-parse', 'HEAD')}\n"
+    (marks / "build.halt").write_text(halt)
+    (marks / "models.toml").write_text('[build]\nmodel = "m"\n')
+    return built, halted
+
+
+_OLD = {
+    "0001-todo": {
+        "review.md": "findings/0001-todo_review.md",
+        "security.md": "findings/0001-todo_security.md",
+        "status_log.md": "findings/0001-todo_status_log.md",
+        "build.done": "build/0001-todo.done",
+    },
+    "0002-marks": {
+        "build.halt": "build/0002-marks.halt",
+        "models.toml": "models/0002-marks.toml",
+        "gate-check": "gate-check/0002-marks",
+    },
+}
+_STRAYS = (
+    "findings/0034-fix-red.txt",
+    "findings/0030_review.md",
+    "findings/0001-todo_review.run1.md",
+    "release/fold.py",
+    "runs/20261101-230000/run_probe.log",
+    "runs/20261101-230000/0001-todo_Notes.log",
+)
+
+
+def _to_old(root: Path) -> None:
+    """Move each `_OLD` file to its old path, add a worker log, and write `_STRAYS`."""
+    minions = root / ".minions"
+    for change, names in _OLD.items():
+        for new, old in names.items():
+            (minions / old).parent.mkdir(parents=True, exist_ok=True)
+            (minions / "changes" / change / new).rename(minions / old)
+    log = minions / "runs" / "20261101-230000" / "0001-todo_converge-2.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("converge\n")
+    for stray in _STRAYS:
+        (minions / stray).parent.mkdir(parents=True, exist_ok=True)
+        (minions / stray).write_text("x\n")
+
+
+def test_a_run_moves_an_old_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    built, halted = _old_layout(root)
+    minions = root / ".minions"
+    find, stage_of = conduct["find_version"], conduct["stage_of"]
+
+    def stages() -> list[Any]:
+        read = [stage_of(root, find(root, c)) for c in ("0001-todo", "0002-marks")]
+        return [*read, conduct["_build_halt"](minions, halted, "0002-marks")]
+
+    expected = stages()
+    assert expected[0][0] == "release" and expected[2] == ("1.1", "3")
+    _to_old(root)
+    assert stages() != expected
+
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.migrate_layout() is None
+    text = conductor.log.path.read_text()
+    assert " · run · move — 0001-todo: 5 files\n" in text
+    assert " · run · move — 0002-marks: 3 files\n" in text
+    assert stages() == expected
+    logs = minions / "changes" / "0001-todo" / "logs"
+    assert (logs / "20261101-230000-converge-2.log").read_text() == "converge\n"
+    assert (minions / "changes" / "0002-marks" / "gate-check" / "base").is_dir()
+    assert all((minions / stray).is_file() for stray in _STRAYS)
+    # Twin: a second start moves nothing.
+    again = conduct["Run"](root, "claude")
+    assert again.migrate_layout() is None
+    assert " · move — " not in again.log.path.read_text()
+
+    # An old file beside its new one halts the run before any worker.
+    old = minions / "findings" / "0001-todo_review.md"
+    old.write_text("old\n")
+    run = ("run", "--executor", "claude")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    assert _calls(calls) == []
+    both = (
+        " · run · halt — .minions/findings/0001-todo_review.md and"
+        " .minions/changes/0001-todo/review.md both stand"
+    )
+    logs = (minions / "runs").glob("*.md")
+    assert both in "".join(log.read_text() for log in logs)
+    assert old.read_text() == "old\n"
+    old.unlink()
+
+    # A link at an old file, or at a change's folder, halts with nothing moved.
+    target = tmp_path / "elsewhere.toml"
+    target.write_text("[build]\n")
+    linked = minions / "models" / "0001-todo.toml"
+    linked.symlink_to(target)
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/models/0001-todo.toml is a link: a person settles what it names"
+    )
+    linked.unlink()
+    folder, aside = minions / "changes" / "0002-marks", tmp_path / "aside"
+    folder.rename(aside)
+    folder.symlink_to(aside)
+    (minions / "rescue").mkdir()
+    (minions / "rescue" / "0002-marks.md").write_text("diagnosis\n")
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/changes/0002-marks is a link: a person settles what it names"
+    )
+    assert not (aside / "rescue.md").exists()
+    assert (minions / "rescue" / "0002-marks.md").is_file()
+    folder.unlink()
+    aside.rename(folder)
+
+    # A link at an old folder halts too, and nothing moves from where it points.
+    outside, kept = tmp_path / "outside", tmp_path / "kept"
+    (outside / "0009-x").mkdir(parents=True)
+    held = ["0009-x", "0009-x_converge.log", "0009-x_review.md"]
+    for name in held[1:]:
+        (outside / name).write_text("theirs\n")
+    for old in ("findings", "gate-check", "runs/20261101-230000"):
+        (minions / old).rename(kept)
+        (minions / old).symlink_to(outside)
+        assert conduct["Run"](root, "claude").migrate_layout() == (
+            f".minions/{old} is a link: a person settles what it names"
+        )
+        assert sorted(path.name for path in outside.iterdir()) == held
+        (minions / old).unlink()
+        kept.rename(minions / old)
+
+
+def test_status_names_an_old_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _old_layout(root)
+    status, report = conduct["status"], conduct["report"]
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    (runs / "20261101-230000.md").write_text(
+        "# Ship run 20261101-230000\n\n"
+        "10:00:00 · 0001-todo · spawn — build · model m\n"
+        "10:00:01 · run · done — released none\n"
+    )
+    assert status(root).splitlines() == ["0001-todo · release", "0002-marks · build"]
+    assert report(root).splitlines()[0].startswith("0001-todo · no tag · ")
+
+    _to_old(root)
+    old = "0001-todo · old layout — a run moves it"
+    assert status(root).splitlines() == [
+        old,
+        "0002-marks · old layout — a run moves it",
+    ]
+    assert report(root).splitlines()[0] == old
+    with pytest.raises(
+        conduct["Stop"],
+        match="grant: cannot run — .minions/build/0001-todo.done is the old layout:"
+        " /mf-ship moves it",
+    ):
+        conduct["grant"](root, "0001-todo", "claude")
+
+
 @pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
@@ -2460,11 +2662,11 @@ def test_a_rerun_recovers_a_dead_release(
         "v0.2.0 is tagged; the merge is left"
     )
     # A person's no outlasts the death: the stage reads `released`, and nothing merges.
-    held = root / ".minions" / "release" / "0002-marks.held"
-    held.parent.mkdir()
+    held = root / ".minions" / "changes" / "0002-marks" / "release.held"
+    held.parent.mkdir(parents=True, exist_ok=True)
     held.write_text("no: the preamble needs reading\n")
     said = (
-        "v0.2.0: .minions/release/0002-marks.held holds a person's no:"
+        "v0.2.0: .minions/changes/0002-marks/release.held holds a person's no:"
         " /mf-release 0002-marks merges it on their yes"
     )
     assert stage_of(root, find(root, "0002-marks")) == ("released", said)
@@ -4086,8 +4288,8 @@ def test_the_plan_is_read_once(
     assert _calls(calls) == ["probe", "build 0001-todo", "converge 0001-todo"]
     assert any(
         line.endswith(
-            " · 0001-todo · halt — conduct: halt — models/0001-todo.toml changed"
-            " during the run"
+            " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml"
+            " changed during the run"
         )
         for line in _log(root)
     )
@@ -4098,9 +4300,9 @@ def test_the_plan_is_read_once(
     conductor.take = lambda *args: None
     conductor.read_plan([conduct["find_version"](root, "0001-todo")])
     read = dict(conductor.plan)
-    table = root / ".minions" / "models" / "0001-todo.toml"
+    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
     table.write_text('[converge]\nexecutor = "codex"\n')
-    changed = "conduct: halt — models/0001-todo.toml changed during the run"
+    changed = "conduct: halt — changes/0001-todo/models.toml changed during the run"
     conductor.halt("0001-todo", changed)
     request = root / ".minions" / "runs" / "rejoin" / "0001-todo"
     request.parent.mkdir(parents=True, exist_ok=True)
@@ -4108,8 +4310,8 @@ def test_the_plan_is_read_once(
     assert not conductor.take_requests({})
     last = conductor.log.path.read_text().splitlines()[-1]
     assert last.endswith(
-        " · run · rejoin — 0001-todo: still halted — models/0001-todo.toml changed"
-        " during the run"
+        " · run · rejoin — 0001-todo: still halted — changes/0001-todo/models.toml"
+        " changed during the run"
     )
     assert conductor.plan == read and conductor.stopped("0001-todo")
 
@@ -4462,14 +4664,14 @@ def test_a_small_cap_is_granted_automatically(
     assert blockers(minions, "0001-todo") is None
     _cards(root, "0001-todo", head, "a test")
     assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
-    security = minions / "findings" / "0001-todo_security.md"
+    security = minions / "changes" / "0001-todo" / "security.md"
     cards = security.read_text()
     unsized = cards.replace("high ·", "critical ·").replace(" · size: a test.", "")
     security.write_text(unsized)
     assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
     security.write_text(cards)
     # A Priority or a size wrapped in backticks, as stations write them, reads the same.
-    review = minions / "findings" / "0001-todo_review.md"
+    review = minions / "changes" / "0001-todo" / "review.md"
     plain = review.read_text()
     quoted = plain.replace(
         "blocking · review · stability", "`blocking · review · stability`"
@@ -4526,9 +4728,10 @@ def test_a_small_cap_is_granted_automatically(
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
     # Each converge spawn in the run keeps its own log.
-    stamp = sorted((minions / "runs").glob("*.md"))[-1].with_suffix("")
-    logs = sorted(path.name for path in stamp.glob("0002-marks_converge*.log"))
-    assert logs == ["0002-marks_converge-2.log", "0002-marks_converge.log"]
+    stamp = sorted((minions / "runs").glob("*.md"))[-1].stem
+    folder = minions / "changes" / "0002-marks" / "logs"
+    logs = sorted(path.name for path in folder.glob(f"{stamp}-converge*.log"))
+    assert logs == [f"{stamp}-converge-2.log", f"{stamp}-converge.log"]
 
     # The granted round is checked as a person's is: one with no `done` halts there.
     calls.unlink()
@@ -4621,8 +4824,8 @@ def test_auto_grant_false_grants_none(
     _done(root, "0001-todo", head)
     _cards(root, "0001-todo", head, "a test")
     minions = root / ".minions"
-    table = minions / "models" / "0001-todo.toml"
-    table.parent.mkdir(parents=True)
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True, exist_ok=True)
     table.write_text("[converge]\nauto_grant = false\n")
 
     # A cap of small cards standing at the start halts as a re-plan: no worker starts.
@@ -4668,7 +4871,7 @@ def test_a_grant_buys_one_round(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     version = conduct["find_version"](root, "0001-todo")
     grants = root / ".minions" / "grants" / "0001-todo"
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     runner = conduct["main"].__globals__["run"]
     started: list[tuple[Path, str, bool]] = []
 
@@ -4688,7 +4891,7 @@ def test_a_grant_buys_one_round(
         "grant: cannot run — 0001-todo is at {}: run /mf-ship; grant once converge caps"
     )
     assert grant() == (2, refused.format("converge"))
-    log.parent.mkdir(parents=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 2 · halt — a scope failure\n")
     assert grant() == (2, refused.format("converge-halted"))
     assert started == [] and not grants.exists()
@@ -4725,7 +4928,7 @@ def test_a_grant_buys_one_round(
     )
     # The cap reached in the run gets its rescue in that run.
     assert _calls(calls)[-1] == "rescue 0001-todo"
-    diagnosis = ".minions/rescue/0001-todo.md"
+    diagnosis = ".minions/changes/0001-todo/rescue.md"
     assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
     assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
     # The granted round's cap is the run's second, and no card is read: a re-plan.
@@ -4821,7 +5024,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     judged = _git(tree, "rev-parse", "HEAD")
     _findings(root, "0001-todo", judged, "blocking")
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
     grants = root / ".minions" / "grants" / "0001-todo"
@@ -4890,7 +5093,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     amend = "docs(0001-todo): amend the change directory"
     _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended_head = _git(cut, "rev-parse", "HEAD")
-    log = base / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = base / ".minions" / "changes" / "0001-todo" / "status_log.md"
     version = conduct["find_version"](base, "0001-todo")
     halts = {
         "2 — d · catch-up": "halt — red",
@@ -4920,7 +5123,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
         assert stage_of(base, version) == ("converge-halted", halt)
         _git(cut, "reset", "-q", "--hard", amended_head)
     # A catch-up halt over a findings file no longer clean is converge's own.
-    review = base / ".minions" / "findings" / "0001-todo_review.md"
+    review = base / ".minions" / "changes" / "0001-todo" / "review.md"
     clean = review.read_text()
     review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"
@@ -4956,7 +5159,7 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     )
 
     assert _calls(calls) == ["probe", "converge 0001-todo"]
-    name = ".minions/rescue/0001-todo.md"
+    name = ".minions/changes/0001-todo/rescue.md"
     halt = f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}"
     assert (root / name).read_text() == (
         f"# 0001-todo — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
@@ -4986,17 +5189,17 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
     assert conductor.rescues == {}
     (root / name).unlink()
-    # A link at the rescue folder holds no diagnosis either.
-    folder, elsewhere = root / ".minions" / "rescue", tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    folder.rmdir()
+    # A link at the change's folder holds no diagnosis either.
+    folder = root / ".minions" / "changes" / "0001-todo"
+    elsewhere = tmp_path / "elsewhere"
+    folder.rename(elsewhere)
     folder.symlink_to(elsewhere)
     conductor = conduct["Run"](root, "claude")
     assert not conductor.rescue(version, "converge-halted", ())
-    assert list(elsewhere.iterdir()) == []
+    assert not (elsewhere / "rescue.md").exists()
     assert conductor.halts[-1][1].startswith(f"rescue: cannot write {name} — ")
     folder.unlink()
-    folder.mkdir()
+    elsewhere.rename(folder)
     conductor.skips.add("0001-todo")
     assert not conductor.rescue(version, "converge-halted", ())
     assert not (root / name).exists()
@@ -5739,9 +5942,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     target.write_text("kept\n")
     made = conduct["_free_log"]
 
-    def swapped(folder: Path, who: str, station: str) -> object:
-        found = made(folder, who, station)
-        log = folder / f"{who}_{station}.log"
+    def swapped(root: Path, parts: tuple[str, ...], name: str) -> object:
+        found = made(root, parts, name)
+        log = root.joinpath(*parts) / f"{name}.log"
         log.unlink()
         log.symlink_to(target)
         return found
@@ -5756,9 +5959,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert conduct["PROMPTS"]["converge"].format(change="0001-todo", grant="") == (
         "Run the mf-converge skill for change 0001-todo."
     )
-    models = root / ".minions" / "models"
+    models = root / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True, exist_ok=True)
-    (models / "0001-todo.toml").write_text('[converge]\ntier = "high"\n')
+    (models / "models.toml").write_text('[converge]\ntier = "high"\n')
 
     work = conduct["work"]
     claim = tmp_path / "claim"

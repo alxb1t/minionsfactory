@@ -57,16 +57,22 @@ Never ask for a gate, and never substitute a command that looks like it tests th
 
 ## The status log
 
-**The status log** is `.minions/findings/<change-id>_status_log.md`: where the loop is, for a person, newest on
+**The status log** is `.minions/changes/<change-id>/status_log.md`: where the loop is, for a person, newest on
 top. Only you write it — each dispatch, return and decision. It is not a findings file:
 `mf-release` never reads it, and the rule against editing a findings file does not cover it.
 
 - **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from `date '+%H:%M:%S'`,
   run through Bash, never by hand: a stale time is how a dead run shows.
 - **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
-  catch-up run's heading ends `· catch-up`: `mkdir -p .minions/findings`, create the file with a
+  catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
   `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
   under the title.
+- **An old layout halts before the run opens.** A file of this change at one of its old paths, by exact name —
+  `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
+  `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
+  `.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
+  `.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/` → **halt**, naming it and `/mf-ship`,
+  whose run moves it; write no status log. Any other file is no old layout: a stray the move leaves never halts.
 - **Insert only.** Each event goes directly under the latest `## Run` heading; a written line stays as it is.
 - **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop, ending
   ` · head <sha>`, the commit `git rev-parse HEAD` prints at the halt. A top line that is neither means the run is
@@ -251,7 +257,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
    commit by eye.
 2. **Halt if `base` equals `HEAD`.** Over an empty range every station returns clean, and the loop converges on a
    change it never read.
-3. **Write the patch** — `mkdir -p .minions/findings`, then `.minions/findings/<change-id>_diff.patch`, holding
+3. **Write the patch** — `mkdir -p .minions/changes/<change-id>`, then `.minions/changes/<change-id>/diff.patch`, holding
    `<base>..HEAD`. It sits under the gitignored `.minions/` and is never committed.
 4. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.
@@ -266,10 +272,10 @@ Dispatch both roles as fresh workers, per *The workers*, read-only apart from th
 files. Give each:
 
 - the range `<base>..HEAD` and its two commit ids;
-- the patch path `.minions/findings/<change-id>_diff.patch`, and the selected commits, parents, diff kinds and
+- the patch path `.minions/changes/<change-id>/diff.patch`, and the selected commits, parents, diff kinds and
   counts for a merge-aware [catch-up scope](references/worker.md#catch-up-scope);
 - the body of the range's `refactor(<change-id>): simplify` commit, when it has one: its notes are for review;
-- its findings path `.minions/findings/<change-id>_<role>.md`;
+- its findings path `.minions/changes/<change-id>/<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
   it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
   `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
@@ -341,7 +347,7 @@ dispatch and again at its commit. The fixer:
 unchanged head and the previous freeze's patch, and Step 5 compares against that freeze's numbers.
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
-head the fix produced — overwriting `.minions/findings/<change-id>_diff.patch`: the verify pass judges **the
+head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
 fix**, not the branch again. Print the range · commit count · files changed; `base` stays Step 2's merge-base.
 These numbers supersede the previous round's for Step 5. Write `freeze` to the status log. There are no per-round
 patch files: each findings file's `head:` and its `## Resolution log` are the per-round record, and a second

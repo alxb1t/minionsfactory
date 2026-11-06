@@ -42,7 +42,8 @@ The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, r
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not
   pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `debt.md`, where
-  `mf-converge` keeps the deferred work: the only copy, one heading per change.
+  `mf-converge` keeps the deferred work: the only copy, one heading per change; and `changes/<change-id>/`, everything
+  about one change — its findings, status log, marks and worker logs — per D57.
 - **`metrics/`** — MF's metrics: `catalogue.toml` declares what is measured, and `changes/` holds the data file
   each release records, per D43.
 - **`scripts/metrics/`** — the metric scripts the catalogue names. `uv` runs them and the bundled collector,

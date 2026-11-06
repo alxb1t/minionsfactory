@@ -38,6 +38,15 @@ CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# Each old-layout path of a change in the run directory.
+# Why: 0080-minions-layout design D1, D4.
+OLD_LAYOUT = (
+    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
+    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
+    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
+    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
+    *("release/{}.held", "gate-check/{}"),
+)
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
 
@@ -163,6 +172,27 @@ def _run_dir(cwd: Path) -> Path:
     return Path(common.strip()).parent / ".minions"
 
 
+def _change_dir(cwd: Path, change: str) -> Path:
+    """Return the change's folder in the run directory, from any worktree.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return _run_dir(cwd) / "changes" / change
+
+
+def _old_layout(cwd: Path, change: str) -> str | None:
+    """Return the change's first file at its old path, or None.
+
+    e.g. "0001-todo" → ".minions/findings/0001-todo_review.md"
+    Why: 0080-minions-layout design D4.
+    """
+    run = _run_dir(cwd)
+    held = (name.format(change) for name in OLD_LAYOUT)
+    found = next((name for name in held if os.path.lexists(run / name)), None)
+    return f".minions/{found}" if found else None
+
+
 def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
@@ -182,9 +212,9 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     for dependency in _after(proposal):
         if not _shipped(cwd, change, dependency):
             return f"after {dependency}"
-    findings = _run_dir(cwd) / "findings"
-    files = [findings / f"{change}_{role}.md" for role in ("review", "security")]
-    patch = findings / f"{change}_diff.patch"
+    folder = _change_dir(cwd, change)
+    files = [folder / f"{role}.md" for role in ("review", "security")]
+    patch = folder / "diff.patch"
     present = [file for file in files if file.is_file()]
     if not present and not patch.is_file():
         return None
@@ -198,7 +228,7 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
     """Return whether the version's merge is open with its note beside it."""
-    note = _run_dir(cwd) / "integrate" / f"{change}.md"
+    note = _change_dir(cwd, change) / "integrate.md"
     return (
         tree is not None
         and note.is_file()
@@ -246,6 +276,10 @@ def next_version(cwd: Path, change: str | None = None) -> str:
     for name in sorted(picks, key=lambda name: int(name.split("-")[0])):
         tree = trees.get(name)
         line = f"next: {name} · {tree or 'no worktree'}"
+        if old := _old_layout(cwd, name):
+            raise Stop(
+                2, f"next: cannot run — {old} is the old layout: /mf-ship moves it"
+            )
         if change and _settling(cwd, name, tree):
             return f"{line} · ready"
         if (why := unready(cwd, name, tree)) is None:

@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
        D5…D10, D38                   D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57
 ```
 
 ## The shape
@@ -418,7 +418,7 @@ Review judges each new test's cost and traces each removed one's proofs.**
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
-writes it to `.minions/models/<change-id>.toml`, never into the change, for `mf-ship`; model selection and provider
+writes it to `.minions/changes/<change-id>/models.toml`, never into the change, for `mf-ship`; model selection and provider
 setup stay with the operator.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
@@ -523,7 +523,7 @@ hostile repo needs a container.**
 **On a build check halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
 `conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table; the run then clears the halt and builds
-on. Every other halt it diagnoses in `.minions/rescue/<id>.md`, and the version stays halted, the halt naming the file;
+on. Every other halt it diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file;
 a commit at a converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
 a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, and stands for the run, no rejoin
 taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
@@ -540,7 +540,7 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
   for a re-run.
-- **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/build/<id>.halt` · a prompt in
+- **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/changes/<id>/build.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision · counting only what a rescue did in the tree as its answer — a grant it writes would take the
   version back.
@@ -576,3 +576,19 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 - **Accepts:** a card sized small that is not, which costs one round: the size is the checker's word.
 - **Rejected:** the rescue judging the cap · a grant file the run writes · a new stage for the re-plan · an `AGENTS.md`
   line for the setting · tracking a function across caps.
+
+### D57 · One folder per change in `.minions/`
+
+**Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
+`diff.patch`, `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing,discarded.patch}`, `rescue.md`,
+`release.held`, `gate-check/` and `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own
+`_change_dir`. `grants/`, `runs/`, `gate/`, `replay/`, `metrics/` and `debt.md` stay generic, the run's probe logging to
+`runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker, and a file
+beside its new one or a link halts it; a hand-run station or script on an old layout halts, naming `/mf-ship`, and
+`review_metrics.py` reads both.**
+
+- **Why:** a person, or a viewer, reading one version opens one folder, not seven by kind and one per run.
+- **Accepts:** a repo no run has moved halts its hand-run stations until a run moves it · a file the move does not name
+  stays where it is.
+- **Rejected:** keeping `<id>_` prefixes · a shared helper module · reading both layouts in the stage machine · a
+  one-off migration of other repos · the probe's log in a change's folder.
