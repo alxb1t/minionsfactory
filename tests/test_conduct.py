@@ -5026,7 +5026,9 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     _findings(root, "0001-todo", judged, "blocking")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
-    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    # A halt after round 1's `start`: one before it is any commit's to answer.
+    start = "09:00:00 · round 1 · start — base a · head b"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
     grants = root / ".minions" / "grants" / "0001-todo"
     version = conduct["find_version"](root, "0001-todo")
     stage_of, check = conduct["stage_of"], conduct["check"]
@@ -5045,13 +5047,13 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     # and a person's commit past it answers none (0063-rejoin design D4).
     for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
         own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
-        log.write_text(f"# t\n\n## Run {run}\n{own}\n")
+        log.write_text(f"# t\n\n## Run {run}\n{own}\n{start}\n")
         assert stage_of(root, version) == ("converge-halted", own)
         assert check(root, "converge", version) == f"the status log halts: {own}"
         _commit(tree, {"later.txt": "later\n"}, "a person's commit past the halt")
         assert stage_of(root, version) == ("converge-halted", own)
         _git(tree, "reset", "-q", "--hard", fixed)
-    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
     amended = ("converge", "amended: HEAD past the halted head")
     assert stage_of(root, version) == amended
     assert check(root, "converge", version) == "the status log has no done"
@@ -5102,7 +5104,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     }
     for run, why in halts.items():
         halt = f"10:00:00 · round 1 · {why} · head {merged}"
-        log.write_text(f"# t\n\n## Run {run}\n{halt}\n")
+        log.write_text(f"# t\n\n## Run {run}\n{halt}\n{start}\n")
         assert stage_of(base, version) == amended
         for files, message in (
             ({"src.txt": "x\n"}, "a person's commit past the halt"),
@@ -5127,7 +5129,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     clean = review.read_text()
     review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"
-    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n")
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n{start}\n")
     assert stage_of(base, version) == ("converge-halted", halt)
     review.write_text(clean)
     assert stage_of(base, version) == amended
@@ -5211,6 +5213,89 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended = ("converge", "amended: HEAD past the halted head")
     assert conduct["stage_of"](root, version) == amended
+
+
+@pytest.mark.slow
+def test_a_halt_before_round_1_runs_again_at_the_same_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {head}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
+    version = conduct["find_version"](root, "0001-todo")
+    stage_of, check = conduct["stage_of"], conduct["check"]
+    rerun = ("converge", conduct["RERUN"])
+    assert stage_of(root, version) == rerun
+    assert check(root, "converge", version) == f"the status log halts: {halt}"
+    # Any commit past the head answers it, the findings files unread.
+    _commit(tree, {"fix.txt": "x\n"}, "a commit past the halt")
+    amended = ("converge", conduct["AMENDED"])
+    assert stage_of(root, version) == amended
+    caught = f"10:00:00 · round 1 · halt — red · head {head}"
+    since = f"09:59:00 · round 1 · catch-up — judged {head}"
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{caught}\n{since}\n")
+    assert stage_of(root, version) == amended
+    _git(tree, "reset", "-q", "--hard", head)
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
+
+    # Halted in the run, it runs again on a rejoin with no commit, and releases.
+    (tmp_path / "live").mkdir()
+    live = _primary(tmp_path / "live")
+    _version(live, "0001-todo", "- [x] 1 — Todo\n")
+    _done(live, "0001-todo", _git(live, "rev-parse", "0001-todo"))
+    _version(live, "0002-marks", "- [ ] 1 — Marks\n")
+    calls = fake("red-halts", "hold-0002-marks")
+
+    def again() -> None:
+        fake("hold-0002-marks")
+        conduct["rejoin"](live, "0001-todo")
+
+    join = _when_logged(live, (" · 0001-todo · halt — ",), again, hold)
+    assert (
+        _main(conduct, live, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+    made = _calls(calls)
+    # The halt and its re-run; the catch-up converge follows the integrate.
+    before = made[: made.index("integrate 0001-todo")]
+    assert before.count("converge 0001-todo") == 2
+    assert {"release 0001-todo", "release 0002-marks"} <= set(made)
+    assert not any(call.startswith("rescue") for call in made)
+    assert any(
+        line.endswith(" · run · rejoin — 0001-todo: converge") for line in _log(live)
+    )
+
+    # The halt on disk at `HEAD` re-runs once a run; a rejoin then keeps it halted.
+    hold.unlink()
+    calls.unlink()
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    calls = fake("red-halts", "hold-0002-marks")
+    join = _when_logged(
+        root,
+        (" · 0001-todo · halt — ",),
+        lambda: conduct["rejoin"](root, "0001-todo"),
+        hold,
+    )
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    join()
+    assert _calls(calls).count("converge 0001-todo") == 1
+    reran = (
+        " · run · rejoin — 0001-todo: still halted — halted before round 1 again at"
+        " this head: a commit answers it"
+    )
+    assert any(line.endswith(reran) for line in _log(root))
 
 
 def test_a_missing_skill_stops_a_run(

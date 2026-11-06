@@ -73,6 +73,10 @@ EVENTS = (
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
 AMENDED = "amended: HEAD past the halted head"
+# A halt before round 1 runs again once a run at its head.
+# Why: 0084-ship-fixes-2 design D1.
+RERUN = "re-run: halted before round 1 at this head"
+RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
@@ -696,6 +700,45 @@ def _converge_halt(runs: Path, change: str) -> str | None:
     return end if end and _is_event(end, "halt") else None
 
 
+def _run_started(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run, to the next heading, holds a `start`.
+
+    e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
+    """
+    log = _change_dir(runs.parent, change) / "status_log.md"
+    lines = log.read_text().splitlines() if log.is_file() else []
+    heading = next(
+        (i for i, line in enumerate(lines) if line.startswith("## Run")), None
+    )
+    if heading is None:
+        return False
+    run = itertools.takewhile(
+        lambda line: not line.startswith("## Run"), lines[heading + 1 :]
+    )
+    return any(_is_event(line, "start") for line in run)
+
+
+def _before_round(runs: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1: no `start`, no `verify: halt`.
+
+    Why: 0084-ship-fixes-2 design D1, D2.
+    """
+    return "verify: halt" not in halt and not _run_started(runs, change)
+
+
+def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1 whose head is `HEAD`.
+
+    Why: 0084-ship-fixes-2 design D1.
+    """
+    found = HALT_HEAD.search(halt)
+    halted = found and _maybe(
+        tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+    )
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    return bool(halted) and halted.strip() == head and _before_round(runs, change, halt)
+
+
 def _amendable(runs: Path, change: str, halt: str) -> bool:
     """Return whether the person's amend answers a converge halt of this kind.
 
@@ -745,7 +788,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     and `HEAD` descends from it and is not it. A halt past the judged head — after
     converge's own fix, or in a catch-up run — names no head the files judged, and a
     rewritten history leaves no descendant. A halt the person's amend answers is
-    answered by amends alone past its head. Why: 0071-ship-fixes design D5.
+    answered by amends alone past its head, and a halt before round 1 by any commit.
+    Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -757,6 +801,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     halted = halted.strip()
     if halted == _git(tree, "rev-parse", "HEAD").strip():
         return False
+    if _before_round(runs, change, halt):
+        return _ancestor(tree, halted, "HEAD")
     if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
         return True
     for role in ROLES:
@@ -994,6 +1040,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if halt := _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
+        if _rerun(runs, tree, change, halt):
+            return "converge", RERUN
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
         if "cap reached" in halt and _granted(runs, change, take=False):
@@ -2629,6 +2677,7 @@ class Run:
         self.refused: dict[str, str] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
+        self.reruns: set[str] = set()
         self.skips: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
@@ -2916,8 +2965,9 @@ class Run:
 
         A cap the run grants gets its round, spawned and checked as a person's
         grant's is, and one it refuses a `re-plan` halt line; a build check,
-        converge or integrate halt then gets its rescue.
-        Why: 0070-cap-policy design D2, D3.
+        converge or integrate halt then gets its rescue. A halt before round 1 it runs
+        again joins `reruns`. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
+        design D1.
         """
         try:
             auto = False
@@ -2940,6 +2990,9 @@ class Run:
                     return
                 if stage in stop_at:
                     return
+                if (stage, why) == ("converge", RERUN):
+                    with self.guard:
+                        self.reruns.add(version.change)
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
                     base = _offline_base(self.primary) if self.offline else None
@@ -3317,16 +3370,21 @@ class Run:
         One the run's plan holds stays out while its models file differs: a worker can
         write it, and so does one whose rescue answered its halt; only one the plan
         lacks has its models read. An executor whose probe failed halts it with that
-        probe's reason, probed no second time. Why: 0063-rejoin design D2, D3;
-        0067-rescue design D3; 0071-ship-fixes design D4.
+        probe's reason, probed no second time. A halt before round 1 the run ran
+        again stays out. Why: 0063-rejoin design D2, D3; 0067-rescue design D3;
+        0071-ship-fixes design D4; 0084-ship-fixes-2 design D1.
         """
         change = version.change
         with self.guard:
             answered = self.answered.get(change)
+            reran = change in self.reruns
         if answered is not None:
             self.log.event("run", "rejoin", f"{change}: still halted — {answered}")
             return False
         stage, why = stage_of(self.primary, version)
+        if (stage, why) == ("converge", RERUN) and reran:
+            self.log.event("run", "rejoin", f"{change}: still halted — {RERAN}")
+            return False
         if stage in HALTS:
             self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
             return False

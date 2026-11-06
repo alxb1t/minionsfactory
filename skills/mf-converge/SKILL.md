@@ -142,6 +142,11 @@ Check first. The newest run's top line is neither `halt` nor `done` → this inv
 The top line is a `halt` naming `.minions/debt.lock`, or an older `.minions/backlog.lock` → continue that run at
 Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
 
+**A halt before round 1:** the top line is a `halt` in a run with no `start` line, and no `verify: halt` →
+open a plain new run, with no mark, as a fresh invocation does; no grant is needed. A catch-up run halted before its
+`start` — in its catch-up check or Step 1 — is one too: the new run's own catch-up check, over both findings files
+still clean, runs the catch-up round again, so the commits since are judged.
+
 The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
 `git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
 marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No

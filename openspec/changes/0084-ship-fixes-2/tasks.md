@@ -4,21 +4,21 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The halt before round 1 answered
+- [x] 1 — The halt before round 1 answered
 - [ ] 2 — The load-bound tests
 - [ ] 3 — A scratch folder for every worker
 
 ## 1 — The halt before round 1 answered
 
-- [ ] 1.1 Add `RERUN`, `_run_started`, `_before_round` and `_rerun` to `skills/mf-ship/scripts/conduct.py`, read in `_answered` and
+- [x] 1.1 Add `RERUN`, `_run_started`, `_before_round` and `_rerun` to `skills/mf-ship/scripts/conduct.py`, read in `_answered` and
   `stage_of`, per [D1](design.md#d1) and [D2](design.md#d2); in `test_a_fix_after_a_cap_halt_converges_afresh`, add a `start` line
   below each headed halt it writes, save the debt lock's, per the design's `## Tests`.
   Verify: `grep -n '^RERUN = ' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Add `RERAN` and `Run.reruns`, filled in `advance` and read in `take_back`, per [D1](design.md#d1); add the `red-halts`
+- [x] 1.2 Add `RERAN` and `Run.reruns`, filled in `advance` and read in `take_back`, per [D1](design.md#d1); add the `red-halts`
   converge mode to `tests/fake_worker.py`, and `test_a_halt_before_round_1_runs_again_at_the_same_head` to `tests/test_conduct.py`,
   as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k halt_before_round_1_runs_again_at_the_same_head` reports `1 passed`.
-- [ ] 1.3 Add the halt-before-round-1 paragraph to `skills/mf-converge/SKILL.md`'s *Resuming a run*, after the debt-lock one, per
+- [x] 1.3 Add the halt-before-round-1 paragraph to `skills/mf-converge/SKILL.md`'s *Resuming a run*, after the debt-lock one, per
   [D1](design.md#d1).
   Verify: `grep -n 'open a plain new run' skills/mf-converge/SKILL.md` prints a line.
 
