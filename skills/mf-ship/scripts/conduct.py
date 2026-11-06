@@ -2124,18 +2124,19 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
     return ["-c", f"projects={{{table}}}"]
 
 
-def _free_log(folder: Path, who: str, station: str) -> tuple[Path, int]:
-    """Return the first free of `<who>_<station>.log`, `-2.log`, … in `folder`, made.
+def _free_log(folder: Path, name: str) -> tuple[Path, int]:
+    """Return the first free of `<name>.log`, `<name>-2.log`, … in `folder`, made.
 
     And a descriptor open on it for writing, made through the folder's own, so a
     link a worker swaps in at either names no place outside the run directory.
-    e.g. a converge's second spawn in a stamp → `0001-todo_converge-2.log`.
-    Why: 0077-run-metrics design D2; 0071-ship-fixes design D8.
+    e.g. a converge's second spawn in a stamp → `<stamp>-converge-2.log`.
+    Why: 0077-run-metrics design D2; 0071-ship-fixes design D8;
+    0080-minions-layout design D3.
     """
     folder.mkdir(parents=True, exist_ok=True)
     fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
-    name, n = f"{who}_{station}", 1
+    n = 1
     try:
         while True:
             log = f"{name}.log" if n == 1 else f"{name}-{n}.log"
@@ -2601,7 +2602,12 @@ class Run:
         self.log.event(
             who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
         )
-        out, sink = _free_log(self.runs / self.log.stamp, who, station)
+        if who == "run":
+            folder, name = self.runs / self.log.stamp, f"run_{station}"
+        else:
+            folder = _change_dir(self.primary, who) / "logs"
+            name = f"{self.log.stamp}-{station}"
+        out, sink = _free_log(folder, name)
         with self.guard:
             self.outs[who, station] = out
         started = time.monotonic()

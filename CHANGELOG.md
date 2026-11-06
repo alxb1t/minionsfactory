@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A change's review, security and status-log files and its diff patch live in `.minions/changes/<change-id>/`, found
   through one `_change_dir` per script; `metrics.py`'s own helper is `_spec_dir` (change `0080-minions-layout`, phase 1).
+- A change's worker logs are `.minions/changes/<change-id>/logs/<stamp>-<station>[-<n>].log`, read there by the run and
+  review metrics and the rescue; the run's probe keeps `runs/<stamp>/run_<station>.log` (change `0080-minions-layout`, phase 2).
 
 ## [0.65.0] - 2026-11-06
 

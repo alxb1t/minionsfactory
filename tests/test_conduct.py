@@ -2220,7 +2220,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     assert stage_of(root, find(root, "0001-todo")) == closing
     marker.unlink()
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    log.parent.mkdir(parents=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
     assert stage_of(root, find(root, "0001-todo")) == (
         "converge",
@@ -4526,9 +4526,10 @@ def test_a_small_cap_is_granted_automatically(
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
     # Each converge spawn in the run keeps its own log.
-    stamp = sorted((minions / "runs").glob("*.md"))[-1].with_suffix("")
-    logs = sorted(path.name for path in stamp.glob("0002-marks_converge*.log"))
-    assert logs == ["0002-marks_converge-2.log", "0002-marks_converge.log"]
+    stamp = sorted((minions / "runs").glob("*.md"))[-1].stem
+    folder = minions / "changes" / "0002-marks" / "logs"
+    logs = sorted(path.name for path in folder.glob(f"{stamp}-converge*.log"))
+    assert logs == [f"{stamp}-converge-2.log", f"{stamp}-converge.log"]
 
     # The granted round is checked as a person's is: one with no `done` halts there.
     calls.unlink()
@@ -5739,9 +5740,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     target.write_text("kept\n")
     made = conduct["_free_log"]
 
-    def swapped(folder: Path, who: str, station: str) -> object:
-        found = made(folder, who, station)
-        log = folder / f"{who}_{station}.log"
+    def swapped(folder: Path, name: str) -> object:
+        found = made(folder, name)
+        log = folder / f"{name}.log"
         log.unlink()
         log.symlink_to(target)
         return found

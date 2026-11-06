@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The helper, and findings in the change's folder
-- [ ] 2 — Worker logs in the change's folder
+- [x] 2 — Worker logs in the change's folder
 - [ ] 3 — The rest of the change's files
 - [ ] 4 — The move, the halt on an old layout, both layouts read
 - [ ] 5 — The record
@@ -21,7 +21,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — Worker logs in the change's folder
 
-- [ ] 2.1 Write a change's worker logs to `changes/<id>/logs/`, and read them there in `run.py`, `review_metrics.py` and mf-rescue's
+- [x] 2.1 Write a change's worker logs to `changes/<id>/logs/`, and read them there in `run.py`, `review_metrics.py` and mf-rescue's
   input, the newest by stamp and `n`, and name both in `skills/mf-review-metrics/SKILL.md`'s description, per [D3](design.md#d3);
   follow the F4 sites.
   Verify: `grep -n '"logs"' skills/mf-ship/scripts/conduct.py` prints a line, and

@@ -599,11 +599,13 @@ def _spent(events: list[dict[str, Any]]) -> Record:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts: `<change>_<station>.log` and `-<n>.log` after it.
-    Why: 0076-context-cost design D1; 0077-run-metrics design D2.
+    Each spawn's log counts, in the change's `logs/`: `<stamp>-<station>.log` and
+    `-<n>.log` after it.
+    Why: 0076-context-cost design D1; 0077-run-metrics design D2;
+    0080-minions-layout design D3.
     """
     runs = repo / RUNS
-    stamps = sorted(path for path in runs.glob("*") if path.is_dir())
+    folder = _change_dir(repo, change) / "logs"
     spawn = re.compile(
         rf"^\d\d:\d\d:\d\d · {re.escape(change)} · spawn — ({'|'.join(STATIONS)})"
         r"(?: ·|$)",
@@ -618,9 +620,8 @@ def _cost_logs(repo: Path, change: str) -> Record:
     for station in STATIONS:
         logs = [
             path
-            for s in stamps
-            for pattern in (f"{change}_{station}.log", f"{change}_{station}-[0-9]*.log")
-            for path in sorted(s.glob(pattern))
+            for pattern in (f"*-{station}.log", f"*-{station}-[0-9]*.log")
+            for path in sorted(folder.glob(pattern))
             if path.is_file()
         ]
         found = [_results(path) for path in logs]

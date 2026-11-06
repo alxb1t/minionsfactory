@@ -541,7 +541,7 @@ def _worker_log(
         "modelUsage": {"m": {"inputTokens": tokens, "outputTokens": "n/a"}},
     }
     lines = [e if isinstance(e, str) else json.dumps(e) for e in [*events, result]]
-    _write(root, {f".minions/runs/{name}": "".join(f"{line}\n" for line in lines)})
+    _write(root, {f".minions/changes/{name}": "".join(f"{line}\n" for line in lines)})
 
 
 def _task(tool: str, description: str) -> object:
@@ -575,10 +575,10 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     read = _reader(tmp_path, env)
     first = {"type": "result", "total_cost_usd": 0.5, "modelUsage": {}}
     review = _task("t1", "Converge review worker 0001")
-    _worker_log(tmp_path, "20261101-230000/0001-x_build.log", 1.0, 110)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-build.log", 1.0, 110)
     _worker_log(
         tmp_path,
-        "20261101-230000/0001-x_converge.log",
+        "0001-x/logs/20261101-230000-converge.log",
         2.0,
         500,
         "not json, holding tool_use_id",
@@ -599,15 +599,15 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         _turn(None, "m4", input_tokens=999),
     )
     verify = _task("t4", "Review station round 2")
-    converge_2 = "20261101-230000/0001-x_converge-2.log"
+    converge_2 = "0001-x/logs/20261101-230000-converge-2.log"
     _worker_log(
         tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
     )
-    _worker_log(tmp_path, "20261101-230000/0001-x_rescue.log", 0.25, 5)
-    _worker_log(tmp_path, "20261101-230000/0001-x_integrate.log", 0.25, 5)
-    _worker_log(tmp_path, "20261102-090000/0001-x_converge.log", 0.1, 1)
-    _worker_log(tmp_path, "20261102-090000/0001-x_converge-2.log", 0.2, 2)
-    _worker_log(tmp_path, "20261102-090000/0001-x_release.log", 9.0, 900)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-rescue.log", 0.25, 5)
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-integrate.log", 0.25, 5)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-converge.log", 0.1, 1)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-converge-2.log", 0.2, 2)
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-release.log", 9.0, 900)
     reviewed = _finding("R1", "confirmed", "repeat of `0000·R9`")
     reviewed += _finding("R2", "plausible", "repeat of 0001·R1")
     reviewed += _finding("R3", "`confirmed`", "repeat of 0000·R4")
@@ -665,7 +665,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("security-confirmed", "0003-z") == "gap: no 0003-z/security.md"
     assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
     assert read("cost-usd-build", "0003-z") == (
-        "gap: no result event in 20261102-090000/0003-z_build.log"
+        "gap: no result event in 0003-z/logs/20261102-090000-build.log"
     )
     assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z/review.md")
     # A security worker's turns are read, and no card to divide them by is a gap.
@@ -678,12 +678,12 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     )
 
     # A spawn whose log is gone is a gap, never a smaller sum.
-    (tmp_path / ".minions/runs/20261102-090000/0001-x_converge-2.log").unlink()
+    (tmp_path / ".minions/changes/0001-x/logs/20261102-090000-converge-2.log").unlink()
     assert read("cost-usd") == (
-        "gap: no result event in 20261102-090000/0001-x_converge-2.log"
+        "gap: no result event in 0001-x/logs/20261102-090000-converge-2.log"
     )
     assert read("review-tokens-per-confirmed") == (
-        "gap: no 20261102-090000/0001-x_converge-2.log"
+        "gap: no 0001-x/logs/20261102-090000-converge-2.log"
     )
     (tmp_path / ".minions/debt.md").unlink()
     assert read("debt-added") == "gap: no .minions/debt.md"

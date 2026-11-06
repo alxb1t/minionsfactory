@@ -358,13 +358,14 @@ class Version:
         return int(_git(self.root, *count))
 
     def log(self, spawn: Spawn) -> tuple[Path, str]:
-        """Return a spawn's worker log and its name in the run directory.
+        """Return a spawn's worker log and its name in the change's `logs/`.
 
-        e.g. a stamp's second converge → `<stamp>/<change>_converge-2.log`. Why: D2.
+        e.g. a stamp's second converge → `<change>/logs/<stamp>-converge-2.log`.
+        Why: D2; 0080-minions-layout design D3.
         """
         n = f"-{spawn.n}" if spawn.n > 1 else ""
-        name = f"{spawn.stamp}/{self.change}_{spawn.station}{n}.log"
-        return self.minions / "runs" / name, name
+        log = f"{spawn.stamp}-{spawn.station}{n}.log"
+        return self.folder / "logs" / log, f"{self.change}/logs/{log}"
 
     def spent(self, stages: tuple[str, ...]) -> tuple[float, int]:
         """Return the stages' dollars and tokens, each spawn's log read; none is 0."""
