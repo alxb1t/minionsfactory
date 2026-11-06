@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.69
 after: [0082-cut-station]
 ---
 
