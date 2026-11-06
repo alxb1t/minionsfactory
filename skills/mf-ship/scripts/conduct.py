@@ -2156,11 +2156,18 @@ def _rescue_amends(
 
 
 def _decisions(text: str | None) -> str:
-    """Return a design's `## Decisions` section, to the next `## ` heading, or ""."""
+    """Return a design's `## ` headings and its `## Decisions` section, or "".
+
+    The section runs from the first line that starts `## Decisions` to the next `## `
+    heading, CRLF lines or not. The headings make a section copied above the real
+    one, added or renamed read as a change. Why: 0085-self-healing-ship design D4.
+    """
+    text = text or ""
+    headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
     found = re.search(
-        r"^## Decisions\n(.*?)(?=^## |\Z)", text or "", re.MULTILINE | re.DOTALL
+        r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
     )
-    return found[1] if found else ""
+    return "\n".join([*headings, found[1] if found else ""])
 
 
 def _amend(
@@ -3124,6 +3131,7 @@ class Run:
                 self.log.event("run", "rescue", detail)
                 with self.guard:
                     self.halts = [halt for halt in self.halts if halt[0] != change]
+                    self.diagnosed.discard(change)
                     if decided:
                         self.decided.append(change)
             elif spawned:
@@ -3166,7 +3174,7 @@ class Run:
     def hold(self, version: Version, tree: Path, before: str) -> bool:
         """Keep a version halted for the run when its rescue answered its halt on disk.
 
-        A rescue at a converge or integrate halt may only diagnose, yet a commit past
+        A rescue at a cap or integrate halt may only diagnose, yet a commit past
         the halted head, a settled merge, a removed note or a grant it writes reads as
         no halt, and its rejoin request would take the version back. The halt names
         the stage on disk and a moved `HEAD`, for the person. The person's amends
@@ -3822,7 +3830,8 @@ class Run:
         One with a live thread, a block, its rescue's answer or a queued cut stays
         out. A read at its stage, not stuck, that differs from the halt's baseline is
         a candidate, taken when the next poll reads it the same. It raises nothing, as
-        `take_requests` does not. Why: 0085-self-healing-ship design D6.
+        `take_requests` does not: a listing that fails is logged `rejoin — skipped`.
+        Why: 0085-self-healing-ship design D6.
         """
         with self.guard:
             halted = {who for who, _ in self.halts} - {"run", *self.blocked}
@@ -3832,8 +3841,8 @@ class Run:
         if halted and not self.stopped("run"):
             try:
                 cuts, versions = _cuts(self.primary), open_versions(self.primary)
-            except Exception:
-                versions = []
+            except Exception as error:
+                self.log.event("run", "rejoin", f"skipped — {error}")
         live = {change for change, thread in threads.items() if thread.is_alive()}
         versions = [
             version
@@ -3921,13 +3930,15 @@ class Run:
     def admit(self, version: Version) -> bool:
         """Clear a joining version's halts, read its plan, probe its new executors.
 
-        Return whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station
-        design D4.
+        Its diagnosis is cleared too: a later halt is not the one it answered. Return
+        whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station design
+        D4; 0085-self-healing-ship design D7.
         """
         change = version.change
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
+            self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
         named = (self.plan.get((change, station)) for station in PLANNED)
@@ -4093,9 +4104,10 @@ class Run:
         """Wait for every thread, taking requests, blocked and answered versions.
 
         A poll is one `REJOIN_POLL` window, whatever the threads. With none alive, the
-        requests and the disk are read once more, and a candidate the re-check read
-        holds the run one more poll. Why: 0063-rejoin design D1; 0071-ship-fixes
-        design D4; 0085-self-healing-ship design D6, D7.
+        requests are read once more, and a candidate the re-check read holds the run
+        one more poll: the disk is re-read at the next poll's top alone, so a
+        candidate's two reads are a wait apart. Why: 0063-rejoin design D1;
+        0071-ship-fixes design D4; 0085-self-healing-ship design D6, D7.
         """
         while True:
             self.take_requests(threads)
@@ -4106,7 +4118,7 @@ class Run:
                 thread.join(timeout=max(0, deadline - time.monotonic()))
             if any(thread.is_alive() for thread in threads.values()):
                 continue
-            if self.take_requests(threads) or self.recheck(threads):
+            if self.take_requests(threads):
                 continue
             with self.guard:
                 pending = bool(self.candidates)
@@ -4279,12 +4291,14 @@ class Run:
         }
         granted = any(grants for grants, _ in takes.values())
         # An `amend needed` halt its rescue may amend is not stuck either: its thread
-        # starts for the entry rescue. Why: 0085-self-healing-ship design D1.
+        # starts for the entry rescue, one the models file skips none.
+        # Why: 0085-self-healing-ship design D1.
         minions = self.primary / ".minions"
         stuck = all(
             stage in STUCK
             and not (
                 stage == "converge-halted"
+                and change not in self.skips
                 and _rescue_amends(minions, change, "converge", change in self.decides)
             )
             for change, (stage, _) in stages.items()

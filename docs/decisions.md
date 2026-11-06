@@ -581,7 +581,7 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
-  for a re-run.
+  for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)).
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/changes/<id>/build.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision with no switch · counting only what a rescue did in the tree as its answer — a grant it writes would take the

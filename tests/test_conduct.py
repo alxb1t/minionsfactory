@@ -1616,12 +1616,23 @@ def test_a_rescue_amends_at_amend_needed(
     assert any(line.endswith(fixed(alone)) for line in lines)
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
+    # Alone with its rescue skipped, it is stuck again: the run starts no worker.
+    (tmp_path / "skipped").mkdir()
+    skipped = _primary(tmp_path / "skipped")
+    halted(skipped, "R1")
+    table = skipped / ".minions" / "changes" / "0001-todo" / "models.toml"
+    table.write_text("[rescue]\nskip = true\n")
+    calls.unlink()
+    lines = run(skipped, 1)
+    assert _calls(calls) == []
+    assert any(" · 0001-todo · halt — converge-halted — " in line for line in lines)
+
     # A blocking security card is a diagnosis: the run takes no amend for it.
     (tmp_path / "security").mkdir()
     secure = _primary(tmp_path / "security")
     halted(secure, "S1")
     _version(secure, "0002-marks", "- [ ] 1 — Marks\n")
-    calls.unlink()
+    calls.unlink(missing_ok=True)
     fake("rescue-prose")
     lines = run(secure, 1)
     assert "rescue 0001-todo" in _calls(calls)
@@ -1718,6 +1729,20 @@ def test_a_rescue_decides_under_the_switch(
     head = _git(tree, "rev-parse", "HEAD")
     assert amend(tree, "0002-marks", decided, switch) == (head, "", True)
 
+    # A copy of the section above the real one, CRLF lines or a heading that only
+    # starts `## Decisions` hide no edit of a decision.
+    decisions = conduct["_decisions"]
+    real = "## Context\n\n## Decisions\n\n| D1 | a fix |\n\n## Tests\n"
+    hidden = (
+        "## Context\n\n## Decisions\n\n| D1 | a fix |\n\n## Earlier\n\n"
+        "## Decisions\n\n| D1 | another fix |\n\n## Tests\n"
+    )
+    assert decisions(real) != decisions(hidden)
+    crlf = real.replace("\n", "\r\n")
+    assert decisions(crlf) != decisions(crlf.replace("a fix", "another fix"))
+    spaced = real.replace("## Decisions", "## Decisions ")
+    assert decisions(spaced) != decisions(spaced.replace("a fix", "another fix"))
+
 
 def test_an_amend_during_a_rescue_goes_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1800,11 +1825,23 @@ def test_a_halt_answered_on_disk_comes_back(
     )
 
     # With no thread live, a read that raised is replaced, and a change read once
-    # holds the run a poll more, until two polls read it the same.
+    # holds the run a poll more, until two polls a wait apart read it the same.
     conductor = conduct["Run"](root, "claude")
     halted_at = ("build", "phase 1 unticked", "a")
     reads = [None, halted_at, ("converge", "x", "b"), *[("converge", "y", "b")] * 2]
-    conductor.on_disk = lambda change: reads.pop(0) if reads else None
+    polled: list[str] = []
+    sleep = time.sleep
+
+    def on_disk(change: str) -> tuple[str, str, str] | None:
+        polled.append("read")
+        return reads.pop(0) if reads else None
+
+    def wait(seconds: float) -> None:
+        polled.append("wait")
+        sleep(seconds)
+
+    conductor.on_disk = on_disk
+    monkeypatch.setattr(time, "sleep", wait)
     conductor.halt("0003-late", "build timed out")
     taken: list[object] = []
 
@@ -1814,9 +1851,11 @@ def test_a_halt_answered_on_disk_comes_back(
         return True
 
     conductor.take_back_safely = take
+    assert not conductor.recheck({}) and not conductor.recheck({})
     conductor.join({})
     assert taken == [conduct["find_version"](root, "0003-late")] and reads == []
-    # A failed read of the open versions takes nothing.
+    assert polled[-3:] == ["read", "wait", "read"]
+    # A failed read of the open versions takes nothing, and the log says why.
     conductor.halt("0003-late", "build timed out")
     listed = globals_["open_versions"]
 
@@ -1828,6 +1867,14 @@ def test_a_halt_answered_on_disk_comes_back(
         assert not conductor.recheck({})
     finally:
         globals_["open_versions"] = listed
+    said = conductor.log.path.read_text().splitlines()
+    assert said[-1].endswith(" · run · rejoin — skipped — planted")
+    # A diagnosed version taken back needs what its next halt needs.
+    conductor.diagnosed.add("0003-late")
+    conductor.probed.add("claude")
+    assert conductor.admit(conduct["find_version"](root, "0003-late"))
+    conductor.halt("0003-late", "build timed out")
+    assert conductor.needs() == " · needs 0003-late a fix"
 
 
 @pytest.mark.slow

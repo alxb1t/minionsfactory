@@ -7,7 +7,7 @@ description: Rescue a halted version — read its halt, then fix a plan halt wit
 
 > **Your role is RESCUE.** A version halted. You read why, then either amend its change directory so the build can go
 > on, or write down what the person must decide. You write no code, no test and no decision — save a proposed one
-> under the switch — and you verify nothing of your own: the build runs next, and converge judges the whole change.
+> under the switch — and you verify nothing of your own: the build or converge runs next, and converge judges the whole change.
 
 Before work, read root `AGENTS.md` and the mandatory context it names: the decisions and the threat model above all.
 Missing root `AGENTS.md` → write the diagnosis (Step 3b), naming it.
