@@ -399,6 +399,15 @@ script = "scripts/metrics/run.py"
 args = ["rescues-diagnosed"]
 
 [[metric]]
+id = "rescues-decided"
+title = "Rescues that decided for the person"
+group = "run"
+unit = "rescues"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["rescues-decided"]
+
+[[metric]]
 id = "build-commits"
 title = "Build commits"
 group = "run"

@@ -180,7 +180,7 @@ PROMPTS = {
     "converge": "Run the mf-converge skill for change {change}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
-    "rescue": "Run the mf-rescue skill for change {change}.",
+    "rescue": "Run the mf-rescue skill for change {change}{decide}.",
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
         " `{change} {bump} brief={brief}{after} unattended=yes`."
@@ -2001,19 +2001,31 @@ class RunLog:
             self.lock.rmdir()
 
 
-def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
-    """Return a table of the cut's models file; None with no file or no such table."""
+def _models_file(runs: Path, change: str) -> dict[str, object]:
+    """Return the cut's models file as TOML reads it; {} with no file."""
     path = _change_dir(runs.parent, change) / "models.toml"
     if not path.is_file():
-        return None
+        return {}
     try:
-        data = tomllib.loads(path.read_text())
+        return tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as error:
         raise Stop(
             1, f"conduct: halt — changes/{change}/models.toml: {error}"
         ) from None
-    table = data.get(name)
+
+
+def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
+    """Return a table of the cut's models file; None with no file or no such table."""
+    table = _models_file(runs, change).get(name)
     return table if isinstance(table, dict) else None
+
+
+def _decides(runs: Path, change: str) -> bool:
+    """Return whether the cut's models file says `decide = "recommended"` at its top.
+
+    Why: 0085-self-healing-ship design D3.
+    """
+    return _models_file(runs, change).get("decide") == "recommended"
 
 
 def _models(
@@ -2068,6 +2080,23 @@ def _field(card: str, name: str) -> str:
     return found[1].strip() if found else ""
 
 
+def _cards_in(text: str) -> Iterator[tuple[str, str]]:
+    r"""Yield each findings card's id and its text, to the next card.
+
+    e.g. "- **R1 — a finding**\n  - **Status:** open\n" → ("R1", that text)
+    """
+    starts = list(CARD.finditer(text))
+    ends = [card.start() for card in starts[1:]] + [len(text)]
+    for title, end in zip(starts, ends[: len(starts)], strict=True):
+        yield title[1], text[title.start() : end]
+
+
+def _severity(card: str) -> str:
+    """Return a card's severity: its `Priority`'s first part, in lower case."""
+    # A station may wrap a field's value in backticks.
+    return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
+
+
 def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """Return each open blocking card's id and fix size; None when a file is unread.
 
@@ -2083,46 +2112,108 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
             text = file.read_text()
         except (OSError, UnicodeDecodeError):
             return None
-        starts = list(CARD.finditer(text))
-        if not starts:
-            continue
-        ends = [card.start() for card in starts[1:]] + [len(text)]
-        for title, end in zip(starts, ends, strict=True):
-            card = text[title.start() : end]
-            # A station may wrap a field's value in backticks.
-            severity = _field(card, "Priority").split(" · ")[0].strip(" `").lower()
-            if severity in BLOCKS[role] and re.match(r"open\b", _field(card, "Status")):
+        for name, card in _cards_in(text):
+            blocking = _severity(card) in BLOCKS[role]
+            if blocking and re.match(r"open\b", _field(card, "Status")):
                 sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
                 size = sized[1].strip(" `.") if sized else ""
-                found.append((title[1], size or "a design change"))
+                found.append((name, size or "a design change"))
     return found
+
+
+def _security_blocks(runs: Path, change: str, halt: str) -> bool:
+    """Return whether a card an `amend needed` halt names is a blocking security one.
+
+    An unread `security.md` blocks. Why: 0085-self-healing-ship design D2.
+    e.g. "… · halt — amend needed — R1 S2 · head 7ee2179", S2 `high` → True
+    """
+    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
+    try:
+        text = (_change_dir(runs.parent, change) / "security.md").read_text()
+    except (OSError, UnicodeDecodeError):
+        return True
+    return any(
+        name in ids and _severity(card) in BLOCKS["security"]
+        for name, card in _cards_in(text)
+    )
+
+
+def _rescue_amends(
+    runs: Path, change: str, station: str, decide: bool
+) -> tuple[str, ...]:
+    """Return the change's files a rescue of `station`'s halt may amend; () for none.
+
+    A build halt gets `AMENDS`, and a converge `amend needed` halt too, save one
+    naming a blocking security card; under the switch, `proposal.md` besides.
+    Why: 0085-self-healing-ship design D1, D2.
+    """
+    halt = _converge_halt(runs, change) or ""
+    if station == "converge" and "amend needed" in halt:
+        amends = () if _security_blocks(runs, change, halt) else AMENDS
+    else:
+        amends = AMENDS if station == "build" else ()
+    return (*amends, "proposal.md") if decide and amends else amends
+
+
+def _decisions(text: str | None) -> str:
+    """Return a design's `## ` headings and its `## Decisions` section, or "".
+
+    The section runs from the first line that starts `## Decisions` to the next `## `
+    heading, CRLF lines or not. The headings make a section copied above the real
+    one, added or renamed read as a change. Why: 0085-self-healing-ship design D4.
+    """
+    text = text or ""
+    headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
+    found = re.search(
+        r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
+    )
+    return "\n".join([*headings, found[1] if found else ""])
 
 
 def _amend(
     tree: Path, change: str, before: str, amends: tuple[str, ...]
-) -> tuple[str | None, str]:
-    """Return the rescue's amend past `before`, or None and why it is none.
+) -> tuple[str | None, str, bool]:
+    """Return the rescue's amend past `before`, or None and why; and if it decided.
 
     An amend is one commit, its subject the amend's, with a `Rescue:` trailer,
-    touching the change's `amends` files alone; with no `amends` there is none. No
-    commit is (None, ""). Why: 0067-rescue design D3.
+    touching the change's `amends` files alone; with no `amends` there is none. A
+    decided amend touches `proposal.md` or changes `design.md`'s `## Decisions`: it
+    stands with `proposal.md` in `amends`, the switch, and a `Decided-by: rescue`
+    trailer alone. No commit is (None, "", False).
+    Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
     """
     if not _ancestor(tree, before, "HEAD"):
-        return None, f"rescue moved HEAD off {before[:7]}"
+        return None, f"rescue moved HEAD off {before[:7]}", False
     commits = _git(tree, "rev-list", f"{before}..HEAD").split()
     allowed = {f"openspec/changes/{change}/{name}" for name in amends}
     listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
     paths = {path for sha in commits for path in _git(tree, *listed, sha).splitlines()}
     if touched := sorted(paths - allowed):
-        return None, f"rescue touched {' '.join(touched)}"
+        return None, f"rescue touched {' '.join(touched)}", False
     if not commits:
-        return None, ""
+        return None, "", False
     sha = commits[0]
     trailer = _git(tree, "log", "-1", "--format=%(trailers:key=Rescue)", sha)
     named = _subject(tree, sha) == f"docs({change}): amend the change directory"
     if len(commits) > 1 or not amends or not named or not trailer.strip():
-        return None, f"rescue commit {sha[:7]} is not one amend with a Rescue: trailer"
-    return sha, ""
+        why = f"rescue commit {sha[:7]} is not one amend with a Rescue: trailer"
+        return None, why, False
+    proposal = f"openspec/changes/{change}/proposal.md"
+    design = f"openspec/changes/{change}/design.md"
+    was, now = (_decisions(_show(tree, rev, design)) for rev in (before, sha))
+    if proposal in paths:
+        decision = proposal
+    elif was != now:
+        decision = design
+    else:
+        return sha, "", False
+    if "proposal.md" not in amends:
+        return None, f"rescue changed a decision: {decision}", False
+    by = ("log", "-1", "--format=%(trailers:key=Decided-by,valueonly)", sha)
+    if _git(tree, *by).strip() != "rescue":
+        why = f"rescue commit {sha[:7]} decided with no Decided-by: rescue trailer"
+        return None, why, False
+    return sha, "", True
 
 
 def _mtime(path: Path) -> int | None:
@@ -2815,6 +2906,13 @@ class Run:
         self.answered: dict[str, str] = {}
         self.reruns: set[str] = set()
         self.skips: set[str] = set()
+        self.decides: set[str] = set()
+        self.decided: list[str] = []
+        self.diagnosed: set[str] = set()
+        # Each halted version's stage, why and `HEAD` on disk at its halt, and a
+        # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
+        self.seen_halts: dict[str, tuple[str, str, str] | None] = {}
+        self.candidates: dict[str, tuple[str, str, str]] = {}
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
         self.outs: dict[tuple[str, str], Path] = {}
@@ -2824,10 +2922,28 @@ class Run:
         self.probing = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
-        """Record and log a halt; its version starts no new worker but its rescue."""
+        """Record and log a halt; its version starts no new worker but its rescue.
+
+        A version's read on disk then is the re-check's baseline.
+        Why: 0085-self-healing-ship design D6.
+        """
+        seen = None if who == "run" else self.on_disk(who)
         with self.guard:
             self.halts.append((who, reason))
+            if who != "run":
+                self.seen_halts[who] = seen
         self.log.event(who, "halt", reason)
+
+    def on_disk(self, change: str) -> tuple[str, str, str] | None:
+        """Return a version's stage, why and `HEAD` on disk; None when a read raises."""
+        try:
+            version = find_version(self.primary, change)
+            if version is None or version.tree is None:
+                return None
+            stage, why = stage_of(self.primary, version)
+            return stage, why, _git(version.tree, "rev-parse", "HEAD").strip()
+        except Exception:
+            return None
 
     def block(self, change: str, dependency: str) -> None:
         """Record and log a block; `change` starts no worker."""
@@ -2846,8 +2962,42 @@ class Run:
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
         return f"halted {halted} · blocked {blocked} · released {released}" + (
-            self.unpushed()
+            self.decisions() + self.needs() + self.unpushed()
         )
+
+    def needs(self) -> str:
+        """Return ` · needs <id> <action>, …` for each halted version, or "".
+
+        e.g. "0001-a" diagnosed, "0002-b" timed out → " · needs 0001-a rescue.md,
+        0002-b a fix". Why: 0085-self-healing-ship design D7.
+        """
+        with self.guard:
+            halted = dict.fromkeys(who for who, _ in self.halts if who != "run")
+        needs = ", ".join(f"{change} {self._needs(change)}" for change in halted)
+        return f" · needs {needs}" if needs else ""
+
+    def _needs(self, change: str) -> str:
+        """Return the one action a halted version needs, read from the run and disk."""
+        with self.guard:
+            if change in self.answered:
+                return "a re-run"
+            if change in self.diagnosed:
+                return "rescue.md"
+        stage, why, _ = self.on_disk(change) or ("", "", "")
+        if _is_cap(stage, why):
+            return "a grant or a re-plan"
+        return {"integrating": "the merge settled", "human": "its **HUMAN phase"}.get(
+            stage, "a fix"
+        )
+
+    def decisions(self) -> str:
+        """Return ` · decided <ids>`, each version a rescue decided for, or "".
+
+        Why: 0085-self-healing-ship design D7.
+        """
+        with self.guard:
+            ids = " ".join(dict.fromkeys(self.decided))
+        return f" · decided {ids}" if ids else ""
 
     def unpushed(self) -> str:
         """Return ` · unpushed <names>`, as `status` names them, or "" with none.
@@ -2943,14 +3093,15 @@ class Run:
         return ""
 
     def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
-        """Run a halted version's rescue on `held`; True when its amend cleared it.
+        """Run a halted version's rescue on `held`; True when the version goes on.
 
-        The amend may touch the change's `amends` files alone: none at a converge or
-        integrate halt, which a rescue diagnoses. Any other outcome halts the version
-        again, naming what the rescue left, and one at such a halt is then checked for
-        an answer on disk. A halted run, a skip or a spent rescue starts none. A
-        converge `verify: halt` the run diagnoses itself, with no worker.
-        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8.
+        It goes on on an amend that may touch the change's `amends` files alone, as
+        `_rescue_amends` names them. Any other outcome halts the version again, naming
+        what the rescue left, and one at a converge or integrate halt is then checked
+        for an answer on disk: the person's amends alone go on. A halted run, a skip or
+        a spent rescue starts none. A converge `verify: halt` the run diagnoses itself,
+        with no worker. Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
+        0085-self-healing-ship design D1, D5.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -2966,25 +3117,35 @@ class Run:
         before = _git(tree, "rev-parse", "HEAD").strip()
         diagnosis = _change_dir(self.primary, change) / "rescue.md"
         written = _mtime(diagnosis)
-        prompt = PROMPTS["rescue"].format(change=change)
+        decide = " with decide=recommended" if change in self.decides else ""
+        prompt = PROMPTS["rescue"].format(change=change, decide=decide)
+        sha = None
         try:
-            if self.spawn(change, "rescue", tree, prompt, models) is None:
-                return False
-            sha, why = _amend(tree, change, before, amends)
+            spawned = self.spawn(change, "rescue", tree, prompt, models) is not None
+            sha, why, decided = (
+                _amend(tree, change, before, amends) if spawned else (None, "", False)
+            )
             if sha is not None:
-                self.log.event("run", "rescue", f"{change}: fixed · {held} · {sha[:7]}")
+                kind = "decided" if decided else "fixed"
+                detail = f"{change}: {kind} · {held} · {sha[:7]}"
+                self.log.event("run", "rescue", detail)
                 with self.guard:
                     self.halts = [halt for halt in self.halts if halt[0] != change]
-                return True
-            name = f".minions/changes/{change}/rescue.md"
-            if not why and _mtime(diagnosis) not in (None, written):
-                self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
-                why = f"rescue diagnosed — {name}"
-            self.halt(change, why or "rescue wrote no amend and no diagnosis")
-            return False
+                    self.diagnosed.discard(change)
+                    if decided:
+                        self.decided.append(change)
+            elif spawned:
+                name = f".minions/changes/{change}/rescue.md"
+                if not why and _mtime(diagnosis) not in (None, written):
+                    self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+                    with self.guard:
+                        self.diagnosed.add(change)
+                    why = f"rescue diagnosed — {name}"
+                self.halt(change, why or "rescue wrote no amend and no diagnosis")
         finally:
-            if held in RESCUED:
-                self.hold(version, tree, before)
+            # A taken amend is the rescue's answer: converge opens its amended run.
+            going = held in RESCUED and sha is None and self.hold(version, tree, before)
+        return sha is not None or going
 
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
@@ -3006,26 +3167,55 @@ class Run:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return
         self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+        with self.guard:
+            self.diagnosed.add(change)
         self.halt(change, f"rescue diagnosed — {name}")
 
-    def hold(self, version: Version, tree: Path, before: str) -> None:
+    def hold(self, version: Version, tree: Path, before: str) -> bool:
         """Keep a version halted for the run when its rescue answered its halt on disk.
 
-        A rescue at a converge or integrate halt may only diagnose, yet a commit past
+        A rescue at a cap or integrate halt may only diagnose, yet a commit past
         the halted head, a settled merge, a removed note or a grant it writes reads as
         no halt, and its rejoin request would take the version back. The halt names
-        the stage on disk and a moved `HEAD`, for the person.
-        Why: 0067-rescue design D3.
+        the stage on disk and a moved `HEAD`, for the person. The person's amends
+        alone go on: True. Why: 0067-rescue design D3; 0085-self-healing-ship design D5.
         """
+        change = version.change
         stage, why = stage_of(self.primary, version)
         if stage in HALTS:
-            return
+            return False
         head = _git(tree, "rev-parse", "HEAD").strip()
+        if stage == "converge" and self._amended_alone(tree, change, before):
+            with self.guard:
+                self.halts = [halt for halt in self.halts if halt[0] != change]
+            self.log.event("run", "rescue", f"{change}: amended · {head[:7]}")
+            return True
         moved = f" · HEAD {head[:7]}" if head != before else ""
         answered = f"rescue answered its halt — {stage}: {why}{moved}"
         with self.guard:
-            self.answered[version.change] = answered
-        self.halt(version.change, answered)
+            self.answered[change] = answered
+        self.halt(change, answered)
+        return False
+
+    def _amended_alone(self, tree: Path, change: str, before: str) -> bool:
+        """Return whether the person's amends alone answer the converge halt rescued.
+
+        The halt is one the person's amend answers, only amends follow its head, and
+        none since the rescue began carries a `Rescue:` trailer: a refused rescue
+        amend carries one. Why: 0085-self-healing-ship design D5.
+        """
+        runs = self.primary / ".minions"
+        halt = _converge_halt(runs, change) or ""
+        found = HALT_HEAD.search(halt)
+        halted = found and _maybe(
+            tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+        )
+        if not halted or not _amendable(runs, change, halt):
+            return False
+        rescued = _git(
+            tree, "log", "--format=%(trailers:key=Rescue)", f"{before}..HEAD"
+        )
+        return _amended_only(tree, change, halted.strip()) and not rescued.strip()
 
     def held(self, version: Version, stage: str, tree: Path) -> str | None:
         """Return what a failed check at `stage` is rescued on, or None for no rescue.
@@ -3107,9 +3297,12 @@ class Run:
         A cap the run grants gets its round, spawned and checked as a person's
         grant's is, and one it refuses a `re-plan` halt line; a build check,
         converge or integrate halt then gets its rescue. A halt before round 1 it runs
-        again joins `reruns`. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
-        design D1.
+        again joins `reruns`. A rescue's taken amend, at a halt met on entry or after
+        a check, goes on. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
+        design D1; 0085-self-healing-ship design D1.
         """
+        minions, change = self.primary / ".minions", version.change
+        decide = change in self.decides
         try:
             auto = False
             while not self.stopped(version.change):
@@ -3127,7 +3320,10 @@ class Run:
                     if refused:
                         self.halt(version.change, f"re-plan: {refused}")
                     if rescued:
-                        self.rescue(version, stage, ())
+                        station = "converge" if stage == "converge-halted" else stage
+                        amends = _rescue_amends(minions, change, station, decide)
+                        if self.rescue(version, stage, amends):
+                            continue
                     return
                 if stage in stop_at:
                     return
@@ -3142,7 +3338,6 @@ class Run:
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
                     return
-                minions = self.primary / ".minions"
                 # The run's own grant takes no person's grant file.
                 clause = " and grant=yes" if auto else ""
                 person = not auto and stage == "converge"
@@ -3179,9 +3374,9 @@ class Run:
                 if held is not None:
                     reason = f"{reason}{self.rescued(version.change, held)}"
                 if not self.judge(version.change, stage, reason, denied):
-                    amends = AMENDS if stage == "build" else ()
                     if held is None:
                         return
+                    amends = _rescue_amends(minions, change, stage, decide)
                     # Only a failed converge check meets a cap here.
                     cap = held if stage == "converge" else stage
                     auto, refused = self.auto_grant(version, cap, reason or "")
@@ -3489,10 +3684,10 @@ class Run:
         """Read each station's models, once per version: at the start, or as it joins.
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. The rescue's skip and `[converge] auto_grant` are read with
-        them.
+        halts in `take`. The rescue's skip, `[converge] auto_grant` and the switch are
+        read with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
-        design D4.
+        design D4; 0085-self-healing-ship design D3.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -3502,12 +3697,15 @@ class Run:
             try:
                 skips = _skips_rescue(self.primary / ".minions", version.change)
                 grants = _auto_grants(self.primary / ".minions", version.change)
+                decides = _decides(self.primary / ".minions", version.change)
             except (Stop, ValueError):
                 continue
             with self.guard:
                 self.grants_auto[version.change] = grants
                 if skips:
                     self.skips.add(version.change)
+                if decides:
+                    self.decides.add(version.change)
 
     def models(
         self, change: str, station: str
@@ -3626,6 +3824,57 @@ class Run:
                 self.unblocked |= fresh
                 self.take_back_safely(version, threads)
 
+    def recheck(self, threads: dict[str, threading.Thread]) -> bool:
+        """Take back each halted version answered on disk, with no request; True if any.
+
+        One with a live thread, a block, its rescue's answer or a queued cut stays
+        out. A read at its stage, not stuck, that differs from the halt's baseline is
+        a candidate, taken when the next poll reads it the same. It raises nothing, as
+        `take_requests` does not: a listing that fails is logged `rejoin — skipped`.
+        Why: 0085-self-healing-ship design D6.
+        """
+        with self.guard:
+            halted = {who for who, _ in self.halts} - {"run", *self.blocked}
+            halted -= set(self.answered)
+        cuts: dict[str, dict[str, Any]] = {}
+        versions: list[Version] = []
+        if halted and not self.stopped("run"):
+            try:
+                cuts, versions = _cuts(self.primary), open_versions(self.primary)
+            except Exception as error:
+                self.log.event("run", "rejoin", f"skipped — {error}")
+        live = {change for change, thread in threads.items() if thread.is_alive()}
+        versions = [
+            version
+            for version in versions
+            if version.change in halted - live and version.change not in cuts
+        ]
+        with self.guard:
+            kept = {version.change for version in versions}
+            self.candidates = {
+                change: read
+                for change, read in self.candidates.items()
+                if change in kept
+            }
+        started = False
+        for version in versions:
+            change = version.change
+            read = self.on_disk(change)
+            with self.guard:
+                baseline = self.seen_halts.get(change)
+                previous = self.candidates.pop(change, None)
+                if baseline is None:
+                    self.seen_halts[change] = read
+                    continue
+                if read is None or read[0] in STUCK or read == baseline:
+                    continue
+                if previous != read:
+                    self.candidates[change] = read
+                    continue
+                del self.seen_halts[change]
+            started = self.take_back_safely(version, threads) or started
+        return started
+
     def take_back_safely(
         self, version: Version, threads: dict[str, threading.Thread]
     ) -> bool:
@@ -3681,13 +3930,15 @@ class Run:
     def admit(self, version: Version) -> bool:
         """Clear a joining version's halts, read its plan, probe its new executors.
 
-        Return whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station
-        design D4.
+        Its diagnosis is cleared too: a later halt is not the one it answered. Return
+        whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station design
+        D4; 0085-self-healing-ship design D7.
         """
         change = version.change
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
             self.blocked = [name for name in self.blocked if name != change]
+            self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
         named = (self.plan.get((change, station)) for station in PLANNED)
@@ -3850,19 +4101,30 @@ class Run:
         return True
 
     def join(self, threads: dict[str, threading.Thread]) -> None:
-        """Wait for every thread, taking requests and blocked versions every poll.
+        """Wait for every thread, taking requests, blocked and answered versions.
 
-        A poll is `REJOIN_POLL` seconds. With none alive, the requests are read once
-        more. Why: 0063-rejoin design D1; 0071-ship-fixes design D4.
+        A poll is one `REJOIN_POLL` window, whatever the threads. With none alive, the
+        requests are read once more, and a candidate the re-check read holds the run
+        one more poll: the disk is re-read at the next poll's top alone, so a
+        candidate's two reads are a wait apart. Why: 0063-rejoin design D1;
+        0071-ship-fixes design D4; 0085-self-healing-ship design D6, D7.
         """
         while True:
             self.take_requests(threads)
             self._unblock(threads)
+            self.recheck(threads)
+            deadline = time.monotonic() + REJOIN_POLL
             for thread in [thread for thread in threads.values() if thread.is_alive()]:
-                thread.join(timeout=REJOIN_POLL)
-            alive = any(thread.is_alive() for thread in threads.values())
-            if not alive and not self.take_requests(threads):
+                thread.join(timeout=max(0, deadline - time.monotonic()))
+            if any(thread.is_alive() for thread in threads.values()):
+                continue
+            if self.take_requests(threads):
+                continue
+            with self.guard:
+                pending = bool(self.candidates)
+            if not pending:
                 return
+            time.sleep(REJOIN_POLL)
 
     def unlock(self, name: str) -> None:
         """Remove the lock `name` when stale, logging its age."""
@@ -4028,7 +4290,19 @@ class Run:
             for version in versions
         }
         granted = any(grants for grants, _ in takes.values())
-        stuck = all(stage in STUCK for stage, _ in stages.values())
+        # An `amend needed` halt its rescue may amend is not stuck either: its thread
+        # starts for the entry rescue, one the models file skips none.
+        # Why: 0085-self-healing-ship design D1.
+        minions = self.primary / ".minions"
+        stuck = all(
+            stage in STUCK
+            and not (
+                stage == "converge-halted"
+                and change not in self.skips
+                and _rescue_amends(minions, change, "converge", change in self.decides)
+            )
+            for change, (stage, _) in stages.items()
+        )
         if not (granted or takeable) and stuck:
             for change, (stage, why) in stages.items():
                 if stage == "waiting":
@@ -4065,7 +4339,9 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         released = " ".join(self.released)
-        self.log.event("run", "done", f"released {released}{self.unpushed()}")
+        self.log.event(
+            "run", "done", f"released {released}{self.decisions()}{self.unpushed()}"
+        )
         return 0
 
 
@@ -4697,9 +4973,9 @@ def report(cwd: Path) -> str:
     """Return the last run's close-out: its waits, each version, the halts, the end.
 
     A version that rejoined has a `rejoined` line after the halts before it, and one
-    rescued a `rescued <sub-task> · <sha>` or `diagnosed <file>` line; a skipped
-    request, which names no version, keeps its line as it stands.
-    Why: 0067-rescue design D6.
+    rescued a `rescued <sub-task> · <sha>`, `decided <sub-task> · <sha>` or
+    `diagnosed <file>` line; a skipped request, which names no version, keeps its line
+    as it stands. Why: 0067-rescue design D6; 0085-self-healing-ship design D4.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions"

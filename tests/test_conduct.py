@@ -21,7 +21,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fake_worker import _IDENTITY, _cards, _commit, _done, _findings, _git
+from fake_worker import (
+    _IDENTITY,
+    _amend_needed,
+    _cards,
+    _commit,
+    _done,
+    _findings,
+    _git,
+)
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -1196,7 +1204,7 @@ def test_a_halted_dependency_blocks_a_chain(
     )
     assert lines[-1].endswith(
         " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
-        " · released none"
+        " · released none · needs 0001-todo a fix"
     )
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
@@ -1224,7 +1232,7 @@ def test_a_lone_dependent_is_blocked_by_its_halt(
     )
     assert lines[-1].endswith(
         " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
-        " · released none"
+        " · released none · needs 0001-todo its **HUMAN phase"
     )
 
 
@@ -1270,7 +1278,8 @@ def test_a_dependent_waits_while_its_dependency_works(
     assert _run_claude(conduct, late, monkeypatch) == 1
     assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
         "0001-todo · halt — waiting — after 0001-todo",
-        "run · halt — halted 0001-todo · blocked none · released v0.1.0",
+        "run · halt — halted 0001-todo · blocked none · released v0.1.0"
+        " · needs 0001-todo a fix",
     ]
 
 
@@ -1292,10 +1301,10 @@ def test_a_rejoined_dependency_brings_its_chain_back(
     _version(linked, "0004-free", "- [ ] 1 — Free\n")
 
     def fix() -> None:
+        fake()
         tasks = first / "openspec/changes/0001-todo/tasks.md"
         _commit(first, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
         _done(linked, "0001-todo", _git(first, "rev-parse", "HEAD"))
-        fake()
         assert conduct["rejoin"](linked, "0001-todo") == "rejoin: requested 0001-todo"
 
     said = (" · 0001-todo · halt — ", " · 0003-more · blocked — by 0002-marks")
@@ -1333,6 +1342,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert lines[-1].endswith(
         " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+        " · needs 0001-todo its **HUMAN phase"
     )
     assert _git(root, "tag", "-l") == "v0.1.0"
 
@@ -1533,6 +1543,346 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
 
 
 @pytest.mark.slow
+def test_a_rescue_amends_at_amend_needed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+
+    def run(root: Path, code: int) -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(root)
+
+    def fixed(root: Path) -> str:
+        grep = ("--grep=amend the change", "0001-todo")
+        amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+        return f" · run · rescue — 0001-todo: fixed · converge-halted · {amend}"
+
+    def halted(root: Path, card: str) -> Path:
+        tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+        head = _git(tree, "rev-parse", "HEAD")
+        _done(root, "0001-todo", head)
+        _amend_needed(root, "0001-todo", head, card)
+        return tree
+
+    calls = fake("amend-halts", "rescue-prose")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    lines = run(root, 0)
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "rescue 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert any(line.endswith(fixed(root)) for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+
+    # Halted so on disk at the run's start, beside a version that builds, it gets
+    # the same through the entry rescue.
+    (tmp_path / "entry").mkdir()
+    entry = _primary(tmp_path / "entry")
+    halted(entry, "R1")
+    _version(entry, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink()
+    lines = run(entry, 0)
+    made = _calls(calls)
+    assert "build 0001-todo" not in made
+    assert made.count("converge 0001-todo") == 1
+    assert {"rescue 0001-todo", "release 0001-todo", "release 0002-marks"} <= set(made)
+    assert any(" · 0001-todo · halt — converge-halted — " in line for line in lines)
+    assert any(line.endswith(fixed(entry)) for line in lines)
+    assert sorted(_git(entry, "tag", "-l").split()) == ["v0.1.0", "v0.2.0"]
+
+    # Halted so as the run's only version, it is not stuck: its thread starts for
+    # the entry rescue.
+    (tmp_path / "alone").mkdir()
+    alone = _primary(tmp_path / "alone")
+    halted(alone, "R1")
+    calls.unlink()
+    lines = run(alone, 0)
+    assert _calls(calls) == [
+        "probe",
+        "rescue 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert any(line.endswith(fixed(alone)) for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+    # Alone with its rescue skipped, it is stuck again: the run starts no worker.
+    (tmp_path / "skipped").mkdir()
+    skipped = _primary(tmp_path / "skipped")
+    halted(skipped, "R1")
+    table = skipped / ".minions" / "changes" / "0001-todo" / "models.toml"
+    table.write_text("[rescue]\nskip = true\n")
+    calls.unlink()
+    lines = run(skipped, 1)
+    assert _calls(calls) == []
+    assert any(" · 0001-todo · halt — converge-halted — " in line for line in lines)
+
+    # A blocking security card is a diagnosis: the run takes no amend for it.
+    (tmp_path / "security").mkdir()
+    secure = _primary(tmp_path / "security")
+    halted(secure, "S1")
+    _version(secure, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink(missing_ok=True)
+    fake("rescue-prose")
+    lines = run(secure, 1)
+    assert "rescue 0001-todo" in _calls(calls)
+    assert "release 0001-todo" not in _calls(calls)
+    design = "openspec/changes/0001-todo/design.md"
+    assert any(
+        line.endswith(f" · 0001-todo · halt — rescue touched {design}")
+        for line in lines
+    )
+    assert not any(" · run · rescue — " in line for line in lines)
+    # Its refused amend carries a `Rescue:` trailer: it reads as no person's amend.
+    assert any(
+        " · 0001-todo · halt — rescue answered its halt — converge: " in line
+        for line in lines
+    )
+    blocks, minions = conduct["_security_blocks"], secure / ".minions"
+    assert blocks(minions, "0001-todo", "halt — amend needed — R1 S1 · head a")
+    assert not blocks(minions, "0001-todo", "halt — amend needed — R1 · head a")
+    assert blocks(minions, "0009-none", "halt — amend needed — R1 · head a")
+
+
+@pytest.mark.slow
+def test_a_rescue_decides_under_the_switch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+
+    def run(code: int) -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(root)
+
+    calls = fake("amend-halts", "rescue-decides")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text('decide = "recommended"\n[build]\n')
+    lines = run(0)
+    assert "rescue 0001-todo with decide=recommended" in _calls(calls)
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+    assert any(
+        line.endswith(
+            f" · run · rescue — 0001-todo: decided · converge-halted · {amend}"
+        )
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.1.0 · decided 0001-todo")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    assert f"0001-todo · decided converge-halted · {amend}" in said
+
+    # Without the switch, the same amend is refused, naming the decision.
+    calls.unlink()
+    fake("halt-0002-marks", "rescue-decides")
+    tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    lines = run(1)
+    assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
+    design = "openspec/changes/0002-marks/design.md"
+    assert lines[-2].endswith(
+        f" · 0002-marks · halt — rescue changed a decision: {design}"
+    )
+    conductor = conduct["Run"](root, "claude")
+    conductor.decided += ["0001-todo", "0001-todo"]
+    assert conductor.closing() == (
+        "halted none · blocked none · released none · decided 0001-todo"
+    )
+
+    # Under the switch, a decided amend stands with its trailer alone, and an edit of
+    # `proposal.md` decides too.
+    amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
+    decided = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", f"{decided}~1", switch) == (decided, "", True)
+    message = "docs(0002-marks): amend the change directory\n\nRescue: 1.1"
+    _commit(tree, {design: "## Decisions\n\n| D1 | another fix |\n"}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", decided, switch) == (
+        None,
+        f"rescue commit {head[:7]} decided with no Decided-by: rescue trailer",
+        False,
+    )
+    _git(tree, "reset", "-q", "--hard", decided)
+    proposal = "openspec/changes/0002-marks/proposal.md"
+    _commit(
+        tree, {proposal: "---\nbump: patch\n---\n"}, f"{message}\nDecided-by: rescue"
+    )
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", decided, switch) == (head, "", True)
+
+    # A copy of the section above the real one, CRLF lines or a heading that only
+    # starts `## Decisions` hide no edit of a decision.
+    decisions = conduct["_decisions"]
+    real = "## Context\n\n## Decisions\n\n| D1 | a fix |\n\n## Tests\n"
+    hidden = (
+        "## Context\n\n## Decisions\n\n| D1 | a fix |\n\n## Earlier\n\n"
+        "## Decisions\n\n| D1 | another fix |\n\n## Tests\n"
+    )
+    assert decisions(real) != decisions(hidden)
+    crlf = real.replace("\n", "\r\n")
+    assert decisions(crlf) != decisions(crlf.replace("a fix", "another fix"))
+    spaced = real.replace("## Decisions", "## Decisions ")
+    assert decisions(spaced) != decisions(spaced.replace("a fix", "another fix"))
+
+
+def test_an_amend_during_a_rescue_goes_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("amend-halts", "rescue-person-amends")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "rescue 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+    lines = _log(root)
+    assert any(
+        line.endswith(f" · run · rescue — 0001-todo: amended · {amend}")
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+
+@pytest.mark.slow
+def test_a_halt_answered_on_disk_comes_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    globals_ = conduct["main"].__globals__
+    globals_["REJOIN_POLL"] = 0.1
+    work = globals_["work"]
+
+    # A worker in the second version's tree is killed as at a timeout.
+    def timed_out(
+        command: list[str], cwd: Path, out: Path | int, claim: Path | None
+    ) -> tuple[int, bool]:
+        if cwd.name == "0003-late":
+            return -9, True
+        return work(command, cwd, out, claim)
+
+    globals_["work"] = timed_out
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("liar-0001-todo", "hold-0002-marks")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _version(root, "0003-late", "- [ ] 1 — Late\n")
+
+    def fix() -> None:
+        fake("hold-0002-marks")
+        tasks = tree / "openspec/changes/0001-todo/tasks.md"
+        _commit(tree, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
+        _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+
+    halted = (" · 0001-todo · halt — ", " · 0003-late · halt — ")
+    join = _when_logged(root, halted, fix, hold)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    join()
+
+    lines = _log(root)
+    assert any(" · run · rejoin — 0001-todo: " in line for line in lines)
+    assert not any(" · run · rejoin — 0003-late" in line for line in lines)
+    assert {"release 0001-todo", "release 0002-marks"} <= set(_calls(calls))
+    assert lines[-1].endswith(
+        " · run · halt — halted 0003-late · blocked none · released v0.1.0 v0.2.0"
+        " · needs 0003-late a fix"
+    )
+
+    # With no thread live, a read that raised is replaced, and a change read once
+    # holds the run a poll more, until two polls a wait apart read it the same.
+    conductor = conduct["Run"](root, "claude")
+    halted_at = ("build", "phase 1 unticked", "a")
+    reads = [None, halted_at, ("converge", "x", "b"), *[("converge", "y", "b")] * 2]
+    polled: list[str] = []
+    sleep = time.sleep
+
+    def on_disk(change: str) -> tuple[str, str, str] | None:
+        polled.append("read")
+        return reads.pop(0) if reads else None
+
+    def wait(seconds: float) -> None:
+        polled.append("wait")
+        sleep(seconds)
+
+    conductor.on_disk = on_disk
+    monkeypatch.setattr(time, "sleep", wait)
+    conductor.halt("0003-late", "build timed out")
+    taken: list[object] = []
+
+    def take(version: object, threads: dict[str, threading.Thread]) -> bool:
+        taken.append(version)
+        conductor.halts.clear()
+        return True
+
+    conductor.take_back_safely = take
+    assert not conductor.recheck({}) and not conductor.recheck({})
+    conductor.join({})
+    assert taken == [conduct["find_version"](root, "0003-late")] and reads == []
+    assert polled[-3:] == ["read", "wait", "read"]
+    # A request taken at a poll's bottom sends the run to the next poll's top.
+    answers = [False, True, False, False]
+    conductor.take_requests = lambda threads: answers.pop(0)
+    conductor.join({})
+    assert answers == []
+    # A failed read of the open versions takes nothing, and the log says why.
+    conductor.halt("0003-late", "build timed out")
+    listed = globals_["open_versions"]
+
+    def broken(primary: Path) -> list[Any]:
+        raise OSError("planted")
+
+    globals_["open_versions"] = broken
+    try:
+        assert not conductor.recheck({})
+    finally:
+        globals_["open_versions"] = listed
+    said = conductor.log.path.read_text().splitlines()
+    assert said[-1].endswith(" · run · rejoin — skipped — planted")
+    # A diagnosed version taken back needs what its next halt needs.
+    conductor.diagnosed.add("0003-late")
+    conductor.probed.add("claude")
+    assert conductor.admit(conduct["find_version"](root, "0003-late"))
+    conductor.halt("0003-late", "build timed out")
+    assert conductor.needs() == " · needs 0003-late a fix"
+
+
+@pytest.mark.slow
 def test_a_rescue_diagnoses_a_decision_halt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1629,6 +1979,7 @@ def test_a_rescue_outside_the_plan_halts(
         assert amend(tree, "0001-todo", since, ("tasks.md",)) == (
             None,
             f"rescue commit {head} is not one amend with a Rescue: trailer",
+            False,
         )
 
 
@@ -1760,6 +2111,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     assert lines.index(halted) < lines.index(spawned)
     assert lines[-1].endswith(
         " · run · halt — halted 0002-marks · blocked none · released v0.1.0"
+        " · needs 0002-marks a fix"
     )
     log = conduct["last_log"](root / ".minions" / "runs")
     assert (
@@ -1788,6 +2140,7 @@ def test_a_later_version_ships_past_a_halted_one(
     assert "release 0002-marks" in _calls(calls)
     assert _log(root)[-1].endswith(
         " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+        " · needs 0001-todo a fix"
     )
 
 
@@ -1812,10 +2165,10 @@ def test_a_fixed_version_rejoins_a_live_run(
         rejoin(root, None)
 
     def fix() -> None:
+        fake("hold-0002-marks")
         tasks = tree / "openspec/changes/0001-todo/tasks.md"
         _commit(tree, {str(tasks): "## Progress\n\n- [x] 1 — Todo\n"}, "a fix")
         _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-        fake("hold-0002-marks")
         with pytest.raises(stop, match="no open version holds 0009-none"):
             rejoin(root, "0009-none")
         assert rejoin(root, None) == "rejoin: requested every halted version"
@@ -1841,6 +2194,7 @@ def test_a_fixed_version_rejoins_a_live_run(
     assert {"release 0001-todo", "release 0002-marks"} <= set(made)
     assert lines[-1].endswith(
         " · run · halt — halted 0003-hand · blocked none · released v0.1.0 v0.2.0"
+        " · needs 0003-hand its **HUMAN phase"
     )
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
@@ -1927,7 +2281,7 @@ def test_a_new_executor_is_probed_mid_run(
                 )
             assert lines[-1].endswith(
                 " · run · halt — halted 0002-marks 0003-hand · blocked none"
-                " · released v0.1.0"
+                " · released v0.1.0 · needs 0002-marks a fix, 0003-hand a fix"
             )
         else:
             assert made.count("probe") == 2
@@ -2838,6 +3192,7 @@ def test_run_halts_on_a_timeout(
     )
     assert lines[-1].endswith(
         " · run · halt — halted 0001-todo · blocked none · released none"
+        " · needs 0001-todo a fix"
     )
 
 

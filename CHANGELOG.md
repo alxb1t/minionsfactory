@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-11-06
+
+Gate: local 1m57s · CI not read under mf-ship · 0.69.0: local 1m30s · CI not read under mf-ship
+
+- A converge `amend needed` halt gets its rescue's amend to `tasks.md` and `design.md`'s prose, met on entry or after a
+  check, and the version converges again in the same run; one naming a `critical` or `high` security card gets a
+  diagnosis (change `0085-self-healing-ship`, phase 1).
+- The switch: `decide = "recommended"` atop a version's models file, read once a run, passes `decide=recommended` to its
+  rescue, which may then edit `proposal.md` and `design.md`'s `## Decisions` with `Decided-by: rescue`; the run logs
+  `decided`, the close, `done` and `report` name it, and `rescues-decided` counts it (change `0085-self-healing-ship`, phase 2).
+- The run goes on: the person's amends landing during a rescue let the version go on, logged `amended`; each poll, one
+  `REJOIN_POLL` window, takes back a halted version whose stage or `HEAD` changed on disk, read the same at two polls,
+  with no request; the close names what each halted version needs (change `0085-self-healing-ship`, phase 3).
+- The record: D60 states that a run heals its own halts; D47 and D53 take the `amend needed` rescue, the switch and the
+  person's amends; `THREAT_MODEL.md` and `mf-ship`'s skill say the same (change `0085-self-healing-ship`, phase 4).
+
 ## [0.69.0] - 2026-11-06
 
 Gate: local 1m30s · CI not read under mf-ship · 0.68.1: local 1m58s · CI not read under mf-ship
