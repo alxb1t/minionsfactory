@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.1] - 2026-11-06
+
+Gate: local 1m58s · CI not read under mf-ship · 0.68.0: local 1m31s · CI not read under mf-ship
+
 - A converge halt before round 1 — no `start` in its run, no `· grant` mark, no `verify: halt` — is answered by any commit past its head, or
   run again once a run at the same head; `mf-converge` opens a plain new run for it, and no rescue starts
   (change `0084-ship-fixes-2`, phase 1).
