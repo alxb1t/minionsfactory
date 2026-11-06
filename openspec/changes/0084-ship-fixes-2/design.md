@@ -50,8 +50,9 @@ worker's `mktemp` lands inside its sandbox.
 A **halt before round 1** is a converge halt, other than a `verify: halt` ([D2](#d2)), in a newest run with no `start` line. In
 `C`:
 
-- `_started(runs, change)` returns whether the newest run, from its `## Run` heading to the next, holds a line `_is_event` reads
-  as `start`. `_before_round(runs, change, halt)` is `not _started(…)` and no `verify: halt` in `halt`.
+- `_run_started(runs, change)` returns whether the newest run, from its `## Run` heading to the next, holds a line `_is_event`
+  reads as `start`; `C`'s `_started(pid)` keeps its name. `_before_round(runs, change, halt)` is `not _run_started(…)` and no
+  `verify: halt` in `halt`.
 - `_answered`, after its `halted == HEAD` return, returns `_ancestor(tree, halted, "HEAD")` for a halt before round 1: any commit
   past the head answers it, the findings files unread. `stage_of` gives it `AMENDED`, as today.
 - `_rerun(runs, tree, change, halt)` is `_before_round(…)` and the halt's `· head` resolving to `HEAD`. `stage_of` checks it after

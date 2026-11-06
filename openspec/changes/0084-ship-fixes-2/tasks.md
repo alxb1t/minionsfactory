@@ -10,7 +10,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The halt before round 1 answered
 
-- [ ] 1.1 Add `RERUN`, `_started`, `_before_round` and `_rerun` to `skills/mf-ship/scripts/conduct.py`, read in `_answered` and
+- [ ] 1.1 Add `RERUN`, `_run_started`, `_before_round` and `_rerun` to `skills/mf-ship/scripts/conduct.py`, read in `_answered` and
   `stage_of`, per [D1](design.md#d1) and [D2](design.md#d2); in `test_a_fix_after_a_cap_halt_converges_afresh`, add a `start` line
   below each headed halt it writes, save the debt lock's, per the design's `## Tests`.
   Verify: `grep -n '^RERUN = ' skills/mf-ship/scripts/conduct.py` prints a line.
