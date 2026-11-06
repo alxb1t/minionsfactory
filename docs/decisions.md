@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-       D5…D10, D38, D58              D11…D17, D40, D43, D49, D50
+     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57
 ```
@@ -66,7 +66,8 @@ How an idea becomes a change the build can run.
 
 ### D5 · A change is planned with `mf-plan` and written with the OpenSpec CLI
 
-**`mf-plan` grills a version to settled decisions and writes the brief; the OpenSpec CLI's `instructions` shape
+**`mf-plan` grills a version to settled decisions and writes the brief, and at a hard close queues its cut
+([D59](#d59--a-hard-plan-closes-on-a-checked-brief-and-queues-its-cut-on-the-persons-yes)); the OpenSpec CLI's `instructions` shape
 each artifact, and its `validate --strict` is the check on a change. `mf-plan` takes its frontier rounds from the
 adopted `grilling` skill it replaces.**
 
@@ -146,6 +147,17 @@ it.**
   rescue for a cut halt · the parameters in `.minions/`, where a worker writes.
 - **Accepts:** a Codex cutter's root is its brief's folder, so `cut` and the station refuse a Codex brief that does not
   stand alone in its folder: the person's other notes stay out of its reach.
+
+### D59 · A hard plan closes on a checked brief, and queues its cut on the person's yes
+
+**At a hard close `mf-plan` names per change the models of the build, converge, release and cut station and the switch
+`decide: recommended`, runs `brief_check.py` until it passes, and asks once, "confirm, and queue it?". Yes, or
+`then=ship`, runs `conduct.py cut` per change in order ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and
+is the person's yes to cut, run, merge and push each; no ends on `/mf-cut-change`. The plan never cuts.**
+
+- **Why:** a cut in the person's session kept the chat busy, and a brief out of shape is a cutter's doubt made at the
+  plan.
+- **Rejected:** the plan cutting · a light brief queued · a question per change.
 
 ## The check loop and the release
 
