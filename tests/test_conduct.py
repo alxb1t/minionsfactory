@@ -21,7 +21,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fake_worker import _IDENTITY, _cards, _commit, _done, _findings, _git
+from fake_worker import (
+    _IDENTITY,
+    _amend_needed,
+    _cards,
+    _commit,
+    _done,
+    _findings,
+    _git,
+)
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -1530,6 +1538,86 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     said = capsys.readouterr().out.splitlines()
     halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
     assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
+
+
+@pytest.mark.slow
+def test_a_rescue_amends_at_amend_needed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+
+    def run(root: Path, code: int) -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(root)
+
+    def fixed(root: Path) -> str:
+        grep = ("--grep=amend the change", "0001-todo")
+        amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+        return f" · run · rescue — 0001-todo: fixed · converge-halted · {amend}"
+
+    def halted(root: Path, card: str) -> Path:
+        tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+        head = _git(tree, "rev-parse", "HEAD")
+        _done(root, "0001-todo", head)
+        _amend_needed(root, "0001-todo", head, card)
+        return tree
+
+    calls = fake("amend-halts", "rescue-prose")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    lines = run(root, 0)
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "rescue 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert any(line.endswith(fixed(root)) for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+
+    # Halted so on disk at the run's start, beside a version that builds, it gets
+    # the same through the entry rescue.
+    (tmp_path / "entry").mkdir()
+    entry = _primary(tmp_path / "entry")
+    halted(entry, "R1")
+    _version(entry, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink()
+    lines = run(entry, 0)
+    made = _calls(calls)
+    assert "build 0001-todo" not in made
+    assert made.count("converge 0001-todo") == 1
+    assert {"rescue 0001-todo", "release 0001-todo", "release 0002-marks"} <= set(made)
+    assert any(" · 0001-todo · halt — converge-halted — " in line for line in lines)
+    assert any(line.endswith(fixed(entry)) for line in lines)
+    assert sorted(_git(entry, "tag", "-l").split()) == ["v0.1.0", "v0.2.0"]
+
+    # A blocking security card is a diagnosis: the run takes no amend for it.
+    (tmp_path / "security").mkdir()
+    secure = _primary(tmp_path / "security")
+    halted(secure, "S1")
+    _version(secure, "0002-marks", "- [ ] 1 — Marks\n")
+    calls.unlink()
+    fake("rescue-prose")
+    lines = run(secure, 1)
+    assert "rescue 0001-todo" in _calls(calls)
+    assert "release 0001-todo" not in _calls(calls)
+    design = "openspec/changes/0001-todo/design.md"
+    assert any(
+        line.endswith(f" · 0001-todo · halt — rescue touched {design}")
+        for line in lines
+    )
+    assert not any(" · run · rescue — " in line for line in lines)
+    blocks, minions = conduct["_security_blocks"], secure / ".minions"
+    assert blocks(minions, "0001-todo", "halt — amend needed — R1 S1 · head a")
+    assert not blocks(minions, "0001-todo", "halt — amend needed — R1 · head a")
+    assert blocks(minions, "0009-none", "halt — amend needed — R1 · head a")
 
 
 @pytest.mark.slow

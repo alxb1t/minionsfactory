@@ -2068,6 +2068,23 @@ def _field(card: str, name: str) -> str:
     return found[1].strip() if found else ""
 
 
+def _cards_in(text: str) -> Iterator[tuple[str, str]]:
+    r"""Yield each findings card's id and its text, to the next card.
+
+    e.g. "- **R1 — a finding**\n  - **Status:** open\n" → ("R1", that text)
+    """
+    starts = list(CARD.finditer(text))
+    ends = [card.start() for card in starts[1:]] + [len(text)]
+    for title, end in zip(starts, ends[: len(starts)], strict=True):
+        yield title[1], text[title.start() : end]
+
+
+def _severity(card: str) -> str:
+    """Return a card's severity: its `Priority`'s first part, in lower case."""
+    # A station may wrap a field's value in backticks.
+    return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
+
+
 def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """Return each open blocking card's id and fix size; None when a file is unread.
 
@@ -2083,19 +2100,47 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
             text = file.read_text()
         except (OSError, UnicodeDecodeError):
             return None
-        starts = list(CARD.finditer(text))
-        if not starts:
-            continue
-        ends = [card.start() for card in starts[1:]] + [len(text)]
-        for title, end in zip(starts, ends, strict=True):
-            card = text[title.start() : end]
-            # A station may wrap a field's value in backticks.
-            severity = _field(card, "Priority").split(" · ")[0].strip(" `").lower()
-            if severity in BLOCKS[role] and re.match(r"open\b", _field(card, "Status")):
+        for name, card in _cards_in(text):
+            blocking = _severity(card) in BLOCKS[role]
+            if blocking and re.match(r"open\b", _field(card, "Status")):
                 sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
                 size = sized[1].strip(" `.") if sized else ""
-                found.append((title[1], size or "a design change"))
+                found.append((name, size or "a design change"))
     return found
+
+
+def _security_blocks(runs: Path, change: str, halt: str) -> bool:
+    """Return whether a card an `amend needed` halt names is a blocking security one.
+
+    An unread `security.md` blocks. Why: 0085-self-healing-ship design D2.
+    e.g. "… · halt — amend needed — R1 S2 · head 7ee2179", S2 `high` → True
+    """
+    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
+    try:
+        text = (_change_dir(runs.parent, change) / "security.md").read_text()
+    except (OSError, UnicodeDecodeError):
+        return True
+    return any(
+        name in ids and _severity(card) in BLOCKS["security"]
+        for name, card in _cards_in(text)
+    )
+
+
+def _rescue_amends(
+    runs: Path, change: str, station: str, decide: bool
+) -> tuple[str, ...]:
+    """Return the change's files a rescue of `station`'s halt may amend; () for none.
+
+    A build halt gets `AMENDS`, and a converge `amend needed` halt too, save one
+    naming a blocking security card; under the switch, `proposal.md` besides.
+    Why: 0085-self-healing-ship design D1, D2.
+    """
+    halt = _converge_halt(runs, change) or ""
+    if station == "converge" and "amend needed" in halt:
+        amends = () if _security_blocks(runs, change, halt) else AMENDS
+    else:
+        amends = AMENDS if station == "build" else ()
+    return (*amends, "proposal.md") if decide and amends else amends
 
 
 def _amend(
@@ -2945,12 +2990,13 @@ class Run:
     def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
         """Run a halted version's rescue on `held`; True when its amend cleared it.
 
-        The amend may touch the change's `amends` files alone: none at a converge or
-        integrate halt, which a rescue diagnoses. Any other outcome halts the version
-        again, naming what the rescue left, and one at such a halt is then checked for
-        an answer on disk. A halted run, a skip or a spent rescue starts none. A
-        converge `verify: halt` the run diagnoses itself, with no worker.
-        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8.
+        The amend may touch the change's `amends` files alone, as `_rescue_amends`
+        names them. Any other outcome halts the version again, naming what the rescue
+        left, and one at a converge or integrate halt is then checked for an answer on
+        disk. A halted run, a skip or a spent rescue starts none. A converge
+        `verify: halt` the run diagnoses itself, with no worker.
+        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
+        0085-self-healing-ship design D1.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -2967,6 +3013,7 @@ class Run:
         diagnosis = _change_dir(self.primary, change) / "rescue.md"
         written = _mtime(diagnosis)
         prompt = PROMPTS["rescue"].format(change=change)
+        sha = None
         try:
             if self.spawn(change, "rescue", tree, prompt, models) is None:
                 return False
@@ -2983,7 +3030,8 @@ class Run:
             self.halt(change, why or "rescue wrote no amend and no diagnosis")
             return False
         finally:
-            if held in RESCUED:
+            # A taken amend is the rescue's answer: converge opens its amended run.
+            if held in RESCUED and sha is None:
                 self.hold(version, tree, before)
 
     def diagnose(self, change: str, halt: str) -> None:
@@ -3107,9 +3155,11 @@ class Run:
         A cap the run grants gets its round, spawned and checked as a person's
         grant's is, and one it refuses a `re-plan` halt line; a build check,
         converge or integrate halt then gets its rescue. A halt before round 1 it runs
-        again joins `reruns`. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
-        design D1.
+        again joins `reruns`. A rescue's taken amend, at a halt met on entry or after
+        a check, goes on. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
+        design D1; 0085-self-healing-ship design D1.
         """
+        minions = self.primary / ".minions"
         try:
             auto = False
             while not self.stopped(version.change):
@@ -3127,7 +3177,10 @@ class Run:
                     if refused:
                         self.halt(version.change, f"re-plan: {refused}")
                     if rescued:
-                        self.rescue(version, stage, ())
+                        station = "converge" if stage == "converge-halted" else stage
+                        amends = _rescue_amends(minions, version.change, station, False)
+                        if self.rescue(version, stage, amends):
+                            continue
                     return
                 if stage in stop_at:
                     return
@@ -3142,7 +3195,6 @@ class Run:
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
                     return
-                minions = self.primary / ".minions"
                 # The run's own grant takes no person's grant file.
                 clause = " and grant=yes" if auto else ""
                 person = not auto and stage == "converge"
@@ -3179,9 +3231,9 @@ class Run:
                 if held is not None:
                     reason = f"{reason}{self.rescued(version.change, held)}"
                 if not self.judge(version.change, stage, reason, denied):
-                    amends = AMENDS if stage == "build" else ()
                     if held is None:
                         return
+                    amends = _rescue_amends(minions, version.change, stage, False)
                     # Only a failed converge check meets a cap here.
                     cap = held if stage == "converge" else stage
                     auto, refused = self.auto_grant(version, cap, reason or "")

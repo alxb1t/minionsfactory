@@ -4,20 +4,20 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — Rescue at amend needed
+- [x] 1 — Rescue at amend needed
 - [ ] 2 — The switch
 - [ ] 3 — The run goes on
 - [ ] 4 — The record
 
 ## 1 — Rescue at amend needed
 
-- [ ] 1.1 Add `_rescue_amends` and `_security_blocks` to `skills/mf-ship/scripts/conduct.py`, take them at both rescue calls in
+- [x] 1.1 Add `_rescue_amends` and `_security_blocks` to `skills/mf-ship/scripts/conduct.py`, take them at both rescue calls in
   `advance`, go on after an entry rescue's amend, and call `hold` only when no amend was taken, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `grep -n 'def _rescue_amends' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Add the `amend-halts` converge mode and the `rescue-prose` rescue mode to `tests/fake_worker.py`, and
+- [x] 1.2 Add the `amend-halts` converge mode and the `rescue-prose` rescue mode to `tests/fake_worker.py`, and
   `test_a_rescue_amends_at_amend_needed` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue_amends_at_amend_needed` reports `1 passed`.
-- [ ] 1.3 Add the `amend needed` row and the security line to `skills/mf-rescue/SKILL.md`'s kind table, per [D1](design.md#d1).
+- [x] 1.3 Add the `amend needed` row and the security line to `skills/mf-rescue/SKILL.md`'s kind table, per [D1](design.md#d1).
   Verify: `grep -n 'cards name, in' skills/mf-rescue/SKILL.md` prints a line.
 
 ## 2 — The switch

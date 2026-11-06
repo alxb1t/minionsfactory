@@ -87,6 +87,33 @@ def _cards(
     log.write_text(f"# t\n\n{run}10:00:00 · round 3 · halt — cap reached\n")
 
 
+def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
+    """Write converge's `amend needed — <card>` halt at `head`, after round 1's start.
+
+    The card is `wontfix`, naming a `design.md` prose amend: review's `blocking`, or
+    security's `high` for an `S` id. The other findings file is clean.
+    """
+    folder = _folder(root, change)
+    folder.mkdir(parents=True, exist_ok=True)
+    role, severity = ("security", "high") if card[0] == "S" else ("review", "blocking")
+    for name in ("review", "security"):
+        verdict = "changes-requested" if name == role else "clean"
+        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
+        if name == role:
+            text += (
+                f"\n- **{card} — a finding**\n"
+                f"  - **Priority:** {severity} · {role} · stability — why.\n"
+                "  - **Fix:** amend design.md's prose · size: one line.\n"
+                "  - **Status:** wontfix — needs the amend of design.md's prose\n"
+            )
+        (folder / f"{name}.md").write_text(text)
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 1 — d\n"
+        f"10:00:01 · round 1 · halt — amend needed — {card} · head {head}\n"
+        "10:00:00 · round 1 · start — base a · head b\n"
+    )
+
+
 def _done(root: Path, change: str, head: str) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
@@ -169,10 +196,19 @@ def _integrate(tree: Path, message: str, modes: set[str]) -> None:
 _AMENDED = "Amended: 1.1\n"
 
 
+_PROSE = "Read the amended prose.\n"
+
+
 def _amended(tree: Path, change: str | None) -> bool:
     """Return whether a rescue's fix stands in the change's `tasks.md`."""
     tasks = tree / "openspec" / "changes" / str(change) / "tasks.md"
     return _AMENDED in tasks.read_text()
+
+
+def _prose(tree: Path, change: str) -> bool:
+    """Return whether a rescue's prose amend stands in the change's `design.md`."""
+    design = tree / "openspec" / "changes" / change / "design.md"
+    return design.is_file() and _PROSE in design.read_text()
 
 
 def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
@@ -184,6 +220,10 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         sys.exit(1)
     if "rescue-fix" in modes:
         _commit(tree, {tasks: text + _AMENDED}, message)
+    elif "rescue-prose" in modes:
+        design = tree / f"openspec/changes/{change}/design.md"
+        prose = (design.read_text() if design.is_file() else "") + _PROSE
+        _commit(tree, {str(design): prose}, message.replace("1.1", "R1"))
     elif "rescue-hollow" in modes:
         _commit(tree, {tasks: text + "Read again.\n"}, message)
     elif "rescue-wild" in modes:
@@ -387,6 +427,9 @@ def _fake(prompt: str) -> None:
                 "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
             )
             return
+        if "amend-halts" in modes and not _prose(here, str(change)):
+            _amend_needed(primary, str(change), _git(here, "rev-parse", "HEAD"))
+            return
         folder = _folder(primary, str(change))
         # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.
         before = {
@@ -407,7 +450,7 @@ def _fake(prompt: str) -> None:
         log = folder / "status_log.md"
         held = log.read_text() if log.is_file() else ""
         _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
-        if "amends" in modes:
+        if "amends" in modes or "amend-halts" in modes:
             run = "## Run 2 — d · amended\n10:00:00 · round 1 · done — ok\n\n"
             log.write_text(held.replace("## Run", run + "## Run", 1))
         if "dies-converge" in modes:

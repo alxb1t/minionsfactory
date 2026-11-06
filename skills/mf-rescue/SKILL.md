@@ -39,6 +39,7 @@ Read each, as it exists:
 | the newest `.minions/runs/<stamp>.md` | the run log: the version's last `halt —` line |
 | the newest `.minions/changes/<change-id>/logs/<stamp>-build[-<n>].log`, by its stamp and then `n`, never the name's sort | the build worker's output: its last lines |
 | `.minions/changes/<change-id>/status_log.md` | converge's rounds, for a converge halt |
+| `.minions/changes/<change-id>/review.md`, `security.md` | the findings cards an `amend needed` halt names |
 | `.minions/changes/<change-id>/integrate.md`, `integrate.red` | integrate's note or red gate |
 | `openspec/changes/<change-id>/` | the proposal, design, tasks and spec delta |
 | the code at `HEAD` | what the tasks and the design name |
@@ -54,6 +55,7 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 |---|---|---|
 | a `**HUMAN` phase — the halt's phase, or its sub-task's, is marked `**HUMAN` | diagnosis | — |
 | converge's `verify: halt` | diagnosed by the run | — |
+| converge's `amend needed` | fix | the amend its `wontfix` cards name, in `tasks.md` and `design.md`'s prose |
 | a `Verify:` that cannot pass — its search matches a line no task touches, its expected output is wrong at `HEAD` | fix | the `Verify:` the task's own result passes |
 | a reader a deletion missed — a file the change turns red that no task names | fix | the file, named in the task that turns it red |
 | a task two readings would build differently | fix | the reading `design.md`'s decisions settle; neither settled → diagnosis |
@@ -61,6 +63,9 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 | a design premise the code rules out | diagnosis | — |
 | converge's cap | diagnosis | — |
 | integrate's red gate or note | diagnosis | — |
+
+An `amend needed` halt naming a security card of severity `critical` or `high` is a diagnosis, whatever the switch. Its
+commit's `Rescue:` trailer names the card ids: `Rescue: R4`.
 
 A cap whose last halt line says `re-plan: <ids>` is the plan's, not a grant's: the run refused its automatic grant. Its
 diagnosis's `proposal:` is `/mf-plan <change-id> depth=hard from=<its brief>`, and its `cause:` names the ids.
