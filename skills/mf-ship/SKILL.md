@@ -6,16 +6,19 @@ description: Take every cut version to the default branch unattended — build a
 # mf-ship — take every cut version to the default branch, unattended
 
 > **Your role is SHIP.** You start one run and report it. You run no station yourself: the script starts each as a
-> fresh agent process and checks it from disk. Starting a run is the person's yes to every merge and push in it.
+> fresh agent process and checks it from disk. Starting a run, or queuing a cut with `conduct.py cut`, is the
+> person's yes to every merge and push in it.
 
 Before work, read root `AGENTS.md` and the mandatory context it names. Missing root `AGENTS.md` → **halt**,
 naming it.
 
 ```
-preconditions ─▶ status ─▶ every open version at a halt stage or waiting? ─ yes ─▶ halt, no worker
+preconditions ─▶ status ─▶ every open version at a halt stage or waiting, no cut queued? ─ yes ─▶ halt, no worker
                     │ no
                   probe worker ─▶ check probe
                     │
+  each queued cut: wait for its after: ─▶ branch and worktree ─▶ cut ─▶ check cut, else cut-halted
+                    │  a cut that passes is a version
   each version, in parallel: wait for its after: ─▶ build ─▶ converge
       a halt gets its rescue, then stops only its version, and blocks what names it; a crash stops the run
                     │  ready, one at a time
@@ -48,11 +51,12 @@ skill. Its exits: 0 done · 1 halt · 2 cannot run.
 
 | command | prints |
 |---|---|
-| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>`, or `<change-id> · old layout — a run moves it` while its files sit at their old paths. Until a run keeps `origin`'s URLs it makes no remote call and names no tag, and a merged version tag leaves `run · unread` |
+| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>`, or `<change-id> · old layout — a run moves it` while its files sit at their old paths, then one line per queued cut: `<change-id> · cut`, or `<change-id> · cut-halted — <line>`; an open version that is a queued cut prints its cut line alone. Until a run keeps `origin`'s URLs it makes no remote call and names no tag, and a merged version tag leaves `run · unread` |
 | `run --executor <executor> --detach` | starts the loop in a new session and returns |
+| `cut <slug> <bump> brief=<path> [after=<id>[,<id>]] --executor <executor> [--model <m>] [--effort <e>]` | `cut: queued <change-id> · the live run takes it`, or `cut: queued <change-id> · run started · pid <pid>`: the next free number, reserved under the queue lock in `.minions/cuts/<change-id>`, its parameters in the home folder's queue. Queuing it is the person's yes to cut, run, merge and push it. Exit 2 names a slug, a bump, a brief or an `after` id it refuses — a Codex cutter writes its brief's whole folder, so its brief must stand alone there — or a run that did not start, the cut left queued |
 | `stop` | ends the live run, or says none is live; the run log it closed. A worker group it cannot end exits 2, naming the group, with the log closed and the claim kept |
-| `grant <change-id> --executor <executor>` | records one more round past the cap, and starts the loop; with a run live, `grant: recorded — the live run takes <change-id> back`, and the live run takes it. While the live run's rescue of that version runs, it exits 2, naming the rescue, and writes nothing: grant once it ends. Any other stage, a grant already waiting included, exits 2, naming the stage and `/mf-ship` |
-| `rejoin [<change-id>]` | `rejoin: requested <change-id>`, or `every halted version` with no id: the live run takes back each requested open version whose stage is no longer a halt, a newly cut one included, and none whose models file changed since the run read it, nor one whose converge or integrate halt was answered while its rescue ran, the person's own fix included, which waits for a re-run. Exit 2 when no run is live, or no open version holds the id |
+| `grant <change-id> --executor <executor>` | records one more round past the cap, and starts the loop: `grant: recorded · run started · pid <pid>`; with a run live, `grant: recorded — the live run takes <change-id> back`, and the live run takes it. While the live run's rescue of that version runs, it exits 2, naming the rescue, and writes nothing: grant once it ends. Any other stage, a grant already waiting included, exits 2, naming the stage and `/mf-ship` |
+| `rejoin [<change-id>]` | `rejoin: requested <change-id>`, or `every halted version` with no id: the live run takes back each requested open version whose stage is no longer a halt, a newly cut one included, and none whose models file changed since the run read it, nor one whose converge or integrate halt was answered while its rescue ran, the person's own fix included, which waits for a re-run. `rejoin <change-id>` naming a queued cut clears its halt: the live run cuts it again, dropping a branch that holds no change, or, with none live, a run starts: `rejoin: requested <change-id> · run started · pid <pid>`. Exit 2 when no run is live, or no open version holds the id |
 | `report` | the last run's close-out lines |
 | `approve-gate <change-id> --yes <hash>` | `approve-gate: approved — <hash> · <change-id>`, the hash recorded in the home folder; exit 1 refuses a `<hash>` that is not a sha256; exit 2 when no version worktree holds the change, or a sandbox refused the write |
 | `anchor [--yes <sha>]` | `anchor: <sha> · <subject>`: the person's session seeds the first offline base, the default-branch sha a run judges against while `origin` cannot be read, from `origin/<default>`, run outside a sandbox. With no `--yes`, exit 1 prints the sha and subject to check against `origin`'s default branch or its release, and writes nothing; `--yes <sha>` writes that sha. Exit 2 names the check that refused: a live run, an offline base already standing, the ref missing, not on the default branch, no tagged release merge, or a `--yes` sha that is not the ref's |
@@ -89,6 +93,7 @@ Run `status` and paste its output.
 | `<change-id> · halt — re-plan: <ids>`, in `report` | report it in full, with its rescue's diagnosis, then stop: the run refused that converge cap its automatic grant — a blocker sized `a design change`, no card read, a granted round's cap, this run's or an earlier one's, or `[converge] auto_grant = false` — so the plan is what to fix: a person runs `/mf-plan <change-id> depth=hard from=<its brief>`, or `grant <change-id>` for one more round |
 | `<change-id> · diagnosed .minions/changes/<change-id>/rescue.md`, in `report` | report it in full, with that file: the halt's `mf-rescue` found it needs the person, or the run diagnosed a converge `verify: halt` itself, with no worker; its proposal says what to decide, and the command the run takes back. A `<change-id> · rescued <sub-task> · <sha>` line is an amend the run took and went on past |
 | `<change-id> · halt — rescue answered its halt — …`, in `report` | report it in full, then stop: the rescue at a converge cap or integrate halt left it answered on disk — a grant, a commit at the `HEAD` it names, a settled merge or a removed note — and the person's own fix while the rescue ran, or a grant landing as it ended, reads the same; a re-run goes on from that, so a person keeps or undoes it first |
+| `<change-id> · cut-halted — <line>` | report it in full, then stop; no rescue runs. A cutter's doubt, or a branch that holds no `openspec/changes/<change-id>/`, is the plan's: the person runs `/mf-plan <what> depth=hard from=<its brief>`, then `conduct.py rejoin <change-id>`, and the run cuts it again. A branch that holds its change is checked, not cut again, so a failed check there — no models file, a dirty tree, a commit past the cut commit — is fixed on disk, or the branch deleted, before `conduct.py rejoin <change-id>`; a Codex brief's crowded folder is emptied of every other file, and the brief stays where it is |
 | anything else | run `report` and keep its lines for Step 4 |
 
 ## Step 3 — Start

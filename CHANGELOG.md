@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-11-06
+
+Gate: local 1m31s · CI not read under mf-ship · 0.67.0: local 1m45s · CI not read under mf-ship
+
+- `conduct.py cut <slug> <bump> brief=<path>` takes the next free number under the queue lock in
+  `~/.mf-ship-origin/<digest>.queue/`, reserves it in `.minions/cuts/<id>`, and hands it to the live run or starts one;
+  rejoin requests move to that queue, where no worker writes, and a run's close starts the next run on a standing request
+  (change `0082-cut-station`, phase 1).
+- A run takes each queued cut: it makes the branch and worktree, spawns `mf-cut-change … unattended=yes` as the station
+  `cut`, sandboxed to that worktree, the run directory and the brief, checks the cut on disk, then builds it; a cut that
+  fails is `cut-halted`, shown by `status`, with no rescue, and `rejoin <id>` cuts it again (change `0082-cut-station`,
+  phase 2).
+- `mf-cut-change unattended=yes` never waits: under the brief's `decide: recommended` it takes the recommended option and
+  logs a `decided by the cutter` row in the brief, else it halts in `cut.halt`; it writes `models.toml` from the brief.
+  Both modes take an `At` value only as 7 to 40 hex digits (change `0082-cut-station`, phase 3).
+- D58 records the cut station; D20, D38, D41, D44, D47, D51 and D57 amended. The threat model, the principles,
+  `mf-ship`'s skill and the README name the queue, the cutter's reach and `cut-halted` (change `0082-cut-station`,
+  phase 4).
+
 ## [0.67.0] - 2026-11-06
 
 Gate: local 1m45s · CI not read under mf-ship · 0.66.0: local 1m18s · CI 0m42s (CI at d897227)

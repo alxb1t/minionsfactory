@@ -181,7 +181,11 @@ def _calls(path: Path) -> list[str]:
 
 
 def _log(root: Path) -> list[str]:
-    logs = sorted((root / ".minions" / "runs").glob("*.md"))
+    # A second run in the same second logs to `<stamp>-2.md`, as `last_log` orders it.
+    logs = sorted(
+        (root / ".minions" / "runs").glob("*.md"),
+        key=lambda log: (log.stem[:15], len(log.stem), log.stem),
+    )
     return logs[-1].read_text().splitlines()[2:]
 
 
@@ -1883,7 +1887,7 @@ def test_a_new_executor_is_probed_mid_run(
         ) -> None:
             # A folder no unlink removes: the poll skips it, and the run goes on.
             # Why: 0063-rejoin design D2.
-            (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
+            (conduct["_queue"](root) / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
                 table = root / ".minions" / "changes" / change / "models.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -1939,7 +1943,7 @@ def test_a_new_executor_is_probed_mid_run(
             )
             assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
 
-            stale = root / ".minions" / "runs" / "rejoin" / "all"
+            stale = conduct["_queue"](root) / "rejoin" / "all"
             stale.touch()
             assert (
                 _main(
@@ -1962,8 +1966,682 @@ def test_a_new_executor_is_probed_mid_run(
             (elsewhere / "kept.gate").mkdir()
             shutil.rmtree(stale.parent)
             stale.parent.symlink_to(elsewhere)
-            assert conduct["_requests"](root / ".minions" / "runs") == set()
+            assert conduct["_requests"](conduct["_queue"](root)) == set()
             assert (elsewhere / "kept-urls").is_file()
+
+
+def _claimed(conduct: dict[str, Any], root: Path) -> None:
+    """Write a live claim held by this process."""
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+
+
+def test_parallel_cuts_reserve_apart_and_start_one_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    archived = "openspec/changes/archive/0002-old/proposal.md"
+    _commit(root, {archived: "---\nbump: minor\n---\n"}, "archive 0002-old")
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    good = f"brief={brief}"
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        time.sleep(0.2)
+        starts.append((primary, executor))
+        _claimed(conduct, primary)
+        return 4242
+
+    names["_start_run"] = start
+    said: list[str] = []
+    threads = [
+        threading.Thread(
+            target=lambda slug=slug: said.append(
+                conduct["cut"](root, slug, "minor", good, None, "claude", None, None)
+            )
+        )
+        for slug in ("a", "b")
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    cuts = conduct["_cuts"](root)
+    assert sorted(change[:5] for change in cuts) == ["0003-", "0004-"]
+    assert starts == [(root, "claude")]
+    assert sorted(line.split(" · ", 1)[1] for line in said) == [
+        "run started · pid 4242",
+        "the live run takes it",
+    ]
+    entry = {
+        "bump": "minor",
+        "brief": str(brief.resolve()),
+        "after": [],
+        "executor": "claude",
+        "model": None,
+        "effort": None,
+        "halt": None,
+    }
+    assert cuts == dict.fromkeys(cuts, entry)
+    reserved = root / ".minions" / "cuts"
+    assert sorted(os.listdir(reserved)) == sorted(cuts)
+
+    def refused(*args: str) -> str:
+        capsys.readouterr()
+        command = ("cut", *args, "--executor", "claude")
+        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 2
+        return capsys.readouterr().out.strip()
+
+    cannot = "cut: cannot run — "
+    assert refused("A b", "minor", good) == f"{cannot}not a slug: A b"
+    assert refused("c", "minor", str(brief)) == f"{cannot}expected brief=<path>"
+    assert refused("c", "minor", good, "0001-todo") == f"{cannot}expected after=<ids>"
+    assert refused("c", "minor", "brief=brief.md") == (
+        f"{cannot}brief=brief.md is not an absolute path to a file"
+    )
+    assert refused("c", "minor", f"brief={tmp_path}") == (
+        f"{cannot}brief={tmp_path} is not an absolute path to a file"
+    )
+    assert refused("c", "minor", good, "after=0009-none") == (
+        f"{cannot}after=0009-none names no open version or queued cut"
+    )
+    with pytest.raises(SystemExit, match="2"):
+        _main(conduct, root, "cut", "c", "major", good, monkeypatch=monkeypatch)
+    shutil.rmtree(root / ".minions" / "runs" / "active")
+    (root / "dirty.txt").write_text("x\n")
+    queued = f"after=0001-todo,{min(cuts)}"
+    assert refused("c", "minor", good, queued) == (
+        "run: cannot run — the primary's tree is not clean"
+    )
+    (root / "dirty.txt").unlink()
+    # A Codex cutter writes the brief's whole folder: one holding more is refused.
+    capsys.readouterr()
+    codex = ("cut", "c", "minor", good, "--executor", "codex")
+    assert _main(conduct, root, *codex, monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == (
+        f"{cannot}a Codex cutter writes its brief's whole folder, and"
+        f" {brief.resolve().parent} holds more than the brief: move the brief into a"
+        " folder of its own"
+    )
+    assert (
+        sorted(os.listdir(reserved)) == sorted(conduct["_cuts"](root)) == sorted(cuts)
+    )
+
+    # A run that does not start leaves its cut queued for the next run.
+    def unstarted(primary: Path, executor: str) -> int:
+        raise conduct["Stop"](2, "the run did not start — x")
+
+    names["_start_run"] = unstarted
+    assert refused("c", "minor", good) == (
+        "cut: queued 0005-c · the run did not start — x"
+    )
+    assert conduct["_cuts"](root)["0005-c"]["halt"] is None
+    _claimed(conduct, root)
+    capsys.readouterr()
+    alone = tmp_path / "alone" / "brief.md"
+    alone.parent.mkdir()
+    alone.write_text("# brief\n")
+    args = ("cut", "d", "patch", f"brief={alone}", "--executor", "codex")
+    args += ("--model", "opus")
+    assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
+    picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
+    picked["brief"] = str(alone.resolve())
+    assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
+
+
+def test_a_started_run_is_seen_by_its_claim_or_its_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    start, claim, detach, stop = (
+        names[name] for name in ("_start_run", "_claim", "_detach", "Stop")
+    )
+    root = _primary(tmp_path)
+    log = root / ".minions" / "runs" / "detached.log"
+
+    # A run that ended before its claim was read: `run: done`, a pin line after it.
+    kept = Path.home() / ".mf-ship-origin"
+    kept.mkdir(exist_ok=True)
+    (kept / "source").write_text(f"{tmp_path / 'nowhere'}\n")
+    (kept / "pending").write_text("v9.9.9\n")
+    names["_claim"] = lambda active: "none"
+    pid = start(root, "claude")
+    lines = log.read_text().splitlines()
+    assert lines[-2].startswith("run: done · ")
+    assert lines[-1].startswith("pin: cannot move — ")
+    (kept / "pending").unlink()
+
+    # A run whose claim is live.
+    children: list[subprocess.Popen[bytes]] = []
+
+    def sleeper(primary: Path, executor: str) -> subprocess.Popen[bytes]:
+        children.append(subprocess.Popen(["sleep", "5"]))
+        return children[-1]
+
+    names["_claim"], names["_detach"] = (lambda active: "live"), sleeper
+    try:
+        assert start(root, "claude") == children[0].pid != pid
+    finally:
+        children[0].kill()
+        children[0].wait()
+
+    # A child that says nothing.
+    names["_claim"] = lambda active: "none"
+    names["_detach"] = lambda primary, executor: subprocess.Popen(
+        [sys.executable, "-c", "pass"]
+    )
+    with pytest.raises(
+        stop, match="^the run did not start — no line in .minions/runs/detached.log$"
+    ):
+        start(root, "claude")
+
+    # A run that stops at its preconditions names them.
+    names["_claim"], names["_detach"] = claim, detach
+    (root / "dirty.txt").write_text("x\n")
+    with pytest.raises(
+        stop,
+        match="^the run did not start — run: cannot run — the primary's tree is not"
+        " clean$",
+    ):
+        start(root, "claude")
+    (root / "dirty.txt").unlink()
+
+    capsys.readouterr()
+    args = ("run", "--executor", "claude", "--detach")
+    assert _main(conduct, root, *args, monkeypatch=monkeypatch) == 0
+    assert re.fullmatch(r"run: started · pid \d+\n", capsys.readouterr().out)
+    deadline = time.monotonic() + 30
+    while log.read_text().count("run: done · ") < 2 and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert log.read_text().count("run: done · ") == 2
+
+
+def test_a_request_at_a_runs_close_starts_the_next_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    queue = conduct["_queue"](root)
+    active = root / ".minions" / "runs" / "active"
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        starts.append((primary, executor))
+        return 4242
+
+    names["_start_run"] = start
+
+    def ships(request: bool) -> None:
+        def ship(self: object) -> int:
+            vars(self)["seen"] = set()
+            if request:
+                conduct["_request"](root, "all")
+            return 0
+
+        monkeypatch.setattr(names["Run"], "ship", ship)
+
+    def run() -> str:
+        capsys.readouterr()
+        assert conduct["run"](root, "claude", False) == 0
+        assert not active.exists()
+        return capsys.readouterr().out
+
+    ships(request=True)
+    assert run().endswith("run: next started · pid 4242\n")
+    assert starts == [(root, "claude")]
+    conduct["_requests"](queue)
+    ships(request=False)
+    assert "next started" not in run()
+    assert starts == [(root, "claude")]
+
+    # A request the close cannot read starts none: a folder, a link, a refused list.
+    (queue / "rejoin" / "planted").mkdir()
+    assert "next started" not in run()
+    (queue / "rejoin" / "planted").rmdir()
+    conduct["_request"](root, "all")
+    listdir = os.listdir
+    monkeypatch.setattr(os, "listdir", lambda fd: ["gone"])
+    assert not conduct["_requested"](queue)
+    monkeypatch.setattr(os, "listdir", listdir)
+    elsewhere = tmp_path / "operator-files"
+    shutil.move(queue / "rejoin", elsewhere)
+    (queue / "rejoin").symlink_to(elsewhere)
+    assert not conduct["_requested"](queue)
+    (queue / "rejoin").unlink()
+    shutil.move(elsewhere, queue / "rejoin")
+    assert conduct["_requested"](queue)
+
+    # A start that stops prints its line.
+    def unstarted(primary: Path, executor: str) -> int:
+        raise conduct["Stop"](2, "the run did not start — x")
+
+    names["_start_run"] = unstarted
+    assert run().endswith("the run did not start — x\n")
+
+    # A home folder that refuses the lock removes the claim and starts none.
+    names["_start_run"] = start
+    kept = Path.home() / ".mf-ship-origin"
+    kept.rename(tmp_path / "kept-aside")
+    kept.write_text("")
+    assert run().endswith(
+        "the home folder refuses the queue: File exists; run it outside a sandbox\n"
+    )
+    kept.unlink()
+    (tmp_path / "kept-aside").rename(kept)
+    assert starts == [(root, "claude")]
+
+    # A run that fails before it reads the queue starts no next run.
+    def broken(self: object, primary: Path, executor: str) -> None:
+        raise ValueError("broken")
+
+    init = names["Run"].__init__
+    monkeypatch.setattr(names["Run"], "__init__", broken)
+    with pytest.raises(ValueError, match="broken"):
+        conduct["run"](root, "claude", False)
+    assert not active.exists()
+    assert starts == [(root, "claude")]
+    monkeypatch.setattr(names["Run"], "__init__", init)
+    conduct["_requests"](queue)
+
+    # A cut queued during the run starts the next one; a cut the run read starts none.
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+
+    def reads(seen: set[str]) -> None:
+        def ship(self: object) -> int:
+            vars(self)["seen"] = seen
+            _queued(conduct, root, "0001-a", brief)
+            return 0
+
+        monkeypatch.setattr(names["Run"], "ship", ship)
+
+    reads(set())
+    assert run().endswith("run: next started · pid 4242\n")
+    assert starts == [(root, "claude")] * 2
+    reads({"0001-a"})
+    assert "next started" not in run()
+    assert starts == [(root, "claude")] * 2
+
+
+def _queued(
+    conduct: dict[str, Any],
+    root: Path,
+    change: str,
+    brief: Path,
+    after: tuple[str, ...] = (),
+    executor: str = "claude",
+    halt: str | None = None,
+) -> None:
+    """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
+    (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
+    (root / ".minions" / "cuts" / change).touch()
+    (conduct["_queue"](root) / "cuts").mkdir(parents=True, exist_ok=True)
+    entry = {
+        "bump": "minor",
+        "brief": str(brief),
+        "after": list(after),
+        "executor": executor,
+        "model": None,
+        "effort": None,
+        "halt": halt,
+    }
+    conduct["_write_cut"](root, change, entry)
+
+
+@pytest.mark.slow
+def test_a_queued_cut_is_cut_then_built(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    calls = fake()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+
+    def status() -> list[str]:
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+        return capsys.readouterr().out.splitlines()
+
+    assert status() == ["0001-a · cut"]
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    made = ["cut-change 0001-a", *(f"{s} 0001-a" for s in ("build", "converge"))]
+    assert _calls(calls) == ["probe", *made, "release 0001-a"]
+    lines = _log(root)
+    assert " · versions none · cuts 0001-a" in lines[0]
+    assert any(" · run · cut — 0001-a: cut at " in line for line in lines)
+    assert any(line.endswith(" · 0001-a · check — cut · pass") for line in lines)
+    assert not (root / ".minions" / "cuts" / "0001-a").exists()
+    assert conduct["_cuts"](root) == {}
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+    # A cut queued while a run builds a held version is taken at a poll.
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls.unlink()
+    calls = fake("hold-0002-held")
+    _version(root, "0002-held", "- [ ] 1 — Held\n")
+
+    def queue() -> None:
+        _queued(conduct, root, "0003-b", brief)
+
+    join = _when_logged(root, (" · 0002-held · spawn — build",), queue, hold)
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    join()
+    lines = _log(root)
+    assert any(line.endswith(" · run · cut — 0003-b: taken") for line in lines)
+    assert {"cut-change 0003-b", "release 0003-b", "release 0002-held"} <= set(
+        _calls(calls)
+    )
+
+    # A branch that already holds its committed change is checked, not cut again.
+    tree = _version(root, "0004-c", "- [ ] 1 — C\n")
+    message = "docs(0004-c): land the change directory"
+    _git(tree, "commit", "-q", "--amend", "-m", message)
+    models = root / ".minions" / "changes" / "0004-c" / "models.toml"
+    models.parent.mkdir(parents=True, exist_ok=True)
+    models.write_text("[build]\n")
+    _queued(conduct, root, "0004-c", brief)
+    assert status() == ["0004-c · cut"]
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert "cut-change 0004-c" not in _calls(calls)
+    assert "release 0004-c" in _calls(calls)
+
+
+@pytest.mark.slow
+def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    names["REJOIN_POLL"] = 0.1
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    calls = fake("cut-halts")
+    _queued(conduct, root, "0001-a", brief)
+    _queued(conduct, root, "0002-b", brief, after=("0001-a",))
+    doubt = "0001-a waits on one doubt: two readings · tasks.md:3"
+
+    def said(*command: str) -> list[str]:
+        capsys.readouterr()
+        _main(conduct, root, *command, monkeypatch=monkeypatch)
+        return capsys.readouterr().out.splitlines()
+
+    # The cutter's halt is the plan's: no rescue, and its dependent halts with it.
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _calls(calls) == ["probe", "cut-change 0001-a"]
+    lines = _log(root)
+    halted = f" · 0001-a · halt — cut-halted — {doubt}"
+    after = " · 0002-b · halt — cut-halted — after 0001-a is cut-halted"
+    assert any(line.endswith(halted) for line in lines)
+    assert any(line.endswith(after) for line in lines)
+    assert said("status") == [
+        f"0001-a · cut-halted — {doubt}",
+        "0002-b · cut-halted — after 0001-a is cut-halted",
+    ]
+    assert any(line.endswith(halted) for line in said("report"))
+    calls.unlink()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _calls(calls) == []
+    assert any(line.endswith(halted) for line in _log(root))
+
+    # A rejoin with none live clears the halt and starts a run.
+    start = names["_start_run"]
+    names["_start_run"] = lambda primary, executor: 4242
+    assert conduct["rejoin"](root, "0001-a") == (
+        "rejoin: requested 0001-a · run started · pid 4242"
+    )
+    assert conduct["_cuts"](root)["0001-a"]["halt"] is None
+    names["_start_run"] = start
+    fake("liar-0001-a")
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    nothing = (
+        " · 0001-a · halt — cut-halted — 0001-a: no cut commit at the branch's tip"
+    )
+    assert any(line.endswith(nothing) for line in _log(root))
+
+    # The half-done branch is dropped, cut again, and built with its dependent.
+    names["_start_run"] = lambda primary, executor: 4242
+    for change in ("0001-a", "0002-b"):
+        conduct["rejoin"](root, change)
+    names["_start_run"] = start
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    made = _calls(calls)
+    assert made.index("release 0001-a") < made.index("release 0002-b")
+    lines = _log(root)
+    cut = next(
+        i for i, line in enumerate(lines) if "run · cut — 0001-a: cut at" in line
+    )
+    spawned = next(
+        i for i, line in enumerate(lines) if " · 0002-b · spawn — cut · " in line
+    )
+    assert cut < spawned
+    assert conduct["_cuts"](root) == {}
+
+    # With a run live, a rejoin writes the home request.
+    _queued(conduct, root, "0003-c", brief, halt="x")
+    _claimed(conduct, root)
+    assert conduct["rejoin"](root, "0003-c") == "rejoin: requested 0003-c"
+    assert (conduct["_queue"](root) / "rejoin" / "0003-c").is_file()
+    assert conduct["_cuts"](root)["0003-c"]["halt"] is None
+    shutil.rmtree(root / ".minions" / "runs" / "active")
+    conduct["_requests"](conduct["_queue"](root))
+    folder = conduct["_queue"](root) / "cuts"
+    (folder / "0003-c").write_text("{")
+    (folder / ".partial").write_text("{}")
+    assert said("status") == ["0003-c · cut-halted — the queue entry is unreadable"]
+    # A rejoin refuses an unreadable entry and leaves it; one lacking a field is one.
+    for text in ("{", '{"halt": null}'):
+        (folder / "0003-c").write_text(text)
+        with pytest.raises(conduct["Stop"]) as refused:
+            conduct["rejoin"](root, "0003-c")
+        assert refused.value.code == 2
+        assert str(refused.value) == (
+            f"rejoin: cannot run — the queue entry {folder / '0003-c'} is unreadable:"
+            " remove it, then queue the cut again"
+        )
+        assert (folder / "0003-c").read_text() == text
+    (folder / "0003-c").unlink()
+
+    # Each check of the cut, and a failed exit, halts it with its line.
+    for change, mode, line in (
+        ("0004-e", "cut-empty", "0004-e: the branch holds no openspec/changes/0004-e/"),
+        ("0005-d", "cut-dirty", "the tree is not clean"),
+        ("0006-m", "cut-bare", "no .minions/changes/0006-m/models.toml"),
+        ("0007-x", "dies-cut", "cut worker exit 1"),
+    ):
+        _queued(conduct, root, change, brief)
+        fake(mode)
+        assert _run_claude(conduct, root, monkeypatch) == 1
+        assert conduct["_cuts"](root)[change]["halt"] == line
+        logged = f" · {change} · halt — cut-halted — {line}"
+        assert any(entry.endswith(logged) for entry in _log(root)) != (
+            mode == "dies-cut"
+        )
+
+    # A crash in the station sets its halt, a stop's line or `conduct.py failed`.
+    def broken(primary: Path, change: str, tree: Path) -> str | None:
+        if change == "0008-s":
+            raise conduct["Stop"](1, "conduct: halt — stopped")
+        raise ValueError("broken")
+
+    names["_check_cut"] = broken
+    fake()
+    _queued(conduct, root, "0008-s", brief)
+    _queued(conduct, root, "0009-f", brief)
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert conduct["_cuts"](root)["0008-s"]["halt"] == "conduct: halt — stopped"
+    assert conduct["_cuts"](root)["0009-f"]["halt"] == "conduct.py failed: broken"
+    names["_check_cut"] = conduct["_check_cut"]
+
+    # A poll's codex cut is probed first; codex off PATH halts it alone. The halted
+    # cuts are logged once the held version's thread has started, and it releases.
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls.unlink()
+    calls = fake("hold-0010-held")
+    names["_executor_missing"] = lambda executor: executor == "codex"
+    _version(root, "0010-held", "- [ ] 1 — Held\n")
+
+    def queue() -> None:
+        _queued(conduct, root, "0011-x", brief, executor="codex")
+
+    join = _when_logged(root, (" · 0010-held · spawn — build",), queue, hold)
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    join()
+    lines = _log(root)
+    assert any(
+        line.endswith(" · 0011-x · halt — probe-codex — codex is not on PATH")
+        for line in lines
+    )
+    assert "cut-change 0011-x" not in _calls(calls)
+    assert "release 0010-held" in _calls(calls)
+    probed = next(i for i, line in enumerate(lines) if " · check — probe · " in line)
+    halt = next(i for i, line in enumerate(lines) if " · 0004-e · halt — " in line)
+    assert probed < halt
+    assert conduct["_cuts"](root)["0011-x"]["halt"] is None
+
+    # A take that fails halts the cut and raises nothing.
+    conductor = conduct["Run"](root, "claude")
+    conductor.seen = set()
+    # A halt for a cut whose entry is gone writes none back.
+    conductor.cut_halted("0015-g", "gone", True)
+    assert "0015-g" not in conduct["_cuts"](root)
+
+    def refused(*args: object) -> bool:
+        raise ValueError("refused")
+
+    conductor.take_cut = refused
+    assert not conductor.take_requests({})
+    assert ("0011-x", "conduct.py failed: refused") in conductor.halts
+    # A request skips each version the queue holds, and a listing that fails.
+    conductor.take_back_safely = refused
+    conduct["_request"](root, "all")
+    assert not conductor.take_requests({})
+    listing = names["open_versions"]
+
+    def unlisted(primary: Path) -> list[object]:
+        raise conduct["Stop"](2, "conduct: cannot run — git failed")
+
+    names["open_versions"] = unlisted
+    conduct["_request"](root, "all")
+    assert not conductor.take_requests({})
+    names["open_versions"] = listing
+    assert (
+        conductor.log.path.read_text()
+        .splitlines()[-1]
+        .endswith(" · run · rejoin — skipped — conduct: cannot run — git failed")
+    )
+    # A rejoin between the poll's queue read and its request read is taken.
+    _queued(conduct, root, "0014-r", brief, halt="x")
+    conductor.seen = {"0014-r"}
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    requests = names["_requests"]
+
+    def raced(queue: Path) -> set[str]:
+        _claimed(conduct, root)
+        conduct["rejoin"](root, "0014-r")
+        shutil.rmtree(root / ".minions" / "runs" / "active")
+        return requests(queue)
+
+    names["_requests"] = raced
+    assert conductor.take_requests({})
+    names["_requests"] = requests
+    assert "0014-r" in taken
+
+    # A filter a worker planted halts the cut before git checks a worktree out.
+    def cutter(change: str, *args: object, **kwargs: object) -> None:
+        conductor.halts.append((change, "a cutter spawned"))
+
+    conductor.spawn = cutter
+    config, attributes = root / ".git" / "config", root / ".git" / "info" / "attributes"
+    held = config.read_text()
+    mark = tmp_path / "smudged"
+    _queued(conduct, root, "0016-p", brief)
+    _git(root, "config", "filter.planted.smudge", f"touch {mark}; cat")
+    attributes.parent.mkdir(exist_ok=True)
+    attributes.write_text("* filter=planted\n")
+    fresh = conduct["Run"](root, "claude")
+    fresh.spawn = cutter
+    changed = "the local git config changed during the run: .git/config differs"
+    for station, line in (
+        (conductor, changed),
+        (
+            fresh,
+            "conduct: halt — the repo's git config holds a key that could name a"
+            " program: filter.planted.smudge; move it to the global config or remove"
+            " it",
+        ),
+    ):
+        with pytest.raises(conduct["Stop"]) as stopped:
+            station.cutting("0016-p")
+        assert str(stopped.value) == line
+    assert not mark.exists()
+    assert not (root.parent / "0016-p").exists()
+    config.write_text(held)
+    attributes.unlink()
+
+    # A re-cut removes no worktree a worker repointed at its branch, only its own.
+    other = _version(root, "0017-o", "- [ ] 1 — Other\n")
+    (other / "notes.txt").write_text("x\n")
+    _git(root, "branch", "0018-v")
+    _queued(conduct, root, "0018-v", brief)
+    (root / ".git" / "worktrees" / "0017-o" / "HEAD").write_text(
+        "ref: refs/heads/0018-v\n"
+    )
+    assert conductor.cutting("0018-v") == (
+        f"the branch's worktree {other} is kept: not at the cut's path",
+        False,
+    )
+    assert (other / "notes.txt").is_file()
+
+    # A passed cut whose admission fails halts its version alone.
+    def admitted(version: object) -> bool:
+        if "'0012-t'" in repr(version):
+            raise conduct["Stop"](1, "conduct: halt — x")
+        raise ValueError("y")
+
+    conductor.cutting = lambda change: None
+    conductor.admit = admitted
+    for change in ("0012-t", "0013-u"):
+        conductor.cut(change, {})
+    assert conductor.halts[-2:] == [
+        ("0012-t", "conduct: halt — x"),
+        ("0013-u", "conduct.py failed: y"),
+    ]
 
 
 def test_a_station_runs_on_its_executor(
@@ -4304,7 +4982,7 @@ def test_the_plan_is_read_once(
     table.write_text('[converge]\nexecutor = "codex"\n')
     changed = "conduct: halt — changes/0001-todo/models.toml changed during the run"
     conductor.halt("0001-todo", changed)
-    request = root / ".minions" / "runs" / "rejoin" / "0001-todo"
+    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
     request.parent.mkdir(parents=True, exist_ok=True)
     request.touch()
     assert not conductor.take_requests({})
@@ -4872,14 +5550,14 @@ def test_a_grant_buys_one_round(
     version = conduct["find_version"](root, "0001-todo")
     grants = root / ".minions" / "grants" / "0001-todo"
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    runner = conduct["main"].__globals__["run"]
-    started: list[tuple[Path, str, bool]] = []
+    runner = conduct["main"].__globals__["_start_run"]
+    started: list[tuple[Path, str]] = []
 
-    def spy(cwd: Path, executor: str, detach: bool) -> int:
-        started.append((cwd, executor, detach))
-        return 0
+    def spy(primary: Path, executor: str) -> int:
+        started.append((primary, executor))
+        return 4242
 
-    conduct["main"].__globals__["run"] = spy
+    conduct["main"].__globals__["_start_run"] = spy
 
     def grant() -> tuple[int, str]:
         capsys.readouterr()
@@ -4899,14 +5577,15 @@ def test_a_grant_buys_one_round(
     capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
     log.write_text(capped)
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
-    assert grant() == (0, "")
-    assert started == [(root, "claude", True)]
+    recorded = (0, "grant: recorded · run started · pid 4242")
+    assert grant() == recorded
+    assert started == [(root, "claude")]
     assert conduct["stage_of"](root, version) == ("converge", "granted")
     waiting = "grant: cannot run — 0001-todo has a grant waiting: run /mf-ship"
     assert grant() == (2, waiting)
-    assert started == [(root, "claude", True)]
+    assert started == [(root, "claude")]
 
-    conduct["main"].__globals__["run"] = runner
+    conduct["main"].__globals__["_start_run"] = runner
 
     def run() -> None:
         assert (
@@ -4935,9 +5614,9 @@ def test_a_grant_buys_one_round(
     _replanned(root, "no open blocking card read")
 
     # A person's grant still buys a round on a re-plan halt.
-    conduct["main"].__globals__["run"] = spy
-    assert grant() == (0, "")
-    conduct["main"].__globals__["run"] = runner
+    conduct["main"].__globals__["_start_run"] = spy
+    assert grant() == recorded
+    conduct["main"].__globals__["_start_run"] = runner
     calls.unlink()
     run()
     assert _calls(calls) == [
@@ -5002,14 +5681,15 @@ def test_a_grant_buys_one_round(
         "grant: cannot run — 0001-todo is at converge-halted with its rescue running:"
         " grant once it ends"
     )
+    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
     assert grant() == (2, rescuing)
-    assert not grants.exists() and not (runs / "rejoin" / "0001-todo").exists()
+    assert not grants.exists() and not request.exists()
     with newest.open("a") as file:
         file.write("12:00:09 · 0001-todo · finish — rescue · exit 0 · 9s\n")
     assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
     assert grants.is_file()
-    assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()
-    assert started == [(root, "claude", True)] * 2
+    assert request.is_file()
+    assert started == [(root, "claude")] * 2
     assert _calls(calls) == []
     shutil.rmtree(active)
 
@@ -5860,6 +6540,59 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert sum(arg.startswith("projects") for arg in codex) == 1
     start = codex.index("sandbox_workspace_write.network_access=false") + 1
     assert codex[start:-3] == ["-c", trust]
+
+    # A cutter reaches its worktree, the run directory and its brief alone.
+    brief = tmp_path / "vault" / "brief.md"
+    brief.parent.mkdir()
+    brief.write_text("# brief\n")
+    minions = root / ".minions"
+    minions.mkdir(exist_ok=True)
+    claude = argv("claude", "Cut.", tree, None, None, repo, brief=brief)
+    added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
+    assert added == [str(tree), str(minions)]
+    allowed = claude[
+        claude.index("--allowedTools") + 1 : claude.index("--disallowedTools")
+    ]
+    assert f"Edit(/{brief})" in allowed
+    assert f"Edit(/{root}/**)" not in allowed
+    settings = json.loads(claude[claude.index("--settings") + 1])
+    writes = [str(tree), str(minions), str(brief), str(root / ".git")]
+    assert settings["sandbox"]["filesystem"]["allowWrite"] == writes
+    codex = argv("codex", "Cut.", tree, None, None, repo, brief=brief)
+    roots = json.dumps([str(root / ".git"), str(tree), str(minions), str(brief.parent)])
+    assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    # A Codex cutter's root is the brief's folder: it holds the brief alone, and the
+    # queued brief stays where it is.
+    (brief.parent / "note.md").write_text("# note\n")
+    alone = (
+        f"conduct: halt — a Codex cutter writes its brief's whole folder, and"
+        f" {brief.parent} holds more than the brief: remove every other file from it,"
+        " hidden ones too, then rejoin the cut"
+    )
+    with pytest.raises(conduct["Stop"]) as stopped:
+        argv("codex", "Cut.", tree, None, None, repo, brief=brief)
+    assert str(stopped.value) == alone
+    assert argv("claude", "Cut.", tree, None, None, repo, brief=brief)
+    (brief.parent / "note.md").unlink()
+    # A brief swapped for a link, and a run directory swapped for one, reach nothing.
+    linked = tmp_path / "linked" / "brief.md"
+    linked.parent.mkdir()
+    linked.symlink_to(brief)
+    for executor, named in (("claude", linked), ("codex", tmp_path / "gone.md")):
+        with pytest.raises(conduct["Stop"]) as stopped:
+            argv(executor, "Cut.", tree, None, None, repo, brief=named)
+        assert str(stopped.value) == (
+            f"conduct: halt — the brief {named} is a link or no file"
+        )
+    minions.rename(root / ".m")
+    for executor, link in (("claude", None), ("claude", outside), ("codex", outside)):
+        if link is not None and not minions.is_symlink():
+            minions.symlink_to(link)
+        with pytest.raises(conduct["Stop"]) as stopped:
+            argv(executor, "Cut.", tree, None, None, repo, brief=brief)
+        assert str(stopped.value) == "conduct: halt — .minions is a link or no folder"
+    minions.unlink()
+    (root / ".m").rename(minions)
 
     neighbour = tmp_path / "neighbour"
     neighbour.mkdir()
