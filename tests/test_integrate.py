@@ -63,6 +63,25 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    _version(root, "0001-todo")
+    old = root / ".minions" / "findings" / "0001-todo_review.md"
+    old.parent.mkdir(parents=True)
+    # A stray the move leaves is no old layout.
+    (old.parent / "0001-todo_review.run1.md").write_text("x\n")
+    assert _run(root, "next", "0001-todo").returncode == 0
+
+    old.write_text("---\nverdict: clean\n---\n")
+    result = _run(root, "next", "0001-todo")
+    assert (result.returncode, result.stdout) == (
+        2,
+        "next: cannot run — .minions/findings/0001-todo_review.md is the old layout:"
+        " /mf-ship moves it\n",
+    )
+    assert not (root / ".minions" / "changes").exists()
+
+
 def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     # `0010` sorts before `009` as text: the queue is the change id's number.

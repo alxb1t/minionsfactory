@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The models file, integrate's notes, build's marks, the rescue's diagnosis, the release's `held` and the gate-check
   export move into the change's folder as `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing}`,
   `rescue.md`, `release.held` and `gate-check/` (change `0080-minions-layout`, phase 3).
+- `conduct.py run` moves an old layout into `.minions/changes/` at its start, under the claim, leaving strays; a file
+  beside its new one, or a link, halts before any worker. `status` and `report` name an old layout, and `grant`,
+  `integrate.py`, `gate_check.py`, `run.py` and hand-run stations halt on it, naming `/mf-ship`
+  (change `0080-minions-layout`, phase 4).
+- `review_metrics.py` reads a repo no run has moved, the change's folder winning over its old files
+  (change `0080-minions-layout`, phase 4).
 
 ## [0.65.0] - 2026-11-06
 

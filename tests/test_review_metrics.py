@@ -744,5 +744,37 @@ def test_overrides_win_over_the_config(
     assert review_metrics.main(gone) == 2
     err = capsys.readouterr().err
     assert str((tmp_path / "missing").resolve()) in err
-    assert ".minions/changes" in err
+    assert "no .minions/changes or .minions/findings directory" in err
     assert not (tmp_path / "gone.html").exists()
+
+
+def test_both_layouts_are_read(tmp_path: Path) -> None:
+    moved, unmoved = tmp_path / "moved", tmp_path / "unmoved"
+    spent = _result(2, 3, 4000, m={"outputTokens": 5})
+    log = "## Run 1 — 2026-01-01 10:00\n10:01:00 · round 1 · verdicts — review clean\n"
+    _findings(moved, "0001-a_review.md", _front(reviewed="2026-01-01"))
+    _findings(moved, "0001-a_status_log.md", log)
+    _worker_log(moved, "0001-a", "20260101-100000-converge.log", spent)
+    unmoved_findings = unmoved / ".minions" / "findings"
+    unmoved_findings.mkdir(parents=True)
+    (unmoved_findings / "0002-b_review.md").write_text(_front(reviewed="2026-01-02"))
+    (unmoved_findings / "0002-b_status_log.md").write_text(log)
+    _run_log(unmoved, "20260102-100000/0002-b_converge.log", spent)
+    _run_log(unmoved, "20260102-100000/0002-bc_converge.log", spent)
+    # Per change, the new folder wins over a file left at its old path.
+    _findings(moved, "0003-c_review.md", _front(reviewed="2026-01-03"))
+    old = moved / ".minions" / "findings"
+    old.mkdir()
+    (old / "0003-c_review.md").write_text(_front(reviewed="2025-01-01"))
+    before = sorted(tmp_path.rglob("*"))
+
+    records = review_metrics.read_repo(moved) + review_metrics.read_repo(unmoved)
+    read = {r["change"]: (r["reviewed"], r["cost_converge"]) for r in records}
+    assert read == {
+        "0001-a": ("2026-01-01", 2.0),
+        "0002-b": ("2026-01-02", 2.0),
+        "0003-c": ("2026-01-03", None),
+    }
+    rounds = review_metrics.round_data(moved) + review_metrics.round_data(unmoved)
+    assert sorted({row["change"] for row in rounds}) == ["0001-a", "0002-b"]
+    assert sorted(tmp_path.rglob("*")) == before

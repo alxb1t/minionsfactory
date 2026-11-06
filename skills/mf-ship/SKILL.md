@@ -48,7 +48,7 @@ skill. Its exits: 0 done · 1 halt · 2 cannot run.
 
 | command | prints |
 |---|---|
-| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>`. Until a run keeps `origin`'s URLs it makes no remote call and names no tag, and a merged version tag leaves `run · unread` |
+| `status` | a `run · …` line for a claim, and for what a release left unpushed, then one line per open version: `<change-id> · <stage>`, or `<change-id> · old layout — a run moves it` while its files sit at their old paths. Until a run keeps `origin`'s URLs it makes no remote call and names no tag, and a merged version tag leaves `run · unread` |
 | `run --executor <executor> --detach` | starts the loop in a new session and returns |
 | `stop` | ends the live run, or says none is live; the run log it closed. A worker group it cannot end exits 2, naming the group, with the log closed and the claim kept |
 | `grant <change-id> --executor <executor>` | records one more round past the cap, and starts the loop; with a run live, `grant: recorded — the live run takes <change-id> back`, and the live run takes it. While the live run's rescue of that version runs, it exits 2, naming the rescue, and writes nothing: grant once it ends. Any other stage, a grant already waiting included, exits 2, naming the stage and `/mf-ship` |

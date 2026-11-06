@@ -69,6 +69,10 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 | 1 | **halt**, copying the line: the named version is not ready, or none is |
 | 2, or `uv` missing | **halt**, naming what it printed |
 
+A file of the version at its old path — `.minions/findings/<change-id>_*`, `.minions/models/<change-id>.toml`, or
+`.minions/build/`, `integrate/`, `rescue/` or `release/<change-id>.*` — is an old layout: `next` exits 2, naming it
+and `/mf-ship`, whose run moves it, and so you halt before writing a file at a new path.
+
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
 converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
 `conduct.py` opens the merge of a cut-only branch — a dependent's, or one the default branch passed before its first

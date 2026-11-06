@@ -83,6 +83,28 @@ RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("review", "security")
+# Each old-layout path of a change, by its name in the change's folder.
+# Why: 0080-minions-layout design D1, D4.
+OLD_LAYOUT = {
+    "findings/{}_review.md": "review.md",
+    "findings/{}_security.md": "security.md",
+    "findings/{}_status_log.md": "status_log.md",
+    "findings/{}_diff.patch": "diff.patch",
+    "models/{}.toml": "models.toml",
+    "integrate/{}.md": "integrate.md",
+    "integrate/{}.red": "integrate.red",
+    "integrate/{}.resolved": "integrate.resolved",
+    "build/{}.done": "build.done",
+    "build/{}.halt": "build.halt",
+    "build/{}.closing": "build.closing",
+    "build/{}.discarded.patch": "build.discarded.patch",
+    "rescue/{}.md": "rescue.md",
+    "release/{}.held": "release.held",
+    "gate-check/{}": "gate-check",
+}
+OLD_ID = r"(\d{4}-[a-z0-9-]+)"
+OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
+OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
 BLOCKS = {"review": ("blocking",), "security": ("critical", "high")}
 SMALL = ("one line", "a test", "one line and a test")
@@ -492,6 +514,83 @@ def _change_dir(primary: Path, change: str) -> Path:
     Why: 0080-minions-layout design D1, D2.
     """
     return primary / ".minions" / "changes" / change
+
+
+def _folder_fd(root: Path, *parts: str) -> int:
+    """Return a descriptor on `root`'s folder `parts`, each made, none read as a link.
+
+    A link at any of `parts` raises `OSError`; `root` itself is followed.
+    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts:
+            try:
+                os.mkdir(part, dir_fd=fd)
+            except FileExistsError:
+                pass
+            inner = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+            )
+            os.close(fd)
+            fd = inner
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
+    """Write `text` to the change's file `name`, through no link; one raises `OSError`.
+
+    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        file = os.open(name, flags, 0o644, dir_fd=fd)
+    finally:
+        os.close(fd)
+    with os.fdopen(file, "w") as out:
+        out.write(text)
+
+
+def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
+    """Return each change's old-layout files, each with its path in the change's folder.
+
+    A file `OLD_LAYOUT` does not name stays out, prefix matches and strays alike.
+    e.g. `findings/0001-x_review.md` → {"0001-x": [(…, "review.md")]}
+    e.g. `runs/<stamp>/0001-x_converge-2.log` → `logs/<stamp>-converge-2.log`
+    Why: 0080-minions-layout design D4.
+    """
+    minions = primary / ".minions"
+    found: dict[str, list[tuple[Path, str]]] = {}
+    for old, new in OLD_LAYOUT.items():
+        folder, name = old.split("/")
+        pattern = re.compile(re.escape(name).replace(re.escape("{}"), OLD_ID))
+        listed = (minions / folder).iterdir() if (minions / folder).is_dir() else ()
+        for path in listed:
+            if matched := pattern.fullmatch(path.name):
+                found.setdefault(matched[1], []).append((path, new))
+    runs = minions / "runs"
+    stamps = runs.iterdir() if runs.is_dir() else ()
+    for stamp in (s for s in stamps if OLD_STAMP.fullmatch(s.name) and s.is_dir()):
+        for path in stamp.iterdir():
+            if matched := OLD_LOG.fullmatch(path.name):
+                change, station, n = matched[1], matched[2], matched[3] or ""
+                new = f"logs/{stamp.name}-{station}{n}.log"
+                found.setdefault(change, []).append((path, new))
+    return found
+
+
+def _old_layout(primary: Path, change: str) -> str | None:
+    """Return the change's first old-layout file, relative to the primary, or None.
+
+    Why: 0080-minions-layout design D4.
+    """
+    held = sorted(path for path, _ in _old_files(primary).get(change, []))
+    return str(held[0].relative_to(primary)) if held else None
 
 
 def _run_end(runs: Path, change: str) -> str | None:
@@ -2127,17 +2226,17 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
     return ["-c", f"projects={{{table}}}"]
 
 
-def _free_log(folder: Path, name: str) -> tuple[Path, int]:
-    """Return the first free of `<name>.log`, `<name>-2.log`, … in `folder`, made.
+def _free_log(root: Path, parts: tuple[str, ...], name: str) -> tuple[Path, int]:
+    """Return the first free of `<name>.log`, `<name>-2.log`, … in `root`'s `parts`.
 
-    And a descriptor open on it for writing, made through the folder's own, so a
-    link a worker swaps in at either names no place outside the run directory.
+    And a descriptor open on it for writing, made through the folders' own, so a
+    link a worker swaps in at any of them names no place outside the run directory.
     e.g. a converge's second spawn in a stamp → `<stamp>-converge-2.log`.
     Why: 0077-run-metrics design D2; 0071-ship-fixes design D8;
-    0080-minions-layout design D3.
+    0080-minions-layout design D3, D6.
     """
-    folder.mkdir(parents=True, exist_ok=True)
-    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    folder = root.joinpath(*parts)
+    fd = _folder_fd(root, *parts)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
     n = 1
     try:
@@ -2606,11 +2705,11 @@ class Run:
             who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
         )
         if who == "run":
-            folder, name = self.runs / self.log.stamp, f"run_{station}"
+            out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
         else:
-            folder = _change_dir(self.primary, who) / "logs"
+            parts = ("changes", who, "logs")
             name = f"{self.log.stamp}-{station}"
-        out, sink = _free_log(folder, name)
+            out, sink = _free_log(self.primary / ".minions", parts, name)
         with self.guard:
             self.outs[who, station] = out
         started = time.monotonic()
@@ -2700,28 +2799,19 @@ class Run:
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
 
-        The folder is opened following no link, and the file created through that
-        descriptor, so a link at either names no place outside the run directory.
-        Why: 0071-ship-fixes design D8.
+        The folders are opened following no link, and the file created through their
+        descriptor, so a link at any names no place outside the run directory.
+        Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
         """
         name = f".minions/changes/{change}/rescue.md"
-        folder = _change_dir(self.primary, change)
         text = (
             f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
             "cause: a Verify: changed since the cut\n"
             f"proposal: commit docs({change}): amend the change directory, then"
             f" conduct.py rejoin {change}, or /mf-ship with no run live\n"
         )
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
         try:
-            folder.mkdir(parents=True, exist_ok=True)
-            fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            try:
-                file = os.open("rescue.md", flags, 0o644, dir_fd=fd)
-            finally:
-                os.close(fd)
-            with os.fdopen(file, "w") as out:
-                out.write(text)
+            _write_in_change(self.primary, change, "rescue.md", text)
         except OSError as error:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return
@@ -3007,8 +3097,10 @@ class Run:
         if not opened and _maybe(tree, *merge) is None:
             self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
-            note.parent.mkdir(parents=True, exist_ok=True)
-            note.write_text(_note(tree, change, moved))
+            # A link at the change's folder raises: the version halts, nothing written.
+            _write_in_change(
+                self.primary, change, "integrate.md", _note(tree, change, moved)
+            )
             return
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
@@ -3458,6 +3550,45 @@ class Run:
         self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
         return None
 
+    def migrate_layout(self) -> str | None:
+        """Move each change's old-layout files into its folder; return why to halt.
+
+        Every file is checked before any moves: one beside its new path, or a link
+        at an old file, `changes/` or a change's folder, halts with nothing moved. A
+        move links the file in and unlinks the old, so it never replaces one.
+        Why: 0080-minions-layout design D4, D6.
+        """
+        found = _old_files(self.primary)
+        minions = self.primary / ".minions"
+        for change, files in sorted(found.items()):
+            folder = _change_dir(self.primary, change)
+            links = [minions / "changes", folder, folder / "logs"]
+            for link in [*links, *(old for old, _ in files)]:
+                if link.is_symlink():
+                    named = link.relative_to(self.primary)
+                    return f"{named} is a link: a person settles what it names"
+            for old, new in files:
+                if os.path.lexists(folder / new):
+                    return (
+                        f"{old.relative_to(self.primary)} and"
+                        f" {(folder / new).relative_to(self.primary)} both stand:"
+                        " a person settles which to keep"
+                    )
+        for change, files in sorted(found.items()):
+            for old, new in files:
+                where, _, name = new.rpartition("/")
+                fd = _folder_fd(minions, "changes", change, *([where] if where else []))
+                try:
+                    if old.is_dir():
+                        os.rename(old, name, dst_dir_fd=fd)
+                    else:
+                        os.link(old, name, dst_dir_fd=fd)
+                        old.unlink()
+                finally:
+                    os.close(fd)
+            self.log.event("run", "move", f"{change}: {len(files)} files")
+        return None
+
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1.
 
@@ -3491,7 +3622,7 @@ class Run:
             return 1
         if unkept := _keep_origin(self.primary):
             self.log.event("run", "unkept", unkept)
-        if why := self.migrate_debt():
+        if why := self.migrate_debt() or self.migrate_layout():
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
@@ -3708,6 +3839,8 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
         raise Stop(2, f"grant: cannot run — no version branch holds {change}")
+    if old := _old_layout(primary, change):
+        raise Stop(2, f"grant: cannot run — {old} is the old layout: /mf-ship moves it")
     stage, why = stage_of(primary, version)
     if (stage, why) == ("converge", "granted"):
         raise Stop(2, f"grant: cannot run — {change} has a grant waiting: run /mf-ship")
@@ -3845,8 +3978,12 @@ def status(cwd: Path) -> str:
         lines.append(f"run · unpushed {' '.join(names)}")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
+    # why: 0080-minions-layout design D4
+    old = _old_files(primary)
     lines += [
-        f"{version.change} · {stage_of(primary, version)[0]}"
+        f"{version.change} · old layout — a run moves it"
+        if version.change in old
+        else f"{version.change} · {stage_of(primary, version)[0]}"
         for version in open_versions(primary)
     ]
     return "\n".join(lines) or "status: none — no open version"
@@ -3939,10 +4076,14 @@ def report(cwd: Path) -> str:
         if found[2] == "push"
         and (detail := found.string[found.end() :]).startswith("waiting: ")
     ]
+    old = _old_files(primary)
     for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
             lines.append(f"{change} · no version branch")
+            continue
+        if change in old:
+            lines.append(f"{change} · old layout — a run moves it")
             continue
         tag = _tag_of(primary, change)
         if tag is not None and not _tagged(primary, tag):

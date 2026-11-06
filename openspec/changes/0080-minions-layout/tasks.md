@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The helper, and findings in the change's folder
 - [x] 2 — Worker logs in the change's folder
 - [x] 3 — The rest of the change's files
-- [ ] 4 — The move, the halt on an old layout, both layouts read
+- [x] 4 — The move, the halt on an old layout, both layouts read
 - [ ] 5 — The record
 
 ## 1 — The helper, and findings in the change's folder
@@ -37,13 +37,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The move, the halt on an old layout, both layouts read
 
-- [ ] 4.1 Add `Run.migrate_layout`, called in `ship()` beside `migrate_debt`; the old-layout halt in `integrate.py`,
+- [x] 4.1 Add `Run.migrate_layout`, called in `ship()` beside `migrate_debt`; the old-layout halt in `integrate.py`,
   `gate_check.py`, `run.py`, `conduct.py`'s `grant`, mf-release's preconditions, mf-integrate's Step 2, mf-converge's start (before
   its status log) and mf-build's halt (before `build.halt`); and the `old layout` line in
   `status` and `report`, per [D4](design.md#d4) and [D6](design.md#d6); add the tests the design's `## Tests` names for them.
   Verify: `uv run pytest -q tests/test_conduct.py tests/test_integrate.py tests/test_gate_check.py tests/test_metric_scripts.py -k "old_layout"` exits 0,
   and `grep -n 'def migrate_layout' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.2 Read both layouts in `review_metrics.py`, per [D5](design.md#d5); add `test_both_layouts_are_read` to
+- [x] 4.2 Read both layouts in `review_metrics.py`, per [D5](design.md#d5); add `test_both_layouts_are_read` to
   `tests/test_review_metrics.py`, and name both folders in `test_overrides_win_over_the_config`'s expected message.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "both_layouts_are_read or overrides_win_over_the_config"` reports `2 passed`.
 

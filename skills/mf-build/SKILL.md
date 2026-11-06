@@ -267,6 +267,10 @@ evidence: <one line: the command and what it printed, or the two readings>
 head: <the full sha of HEAD>
 ```
 
+**An old layout halts before that file.** A file of this change at its old path — `.minions/findings/<change-id>_*`,
+`.minions/models/<change-id>.toml`, or `.minions/build/`, `integrate/`, `rescue/` or `release/<change-id>.*` → halt,
+naming it and `/mf-ship`, whose run moves it, and write no `build.halt`: a new file beside an old one halts the move.
+
 1. **An acceptance that cannot be made a passing check** — halt for human verification; never fake one.
 2. **`design.md` contradicting the code** — the decisions were settled against reality; where it moved, that is
    a finding, never a silent divergence.

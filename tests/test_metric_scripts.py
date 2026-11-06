@@ -6,6 +6,7 @@ Why: 0030-change-impact design D7.
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -530,6 +531,33 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     )
     assert (done.returncode, done.stdout) == (1, "")
     assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
+
+
+def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    # A stray the move leaves is no old layout.
+    strays = {
+        ".minions/runs/20261101-230000/0001-x_Notes.log": "x\n",
+        ".minions/findings/0001-x_review.run1.md": "x\n",
+        ".minions/findings/0001-xy_review.md": "x\n",
+    }
+    _write(tmp_path, strays)
+    assert run.measure(tmp_path, ["grants"], env) == 1
+
+    old = ".minions/runs/20261101-230000/0001-x_converge-2.log"
+    _write(tmp_path, {old: "x\n"})
+    said = f"{old} is the old layout: /mf-ship moves it"
+    with pytest.raises(run.OldLayout, match=re.escape(said)):
+        run.measure(tmp_path, ["grants"], env)
+    done = subprocess.run(
+        [sys.executable, _SCRIPTS / "run.py", "grants"],
+        cwd=tmp_path,
+        env=os.environ | env,
+        capture_output=True,
+        text=True,
+    )
+    assert (done.returncode, done.stdout, done.stderr) == (2, "", f"{said}\n")
 
 
 def _worker_log(

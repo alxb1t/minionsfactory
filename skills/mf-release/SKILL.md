@@ -96,6 +96,11 @@ Never glob `.minions/changes/*`: it keeps the *previous* change's files, and a s
 work is what keying every path by the change id prevents. An absent file is never a reason to search;
 precondition 4 says what absence means.
 
+**An old layout halts first.** A file of this change at its old path — `.minions/findings/<change-id>_<role>.md`,
+`_status_log.md` or `_diff.patch`, `.minions/models/<change-id>.toml`, or `.minions/build/`, `integrate/`, `rescue/`
+or `release/<change-id>.*` → **halt**, naming it and `/mf-ship`, whose run moves it. Read on, its absent new files
+would say converge was skipped.
+
 1. **The gate is green, gated in this session** — through `gate_run.py`, not inherited from `mf-converge`'s
    report, not read from a log. Red → halt; the build owns it. **Its time** for Step 4.1's `Gate:` line is the
    seconds its last line prints: `gate: green — <tree> · <n>s`, the run's, or

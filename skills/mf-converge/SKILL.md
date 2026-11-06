@@ -67,6 +67,9 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
   catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
   `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
   under the title.
+- **An old layout halts before the run opens.** A file of this change at its old path —
+  `.minions/findings/<change-id>_*`, `.minions/models/<change-id>.toml`, or `.minions/build/`, `integrate/`,
+  `rescue/` or `release/<change-id>.*` → **halt**, naming it and `/mf-ship`, whose run moves it; write no status log.
 - **Insert only.** Each event goes directly under the latest `## Run` heading; a written line stays as it is.
 - **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop, ending
   ` · head <sha>`, the commit `git rev-parse HEAD` prints at the halt. A top line that is neither means the run is

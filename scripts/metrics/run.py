@@ -50,12 +50,25 @@ ROLE = re.compile(r"\b(review|security)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
+# `conduct.py`'s: each old-layout path of a change, and a worker log's station part.
+OLD_LAYOUT = (
+    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
+    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
+    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
+    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
+    *("release/{}.held", "gate-check/{}"),
+)
+OLD_LOG = re.compile(r"[a-z][a-z-]*?(-\d+)?\.log")
 
 Number = int | float
 
 
 class Gap(Exception):
     """The run left no data for the metric; the message names what it lacked."""
+
+
+class OldLayout(Exception):
+    """The version's files sit at their old paths; the message names the first."""
 
 
 @dataclass(frozen=True)
@@ -94,6 +107,25 @@ def _change_dir(primary: Path, change: str) -> Path:
     Why: 0080-minions-layout design D1, D2.
     """
     return primary / ".minions" / "changes" / change
+
+
+def _old_layout(minions: Path, change: str) -> str | None:
+    """Return the change's first file at its old path, worker logs included, or None.
+
+    e.g. "0001-x" → ".minions/runs/20261101-230000/0001-x_build.log"
+    Why: 0080-minions-layout design D4.
+    """
+    held = [minions / name.format(change) for name in OLD_LAYOUT]
+    stamps = sorted(minions.glob("runs/*/"))
+    held += [
+        log
+        for stamp in stamps
+        if STAMP.fullmatch(stamp.name)
+        for log in sorted(stamp.glob(f"{change}_*.log"))
+        if OLD_LOG.fullmatch(log.name.removeprefix(f"{change}_"))
+    ]
+    found = next((path for path in held if os.path.lexists(path)), None)
+    return f".minions/{found.relative_to(minions)}" if found else None
 
 
 def _logs(runs: Path) -> list[tuple[Path, re.Match[str]]]:
@@ -173,6 +205,8 @@ class Version:
         common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
         self.minions = Path(common).parent / ".minions"
         self.folder = _change_dir(Path(common).parent, change)
+        if old := _old_layout(self.minions, change):
+            raise OldLayout(f"{old} is the old layout: /mf-ship moves it")
 
     def _names(self, event: Event) -> bool:
         """Return whether a run log line names the version."""
@@ -536,3 +570,6 @@ if __name__ == "__main__":
         print(measure(Path.cwd(), sys.argv[1:], dict(os.environ)))
     except Gap as gap:
         sys.exit(str(gap))
+    except OldLayout as old:
+        print(old, file=sys.stderr)
+        sys.exit(2)

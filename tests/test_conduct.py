@@ -2416,6 +2416,167 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert text.count(both) == 2 and text.count(moved) == 3
 
 
+def _old_layout(root: Path) -> tuple[Path, Path]:
+    """Return a built version and one halted in its build, their files at old paths.
+
+    The first is clean at its head; the second holds a build halt, a models file
+    and a gate-check export. Strays the move leaves stand beside them.
+    """
+    built = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    halted = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    head = _git(built, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _findings(root, "0001-todo", head)
+    minions = root / ".minions"
+    marks = minions / "changes" / "0002-marks"
+    (marks / "gate-check" / "base").mkdir(parents=True)
+    halt = f"sub-task: 1.1\nstop: 3\nhead: {_git(halted, 'rev-parse', 'HEAD')}\n"
+    (marks / "build.halt").write_text(halt)
+    (marks / "models.toml").write_text('[build]\nmodel = "m"\n')
+    return built, halted
+
+
+_OLD = {
+    "0001-todo": {
+        "review.md": "findings/0001-todo_review.md",
+        "security.md": "findings/0001-todo_security.md",
+        "status_log.md": "findings/0001-todo_status_log.md",
+        "build.done": "build/0001-todo.done",
+    },
+    "0002-marks": {
+        "build.halt": "build/0002-marks.halt",
+        "models.toml": "models/0002-marks.toml",
+        "gate-check": "gate-check/0002-marks",
+    },
+}
+_STRAYS = (
+    "findings/0034-fix-red.txt",
+    "findings/0030_review.md",
+    "findings/0001-todo_review.run1.md",
+    "release/fold.py",
+    "runs/20261101-230000/run_probe.log",
+    "runs/20261101-230000/0001-todo_Notes.log",
+)
+
+
+def _to_old(root: Path) -> None:
+    """Move each `_OLD` file to its old path, add a worker log, and write `_STRAYS`."""
+    minions = root / ".minions"
+    for change, names in _OLD.items():
+        for new, old in names.items():
+            (minions / old).parent.mkdir(parents=True, exist_ok=True)
+            (minions / "changes" / change / new).rename(minions / old)
+    log = minions / "runs" / "20261101-230000" / "0001-todo_converge-2.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("converge\n")
+    for stray in _STRAYS:
+        (minions / stray).parent.mkdir(parents=True, exist_ok=True)
+        (minions / stray).write_text("x\n")
+
+
+def test_a_run_moves_an_old_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    built, halted = _old_layout(root)
+    minions = root / ".minions"
+    find, stage_of = conduct["find_version"], conduct["stage_of"]
+
+    def stages() -> list[Any]:
+        read = [stage_of(root, find(root, c)) for c in ("0001-todo", "0002-marks")]
+        return [*read, conduct["_build_halt"](minions, halted, "0002-marks")]
+
+    expected = stages()
+    assert expected[0][0] == "release" and expected[2] == ("1.1", "3")
+    _to_old(root)
+    assert stages() != expected
+
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.migrate_layout() is None
+    text = conductor.log.path.read_text()
+    assert " · run · move — 0001-todo: 5 files\n" in text
+    assert " · run · move — 0002-marks: 3 files\n" in text
+    assert stages() == expected
+    logs = minions / "changes" / "0001-todo" / "logs"
+    assert (logs / "20261101-230000-converge-2.log").read_text() == "converge\n"
+    assert (minions / "changes" / "0002-marks" / "gate-check" / "base").is_dir()
+    assert all((minions / stray).is_file() for stray in _STRAYS)
+    # Twin: a second start moves nothing.
+    again = conduct["Run"](root, "claude")
+    assert again.migrate_layout() is None
+    assert " · move — " not in again.log.path.read_text()
+
+    # An old file beside its new one halts the run before any worker.
+    old = minions / "findings" / "0001-todo_review.md"
+    old.write_text("old\n")
+    run = ("run", "--executor", "claude")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    assert _calls(calls) == []
+    both = (
+        " · run · halt — .minions/findings/0001-todo_review.md and"
+        " .minions/changes/0001-todo/review.md both stand"
+    )
+    logs = (minions / "runs").glob("*.md")
+    assert both in "".join(log.read_text() for log in logs)
+    assert old.read_text() == "old\n"
+    old.unlink()
+
+    # A link at an old file, or at a change's folder, halts with nothing moved.
+    target = tmp_path / "elsewhere.toml"
+    target.write_text("[build]\n")
+    linked = minions / "models" / "0001-todo.toml"
+    linked.symlink_to(target)
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/models/0001-todo.toml is a link: a person settles what it names"
+    )
+    linked.unlink()
+    folder, aside = minions / "changes" / "0002-marks", tmp_path / "aside"
+    folder.rename(aside)
+    folder.symlink_to(aside)
+    (minions / "rescue").mkdir()
+    (minions / "rescue" / "0002-marks.md").write_text("diagnosis\n")
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/changes/0002-marks is a link: a person settles what it names"
+    )
+    assert not (aside / "rescue.md").exists()
+    assert (minions / "rescue" / "0002-marks.md").is_file()
+
+
+def test_status_names_an_old_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _old_layout(root)
+    status, report = conduct["status"], conduct["report"]
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    (runs / "20261101-230000.md").write_text(
+        "# Ship run 20261101-230000\n\n"
+        "10:00:00 · 0001-todo · spawn — build · model m\n"
+        "10:00:01 · run · done — released none\n"
+    )
+    assert status(root).splitlines() == ["0001-todo · release", "0002-marks · build"]
+    assert report(root).splitlines()[0].startswith("0001-todo · no tag · ")
+
+    _to_old(root)
+    old = "0001-todo · old layout — a run moves it"
+    assert status(root).splitlines() == [
+        old,
+        "0002-marks · old layout — a run moves it",
+    ]
+    assert report(root).splitlines()[0] == old
+    with pytest.raises(
+        conduct["Stop"],
+        match="grant: cannot run — .minions/build/0001-todo.done is the old layout:"
+        " /mf-ship moves it",
+    ):
+        conduct["grant"](root, "0001-todo", "claude")
+
+
 @pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
@@ -5741,9 +5902,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     target.write_text("kept\n")
     made = conduct["_free_log"]
 
-    def swapped(folder: Path, name: str) -> object:
-        found = made(folder, name)
-        log = folder / f"{name}.log"
+    def swapped(root: Path, parts: tuple[str, ...], name: str) -> object:
+        found = made(root, parts, name)
+        log = root.joinpath(*parts) / f"{name}.log"
         log.unlink()
         log.symlink_to(target)
         return found

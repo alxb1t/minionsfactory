@@ -38,6 +38,15 @@ CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# Each old-layout path of a change in the run directory.
+# Why: 0080-minions-layout design D1, D4.
+OLD_LAYOUT = (
+    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
+    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
+    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
+    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
+    *("release/{}.held", "gate-check/{}"),
+)
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
 
@@ -172,6 +181,18 @@ def _change_dir(cwd: Path, change: str) -> Path:
     return _run_dir(cwd) / "changes" / change
 
 
+def _old_layout(cwd: Path, change: str) -> str | None:
+    """Return the change's first file at its old path, or None.
+
+    e.g. "0001-todo" → ".minions/findings/0001-todo_review.md"
+    Why: 0080-minions-layout design D4.
+    """
+    run = _run_dir(cwd)
+    held = (name.format(change) for name in OLD_LAYOUT)
+    found = next((name for name in held if os.path.lexists(run / name)), None)
+    return f".minions/{found}" if found else None
+
+
 def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
@@ -255,6 +276,10 @@ def next_version(cwd: Path, change: str | None = None) -> str:
     for name in sorted(picks, key=lambda name: int(name.split("-")[0])):
         tree = trees.get(name)
         line = f"next: {name} · {tree or 'no worktree'}"
+        if old := _old_layout(cwd, name):
+            raise Stop(
+                2, f"next: cannot run — {old} is the old layout: /mf-ship moves it"
+            )
         if change and _settling(cwd, name, tree):
             return f"{line} · ready"
         if (why := unready(cwd, name, tree)) is None:

@@ -92,6 +92,23 @@ def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     assert not exports.exists() or not any(exports.iterdir())
 
 
+def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
+    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
+    old = tmp_path / ".minions" / "models" / f"{_CHANGE}.toml"
+    old.parent.mkdir(parents=True)
+    old.write_text("[build]\n")
+    result = _check(tmp_path, base)
+    assert (result.returncode, result.stdout) == (
+        2,
+        f"gate: cannot check — .minions/models/{_CHANGE}.toml is the old layout:"
+        " /mf-ship moves it\n",
+    )
+    assert not (tmp_path / ".minions" / "changes").exists()
+    # Twin: once a run moves it, the check reads the gate.
+    old.unlink()
+    assert _check(tmp_path, base).returncode == 0
+
+
 @pytest.mark.slow
 def test_an_include_changed_on_the_branch_halts(tmp_path: Path) -> None:
     files = {
