@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-11-06
+
+Gate: local 1m45s · CI not read under mf-ship · 0.66.0: local 1m18s · CI 0m42s (CI at d897227)
+
 - `skills/mf-cut-change/scripts/awake.py start|stop <change-id>` holds `caffeinate -is -t 7200 -w <host pid>` for a cut run
   by hand, recorded in `.minions/awake/<change-id>`, and stops only a recorded `caffeinate`
   (change `0081-cut-awake`, phase 1).

@@ -922,7 +922,7 @@ follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halti
 replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its review, security and status
 log files, its diff patch, its models file, integrate's notes, build's marks, rescue's diagnosis, release's `held`, its gate-check
 export and its worker logs — each script finding it through one `_change_dir(primary, id)`; `grants/`, `runs/`, `gate/`,
-`replay/`, `metrics/` and `debt.md` stay generic. A run SHALL move an old layout's files into it at its start, under its claim,
+`replay/`, `metrics/`, `awake/` and `debt.md` stay generic. A run SHALL move an old layout's files into it at its start, under its claim,
 before any worker, idempotently, leaving every file it does not name; a link at `changes/`, `changes/<change-id>/` or an old file
 SHALL halt, naming it, and so SHALL an old file beside its new one. `integrate.py`, `gate_check.py`, `run.py`, `conduct.py grant`, and a
 hand-run `mf-release`, `mf-integrate`, `mf-converge` or `mf-build`, finding a file of its change at its old path, SHALL halt, naming
@@ -2553,3 +2553,27 @@ A paydown change lists the card ids it closes under the `debt:` key of its `prop
 #### Scenario: A paydown change is released
 - **WHEN** the change's `proposal.md` lists card ids under `debt:`, or an older one's `backlog:`
 - **THEN** `mf-release` deletes exactly those cards from `.minions/debt.md` after the fold
+
+### Requirement: A cut run by hand holds the machine awake
+
+The cut SHALL run `skills/mf-cut-change/scripts/awake.py start <change-id>` at the head of its Step 1, and `awake.py stop
+<change-id>` at every halt from Step 1 on and at Step 11's close-out. `start` SHALL start `caffeinate -is -t 7200 -w <host pid>`,
+detached, the host being its nearest ancestor process that is neither a shell nor `uv`, so the hold ends at the stop, the host's
+exit or two hours, whichever comes first. It SHALL record the hold's pid in `.minions/awake/<change-id>`, a generic folder of the run directory, and print
+`awake: held (2 h at most)`; a hold already recorded for that id is stopped first, and a hold for another id is left alone.
+`stop` SHALL kill the recorded pid only while `ps` names it `caffeinate`, and remove the record. With no `caffeinate` on `PATH`,
+`start` SHALL print `awake: not held — caffeinate not on PATH`, start nothing and exit 0; the cut SHALL go on whatever `awake.py` prints.
+`skills/mf-cut-change/SKILL.md` SHALL say that a closed lid sleeps the Mac whatever the cut holds, unless it is in clamshell mode.
+
+#### Scenario: A cut on a Mac
+- **WHEN** the cut starts with `caffeinate` on `PATH`
+- **THEN** `awake.py start <change-id>` starts `caffeinate -is -t 7200 -w <host pid>` once, records its pid in
+  `.minions/awake/<change-id>`, and prints `awake: held (2 h at most)`
+
+#### Scenario: Two cuts at once
+- **WHEN** holds stand for two change ids and one is stopped
+- **THEN** its `caffeinate` is killed and its record removed, and the other's stands
+
+#### Scenario: No caffeinate
+- **WHEN** no `caffeinate` is on `PATH`
+- **THEN** `awake.py start` prints `awake: not held — caffeinate not on PATH`, records nothing and exits 0
