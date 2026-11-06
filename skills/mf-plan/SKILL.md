@@ -121,21 +121,28 @@ A hard close then queues the cut:
 1. **The models and the switch** are rows of the settled table the person confirms: per change, a model and effort
    for the build, converge, release and cut station, and `decide: recommended`, per [the brief](#the-brief).
 2. **The check:** run `uv run --script scripts/brief_check.py <brief>`, `scripts/` resolved from this skill's
-   package. Exit 1 → fix each line it prints in the brief and run it again; exit 2 → **halt**, naming it.
-3. **The question,** once, unless `then=ship` was given: "confirm, and queue it?".
+   package; it holds the commands and each item's slug, bump, `after` and models. Exit 1 → fix each line it prints
+   in the brief and run it again; exit 2 → **halt**, naming it.
+3. **The question,** once, unless `then=ship` was given. First run `uv run --script ../mf-ship/scripts/conduct.py status`
+   in the primary checkout. Show each `## For the cut` item as the brief now holds it, its `models:` line and
+   Acceptance included, and what `status` prints: each open version or queued cut it names that is not at a halt,
+   the run the yes joins or starts takes too. Then ask "confirm, and queue it?".
 4. **Yes, or `then=ship`:** the executor from runtime evidence — Claude Code → `claude`; Codex → `codex`. For each
    change of `## For the cut`, in order, run in the primary checkout
    `uv run --script ../mf-ship/scripts/conduct.py cut <slug> <bump> brief=<the brief's absolute path> [after=<ids>] --executor <executor> --model <cut model> --effort <cut effort>`,
-   `../mf-ship/` resolved from this skill's package. An `after` naming an earlier change of the brief takes the id
+   `../mf-ship/` resolved from this skill's package, each field as the checked brief holds it. An `after` naming an earlier change of the brief takes the id
    its `cut` line printed (`cut: queued <id> · …`). Paste each line; an exit 2 stops the queue, reported in full.
-   The yes is the person's to cut, run, merge and push each queued version.
+   The yes is the person's to every merge and push in the run it joins or starts, as `mf-ship`'s is: each queued
+   version, and each open version that run takes.
 5. **No:** queue nothing.
 
 **Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
-— then a last line:
+— then the last lines:
 
 - hard and queued: `Next: the run cuts and ships it; conduct.py status says where it stands.`
-- hard and not queued: `Next: /mf-cut-change <id> <bump> brief=<path>`
+- hard and not queued: one line per change of `## For the cut`, in order,
+  `Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>`, `<NNNN>` left for the person: the next free number when
+  they cut it
 - light: `Next: /mf-plan <what> depth=hard from=<path>`
 
 Then stop.

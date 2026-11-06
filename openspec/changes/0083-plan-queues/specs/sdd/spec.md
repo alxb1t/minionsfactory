@@ -7,11 +7,15 @@ say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 
 `## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
 `## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
 variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one. It
-SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot be
-parsed. It SHALL run no command it reads.
+SHALL also exit 1 when a `## For the cut` item's head names a slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a
+bump other than `minor` or `patch`, or no `after:`, or when the item has no `models:` line naming the build, converge, release
+and cut station in order, each with a model and effort of `[A-Za-z0-9._-]` alone. It SHALL exit 0 printing
+`brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot be parsed. It SHALL run no
+command it reads.
 
 #### Scenario: A brief out of shape
-- **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`
+- **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`, or an
+  item's slug or cut effort holds `$(…)` or `;`
 - **THEN** `brief_check.py` exits 1, naming each
 
 #### Scenario: A hard brief
@@ -21,20 +25,24 @@ parsed. It SHALL run no command it reads.
 ### Requirement: The plan's close queues the cut on the person's yes
 
 At a hard close, once the person confirms the settled table, `skills/mf-plan/SKILL.md` SHALL run `brief_check.py` on the
-brief, and fix and run it again until it exits 0. It SHALL then ask once, "confirm, and queue it?", unless `then=ship` was
-given. On yes, or `then=ship`, it SHALL run `conduct.py cut <slug> <bump> brief=<path> [after=<ids>] --executor <executor>
---model <m> --effort <e>` from the primary for each change of `## For the cut`, in order, an `after` that names an earlier
-change of the brief given as the id its `cut` printed, and paste each line; that yes SHALL be the person's yes to cut, run,
-merge and push each queued version. On no, it SHALL end on `Next: /mf-cut-change <id> <bump> brief=<path>`. It SHALL still
-never cut: no branch, no change directory.
+brief, and fix and run it again until it exits 0. Unless `then=ship` was given, it SHALL then run `conduct.py status`, show
+each `## For the cut` item as the brief holds it, its `models:` line and Acceptance included, and each open version or queued
+cut `status` names that is not at a halt, and ask once, "confirm, and queue it?". On yes, or `then=ship`, it SHALL run
+`conduct.py cut <slug> <bump> brief=<path> [after=<ids>] --executor <executor> --model <m> --effort <e>` from the primary for
+each change of `## For the cut`, in order, an `after` that names an earlier change of the brief given as the id its `cut`
+printed, and paste each line; that yes SHALL be the person's yes to every merge and push in the run it joins or starts: each
+queued version, and each open version that run takes. On no, it SHALL end on one
+`Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>` line per change of `## For the cut`, in order, `<NNNN>` left for
+the person. It SHALL still never cut: no branch, no change directory.
 
 #### Scenario: The person says yes
-- **WHEN** a hard close's brief passes `brief_check.py` and the person answers yes
+- **WHEN** a hard close's brief passes `brief_check.py`, the close shows its `## For the cut` items and `conduct.py status`,
+  and the person answers yes
 - **THEN** `mf-plan` runs `conduct.py cut` for each change in order, pastes each line, and returns to the chat
 
 #### Scenario: The person says no
 - **WHEN** the person answers no
-- **THEN** `mf-plan` queues nothing and ends on `Next: /mf-cut-change <id> <bump> brief=<path>`
+- **THEN** `mf-plan` queues nothing and ends on one `Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>` line per change
 
 ## MODIFIED Requirements
 

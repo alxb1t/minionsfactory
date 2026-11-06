@@ -151,9 +151,10 @@ it.**
 ### D59 · A hard plan closes on a checked brief, and queues its cut on the person's yes
 
 **At a hard close `mf-plan` names per change the models of the build, converge, release and cut station and the switch
-`decide: recommended`, runs `brief_check.py` until it passes, and asks once, "confirm, and queue it?". Yes, or
-`then=ship`, runs `conduct.py cut` per change in order ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and
-is the person's yes to cut, run, merge and push each; no ends on `/mf-cut-change`. The plan never cuts.**
+`decide: recommended`, runs `brief_check.py` until it passes, shows the `## For the cut` items and `conduct.py status`, and
+asks once, "confirm, and queue it?". Yes, or `then=ship`, runs `conduct.py cut` per change in order
+([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and is the person's yes to every merge and push in the run it
+joins or starts; no ends on `/mf-cut-change`. The plan never cuts.**
 
 - **Why:** a cut in the person's session kept the chat busy, and a brief out of shape is a cutter's doubt made at the
   plan.

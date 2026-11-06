@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `skills/mf-plan/scripts/brief_check.py <brief>` holds a hard brief to the cut station's shape: a `hard` title, an
-  `At` line, a filled `## For the cut`, and Acceptance and `Verify:` commands that keep `verify_check.py`'s shell rules;
-  it exits 1 naming each halt, 2 when it cannot check (change `0083-plan-queues`, phase 1).
+  `At` line, a filled `## For the cut` whose items' slug, bump, `after` and models keep `conduct.py cut`'s shape, and
+  Acceptance and `Verify:` commands that keep `verify_check.py`'s shell rules; it exits 1 naming each halt, 2 when it
+  cannot check (change `0083-plan-queues`, phase 1).
 - `mf-plan`'s hard close names each change's models and `decide: recommended` in `## For the cut`, runs
-  `brief_check.py` to green, asks once "confirm, and queue it?", and on yes or `then=ship` queues each cut with
-  `conduct.py cut`, so the person plans on in the same chat; D59 records it (change `0083-plan-queues`, phase 2).
+  `brief_check.py` to green, shows the items and `conduct.py status`, asks once "confirm, and queue it?", and on yes or
+  `then=ship` queues each cut with `conduct.py cut`, the yes reaching every merge and push in the run, so the person
+  plans on in the same chat; D59 records it (change `0083-plan-queues`, phase 2).
 
 ## [0.68.0] - 2026-11-06
 
