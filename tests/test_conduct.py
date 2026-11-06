@@ -1855,6 +1855,11 @@ def test_a_halt_answered_on_disk_comes_back(
     conductor.join({})
     assert taken == [conduct["find_version"](root, "0003-late")] and reads == []
     assert polled[-3:] == ["read", "wait", "read"]
+    # A request taken at a poll's bottom sends the run to the next poll's top.
+    answers = [False, True, False, False]
+    conductor.take_requests = lambda threads: answers.pop(0)
+    conductor.join({})
+    assert answers == []
     # A failed read of the open versions takes nothing, and the log says why.
     conductor.halt("0003-late", "build timed out")
     listed = globals_["open_versions"]
