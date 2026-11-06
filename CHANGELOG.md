@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-cut-change unattended=yes` never waits: under the brief's `decide: recommended` it takes the recommended option and
   logs a `decided by the cutter` row in the brief, else it halts in `cut.halt`; it writes `models.toml` from the brief.
   Both modes take an `At` value only as 7 to 40 hex digits (change `0082-cut-station`, phase 3).
+- D58 records the cut station; D20, D38, D41, D44, D47, D51 and D57 amended. The threat model, the principles,
+  `mf-ship`'s skill and the README name the queue, the cutter's reach and `cut-halted` (change `0082-cut-station`,
+  phase 4).
 
 ## [0.67.0] - 2026-11-06
 

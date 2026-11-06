@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The queue
 - [x] 2 — The station
 - [x] 3 — The unattended cut
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The queue
 
@@ -71,18 +71,18 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The record
 
-- [ ] 4.1 Add **D58 · A settled brief is cut by a conductor station** to *Planning* in `docs/decisions.md`, and its id to the
+- [x] 4.1 Add **D58 · A settled brief is cut by a conductor station** to *Planning* in `docs/decisions.md`, and its id to the
   diagram's Planning list, per [D9](design.md#d9).
   Verify: `grep -n '### D58 · A settled brief is cut by a conductor station' docs/decisions.md` prints a line.
-- [ ] 4.2 Amend D20, D38, D41, D44, D47, D51 and D57 in `docs/decisions.md`, per [D9](design.md#d9).
+- [x] 4.2 Amend D20, D38, D41, D44, D47, D51 and D57 in `docs/decisions.md`, per [D9](design.md#d9).
   Verify: `grep -L 'a reservation file' docs/decisions.md` prints `docs/decisions.md`.
-- [ ] 4.3 Edit *Unattended workers*, *A person's yes*, the brief's and the rejoin requests' *Entry points*, and add the cut
+- [x] 4.3 Edit *Unattended workers*, *A person's yes*, the brief's and the rejoin requests' *Entry points*, and add the cut
   queue's entry point, in `THREAT_MODEL.md`, per [D9](design.md#d9).
   Verify: `grep -n 'a cut the person queued' THREAT_MODEL.md` prints a line.
-- [ ] 4.4 Edit *The repo reaches nothing outside itself* in `docs/principles.md`, per [D9](design.md#d9).
+- [x] 4.4 Edit *The repo reaches nothing outside itself* in `docs/principles.md`, per [D9](design.md#d9).
   Verify: `grep -n -F '.queue/' docs/principles.md` prints a line.
-- [ ] 4.5 Edit the role line, the diagram, the command table, the `status` and `rejoin` rows and Step 2's table in
+- [x] 4.5 Edit the role line, the diagram, the command table, the `status` and `rejoin` rows and Step 2's table in
   `skills/mf-ship/SKILL.md`, per [D9](design.md#d9).
   Verify: `grep -n 'cut-halted' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 4.6 Name the queued cut in the `mf-ship` row and *Parallel workspaces* of `README.md`, per [D9](design.md#d9).
+- [x] 4.6 Name the queued cut in the `mf-ship` row and *Parallel workspaces* of `README.md`, per [D9](design.md#d9).
   Verify: `grep -n 'conduct.py cut' README.md` prints a line.
