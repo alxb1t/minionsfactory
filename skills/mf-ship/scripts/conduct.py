@@ -8,6 +8,8 @@
     conduct.py check <stage> <change-id>
     conduct.py log --verify <run-log>
     conduct.py run --executor claude|codex [--detach]
+    conduct.py cut <slug> <bump> brief=<path> [after=<id>[,<id>]]
+        --executor claude|codex [--model <m>] [--effort <e>]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
     conduct.py rejoin [<change-id>]
@@ -21,6 +23,8 @@ Why: 0040-mf-ship design D2.
 """
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import itertools
 import json
@@ -37,7 +41,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -61,6 +65,8 @@ MOVED = "delta: changed on the default branch: "
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
+SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -2617,6 +2623,9 @@ class Run:
         self.worktrees = primary / (_agents_values(primary, "Worktrees") or [""])[0]
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
+        self.queue = _queue(primary)
+        # The queued cuts the run read; None until `ship` reads the queue.
+        self.seen: set[str] | None = None
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
@@ -3248,7 +3257,7 @@ class Run:
         raises nothing: it runs beside live threads, so a failure skips the request
         or halts that version. Why: 0063-rejoin design D2; 0071-ship-fixes design D4.
         """
-        names = _requests(self.runs)
+        names = _requests(self.queue)
         if not names or self.stopped("run"):
             return False
         try:
@@ -3603,7 +3612,8 @@ class Run:
 
         A request standing at the start is deleted: the run takes every open version.
         """
-        _requests(self.runs)
+        self.seen = set()
+        _requests(self.queue)
         versions = open_versions(self.primary)
         worker = " · worker MF_SHIP_AGENT" if os.environ.get("MF_SHIP_AGENT") else ""
         names = " ".join(version.change for version in versions) or "none"
@@ -3692,7 +3702,8 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
 
     A stale claim is cleared before the detach, so what stops that reaches the caller.
     The live mark comes first, and a stop before the claim removes it; the last run to
-    end moves the links before it goes. Why: 0068-pinned-release design D2 and D3.
+    end moves the links before it goes, then `_close` removes the claim.
+    Why: 0068-pinned-release design D2 and D3; 0082-cut-station design D2.
     """
     pin = _pin()
     mark = _mark_live(pin, primary_of(cwd))
@@ -3709,17 +3720,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         _unmark(pin, mark)
         raise
     if detach:
-        with (runs / "detached.log").open("a") as sink:
-            child = subprocess.Popen(
-                [sys.executable, str(Path(__file__).resolve()), "run"]
-                + ["--executor", executor],
-                cwd=primary,
-                stdin=subprocess.DEVNULL,
-                stdout=sink,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-        print(f"run: started · pid {child.pid}")
+        print(f"run: started · pid {_detach(primary, executor).pid}")
         return 0
     try:
         active.mkdir()
@@ -3728,6 +3729,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
+    seen: set[str] | None = None
     try:
         (active / "start").write_text(started)
         (active / "pid").write_text(str(os.getpid()))
@@ -3737,6 +3739,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         except Exception as error:
             conductor.log.event("run", "halt", f"conduct.py failed: {error}")
             code = 1
+        seen = conductor.seen
         ended = "done" if code == 0 else "halt"
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code
@@ -3746,7 +3749,68 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
                 print(moved)
         finally:
             _unmark(pin, mark)
+            _close(primary, active, executor, seen)
+
+
+def _detach(primary: Path, executor: str) -> subprocess.Popen[bytes]:
+    """Start a run in a new session, its output in `.minions/runs/detached.log`."""
+    with (primary / ".minions" / "runs" / "detached.log").open("a") as sink:
+        return subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), "run"]
+            + ["--executor", executor],
+            cwd=primary,
+            stdin=subprocess.DEVNULL,
+            stdout=sink,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+
+def _start_run(primary: Path, executor: str) -> int:
+    """Detach a run and wait until it holds its claim or has ended; return its pid.
+
+    A run that ended said `run: done` or `run: halt` in the log; a pin move may print
+    after it. Else stop with 2, naming the log's last line. Why: 0082-cut-station
+    design D2.
+    """
+    runs = primary / ".minions" / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    log = runs / "detached.log"
+    size = log.stat().st_size if log.is_file() else 0
+    child = _detach(primary, executor)
+    deadline = time.monotonic() + CLAIM_SECONDS
+    while _claim(runs / "active") != "live":
+        if child.poll() is not None or time.monotonic() >= deadline:
+            with log.open("rb") as file:
+                file.seek(size)
+                lines = file.read().decode(errors="replace").splitlines()
+            if any(line.startswith(("run: done", "run: halt")) for line in lines):
+                return child.pid
+            last = lines[-1] if lines else "no line in .minions/runs/detached.log"
+            raise Stop(2, f"the run did not start — {last}")
+        time.sleep(0.1)
+    return child.pid
+
+
+def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) -> None:
+    """Remove the claim under the queue lock, then start the next run when one waits.
+
+    A run waits on a rejoin request; a run that never read the queue, `seen` None,
+    starts none. A lock the home folder refuses removes the claim and starts none.
+    Why: 0082-cut-station design D2.
+    """
+    try:
+        with _queue_lock(primary):
             shutil.rmtree(active)
+            if seen is None or not _requested(_queue(primary)):
+                return
+            pid = _start_run(primary, executor)
+    except Stop as stop:
+        if active.exists():
+            shutil.rmtree(active)
+        print(stop)
+        return
+    print(f"run: next started · pid {pid}")
 
 
 def stop_run(cwd: Path) -> str:
@@ -3785,39 +3849,204 @@ def _log_stop(runs: Path) -> Path | None:
     return log
 
 
-def _requests(runs: Path) -> set[str]:
-    """Delete the rejoin requests in `runs`; return their names.
+def _queue(primary: Path) -> Path:
+    """Return the repo's queue in the home folder, where no worker writes.
+
+    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
+    """
+    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+@contextlib.contextmanager
+def _queue_lock(primary: Path) -> Iterator[None]:
+    """Hold the queue's lock, blocking; the kernel drops it when its process ends.
+
+    Why: 0082-cut-station design D2.
+    """
+    queue = _queue(primary)
+    try:
+        for folder in (queue.parent, queue):
+            folder.mkdir(mode=0o700, exist_ok=True)
+        fd = os.open(queue / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError as error:
+        raise Stop(
+            2,
+            f"conduct: cannot run — the home folder refuses the queue:"
+            f" {error.strerror}; run it outside a sandbox",
+        ) from None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
+    """Return each queued cut's entry by its id, in id order.
+
+    An entry that is no JSON object holds only its halt.
+    e.g. {"0003-a": {"bump": "minor", …, "halt": None}}
+    """
+    folder = _queue(primary) / "cuts"
+    found: dict[str, dict[str, Any]] = {}
+    for name in _entries(folder, empty=False):
+        if not CHANGE_ID.fullmatch(name):
+            continue
+        try:
+            entry = json.loads((folder / name).read_text())
+        except (OSError, ValueError):
+            entry = None
+        if not isinstance(entry, dict):
+            entry = {"halt": "the queue entry is unreadable"}
+        found[name] = entry
+    return found
+
+
+def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
+    """Write a queued cut's entry whole: to a temporary name, then moved in."""
+    folder = _queue(primary) / "cuts"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    fd, temp = tempfile.mkstemp(dir=folder, prefix=".")
+    with os.fdopen(fd, "w") as file:
+        json.dump(entry, file)
+    os.replace(temp, folder / change)
+
+
+def _next_id(primary: Path) -> int:
+    """Return one above every change number the repo, its branches or the queue hold.
+
+    Why: 0082-cut-station design D1.
+    """
+    default = default_branch(primary)
+    branches = _git(primary, "branch", "--list", "[0-9]*", "--format=%(refname:short)")
+    names = [*branches.split(), *_entries(primary / ".minions" / "cuts", empty=False)]
+    names += _cuts(primary)
+    for rev in [default, *branches.split()]:
+        for folder in ("openspec/changes", "openspec/changes/archive"):
+            listed = _maybe(primary, "ls-tree", "--name-only", f"{rev}:{folder}")
+            names += (listed or "").splitlines()
+    numbers = [int(found[1]) for name in names if (found := CHANGE_ID.fullmatch(name))]
+    return max(numbers, default=0) + 1
+
+
+def cut(
+    cwd: Path,
+    slug: str,
+    bump: str,
+    brief: str,
+    after: str | None,
+    executor: str,
+    model: str | None,
+    effort: str | None,
+) -> str:
+    """Queue a settled brief under the next free number; return the line.
+
+    The live run takes it; with none live, a run starts. Why: 0082-cut-station
+    design D1.
+    """
+    if not SLUG.fullmatch(slug):
+        raise Stop(2, f"cut: cannot run — not a slug: {slug}")
+    if not brief.startswith("brief="):
+        raise Stop(2, "cut: cannot run — expected brief=<path>")
+    if after is not None and not after.startswith("after="):
+        raise Stop(2, "cut: cannot run — expected after=<ids>")
+    path = Path(brief.removeprefix("brief="))
+    if not path.is_absolute() or not path.is_file():
+        raise Stop(2, f"cut: cannot run — {brief} is not an absolute path to a file")
+    ids = after.removeprefix("after=").split(",") if after else []
+    primary = primary_of(cwd)
+    with _queue_lock(primary):
+        known = {version.change for version in open_versions(primary)}
+        known |= set(_cuts(primary))
+        for named in ids:
+            if named not in known:
+                raise Stop(
+                    2,
+                    f"cut: cannot run — after={named} names no open version or"
+                    " queued cut",
+                )
+        live = _claim(primary / ".minions" / "runs" / "active") == "live"
+        if not live:
+            preconditions(cwd, executor)
+        change = f"{_next_id(primary):04d}-{slug}"
+        fd = _folder_fd(primary / ".minions", "cuts")
+        try:
+            flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
+            os.close(os.open(change, flags, 0o644, dir_fd=fd))
+        finally:
+            os.close(fd)
+        entry = {
+            "bump": bump,
+            "brief": str(path.resolve()),
+            "after": ids,
+            "executor": executor,
+            "model": model,
+            "effort": effort,
+            "halt": None,
+        }
+        _write_cut(primary, change, entry)
+        if live:
+            return f"cut: queued {change} · the live run takes it"
+        try:
+            pid = _start_run(primary, executor)
+        except Stop as stop:
+            raise Stop(2, f"cut: queued {change} · {stop}") from None
+    return f"cut: queued {change} · run started · pid {pid}"
+
+
+def _requests(queue: Path) -> set[str]:
+    """Delete the rejoin requests in `queue`; return their names.
 
     An entry `unlink` refuses, a folder say, is no request, and an unreadable folder
     holds none: the poll runs beside live threads. A folder that is a link holds
-    none: a worker may write it, and the conductor deletes outside the sandbox.
-    Why: 0063-rejoin design D2.
-    e.g. `.minions/runs/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
+    none, and deletes nothing through it. Why: 0063-rejoin design D2.
+    e.g. `<queue>/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
     """
-    return set(_entries(runs / "rejoin", empty=True))
+    return set(_entries(queue / "rejoin", empty=True))
+
+
+def _requested(queue: Path) -> bool:
+    """Return whether `queue`'s rejoin folder holds a request: a regular file.
+
+    Read through the folder's descriptor, as `_requests` deletes, following no link.
+    """
+    try:
+        fd = os.open(queue / "rejoin", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return False
+    try:
+        return any(
+            stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode) for name in os.listdir(fd)
+        )
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
 
 
 def rejoin(cwd: Path, change: str | None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    Why: 0063-rejoin design D1.
+    Why: 0063-rejoin design D1; 0082-cut-station design D3.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
-    if _claim(runs / "active") != "live":
-        raise Stop(2, "rejoin: no run is live — run /mf-ship")
-    if change is not None and change not in (
-        version.change for version in open_versions(primary)
-    ):
-        raise Stop(2, f"rejoin: cannot run — no open version holds {change}")
-    _request(runs, change or "all")
+    with _queue_lock(primary):
+        if _claim(runs / "active") != "live":
+            raise Stop(2, "rejoin: no run is live — run /mf-ship")
+        if change is not None and change not in (
+            version.change for version in open_versions(primary)
+        ):
+            raise Stop(2, f"rejoin: cannot run — no open version holds {change}")
+        _request(primary, change or "all")
     return f"rejoin: requested {change or 'every halted version'}"
 
 
-def _request(runs: Path, name: str) -> None:
-    """Write the rejoin request `name` for the live run."""
-    (runs / "rejoin").mkdir(parents=True, exist_ok=True)
-    (runs / "rejoin" / name).touch()
+def _request(primary: Path, name: str) -> None:
+    """Write the rejoin request `name` for the live run, in the home folder's queue."""
+    folder = _queue(primary) / "rejoin"
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (folder / name).touch()
 
 
 def _rescuing(runs: Path, change: str) -> bool:
@@ -3842,8 +4071,9 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     """Record one more round for a version halted at the cap, then start a run.
 
     With a run live, the grant goes with a rejoin request instead, and none while
-    that version's rescue runs: `Run.hold` takes a grant then for the rescue's.
-    Why: 0063-rejoin design D5; 0067-rescue design D3.
+    that version's rescue runs: `Run.hold` takes a grant then for the rescue's. The
+    queue lock is held from the claim read to the request or the start.
+    Why: 0063-rejoin design D5; 0067-rescue design D3; 0082-cut-station design D3.
     """
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
@@ -3860,21 +4090,24 @@ def grant(cwd: Path, change: str, executor: str) -> int:
             " converge caps",
         )
     runs = primary / ".minions" / "runs"
-    live = _claim(runs / "active") == "live"
-    if live and _rescuing(runs, change):
-        raise Stop(
-            2,
-            f"grant: cannot run — {change} is at {stage} with its rescue running:"
-            " grant once it ends",
-        )
-    if not live:
-        preconditions(cwd, executor)
-    grants = primary / ".minions" / "grants"
-    grants.mkdir(parents=True, exist_ok=True)
-    (grants / change).touch()
-    if not live:
-        return run(cwd, executor, True)
-    _request(runs, change)
+    with _queue_lock(primary):
+        live = _claim(runs / "active") == "live"
+        if live and _rescuing(runs, change):
+            raise Stop(
+                2,
+                f"grant: cannot run — {change} is at {stage} with its rescue running:"
+                " grant once it ends",
+            )
+        if not live:
+            preconditions(cwd, executor)
+        grants = primary / ".minions" / "grants"
+        grants.mkdir(parents=True, exist_ok=True)
+        (grants / change).touch()
+        if not live:
+            pid = _start_run(primary, executor)
+            print(f"grant: recorded · run started · pid {pid}")
+            return 0
+        _request(primary, change)
     print(f"grant: recorded — the live run takes {change} back")
     return 0
 
@@ -4152,6 +4385,14 @@ def main(argv_: list[str] | None = None) -> int:
     running = commands.add_parser("run", help="the loop")
     running.add_argument("--executor", required=True, choices=("claude", "codex"))
     running.add_argument("--detach", action="store_true")
+    cutting = commands.add_parser("cut", help="queue a settled brief for a run to cut")
+    cutting.add_argument("slug")
+    cutting.add_argument("bump", choices=("minor", "patch"))
+    cutting.add_argument("brief", metavar="brief=<path>")
+    cutting.add_argument("after", metavar="after=<id>[,<id>]", nargs="?")
+    cutting.add_argument("--executor", required=True, choices=("claude", "codex"))
+    cutting.add_argument("--model")
+    cutting.add_argument("--effort")
     commands.add_parser("stop", help="end the live run")
     granting = commands.add_parser("grant", help="one more round past the cap")
     granting.add_argument("change_id", metavar="change-id")
@@ -4183,6 +4424,18 @@ def main(argv_: list[str] | None = None) -> int:
             print("log: complete")
         elif args.command == "run":
             return run(cwd, args.executor, args.detach)
+        elif args.command == "cut":
+            line = cut(
+                cwd,
+                args.slug,
+                args.bump,
+                args.brief,
+                args.after,
+                args.executor,
+                args.model,
+                args.effort,
+            )
+            print(line)
         elif args.command == "stop":
             print(stop_run(cwd))
         elif args.command == "grant":

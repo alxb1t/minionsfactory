@@ -4,6 +4,7 @@ The standard library alone: it starts once per worker, and the suite spawns many
 Why: 0051-reliability-paydown design D9.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -194,9 +195,12 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "rescue.md").write_text("# diagnosis\n")
     if "rescue-answers" in modes:
-        # A rescue answering its halt on disk with a grant, then asking to rejoin.
-        for name in ("grants", "runs/rejoin"):
-            folder = primary / ".minions" / name
+        # A rescue answering its halt on disk with a grant, then asking to rejoin; a
+        # worker's request is unread, and the home one stands in for the person's.
+        digest = hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+        home = Path(os.environ["HOME"], ".mf-ship-origin", f"{digest}.queue")
+        minions = primary / ".minions"
+        for folder in (minions / "grants", minions / "runs/rejoin", home / "rejoin"):
             folder.mkdir(parents=True, exist_ok=True)
             (folder / change).touch()
 

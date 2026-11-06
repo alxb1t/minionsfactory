@@ -4,30 +4,30 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The queue
+- [x] 1 — The queue
 - [ ] 2 — The station
 - [ ] 3 — The unattended cut
 - [ ] 4 — The record
 
 ## 1 — The queue
 
-- [ ] 1.1 Add `SLUG`, `CLAIM_SECONDS`, `_queue`, `_queue_lock`, `_next_id`, `_cuts`, `_write_cut`, `_detach`, `_start_run`
+- [x] 1.1 Add `SLUG`, `CLAIM_SECONDS`, `_queue`, `_queue_lock`, `_next_id`, `_cuts`, `_write_cut`, `_detach`, `_start_run`
   and `cut`, with its `cut` parser in `main` and its usage line in the module docstring, to
   `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1) and [D2](design.md#d2); `run(…, detach=True)` starts its
   child through `_detach`.
   Verify: `grep -n 'def _start_run' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Move the mailbox to `_queue(primary) / "rejoin"` — `_request(primary, name)`, `_requests(queue)`, `rejoin` and
+- [x] 1.2 Move the mailbox to `_queue(primary) / "rejoin"` — `_request(primary, name)`, `_requests(queue)`, `rejoin` and
   `grant` under the lock, `Run.queue` at the start and each poll — per [D3](design.md#d3), and replace `run()`'s
   `shutil.rmtree(active)` with `_close`, which starts the next run on a standing request once `Run.seen` — `None` in
   `__init__`, a set as `ship`'s first act — is a set, per
   [D2](design.md#d2); `grant` with none live starts the run through `_start_run`, per [D3](design.md#d3).
   Verify: `grep -L 'runs / "rejoin"' skills/mf-ship/scripts/conduct.py` prints `skills/mf-ship/scripts/conduct.py`.
-- [ ] 1.3 Point the planted and read requests of `test_a_new_executor_is_probed_mid_run`, `test_the_plan_is_read_once` and
+- [x] 1.3 Point the planted and read requests of `test_a_new_executor_is_probed_mid_run`, `test_the_plan_is_read_once` and
   `test_a_grant_buys_one_round` in `tests/test_conduct.py` at `conduct["_queue"](root) / "rejoin"`, the last one's `run`
   spy turned into a `_start_run` stub, and have
   `rescue-answers` in `tests/fake_worker.py` touch the home request too, per [the design's Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "new_executor_is_probed or plan_is_read_once or grant_buys_one_round"` reports `3 passed`.
-- [ ] 1.4 Add `test_parallel_cuts_reserve_apart_and_start_one_run`, `test_a_started_run_is_seen_by_its_claim_or_its_end`
+- [x] 1.4 Add `test_parallel_cuts_reserve_apart_and_start_one_run`, `test_a_started_run_is_seen_by_its_claim_or_its_end`
   and `test_a_request_at_a_runs_close_starts_the_next_run` to `tests/test_conduct.py`, per
   [the design's Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py -k "parallel_cuts_reserve or started_run_is_seen or request_at_a_runs_close"` reports `3 passed`.

@@ -1883,7 +1883,7 @@ def test_a_new_executor_is_probed_mid_run(
         ) -> None:
             # A folder no unlink removes: the poll skips it, and the run goes on.
             # Why: 0063-rejoin design D2.
-            (root / ".minions" / "runs" / "rejoin" / "planted").mkdir(parents=True)
+            (conduct["_queue"](root) / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
                 table = root / ".minions" / "changes" / change / "models.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -1939,7 +1939,7 @@ def test_a_new_executor_is_probed_mid_run(
             )
             assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
 
-            stale = root / ".minions" / "runs" / "rejoin" / "all"
+            stale = conduct["_queue"](root) / "rejoin" / "all"
             stale.touch()
             assert (
                 _main(
@@ -1962,8 +1962,284 @@ def test_a_new_executor_is_probed_mid_run(
             (elsewhere / "kept.gate").mkdir()
             shutil.rmtree(stale.parent)
             stale.parent.symlink_to(elsewhere)
-            assert conduct["_requests"](root / ".minions" / "runs") == set()
+            assert conduct["_requests"](conduct["_queue"](root)) == set()
             assert (elsewhere / "kept-urls").is_file()
+
+
+def _claimed(conduct: dict[str, Any], root: Path) -> None:
+    """Write a live claim held by this process."""
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    (active / "pid").write_text(str(os.getpid()))
+    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+
+
+def test_parallel_cuts_reserve_apart_and_start_one_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    archived = "openspec/changes/archive/0002-old/proposal.md"
+    _commit(root, {archived: "---\nbump: minor\n---\n"}, "archive 0002-old")
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    good = f"brief={brief}"
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        time.sleep(0.2)
+        starts.append((primary, executor))
+        _claimed(conduct, primary)
+        return 4242
+
+    names["_start_run"] = start
+    said: list[str] = []
+    threads = [
+        threading.Thread(
+            target=lambda slug=slug: said.append(
+                conduct["cut"](root, slug, "minor", good, None, "claude", None, None)
+            )
+        )
+        for slug in ("a", "b")
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    cuts = conduct["_cuts"](root)
+    assert sorted(change[:5] for change in cuts) == ["0003-", "0004-"]
+    assert starts == [(root, "claude")]
+    assert sorted(line.split(" · ", 1)[1] for line in said) == [
+        "run started · pid 4242",
+        "the live run takes it",
+    ]
+    entry = {
+        "bump": "minor",
+        "brief": str(brief.resolve()),
+        "after": [],
+        "executor": "claude",
+        "model": None,
+        "effort": None,
+        "halt": None,
+    }
+    assert cuts == dict.fromkeys(cuts, entry)
+    reserved = root / ".minions" / "cuts"
+    assert sorted(os.listdir(reserved)) == sorted(cuts)
+
+    def refused(*args: str) -> str:
+        capsys.readouterr()
+        command = ("cut", *args, "--executor", "claude")
+        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 2
+        return capsys.readouterr().out.strip()
+
+    cannot = "cut: cannot run — "
+    assert refused("A b", "minor", good) == f"{cannot}not a slug: A b"
+    assert refused("c", "minor", str(brief)) == f"{cannot}expected brief=<path>"
+    assert refused("c", "minor", good, "0001-todo") == f"{cannot}expected after=<ids>"
+    assert refused("c", "minor", "brief=brief.md") == (
+        f"{cannot}brief=brief.md is not an absolute path to a file"
+    )
+    assert refused("c", "minor", f"brief={tmp_path}") == (
+        f"{cannot}brief={tmp_path} is not an absolute path to a file"
+    )
+    assert refused("c", "minor", good, "after=0009-none") == (
+        f"{cannot}after=0009-none names no open version or queued cut"
+    )
+    with pytest.raises(SystemExit, match="2"):
+        _main(conduct, root, "cut", "c", "major", good, monkeypatch=monkeypatch)
+    shutil.rmtree(root / ".minions" / "runs" / "active")
+    (root / "dirty.txt").write_text("x\n")
+    queued = f"after=0001-todo,{min(cuts)}"
+    assert refused("c", "minor", good, queued) == (
+        "run: cannot run — the primary's tree is not clean"
+    )
+    (root / "dirty.txt").unlink()
+    assert (
+        sorted(os.listdir(reserved)) == sorted(conduct["_cuts"](root)) == sorted(cuts)
+    )
+
+    # A run that does not start leaves its cut queued for the next run.
+    def unstarted(primary: Path, executor: str) -> int:
+        raise conduct["Stop"](2, "the run did not start — x")
+
+    names["_start_run"] = unstarted
+    assert refused("c", "minor", good) == (
+        "cut: queued 0005-c · the run did not start — x"
+    )
+    assert conduct["_cuts"](root)["0005-c"]["halt"] is None
+    _claimed(conduct, root)
+    capsys.readouterr()
+    args = ("cut", "d", "patch", good, "--executor", "codex", "--model", "opus")
+    assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
+    picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
+    assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
+
+
+def test_a_started_run_is_seen_by_its_claim_or_its_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    start, claim, detach, stop = (
+        names[name] for name in ("_start_run", "_claim", "_detach", "Stop")
+    )
+    root = _primary(tmp_path)
+    log = root / ".minions" / "runs" / "detached.log"
+
+    # A run that ended before its claim was read: `run: done`, a pin line after it.
+    kept = Path.home() / ".mf-ship-origin"
+    kept.mkdir(exist_ok=True)
+    (kept / "source").write_text(f"{tmp_path / 'nowhere'}\n")
+    (kept / "pending").write_text("v9.9.9\n")
+    names["_claim"] = lambda active: "none"
+    pid = start(root, "claude")
+    lines = log.read_text().splitlines()
+    assert lines[-2].startswith("run: done · ")
+    assert lines[-1].startswith("pin: cannot move — ")
+    (kept / "pending").unlink()
+
+    # A run whose claim is live.
+    children: list[subprocess.Popen[bytes]] = []
+
+    def sleeper(primary: Path, executor: str) -> subprocess.Popen[bytes]:
+        children.append(subprocess.Popen(["sleep", "5"]))
+        return children[-1]
+
+    names["_claim"], names["_detach"] = (lambda active: "live"), sleeper
+    try:
+        assert start(root, "claude") == children[0].pid != pid
+    finally:
+        children[0].kill()
+        children[0].wait()
+
+    # A child that says nothing.
+    names["_claim"] = lambda active: "none"
+    names["_detach"] = lambda primary, executor: subprocess.Popen(
+        [sys.executable, "-c", "pass"]
+    )
+    with pytest.raises(
+        stop, match="^the run did not start — no line in .minions/runs/detached.log$"
+    ):
+        start(root, "claude")
+
+    # A run that stops at its preconditions names them.
+    names["_claim"], names["_detach"] = claim, detach
+    (root / "dirty.txt").write_text("x\n")
+    with pytest.raises(
+        stop,
+        match="^the run did not start — run: cannot run — the primary's tree is not"
+        " clean$",
+    ):
+        start(root, "claude")
+    (root / "dirty.txt").unlink()
+
+    capsys.readouterr()
+    args = ("run", "--executor", "claude", "--detach")
+    assert _main(conduct, root, *args, monkeypatch=monkeypatch) == 0
+    assert re.fullmatch(r"run: started · pid \d+\n", capsys.readouterr().out)
+    deadline = time.monotonic() + 30
+    while log.read_text().count("run: done · ") < 2 and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert log.read_text().count("run: done · ") == 2
+
+
+def test_a_request_at_a_runs_close_starts_the_next_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    queue = conduct["_queue"](root)
+    active = root / ".minions" / "runs" / "active"
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        starts.append((primary, executor))
+        return 4242
+
+    names["_start_run"] = start
+
+    def ships(request: bool) -> None:
+        def ship(self: object) -> int:
+            vars(self)["seen"] = set()
+            if request:
+                conduct["_request"](root, "all")
+            return 0
+
+        monkeypatch.setattr(names["Run"], "ship", ship)
+
+    def run() -> str:
+        capsys.readouterr()
+        assert conduct["run"](root, "claude", False) == 0
+        assert not active.exists()
+        return capsys.readouterr().out
+
+    ships(request=True)
+    assert run().endswith("run: next started · pid 4242\n")
+    assert starts == [(root, "claude")]
+    conduct["_requests"](queue)
+    ships(request=False)
+    assert "next started" not in run()
+    assert starts == [(root, "claude")]
+
+    # A request the close cannot read starts none: a folder, a link, a refused list.
+    (queue / "rejoin" / "planted").mkdir()
+    assert "next started" not in run()
+    (queue / "rejoin" / "planted").rmdir()
+    conduct["_request"](root, "all")
+    listdir = os.listdir
+    monkeypatch.setattr(os, "listdir", lambda fd: ["gone"])
+    assert not conduct["_requested"](queue)
+    monkeypatch.setattr(os, "listdir", listdir)
+    elsewhere = tmp_path / "operator-files"
+    shutil.move(queue / "rejoin", elsewhere)
+    (queue / "rejoin").symlink_to(elsewhere)
+    assert not conduct["_requested"](queue)
+    (queue / "rejoin").unlink()
+    shutil.move(elsewhere, queue / "rejoin")
+    assert conduct["_requested"](queue)
+
+    # A start that stops prints its line.
+    def unstarted(primary: Path, executor: str) -> int:
+        raise conduct["Stop"](2, "the run did not start — x")
+
+    names["_start_run"] = unstarted
+    assert run().endswith("the run did not start — x\n")
+
+    # A home folder that refuses the lock removes the claim and starts none.
+    names["_start_run"] = start
+    kept = Path.home() / ".mf-ship-origin"
+    kept.rename(tmp_path / "kept-aside")
+    kept.write_text("")
+    assert run().endswith(
+        "the home folder refuses the queue: File exists; run it outside a sandbox\n"
+    )
+    kept.unlink()
+    (tmp_path / "kept-aside").rename(kept)
+    assert starts == [(root, "claude")]
+
+    # A run that fails before it reads the queue starts no next run.
+    def broken(self: object, primary: Path, executor: str) -> None:
+        raise ValueError("broken")
+
+    monkeypatch.setattr(names["Run"], "__init__", broken)
+    with pytest.raises(ValueError, match="broken"):
+        conduct["run"](root, "claude", False)
+    assert not active.exists()
+    assert starts == [(root, "claude")]
 
 
 def test_a_station_runs_on_its_executor(
@@ -4304,7 +4580,7 @@ def test_the_plan_is_read_once(
     table.write_text('[converge]\nexecutor = "codex"\n')
     changed = "conduct: halt — changes/0001-todo/models.toml changed during the run"
     conductor.halt("0001-todo", changed)
-    request = root / ".minions" / "runs" / "rejoin" / "0001-todo"
+    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
     request.parent.mkdir(parents=True, exist_ok=True)
     request.touch()
     assert not conductor.take_requests({})
@@ -4872,14 +5148,14 @@ def test_a_grant_buys_one_round(
     version = conduct["find_version"](root, "0001-todo")
     grants = root / ".minions" / "grants" / "0001-todo"
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    runner = conduct["main"].__globals__["run"]
-    started: list[tuple[Path, str, bool]] = []
+    runner = conduct["main"].__globals__["_start_run"]
+    started: list[tuple[Path, str]] = []
 
-    def spy(cwd: Path, executor: str, detach: bool) -> int:
-        started.append((cwd, executor, detach))
-        return 0
+    def spy(primary: Path, executor: str) -> int:
+        started.append((primary, executor))
+        return 4242
 
-    conduct["main"].__globals__["run"] = spy
+    conduct["main"].__globals__["_start_run"] = spy
 
     def grant() -> tuple[int, str]:
         capsys.readouterr()
@@ -4899,14 +5175,15 @@ def test_a_grant_buys_one_round(
     capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
     log.write_text(capped)
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
-    assert grant() == (0, "")
-    assert started == [(root, "claude", True)]
+    recorded = (0, "grant: recorded · run started · pid 4242")
+    assert grant() == recorded
+    assert started == [(root, "claude")]
     assert conduct["stage_of"](root, version) == ("converge", "granted")
     waiting = "grant: cannot run — 0001-todo has a grant waiting: run /mf-ship"
     assert grant() == (2, waiting)
-    assert started == [(root, "claude", True)]
+    assert started == [(root, "claude")]
 
-    conduct["main"].__globals__["run"] = runner
+    conduct["main"].__globals__["_start_run"] = runner
 
     def run() -> None:
         assert (
@@ -4935,9 +5212,9 @@ def test_a_grant_buys_one_round(
     _replanned(root, "no open blocking card read")
 
     # A person's grant still buys a round on a re-plan halt.
-    conduct["main"].__globals__["run"] = spy
-    assert grant() == (0, "")
-    conduct["main"].__globals__["run"] = runner
+    conduct["main"].__globals__["_start_run"] = spy
+    assert grant() == recorded
+    conduct["main"].__globals__["_start_run"] = runner
     calls.unlink()
     run()
     assert _calls(calls) == [
@@ -5002,14 +5279,15 @@ def test_a_grant_buys_one_round(
         "grant: cannot run — 0001-todo is at converge-halted with its rescue running:"
         " grant once it ends"
     )
+    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
     assert grant() == (2, rescuing)
-    assert not grants.exists() and not (runs / "rejoin" / "0001-todo").exists()
+    assert not grants.exists() and not request.exists()
     with newest.open("a") as file:
         file.write("12:00:09 · 0001-todo · finish — rescue · exit 0 · 9s\n")
     assert grant() == (0, "grant: recorded — the live run takes 0001-todo back")
     assert grants.is_file()
-    assert (root / ".minions" / "runs" / "rejoin" / "0001-todo").is_file()
-    assert started == [(root, "claude", True)] * 2
+    assert request.is_file()
+    assert started == [(root, "claude")] * 2
     assert _calls(calls) == []
     shutil.rmtree(active)
 
