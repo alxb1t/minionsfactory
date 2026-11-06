@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `then=ship` queues each cut with `conduct.py cut`, the yes reaching every merge and push in the run, so the person
   plans on in the same chat; D59 records it (change `0083-plan-queues`, phase 2).
 
+## [0.68.1] - 2026-11-06
+
+Gate: local 1m58s · CI not read under mf-ship · 0.68.0: local 1m31s · CI not read under mf-ship
+
+- A converge halt before round 1 — no `start` in its run, no `· grant` mark, no `verify: halt` — is answered by any commit past its head, or
+  run again once a run at the same head; `mf-converge` opens a plain new run for it, and no rescue starts
+  (change `0084-ship-fixes-2`, phase 1).
+- Load-bound tests get slack: the stale-lock test's young lock is `LOCK_STALE - 60` old, `tests/test_metrics.py`'s limit is
+  5 s with its timeout in a `slow` test, and `_when_logged` polls the halted version's named thread
+  (change `0084-ship-fixes-2`, phase 2).
+- Every worker's environment holds `TMPDIR=<primary>/.minions/tmp`, beside `UV_CACHE_DIR`, emptied at a run's start, so
+  `mktemp` lands inside the sandbox, and Codex takes it as no writable root of its own; `mf-release` Step 2 names `mktemp`
+  for the fold (change `0084-ship-fixes-2`, phase 3).
+
 ## [0.68.0] - 2026-11-06
 
 Gate: local 1m31s · CI not read under mf-ship · 0.67.0: local 1m45s · CI not read under mf-ship

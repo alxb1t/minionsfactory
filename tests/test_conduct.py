@@ -204,12 +204,18 @@ def _when_logged(
         lines = _log(root)
         return all(any(part in line for line in lines) for part in said)
 
+    # The halted version's thread, named for its change, returns after its halt line.
+    halted = {part.split(" · ")[1] for part in said if " · halt — " in part}
+
+    def running() -> bool:
+        return any(t.is_alive() and t.name in halted for t in threading.enumerate())
+
     def wait() -> None:
         deadline = time.monotonic() + 60
         while not logged() and time.monotonic() < deadline:
             time.sleep(0.05)
-        # The halted version's thread returns after its halt line.
-        time.sleep(0.5)
+        while running() and time.monotonic() < deadline:
+            time.sleep(0.05)
         try:
             act()
         except BaseException as error:
@@ -2976,6 +2982,10 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     lock.mkdir()
     stale = time.time() - 601
     os.utime(lock, (stale, stale))
+    # A run starts its workers' scratch folder empty, and follows no link there.
+    scratch = root / ".minions" / "tmp"
+    scratch.mkdir()
+    (scratch / "left.txt").write_text("x\n")
 
     assert run() == 0
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
@@ -2984,13 +2994,34 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
         re.search(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old$", line)
         for line in _log(root)
     )
+    assert scratch.is_dir() and not list(scratch.iterdir())
 
     lock.mkdir()
-    young = time.time() - 599
+    young = time.time() - (conduct["LOCK_STALE"] - 60)
     os.utime(lock, (young, young))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "kept.txt").write_text("x\n")
+    scratch.rmdir()
+    scratch.symlink_to(outside)
     assert run() == 0
     assert lock.is_dir()
     assert not any(" · unlock — " in line for line in _log(root))
+    assert not scratch.is_symlink() and scratch.is_dir()
+    assert not list(scratch.iterdir())
+    assert (outside / "kept.txt").read_text() == "x\n"
+
+    # A link at `.minions`, which a worker hides from git, halts the run: its
+    # target's `tmp` keeps its file. Why: 0084-ship-fixes-2's delta.
+    minions, aside = root / ".minions", tmp_path / "aside"
+    minions.rename(aside)
+    minions.symlink_to(aside)
+    (root / ".git" / "info" / "exclude").write_text(".minions\n")
+    (aside / "tmp" / "kept.txt").write_text("x\n")
+    assert run() == 1
+    assert (aside / "tmp" / "kept.txt").read_text() == "x\n"
+    linked = " · run · halt — .minions is a link: a person settles what it names\n"
+    assert any(linked in log.read_text() for log in (aside / "runs").glob("*.md"))
 
 
 def test_a_run_moves_an_old_backlog_to_the_debt(
@@ -5706,12 +5737,37 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     _findings(root, "0001-todo", judged, "blocking")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
-    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    # A halt after round 1's `start`: one before it is any commit's to answer.
+    start = "09:00:00 · round 1 · start — base a · head b"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
     grants = root / ".minions" / "grants" / "0001-todo"
     version = conduct["find_version"](root, "0001-todo")
     stage_of, check = conduct["stage_of"], conduct["check"]
     assert stage_of(root, version) == ("converge-halted", capped)
     assert check(root, "converge", version) == f"the status log halts: {capped}"
+    # A granted round writes no `start`, and its cap is no halt before round 1: it
+    # stays halted for the re-plan, never re-run. Why: D56.
+    regranted = f"10:00:00 · round 4 · halt — cap reached, R1 open · head {judged}"
+    granted = f"{regranted}\n10:00:00 · round 4 · verify\n10:00:00 · round 4 · fix — R1"
+    log.write_text(f"# t\n\n## Run 2 — d · grant\n{granted}\n")
+    assert stage_of(root, version) == ("converge-halted", regranted)
+    assert check(root, "converge", version) == f"the status log halts: {regranted}"
+    # A halt before round 1 at `HEAD` runs again, its check naming it; any commit
+    # past the head answers it, the findings files unread, in a catch-up run too.
+    # Why: 0084-ship-fixes-2 design D1.
+    halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {judged}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
+    assert stage_of(root, version) == ("converge", conduct["RERUN"])
+    assert check(root, "converge", version) == f"the status log halts: {halt}"
+    _commit(tree, {"early.txt": "x\n"}, "a commit past the halt")
+    early = ("converge", conduct["AMENDED"])
+    assert stage_of(root, version) == early
+    caught = f"10:00:00 · round 1 · halt — red · head {judged}"
+    since = f"09:59:00 · round 1 · catch-up — judged {judged}"
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{caught}\n{since}\n")
+    assert stage_of(root, version) == early
+    _git(tree, "reset", "-q", "--hard", judged)
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
 
     _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
     fixed = _git(tree, "rev-parse", "HEAD")
@@ -5725,13 +5781,13 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     # and a person's commit past it answers none (0063-rejoin design D4).
     for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
         own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
-        log.write_text(f"# t\n\n## Run {run}\n{own}\n")
+        log.write_text(f"# t\n\n## Run {run}\n{own}\n{start}\n")
         assert stage_of(root, version) == ("converge-halted", own)
         assert check(root, "converge", version) == f"the status log halts: {own}"
         _commit(tree, {"later.txt": "later\n"}, "a person's commit past the halt")
         assert stage_of(root, version) == ("converge-halted", own)
         _git(tree, "reset", "-q", "--hard", fixed)
-    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
     amended = ("converge", "amended: HEAD past the halted head")
     assert stage_of(root, version) == amended
     assert check(root, "converge", version) == "the status log has no done"
@@ -5782,7 +5838,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     }
     for run, why in halts.items():
         halt = f"10:00:00 · round 1 · {why} · head {merged}"
-        log.write_text(f"# t\n\n## Run {run}\n{halt}\n")
+        log.write_text(f"# t\n\n## Run {run}\n{halt}\n{start}\n")
         assert stage_of(base, version) == amended
         for files, message in (
             ({"src.txt": "x\n"}, "a person's commit past the halt"),
@@ -5807,7 +5863,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     clean = review.read_text()
     review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"
-    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n")
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n{start}\n")
     assert stage_of(base, version) == ("converge-halted", halt)
     review.write_text(clean)
     assert stage_of(base, version) == amended
@@ -5891,6 +5947,75 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended = ("converge", "amended: HEAD past the halted head")
     assert conduct["stage_of"](root, version) == amended
+
+
+@pytest.mark.slow
+def test_a_halt_before_round_1_runs_again_at_the_same_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {head}"
+    # test_a_fix_after_a_cap_halt_converges_afresh reads its stage and check.
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
+
+    # Halted in the run, it runs again on a rejoin with no commit, and releases.
+    (tmp_path / "live").mkdir()
+    live = _primary(tmp_path / "live")
+    _version(live, "0001-todo", "- [x] 1 — Todo\n")
+    _done(live, "0001-todo", _git(live, "rev-parse", "0001-todo"))
+    _version(live, "0002-marks", "- [ ] 1 — Marks\n")
+    calls = fake("red-halts", "hold-0002-marks")
+
+    def again() -> None:
+        fake("hold-0002-marks")
+        conduct["rejoin"](live, "0001-todo")
+
+    join = _when_logged(live, (" · 0001-todo · halt — ",), again, hold)
+    assert (
+        _main(conduct, live, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    join()
+    made = _calls(calls)
+    # The halt and its re-run; the catch-up converge follows the integrate.
+    before = made[: made.index("integrate 0001-todo")]
+    assert before.count("converge 0001-todo") == 2
+    assert {"release 0001-todo", "release 0002-marks"} <= set(made)
+    assert not any(call.startswith("rescue") for call in made)
+    assert any(
+        line.endswith(" · run · rejoin — 0001-todo: converge") for line in _log(live)
+    )
+
+    # The halt on disk at `HEAD` re-runs once a run; a rejoin then keeps it halted.
+    hold.unlink()
+    calls.unlink()
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    calls = fake("red-halts", "hold-0002-marks")
+    join = _when_logged(
+        root,
+        (" · 0001-todo · halt — ",),
+        lambda: conduct["rejoin"](root, "0001-todo"),
+        hold,
+    )
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    join()
+    assert _calls(calls).count("converge 0001-todo") == 1
+    reran = (
+        " · run · rejoin — 0001-todo: still halted — halted before round 1 again at"
+        " this head: a commit answers it"
+    )
+    assert any(line.endswith(reran) for line in _log(root))
 
 
 def test_a_missing_skill_stops_a_run(
@@ -6273,13 +6398,18 @@ def test_a_claude_worker_starts_in_the_sandbox(
     assert command.index("--strict-mcp-config") < command.index("--allowedTools")
     assert "--mcp-config" not in command
 
-    # The conductor's uv environment is not the worker's `.venv`.
+    # The conductor's uv environment is not the worker's `.venv`, and its scratch
+    # folder stands inside the sandbox.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
+    scratch = root / ".minions" / "tmp"
     for executor in ("claude", "codex"):
+        shutil.rmtree(scratch, ignore_errors=True)
         command = conduct["argv"](executor, "Do it.", root, None, None, repo)
         prefix = command[: command.index(executor)]
         shown = subprocess.run([*prefix, "env"], capture_output=True, text=True)
         assert "UV_CACHE_DIR=" in shown.stdout
+        assert f"TMPDIR={scratch}\n" in shown.stdout
+        assert scratch.is_dir()
         assert "VIRTUAL_ENV=" not in shown.stdout
 
     # No worker binds loopback, and a leftover line halts.
@@ -6444,10 +6574,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     monkeypatch.delenv("MF_SHIP_AGENT")
     hooks_off = list(conduct["HOOKS_OFF"])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
+    tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
     unset = ["env", "-u", "VIRTUAL_ENV"]
-    assert claude[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
-    claude = claude[len(hooks_off) + 4 :]
+    assert claude[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
+    claude = claude[len(hooks_off) + 5 :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -6523,12 +6654,17 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
     roots = json.dumps([str(root / ".git"), str(root), str(tree)])
-    assert codex[: len(hooks_off) + 4] == [*unset, *hooks_off, cache]
-    codex = codex[len(hooks_off) + 4 :]
+    assert codex[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
+    codex = codex[len(hooks_off) + 5 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    # `TMPDIR` is no writable root of its own: a worker can link `.minions/tmp`
+    # anywhere, and the primary root already holds the folder. Why: D51.
+    exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
+    assert exclude in codex
+    assert codex[codex.index(exclude) - 1] == "-c"
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
     # Twin: the drill's trusted plant, the same table trusted, loads the plant.

@@ -388,13 +388,17 @@ def _fake(prompt: str) -> None:
             )
             return
         folder = _folder(primary, str(change))
-        if "verify-halts" in modes:
-            # Step 1.6's halt on a `Verify:` edited since the cut: no round ran.
+        # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.
+        before = {
+            "verify-halts": "verify: halt — 1.1",
+            "red-halts": "gate red before round 1",
+        }
+        if reason := next((before[mode] for mode in before if mode in modes), None):
             head = _git(here, "rev-parse", "HEAD")
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "status_log.md").write_text(
                 "# t\n\n## Run 1 — d\n"
-                f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}\n"
+                f"10:00:00 · round 1 · halt — {reason} · head {head}\n"
             )
             return
         if "by-rule" in modes and (lines := _by_rule(here, folder, str(change))):
