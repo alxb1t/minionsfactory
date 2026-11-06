@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.70
 after: [0082-cut-station, 0084-ship-fixes-2]
 ---
 

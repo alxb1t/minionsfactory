@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-11-06
+
+Gate: local 1m57s · CI not read under mf-ship · 0.69.0: local 1m30s · CI not read under mf-ship
+
 - A converge `amend needed` halt gets its rescue's amend to `tasks.md` and `design.md`'s prose, met on entry or after a
   check, and the version converges again in the same run; one naming a `critical` or `high` security card gets a
   diagnosis (change `0085-self-healing-ship`, phase 1).
