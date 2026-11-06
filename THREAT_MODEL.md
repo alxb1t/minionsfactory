@@ -16,7 +16,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   comments, commit messages.
 - **Unattended workers run in an OS sandbox**
   ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in the repo and its
-  worktrees, network on a short list and no loopback, no push. A Claude worker whose sandbox cannot
+  worktrees, a cutter's in its worktree, the run directory and the brief its queue entry names
+  ([D58](docs/decisions.md#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter's in the brief's whole
+  folder, Codex roots being folders, so `cut` and the station refuse a Codex brief whose folder holds anything else, and
+  the station refuses a brief or a `.minions` that is a link — network on a short list and no
+  loopback, no push. A Claude worker whose sandbox cannot
   start does not run, and each run's probe proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
   `.mcp.json` start nothing, and no MCP server starts, the operator's own included: the probe fails when its `init` event
@@ -37,11 +41,13 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   scratch repo, with no system config or attributes, so no worker-written filter runs, and with no ignore file or allow
   comment honoured; a hit halts the run, its secret redacted, as does an octopus merge, whose diff git does not show, and a
   run without Betterleaks does not start.
-- **A person's yes, or `merge=yes` from a run the person started**, precedes every merge and push.
+- **A person's yes, or `merge=yes` from a run the person started or a cut the person queued**, precedes every merge and
+  push.
 
 ## Entry points
 
-- A brief, and the change directory the cut writes from it.
+- A brief, and the change directory the cut writes from it; an unattended cutter also writes the brief's `Cut` line and
+  `decided by the cutter` rows back.
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
@@ -49,14 +55,18 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
   ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)).
-- Rejoin requests, `.minions/runs/rejoin/`: a worker can write one, and the live run then reads a version's stage from disk
-  again, which it already trusts, and the models file of a version cut since its start — the class *Out of scope* accepts.
-  A version the run's plan holds stays out while its models file differs, so a version halted on a models change does not
-  rejoin on the new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it.
-  It reads and empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either. A
-  version whose converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered
-  it, so the rescue's own request cannot take it past the cap or a merge note; a person's grant is refused while that rescue
-  runs, and the person's own fix then, or a grant landing as it ends, waits for a re-run.
+- Rejoin requests, in the home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`: the person's session writes
+  them and no worker can, so a file in `.minions/runs/rejoin/` is no request. A request has the live run read a version's
+  stage from disk again, which it already trusts, and the models file of a version cut since its start. A version the
+  run's plan holds stays out while its models file differs, so a version halted on a models change does not rejoin on the
+  new one; and a request folder that is a link holds no request, so the conductor deletes nothing through it. It reads and
+  empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either. A version whose
+  converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered it, so a
+  request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
+  person's own fix then, or a grant landing as it ends, waits for a re-run.
+- The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
+  burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
+  in the home folder, where no worker writes, so no worker names that brief.
 
 ## Out of scope
 
@@ -87,6 +97,9 @@ Carded in `.minions/debt.md`, accepted until paid down: `0049·S5`, `0049·S7`, 
 - `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
   still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.
+- A cutter is given `.minions` by name, and the primary, its parent, is every other worker's: the station refuses a link
+  there as it builds the cutter's command, so a worker that swaps one in between that check and the cutter's sandbox
+  start, and back, widens that cutter's writes to the link's target.
 - A released worktree's config, link and path are checked again right before its removal, so a worker that changes one
   between that check and git's own call still steers it: a filter it sets runs, and a link it swaps in points the removal
   at another worktree.

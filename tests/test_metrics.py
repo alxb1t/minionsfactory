@@ -125,7 +125,6 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "sys.exit(1)\n",
         "silent": "import sys\nsys.exit(4)\n",
         "words": 'print("12")\nprint("n/a")\n',
-        "slow": "import time\ntime.sleep(5)\n",
         "fine": 'print("note")\nprint(" 9 ")\n',
         # uv's error for a missing script names the home and the root in full;
         # a path that only shares their prefix is left as it is, and a home after
@@ -143,7 +142,7 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
     _repo(tmp_path, catalogue)
     monkeypatch.chdir(tmp_path)
     _by_python(monkeypatch)
-    monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 0.5)
+    monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 5)
     home = tmp_path.parent / "fictional-home"
     monkeypatch.setenv("HOME", str(home))
 
@@ -152,7 +151,6 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
         "says": {"status": "unavailable", "why": "cannot read the backlog"},
         "silent": {"status": "unavailable", "why": "exit 4"},
         "words": {"status": "unavailable", "why": "no number on the last line"},
-        "slow": {"status": "unavailable", "why": "timed out after 0.5 s"},
         "fine": {"value": 9},
         "paths": {
             "status": "unavailable",
@@ -160,6 +158,22 @@ def test_a_failing_metric_is_unavailable_with_its_reason(
             f"near {tmp_path}s/a {home}ice/b /opt{tmp_path}/c "
             "file://~/x (~) HOME=~; ~.",
         },
+    }
+
+
+@pytest.mark.slow
+def test_a_metric_past_the_limit_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = "import time\ntime.sleep(30)\n"
+    _repo(tmp_path, _metric("slow", script=_script(tmp_path, "slow.py", body)))
+    monkeypatch.chdir(tmp_path)
+    _by_python(monkeypatch)
+    monkeypatch.setattr(metrics, "TIMEOUT_SECONDS", 5)
+
+    assert _collect() == 0
+    assert _values(tmp_path) == {
+        "slow": {"status": "unavailable", "why": "timed out after 5 s"}
     }
 
 
