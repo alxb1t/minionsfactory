@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The halt before round 1 answered
-- [ ] 2 — The load-bound tests
+- [x] 2 — The load-bound tests
 - [ ] 3 — A scratch folder for every worker
 
 ## 1 — The halt before round 1 answered
@@ -24,12 +24,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The load-bound tests
 
-- [ ] 2.1 Age the young lock in `test_a_stale_lock_is_cleared_and_converge_resumes` by `LOCK_STALE - 60`, per [D3](design.md#d3).
+- [x] 2.1 Age the young lock in `test_a_stale_lock_is_cleared_and_converge_resumes` by `LOCK_STALE - 60`, per [D3](design.md#d3).
   Verify: `grep -nF '(conduct["LOCK_STALE"] - 60)' tests/test_conduct.py` prints a line.
-- [ ] 2.2 Raise `tests/test_metrics.py`'s limit to 5 s and move the timed-out script to
+- [x] 2.2 Raise `tests/test_metrics.py`'s limit to 5 s and move the timed-out script to
   `test_a_metric_past_the_limit_is_unavailable`, marked `slow`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_metrics.py -k metric_past_the_limit_is_unavailable` reports `1 passed`.
-- [ ] 2.3 Name each version's thread for its change in `skills/mf-ship/scripts/conduct.py`, and replace `_when_logged`'s
+- [x] 2.3 Name each version's thread for its change in `skills/mf-ship/scripts/conduct.py`, and replace `_when_logged`'s
   `time.sleep(0.5)` with the poll on those threads, in `tests/test_conduct.py`, per [D5](design.md#d5).
   Verify: `grep -L 'time.sleep(0.5)' tests/test_conduct.py` prints `tests/test_conduct.py`.
 

@@ -3416,7 +3416,9 @@ class Run:
         if self.stopped(change):
             return False
         self.log.event("run", "rejoin", f"{change}: {stage}")
-        threads[change] = threading.Thread(target=self.take, args=(version, threads))
+        threads[change] = threading.Thread(
+            target=self.take, args=(version, threads), name=change
+        )
         threads[change].start()
         return True
 
@@ -3730,7 +3732,7 @@ class Run:
             threads: dict[str, threading.Thread] = {}
             for version in versions:
                 threads[version.change] = threading.Thread(
-                    target=self.take, args=(version, threads)
+                    target=self.take, args=(version, threads), name=version.change
                 )
             for thread in threads.values():
                 thread.start()

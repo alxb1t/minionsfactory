@@ -200,12 +200,18 @@ def _when_logged(
         lines = _log(root)
         return all(any(part in line for line in lines) for part in said)
 
+    # The halted version's thread, named for its change, returns after its halt line.
+    halted = {part.split(" · ")[1] for part in said if " · halt — " in part}
+
+    def running() -> bool:
+        return any(t.is_alive() and t.name in halted for t in threading.enumerate())
+
     def wait() -> None:
         deadline = time.monotonic() + 60
         while not logged() and time.monotonic() < deadline:
             time.sleep(0.05)
-        # The halted version's thread returns after its halt line.
-        time.sleep(0.5)
+        while running() and time.monotonic() < deadline:
+            time.sleep(0.05)
         try:
             act()
         except BaseException as error:
@@ -2308,7 +2314,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     )
 
     lock.mkdir()
-    young = time.time() - 599
+    young = time.time() - (conduct["LOCK_STALE"] - 60)
     os.utime(lock, (young, young))
     assert run() == 0
     assert lock.is_dir()
