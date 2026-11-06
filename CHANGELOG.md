@@ -7,14 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- A converge halt before round 1 — no `start` in its run, no `verify: halt` — is answered by any commit past its head, or
+- A converge halt before round 1 — no `start` in its run, no `· grant` mark, no `verify: halt` — is answered by any commit past its head, or
   run again once a run at the same head; `mf-converge` opens a plain new run for it, and no rescue starts
   (change `0084-ship-fixes-2`, phase 1).
 - Load-bound tests get slack: the stale-lock test's young lock is `LOCK_STALE - 60` old, `tests/test_metrics.py`'s limit is
   5 s with its timeout in a `slow` test, and `_when_logged` polls the halted version's named thread
   (change `0084-ship-fixes-2`, phase 2).
 - Every worker's environment holds `TMPDIR=<primary>/.minions/tmp`, beside `UV_CACHE_DIR`, emptied at a run's start, so
-  `mktemp` lands inside the sandbox; `mf-release` Step 2 names `mktemp` for the fold (change `0084-ship-fixes-2`, phase 3).
+  `mktemp` lands inside the sandbox, and Codex takes it as no writable root of its own; `mf-release` Step 2 names `mktemp`
+  for the fold (change `0084-ship-fixes-2`, phase 3).
 
 ## [0.67.0] - 2026-11-06
 

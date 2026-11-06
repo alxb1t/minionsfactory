@@ -733,9 +733,14 @@ def _run_started(runs: Path, change: str) -> bool:
 def _before_round(runs: Path, change: str, halt: str) -> bool:
     """Return whether `halt` is a halt before round 1: no `start`, no `verify: halt`.
 
-    Why: 0084-ship-fixes-2 design D1, D2.
+    A granted round writes no `start`, and its halt is none: its cap re-plans.
+    Why: 0084-ship-fixes-2 design D1, D2; D56.
     """
-    return "verify: halt" not in halt and not _run_started(runs, change)
+    return (
+        "verify: halt" not in halt
+        and not _granted_run(runs, change)
+        and not _run_started(runs, change)
+    )
 
 
 def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
@@ -2269,6 +2274,9 @@ def argv(
         *("-s", "workspace-write"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
+        # Codex makes `TMPDIR` a root, links resolved; a worker can link
+        # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
+        *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
         *("-c", "sandbox_workspace_write.network_access=false"),
         # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
         # Why: 0053-sandbox-patch design D6.

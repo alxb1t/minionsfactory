@@ -5053,6 +5053,14 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     stage_of, check = conduct["stage_of"], conduct["check"]
     assert stage_of(root, version) == ("converge-halted", capped)
     assert check(root, "converge", version) == f"the status log halts: {capped}"
+    # A granted round writes no `start`, and its cap is no halt before round 1: it
+    # stays halted for the re-plan, never re-run. Why: D56.
+    regranted = f"10:00:00 · round 4 · halt — cap reached, R1 open · head {judged}"
+    granted = f"{regranted}\n10:00:00 · round 4 · verify\n10:00:00 · round 4 · fix — R1"
+    log.write_text(f"# t\n\n## Run 2 — d · grant\n{granted}\n")
+    assert stage_of(root, version) == ("converge-halted", regranted)
+    assert check(root, "converge", version) == f"the status log halts: {regranted}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
 
     _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
     fixed = _git(tree, "rev-parse", "HEAD")
@@ -5959,6 +5967,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    # `TMPDIR` is no writable root of its own: a worker can link `.minions/tmp`
+    # anywhere, and the primary root already holds the folder. Why: D51.
+    exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
+    assert exclude in codex
+    assert codex[codex.index(exclude) - 1] == "-c"
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
     # Twin: the drill's trusted plant, the same table trusted, loads the plant.
