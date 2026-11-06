@@ -80,6 +80,10 @@ EVENTS = (
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
 AMENDED = "amended: HEAD past the halted head"
+# A halt before round 1 runs again once a run at its head.
+# Why: 0084-ship-fixes-2 design D1.
+RERUN = "re-run: halted before round 1 at this head"
+RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
@@ -737,10 +741,77 @@ def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
     return age
 
 
+def _fresh_tmp(primary: Path) -> str | None:
+    """Leave `.minions/tmp/`, the workers' `TMPDIR`, empty; return why to halt.
+
+    A link or a file there is unlinked, never followed. A link at `.minions` halts
+    with nothing removed: the delete runs through a descriptor on the folder itself.
+    Why: 0084-ship-fixes-2 design D6, its delta's *A worker makes a scratch file*.
+    """
+    if (primary / ".minions").is_symlink():
+        return ".minions is a link: a person settles what it names"
+    fd = _folder_fd(primary, ".minions")
+    try:
+        try:
+            mode = os.lstat("tmp", dir_fd=fd).st_mode
+        except FileNotFoundError:
+            mode = None
+        if mode is not None and stat.S_ISDIR(mode):
+            shutil.rmtree("tmp", dir_fd=fd)
+        elif mode is not None:
+            os.unlink("tmp", dir_fd=fd)
+        os.mkdir("tmp", dir_fd=fd)
+    finally:
+        os.close(fd)
+    return None
+
+
 def _converge_halt(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event when it is a halt, else None."""
     end = _run_end(runs, change)
     return end if end and _is_event(end, "halt") else None
+
+
+def _run_started(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run, to the next heading, holds a `start`.
+
+    e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
+    """
+    log = _change_dir(runs.parent, change) / "status_log.md"
+    lines = log.read_text().splitlines() if log.is_file() else []
+    heading = next(
+        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
+    )
+    run = itertools.takewhile(
+        lambda line: not line.startswith("## Run"), lines[heading + 1 :]
+    )
+    return any(_is_event(line, "start") for line in run)
+
+
+def _before_round(runs: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1: no `start`, no `verify: halt`.
+
+    A granted round writes no `start`, and its halt is none: its cap re-plans.
+    Why: 0084-ship-fixes-2 design D1, D2; D56.
+    """
+    return (
+        "verify: halt" not in halt
+        and not _granted_run(runs, change)
+        and not _run_started(runs, change)
+    )
+
+
+def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1 whose head is `HEAD`.
+
+    Why: 0084-ship-fixes-2 design D1.
+    """
+    found = HALT_HEAD.search(halt)
+    halted = found and _maybe(
+        tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+    )
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    return bool(halted) and halted.strip() == head and _before_round(runs, change, halt)
 
 
 def _amendable(runs: Path, change: str, halt: str) -> bool:
@@ -792,7 +863,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     and `HEAD` descends from it and is not it. A halt past the judged head — after
     converge's own fix, or in a catch-up run — names no head the files judged, and a
     rewritten history leaves no descendant. A halt the person's amend answers is
-    answered by amends alone past its head. Why: 0071-ship-fixes design D5.
+    answered by amends alone past its head, and a halt before round 1 by any commit.
+    Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -804,6 +876,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     halted = halted.strip()
     if halted == _git(tree, "rev-parse", "HEAD").strip():
         return False
+    if _before_round(runs, change, halt):
+        return _ancestor(tree, halted, "HEAD")
     if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
         return True
     for role in ROLES:
@@ -1041,6 +1115,8 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     if halt := _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
+        if _rerun(runs, tree, change, halt):
+            return "converge", RERUN
         if _answered(runs, tree, change, halt):
             return "converge", AMENDED
         if "cap reached" in halt and _granted(runs, change, take=False):
@@ -2261,12 +2337,16 @@ def argv(
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    # A worker's `mktemp` lands inside its sandbox. Why: 0084-ship-fixes-2 design D6.
+    tmp = primary / ".minions" / "tmp"
+    tmp.mkdir(parents=True, exist_ok=True)
+    scratch = f"TMPDIR={tmp}"
     if executor == "claude":
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         allowed += [f"Edit(/{path})" for path in edits]
         return [
-            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache),
+            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -2294,7 +2374,7 @@ def argv(
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, path)
+    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch, path)
     return [
         *env,
         *("codex", "exec"),
@@ -2303,6 +2383,9 @@ def argv(
         *("-s", "workspace-write"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
+        # Codex makes `TMPDIR` a root, links resolved; a worker can link
+        # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
+        *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
         *("-c", "sandbox_workspace_write.network_access=false"),
         # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
         # Why: 0053-sandbox-patch design D6.
@@ -2730,6 +2813,7 @@ class Run:
         self.refused: dict[str, str] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
+        self.reruns: set[str] = set()
         self.skips: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
@@ -3022,8 +3106,9 @@ class Run:
 
         A cap the run grants gets its round, spawned and checked as a person's
         grant's is, and one it refuses a `re-plan` halt line; a build check,
-        converge or integrate halt then gets its rescue.
-        Why: 0070-cap-policy design D2, D3.
+        converge or integrate halt then gets its rescue. A halt before round 1 it runs
+        again joins `reruns`. Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2
+        design D1.
         """
         try:
             auto = False
@@ -3046,6 +3131,9 @@ class Run:
                     return
                 if stage in stop_at:
                     return
+                if (stage, why) == ("converge", RERUN):
+                    with self.guard:
+                        self.reruns.add(version.change)
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
                     base = _offline_base(self.primary) if self.offline else None
@@ -3556,16 +3644,21 @@ class Run:
         One the run's plan holds stays out while its models file differs: a worker can
         write it, and so does one whose rescue answered its halt; only one the plan
         lacks has its models read. An executor whose probe failed halts it with that
-        probe's reason, probed no second time. Why: 0063-rejoin design D2, D3;
-        0067-rescue design D3; 0071-ship-fixes design D4.
+        probe's reason, probed no second time. A halt before round 1 the run ran
+        again stays out. Why: 0063-rejoin design D2, D3; 0067-rescue design D3;
+        0071-ship-fixes design D4; 0084-ship-fixes-2 design D1.
         """
         change = version.change
         with self.guard:
             answered = self.answered.get(change)
+            reran = change in self.reruns
         if answered is not None:
             self.log.event("run", "rejoin", f"{change}: still halted — {answered}")
             return False
         stage, why = stage_of(self.primary, version)
+        if (stage, why) == ("converge", RERUN) and reran:
+            self.log.event("run", "rejoin", f"{change}: still halted — {RERAN}")
+            return False
         if stage in HALTS:
             self.log.event("run", "rejoin", f"{change}: still {stage} — {why}")
             return False
@@ -3579,7 +3672,9 @@ class Run:
         if not self.admit(version):
             return False
         self.log.event("run", "rejoin", f"{change}: {stage}")
-        threads[change] = threading.Thread(target=self.take, args=(version, threads))
+        threads[change] = threading.Thread(
+            target=self.take, args=(version, threads), name=change
+        )
         threads[change].start()
         return True
 
@@ -3906,6 +4001,10 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         self.unlock(DEBT_LOCK)
+        if why := _fresh_tmp(self.primary):
+            self.halt("run", why)
+            self.log.event("run", "halt", self.closing())
+            return 1
         if not versions and not takeable:
             if cuts:
                 self.cut_halts(cuts)
@@ -3948,7 +4047,7 @@ class Run:
             threads: dict[str, threading.Thread] = {}
             for version in versions:
                 threads[version.change] = threading.Thread(
-                    target=self.take, args=(version, threads)
+                    target=self.take, args=(version, threads), name=version.change
                 )
             for change in sorted(takeable):
                 threads[change] = threading.Thread(
