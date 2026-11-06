@@ -38,6 +38,11 @@ resolve → **halt**; never search for one.
 
 ## Step 1 — Preconditions
 
+**Hold the Mac awake.** First run `uv run --script scripts/awake.py start <change-id>`, `scripts/` resolved from this skill's
+package, and print its line, `awake: held (2 h at most)` or `awake: not held — <why>`; the cut goes on whatever it prints. Every halt from
+here on runs `uv run --script scripts/awake.py stop <change-id>` before its report; a wait for the person keeps the hold, which
+ends in two hours at most. A closed lid sleeps the Mac whatever the cut holds, unless it is in clamshell mode.
+
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails.
 
@@ -206,6 +211,8 @@ message is
     Change: <change-id>
 
 ## Step 11 — Report
+
+Run `uv run --script scripts/awake.py stop <change-id>`.
 
 **Close-out:** at most three sentences — what happened, the checks' exit codes, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.

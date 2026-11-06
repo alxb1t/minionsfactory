@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mf-cut-change/scripts/awake.py start|stop <change-id>` holds `caffeinate -is -t 7200 -w <host pid>` for a cut run
   by hand, recorded in `.minions/awake/<change-id>`, and stops only a recorded `caffeinate`
   (change `0081-cut-awake`, phase 1).
+- `mf-cut-change` starts the hold at the head of Step 1, stops it at every halt and at Step 11, and says a closed lid sleeps
+  the Mac; D57 names `awake/` among the run directory's generic folders (change `0081-cut-awake`, phase 2).
 
 ## [0.66.0] - 2026-11-06
 
