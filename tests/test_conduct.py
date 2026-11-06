@@ -1600,6 +1600,22 @@ def test_a_rescue_amends_at_amend_needed(
     assert any(line.endswith(fixed(entry)) for line in lines)
     assert sorted(_git(entry, "tag", "-l").split()) == ["v0.1.0", "v0.2.0"]
 
+    # Halted so as the run's only version, it is not stuck: its thread starts for
+    # the entry rescue.
+    (tmp_path / "alone").mkdir()
+    alone = _primary(tmp_path / "alone")
+    halted(alone, "R1")
+    calls.unlink()
+    lines = run(alone, 0)
+    assert _calls(calls) == [
+        "probe",
+        "rescue 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    assert any(line.endswith(fixed(alone)) for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
     # A blocking security card is a diagnosis: the run takes no amend for it.
     (tmp_path / "security").mkdir()
     secure = _primary(tmp_path / "security")

@@ -4278,7 +4278,17 @@ class Run:
             for version in versions
         }
         granted = any(grants for grants, _ in takes.values())
-        stuck = all(stage in STUCK for stage, _ in stages.values())
+        # An `amend needed` halt its rescue may amend is not stuck either: its thread
+        # starts for the entry rescue. Why: 0085-self-healing-ship design D1.
+        minions = self.primary / ".minions"
+        stuck = all(
+            stage in STUCK
+            and not (
+                stage == "converge-halted"
+                and _rescue_amends(minions, change, "converge", change in self.decides)
+            )
+            for change, (stage, _) in stages.items()
+        )
         if not (granted or takeable) and stuck:
             for change, (stage, why) in stages.items():
                 if stage == "waiting":
