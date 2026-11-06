@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The hold
+- [x] 1 — The hold
 - [ ] 2 — The cut holds it
 
 ## 1 — The hold
 
-- [ ] 1.1 Add `skills/mf-cut-change/scripts/awake.py` with `start` and `stop`, per [D1](design.md#d1) and [D2](design.md#d2).
+- [x] 1.1 Add `skills/mf-cut-change/scripts/awake.py` with `start` and `stop`, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `uv run --script skills/mf-cut-change/scripts/awake.py stop 0000-none` prints `awake: none held`.
-- [ ] 1.2 Add `tests/test_awake.py` with `test_a_cut_holds_the_machine_awake_by_change_id`,
+- [x] 1.2 Add `tests/test_awake.py` with `test_a_cut_holds_the_machine_awake_by_change_id`,
   `test_no_hold_starts_without_caffeinate_or_a_host` and `test_stop_kills_only_a_recorded_caffeinate`, per
   [the design's Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_awake.py` reports `3 passed`.
