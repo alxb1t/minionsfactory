@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-11-06
+
+Gate: local 1m31s · CI not read under mf-ship · 0.67.0: local 1m45s · CI not read under mf-ship
+
 - `conduct.py cut <slug> <bump> brief=<path>` takes the next free number under the queue lock in
   `~/.mf-ship-origin/<digest>.queue/`, reserves it in `.minions/cuts/<id>`, and hands it to the live run or starts one;
   rejoin requests move to that queue, where no worker writes, and a run's close starts the next run on a standing request
