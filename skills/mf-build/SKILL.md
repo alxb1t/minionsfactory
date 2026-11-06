@@ -76,6 +76,15 @@ The **run directory** is `.minions/` beside the primary checkout:
 `$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
+**An old layout halts before anything else.** A file of this change at one of its old paths, by exact name —
+`.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
+`.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
+`.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
+`.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/` → halt, naming it and `/mf-ship`, whose run
+moves it, before the resume table below reads `.minions/changes/<change-id>/` and before you write any file in it, so
+no `build.halt`: a new file beside an old one halts the move. Any other file is no old layout: a stray the move
+leaves never halts.
+
 **First, check the input-contract items marked yes** — a failure halts, naming the id:
 
 - **`I1`** — `git ls-files --error-unmatch openspec/changes/<change-id>/tasks.md` exits 0, and
@@ -267,9 +276,8 @@ evidence: <one line: the command and what it printed, or the two readings>
 head: <the full sha of HEAD>
 ```
 
-**An old layout halts before that file.** A file of this change at its old path — `.minions/findings/<change-id>_*`,
-`.minions/models/<change-id>.toml`, or `.minions/build/`, `integrate/`, `rescue/` or `release/<change-id>.*` → halt,
-naming it and `/mf-ship`, whose run moves it, and write no `build.halt`: a new file beside an old one halts the move.
+**An old layout writes no `build.halt`.** Step 1 checks for one before anything
+else, and halts naming it and `/mf-ship`, whose run moves it.
 
 1. **An acceptance that cannot be made a passing check** — halt for human verification; never fake one.
 2. **`design.md` contradicting the code** — the decisions were settled against reality; where it moved, that is
