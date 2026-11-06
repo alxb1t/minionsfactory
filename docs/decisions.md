@@ -144,6 +144,8 @@ it.**
 - **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
 - **Rejected:** a background subagent in the person's session · the id given at dispatch · an `AGENTS.md` switch · a
   rescue for a cut halt · the parameters in `.minions/`, where a worker writes.
+- **Accepts:** a Codex cutter's root is its brief's folder, so `cut` and the station refuse a Codex brief that does not
+  stand alone in its folder: the person's other notes stay out of its reach.
 
 ## The check loop and the release
 
@@ -521,7 +523,8 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
-the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and its scripts
+the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter to
+the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
 reach no unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
 `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a

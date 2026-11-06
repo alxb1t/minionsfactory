@@ -84,6 +84,9 @@ Every one holds, or **halt** naming the one that failed:
   number is lower than `change-id`'s. Unattended: each `after` id is an open version, its number lower than
   `change-id`'s.
 
+Unattended, once they hold: root `AGENTS.md`'s `Workspace setup:` names a command → run it in this worktree, the run's,
+halting on a failure, naming it. It runs here because Step 4, where a cut by hand runs it, is skipped.
+
 ## Step 2 — Gather
 
 Read a `brief`'s title first. A `brief` whose title declares `light` → **halt**: it is not hard-grilled; name
@@ -136,7 +139,7 @@ The branch is the change id. Root `AGENTS.md` decides where the branch lives:
   (`git -C <worktree>`). This checkout stays on the default branch.
 - **No `Worktrees:`** → `git switch -c <change-id>`, as before.
 
-Unattended, the branch and its worktree stand, made by the run: skip this step.
+Unattended, the branch and its worktree stand, made by the run: skip this step. Its `Workspace setup:` ran at Step 1.
 
 ## Step 5 — Scaffold
 

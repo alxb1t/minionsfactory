@@ -2194,6 +2194,44 @@ def worker_settings(
     return json.dumps({"sandbox": sandbox})
 
 
+def _brief_refused(brief: Path, executor: str) -> str | None:
+    """Return why a cutter may not be given `brief`, else None.
+
+    The brief is a file, not a link a worker swapped in. A Codex cutter's root is the
+    brief's folder, so that folder holds the brief alone. Why: 0082-cut-station
+    design D5.
+    """
+    try:
+        regular = stat.S_ISREG(os.lstat(brief).st_mode)
+        beside = os.listdir(brief.parent)
+    except OSError:
+        regular, beside = False, []
+    if not regular:
+        return f"the brief {brief} is a link or no file"
+    if executor == "codex" and beside != [brief.name]:
+        return (
+            f"a Codex cutter writes its brief's whole folder, and {brief.parent} holds"
+            " more than the brief: move the brief into a folder of its own"
+        )
+    return None
+
+
+def _run_dir(primary: Path) -> Path:
+    """Return the primary's `.minions`, stopping with 1 when it is a link or no folder.
+
+    A cutter is given it by name, and its parent is every other worker's to rename
+    in. Why: 0082-cut-station design D5.
+    """
+    minions = primary / ".minions"
+    try:
+        folder = stat.S_ISDIR(os.lstat(minions).st_mode)
+    except OSError:
+        folder = False
+    if not folder:
+        raise Stop(1, "conduct: halt — .minions is a link or no folder")
+    return minions
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -2209,13 +2247,16 @@ def argv(
     `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
     `.git` no longer resolves to the common directory in `repo`. A run passes its
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
-    reach to `cwd`, the run directory and the brief. Why: 0082-cut-station design D5.
+    reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
+    or a `.minions` that is a link, stops with 1. Why: 0082-cut-station design D5.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
         return [*shlex.split(agent), prompt]
     primary, common = repo
-    trees = reach(primary) if brief is None else [cwd, primary / ".minions"]
+    if brief is not None and (why := _brief_refused(brief, executor)):
+        raise Stop(1, f"conduct: halt — {why}")
+    trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     if executor == "claude":
@@ -3400,6 +3441,10 @@ class Run:
         """
         cuts = _cuts(self.primary)
         names = _requests(self.queue)
+        if names:
+            # A rejoin clears its cut's halt before it writes its request, so a request
+            # read after the queue may be newer than the entry read: read it again.
+            cuts = _cuts(self.primary)
         if self.stopped("run"):
             return False
         started = False
@@ -4174,6 +4219,8 @@ def cut(
     path = Path(brief.removeprefix("brief="))
     if not path.is_absolute() or not path.is_file():
         raise Stop(2, f"cut: cannot run — {brief} is not an absolute path to a file")
+    if why := _brief_refused(path.resolve(), executor):
+        raise Stop(2, f"cut: cannot run — {why}")
     ids = after.removeprefix("after=").split(",") if after else []
     primary = primary_of(cwd)
     with _queue_lock(primary):

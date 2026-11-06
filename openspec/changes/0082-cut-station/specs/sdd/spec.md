@@ -57,12 +57,24 @@ before its first worker, as a version's is.
 The cut station's worker SHALL run in its executor's OS sandbox, as every worker does, writing only its own worktree, the run
 directory and the common git directory, and the one brief file its queue entry names: a Claude cutter SHALL be given that
 worktree and the run directory alone as its directories, and an edit rule for the brief alone; a Codex cutter SHALL take the
-brief's folder as a writable root. No other version's worktree SHALL be in its reach.
+brief's folder as a writable root. No other version's worktree SHALL be in its reach. A Codex cutter's brief SHALL stand
+alone in its folder: `conduct.py cut` SHALL exit 2 on one that does not, reserving nothing, and the station SHALL halt the
+cut on one. The station SHALL halt a cut whose brief, or whose `.minions`, is a link when it spawns the cutter.
 
 #### Scenario: A Claude cutter's reach
 - **WHEN** the run spawns a Claude cutter for a brief outside the repository
 - **THEN** its directories are its worktree and the run directory, its sandbox writes those, the common directory and the
   brief, and its allowed rules edit the brief and no other file outside them
+
+#### Scenario: A Codex brief beside other notes
+- **WHEN** `conduct.py cut … --executor codex` names a brief whose folder holds another file
+- **THEN** it exits 2, naming the folder, and reserves nothing
+- **AND WHEN** a file lands beside a queued Codex brief before its cutter starts
+- **THEN** the station halts the cut, and no cutter starts
+
+#### Scenario: A run directory swapped for a link
+- **WHEN** a worker has replaced the primary's `.minions` with a link as a cutter is spawned
+- **THEN** the station halts the cut, and no cutter starts
 
 ### Requirement: A cut halt is the plan's, answered by a re-plan and a rejoin
 
@@ -210,6 +222,82 @@ instead, committing nothing. An edit after the commit SHALL be a further commit 
 #### Scenario: A plan-review doubt left to the person
 - **WHEN** the plan review leaves a doubt to the person
 - **THEN** the cut waits for the human's OK before committing
+
+### Requirement: A cut makes a worktree when the repository declares one
+
+When root `AGENTS.md` declares `Worktrees:` with a path, `skills/mf-cut-change/SKILL.md` SHALL create the version's
+branch with `git worktree add -b <change-id> <path>/<change-id> <default-branch>`, the path relative to
+the primary checkout, and SHALL write and commit the change directory in that worktree, leaving the primary on the
+default branch. When `AGENTS.md` also declares `Workspace setup:` with a command, the cut SHALL run it in the new
+worktree, halting on a failure and naming it. A repository that declares no `Worktrees:` SHALL keep the branch
+switch in place. An unattended cut SHALL make no branch: it SHALL find the branch and worktree the run made, and SHALL
+still run `Workspace setup:` in that worktree, a failure halting it in `cut.halt`, committing nothing.
+
+#### Scenario: A repository with worktrees declared
+- **WHEN** the cut runs in the primary of a repository whose `AGENTS.md` declares `Worktrees: ../`
+- **THEN** the change is committed in `../<change-id>`, a linked worktree on the new branch
+- **AND** the primary is still on the default branch, its tree clean
+
+#### Scenario: A repository with no worktrees declared
+- **WHEN** `AGENTS.md` declares no `Worktrees:`
+- **THEN** the cut switches to the new branch in place, as before
+
+#### Scenario: An unattended cut in a repository with a workspace setup
+- **WHEN** an unattended cut starts in the worktree the run made, and `AGENTS.md` declares `Workspace setup: npm ci`
+- **THEN** the cut runs `npm ci` in that worktree before it writes, and makes no branch
+- **AND WHEN** the setup fails
+- **THEN** the cut writes `cut.halt`, naming it, and commits nothing
+
+### Requirement: A fresh worker reviews the plan before the cut commits
+
+After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand the change directory and `HEAD` to a fresh read-only worker,
+asked whether each task can be built as written, each `Verify:` pass after it, and each the search script did not run fail before
+it, save a `**HALT CHECK**`, which should hold. The cut SHALL fix a
+simple doubt itself — a check that cannot pass or breaks `I19`, a reader a deletion missed, a task two readings would build
+differently — re-running the search script and the review once; a doubt that changes a settled decision, or one still standing,
+SHALL go to the person. An unattended cut SHALL instead take such a doubt's recommended option when the brief says
+`decide: recommended`, adding a `decided by the cutter` row to the brief, and else SHALL halt in `cut.halt`, committing
+nothing. Before writing, the cut SHALL re-check each fact of the brief whose cited path changed in `<sha>..HEAD`,
+`<sha>` the brief's `At` line, and each fact citing no path, letting a fact on an unmoved path stand, and re-check every fact of a
+brief with no `At` line, or one whose `<sha>` `git rev-parse --verify` does not resolve to a commit; where the host starts fresh workers, up to four read-only helpers SHALL do that reading in parallel, one per
+area of moved facts and one per design question, a helper not back in five minutes having its facts read by the cut. Before
+writing, the cut SHALL also `git grep` every symbol, key or file the change deletes or renames and name each reader in a task, and
+SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to a target's own test rule over `T1`–`T6`.
+
+#### Scenario: A deletion with a reader
+- **WHEN** a change deletes a symbol a test still reads
+- **THEN** the cut names that test in a task before it commits
+
+#### Scenario: A design premise the code rules out
+- **WHEN** the review finds a task the code cannot satisfy as the decision states it
+- **THEN** the cut shows the doubt to the person with its `path:line`, and waits
+- **AND WHEN** the cut is unattended and the brief does not say `decide: recommended`
+- **THEN** it writes the doubt and its `path:line` to `cut.halt`, and commits nothing
+
+#### Scenario: A brief at the cut's own commit
+- **WHEN** the brief's `At` line names `HEAD`
+- **THEN** the cut re-checks only the facts citing no path, and the deleted names
+
+#### Scenario: A fact whose file moved
+- **WHEN** a brief's fact cites a path that changed since its `At` line
+- **THEN** the cut, or its helper, re-checks that fact at `HEAD` before writing
+
+### Requirement: The build approves a dependency only as the cut committed it
+
+`skills/mf-build/SKILL.md` SHALL add a package without a halt only when `## Dependencies` of the change's
+`design.md`, as committed in the cut commit, lists it, and SHALL halt when the branch has changed that section
+since the cut. The cut commit SHALL be the one commit that adds `design.md`; more than one SHALL be a halt.
+`skills/mf-cut-change/SKILL.md` SHALL show `## Dependencies` to the human word for word when it is not `None.`,
+each entry an exact package name and a version constraint; an unattended cut SHALL show nothing, and SHALL halt in
+`cut.halt` instead, committing nothing, whatever the brief's switch.
+
+#### Scenario: A dependency added on the branch halts the build
+- **WHEN** a build pass finds a package in `## Dependencies` that the cut commit's `design.md` does not list
+- **THEN** the build halts and asks for approval, rather than adding the package
+
+#### Scenario: A design re-added on the branch halts the build
+- **WHEN** `design.md` was deleted and added again on the branch, so more than one commit adds it
+- **THEN** the build halts rather than choose a cut commit
 
 ### Requirement: Model suggestions use exposed capabilities
 

@@ -2064,6 +2064,15 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         "run: cannot run — the primary's tree is not clean"
     )
     (root / "dirty.txt").unlink()
+    # A Codex cutter writes the brief's whole folder: one holding more is refused.
+    capsys.readouterr()
+    codex = ("cut", "c", "minor", good, "--executor", "codex")
+    assert _main(conduct, root, *codex, monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == (
+        f"{cannot}a Codex cutter writes its brief's whole folder, and"
+        f" {brief.resolve().parent} holds more than the brief: move the brief into a"
+        " folder of its own"
+    )
     assert (
         sorted(os.listdir(reserved)) == sorted(conduct["_cuts"](root)) == sorted(cuts)
     )
@@ -2079,10 +2088,15 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     assert conduct["_cuts"](root)["0005-c"]["halt"] is None
     _claimed(conduct, root)
     capsys.readouterr()
-    args = ("cut", "d", "patch", good, "--executor", "codex", "--model", "opus")
+    alone = tmp_path / "alone" / "brief.md"
+    alone.parent.mkdir()
+    alone.write_text("# brief\n")
+    args = ("cut", "d", "patch", f"brief={alone}", "--executor", "codex")
+    args += ("--model", "opus")
     assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
     picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
+    picked["brief"] = str(alone.resolve())
     assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
 
 
@@ -2536,6 +2550,23 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         .splitlines()[-1]
         .endswith(" · run · rejoin — skipped — conduct: cannot run — git failed")
     )
+    # A rejoin between the poll's queue read and its request read is taken.
+    _queued(conduct, root, "0014-r", brief, halt="x")
+    conductor.seen = {"0014-r"}
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    requests = names["_requests"]
+
+    def raced(queue: Path) -> set[str]:
+        _claimed(conduct, root)
+        conduct["rejoin"](root, "0014-r")
+        shutil.rmtree(root / ".minions" / "runs" / "active")
+        return requests(queue)
+
+    names["_requests"] = raced
+    assert conductor.take_requests({})
+    names["_requests"] = requests
+    assert "0014-r" in taken
 
     # A passed cut whose admission fails halts its version alone.
     def admitted(version: object) -> bool:
@@ -6455,6 +6486,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     brief.parent.mkdir()
     brief.write_text("# brief\n")
     minions = root / ".minions"
+    minions.mkdir(exist_ok=True)
     claude = argv("claude", "Cut.", tree, None, None, repo, brief=brief)
     added = [claude[i + 1] for i, arg in enumerate(claude) if arg == "--add-dir"]
     assert added == [str(tree), str(minions)]
@@ -6469,6 +6501,37 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     codex = argv("codex", "Cut.", tree, None, None, repo, brief=brief)
     roots = json.dumps([str(root / ".git"), str(tree), str(minions), str(brief.parent)])
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
+    # A Codex cutter's root is the brief's folder: it holds the brief alone.
+    (brief.parent / "note.md").write_text("# note\n")
+    alone = (
+        f"conduct: halt — a Codex cutter writes its brief's whole folder, and"
+        f" {brief.parent} holds more than the brief: move the brief into a folder"
+        " of its own"
+    )
+    with pytest.raises(conduct["Stop"]) as stopped:
+        argv("codex", "Cut.", tree, None, None, repo, brief=brief)
+    assert str(stopped.value) == alone
+    assert argv("claude", "Cut.", tree, None, None, repo, brief=brief)
+    (brief.parent / "note.md").unlink()
+    # A brief swapped for a link, and a run directory swapped for one, reach nothing.
+    linked = tmp_path / "linked" / "brief.md"
+    linked.parent.mkdir()
+    linked.symlink_to(brief)
+    for executor, named in (("claude", linked), ("codex", tmp_path / "gone.md")):
+        with pytest.raises(conduct["Stop"]) as stopped:
+            argv(executor, "Cut.", tree, None, None, repo, brief=named)
+        assert str(stopped.value) == (
+            f"conduct: halt — the brief {named} is a link or no file"
+        )
+    minions.rename(root / ".m")
+    for executor, link in (("claude", None), ("claude", outside), ("codex", outside)):
+        if link is not None and not minions.is_symlink():
+            minions.symlink_to(link)
+        with pytest.raises(conduct["Stop"]) as stopped:
+            argv(executor, "Cut.", tree, None, None, repo, brief=brief)
+        assert str(stopped.value) == "conduct: halt — .minions is a link or no folder"
+    minions.unlink()
+    (root / ".m").rename(minions)
 
     neighbour = tmp_path / "neighbour"
     neighbour.mkdir()
