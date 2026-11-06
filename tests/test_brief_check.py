@@ -109,6 +109,11 @@ def test_what_cannot_be_checked_exits_2(
     assert capsys.readouterr().out == (
         "brief: cannot check — ## For the cut: a backtick opens no span\n"
     )
+    unclosed = _READY + "   - Verify: `grep -n 'x f` prints a line\n"
+    assert brief_check.main([str(_write(tmp_path, unclosed))]) == 2
+    assert capsys.readouterr().out == (
+        "brief: cannot check — ## For the cut: No closing quotation: `grep -n 'x f`\n"
+    )
     monkeypatch.setattr(brief_check, "VERIFY_CHECK", tmp_path / "verify_check.py")
     assert brief_check.main([str(_write(tmp_path, _READY))]) == 2
     assert capsys.readouterr().out == (

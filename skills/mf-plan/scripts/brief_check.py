@@ -88,6 +88,8 @@ def halts(heading: str, lines: list[str], rules: dict[str, Any]) -> list[str]:
             text = command.text
             if " " not in text:
                 continue
+            # Masking hides an unclosed quote; the raw text raises the cut's Unparsed.
+            rules["tokens"](text)
             if broken := rules["breaks"](text, rules["tokens"](rules["masked"](text))):
                 found.append(f"{heading}: I19 — {' · '.join(broken)}: `{text}`")
     return found
