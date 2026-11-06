@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — Rescue at amend needed
 - [x] 2 — The switch
-- [ ] 3 — The run goes on
+- [x] 3 — The run goes on
 - [ ] 4 — The record
 
 ## 1 — Rescue at amend needed
@@ -38,13 +38,13 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The run goes on
 
-- [ ] 3.1 Let `hold` return whether the version goes on, with the amends-only answer, in `skills/mf-ship/scripts/conduct.py`, per
+- [x] 3.1 Let `hold` return whether the version goes on, with the amends-only answer, in `skills/mf-ship/scripts/conduct.py`, per
   [D5](design.md#d5); add the `rescue-person-amends` mode and `test_an_amend_during_a_rescue_goes_on`, as `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k amend_during_a_rescue_goes_on` reports `1 passed`.
-- [ ] 3.2 Add `Run.recheck`, `Run.seen_halts` written by `Run.halt`, and the one-window wait in `join`, to
+- [x] 3.2 Add `Run.recheck`, `Run.seen_halts` written by `Run.halt`, and the one-window wait in `join`, to
   `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6); reorder the acts of the rejoin tests `## Tests` names.
   Verify: `grep -n 'def recheck' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.3 Add `_needs` and the ` · needs` part to `closing`, per [D7](design.md#d7); give each closing-line assertion in
+- [x] 3.3 Add `_needs` and the ` · needs` part to `closing`, per [D7](design.md#d7); give each closing-line assertion in
   `tests/test_conduct.py` it turns red its part, and add `test_a_halt_answered_on_disk_comes_back`, as `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k halt_answered_on_disk_comes_back` reports `1 passed`.
 

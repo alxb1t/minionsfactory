@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The switch: `decide = "recommended"` atop a version's models file, read once a run, passes `decide=recommended` to its
   rescue, which may then edit `proposal.md` and `design.md`'s `## Decisions` with `Decided-by: rescue`; the run logs
   `decided`, the close, `done` and `report` name it, and `rescues-decided` counts it (change `0085-self-healing-ship`, phase 2).
+- The run goes on: the person's amends landing during a rescue let the version go on, logged `amended`; each poll, one
+  `REJOIN_POLL` window, takes back a halted version whose stage or `HEAD` changed on disk, read the same at two polls,
+  with no request; the close names what each halted version needs (change `0085-self-healing-ship`, phase 3).
 
 ## [0.69.0] - 2026-11-06
 

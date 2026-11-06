@@ -2901,6 +2901,11 @@ class Run:
         self.skips: set[str] = set()
         self.decides: set[str] = set()
         self.decided: list[str] = []
+        self.diagnosed: set[str] = set()
+        # Each halted version's stage, why and `HEAD` on disk at its halt, and a
+        # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
+        self.seen_halts: dict[str, tuple[str, str, str] | None] = {}
+        self.candidates: dict[str, tuple[str, str, str]] = {}
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
         self.outs: dict[tuple[str, str], Path] = {}
@@ -2910,10 +2915,28 @@ class Run:
         self.probing = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
-        """Record and log a halt; its version starts no new worker but its rescue."""
+        """Record and log a halt; its version starts no new worker but its rescue.
+
+        A version's read on disk then is the re-check's baseline.
+        Why: 0085-self-healing-ship design D6.
+        """
+        seen = None if who == "run" else self.on_disk(who)
         with self.guard:
             self.halts.append((who, reason))
+            if who != "run":
+                self.seen_halts[who] = seen
         self.log.event(who, "halt", reason)
+
+    def on_disk(self, change: str) -> tuple[str, str, str] | None:
+        """Return a version's stage, why and `HEAD` on disk; None when a read raises."""
+        try:
+            version = find_version(self.primary, change)
+            if version is None or version.tree is None:
+                return None
+            stage, why = stage_of(self.primary, version)
+            return stage, why, _git(version.tree, "rev-parse", "HEAD").strip()
+        except Exception:
+            return None
 
     def block(self, change: str, dependency: str) -> None:
         """Record and log a block; `change` starts no worker."""
@@ -2932,7 +2955,32 @@ class Run:
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
         return f"halted {halted} · blocked {blocked} · released {released}" + (
-            self.decisions() + self.unpushed()
+            self.decisions() + self.needs() + self.unpushed()
+        )
+
+    def needs(self) -> str:
+        """Return ` · needs <id> <action>, …` for each halted version, or "".
+
+        e.g. "0001-a" diagnosed, "0002-b" timed out → " · needs 0001-a rescue.md,
+        0002-b a fix". Why: 0085-self-healing-ship design D7.
+        """
+        with self.guard:
+            halted = dict.fromkeys(who for who, _ in self.halts if who != "run")
+        needs = ", ".join(f"{change} {self._needs(change)}" for change in halted)
+        return f" · needs {needs}" if needs else ""
+
+    def _needs(self, change: str) -> str:
+        """Return the one action a halted version needs, read from the run and disk."""
+        with self.guard:
+            if change in self.answered:
+                return "a re-run"
+            if change in self.diagnosed:
+                return "rescue.md"
+        stage, why, _ = self.on_disk(change) or ("", "", "")
+        if _is_cap(stage, why):
+            return "a grant or a re-plan"
+        return {"integrating": "the merge settled", "human": "its **HUMAN phase"}.get(
+            stage, "a fix"
         )
 
     def decisions(self) -> str:
@@ -3038,15 +3086,15 @@ class Run:
         return ""
 
     def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
-        """Run a halted version's rescue on `held`; True when its amend cleared it.
+        """Run a halted version's rescue on `held`; True when the version goes on.
 
-        The amend may touch the change's `amends` files alone, as `_rescue_amends`
-        names them. Any other outcome halts the version again, naming what the rescue
-        left, and one at a converge or integrate halt is then checked for an answer on
-        disk. A halted run, a skip or a spent rescue starts none. A converge
-        `verify: halt` the run diagnoses itself, with no worker.
-        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
-        0085-self-healing-ship design D1.
+        It goes on on an amend that may touch the change's `amends` files alone, as
+        `_rescue_amends` names them. Any other outcome halts the version again, naming
+        what the rescue left, and one at a converge or integrate halt is then checked
+        for an answer on disk: the person's amends alone go on. A halted run, a skip or
+        a spent rescue starts none. A converge `verify: halt` the run diagnoses itself,
+        with no worker. Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
+        0085-self-healing-ship design D1, D5.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -3066,9 +3114,10 @@ class Run:
         prompt = PROMPTS["rescue"].format(change=change, decide=decide)
         sha = None
         try:
-            if self.spawn(change, "rescue", tree, prompt, models) is None:
-                return False
-            sha, why, decided = _amend(tree, change, before, amends)
+            spawned = self.spawn(change, "rescue", tree, prompt, models) is not None
+            sha, why, decided = (
+                _amend(tree, change, before, amends) if spawned else (None, "", False)
+            )
             if sha is not None:
                 kind = "decided" if decided else "fixed"
                 detail = f"{change}: {kind} · {held} · {sha[:7]}"
@@ -3077,17 +3126,18 @@ class Run:
                     self.halts = [halt for halt in self.halts if halt[0] != change]
                     if decided:
                         self.decided.append(change)
-                return True
-            name = f".minions/changes/{change}/rescue.md"
-            if not why and _mtime(diagnosis) not in (None, written):
-                self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
-                why = f"rescue diagnosed — {name}"
-            self.halt(change, why or "rescue wrote no amend and no diagnosis")
-            return False
+            elif spawned:
+                name = f".minions/changes/{change}/rescue.md"
+                if not why and _mtime(diagnosis) not in (None, written):
+                    self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+                    with self.guard:
+                        self.diagnosed.add(change)
+                    why = f"rescue diagnosed — {name}"
+                self.halt(change, why or "rescue wrote no amend and no diagnosis")
         finally:
             # A taken amend is the rescue's answer: converge opens its amended run.
-            if held in RESCUED and sha is None:
-                self.hold(version, tree, before)
+            going = held in RESCUED and sha is None and self.hold(version, tree, before)
+        return sha is not None or going
 
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
@@ -3109,26 +3159,55 @@ class Run:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return
         self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
+        with self.guard:
+            self.diagnosed.add(change)
         self.halt(change, f"rescue diagnosed — {name}")
 
-    def hold(self, version: Version, tree: Path, before: str) -> None:
+    def hold(self, version: Version, tree: Path, before: str) -> bool:
         """Keep a version halted for the run when its rescue answered its halt on disk.
 
         A rescue at a converge or integrate halt may only diagnose, yet a commit past
         the halted head, a settled merge, a removed note or a grant it writes reads as
         no halt, and its rejoin request would take the version back. The halt names
-        the stage on disk and a moved `HEAD`, for the person.
-        Why: 0067-rescue design D3.
+        the stage on disk and a moved `HEAD`, for the person. The person's amends
+        alone go on: True. Why: 0067-rescue design D3; 0085-self-healing-ship design D5.
         """
+        change = version.change
         stage, why = stage_of(self.primary, version)
         if stage in HALTS:
-            return
+            return False
         head = _git(tree, "rev-parse", "HEAD").strip()
+        if stage == "converge" and self._amended_alone(tree, change, before):
+            with self.guard:
+                self.halts = [halt for halt in self.halts if halt[0] != change]
+            self.log.event("run", "rescue", f"{change}: amended · {head[:7]}")
+            return True
         moved = f" · HEAD {head[:7]}" if head != before else ""
         answered = f"rescue answered its halt — {stage}: {why}{moved}"
         with self.guard:
-            self.answered[version.change] = answered
-        self.halt(version.change, answered)
+            self.answered[change] = answered
+        self.halt(change, answered)
+        return False
+
+    def _amended_alone(self, tree: Path, change: str, before: str) -> bool:
+        """Return whether the person's amends alone answer the converge halt rescued.
+
+        The halt is one the person's amend answers, only amends follow its head, and
+        none since the rescue began carries a `Rescue:` trailer: a refused rescue
+        amend carries one. Why: 0085-self-healing-ship design D5.
+        """
+        runs = self.primary / ".minions"
+        halt = _converge_halt(runs, change) or ""
+        found = HALT_HEAD.search(halt)
+        halted = found and _maybe(
+            tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}"
+        )
+        if not halted or not _amendable(runs, change, halt):
+            return False
+        rescued = _git(
+            tree, "log", "--format=%(trailers:key=Rescue)", f"{before}..HEAD"
+        )
+        return _amended_only(tree, change, halted.strip()) and not rescued.strip()
 
     def held(self, version: Version, stage: str, tree: Path) -> str | None:
         """Return what a failed check at `stage` is rescued on, or None for no rescue.
@@ -3737,6 +3816,56 @@ class Run:
                 self.unblocked |= fresh
                 self.take_back_safely(version, threads)
 
+    def recheck(self, threads: dict[str, threading.Thread]) -> bool:
+        """Take back each halted version answered on disk, with no request; True if any.
+
+        One with a live thread, a block, its rescue's answer or a queued cut stays
+        out. A read at its stage, not stuck, that differs from the halt's baseline is
+        a candidate, taken when the next poll reads it the same. It raises nothing, as
+        `take_requests` does not. Why: 0085-self-healing-ship design D6.
+        """
+        with self.guard:
+            halted = {who for who, _ in self.halts} - {"run", *self.blocked}
+            halted -= set(self.answered)
+        cuts: dict[str, dict[str, Any]] = {}
+        versions: list[Version] = []
+        if halted and not self.stopped("run"):
+            try:
+                cuts, versions = _cuts(self.primary), open_versions(self.primary)
+            except Exception:
+                versions = []
+        live = {change for change, thread in threads.items() if thread.is_alive()}
+        versions = [
+            version
+            for version in versions
+            if version.change in halted - live and version.change not in cuts
+        ]
+        with self.guard:
+            kept = {version.change for version in versions}
+            self.candidates = {
+                change: read
+                for change, read in self.candidates.items()
+                if change in kept
+            }
+        started = False
+        for version in versions:
+            change = version.change
+            read = self.on_disk(change)
+            with self.guard:
+                baseline = self.seen_halts.get(change)
+                previous = self.candidates.pop(change, None)
+                if baseline is None:
+                    self.seen_halts[change] = read
+                    continue
+                if read is None or read[0] in STUCK or read == baseline:
+                    continue
+                if previous != read:
+                    self.candidates[change] = read
+                    continue
+                del self.seen_halts[change]
+            started = self.take_back_safely(version, threads) or started
+        return started
+
     def take_back_safely(
         self, version: Version, threads: dict[str, threading.Thread]
     ) -> bool:
@@ -3961,19 +4090,29 @@ class Run:
         return True
 
     def join(self, threads: dict[str, threading.Thread]) -> None:
-        """Wait for every thread, taking requests and blocked versions every poll.
+        """Wait for every thread, taking requests, blocked and answered versions.
 
-        A poll is `REJOIN_POLL` seconds. With none alive, the requests are read once
-        more. Why: 0063-rejoin design D1; 0071-ship-fixes design D4.
+        A poll is one `REJOIN_POLL` window, whatever the threads. With none alive, the
+        requests and the disk are read once more, and a candidate the re-check read
+        holds the run one more poll. Why: 0063-rejoin design D1; 0071-ship-fixes
+        design D4; 0085-self-healing-ship design D6, D7.
         """
         while True:
             self.take_requests(threads)
             self._unblock(threads)
+            self.recheck(threads)
+            deadline = time.monotonic() + REJOIN_POLL
             for thread in [thread for thread in threads.values() if thread.is_alive()]:
-                thread.join(timeout=REJOIN_POLL)
-            alive = any(thread.is_alive() for thread in threads.values())
-            if not alive and not self.take_requests(threads):
+                thread.join(timeout=max(0, deadline - time.monotonic()))
+            if any(thread.is_alive() for thread in threads.values()):
+                continue
+            if self.take_requests(threads) or self.recheck(threads):
+                continue
+            with self.guard:
+                pending = bool(self.candidates)
+            if not pending:
                 return
+            time.sleep(REJOIN_POLL)
 
     def unlock(self, name: str) -> None:
         """Remove the lock `name` when stale, logging its age."""

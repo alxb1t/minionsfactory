@@ -223,13 +223,16 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         sys.exit(1)
     if "rescue-fix" in modes:
         _commit(tree, {tasks: text + _AMENDED}, message)
-    elif "rescue-prose" in modes or "rescue-decides" in modes:
+    elif modes & {"rescue-prose", "rescue-decides", "rescue-person-amends"}:
         design = tree / f"openspec/changes/{change}/design.md"
         prose = (design.read_text() if design.is_file() else "") + _PROSE
         message = message.replace("1.1", "R1")
         if "rescue-decides" in modes:
             prose += "\n## Decisions\n\n| D1 | the card's fix |\n"
             message += "\nDecided-by: rescue"
+        if "rescue-person-amends" in modes:
+            # The person's amend, landing while the rescue runs, carries no trailer.
+            message = message.split("\n", 1)[0]
         _commit(tree, {str(design): prose}, message)
     elif "rescue-hollow" in modes:
         _commit(tree, {tasks: text + "Read again.\n"}, message)
