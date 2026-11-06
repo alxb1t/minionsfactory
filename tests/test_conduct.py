@@ -1662,6 +1662,12 @@ def test_rescue_skip_runs_none(
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", "m", None)
     table.write_text('[build]\nmodel = "m"\n[rescue]\n')
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", None, None)
+    # A table TOML cannot read halts, naming the file in the change's folder.
+    table.write_text("[build\n")
+    with pytest.raises(
+        conduct["Stop"], match=r"halt — changes/0001-todo/models\.toml: "
+    ):
+        models(minions, "0001-todo", "rescue", "claude")
 
 
 def test_a_linked_rejoin_folder_deletes_nothing(

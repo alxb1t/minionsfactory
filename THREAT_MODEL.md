@@ -44,7 +44,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - A brief, and the change directory the cut writes from it.
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
-- Findings files, status logs and worker output under `.minions/`.
+- Findings files, status logs and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
+  `changes/` or a change's folder halts the run, and no write of the conductor's follows one
+  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)).
 - Rejoin requests, `.minions/runs/rejoin/`: a worker can write one, and the live run then reads a version's stage from disk
   again, which it already trusts, and the models file of a version cut since its start — the class *Out of scope* accepts.
   A version the run's plan holds stays out while its models file differs, so a version halted on a models change does not

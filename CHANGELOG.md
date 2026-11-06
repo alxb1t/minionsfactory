@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0080-minions-layout`, phase 4).
 - `review_metrics.py` reads a repo no run has moved, the change's folder winning over its old files
   (change `0080-minions-layout`, phase 4).
+- D57, *One folder per change in `.minions/`*, records the layout; the principles, `AGENTS.md`, `CONTRIBUTING.md` and its
+  bootstrap template and `THREAT_MODEL.md` name the change's folder (change `0080-minions-layout`, phase 5).
 
 ## [0.65.0] - 2026-11-06
 

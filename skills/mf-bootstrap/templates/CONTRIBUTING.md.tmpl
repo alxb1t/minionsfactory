@@ -18,4 +18,4 @@ mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──�
 - **Each `Verify:`**, run by the build before its box is ticked.
 - **A green `make check`** at every phase's commit, and a green `make gate` at the last.
 - **A `Change: <change-id>` trailer** on every commit but the bootstrap's.
-- **The check loop's findings**, in `.minions/findings/`, when converge ran.
+- **The check loop's findings**, in `.minions/changes/<change-id>/`, when converge ran.

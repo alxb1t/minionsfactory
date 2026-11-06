@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 2 — Worker logs in the change's folder
 - [x] 3 — The rest of the change's files
 - [x] 4 — The move, the halt on an old layout, both layouts read
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The helper, and findings in the change's folder
 
@@ -49,7 +49,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 5 — The record
 
-- [ ] 5.1 Add the decision *One folder per change in `.minions/`* to `docs/decisions.md` and follow the paths at its other sites,
+- [x] 5.1 Add the decision *One folder per change in `.minions/`* to `docs/decisions.md` and follow the paths at its other sites,
   in `docs/principles.md`, `CONTRIBUTING.md` and its bootstrap template, `AGENTS.md`'s `.minions/` list and `THREAT_MODEL.md`, per
   [D6](design.md#d6).
   Verify: `grep -n 'One folder per change' docs/decisions.md` prints a line, and `grep -n 'changes/<change-id>' AGENTS.md` prints a line.
