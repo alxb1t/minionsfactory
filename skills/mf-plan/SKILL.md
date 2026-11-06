@@ -6,13 +6,15 @@ description: Plan a version — read the target read-only at its default branch,
 # mf-plan — grill a version to settled decisions, and write the brief the cut reads
 
 > **Your role is PLAN.** You turn what the person wants into settled decisions, and write them to the brief
-> `mf-cut-change` reads. You do **not** cut, build, review, converge or release, and you never move the target's
-> checkout: another session may be building in it.
+> `mf-cut-change` reads. You do **not** cut, build, review, converge or release — on the person's yes at a hard
+> close you queue the cut with `conduct.py cut`, and the run cuts it — and you never move the target's checkout:
+> another session may be building in it.
 
 ```
   mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge ──▶ mf-release
      │              ▲
-     └── brief ─────┘   written after every round
+     ├── brief ─────┘   written after every round
+     └── on yes: conduct.py cut ──▶ the run's cut station
 ```
 
 The rounds over the frontier are the adopted `grilling` skill's, credited; MF adds the facts at a named commit,
@@ -26,6 +28,7 @@ the checks and the brief.
 | `brief` | yes | `brief=<path>` — where the brief is written, given by the operator |
 | `depth` | no | `depth=light` or `depth=hard`; default `hard` |
 | `from` | no | `from=<brief>` — a brief to continue |
+| `then` | no | `then=ship` — at a hard close, queue the cut without asking |
 
 The target is the cwd's repository. Echo every parameter before anything else. No `brief=` → **halt** and ask for
 the path; never pick one. A `from=` that does not resolve → **halt**; never search for one.
@@ -52,6 +55,9 @@ Read the target only at `<ref>`, never its working tree: the tree may be a build
 | allowed | never |
 |---|---|
 | `git show <ref>:<path>` · `git grep <pattern> <ref>` · `git log <ref>` · `git ls-tree <ref>` · `git diff <a> <b>` · `git rev-parse` · reading `.minions/debt.md`, else an old `.minions/backlog.md`, from disk | `switch` · `checkout` · `stash` · `reset` · `commit` · `branch` · `merge` · `rebase` · editing a file in the target · `make gate` · a metric collection |
+
+The *never* list has one exception: [Step 6](#step-6--close)'s `conduct.py cut`. It writes the run directory and the
+home folder's queue, never the checkout.
 
 **Helpers.** Where the host can start fresh workers, fact-finding goes to read-only helpers by default, each given
 `<ref>`, the question, and the allowed list; each returns conclusions with `path:line` at `<sha>`, not file
@@ -110,10 +116,33 @@ line below the bold line to `At <sha>, <YYYY-MM-DD>.`, Step 1's `<sha>`: the com
 The frontier is empty → show the settled table, the `## Decisions` rows; the person confirms it. Then remove
 `## Open` and fill `## For the cut`.
 
-**Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
-— then a last line:
+A hard close then queues the cut:
 
-- hard: `Next: /mf-cut-change <id> <bump> brief=<path>`
+1. **The models and the switch** are rows of the settled table the person confirms: per change, a model and effort
+   for the build, converge, release and cut station, and `decide: recommended`, per [the brief](#the-brief).
+2. **The check:** run `uv run --script scripts/brief_check.py <brief>`, `scripts/` resolved from this skill's
+   package; it holds the commands and each item's slug, bump, `after` and models. Exit 1 → fix each line it prints
+   in the brief and run it again; exit 2 → **halt**, naming it.
+3. **The question,** once, unless `then=ship` was given. First run `uv run --script ../mf-ship/scripts/conduct.py status`
+   in the primary checkout. Show each `## For the cut` item as the brief now holds it, its `models:` line and
+   Acceptance included, and what `status` prints: each open version or queued cut it names that is not at a halt,
+   the run the yes joins or starts takes too. Then ask "confirm, and queue it?".
+4. **Yes, or `then=ship`:** the executor from runtime evidence — Claude Code → `claude`; Codex → `codex`. For each
+   change of `## For the cut`, in order, run in the primary checkout
+   `uv run --script ../mf-ship/scripts/conduct.py cut <slug> <bump> brief=<the brief's absolute path> [after=<ids>] --executor <executor> --model <cut model> --effort <cut effort>`,
+   `../mf-ship/` resolved from this skill's package, each field as the checked brief holds it. An `after` naming an earlier change of the brief takes the id
+   its `cut` line printed (`cut: queued <id> · …`). Paste each line; an exit 2 stops the queue, reported in full.
+   The yes is the person's to every merge and push in the run it joins or starts, as `mf-ship`'s is: each queued
+   version, and each open version that run takes.
+5. **No:** queue nothing.
+
+**Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
+— then the last lines:
+
+- hard and queued: `Next: the run cuts and ships it; conduct.py status says where it stands.`
+- hard and not queued: one line per change of `## For the cut`, in order,
+  `Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>`, `<NNNN>` left for the person: the next free number when
+  they cut it
 - light: `Next: /mf-plan <what> depth=hard from=<path>`
 
 Then stop.
@@ -146,8 +175,15 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   - <a question still on the frontier — removed when it is empty>
 
   ## For the cut
-  <the change id and bump proposed · `debt: [ids]` · the conditions — filled when the frontier is empty>
+  <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · debt: [<ids>] or none · decide: recommended
+     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort>
+     - **Acceptance:** <commands>
   ```
+
+`## For the cut` is filled when the frontier is empty: one item per change, in cut order. The models come from the
+session's menu, by `mf-cut-change`'s *Suggesting models* table; the cut station's own is the strongest tier · high by
+default. `decide: recommended` stands when the person delegates the cut's doubts. The cut station writes
+`models.toml` from the `models:` line.
 
 ## Never
 
@@ -155,3 +191,4 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   file in it, run its gate, or collect its metrics.
 - Never write the brief's path into the target.
 - Never cut: no branch, no change directory.
+- Never queue a cut without the person's yes at a hard close, or `then=ship`; never queue a light brief.
