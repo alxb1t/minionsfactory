@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `skills/mf-plan/scripts/brief_check.py <brief>` holds a hard brief to the cut station's shape: a `hard` title, an
+  `At` line, a filled `## For the cut`, and Acceptance and `Verify:` commands that keep `verify_check.py`'s shell rules;
+  it exits 1 naming each halt, 2 when it cannot check (change `0083-plan-queues`, phase 1).
+
 ## [0.68.0] - 2026-11-06
 
 Gate: local 1m31s · CI not read under mf-ship · 0.67.0: local 1m45s · CI not read under mf-ship

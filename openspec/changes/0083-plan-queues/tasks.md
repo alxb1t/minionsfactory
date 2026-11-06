@@ -4,14 +4,14 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The brief check
+- [x] 1 — The brief check
 - [ ] 2 — The plan's close
 
 ## 1 — The brief check
 
-- [ ] 1.1 Add `skills/mf-plan/scripts/brief_check.py`, per [D1](design.md#d1).
+- [x] 1.1 Add `skills/mf-plan/scripts/brief_check.py`, per [D1](design.md#d1).
   Verify: `uv run --script skills/mf-plan/scripts/brief_check.py openspec/changes/0083-plan-queues/no-brief.md` prints `brief: cannot check — openspec/changes/0083-plan-queues/no-brief.md: No such file or directory`.
-- [ ] 1.2 Add `tests/test_brief_check.py` with `test_a_hard_brief_is_ready_for_the_cut`, `test_a_brief_out_of_shape_halts`
+- [x] 1.2 Add `tests/test_brief_check.py` with `test_a_hard_brief_is_ready_for_the_cut`, `test_a_brief_out_of_shape_halts`
   and `test_what_cannot_be_checked_exits_2`, per [the design's Tests](design.md#tests).
   Verify: `uv run pytest -q tests/test_brief_check.py` reports `3 passed`.
 
