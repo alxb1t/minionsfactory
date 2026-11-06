@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A change's review, security and status-log files and its diff patch live in `.minions/changes/<change-id>/`, found
+  through one `_change_dir` per script; `metrics.py`'s own helper is `_spec_dir` (change `0080-minions-layout`, phase 1).
+
 ## [0.65.0] - 2026-11-06
 
 Gate: local 1m21s · CI not read under mf-ship · 0.64.0: local 1m27s · CI not read under mf-ship

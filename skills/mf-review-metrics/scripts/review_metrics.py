@@ -31,10 +31,10 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-FINDINGS = Path(".minions/findings")
+CHANGES = Path(".minions/changes")
 RUNS = Path(".minions/runs")
 DATA = "review-metrics.json"
-FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
+FILES = ("review.md", "security.md", "status_log.md")
 STATIONS = ("build", "converge", "integrate", "release", "rescue")
 ROLES = ("review", "security")
 # The forms a `verdicts` line names both roles' tokens in, and each one's scale.
@@ -689,16 +689,25 @@ def _merged(rows: Iterable[Record], key: str) -> Counter[str]:
     return sum((row[key] for row in rows), Counter())
 
 
+def _change_dir(repo: Path, change: str) -> Path:
+    """Return the change's folder in the repo's run directory.
+
+    e.g. "0001-todo" → <repo>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return repo / CHANGES / change
+
+
 def read_change(repo: Path, change: str) -> Record:
     """Return a change's record, each field parsed on its own, None when unreadable."""
-    folder = repo / FINDINGS
+    folder = _change_dir(repo, change)
     files = [
         found
         for role, blocking in (
             ("review", ("blocking",)),
             ("security", ("critical", "high")),
         )
-        if (found := _findings_file(folder / f"{change}_{role}.md", blocking))
+        if (found := _findings_file(folder / f"{role}.md", blocking))
     ]
     fronts = [found["front"] for found in files]
     included, skipped = _packet(_first(fronts, "packet"))
@@ -714,7 +723,7 @@ def read_change(repo: Path, change: str) -> Record:
         "rounds": _integer(_first(fronts, "round")),
         "severity": _merged(files, "severity"),
         "categories": _merged(files, "categories"),
-        **_status_log(folder / f"{change}_status_log.md"),
+        **_status_log(folder / "status_log.md"),
         **_cost_logs(repo, change),
     }
     for key in ("findings", "blocking", "inconclusive"):
@@ -726,10 +735,13 @@ def read_change(repo: Path, change: str) -> Record:
 
 def read_repo(repo: Path) -> list[Record]:
     """Return the repo's records in `reviewed` order, those with no date last."""
-    if not (repo / FINDINGS).is_dir():
-        raise CannotRun(f"{repo}: no {FINDINGS} directory")
-    names = (path.name for path in (repo / FINDINGS).glob("*.md"))
-    changes = {found.group(1) for name in names if (found := FILES.fullmatch(name))}
+    if not (repo / CHANGES).is_dir():
+        raise CannotRun(f"{repo}: no {CHANGES} directory")
+    changes = {
+        path.name
+        for path in (repo / CHANGES).iterdir()
+        if any((path / name).is_file() for name in FILES)
+    }
     records = [read_change(repo, change) for change in changes]
     return sorted(
         records,
@@ -744,8 +756,8 @@ def round_data(repo: Path) -> list[Record]:
     """
     sessions = _codex_sessions(repo)
     logs = {
-        path.name.removesuffix("_status_log.md"): _round_records(path)
-        for path in sorted((repo / FINDINGS).glob("*_status_log.md"))
+        path.parent.name: _round_records(path)
+        for path in sorted((repo / CHANGES).glob("*/status_log.md"))
     }
     windows = {
         change: [r["window"] for r in records if r["window"]]

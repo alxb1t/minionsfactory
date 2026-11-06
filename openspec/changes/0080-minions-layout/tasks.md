@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The helper, and findings in the change's folder
+- [x] 1 — The helper, and findings in the change's folder
 - [ ] 2 — Worker logs in the change's folder
 - [ ] 3 — The rest of the change's files
 - [ ] 4 — The move, the halt on an old layout, both layouts read
@@ -12,7 +12,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 1 — The helper, and findings in the change's folder
 
-- [ ] 1.1 Add `_change_dir` to `skills/mf-ship/scripts/conduct.py`, `skills/mf-integrate/scripts/integrate.py`,
+- [x] 1.1 Add `_change_dir` to `skills/mf-ship/scripts/conduct.py`, `skills/mf-integrate/scripts/integrate.py`,
   `skills/mf-converge/scripts/gate_check.py`, `scripts/metrics/run.py` and `skills/mf-review-metrics/scripts/review_metrics.py`, and
   rename `skills/mf-build/scripts/metrics.py`'s to `_spec_dir`, per [D2](design.md#d2); move the review, security and status-log files
   and the patch to D1's names at every F1–F4 site, mf-converge's, mf-release's and mf-rescue's prose and `references/worker.md`

@@ -431,10 +431,10 @@ def _run_fixture(root: Path) -> dict[str, str]:
             "10:00:00 · 0001-x · spawn — release · model m\n"
             "10:01:00 · 0001-x · finish — release · exit 0 · 60s\n",
             ".minions/runs/notes.md": "12:00:00 · 0001-x · halt — build check fail\n",
-            ".minions/findings/0001-x_status_log.md": _STATUS,
-            ".minions/findings/0002-y_status_log.md": "# 0002-y\n\n## Run 1 — x\n",
+            ".minions/changes/0001-x/status_log.md": _STATUS,
+            ".minions/changes/0002-y/status_log.md": "# 0002-y\n\n## Run 1 — x\n",
             # The first run halted before its fan-out; the next one holds round 1.
-            ".minions/findings/0004-w_status_log.md": "# 0004-w\n\n"
+            ".minions/changes/0004-w/status_log.md": "# 0004-w\n\n"
             "## Run 2 — 2026-11-02 10:00\n"
             "10:20:00 · round 1 · verdicts — review changes-requested"
             " · open_blocking 1\n\n"
@@ -497,7 +497,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert read("build-minutes", "0003-z") == "gap: a build spawn with no finish"
     assert read("lead-minutes", "0003-z") == "gap: no release spawn"
     assert read("integrate-minutes", "0003-z") == 0
-    assert read("grants", "0003-z") == "gap: no 0003-z_status_log.md"
+    assert read("grants", "0003-z") == "gap: no 0003-z/status_log.md"
     assert read("build-commits", "0003-z") == "gap: no head in 0003-z.done"
     # A version released by hand: no run log, its commits and cards still read.
     assert read("wait-minutes", "0004-w") == "gap: no run log names 0004-w"
@@ -615,11 +615,11 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     _write(
         tmp_path,
         {
-            ".minions/findings/0001-x_review.md": _role_file(reviewed, refuted),
-            ".minions/findings/0001-x_security.md": _role_file(
+            ".minions/changes/0001-x/review.md": _role_file(reviewed, refuted),
+            ".minions/changes/0001-x/security.md": _role_file(
                 _finding("S1", "plausible", "none")
             ),
-            ".minions/findings/0002-y_review.md": _role_file(reviewed, ""),
+            ".minions/changes/0002-y/review.md": _role_file(reviewed, ""),
             "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
             "debt: [0000·R4, 0000·S2]\n---\n",
             "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
@@ -661,13 +661,13 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("debt-paid", "0002-y") == 0
     assert read("debt-paid", "0004-w") == 1
     assert read("debt-added", "0002-y") == 0
-    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y_review.md"
-    assert read("security-confirmed", "0003-z") == "gap: no 0003-z_security.md"
+    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y/review.md"
+    assert read("security-confirmed", "0003-z") == "gap: no 0003-z/security.md"
     assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
     assert read("cost-usd-build", "0003-z") == (
         "gap: no result event in 20261102-090000/0003-z_build.log"
     )
-    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z_review.md")
+    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z/review.md")
     # A security worker's turns are read, and no card to divide them by is a gap.
     run = _load("run")
     assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("security") == 30

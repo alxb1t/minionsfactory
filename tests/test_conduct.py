@@ -258,7 +258,7 @@ def test_status_reads_each_stage_from_disk(
     _commit(tree, {}, "build")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     assert stage().endswith(" · converge")
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
     assert stage().endswith(" · converge-halted")
@@ -374,7 +374,7 @@ def test_each_check_passes_only_on_disk_evidence(
 
     no_done = (1, "check: converge · fail — the status log has no done")
     assert check("converge") == no_done
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
     assert check("converge") == (1, "check: converge · fail — no review findings file")
@@ -633,9 +633,9 @@ def test_a_ready_version_ships_past_a_slow_one(
         root, "log", "--format=%s", "main"
     )
     # The catch-up over the integrate merge replays by rule, with no worker.
-    findings = root / ".minions" / "findings"
-    assert "\n## By rule\n" in (findings / "0001-todo_review.md").read_text()
-    assert " · by rule — clean, " in (findings / "0001-todo_status_log.md").read_text()
+    findings = root / ".minions" / "changes" / "0001-todo"
+    assert "\n## By rule\n" in (findings / "review.md").read_text()
+    assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
@@ -2157,8 +2157,8 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
         for line in _log(root)
     )
     head = _git(tree, "rev-parse", "HEAD")
-    findings = root / ".minions" / "findings"
-    assert f"head: {head}\n" in (findings / "0001-todo_review.md").read_text()
+    findings = root / ".minions" / "changes" / "0001-todo"
+    assert f"head: {head}\n" in (findings / "review.md").read_text()
     capsys.readouterr()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out.strip() == "0001-todo · converge"
@@ -2219,7 +2219,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     os.mkfifo(marker)
     assert stage_of(root, find(root, "0001-todo")) == closing
     marker.unlink()
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
     assert stage_of(root, find(root, "0001-todo")) == (
@@ -2252,7 +2252,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     stage_of, find = conduct["stage_of"], conduct["find_version"]
 
     def halted(why: str) -> tuple[str, str]:
@@ -4462,14 +4462,14 @@ def test_a_small_cap_is_granted_automatically(
     assert blockers(minions, "0001-todo") is None
     _cards(root, "0001-todo", head, "a test")
     assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
-    security = minions / "findings" / "0001-todo_security.md"
+    security = minions / "changes" / "0001-todo" / "security.md"
     cards = security.read_text()
     unsized = cards.replace("high ·", "critical ·").replace(" · size: a test.", "")
     security.write_text(unsized)
     assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
     security.write_text(cards)
     # A Priority or a size wrapped in backticks, as stations write them, reads the same.
-    review = minions / "findings" / "0001-todo_review.md"
+    review = minions / "changes" / "0001-todo" / "review.md"
     plain = review.read_text()
     quoted = plain.replace(
         "blocking · review · stability", "`blocking · review · stability`"
@@ -4668,7 +4668,7 @@ def test_a_grant_buys_one_round(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     version = conduct["find_version"](root, "0001-todo")
     grants = root / ".minions" / "grants" / "0001-todo"
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     runner = conduct["main"].__globals__["run"]
     started: list[tuple[Path, str, bool]] = []
 
@@ -4821,7 +4821,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     judged = _git(tree, "rev-parse", "HEAD")
     _findings(root, "0001-todo", judged, "blocking")
-    log = root / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n")
     grants = root / ".minions" / "grants" / "0001-todo"
@@ -4890,7 +4890,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     amend = "docs(0001-todo): amend the change directory"
     _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended_head = _git(cut, "rev-parse", "HEAD")
-    log = base / ".minions" / "findings" / "0001-todo_status_log.md"
+    log = base / ".minions" / "changes" / "0001-todo" / "status_log.md"
     version = conduct["find_version"](base, "0001-todo")
     halts = {
         "2 — d · catch-up": "halt — red",
@@ -4920,7 +4920,7 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
         assert stage_of(base, version) == ("converge-halted", halt)
         _git(cut, "reset", "-q", "--hard", amended_head)
     # A catch-up halt over a findings file no longer clean is converge's own.
-    review = base / ".minions" / "findings" / "0001-todo_review.md"
+    review = base / ".minions" / "changes" / "0001-todo" / "review.md"
     clean = review.read_text()
     review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"

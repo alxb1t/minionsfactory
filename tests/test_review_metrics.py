@@ -50,9 +50,11 @@ def _card(number: int, priority: str, *fields: str) -> str:
 
 
 def _findings(root: Path, name: str, text: str) -> None:
-    folder = root / ".minions" / "findings"
+    found = re.fullmatch(r"(.+?)_(review|security|status_log)\.md", name)
+    assert found, name
+    folder = root / ".minions" / "changes" / found[1]
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / name).write_text(text, encoding="utf-8")
+    (folder / f"{found[2]}.md").write_text(text, encoding="utf-8")
 
 
 def _record(root: Path, change: str) -> dict[str, object]:
@@ -735,5 +737,5 @@ def test_overrides_win_over_the_config(
     assert review_metrics.main(gone) == 2
     err = capsys.readouterr().err
     assert str((tmp_path / "missing").resolve()) in err
-    assert ".minions/findings" in err
+    assert ".minions/changes" in err
     assert not (tmp_path / "gone.html").exists()

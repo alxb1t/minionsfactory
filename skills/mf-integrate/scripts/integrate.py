@@ -163,6 +163,15 @@ def _run_dir(cwd: Path) -> Path:
     return Path(common.strip()).parent / ".minions"
 
 
+def _change_dir(cwd: Path, change: str) -> Path:
+    """Return the change's folder in the run directory, from any worktree.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return _run_dir(cwd) / "changes" / change
+
+
 def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
@@ -182,9 +191,9 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     for dependency in _after(proposal):
         if not _shipped(cwd, change, dependency):
             return f"after {dependency}"
-    findings = _run_dir(cwd) / "findings"
-    files = [findings / f"{change}_{role}.md" for role in ("review", "security")]
-    patch = findings / f"{change}_diff.patch"
+    folder = _change_dir(cwd, change)
+    files = [folder / f"{role}.md" for role in ("review", "security")]
+    patch = folder / "diff.patch"
     present = [file for file in files if file.is_file()]
     if not present and not patch.is_file():
         return None

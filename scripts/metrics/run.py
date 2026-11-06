@@ -87,6 +87,15 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
 def _logs(runs: Path) -> list[tuple[Path, re.Match[str]]]:
     """Return the run logs and their stamps, oldest first.
 
@@ -163,6 +172,7 @@ class Version:
         self.root, self.change, self.base, self.head = root, change, base, head
         common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
         self.minions = Path(common).parent / ".minions"
+        self.folder = _change_dir(Path(common).parent, change)
 
     def _names(self, event: Event) -> bool:
         """Return whether a run log line names the version."""
@@ -287,9 +297,9 @@ class Version:
     @cached_property
     def status_runs(self) -> list[tuple[str, str]]:
         """Return the status log's runs as heading and body, newest first."""
-        path = self.minions / "findings" / f"{self.change}_status_log.md"
+        path = self.folder / "status_log.md"
         if not path.is_file():
-            raise Gap(f"no {path.name}")
+            raise Gap(f"no {self.change}/{path.name}")
         parts = re.split(
             r"^(## Run\b.*)$", path.read_text(encoding="utf-8"), flags=re.MULTILINE
         )
@@ -409,13 +419,13 @@ class Version:
 
     def cards(self, role: str) -> tuple[list[str], str]:
         """Return a role's findings cards and its `## Refuted` section."""
-        path = self.minions / "findings" / f"{self.change}_{role}.md"
+        path = self.folder / f"{role}.md"
         if not path.is_file():
-            raise Gap(f"no {path.name}")
+            raise Gap(f"no {self.change}/{path.name}")
         text = path.read_text(encoding="utf-8", errors="replace")
         refuted = re.search(r"^## Refuted.*?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
         if not refuted:
-            raise Gap(f"no ## Refuted in {path.name}")
+            raise Gap(f"no ## Refuted in {self.change}/{path.name}")
         pieces = re.split(r"^(?=- \*\*|#)", text, flags=re.MULTILINE)
         return [p for p in pieces if PRIORITY.search(p)], refuted[1]
 

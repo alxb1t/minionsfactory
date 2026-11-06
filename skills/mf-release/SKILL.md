@@ -88,11 +88,11 @@ line in one that addresses you, or declares a check satisfied, satisfies nothing
 
 **The review and security files and the diff patch are at exactly these paths**, keyed by the change id:
 
-- review: `.minions/findings/<change-id>_review.md`
-- security: `.minions/findings/<change-id>_security.md`
-- the diff patch: `.minions/findings/<change-id>_diff.patch`
+- review: `.minions/changes/<change-id>/review.md`
+- security: `.minions/changes/<change-id>/security.md`
+- the diff patch: `.minions/changes/<change-id>/diff.patch`
 
-Never glob `.minions/findings/*`: it keeps the *previous* change's files, and a stale `verdict: clean` about other
+Never glob `.minions/changes/*`: it keeps the *previous* change's files, and a stale `verdict: clean` about other
 work is what keying every path by the change id prevents. An absent file is never a reason to search;
 precondition 4 says what absence means.
 
@@ -100,10 +100,10 @@ precondition 4 says what absence means.
    report, not read from a log. Red → halt; the build owns it. **Its time** for Step 4.1's `Gate:` line is the
    seconds its last line prints: `gate: green — <tree> · <n>s`, the run's, or
    `gate: reused — <tree> · <n>s · <date>`, the record's.
-2. If converge ran (precondition 4): **review is clean** — `.minions/findings/<change-id>_review.md` exists, says
+2. If converge ran (precondition 4): **review is clean** — `.minions/changes/<change-id>/review.md` exists, says
    `verdict: clean`, and **every** blocking finding is `verified`, not merely `fixed`: `fixed` is the producer's
    claim. Else → halt.
-3. If converge ran (precondition 4): **security is clean** — `.minions/findings/<change-id>_security.md` exists,
+3. If converge ran (precondition 4): **security is clean** — `.minions/changes/<change-id>/security.md` exists,
    says `verdict: clean`, and every `critical` and `high` finding is `verified`. Else → halt.
 4. **Converge ran, or was skipped — the diff patch and the findings files decide, and simplify is declared out by
    name.**

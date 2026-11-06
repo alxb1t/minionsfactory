@@ -97,6 +97,15 @@ def _primary() -> Path:
     return Path(common.strip()).parent
 
 
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
 def exports() -> Path:
     """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
     return _primary() / ".minions" / "gate-check"

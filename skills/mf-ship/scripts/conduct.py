@@ -485,9 +485,18 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
     return None
 
 
+def _change_dir(primary: Path, change: str) -> Path:
+    """Return the change's folder in the run directory.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
+    Why: 0080-minions-layout design D1, D2.
+    """
+    return primary / ".minions" / "changes" / change
+
+
 def _run_end(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event line, or None with no run."""
-    log = runs / "findings" / f"{change}_status_log.md"
+    log = _change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
         (i for i, line in enumerate(lines) if line.startswith("## Run")), None
@@ -502,7 +511,7 @@ def _run_marked(runs: Path, change: str, mark: str) -> bool:
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    log = runs / "findings" / f"{change}_status_log.md"
+    log = _change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next((line for line in lines if line.startswith("## Run")), "")
     return heading.rstrip().endswith(f" · {mark}")
@@ -598,7 +607,7 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
         return True
     if not _run_marked(runs, change, "catch-up"):
         return False
-    files = (runs / "findings" / f"{change}_{role}.md" for role in ROLES)
+    files = (_change_dir(runs.parent, change) / f"{role}.md" for role in ROLES)
     return all(
         file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
         for file in files
@@ -652,7 +661,7 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
         return True
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
@@ -671,7 +680,7 @@ def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | N
     """Return why converge is not clean at `rev`, or None when it is."""
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return f"no {role} findings file"
         text = file.read_text()
@@ -1842,7 +1851,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """
     found = []
     for role in ROLES:
-        file = runs / "findings" / f"{change}_{role}.md"
+        file = _change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return None
         try:
@@ -3927,7 +3936,7 @@ def report(cwd: Path) -> str:
         if tag is not None and not _tagged(primary, tag):
             tag = None
         pushed = _pushed(primary, change, tag) if tag is not None else False
-        review = runs / "findings" / f"{change}_review.md"
+        review = _change_dir(primary, change) / "review.md"
         round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
         page = runs / "metrics" / f"{change}.html"
         lines.append(
