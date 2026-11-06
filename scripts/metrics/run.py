@@ -322,7 +322,7 @@ class Version:
         )
 
     def rescues(self, kind: str) -> int:
-        """Return the rescues that ended `fixed` or `diagnosed`."""
+        """Return the rescues that ended `kind`: `fixed`, `decided` or `diagnosed`."""
         return sum(
             e.name == "rescue" and e.detail.startswith(f"{self.change}: {kind}")
             for e in self.events
@@ -531,6 +531,7 @@ METRICS: dict[str, Callable[[Version], Number]] = {
     },
     "rescues-fixed": lambda v: v.rescues("fixed"),
     "rescues-diagnosed": lambda v: v.rescues("diagnosed"),
+    "rescues-decided": lambda v: v.rescues("decided"),
     "build-commits": lambda v: v.commits(fixes=False),
     "fix-commits": lambda v: v.commits(fixes=True),
     "cost-usd": lambda v: round(v.spent(SPENT)[0], 2),

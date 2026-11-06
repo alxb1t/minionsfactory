@@ -1621,6 +1621,82 @@ def test_a_rescue_amends_at_amend_needed(
 
 
 @pytest.mark.slow
+def test_a_rescue_decides_under_the_switch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+
+    def run(code: int) -> list[str]:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(root)
+
+    calls = fake("amend-halts", "rescue-decides")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text('decide = "recommended"\n[build]\n')
+    lines = run(0)
+    assert "rescue 0001-todo with decide=recommended" in _calls(calls)
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+    assert any(
+        line.endswith(
+            f" · run · rescue — 0001-todo: decided · converge-halted · {amend}"
+        )
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.1.0 · decided 0001-todo")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    assert f"0001-todo · decided converge-halted · {amend}" in said
+
+    # Without the switch, the same amend is refused, naming the decision.
+    calls.unlink()
+    fake("halt-0002-marks", "rescue-decides")
+    tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    lines = run(1)
+    assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
+    design = "openspec/changes/0002-marks/design.md"
+    assert lines[-2].endswith(
+        f" · 0002-marks · halt — rescue changed a decision: {design}"
+    )
+    conductor = conduct["Run"](root, "claude")
+    conductor.decided += ["0001-todo", "0001-todo"]
+    assert conductor.closing() == (
+        "halted none · blocked none · released none · decided 0001-todo"
+    )
+
+    # Under the switch, a decided amend stands with its trailer alone, and an edit of
+    # `proposal.md` decides too.
+    amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
+    decided = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", f"{decided}~1", switch) == (decided, "", True)
+    message = "docs(0002-marks): amend the change directory\n\nRescue: 1.1"
+    _commit(tree, {design: "## Decisions\n\n| D1 | another fix |\n"}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", decided, switch) == (
+        None,
+        f"rescue commit {head[:7]} decided with no Decided-by: rescue trailer",
+        False,
+    )
+    _git(tree, "reset", "-q", "--hard", decided)
+    proposal = "openspec/changes/0002-marks/proposal.md"
+    _commit(
+        tree, {proposal: "---\nbump: patch\n---\n"}, f"{message}\nDecided-by: rescue"
+    )
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", decided, switch) == (head, "", True)
+
+
+@pytest.mark.slow
 def test_a_rescue_diagnoses_a_decision_halt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1717,6 +1793,7 @@ def test_a_rescue_outside_the_plan_halts(
         assert amend(tree, "0001-todo", since, ("tasks.md",)) == (
             None,
             f"rescue commit {head} is not one amend with a Rescue: trailer",
+            False,
         )
 
 

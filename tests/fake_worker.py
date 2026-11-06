@@ -212,7 +212,10 @@ def _prose(tree: Path, change: str) -> bool:
 
 
 def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
-    """Amend the plan, hollowly, outside it or by a rewrite; diagnose, answer or die."""
+    """Amend the plan, its prose or a decision, hollowly, outside it or by a rewrite.
+
+    Or diagnose, answer or die.
+    """
     tasks = f"openspec/changes/{change}/tasks.md"
     message = f"docs({change}): amend the change directory\n\nfix\n\nRescue: 1.1"
     text = (tree / tasks).read_text()
@@ -220,10 +223,14 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         sys.exit(1)
     if "rescue-fix" in modes:
         _commit(tree, {tasks: text + _AMENDED}, message)
-    elif "rescue-prose" in modes:
+    elif "rescue-prose" in modes or "rescue-decides" in modes:
         design = tree / f"openspec/changes/{change}/design.md"
         prose = (design.read_text() if design.is_file() else "") + _PROSE
-        _commit(tree, {str(design): prose}, message.replace("1.1", "R1"))
+        message = message.replace("1.1", "R1")
+        if "rescue-decides" in modes:
+            prose += "\n## Decisions\n\n| D1 | the card's fix |\n"
+            message += "\nDecided-by: rescue"
+        _commit(tree, {str(design): prose}, message)
     elif "rescue-hollow" in modes:
         _commit(tree, {tasks: text + "Read again.\n"}, message)
     elif "rescue-wild" in modes:

@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — Rescue at amend needed
-- [ ] 2 — The switch
+- [x] 2 — The switch
 - [ ] 3 — The run goes on
 - [ ] 4 — The record
 
@@ -22,17 +22,17 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The switch
 
-- [ ] 2.1 Add `_decides`, `Run.decides`, the prompt's `{decide}`, `_amend`'s `decided`, the `decided` event, `Run.decided` and
+- [x] 2.1 Add `_decides`, `Run.decides`, the prompt's `{decide}`, `_amend`'s `decided`, the `decided` event, `Run.decided` and
   ` · decided <ids>` on the closing and `done` lines, in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3), [D4](design.md#d4)
   and [D7](design.md#d7); give `test_a_rescue_outside_the_plan_halts`' expected tuples their `False`.
   Verify: `grep -n 'def _decides' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 Add the `rescue-decides` rescue mode to `tests/fake_worker.py`, and `test_a_rescue_decides_under_the_switch` to
+- [x] 2.2 Add the `rescue-decides` rescue mode to `tests/fake_worker.py`, and `test_a_rescue_decides_under_the_switch` to
   `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue_decides_under_the_switch` reports `1 passed`.
-- [ ] 2.3 Add `rescues-decided` to `scripts/metrics/run.py` and `metrics/catalogue.toml`, and extend
+- [x] 2.3 Add `rescues-decided` to `scripts/metrics/run.py` and `metrics/catalogue.toml`, and extend
   `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, per [D4](design.md#d4).
   Verify: `grep -n 'id = "rescues-decided"' metrics/catalogue.toml` prints a line.
-- [ ] 2.4 Add `decide=recommended` to `skills/mf-rescue/SKILL.md`'s *Parameter* section, the trailer to Step 3a's commit, and
+- [x] 2.4 Add `decide=recommended` to `skills/mf-rescue/SKILL.md`'s *Parameter* section, the trailer to Step 3a's commit, and
   the switch's exception to each confining line [D3](design.md#d3) names.
   Verify: `grep -n 'Decided-by: rescue' skills/mf-rescue/SKILL.md` prints a line.
 
