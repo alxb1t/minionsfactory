@@ -863,6 +863,22 @@ def test_a_dependents_delta_halts_as_integrating(
     assert "release 0003-more" in _calls(calls)
     assert note.read_text() == held
 
+    # A link at the change's folder halts the version, not the run; nothing written.
+    marks, aside = note.parent, tmp_path / "aside"
+    marks.rename(aside)
+    (aside / "integrate.md").unlink()
+    marks.symlink_to(aside)
+    log = again(1)
+    assert (
+        " · 0002-marks · halt — conduct: halt — cannot write"
+        " .minions/changes/0002-marks/integrate.md — "
+    ) in log
+    assert " · run · halt — halted 0002-marks · blocked none · " in log
+    assert not (aside / "integrate.md").exists()
+    marks.unlink()
+    aside.rename(marks)
+    note.write_text(held)
+
     _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-marks")
     note.unlink()
     calls.unlink()
@@ -2548,6 +2564,24 @@ def test_a_run_moves_an_old_layout(
     )
     assert not (aside / "rescue.md").exists()
     assert (minions / "rescue" / "0002-marks.md").is_file()
+    folder.unlink()
+    aside.rename(folder)
+
+    # A link at an old folder halts too, and nothing moves from where it points.
+    outside, kept = tmp_path / "outside", tmp_path / "kept"
+    (outside / "0009-x").mkdir(parents=True)
+    held = ["0009-x", "0009-x_converge.log", "0009-x_review.md"]
+    for name in held[1:]:
+        (outside / name).write_text("theirs\n")
+    for old in ("findings", "gate-check", "runs/20261101-230000"):
+        (minions / old).rename(kept)
+        (minions / old).symlink_to(outside)
+        assert conduct["Run"](root, "claude").migrate_layout() == (
+            f".minions/{old} is a link: a person settles what it names"
+        )
+        assert sorted(path.name for path in outside.iterdir()) == held
+        (minions / old).unlink()
+        kept.rename(minions / old)
 
 
 def test_status_names_an_old_layout(

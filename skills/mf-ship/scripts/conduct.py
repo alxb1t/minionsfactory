@@ -3097,10 +3097,15 @@ class Run:
         if not opened and _maybe(tree, *merge) is None:
             self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
+            text = _note(tree, change, moved)
             # A link at the change's folder raises: the version halts, nothing written.
-            _write_in_change(
-                self.primary, change, "integrate.md", _note(tree, change, moved)
-            )
+            try:
+                _write_in_change(self.primary, change, "integrate.md", text)
+            except OSError as error:
+                name = f".minions/changes/{change}/integrate.md"
+                raise Stop(
+                    1, f"conduct: halt — cannot write {name} — {error.strerror}"
+                ) from None
             return
         message = f"chore(integrate): merge {default} into {change}"
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
@@ -3554,15 +3559,19 @@ class Run:
         """Move each change's old-layout files into its folder; return why to halt.
 
         Every file is checked before any moves: one beside its new path, or a link
-        at an old file, `changes/` or a change's folder, halts with nothing moved. A
-        move links the file in and unlinks the old, so it never replaces one.
-        Why: 0080-minions-layout design D4, D6.
+        at an old file, an old folder, `changes/` or a change's folder, halts with
+        nothing moved. A move links the file in and unlinks the old, so it never
+        replaces one. Why: 0080-minions-layout design D4, D6.
         """
         found = _old_files(self.primary)
         minions = self.primary / ".minions"
+        runs = minions / "runs"
+        stamps = sorted(runs.iterdir()) if runs.is_dir() else []
+        folders = sorted({minions / old.split("/")[0] for old in OLD_LAYOUT})
+        olds = [*folders, runs, *(s for s in stamps if OLD_STAMP.fullmatch(s.name))]
         for change, files in sorted(found.items()):
             folder = _change_dir(self.primary, change)
-            links = [minions / "changes", folder, folder / "logs"]
+            links = [*olds, minions / "changes", folder, folder / "logs"]
             for link in [*links, *(old for old, _ in files)]:
                 if link.is_symlink():
                     named = link.relative_to(self.primary)
