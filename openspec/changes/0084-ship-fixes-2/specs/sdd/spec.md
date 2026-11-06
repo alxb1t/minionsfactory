@@ -105,7 +105,7 @@ worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL in
 - **AND WHEN** the next run starts
 - **THEN** `.minions/tmp/` is empty, and a link there is replaced by a folder, its target untouched
 - **AND WHEN** a run starts with `.minions` a link
-- **THEN** it halts, naming the link, and removes nothing
+- **THEN** it halts, naming the link, and its target's `tmp` keeps its files
 
 #### Scenario: A worker links the scratch folder out
 - **WHEN** a worker replaces `.minions/tmp` with a link to a folder outside its reach, and a Codex worker starts
