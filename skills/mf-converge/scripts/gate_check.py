@@ -106,9 +106,9 @@ def _change_dir(primary: Path, change: str) -> Path:
     return primary / ".minions" / "changes" / change
 
 
-def exports() -> Path:
-    """Return `.minions/gate-check` beside the primary checkout, from any worktree."""
-    return _primary() / ".minions" / "gate-check"
+def exports(change: str) -> Path:
+    """Return the change's `gate-check/` in the primary's run directory."""
+    return _change_dir(_primary(), change) / "gate-check"
 
 
 def approval(change: str) -> str | None:
@@ -462,7 +462,7 @@ def read_gate(change: str, base: str, head: str) -> Gate:
     """Return the gate's edits and dry runs; an unreadable gate raises `Stop`."""
     cut = cut_commit(change)
     tasks = planning_tasks(_git("show", f"{cut}:openspec/changes/{change}/tasks.md"))
-    root = exports() / change
+    root = exports(change)
     shutil.rmtree(root, ignore_errors=True)
     try:
         base_files, base_lines = read_side(base, root / "base", "base")

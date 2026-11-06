@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The helper, and findings in the change's folder
 - [x] 2 — Worker logs in the change's folder
-- [ ] 3 — The rest of the change's files
+- [x] 3 — The rest of the change's files
 - [ ] 4 — The move, the halt on an old layout, both layouts read
 - [ ] 5 — The record
 
@@ -29,7 +29,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The rest of the change's files
 
-- [ ] 3.1 Move the models file, integrate's notes, build's marks, rescue's diagnosis, release's `held` and the gate-check export to
+- [x] 3.1 Move the models file, integrate's notes, build's marks, rescue's diagnosis, release's `held` and the gate-check export to
   D1's names at every F1–F4 site, mf-build's, mf-integrate's, mf-cut-change's, mf-ship's, mf-release's (`held`) and mf-rescue's
   (its rescue, `build.halt` and integrate-note lines) prose included, per [D1](design.md#d1).
   Verify: `grep -n 'build.done' skills/mf-build/SKILL.md` prints a line, and

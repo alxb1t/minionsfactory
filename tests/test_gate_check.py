@@ -88,7 +88,7 @@ def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     # A calling make's `-q` would fail both dry runs unless the check clears it.
     result = _check(tmp_path, base, {"MAKEFLAGS": "q"})
     assert (result.returncode, result.stdout) == (0, "gate: no unplanned change\n")
-    exports = tmp_path / ".minions" / "gate-check"
+    exports = tmp_path / ".minions" / "changes" / _CHANGE / "gate-check"
     assert not exports.exists() or not any(exports.iterdir())
 
 
@@ -403,7 +403,7 @@ def test_a_dry_run_failing_in_an_export_exits_2(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert result.stdout.startswith("gate: cannot check — the base's make database")
     assert ".env" in result.stdout
-    assert not (tmp_path / ".minions" / "gate-check" / _CHANGE).exists()
+    assert not (tmp_path / ".minions" / "changes" / _CHANGE / "gate-check").exists()
 
     # A path the branch marks `export-ignore` is missing from its export.
     ignored = tmp_path / "ignored"
@@ -438,7 +438,7 @@ def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
 
     result = _check(worktree, base)
     assert (result.returncode, result.stdout) == (0, "gate: no unplanned change\n")
-    exports = (primary / ".minions" / "gate-check" / _CHANGE).resolve()
+    exports = (primary / ".minions" / "changes" / _CHANGE / "gate-check").resolve()
     made = {Path(line) for line in log.read_text().splitlines()}
     assert made == {exports / "base", exports / "head"}
     assert not exports.exists() and not (worktree / ".minions").exists()

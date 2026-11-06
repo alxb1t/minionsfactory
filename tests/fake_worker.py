@@ -87,9 +87,9 @@ def _cards(
 
 
 def _done(root: Path, change: str, head: str) -> None:
-    folder = root / ".minions" / "build"
+    folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{change}.done").write_text(f"head: {head}\nsimplify: lean already\n")
+    (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
 def _person_amends(tree: Path, change: str, sha: str) -> bool:
@@ -190,9 +190,9 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
     elif "rescue-rewrite" in modes:
         _git(tree, "commit", "-q", "--amend", "-m", "rewritten")
     elif "rescue-diagnose" in modes:
-        folder = primary / ".minions" / "rescue"
+        folder = _folder(primary, change)
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / f"{change}.md").write_text("# diagnosis\n")
+        (folder / "rescue.md").write_text("# diagnosis\n")
     if "rescue-answers" in modes:
         # A rescue answering its halt on disk with a grant, then asking to rejoin.
         for name in ("grants", "runs/rejoin"):
@@ -294,10 +294,10 @@ def _fake(prompt: str) -> None:
     elif (
         station == "build" and f"halt-{change}" in modes and not _amended(here, change)
     ):
-        folder = primary / ".minions" / "build"
+        folder = _folder(primary, str(change))
         folder.mkdir(parents=True, exist_ok=True)
         head = _git(here, "rev-parse", "HEAD")
-        (folder / f"{change}.halt").write_text(
+        (folder / "build.halt").write_text(
             f"sub-task: 1.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
         )
     elif station == "build":
@@ -326,7 +326,7 @@ def _fake(prompt: str) -> None:
             agents.write_text(agents.read_text() + line)
     elif station == "converge":
         if "plant-executor" in modes:
-            table = primary / ".minions" / "models" / f"{change}.toml"
+            table = _folder(primary, str(change)) / "models.toml"
             table.parent.mkdir(parents=True, exist_ok=True)
             table.write_text('[release]\nexecutor = "codex"\n')
         # Each caps on cards of its size; `cap-again` caps a granted round too.

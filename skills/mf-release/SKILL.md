@@ -244,7 +244,7 @@ The **primary** is the worktree `git worktree list --porcelain` shows on `branch
 this checkout when none does. The merge happens there: git refuses a branch another worktree holds.
 
 Ask once, and wait: `Merge <branch> into <default-branch> and push? (yes/no)`. Anything but yes → write
-`.minions/release/<change-id>.held` holding the reason, then Step 6; a yes deletes it. In a linked worktree, ask the
+`.minions/changes/<change-id>/release.held` holding the reason, then Step 6; a yes deletes it. In a linked worktree, ask the
 form below instead. Under `merge=yes`, print the ask and take it as yes.
 
 When this checkout is a linked worktree other than the primary, the ask names it and what goes with it. List its

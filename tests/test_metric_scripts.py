@@ -349,8 +349,8 @@ _RUN_A = """# Ship run 20261101-230000
 00:10:30 · 0001-x · halt — converge check fail — the status log halts: cap
 00:10:31 · 0001-x · spawn — rescue · model m
 00:11:31 · 0001-x · finish — rescue · exit 0 · 60s
-00:11:31 · run · rescue — 0001-x: diagnosed · .minions/rescue/0001-x.md
-00:11:31 · 0001-x · halt — rescue diagnosed — .minions/rescue/0001-x.md
+00:11:31 · run · rescue — 0001-x: diagnosed · .minions/changes/0001-x/rescue.md
+00:11:31 · 0001-x · halt — rescue diagnosed — .minions/changes/0001-x/rescue.md
 00:12:00 · run · rejoin — 0001-x: still halted — answered
 00:21:31 · run · rejoin — 0001-x: converge
 00:21:31 · run · grant — 0001-x: one more round past the cap
@@ -440,9 +440,10 @@ def _run_fixture(root: Path) -> dict[str, str]:
             " · open_blocking 1\n\n"
             "## Run 1 — 2026-11-02 09:00\n"
             "09:01:00 · round 1 · halt — the gate is red\n",
-            ".minions/build/0001-x.done": f"head: {built}\nsimplify: lean already\n",
-            ".minions/build/0002-y.done": f"head: {unmerged}\n",
-            ".minions/build/0004-w.done": f"head: {built}\n",
+            ".minions/changes/0001-x/build.done": f"head: {built}\n"
+            "simplify: lean already\n",
+            ".minions/changes/0002-y/build.done": f"head: {unmerged}\n",
+            ".minions/changes/0004-w/build.done": f"head: {built}\n",
         },
     )
     return {"MF_METRICS_CHANGE": "0001-x", "MF_METRICS_BASE": base} | {
@@ -498,7 +499,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert read("lead-minutes", "0003-z") == "gap: no release spawn"
     assert read("integrate-minutes", "0003-z") == 0
     assert read("grants", "0003-z") == "gap: no 0003-z/status_log.md"
-    assert read("build-commits", "0003-z") == "gap: no head in 0003-z.done"
+    assert read("build-commits", "0003-z") == "gap: no head in 0003-z/build.done"
     # A version released by hand: no run log, its commits and cards still read.
     assert read("wait-minutes", "0004-w") == "gap: no run log names 0004-w"
     assert read("halts-build", "0004-w") == "gap: no run log names 0004-w"
@@ -509,7 +510,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "gap: no round 1 verdicts with open_blocking"
     )
     assert read("fix-commits", "0002-y") == (
-        "gap: 0002-y.done's head is not in the version's history"
+        "gap: 0002-y/build.done's head is not in the version's history"
     )
     assert read("lead-minutes", "0005-v") == (
         "gap: no commit `docs(0005-v): land the change directory`"

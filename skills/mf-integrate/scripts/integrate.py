@@ -207,7 +207,7 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
     """Return whether the version's merge is open with its note beside it."""
-    note = _run_dir(cwd) / "integrate" / f"{change}.md"
+    note = _change_dir(cwd, change) / "integrate.md"
     return (
         tree is not None
         and note.is_file()

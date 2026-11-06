@@ -339,20 +339,21 @@ class Version:
         return sum(h.rstrip().endswith("· grant") for h, _ in self.status_runs)
 
     def commits(self, fixes: bool) -> int:
-        """Return the commits up to the build's `.done` head, or after it, if `fixes`.
+        """Return the commits up to `build.done`'s head, or after it, if `fixes`.
 
         Counted along the first parent, merges left out.
         """
-        done = self.minions / "build" / f"{self.change}.done"
+        done = self.folder / "build.done"
+        name = f"{self.change}/{done.name}"
         found = done.is_file() and re.search(
             r"^head: ([0-9a-f]{7,40})\s*$", done.read_text(), re.MULTILINE
         )
         if not found:
-            raise Gap(f"no head in {done.name}")
+            raise Gap(f"no head in {name}")
         built = found[1]
         ancestor = ["git", "merge-base", "--is-ancestor", built, self.head]
         if subprocess.run(ancestor, cwd=self.root, capture_output=True).returncode:
-            raise Gap(f"{done.name}'s head is not in the version's history")
+            raise Gap(f"{name}'s head is not in the version's history")
         span = f"{built}..{self.head}" if fixes else f"{self.base}..{built}"
         count = ("rev-list", "--first-parent", "--no-merges", "--count", span)
         return int(_git(self.root, *count))

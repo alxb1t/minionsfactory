@@ -112,7 +112,7 @@ def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
 
     _commit(root, {"moved.txt": "x\n"}, "main moves")
     _git(early, "merge", "-q", "--no-ff", "--no-commit", "main")
-    note = root / ".minions" / "integrate" / "009-early.md"
+    note = root / ".minions" / "changes" / "009-early" / "integrate.md"
     note.parent.mkdir(parents=True)
     note.write_text("note\n")
     result = _run(root, "next", "009-early")
@@ -132,7 +132,7 @@ def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     assert f" · {early.resolve()} · " in result.stdout
 
     findings = root / ".minions" / "changes" / "009-early"
-    findings.mkdir(parents=True)
+    findings.mkdir(parents=True, exist_ok=True)
     (findings / "review.md").write_text("---\nverdict: clean\n---\n")
     result = _run(root, "next", "009-early")
     assert result.returncode == 1

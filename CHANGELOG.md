@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through one `_change_dir` per script; `metrics.py`'s own helper is `_spec_dir` (change `0080-minions-layout`, phase 1).
 - A change's worker logs are `.minions/changes/<change-id>/logs/<stamp>-<station>[-<n>].log`, read there by the run and
   review metrics and the rescue; the run's probe keeps `runs/<stamp>/run_<station>.log` (change `0080-minions-layout`, phase 2).
+- The models file, integrate's notes, build's marks, the rescue's diagnosis, the release's `held` and the gate-check
+  export move into the change's folder as `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing}`,
+  `rescue.md`, `release.held` and `gate-check/` (change `0080-minions-layout`, phase 3).
 
 ## [0.65.0] - 2026-11-06
 

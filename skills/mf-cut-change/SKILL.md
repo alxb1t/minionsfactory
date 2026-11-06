@@ -308,7 +308,7 @@ session's menu; with no menu, describe the capability needed — never invent mo
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
-write it to `.minions/models/<change-id>.toml`, the run directory's, for `mf-ship`; never into tracked prose.
+write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for `mf-ship`; never into tracked prose.
 
 | the change holds | build with |
 |---|---|

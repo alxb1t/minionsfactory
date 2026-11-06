@@ -526,12 +526,12 @@ def _granted_run(runs: Path, change: str) -> bool:
 
 
 def _closed(runs: Path, tree: Path, change: str) -> bool:
-    """Return whether `.minions/build/<change>.done` names the tree's `HEAD`.
+    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`.
 
     A missing or unreadable file is not closed, nor is one that is no regular file.
     Why: 0055-build-resume design D2.
     """
-    done = runs / "build" / f"{change}.done"
+    done = _change_dir(runs.parent, change) / "build.done"
     if not done.is_file():
         return False
     try:
@@ -546,12 +546,12 @@ def _closed(runs: Path, tree: Path, change: str) -> bool:
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
-    r"""Return `.minions/build/<change>.halt`'s sub-task and stop when it names `HEAD`.
+    r"""Return `build.halt`'s sub-task and stop when it names `HEAD`.
 
     None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
     e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
     """
-    file = runs / "build" / f"{change}.halt"
+    file = _change_dir(runs.parent, change) / "build.halt"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -699,7 +699,7 @@ def _red(primary: Path, tree: Path, change: str) -> str | None:
     None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
     e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
     """
-    file = primary / ".minions" / "integrate" / f"{change}.red"
+    file = _change_dir(primary, change) / "integrate.red"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -821,9 +821,9 @@ def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str,
     that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
     """
     runs = primary / ".minions"
-    if (runs / "release" / f"{change}.held").is_file():
+    if (_change_dir(primary, change) / "release.held").is_file():
         return "released", (
-            f"{tag}: .minions/release/{change}.held holds a person's no:"
+            f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
         )
     own = _maybe(tree, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
@@ -855,17 +855,18 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = primary / ".minions"
     red, merging = _red(primary, tree, change), _merge_open(tree)
+    note = f".minions/changes/{change}/integrate"
     if red is not None and not merging:
         if red == _git(tree, "rev-parse", "HEAD").strip():
-            return "integrating", f"red gate: .minions/integrate/{change}.red"
+            return "integrating", f"red gate: {note}.red"
         return "integrate", "red gate on another head: integrate gates again"
     if merging:
-        marks = runs / "integrate"
+        marks = _change_dir(primary, change)
         # A `.red` with a `head:` names a committed merge: an open one's is stale.
-        if red is None and (marks / f"{change}.red").is_file():
-            return "integrating", f"red gate: .minions/integrate/{change}.red"
-        if (marks / f"{change}.md").is_file():
-            return "integrating", f"semantic conflict: .minions/integrate/{change}.md"
+        if red is None and (marks / "integrate.red").is_file():
+            return "integrating", f"red gate: {note}.red"
+        if (marks / "integrate.md").is_file():
+            return "integrating", f"semantic conflict: {note}.md"
         if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
         return (
@@ -918,7 +919,7 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     if _dirty(tree):
         return "the tree is not clean"
     if not _closed(primary / ".minions", tree, change):
-        return f"no .minions/build/{change}.done names HEAD"
+        return f"no .minions/changes/{change}/build.done names HEAD"
     return None
 
 
@@ -942,7 +943,7 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     read is the newest first-parent merge's, so the person's fix commit after it
     passes. Why: 0071-ship-fixes design D2.
     """
-    note = f".minions/integrate/{version.change}"
+    note = f".minions/changes/{version.change}/integrate"
     red = _red(primary, tree, version.change)
     if _merge_open(tree):
         if red is None and (primary / f"{note}.red").is_file():
@@ -1780,13 +1781,15 @@ class RunLog:
 
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
     """Return a table of the cut's models file; None with no file or no such table."""
-    path = runs / "models" / f"{change}.toml"
+    path = _change_dir(runs.parent, change) / "models.toml"
     if not path.is_file():
         return None
     try:
         data = tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as error:
-        raise Stop(1, f"conduct: halt — models/{path.name}: {error}") from None
+        raise Stop(
+            1, f"conduct: halt — changes/{change}/models.toml: {error}"
+        ) from None
     table = data.get(name)
     return table if isinstance(table, dict) else None
 
@@ -1806,7 +1809,7 @@ def _models(
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
     model = model if isinstance(model, str) else None
-    file = f"models/{change}.toml"
+    file = f"changes/{change}/models.toml"
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
     if executor == "codex" and (model or "").startswith("claude"):
@@ -2672,7 +2675,7 @@ class Run:
             self.rescues.setdefault(change, []).append(held)
         models = self.planned_models(change, "rescue")
         before = _git(tree, "rev-parse", "HEAD").strip()
-        diagnosis = self.primary / ".minions" / "rescue" / f"{change}.md"
+        diagnosis = _change_dir(self.primary, change) / "rescue.md"
         written = _mtime(diagnosis)
         prompt = PROMPTS["rescue"].format(change=change)
         try:
@@ -2684,7 +2687,7 @@ class Run:
                 with self.guard:
                     self.halts = [halt for halt in self.halts if halt[0] != change]
                 return True
-            name = f".minions/rescue/{change}.md"
+            name = f".minions/changes/{change}/rescue.md"
             if not why and _mtime(diagnosis) not in (None, written):
                 self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
                 why = f"rescue diagnosed — {name}"
@@ -2701,8 +2704,8 @@ class Run:
         descriptor, so a link at either names no place outside the run directory.
         Why: 0071-ship-fixes design D8.
         """
-        name = f".minions/rescue/{change}.md"
-        folder = self.primary / ".minions" / "rescue"
+        name = f".minions/changes/{change}/rescue.md"
+        folder = _change_dir(self.primary, change)
         text = (
             f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
             "cause: a Verify: changed since the cut\n"
@@ -2714,7 +2717,7 @@ class Run:
             folder.mkdir(parents=True, exist_ok=True)
             fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
-                file = os.open(f"{change}.md", flags, 0o644, dir_fd=fd)
+                file = os.open("rescue.md", flags, 0o644, dir_fd=fd)
             finally:
                 os.close(fd)
             with os.fdopen(file, "w") as out:
@@ -2770,7 +2773,8 @@ class Run:
         models = _models(self.primary / ".minions", change, station, self.executor)
         if models != self.plan.get((change, station)):
             raise Stop(
-                1, f"conduct: halt — models/{change}.toml changed during the run"
+                1,
+                f"conduct: halt — changes/{change}/models.toml changed during the run",
             )
         return models
 
@@ -2994,7 +2998,7 @@ class Run:
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
-        note = self.primary / ".minions" / "integrate" / f"{change}.md"
+        note = _change_dir(self.primary, change) / "integrate.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
             return
@@ -3064,8 +3068,10 @@ class Run:
             return
         at = shlex.quote(str(tree))
         if _merge_open(tree):
-            marks = self.primary / ".minions" / "integrate"
-            noted = any((marks / f"{change}{end}").is_file() for end in (".md", ".red"))
+            marks = _change_dir(self.primary, change)
+            noted = any(
+                (marks / f"integrate{end}").is_file() for end in (".md", ".red")
+            )
             after = _dependencies(self.primary, change)
             if noted or not all(_shipped(tree, "HEAD", name) for name in after):
                 return
@@ -3231,7 +3237,7 @@ class Run:
             self.models(change, station) != self.plan.get((change, station))
             for station in PLANNED
         ):
-            moved = f"models/{change}.toml changed during the run"
+            moved = f"changes/{change}/models.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
         with self.guard:

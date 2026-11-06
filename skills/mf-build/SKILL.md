@@ -21,9 +21,9 @@ it → **halt**, naming the decision and the task.
   1 lift
   2 first unticked phase: tasks ─▶ verifies ─▶ check, the gate at the last ─▶ CHANGELOG ─▶ tick ─▶ commit
       └─ again, until every phase is ticked
-  3 .minions/build/<change-id>.closing, then mf-simplify ─▶ its commit, lean already or nothing kept
+  3 .minions/changes/<change-id>/build.closing, then mf-simplify ─▶ its commit, lean already or nothing kept
   3.5 metrics, when the repo has a catalogue: collect ─▶ page
-  3.6 .minions/build/<change-id>.done ─▶ HEAD and simplify's outcome
+  3.6 .minions/changes/<change-id>/build.done ─▶ HEAD and simplify's outcome
   4 report
 ```
 
@@ -109,8 +109,8 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 |---|---|
 | the tree is dirty, `tasks.md` is tracked, and a `## Progress` box is unticked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
-| every box ticked, and `.minions/build/<change-id>.done` names `HEAD` | the change is built: report that and stop; invent no scope |
-| every box ticked, and no `.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/build/<change-id>.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no `.minions/build/<change-id>.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
+| every box ticked, and `.minions/changes/<change-id>/build.done` names `HEAD` | the change is built: report that and stop; invent no scope |
+| every box ticked, and no `build.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/changes/<change-id>/build.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no `.minions/changes/<change-id>/build.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
 
 ## Executor — report it
 
@@ -192,7 +192,7 @@ Then take the next unticked phase, from Step 2 again, until every box is ticked.
 
 ## Step 3 — Close with the simplify pass
 
-After the last phase, and only then, write `.minions/build/<change-id>.closing`, the run directory's, one line:
+After the last phase, and only then, write `.minions/changes/<change-id>/build.closing`, the run directory's, one line:
 `head: <the full sha of HEAD>`. It marks what Step 3 leaves dirty as the build's own. Then:
 
 1. Run [`mf-simplify`](../mf-simplify/SKILL.md), resolved from this installed skill package, not the target's cwd;
@@ -231,7 +231,7 @@ before converge.
 
 ## Step 3.6 — Mark the closing steps done
 
-After Step 3.5, `mf-build` writes `.minions/build/<change-id>.done`, the run directory's, two lines:
+After Step 3.5, `mf-build` writes `.minions/changes/<change-id>/build.done`, the run directory's, two lines:
 
 ```
 head: <the full sha of HEAD>
@@ -239,7 +239,7 @@ simplify: <the simplify commit's sha> | lean already | nothing kept
 ```
 
 It writes it only once Step 3 and Step 3.5 are done; `metrics: none — no catalogue` counts as done. Step 4's report
-names it. Then it removes `.minions/build/<change-id>.closing`.
+names it. Then it removes `.minions/changes/<change-id>/build.closing`.
 
 ## Step 4 — Report, then stop
 
@@ -256,7 +256,7 @@ Then **stop** and hand back.
 Halt by **stopping cleanly, without committing and without ticking the box**, and report the specific question.
 An unticked box on a clean tree is a legible place to resume; a half-finished phase committed as whole is not.
 
-**Every halt writes `.minions/build/<change-id>.halt`**, the run directory's, before the close-out — a stop-condition
+**Every halt writes `.minions/changes/<change-id>/build.halt`**, the run directory's, before the close-out — a stop-condition
 below, a failing `**HALT CHECK**`, a gate check's exit, any halt this skill names. `mf-ship` reads it into the halt
 line, and `mf-rescue` starts from it:
 
