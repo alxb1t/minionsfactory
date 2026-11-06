@@ -2333,6 +2333,18 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not list(scratch.iterdir())
     assert (outside / "kept.txt").read_text() == "x\n"
 
+    # A link at `.minions`, which a worker hides from git, halts the run: its
+    # target's `tmp` keeps its file. Why: 0084-ship-fixes-2's delta.
+    minions, aside = root / ".minions", tmp_path / "aside"
+    minions.rename(aside)
+    minions.symlink_to(aside)
+    (root / ".git" / "info" / "exclude").write_text(".minions\n")
+    (aside / "tmp" / "kept.txt").write_text("x\n")
+    assert run() == 1
+    assert (aside / "tmp" / "kept.txt").read_text() == "x\n"
+    linked = " · run · halt — .minions is a link: a person settles what it names\n"
+    assert any(linked in log.read_text() for log in (aside / "runs").glob("*.md"))
+
 
 def test_a_run_moves_an_old_backlog_to_the_debt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -5060,6 +5072,21 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     log.write_text(f"# t\n\n## Run 2 — d · grant\n{granted}\n")
     assert stage_of(root, version) == ("converge-halted", regranted)
     assert check(root, "converge", version) == f"the status log halts: {regranted}"
+    # A halt before round 1 at `HEAD` runs again, its check naming it; any commit
+    # past the head answers it, the findings files unread, in a catch-up run too.
+    # Why: 0084-ship-fixes-2 design D1.
+    halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {judged}"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
+    assert stage_of(root, version) == ("converge", conduct["RERUN"])
+    assert check(root, "converge", version) == f"the status log halts: {halt}"
+    _commit(tree, {"early.txt": "x\n"}, "a commit past the halt")
+    early = ("converge", conduct["AMENDED"])
+    assert stage_of(root, version) == early
+    caught = f"10:00:00 · round 1 · halt — red · head {judged}"
+    since = f"09:59:00 · round 1 · catch-up — judged {judged}"
+    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{caught}\n{since}\n")
+    assert stage_of(root, version) == early
+    _git(tree, "reset", "-q", "--hard", judged)
     log.write_text(f"# t\n\n## Run 1 — d\n{capped}\n{start}\n")
 
     _commit(tree, {"fix.txt": "fixed\n"}, "a person's fix")
@@ -5256,21 +5283,7 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     _done(root, "0001-todo", head)
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {head}"
-    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
-    version = conduct["find_version"](root, "0001-todo")
-    stage_of, check = conduct["stage_of"], conduct["check"]
-    rerun = ("converge", conduct["RERUN"])
-    assert stage_of(root, version) == rerun
-    assert check(root, "converge", version) == f"the status log halts: {halt}"
-    # Any commit past the head answers it, the findings files unread.
-    _commit(tree, {"fix.txt": "x\n"}, "a commit past the halt")
-    amended = ("converge", conduct["AMENDED"])
-    assert stage_of(root, version) == amended
-    caught = f"10:00:00 · round 1 · halt — red · head {head}"
-    since = f"09:59:00 · round 1 · catch-up — judged {head}"
-    log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{caught}\n{since}\n")
-    assert stage_of(root, version) == amended
-    _git(tree, "reset", "-q", "--hard", head)
+    # test_a_fix_after_a_cap_halt_converges_afresh reads its stage and check.
     log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
 
     # Halted in the run, it runs again on a rejoin with no commit, and releases.

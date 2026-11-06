@@ -63,9 +63,10 @@ MCP servers of the operator's own config start nothing. Its network SHALL reach 
 domains `AGENTS.md`'s `Ship network:` line names, and its sandbox SHALL never have `allowLocalBinding`: it binds no
 loopback port, in any repo. A Codex worker SHALL run with its network off, and SHALL
 start with its working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a
-project's `.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache and their
-temporary files in the run directory — `TMPDIR` names `.minions/tmp/`, which a run empties at its start, and a Codex worker
-SHALL never take `TMPDIR` as a writable root of its own — and neither SHALL inherit the conductor's `VIRTUAL_ENV`.
+project's `.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache in the run
+directory, and both SHALL start with `TMPDIR` naming `.minions/tmp/`, which a run empties at its start, halting when `.minions`
+is a link; a Claude worker's sandboxed command may take Claude Code's own `TMPDIR` instead, inside its sandbox, and a Codex
+worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL inherit the conductor's `VIRTUAL_ENV`.
 
 #### Scenario: A script tries to leave
 - **WHEN** a worker or its subagent runs a script that writes outside its reach, reads `~/.ssh`, reads a credential variable and
@@ -99,9 +100,12 @@ SHALL never take `TMPDIR` as a writable root of its own — and neither SHALL in
 
 #### Scenario: A worker makes a scratch file
 - **WHEN** a worker on either executor runs `mktemp`
-- **THEN** the file is made under the primary's `.minions/tmp/`, inside its sandbox
+- **THEN** the file is made inside its sandbox: under the primary's `.minions/tmp/` on Codex, and on Claude there or under
+  Claude Code's own `TMPDIR`
 - **AND WHEN** the next run starts
 - **THEN** `.minions/tmp/` is empty, and a link there is replaced by a folder, its target untouched
+- **AND WHEN** a run starts with `.minions` a link
+- **THEN** it halts, naming the link, and removes nothing
 
 #### Scenario: A worker links the scratch folder out
 - **WHEN** a worker replaces `.minions/tmp` with a link to a folder outside its reach, and a Codex worker starts

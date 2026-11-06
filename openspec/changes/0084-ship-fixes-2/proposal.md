@@ -19,8 +19,8 @@ scratch path: `mktemp` writes outside a worker's sandbox.
 
 ## What Changes
 
-- **A halt before round 1** — a converge halt in a run with no `start` line, save a `verify: halt`, is answered by any commit past
-  its head, or re-run once per run at the same head; converge opens a plain new run for it; it gets no rescue.
+- **A halt before round 1** — a converge halt in a run with no `start` line, not marked `· grant`, save a `verify: halt`, is
+  answered by any commit past its head, or re-run once per run at the same head; converge opens a plain new run for it; it gets no rescue.
 - **The load-bound tests** — the stale-lock test's young lock is 60 s inside `LOCK_STALE`; `tests/test_metrics.py`'s limit is 5 s;
   `_when_logged` polls the halted version's thread instead of sleeping 0.5 s.
 - **A scratch place** — every worker's environment holds `TMPDIR=<primary>/.minions/tmp`, beside `UV_CACHE_DIR`, emptied at a

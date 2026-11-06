@@ -694,18 +694,29 @@ def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
     return age
 
 
-def _fresh_tmp(primary: Path) -> None:
-    """Leave `.minions/tmp/`, the workers' `TMPDIR`, an empty folder.
+def _fresh_tmp(primary: Path) -> str | None:
+    """Leave `.minions/tmp/`, the workers' `TMPDIR`, empty; return why to halt.
 
-    A link or a file there is unlinked, never followed.
-    Why: 0084-ship-fixes-2 design D6.
+    A link or a file there is unlinked, never followed. A link at `.minions` halts
+    with nothing removed: the delete runs through a descriptor on the folder itself.
+    Why: 0084-ship-fixes-2 design D6, its delta's *A worker makes a scratch file*.
     """
-    tmp = primary / ".minions" / "tmp"
-    if tmp.is_dir() and not tmp.is_symlink():
-        shutil.rmtree(tmp)
-    elif os.path.lexists(tmp):
-        tmp.unlink()
-    tmp.mkdir(parents=True, exist_ok=True)
+    if (primary / ".minions").is_symlink():
+        return ".minions is a link: a person settles what it names"
+    fd = _folder_fd(primary, ".minions")
+    try:
+        try:
+            mode = os.lstat("tmp", dir_fd=fd).st_mode
+        except FileNotFoundError:
+            mode = None
+        if mode is not None and stat.S_ISDIR(mode):
+            shutil.rmtree("tmp", dir_fd=fd)
+        elif mode is not None:
+            os.unlink("tmp", dir_fd=fd)
+        os.mkdir("tmp", dir_fd=fd)
+    finally:
+        os.close(fd)
+    return None
 
 
 def _converge_halt(runs: Path, change: str) -> str | None:
@@ -3720,7 +3731,10 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         self.unlock(DEBT_LOCK)
-        _fresh_tmp(self.primary)
+        if why := _fresh_tmp(self.primary):
+            self.halt("run", why)
+            self.log.event("run", "halt", self.closing())
+            return 1
         if not versions:
             self.log.event("run", "done", "nothing to ship")
             return 0
