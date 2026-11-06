@@ -29,7 +29,7 @@ manage its halts itself, with no supervisor role.
 - **The run goes on** — an amend landing during a rescue no longer freezes the version; each poll takes back every halted version
   answered on disk, with no request; the run ends only when nothing can move, its closing line naming what each halted version
   needs.
-- **The record** — D47 and D53 amended, D59 added; `THREAT_MODEL.md` names a rescue committing a card's fix; `mf-ship`'s and
+- **The record** — D47 and D53 amended, D60 added; `THREAT_MODEL.md` names a rescue committing a card's fix; `mf-ship`'s and
   `mf-rescue`'s skills.
 
 ## Capabilities
@@ -51,7 +51,7 @@ None.
 ## Impact
 
 Changes `skills/mf-ship/scripts/conduct.py`, `skills/mf-rescue/SKILL.md`, `skills/mf-ship/SKILL.md`, `docs/decisions.md` (D47,
-D53, D59), `THREAT_MODEL.md`, `scripts/metrics/run.py`, `metrics/catalogue.toml`, `tests/test_conduct.py`, `tests/fake_worker.py`
+D53, D60), `THREAT_MODEL.md`, `scripts/metrics/run.py`, `metrics/catalogue.toml`, `tests/test_conduct.py`, `tests/fake_worker.py`
 and `tests/test_metric_scripts.py`.
 
 Builds on `0082-cut-station` (the switch's place, the queue, `admit`) and `0084-ship-fixes-2` (the halt before round 1).

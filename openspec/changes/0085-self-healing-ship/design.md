@@ -53,7 +53,7 @@ mid-run comes back with no request.
 | [D5](#d5) | `hold` lets an amends-only answer go on, logged `amended`; every other answer freezes as before | S9 (gap 3) | dropping the freeze for grants and merges |
 | [D6](#d6) | `Run.recheck` at each poll takes back a halted version whose stage or `HEAD` changed on disk; each poll waits one `REJOIN_POLL` at most | S3, S9 | a request the run writes itself |
 | [D7](#d7) | The run ends when no thread is live and no request, cut or re-check starts one; the close names each halted version's need and the decisions | S8, S10 | a new closing format |
-| [D8](#d8) | D47 and D53 amended, D59 added; the threat model, the skills and the metrics | S11, S8 | — |
+| [D8](#d8) | D47 and D53 amended, D60 added; the threat model, the skills and the metrics | S11, S8 | — |
 
 ### D1
 
@@ -166,22 +166,22 @@ e.g. `run · halt — halted 0001-a 0002-b · blocked none · released v0.3.0 ·
 
 ### D8
 
-- **`docs/decisions.md`** — **D59 · A run heals its own halts**, after D53, its id added to the diagram's *Repo conventions* list (`docs/decisions.md:15`): the rescue amends at `amend needed`; under
+- **`docs/decisions.md`** — **D60 · A run heals its own halts**, after D53, its id added to the diagram's *Repo conventions* list (`docs/decisions.md:15`): the rescue amends at `amend needed`; under
   a version's `decide = "recommended"` it takes a card's or the plan's proposed fix, `proposal.md` and `design.md`'s
   `## Decisions` included, with `Decided-by: rescue`, never S7's never-list; the person's amends during a rescue let the version
   go on; each poll takes back a halt answered on disk; the run ends when nothing can move, its close naming each need and
   decision. **Why:** a supervising chat answered every halt of 2026-11-05/06, ~70% of them the line's gaps. **Rejected:** a
   supervisor role · `[rescue] decide` · an `AGENTS.md` switch (D56) · a request the run writes itself · a push notification.
   **D53** — "It may fix a build halt" → "It may fix a build halt or an `amend needed` halt"; "never `design.md`'s decisions table"
-  → "never `design.md`'s decisions table, save under D59's switch"; the freeze sentence gains "save the person's amends, which
+  → "never `design.md`'s decisions table, save under D60's switch"; the freeze sentence gains "save the person's amends, which
   let the version go on"; *Rejected*'s "a rescue that changes a decision" → "a rescue that changes a decision with no switch".
   **D47** — "nor one whose converge or integrate halt was answered while its rescue ran, the person's own fix included" gains
   ", save by the person's amends alone", and "A live run takes a rejoin request" gains "and, at each poll, every halt answered
-  on disk ([D59](#d59--a-run-heals-its-own-halts))". `0082-cut-station` amends D47 and D51 too: the build edits the text as it
+  on disk ([D60](#d60--a-run-heals-its-own-halts))". `0082-cut-station` amends D47 and D51 too: the build edits the text as it
   stands after that merge.
 - **`THREAT_MODEL.md`** — the mailbox paragraph's freeze sentence gains the amends exception; the worker-steering paragraph
   gains: under a version's switch, a rescue commits a worker-written card's fix — the class accepted on 2026-11-01 — bounded by
-  D59's paths, the `Decided-by:` check and the switch the plan reads once a run.
+  D60's paths, the `Decided-by:` check and the switch the plan reads once a run.
 - **`skills/mf-ship/SKILL.md`** — the `rejoin` row (`:55`) and the `run · live` row (`:85`) gain the amends exception and the
   run's own re-check; the diagnosed row (`:90`) gains `<change-id> · decided <sub-task> · <sha>`; the frozen row (`:91`) names the
   amends exception; the closing sentence (`:123`) gains ` · decided <ids> · needs <id> <action>`.
@@ -229,7 +229,7 @@ None.
 ## Risks / Trade-offs
 
 - A decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change after it, and
-  the close and `report` name it for the person (D59, the threat model).
+  the close and `report` name it for the person (D60, the threat model).
 - A re-check every poll reads each halted version's stage from disk: git calls bound by the halted versions' count, every 10 s.
 - `_needs` reads the stage at the close: a stage changed after the last poll names what it needs then.
 - The person's amend during a rescue at a cap answers nothing (`_amendable`), so it freezes as before.
