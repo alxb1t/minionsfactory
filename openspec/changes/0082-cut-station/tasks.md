@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The queue
 - [x] 2 — The station
-- [ ] 3 — The unattended cut
+- [x] 3 — The unattended cut
 - [ ] 4 — The record
 
 ## 1 — The queue
@@ -58,15 +58,15 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The unattended cut
 
-- [ ] 3.1 Add the `unattended` row to the *Parameters* table of `skills/mf-cut-change/SKILL.md`, and the **Unattended**
+- [x] 3.1 Add the `unattended` row to the *Parameters* table of `skills/mf-cut-change/SKILL.md`, and the **Unattended**
   paragraph after it, per [D7](design.md#d7).
   Verify: `grep -n 'decided by the cutter' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.2 Edit Steps 1, 3, 4, 6, 8.5, 9 and 11 of `skills/mf-cut-change/SKILL.md` for the unattended cut, per
+- [x] 3.2 Edit Steps 1, 3, 4, 6, 8.5, 9 and 11 of `skills/mf-cut-change/SKILL.md` for the unattended cut, per
   [D7](design.md#d7).
   Verify: `grep -n 'Next: the run builds it.' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.3 Edit *Suggesting models* and *Never* in `skills/mf-cut-change/SKILL.md`, per [D7](design.md#d7).
+- [x] 3.3 Edit *Suggesting models* and *Never* in `skills/mf-cut-change/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n 'where the brief names the models' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.4 Rewrite Step 2's *Moved facts* opening in `skills/mf-cut-change/SKILL.md`, per [D8](design.md#d8).
+- [x] 3.4 Rewrite Step 2's *Moved facts* opening in `skills/mf-cut-change/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n '7 to 40 characters of' skills/mf-cut-change/SKILL.md` prints a line.
 
 ## 4 — The record
