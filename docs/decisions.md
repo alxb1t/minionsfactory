@@ -582,7 +582,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
 `diff.patch`, `models.toml`, `integrate.{md,red,resolved}`, `build.{done,halt,closing,discarded.patch}`, `rescue.md`,
 `release.held`, `gate-check/` and `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own
-`_change_dir`. `grants/`, `runs/`, `gate/`, `replay/`, `metrics/` and `debt.md` stay generic, the run's probe logging to
+`_change_dir`. `grants/`, `runs/`, `gate/`, `replay/`, `metrics/`, `awake/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker, and a file
 beside its new one or a link halts it; a hand-run station or script on an old layout halts, naming `/mf-ship`, and
 `review_metrics.py` reads both.**

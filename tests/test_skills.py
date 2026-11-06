@@ -461,7 +461,8 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # The stations run each bundled script from its owner's package: the owner by its own
 # path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
 # 0034-gate-recipe-hardening design D5; 0037-serial-integration design Tests;
-# 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1.
+# 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
+# 0081-cut-awake design D4.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
@@ -475,6 +476,7 @@ _METRICS_SCRIPTS = [
     ("mf-integrate", "scripts/integrate.py"),
     ("mf-ship", "scripts/conduct.py"),
     ("mf-cut-change", "scripts/verify_check.py"),
+    ("mf-cut-change", "scripts/awake.py"),
 ]
 
 
@@ -524,6 +526,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
         "skills/mf-cut-change/SKILL.md: scripts/verify_check.py: not named",
+        "skills/mf-cut-change/SKILL.md: scripts/awake.py: not named",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -540,6 +543,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
         "skills/mf-cut-change/SKILL.md: scripts/verify_check.py: not named",
+        "skills/mf-cut-change/SKILL.md: scripts/awake.py: not named",
     ]
 
 

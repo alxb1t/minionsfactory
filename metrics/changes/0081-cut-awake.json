@@ -1,0 +1,245 @@
+{
+  "change": "0081-cut-awake",
+  "version": "v0.67",
+  "base": "f349aa8",
+  "analyzed": "7d9aa35",
+  "measured_on": "local",
+  "collected_at": "2026-11-06T15:15:10+02:00",
+  "mf_version": "v0.65.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 18161
+    },
+    "converge-worker-reading-set": {
+      "value": 14148
+    },
+    "shared-context": {
+      "value": 9240
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 223
+    },
+    "gate-seconds": {
+      "value": 105
+    },
+    "largest-module-lines": {
+      "value": 6087
+    },
+    "modules-over-1000-lines": {
+      "value": 3
+    },
+    "complex-functions": {
+      "value": 13
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.29
+    },
+    "python-lines": {
+      "value": 22053
+    },
+    "dependencies": {
+      "value": 0
+    },
+    "dev-dependencies": {
+      "value": 7
+    },
+    "test-seconds": {
+      "value": 102.88
+    },
+    "slowest-test-seconds": {
+      "value": 28.56
+    },
+    "test-seconds-summed": {
+      "value": 941.9
+    },
+    "slow-tests": {
+      "value": 72
+    },
+    "total-coverage": {
+      "value": 96.5
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 73
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 21
+    },
+    "diff-lines": {
+      "value": 684
+    },
+    "diff-files": {
+      "value": 11
+    },
+    "lead-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "build-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "converge-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "catch-up-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "integrate-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "wait-minutes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "converge-rounds": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "blockers-round-1": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "grants": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "halts-build": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "halts-converge": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "halts-integrate": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "halts-release": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "rescues-fixed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "rescues-diagnosed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "build-commits": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "fix-commits": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-usd-build": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-usd-catch-up": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-usd-integrate": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "tokens": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "tokens-build": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "tokens-converge": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "tokens-catch-up": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "tokens-integrate": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "review-confirmed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "security-confirmed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "review-refuted": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "security-refuted": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "review-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "security-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "escapes": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "debt-added": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    },
+    "debt-paid": {
+      "status": "unavailable",
+      "why": ".minions/findings/0081-cut-awake_review.md is the old layout: /mf-ship moves it"
+    }
+  }
+}
