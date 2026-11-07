@@ -54,6 +54,10 @@ the debt at the release.
 
 **Non-Goals:** the kept cards ([D10](#d10)); any card that needs a decision or a design; editing `.minions/debt.md`.
 
+**Not in this:** review R10 and security S7 and S8, the forms of `0083·S3` the [whitespace rule](#d5) does not reach, and
+`0083·S3` itself, which stays in the debt — each left for the cut-halts version, which reworks `brief_check.py` to parse
+`## For the cut` by a strict grammar.
+
 ## Decisions
 
 | id | decision | brief | rejected |
@@ -62,7 +66,7 @@ the debt at the release.
 | [D2](#d2) | The kept-worktree halt names its remedy, and the `cut-halted` row stops sending it to a re-plan | D1, `0082·R8` | the remedy in the row alone |
 | [D3](#d3) | A request taken at a poll's bottom sleeps out the poll before the next top | D1, `0085·R10` | a fixed `REJOIN_POLL` sleep |
 | [D4](#d4) | `hold`'s amended-alone branch discards the diagnosis | D1, `0085·R11` | — |
-| [D5](#d5) | `brief_check.py` halts on an item that does not open `<n>. `, on a second `after:`, and on a checked line holding whitespace other than a space or a tab; its why line cites the design | D1, `0083·S3`, `0083·R5`, re-plan of review R5 | a fold per whitespace form |
+| [D5](#d5) | `brief_check.py` halts on an item that does not open `<n>. `, on a second `after:`, and on a checked line holding whitespace other than a space or a tab; its why line cites the design | D1, `0083·R5`, re-plan of review R5, Z1 (`0083·S3` stays carded) | a fold per whitespace form |
 | [D6](#d6) | The probe's MCP halt is written into the sandbox requirement, the delta alone | D1, `0076·R3`, C2 | a phase of its own |
 | [D7](#d7) | `stamp.py` writes each status-log event and run heading with the clock's time | D5, `hand·N1` | a script printing the time alone |
 | [D8](#d8) | The stale archives corrected in place, each to its card's fix | D2 | a new note beside each |
@@ -112,14 +116,19 @@ In `Run.join`, the bottom branch reads `if self.take_requests(threads): time.sle
 - **The lines.** A section splits on `\n` alone. An item folds each following non-blank line that opens no list marker or `|`,
   as Markdown's lazy continuation does, until a blank line, so a second `after:` on a lazy line or past a vertical tab halts
   `more than one after:` or `not an after id`.
-- **The whitespace rule** (a re-plan of review R5, converge Run 2 round 3). A line of `## Decisions` or `## For the cut` that
-  holds a character `ch` with `ch.isspace() and ch not in " \t"` — NBSP, U+3000, `\x0b`, `\x0c`, `\r`, NEL, U+2028 and U+2029
-  among them — halts ``brief: halt — <section> line <n>: whitespace other than a space or a tab``, `<n>` the line's number under
-  its heading from 1, e.g. `brief: halt — ## For the cut line 4: whitespace other than a space or a tab`. These halts print
-  after `## For the cut is empty` and before `fields`' halts, `## Decisions` first, each in line order; the other checks still
-  run. One rule closes the class in place of a fold per form: R1, S2 and R5 were each a whitespace form the item parser did
-  not fold (`0083·S3`'s class), and each fold left the next form open. A line the rule halts needs no fold, so only spaces and
-  tabs are left to indent or blank a line, as in CommonMark.
+- **The whitespace rule** (a re-plan of review R5, converge Run 2 round 3; narrowed by Z1, the person, converge Run 3). A line
+  under the heading `## Decisions` or `## For the cut` that holds a character `ch` for which `ch.isspace()` is true and
+  `ch not in " \t"` — NBSP, U+3000, `\x0b`, `\x0c`, NEL, U+2028 and U+2029 among them — halts
+  ``brief: halt — <section> line <n>: whitespace other than a space or a tab``, `<n>` the line's number under its heading from
+  1, e.g. `brief: halt — ## For the cut line 4: whitespace other than a space or a tab`. These halts print after
+  `## For the cut is empty` and before `fields`' halts, `## Decisions` first, each in line order; the other checks still run.
+  `sections()` keys each `## ` heading with its `isspace()` runs collapsed to one space (review R9), so a second
+  `## For\xa0the cut` joins the checked section. It replaces a fold per `isspace()` form: R1, S2 and R5 were each such a
+  form the item parser did not fold, and a line the rule halts needs no fold. It is exactly that check and claims no more: it does not close every form of `0083·S3`'s class.
+  A format character (`Cf`, e.g. U+200B, U+2060) is not `isspace()` and passes it; a heading line is no line of a section and
+  is not read by it; other Markdown forms — a `| ` line split off as an item (security S7), a *For the cut* heading in
+  another form (S8), a zero-width-led head or heading (review R10) — are not covered here. They go to the next version that
+  reworks `brief_check.py` ("cut halts", which parses `## For the cut` by a strict grammar), and `0083·S3` stays in the debt.
 - **The why line** (`B:13`) → "Why: 0083-plan-queues design D1; 0088-paydown-2 design D5." `0083`'s D1 gains the field checks
   under [D8](#d8).
 
@@ -222,8 +231,8 @@ Each archive is corrected to what the code does at this change's base, before �
   10. `0086`'s proposal lists `debt: [0064·R6]`, keeps `0034·R9` carded (its D5), and edits no `THREAT_MODEL.md`. Closing more
   cards is scope no person settled.
 - **What stays.** `0034·R9`, `0050·R5`, `0050·S7`, `0060·S6`, `0062·S1`, `0065·R8`, `0068·S3`, `0071·S2`, `0082·S5`, `0085·R3`,
-  `0085·S1` and `0085·S2` — the brief's own kept cards, `0049·S5` closed by its D4 and `0034·R9` in its place — and any card a
-  converge adds.
+  `0085·S1` and `0085·S2` — the brief's own kept cards, `0049·S5` closed by its D4 and `0034·R9` in its place — `0083·S3`, left
+  in the debt by Z1 ([D5](#d5)), and any card a converge adds.
 - **The close.** `mf-release` deletes each `debt:` card; no task edits `.minions/debt.md`.
 
 ## Tests
@@ -252,7 +261,7 @@ Extended or edited, each card's step red before its fix:
 | `test_an_amend_during_a_rescue_goes_on` (`T:1747`) | `Run.hold`, wrapped with `monkeypatch`, adds the change to `self.diagnosed` before the real call, as a rescue that wrote `rescue.md` does, and records whether it is still there after; the record is `[(True, False)]` |
 | `test_the_metrics_script_scan_reports_a_missing_script` (`tests/test_skills.py:510`) | `stamp.py`'s `not named` line, per [D7](#d7) |
 | `test_a_hard_brief_is_ready_for_the_cut` (`tests/test_brief_check.py:69`) | a tenth item nested three spaces in, as the template writes it, is ready |
-| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:`; the `*`, one-space `- `, `+` and two-space `2)` items halt `not a numbered item`; a `2.<tab>` head, a `3.  ` head and a three-space `- ` under a `10. ` head halt the same; a `* models:`, `-<tab>models:` or `-  models:` line halts `a models line not written`, and a second `- models:` halts `more than one models line`; the lazy-line `· after: a;touch-q` halts `more than one after:` and the vertical-tab head `not an after id`; per the whitespace rule, a line of NBSP, U+3000, `\x0b` or `\x0c`, R5's NBSP-led head after a blank line with its NBSP-indented models line, and an NBSP-led `- **Acceptance:**` line each halt `<section> line <n>: whitespace other than a space or a tab`, a `## Decisions` line among them, and the vertical-tab and `unblank` steps expect the rule's line beside their own |
+| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:`; the `*`, one-space `- `, `+` and two-space `2)` items halt `not a numbered item`; a `2.<tab>` head, a `3.  ` head and a three-space `- ` under a `10. ` head halt the same; a `* models:`, `-<tab>models:` or `-  models:` line halts `a models line not written`, and a second `- models:` halts `more than one models line`; the lazy-line `· after: a;touch-q` halts `more than one after:` and the vertical-tab head `not an after id`; per the whitespace rule, a line of NBSP, U+3000, `\x0b` or `\x0c`, R5's NBSP-led head after a blank line with its NBSP-indented models line, and an NBSP-led `- **Acceptance:**` line each halt `<section> line <n>: whitespace other than a space or a tab`, a `## Decisions` line among them, and the vertical-tab and `unblank` steps expect the rule's line beside their own; per R9, a `x;touch-q` item under a second `## For the cut` written with NBSP or U+3000 halts `not a slug`, `not a model or effort` and `I19` |
 
 No test is deleted or merged.
 
@@ -268,8 +277,8 @@ None.
   gate.
 - `0083`'s archive corrected to the code at this base reads without [D5](#d5)'s new halts → those are this change's, recorded
   here.
-- A brief saved with `\r\n` line ends halts the whitespace rule on each checked line → the halt names the line; the planner
-  saves it with `\n`, as `mf-plan` writes it.
+- A brief saved with `\r\n` or lone `\r` line ends: `read_text()` reads each as a line end, so no `\r` reaches a checked line
+  and neither halts the whitespace rule.
 
 ## Verdict
 

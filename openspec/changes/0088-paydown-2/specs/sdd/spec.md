@@ -132,8 +132,10 @@ SHALL also exit 1 when a top-level item of `## For the cut` does not open `<n>. 
 slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or more than
 one, when the item has no `models:` line naming the build, converge, release and cut station in order, each with a model and
 effort of `[A-Za-z0-9._-]` alone, or when an item's models line is not written `- models:`, or it has more than one. It
-SHALL also exit 1 when a line of `## Decisions` or `## For the cut`, lines split at a newline alone, holds a whitespace
-character other than a space or a tab, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`.
+SHALL also exit 1 when a line of `## Decisions` or `## For the cut`, lines split at a newline alone, holds a character other
+than a space or a tab for which `str.isspace()` is true, printing
+`brief: halt — <section> line <n>: whitespace other than a space or a tab`. That rule claims no more than that check: a
+format character (`Cf`, such as U+200B or U+2060), a heading line, and other Markdown forms are not covered by it.
 It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
 be parsed. It SHALL run no command it reads.
 
@@ -146,8 +148,8 @@ be parsed. It SHALL run no command it reads.
 - **THEN** `brief_check.py` exits 1, naming the item
 
 #### Scenario: A checked line holds other whitespace
-- **WHEN** a line of a brief's `## For the cut` or `## Decisions` holds a no-break space, an ideographic space, a vertical
-  tab or a form feed
+- **WHEN** a line of a brief's `## For the cut` or `## Decisions` holds a character other than a space or a tab for which
+  `str.isspace()` is true: a no-break space, an ideographic space, a vertical tab or a form feed
 - **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`
   for that line
 

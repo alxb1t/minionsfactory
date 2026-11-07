@@ -1,7 +1,7 @@
 ---
 bump: patch
 after: [0086-ship-fixes-3, 0087-drift-amends]
-debt: [0076·R3, 0079·R5, 0082·R8, 0083·R5, 0083·S3, 0085·R10, 0085·R11, 0071·R7, 0076·R2, 0083·R4, 0084·R4, 0084·R6, 0085·R12, 0049·R15, 0064·S4, 0049·S7, 0049·S5, 0050·R11, 0052·S15, hand·N1]
+debt: [0076·R3, 0079·R5, 0082·R8, 0083·R5, 0085·R10, 0085·R11, 0071·R7, 0076·R2, 0083·R4, 0084·R4, 0084·R6, 0085·R12, 0049·R15, 0064·S4, 0049·S7, 0049·S5, 0050·R11, 0052·S15, hand·N1]
 ---
 
 # Debt paydown 2
@@ -26,7 +26,9 @@ are archived designs the shipped code contradicts, and the rest settled here are
 - **`mf-ship`'s `cut-halted` row** — a kept-worktree halt is no plan's: a person removes or moves that worktree, then rejoins.
 - **`brief_check.py`** — halts on a `## For the cut` item that does not open `<n>. ` and one space, on a head with a second
   `after:`, on a models line not written `- models:` or a second one, and on a line of `## Decisions` or `## For the cut`
-  holding whitespace other than a space or a tab (`0083·S3`); its docstring cites a tracked reason (`0083·R5`).
+  holding a character other than a space or a tab for which `str.isspace()` holds; its docstring cites a tracked reason
+  (`0083·R5`). `0083·S3` stays in the debt: format characters, heading lines and other Markdown forms go to the next version
+  that reworks `brief_check.py`.
 - **The stamp** — `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time;
   converge's status log takes no time by hand (`hand·N1`).
 - **The archives** — the designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does
@@ -49,8 +51,8 @@ None.
   - *A worker runs in an OS sandbox* — MODIFIED: the run's probe fails when a Claude worker's `init` event lists an MCP server,
     naming it (`0076·R3`).
   - *A hard brief is checked before it is queued* — MODIFIED: an item that does not open `<n>. ` and one space, a head with a
-    second `after:`, a models line not written `- models:` or a second one, and a checked line holding whitespace other than
-    a space or a tab, halt (`0083·S3`).
+    second `after:`, a models line not written `- models:` or a second one, and a checked line holding a character other than a
+    space or a tab for which `str.isspace()` holds, halt.
   - *Converge keeps a status log* — MODIFIED: each line and run heading is written by `stamp.py`, which takes the clock's
     time, not taken from `date` (`hand·N1`).
   - *A halt stops only its version, and a re-run resumes* — MODIFIED: a file at `.minions/debt.lock` is among the halts that
@@ -69,6 +71,7 @@ Dependencies: none. The gate recipe stays unchanged.
 ## Not in this change
 
 - The cards kept — `0034·R9`, `0050·R5`, `0050·S7`, `0060·S6`, `0062·S1`, `0065·R8`, `0068·S3`, `0071·S2`, `0082·S5`,
-  `0085·R3`, `0085·S1`, `0085·S2` — design changes or decisions, each at its trigger.
+  `0083·S3`, `0085·R3`, `0085·S1`, `0085·S2` — design changes or decisions, each at its trigger; `0083·S3`'s remaining forms
+  (review R10, security S7, S8) go to the version that reworks `brief_check.py`.
 - Editing `.minions/debt.md` — `mf-release` deletes the cards `debt:` lists.
 - A decision or a new requirement — this is a patch; the requirements above are corrected, none added.
