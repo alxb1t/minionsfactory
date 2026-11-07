@@ -226,6 +226,17 @@ def test_a_brief_out_of_shape_halts(
         ),
         *2 * ["brief: halt — ## For the cut: I19 — `$(…)`: `echo $(id) x`"],
     ]
+    # A heading starts a new list, so a three-space `- ` line first under a second
+    # `## For the cut` is a top-level item, not nested under the first one's last head.
+    second_list = _READY + "".join(
+        f"\n{heading}\n   - **x;touch-q** · minor · after: none\n"
+        for heading in ("## Notes\n## For the cut", "## For\xa0the cut")
+    )
+    assert brief_check.main([str(_write(tmp_path, second_list))]) == 1
+    assert capsys.readouterr().out.splitlines() == 2 * [
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `   - **x;touch-q** · minor · after: none`"
+    ]
     # Any other list marker, or an indent short of the head's text, opens no number.
     markers = _READY + (
         "* **x;touch-p** · minor · after: none\n"

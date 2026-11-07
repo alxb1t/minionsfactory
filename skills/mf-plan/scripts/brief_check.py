@@ -55,21 +55,31 @@ def depth(brief: str) -> str | None:
     return LIGHT if "light" in parts else "the title names no depth"
 
 
-def sections(brief: str) -> dict[str, list[str]]:
-    """Return each `## ` section's lines, keyed by its heading, which they exclude.
+def headed(brief: str) -> list[tuple[str, list[str]]]:
+    """Return each `## ` heading's key and the lines under it, in order.
 
     Lines break at a newline alone, as Markdown's do once the file is read; a vertical
     tab or another `str.splitlines` separator stays inside its line. A heading keys
     with each whitespace run as one space, so `## For the cut` written with NBSP or
     U+3000 is the same section.
     """
-    found: dict[str, list[str]] = {}
-    lines: list[str] | None = None
+    found: list[tuple[str, list[str]]] = []
     for line in brief.split("\n"):
         if line.startswith("## "):
-            lines = found.setdefault("## " + " ".join(line[3:].split()), [])
-        elif lines is not None:
-            lines.append(line)
+            found.append(("## " + " ".join(line[3:].split()), []))
+        elif found:
+            found[-1][1].append(line)
+    return found
+
+
+def sections(brief: str) -> dict[str, list[str]]:
+    """Return each `## ` section's lines, keyed by its heading, which they exclude.
+
+    A heading written twice keys one section, its lines in order, per `headed`.
+    """
+    found: dict[str, list[str]] = {}
+    for heading, lines in headed(brief):
+        found.setdefault(heading, []).extend(lines)
     return found
 
 
@@ -163,9 +173,10 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    A head is an item opening `<n>. ` and one space; its `- models:` item follows it.
-    A line opening a list marker or `| ` short of the last head's text column, or of
-    four spaces before any head, tabs read as 4, is a top-level item and opens a head.
+    `lines` are one heading's, as a heading starts a new list. A head is an item
+    opening `<n>. ` and one space; its `- models:` item follows it. A line opening
+    a list marker or `| ` short of the last head's text column, or of four spaces
+    before any head, tabs read as 4, is a top-level item and opens a head.
     Past a `10. ` head's three spaces, short of its text column, only the template's
     `- models:` and `- **Acceptance:**` lines sit. A models line is written `- models:`,
     once a head.
@@ -240,7 +251,9 @@ def main(argv: list[str] | None = None) -> int:
         found.append("## For the cut is empty")
     for heading in CHECKED:
         found += whitespace(heading, parts.get(heading, []))
-    found += fields(parts.get("## For the cut", []), slug)
+    for heading, lines in headed(brief):
+        if heading == "## For the cut":
+            found += fields(lines, slug)
     for line in found:
         print(f"brief: halt — {line}")
     for heading in CHECKED:
