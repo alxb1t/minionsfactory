@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each packet reads `diff.patch` once (change `0095-converge-roles`, phase 2).
 - A verify round reads its open cards, which `open_cards.py` extracts, the fix diff and `references/verify.md`, never
   the first round's packet; conformance moves to the mid tier · high (change `0095-converge-roles`, phase 3).
+- D66 records the two checkers; D48 and `AGENTS.md` say which worker reads the bundle and which the threat model; the
+  reading set is measured per role (change `0095-converge-roles`, phase 4).
 
 ## [0.77.0] - 2026-11-08
 

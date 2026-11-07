@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64
+     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64, D66
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -305,10 +305,10 @@ workers, as its plan reviewer is, answering in the cut's thread and writing no f
 **Converge's conductor runs on the mid tier · medium, its conformance worker on the mid tier · high,
 its adversarial worker on the strongest tier · high, and its fixer on the mid tier · high, on adversarial's model when a
 card it is sent blocks: the models file's `[converge]`, `[converge.conformance]`, `[converge.adversarial]` and
-`[converge.fix]`, which `conduct.py` reads once and passes in the converge prompt. Conformance reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living
-requirements the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no
-`## Surfaces` path of `THREAT_MODEL.md`, with no adversarial card awaiting its checker, takes its adversarial head by
-recomputation.**
+`[converge.fix]`, which `conduct.py` reads once and passes in the converge prompt. Conformance reads `bundle.md` — the
+decisions the change cites, in full, an index of all, and the living requirements the delta modifies or removes — in
+place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of `THREAT_MODEL.md`, with no
+adversarial card awaiting its checker, takes its adversarial head by recomputation.**
 
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
@@ -316,6 +316,23 @@ recomputation.**
   line alone; the build keeps one model a change.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
   it · an adversarial verify skipped by the conductor's judgment.
+
+### D66 · Two checkers: conformance and adversarial
+
+**Converge runs two checkers. Conformance judges the code against the change's own spec, design, tasks and the decisions it
+cites, from the change's artifacts, its bundle and the diff, reading no code beyond the diff's hunks; it grades `blocking` ·
+`drift` · `nit`, on the mid tier. Adversarial tries to break the change — races, edge cases, exploits, security — from the diff,
+the source and tests around it and the threat model; it grades `critical` · `high` · `medium` · `low`, `high` a bug that would
+block, on the strongest tier. Each reads `diff.patch` once. `debt_match.py` bundles the debt cards on the diff's files, and no
+worker reads `.minions/debt.md`. A verify round after a fix reads its open cards, the fix diff and `references/verify.md`.**
+
+- **Why:** of 0072–0089's blockers, spec conformance as text caught 29% and adversarial correctness 60%; review and security
+  found 11 issues twice; the debt was 11.4% of a round-1 review's reads, cited by no blocker; a verify spent 40–50% re-reading
+  its file and the method.
+- **Accepts:** conformance misses every race and parser edge, which adversarial owns · a security card is known by its
+  category, which the checker writes.
+- **Rejected:** four checkers — two earn their cost · a checker judging the deterministic checks — the gate, `gate_check.py`,
+  the `Verify:` lines and coverage stay scripts · the old names: "security" read as security only.
 
 ### D49 · One review method, one depth
 
@@ -414,9 +431,9 @@ converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING
 
 **Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
 in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
-build halts on a phase that breaks one unless the change amends it, and converge hands every worker the threat model and
-its bundle: of the decisions, those the change cites, in full, and an index of all. `mf-bootstrap` writes
-`THREAT_MODEL.md` and an empty `docs/decisions.md`.**
+build halts on a phase that breaks one unless the change amends it, and converge
+hands its conformance worker its bundle — of the decisions, those the change cites, in full, and an index of all — and
+its adversarial worker the threat model. `mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
 - **Why:** a review judges against what is written down; without a threat model, adversarial falls back on generic
   categories.

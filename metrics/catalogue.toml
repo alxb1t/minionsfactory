@@ -13,15 +13,26 @@ script = "scripts/metrics/reading_set.py"
 args = ["converge"]
 
 [[metric]]
-id = "converge-worker-reading-set"
-title = "Converge worker's reading set"
+id = "converge-conformance-reading-set"
+title = "Converge conformance worker's reading set"
 group = "instruction load"
 unit = "words"
 better = "lower"
 watch = 10500
 noise = 50
 script = "scripts/metrics/reading_set.py"
-args = ["worker"]
+args = ["conformance"]
+
+[[metric]]
+id = "converge-adversarial-reading-set"
+title = "Converge adversarial worker's reading set"
+group = "instruction load"
+unit = "words"
+better = "lower"
+watch = 10500
+noise = 50
+script = "scripts/metrics/reading_set.py"
+args = ["adversarial"]
 
 [[metric]]
 id = "shared-context"

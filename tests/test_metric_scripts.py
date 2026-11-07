@@ -56,20 +56,24 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
             "THREAT_MODEL.md": "fourteen",
             "skills/mf-converge/references/worker.md": "fifteen sixteen",
             "skills/mf-converge/references/generic-conformance.md": "seventeen",
+            "skills/mf-converge/references/generic-adversarial.md": "eighteen nineteen",
         },
     )
     reading_set = _load("reading_set")
 
     assert reading_set.words(tmp_path, "shared") == 9
     assert reading_set.words(tmp_path, "converge") == 16
-    # A decisions file with no `### D` heading counts whole in the worker's index.
-    assert reading_set.words(tmp_path, "worker") == 13
+    # A decisions file with no `### D` heading counts whole in conformance's index.
+    assert reading_set.words(tmp_path, "conformance") == 10
+    # Adversarial reads the threat model, and no decision.
+    assert reading_set.words(tmp_path, "adversarial") == 8
 
-    # A worker reads the decisions' index, its `### D` lines, not the whole file.
+    # Conformance reads the decisions' index, its `### D` lines, not the whole file.
     _write(tmp_path, {"docs/decisions.md": "### D1 · six\nbody words"})
     assert reading_set.words(tmp_path, "shared") == 14
     assert reading_set.words(tmp_path, "converge") == 21
-    assert reading_set.words(tmp_path, "worker") == 16
+    assert reading_set.words(tmp_path, "conformance") == 13
+    assert reading_set.words(tmp_path, "adversarial") == 8
 
 
 def test_rule_ids_are_counted_once(tmp_path: Path) -> None:

@@ -8,7 +8,7 @@ merges in before this build: find each of its symbols and sections by name, neve
 - [x] 1 — The roles
 - [x] 2 — The debt and the diff
 - [x] 3 — Verify and the defaults
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The roles
 
@@ -94,15 +94,15 @@ merges in before this build: find each of its symbols and sections by name, neve
 
 ## 4 — The record
 
-- [ ] 4.1 Add D66 after D64 in `docs/decisions.md`, and `D66` to the map's check-loop list, per [D12](design.md#d12).
+- [x] 4.1 Add D66 after D64 in `docs/decisions.md`, and `D66` to the map's check-loop list, per [D12](design.md#d12).
   Verify: `grep -n '^### D66 · Two checkers: conformance and adversarial$' docs/decisions.md` prints a line.
-- [ ] 4.2 Amend D48's bold text in `docs/decisions.md`, per [D12](design.md#d12), "hands its conformance worker its bundle" on
+- [x] 4.2 Amend D48's bold text in `docs/decisions.md`, per [D12](design.md#d12), "hands its conformance worker its bundle" on
   one line.
   Verify: `grep -n 'hands its conformance worker its bundle' docs/decisions.md` prints a line.
-- [ ] 4.3 Rewrite 0094's worker line in `AGENTS.md`, per [D12](design.md#d12).
+- [x] 4.3 Rewrite 0094's worker line in `AGENTS.md`, per [D12](design.md#d12).
   Verify: `grep -n "Converge's conformance worker reads" AGENTS.md` prints a line.
-- [ ] 4.4 Edit `test_reading_sets_count_words` in `tests/test_metric_scripts.py` for the role sets, then the sets and docstring
+- [x] 4.4 Edit `test_reading_sets_count_words` in `tests/test_metric_scripts.py` for the role sets, then the sets and docstring
   of `scripts/metrics/reading_set.py`, per [D13](design.md#d13).
   Verify: `uv run --script scripts/metrics/reading_set.py conformance` prints a number below `10500`; `uv run --script scripts/metrics/reading_set.py adversarial` prints a number below `10500`.
-- [ ] 4.5 Replace `converge-worker-reading-set` in `metrics/catalogue.toml` with the conformance and adversarial entries, per [D13](design.md#d13).
+- [x] 4.5 Replace `converge-worker-reading-set` in `metrics/catalogue.toml` with the conformance and adversarial entries, per [D13](design.md#d13).
   Verify: `grep -c -F 'args = ["conformance"]' metrics/catalogue.toml` prints `1`; `grep -c -F 'args = ["adversarial"]' metrics/catalogue.toml` prints `1`.
