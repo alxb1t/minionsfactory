@@ -15,6 +15,8 @@ Why: 0088-paydown-2 design D7.
 """
 
 import argparse
+import contextlib
+import errno
 import os
 import sys
 from datetime import datetime
@@ -59,11 +61,27 @@ def stamp(
     return [*lines[: at + 1], line, *lines[at + 1 :]], line
 
 
+def read(log: Path) -> str:
+    """Return the log's text, read through one descriptor that refuses a link.
+
+    One `O_NOFOLLOW` open checks and reads, so a link swapped in after a check by name
+    has no outside file's text copied into the log.
+    """
+    try:
+        with os.fdopen(os.open(log, os.O_RDONLY | os.O_NOFOLLOW)) as file:
+            return file.read()
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise Stop(f"{log} is a link") from error
+        raise Stop(f"{log}: {error.strerror}") from error
+
+
 def write(log: Path, text: str) -> None:
     """Replace the log with `text`, through a staged file that refuses a link.
 
     A worker can write the run directory, so nothing is written through a link: the
     staged `.tmp` is removed, created anew with `O_NOFOLLOW`, then renamed over the log.
+    A rename that fails removes the `.tmp` and leaves the log as it stood.
     """
     staged = log.with_name(f"{log.name}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
@@ -73,7 +91,12 @@ def write(log: Path, text: str) -> None:
             file.write(text)
     except OSError as error:
         raise Stop(f"{staged.name} could not be created") from error
-    staged.replace(log)
+    try:
+        staged.replace(log)
+    except OSError as error:
+        with contextlib.suppress(OSError):
+            staged.unlink()
+        raise Stop(f"{log.name} could not be replaced") from error
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,12 +114,7 @@ def main(argv: list[str] | None = None) -> int:
             args.mark is not None and args.run is None
         ):
             raise Stop(USAGE)
-        if args.log.is_symlink():
-            raise Stop(f"{args.log} is a link")
-        try:
-            text = args.log.read_text()
-        except OSError as error:
-            raise Stop(f"{args.log}: {error.strerror}") from error
+        text = read(args.log)
         lines, line = stamp(text, args.event, args.run, args.mark)
         write(args.log, "\n".join(lines) + "\n")
     except Stop as stop:

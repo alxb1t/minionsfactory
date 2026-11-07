@@ -155,6 +155,27 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 5 — not an after id:"
         " `none\x0b· after: a;touch-p`\n"
     )
+    # Only spaces and tabs blank a Markdown line or indent one: a line of NBSP, U+3000,
+    # `\x0b` or `\x0c`, or NBSP before `- x`, folds into the head with the lazy line.
+    models = (
+        "   - models: build opus high · converge opus high · release opus high"
+        " · cut opus high\n"
+    )
+    unblank = _READY + "".join(
+        f"{n}. **ok** · minor · after: none\n{line}\n· after: a;touch-q\n{models}"
+        for n, line in (
+            (2, "\xa0"),
+            (3, "\N{IDEOGRAPHIC SPACE}"),
+            (4, "\x0b"),
+            (5, "\x0c"),
+            (6, "\xa0\xa0\xa0\xa0- x"),
+        )
+    )
+    assert brief_check.main([str(_write(tmp_path, unblank))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — ## For the cut: item {n} — more than one after:"
+        for n in range(2, 7)
+    ]
     # Any other list marker, or an indent short of the head's text, opens no number.
     markers = _READY + (
         "* **x;touch-p** · minor · after: none\n"

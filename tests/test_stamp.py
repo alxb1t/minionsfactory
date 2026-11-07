@@ -59,7 +59,7 @@ def test_a_stamp_writes_the_clock_time_under_the_latest_run(
 
 
 def test_a_log_out_of_shape_is_not_stamped(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     missing = tmp_path / "missing.md"
     assert stamp.main([str(missing), "round 1 · start — base a"]) == 2
@@ -99,3 +99,32 @@ def test_a_log_out_of_shape_is_not_stamped(
         "stamp: cannot stamp — status_log.md.tmp could not be created\n"
     )
     assert log.read_text() == _TITLE + _RUN_1
+    staged.rmdir()
+
+    # A link swapped in after any check by name is still refused by the read itself.
+    log.unlink()
+    log.symlink_to(note)
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "is_symlink", lambda _: False)
+        assert stamp.main([str(log), "--run", "2"]) == 2
+    assert capsys.readouterr().out == f"stamp: cannot stamp — {log} is a link\n"
+    assert note.read_text() == _TITLE
+    log.unlink()
+
+    # A log swapped for a folder between the read and the rename: exit 2, no `.tmp`.
+    log.write_text(_TITLE + _RUN_1)
+    real = stamp.stamp
+
+    def swapped(*args: object) -> tuple[list[str], str]:
+        log.unlink()
+        log.mkdir()
+        (log / "kept.md").write_text(_TITLE)
+        return real(*args)
+
+    monkeypatch.setattr(stamp, "stamp", swapped)
+    assert stamp.main([str(log), "round 1 · x"]) == 2
+    assert capsys.readouterr().out == (
+        "stamp: cannot stamp — status_log.md could not be replaced\n"
+    )
+    assert (log / "kept.md").read_text() == _TITLE
+    assert not staged.exists()

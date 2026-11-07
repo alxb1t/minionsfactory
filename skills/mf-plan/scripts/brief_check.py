@@ -75,13 +75,14 @@ def items(lines: list[str]) -> list[str]:
 
     An item's line wraps onto each deeper line after it that opens no item, and, as
     Markdown's lazy continuation does, onto any other line before a blank one that
-    opens no list marker or `|`.
+    opens no list marker or `|`. As in CommonMark, only spaces and tabs indent a line
+    or blank it: a line of NBSP or a form feed is text.
     e.g. ["- a", "  b", "c", "- d", "* e"] → ["- a b c", "- d"]
     """
     found: list[str] = []
     indent: int | None = None
     for line in lines:
-        text = line.lstrip()
+        text = line.lstrip(" \t")
         at = len(line) - len(text)
         if ITEM.match(text):
             found.append(text.strip())
