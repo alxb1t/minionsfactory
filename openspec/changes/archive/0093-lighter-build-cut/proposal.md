@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.77
 after: [0091-cut-halts]
 ---
 
