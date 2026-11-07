@@ -53,7 +53,7 @@ Build the settled [design](design.md), one phase at a time.
   true on the halt with the rescue's amend past its head, and false at the head itself, with no assertion on a fake's
   output, as the design's `## Tests` names them.
   Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_goes_on_by_rule` reports `1 passed`.
-- [ ] 3.6 Rework `test_a_drift_amend_goes_on_by_rule` in `tests/test_conduct.py` to the design's `## Tests`: drop its
+- [x] 3.6 Rework `test_a_drift_amend_goes_on_by_rule` in `tests/test_conduct.py` to the design's `## Tests`: drop its
   `slow` mark, its fake-worker run and its assertions on the fake's `## Run 2 — d · catch-up` log, and call
   `conduct["_answered"]` directly, per 1.5, 3.4 and 3.5. In `tests/fake_worker.py`, drop this change's `drift-halts` mode with
   `_drift_halt`, and its rescue-amend branch with `_write_catch_up` and `_rescued`, each only if no other test uses it.

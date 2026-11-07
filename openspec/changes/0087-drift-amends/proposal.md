@@ -58,7 +58,7 @@ None.
 ## Impact
 
 Changes `skills/mf-converge/SKILL.md`, `skills/mf-converge/references/worker.md`, `skills/mf-rescue/SKILL.md`,
-`skills/mf-ship/scripts/conduct.py` (the grant comment), `docs/decisions.md` (D15, D16) and `tests/test_conduct.py`.
+`skills/mf-ship/scripts/conduct.py` (the grant comment), `docs/principles.md` (the catch-up principle), `docs/decisions.md` (D15, D16) and `tests/test_conduct.py`.
 
 Dependencies: none. The gate recipe stays unchanged.
 
