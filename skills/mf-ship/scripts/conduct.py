@@ -3189,7 +3189,8 @@ class Run:
         the halted head, a settled merge, a removed note or a grant it writes reads as
         no halt, and its rejoin request would take the version back. The halt names
         the stage on disk and a moved `HEAD`, for the person. The person's amends
-        alone go on: True. Why: 0067-rescue design D3; 0085-self-healing-ship design D5.
+        alone go on, the diagnosis dropped: True. Why: 0067-rescue design D3;
+        0085-self-healing-ship design D5; 0088-paydown-2 design D4.
         """
         change = version.change
         stage, why = stage_of(self.primary, version)
@@ -3199,6 +3200,7 @@ class Run:
         if stage == "converge" and self._amended_alone(tree, change, before):
             with self.guard:
                 self.halts = [halt for halt in self.halts if halt[0] != change]
+                self.diagnosed.discard(change)
             self.log.event("run", "rescue", f"{change}: amended · {head[:7]}")
             return True
         moved = f" · HEAD {head[:7]}" if head != before else ""
@@ -3667,7 +3669,12 @@ class Run:
                 if (old := _worktrees(primary).get(change)) is not None:
                     # A worker can point another tree's entry at this branch.
                     if why := self._keeps(old, change):
-                        return f"the branch's worktree {old} is kept: {why}", False
+                        return (
+                            f"the branch's worktree {old} is kept: {why}; a person"
+                            " reads it, then removes it with git worktree remove or"
+                            " moves it back to the cut's path, before conduct.py"
+                            f" rejoin {change}"
+                        ), False
                     _git(primary, "worktree", "remove", "--force", str(old))
                 _git(primary, "branch", "-D", change)
             default = default_branch(primary)
@@ -4145,6 +4152,7 @@ class Run:
             if any(thread.is_alive() for thread in threads.values()):
                 continue
             if self.take_requests(threads):
+                time.sleep(max(0, deadline - time.monotonic()))
                 continue
             with self.guard:
                 pending = bool(self.candidates)
@@ -4161,9 +4169,10 @@ class Run:
         """Move an old `backlog.md` to `debt.md`; return why the run must halt.
 
         A stale `backlog.lock` is removed. Both files, an old file that is a link,
-        or beside the old file a lock still standing, halt: a person or a hand-run
-        writer holds them. The move holds `debt.lock`, as every writer of `debt.md`
-        does. Why: 0079-debt-rename design D3.
+        or beside the old file a lock still standing or a file at `debt.lock`, halt:
+        a person or a hand-run writer holds them. The move holds `debt.lock`, as
+        every writer of `debt.md` does. Why: 0079-debt-rename design D3;
+        0088-paydown-2 design D1.
         """
         old, new = self.primary / OLD_DEBT, self.primary / DEBT
         both = f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
@@ -4182,6 +4191,8 @@ class Run:
             return f"{OLD_DEBT_LOCK} is a file, not a lock: a person removes it"
         self.unlock(DEBT_LOCK)
         lock = self.primary / DEBT_LOCK
+        if lock.is_symlink() or (lock.exists() and not lock.is_dir()):
+            return f"{DEBT_LOCK} is a file, not a lock: a person removes it"
         try:
             lock.mkdir()
         except FileExistsError:

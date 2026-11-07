@@ -207,7 +207,8 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 ### Requirement: Converge keeps a status log
 
 `skills/mf-converge/SKILL.md` SHALL have the conductor write `.minions/changes/<change-id>/status_log.md`: one line
-per event, in the form `HH:MM:SS · round N · <event> — <detail>`, the time taken from `date`. Each run SHALL open
+per event, in the form `HH:MM:SS · round N · <event> — <detail>`, each line and run heading written by
+`skills/mf-converge/scripts/stamp.py`, which takes the clock's time. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
 `start`, `freeze`, `fan-out`, `verdicts`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
@@ -218,7 +219,8 @@ release reads it.
 
 #### Scenario: Converge names the log, its order and its events
 - **WHEN** `mf-converge` dispatches, receives or decides
-- **THEN** it inserts one line for that event under the latest `## Run N` heading, its time taken from `date`
+- **THEN** it inserts one line for that event under the latest `## Run N` heading, written by
+  `skills/mf-converge/scripts/stamp.py`, which takes the clock's time
 - **AND** the newest run and the newest line are on top, and no earlier line changes
 
 #### Scenario: A round's verdicts
@@ -947,8 +949,8 @@ created with `mkdir`, halting after two minutes of waiting and naming the lock. 
 `debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
 claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
 ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
-follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and SHALL NOT
-replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its review, security and status
+follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and naming it a
+file, not a lock, when a file or a link stands there; it SHALL NOT replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its review, security and status
 log files, its diff patch, its models file, the cutter's `cut.halt`, integrate's notes, build's marks, rescue's diagnosis, release's `held`, its gate-check
 export and its worker logs — each script finding it through one `_change_dir(primary, id)`; `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic. A run SHALL move an old layout's files into it at its start, under its claim,
@@ -979,6 +981,8 @@ layouts.
 - **AND WHEN** both files stand, the old file is a link, or beside it a `backlog.lock` that is a file or younger than ten
   minutes, or a `debt.lock` younger than ten minutes
 - **THEN** the run halts, naming them, and starts no worker
+- **AND WHEN** beside the old file `.minions/debt.lock` is a plain file
+- **THEN** the run halts, naming `.minions/debt.lock` a file, not a lock, and starts no worker
 - **AND WHEN** no old file stands beside a young `backlog.lock`, or a file there
 - **THEN** the run goes on
 
@@ -1430,8 +1434,9 @@ the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a
 `.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
 changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, an old
-`.minions/backlog.md` beside `.minions/debt.md` or a file at `.minions/backlog.lock`, or one that is a link, or a
-default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset time named.
+`.minions/backlog.md` beside `.minions/debt.md` or a file at `.minions/backlog.lock` or `.minions/debt.lock`, or one that is a
+link, or a default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset
+time named.
 
 #### Scenario: A HUMAN phase halts its version
 - **WHEN** a version's first unticked phase is marked `**HUMAN`
@@ -1821,7 +1826,8 @@ only to the primary, the open worktrees and the common directory: a sandbox that
 it unsandboxed. The operator's credential paths SHALL be denied to its scripts and to its `Read` tool,
 and the credential variables unset for its scripts. It SHALL load user settings alone, so a project's settings, hooks and
 `.mcp.json`, which a worker can write, start nothing, and SHALL start with `--strict-mcp-config` and no `--mcp-config`, so the
-MCP servers of the operator's own config start nothing. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
+MCP servers of the operator's own config start nothing; the run's probe SHALL fail when a Claude worker's `init` event lists an
+MCP server, naming it. Its network SHALL reach only `pypi.org`, `files.pythonhosted.org` and the
 domains `AGENTS.md`'s `Ship network:` line names, and its sandbox SHALL never have `allowLocalBinding`: it binds no
 loopback port, in any repo. A Codex worker SHALL run with its network off, and SHALL
 start with its working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a
@@ -1846,6 +1852,8 @@ worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL in
 #### Scenario: The operator has MCP servers
 - **WHEN** the operator's user config names an MCP server
 - **THEN** a Claude worker's command line holds `--strict-mcp-config` and no `--mcp-config`
+- **AND WHEN** a Claude probe worker's `init` event lists an MCP server all the same
+- **THEN** the probe fails, naming the server, and the run halts
 
 #### Scenario: A worker plants a Codex project config
 - **WHEN** a worker leaves an `[mcp_servers]` entry in `.codex/config.toml`, in a tree the operator's Codex config trusts
@@ -2900,16 +2908,30 @@ say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 
 `## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
 `## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
 variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one. It
-SHALL also exit 1 when a `## For the cut` item's head names a slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a
-bump other than `minor` or `patch`, or no `after:`, or when the item has no `models:` line naming the build, converge, release
-and cut station in order, each with a model and effort of `[A-Za-z0-9._-]` alone. It SHALL exit 0 printing
-`brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot be parsed. It SHALL run no
-command it reads.
+SHALL also exit 1 when a top-level item of `## For the cut` does not open `<n>. ` and one space, when an item's head names a
+slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or more than
+one, when the item has no `models:` line naming the build, converge, release and cut station in order, each with a model and
+effort of `[A-Za-z0-9._-]` alone, or when an item's models line is not written `- models:`, or it has more than one. It
+SHALL also exit 1 when a line of `## Decisions` or `## For the cut`, lines split at a newline alone, holds a character other
+than a space or a tab for which `str.isspace()` is true, printing
+`brief: halt — <section> line <n>: whitespace other than a space or a tab`. That rule claims no more than that check: a
+format character (`Cf`, such as U+200B or U+2060), a heading line, and other Markdown forms are not covered by it.
+It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
+be parsed. It SHALL run no command it reads.
 
 #### Scenario: A brief out of shape
 - **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`, or an
   item's slug or cut effort holds `$(…)` or `;`
 - **THEN** `brief_check.py` exits 1, naming each
+- **AND WHEN** a `## For the cut` item opens `- ` where `<n>. ` is due, or its head holds a second `after:`, or it has a
+  second models line
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A checked line holds other whitespace
+- **WHEN** a line of a brief's `## For the cut` or `## Decisions` holds a character other than a space or a tab for which
+  `str.isspace()` is true: a no-break space, an ideographic space, a vertical tab or a form feed
+- **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`
+  for that line
 
 #### Scenario: A hard brief
 - **WHEN** a hard brief has its `At` line, a filled `## For the cut` and plain commands

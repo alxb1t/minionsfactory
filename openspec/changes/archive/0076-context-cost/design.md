@@ -62,7 +62,7 @@ release, rescue — the last `result` event's `total_cost_usd` and `modelUsage` 
 summed over the result events; tokens are `inputTokens + outputTokens + cacheReadInputTokens + cacheCreationInputTokens` over
 `modelUsage`'s models; per station, over every stamp: `cost_<station>`, `turns_<station>`, `tokens_<station>`, `seconds_<station>`,
 each `None` with no log or no result event — a line that is not JSON is skipped, so a Codex text log is a gap. `spawns_<station>`
-counts the run logs' `· <change> · spawn — <station>` lines; above the logs found, the cell reads `<logs> of <spawns>`. `read_change` spreads it in; a repo
+counts the run logs' `· <change> · spawn — <station>` lines; above the logs that held a result event, the cell reads `<read> of <spawns>`. `read_change` spreads it in; a repo
 with no `runs/` gives gaps, never a halt. `cost_table(records)`: per repo, one row per change, a column per station, `$`, turns,
 tokens, seconds; `_repo_section` draws it under `<h3>cost</h3>`. `skills/mf-review-metrics/SKILL.md`'s description and Report name cost.
 
