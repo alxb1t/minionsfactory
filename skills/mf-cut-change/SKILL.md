@@ -384,7 +384,8 @@ a change, never one per phase.
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
   output — means run it: the conductor, `[converge]`, on the mid tier · medium,
-  conformance and adversarial on the strongest tier · high, and the fixer on the mid tier · high. Say which you found.
+  conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · high.
+  Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```

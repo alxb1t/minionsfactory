@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   security card is an adversarial card of category `security` (change `0095-converge-roles`, phase 1).
 - `debt_match.py` appends the debt cards on the diff's files to the bundle, so no worker reads `.minions/debt.md`, and
   each packet reads `diff.patch` once (change `0095-converge-roles`, phase 2).
+- A verify round reads its open cards, which `open_cards.py` extracts, the fix diff and `references/verify.md`, never
+  the first round's packet; conformance moves to the mid tier · high (change `0095-converge-roles`, phase 3).
 
 ## [0.77.0] - 2026-11-08
 

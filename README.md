@@ -56,9 +56,9 @@ A bare install reads the `origin` URLs a run kept: run `/mf-ship` once first, or
 Every host runs MF's own method: `mf-simplify` in the build, conformance and adversarial at one depth.
 The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
 completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
-remote review service. Converge's conductor judges nothing and runs on the mid tier; conformance and adversarial run
-on the strongest, conformance reading a bundle of what the change cites; the fixer moves up a tier only for a blocking
-card, and a fix that reaches no surface in `THREAT_MODEL.md` skips the adversarial verify
+remote review service. Converge's conductor judges nothing and runs on the mid tier; conformance runs on the mid tier,
+adversarial on the strongest, conformance reading a bundle of what the change cites; the fixer moves up a tier only
+for a blocking card, and a fix that reaches no surface in `THREAT_MODEL.md` skips the adversarial verify
 ([D64](docs/decisions.md#d64--converge-spends-where-judgment-is)).
 
 Use each host's syntax to load the `mf-*` instructions.

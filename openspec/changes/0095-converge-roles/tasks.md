@@ -7,7 +7,7 @@ merges in before this build: find each of its symbols and sections by name, neve
 
 - [x] 1 — The roles
 - [x] 2 — The debt and the diff
-- [ ] 3 — Verify and the defaults
+- [x] 3 — Verify and the defaults
 - [ ] 4 — The record
 
 ## 1 — The roles
@@ -76,19 +76,19 @@ merges in before this build: find each of its symbols and sections by name, neve
 
 ## 3 — Verify and the defaults
 
-- [ ] 3.1 Add `skills/mf-converge/scripts/open_cards.py`, per [D10](design.md#d10), and `tests/test_open_cards.py`, as the
+- [x] 3.1 Add `skills/mf-converge/scripts/open_cards.py`, per [D10](design.md#d10), and `tests/test_open_cards.py`, as the
   design's `## Tests` names its tests.
   Verify: `uv run pytest -q tests/test_open_cards.py` reports `2 passed`.
-- [ ] 3.2 Add `open_cards.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
+- [x] 3.2 Add `open_cards.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`, per [D10](design.md#d10).
   Verify: `grep -n '"scripts/open_cards.py"' tests/test_skills.py` prints a line.
-- [ ] 3.3 Add `skills/mf-converge/references/verify.md`, move `worker.md`'s verify pass into it, and point each role
+- [x] 3.3 Add `skills/mf-converge/references/verify.md`, move `worker.md`'s verify pass into it, and point each role
   reference's *Verify freshly* at it, per [D10](design.md#d10).
   Verify: `grep -n '](verify.md)' skills/mf-converge/references/worker.md` prints a line.
-- [ ] 3.4 Add the open-cards run and the verify dispatch to Step 7 of `skills/mf-converge/SKILL.md`, and the catch-up's judge
+- [x] 3.4 Add the open-cards run and the verify dispatch to Step 7 of `skills/mf-converge/SKILL.md`, and the catch-up's judge
   round to its catch-up round, per [D10](design.md#d10).
   Verify: `grep -n -e 'scripts/open_cards.py' -e '](references/verify.md)' skills/mf-converge/SKILL.md` prints a line for each; `uv run pytest -q tests/test_skills.py -k role_references_resolve` reports `1 passed`.
-- [ ] 3.5 Move conformance to the mid tier in the Converge bullet of `skills/mf-cut-change/SKILL.md`, in D64 of
+- [x] 3.5 Move conformance to the mid tier in the Converge bullet of `skills/mf-cut-change/SKILL.md`, in D64 of
   `docs/decisions.md` and in `README.md`'s converge sentence, per [D11](design.md#d11), each phrase on one line.
   Verify: `grep -n 'conformance on the mid tier · high' skills/mf-cut-change/SKILL.md` prints a line.
 

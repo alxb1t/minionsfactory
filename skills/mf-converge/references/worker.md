@@ -97,17 +97,8 @@ files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-re
 
 ## The verify pass
 
-A verify-round checker re-reads its file, promotes or reopens each finding, rewrites its counters, appends to its
-`## Resolution log`, and declares a verdict. Conformance runs all of the passes above over this round's freeze, so a
-fix's new test is judged like the build's.
-
-A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or the new
-test does not exercise the card's **When you'd hit it** scenario. The station cannot re-run the test on the
-parent; it checks that the run is there and fits the scenario.
-
-An amend card's `wontfix` stays `wontfix` when its justification holds, never `accepted`: converge's Step 9
-halts on it. A justification that does not hold reopens it, as any `wontfix`. In an amend round, an amend card the
-amend settled goes `verified`, naming it.
+A verify round loads [verify](verify.md): its open cards, the fix diff, the transitions, red runs and the amend
+card's `wontfix`.
 
 ## Catch-up scope
 

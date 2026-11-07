@@ -145,7 +145,8 @@ then verify in one Step 7 round. Both `clean` → Step 9, never Step 8. A blocke
 
 Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
-**A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
+**A verify round** is a round in a catch-up run, or after a `fix` line in this run: it goes on at Step 7, which gives a
+round after a fix its open cards and a catch-up's judge round Step 3's inputs.
 
 The top line is a `halt` naming `.minions/debt.lock`, or an older `.minions/backlog.lock` → continue that run at
 Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
@@ -213,7 +214,7 @@ Open the run marked `· catch-up`, or `· amend` after an answered halt, and wri
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
    judged by what it decided; the gate judges the combined tree.
-6. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
+6. **Run one Step 7 round**, its judge round on Step 3's inputs. Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
    count. A blocking finding open at the end of its own count is a `halt — cap reached`, as at the cap.
 
 ### By rule
@@ -380,9 +381,18 @@ the re-freeze's range.
 - A catch-up run, its fix round and an `· amend` run's included, and a fixer that committed nothing, run no
   `surfaces.py`: dispatch both.
 
-Dispatch conformance, and adversarial unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's inputs and
-dispatch rules, and write `fan-out`. Also pass each its own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
-runs included. Read the verdicts from disk under Step 5.
+**The open cards:** for each checker you dispatch, run
+`uv run --script <this package>/scripts/open_cards.py .minions/changes/<change-id>/<role>.md .minions/changes/<change-id>/<role>.open.md`;
+exit 2, or `uv` missing → **halt**, naming what it printed.
+
+Dispatch conformance, and adversarial unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's
+dispatch rules, and write `fan-out`. Give each [verify](references/verify.md), its `<role>.open.md`, the fix diff
+`diff.patch`, its findings path and, for conformance, the design's `## Tests` section — never Step 3's packet. Each
+runs [the verify pass](references/worker.md#the-verify-pass), red runs included. Read the verdicts from disk under
+Step 5.
+
+A catch-up's judge round judges new commits no card describes: it runs no `open_cards.py` and dispatches Step 3's
+inputs over its freeze. Its fix round's verify is a round after a fix, as above.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 

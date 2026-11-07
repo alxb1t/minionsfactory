@@ -302,10 +302,10 @@ workers, as its plan reviewer is, answering in the cut's thread and writing no f
 
 ### D64 · Converge spends where judgment is
 
-**Converge's conductor runs on the mid tier · medium, its conformance and adversarial workers on the strongest tier · high,
-and its fixer on the mid tier · high, on adversarial's model when a card it is sent blocks: the models file's `[converge]`,
-`[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
-converge prompt. Conformance reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living
+**Converge's conductor runs on the mid tier · medium, its conformance worker on the mid tier · high,
+its adversarial worker on the strongest tier · high, and its fixer on the mid tier · high, on adversarial's model when a
+card it is sent blocks: the models file's `[converge]`, `[converge.conformance]`, `[converge.adversarial]` and
+`[converge.fix]`, which `conduct.py` reads once and passes in the converge prompt. Conformance reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living
 requirements the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no
 `## Surfaces` path of `THREAT_MODEL.md`, with no adversarial card awaiting its checker, takes its adversarial head by
 recomputation.**
