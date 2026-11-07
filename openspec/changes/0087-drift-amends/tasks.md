@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — Converge halts on drift amends
 - [x] 2 — The rescue's row and D15
-- [ ] 3 — Amend cards keyed on the card, the rescue's amend read
+- [x] 3 — Amend cards keyed on the card, the rescue's amend read
 
 ## 1 — Converge halts on drift amends
 
@@ -35,18 +35,18 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Amend cards keyed on the card, the rescue's amend read
 
-- [ ] 3.1 Rewrite the last sentence of *Amend cards first* in Step 9 of `skills/mf-converge/SKILL.md` to the card-keyed rule,
+- [x] 3.1 Rewrite the last sentence of *Amend cards first* in Step 9 of `skills/mf-converge/SKILL.md` to the card-keyed rule,
   per [D4](design.md#d4), the words `already stands in the debt` on one line.
   Verify: `grep -n 'already stands in the debt' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.2 Add the rescue's amend to the amends paragraph of *Resuming a run* in `skills/mf-converge/SKILL.md`, per
+- [x] 3.2 Add the rescue's amend to the amends paragraph of *Resuming a run* in `skills/mf-converge/SKILL.md`, per
   [D5](design.md#d5), the words `never by rule` on one line.
   Verify: `grep -n 'never by rule' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.3 Send a selection holding a rescue's amend past By rule in *Catch-up round* item 4 of
+- [x] 3.3 Send a selection holding a rescue's amend past By rule in *Catch-up round* item 4 of
   `skills/mf-converge/SKILL.md`, per [D5](design.md#d5), the words `skips By rule` on one line.
   Verify: `grep -n 'skips By rule' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.4 Make `_person_amends` in `tests/fake_worker.py` refuse a commit carrying a `Rescue:` trailer, and add
+- [x] 3.4 Make `_person_amends` in `tests/fake_worker.py` refuse a commit carrying a `Rescue:` trailer, and add
   `_write_catch_up` and its call in the `by-rule` mode, as the design's `## Tests` names them.
   Verify: `grep -n 'def _write_catch_up' tests/fake_worker.py` prints a line.
-- [ ] 3.5 Assert the catch-up's `verdicts` line and no `by rule` line in `test_a_drift_amend_goes_on_by_rule` of
+- [x] 3.5 Assert the catch-up's `verdicts` line and no `by rule` line in `test_a_drift_amend_goes_on_by_rule` of
   `tests/test_conduct.py`, as the design's `## Tests` names them.
   Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_goes_on_by_rule` reports `1 passed`.

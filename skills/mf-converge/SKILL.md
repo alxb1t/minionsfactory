@@ -157,9 +157,10 @@ grant is needed, and the catch-up round does not apply, save to the person's ame
 `verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
 one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
 alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
-`verdict: clean`, run the [Catch-up round](#catch-up-round) again; any other opens `· amended` from round 1, as
-above. Any other halt naming no head, or one past the judged head — after this skill's own fix commit,
-or in a catch-up run — is no person's answer.
+`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` trailer
+judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
+naming no head, or one past the judged head — after this skill's own fix commit, or in a catch-up run — is no
+person's answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
@@ -207,7 +208,9 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
    the last judged round, and at the cap → halt as drawn.
 3. **Run Step 1's preconditions.**
 4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
-   worker. A selection of amends alone, with no merge, passes by rule too.
+   worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that
+   carries a `Rescue:` trailer, the rescue's, skips By rule → item 5, under the run's own count: one Step 7 round
+   reads it.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
@@ -397,8 +400,8 @@ Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
 
 **Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is
 `wontfix`, or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2.
-Any left → halt `amend needed — <card ids>`, writing nothing to the debt. In a catch-up run whose selection holds the
-person's amend, they go on as every other card.
+Any left → halt `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered
+`amend needed` halt named, or whose qualified id already stands in the debt, goes on as every other card.
 
 **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
 retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old

@@ -1811,6 +1811,8 @@ def test_a_drift_amend_goes_on_by_rule(
     )
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     assert log.read_text().startswith("# t\n\n## Run 2 — d · catch-up\n")
+    assert "· round 2 · verdicts — review clean · open_blocking 0\n" in log.read_text()
+    assert "· by rule" not in log.read_text()
     assert "· amended" not in log.read_text()
     assert lines[-1].endswith(" · run · done — released v0.1.0 · decided 0001-todo")
 
