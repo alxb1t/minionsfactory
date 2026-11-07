@@ -37,16 +37,17 @@ roadmap row (P10).
 
 | id | decision | brief | rejected |
 |---|---|---|---|
-| [D1](#d1) | `skills/mf-plan/scripts/brief_check.py <brief>`: the hard title, the `At` line, a filled `## For the cut`, plain Acceptance and `Verify:` commands, through `verify_check.py`'s own functions | P11 | a copy of the shell rules; running the commands |
+| [D1](#d1) | `skills/mf-plan/scripts/brief_check.py <brief>`: the hard title, the `At` line, a filled `## For the cut`, plain Acceptance and `Verify:` commands, through `verify_check.py`'s own functions, and each item's head and models line | P11 | a copy of the shell rules; running the commands |
 | [D2](#d2) | `## For the cut` names per change its slug, bump, `after`, `debt:`, `decide: recommended`, Acceptance and the models of the build, converge, release and cut station | P8, P18 | the models as a cut's suggestion; an `AGENTS.md` switch |
-| [D3](#d3) | The hard close: `brief_check.py` to green, then "confirm, and queue it?" — yes or `then=ship` runs `conduct.py cut` per change in order; no ends on today's `Next:` | P4, P9, P19 | a cut in the person's session; a second question per change |
+| [D3](#d3) | The hard close: `brief_check.py` to green, then "confirm, and queue it?" — yes or `then=ship` runs `conduct.py cut` per change in order; no ends on one `Next: /mf-cut-change` line per change | P4, P9, P19 | a cut in the person's session; a second question per change |
 | [D4](#d4) | The role line and *Never* say the plan queues on a yes and never cuts; D59 records the close; `_METRICS_SCRIPTS` names both scripts | P4, P9 | — |
 
 ### D1
 
 `skills/mf-plan/scripts/brief_check.py`, a `uv` script with standard-library imports alone: `brief_check.py <brief>`, by
 `argparse`. `VERIFY_CHECK = Path(__file__).resolve().parents[2] / "mf-cut-change" / "scripts" / "verify_check.py"`, a module
-constant read in `main()`, after the brief is read, and loaded there once per run with `runpy.run_path` (F3), its `SPAN`, `commands`, `tokens`, `masked`, `breaks` and `Unparsed` used as they stand. It runs
+constant read in `main()`, after the brief is read, and loaded there once per run with `runpy.run_path` (F3), its `SPAN`, `commands`, `tokens`, `masked`, `breaks` and `Unparsed` used as they stand.
+`CONDUCT = Path(__file__).resolve().parents[2] / "mf-ship" / "scripts" / "conduct.py"` is loaded the same way, for its `SLUG`. It runs
 no command it reads. Exits: 0 ready · 1 halt · 2 cannot check.
 
 Each check prints its line, `brief: halt — …`, and the script goes on to the next:
@@ -57,6 +58,8 @@ Each check prints its line, `brief: halt — …`, and the script goes on to the
 | `At` | a line fully matches `At ([0-9a-f]{7,40}), (\d{4}-\d{2}-\d{2})\.` | `brief: halt — no At <sha>, <YYYY-MM-DD>. line` |
 | `## For the cut` | the section stands and holds a line that is not blank | `brief: halt — ## For the cut is empty` |
 | commands | each command of each item in `## Decisions` and `## For the cut` has no break | `brief: halt — <the heading, with its ##>: I19 — <breaks, joined by " · ">: `<command>``, e.g. ``brief: halt — ## Decisions: I19 — `$(…)`: `grep -c $(cat f) x` `` |
+| item head | each `<n>. ` item's slug and `after` entries match `conduct.py`'s `SLUG`, its bump is `minor` or `patch`, and it names `after:` | ``brief: halt — ## For the cut: item <n> — not a slug: `<slug>` ``; likewise `not a bump`, `not an after id` and `no after:` |
+| models | each item's `- models:` line names the build, converge, release and cut station in order, each `<model> <effort>` of plain words | `brief: halt — ## For the cut: item <n> — the models line is not build · converge · release · cut, each <model> <effort>`; likewise `not a model or effort` and `no models line` |
 
 - **A section** runs from its `## ` heading to the next.
 - **An item** is a line opening, after its indent, with `- `, `<digits>. ` or `| `, with each following line indented
@@ -65,8 +68,8 @@ Each check prints its line, `brief: halt — …`, and the script goes on to the
   `Verify:` label outside a span; `commands(<the text after it>)`; of those, each whose text holds a space. Its break is
   `breaks(text, tokens(masked(text)))`.
 - An `Unparsed` → `brief: cannot check — <section>: <its message>`, exit 2; so does a brief that cannot be read
-  (`brief: cannot check — <path>: <strerror>`), and a missing `VERIFY_CHECK` (`brief: cannot check — no verify_check.py
-  beside this skill`).
+  (`brief: cannot check — <path>: <strerror>`), a missing `VERIFY_CHECK` (`brief: cannot check — no verify_check.py
+  beside this skill`), and a missing `CONDUCT` (`brief: cannot check — no conduct.py beside this skill`).
 - No line printed → `brief: ready for the cut`, exit 0; else exit 1.
 
 ```
@@ -95,17 +98,20 @@ Step 6, the hard close, after "the person confirms it. Then remove `## Open` and
 1. **The models and the switch** are rows of the settled table the person confirms, per [D2](#d2).
 2. **The check:** run `uv run --script scripts/brief_check.py <brief>`, `scripts/` resolved from this skill's package. Exit
    1 → fix each line it prints in the brief and run it again; exit 2 → **halt**, naming it.
-3. **The question,** once, unless `then=ship` was given: "confirm, and queue it?".
+3. **The question,** once, unless `then=ship` was given. First run `uv run --script ../mf-ship/scripts/conduct.py status` in
+   the primary checkout; show each `## For the cut` item as the brief holds it, and what `status` prints. Then ask "confirm, and
+   queue it?".
 4. **Yes, or `then=ship`:** the executor from runtime evidence — Claude Code → `claude`; Codex → `codex`. For each change of
    `## For the cut`, in order, run in the primary checkout
    `uv run --script ../mf-ship/scripts/conduct.py cut <slug> <bump> brief=<the brief's absolute path> [after=<ids>] --executor <executor> --model
    <cut model> --effort <cut effort>`, `../mf-ship/` resolved from this skill's package; an `after` naming an earlier change
    of the brief takes the id its `cut` line printed (`cut: queued <id> · …`). Paste each line; an exit 2 stops the queue,
-   reported in full. The yes is the person's to cut, run, merge and push each queued version (P9).
+   reported in full. The yes is the person's to every merge and push in the run it joins or starts, as `mf-ship`'s is: each
+   queued version, and each open version that run takes (P9).
 5. **No:** queue nothing.
 
 The close-out's last line: hard and queued → `Next: the run cuts and ships it; conduct.py status says where it stands.`; hard
-and not queued → `Next: /mf-cut-change <id> <bump> brief=<path>`, as today; light → as today.
+and not queued → one `Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>` line per change, in order; light → as today.
 
 The *Parameters* table gains `` | `then` | no | `then=ship` — at a hard close, queue the cut without asking | ``.
 
@@ -126,9 +132,10 @@ The *Parameters* table gains `` | `then` | no | `then=ship` — at a hard close,
 - **Never** gains: "Never queue a cut without the person's yes at a hard close, or `then=ship`; never queue a light brief."
 - **`docs/decisions.md`** — **D59 · A hard plan closes on a checked brief, and queues its cut on the person's yes**, in
   *Planning*, its id added to the diagram's Planning list: at a hard close `mf-plan` names per change the models of the build,
-  converge, release and cut station and the switch `decide: recommended`, runs `brief_check.py` until it passes, and asks once,
-  "confirm, and queue it?"; yes, or `then=ship`, runs `conduct.py cut` per change in order (D58) and is the person's yes to
-  cut, run, merge and push each; no ends on `/mf-cut-change`; the plan never cuts. **Why:** a cut in the person's session kept
+  converge, release and cut station and the switch `decide: recommended`, runs `brief_check.py` until it passes, shows the
+  `## For the cut` items and `conduct.py status`, and asks once, "confirm, and queue it?". Yes, or `then=ship`, runs
+  `conduct.py cut` per change in order (D58), and is the person's yes to every merge and push in the run it joins or starts; no
+  ends on `/mf-cut-change`. The plan never cuts. **Why:** a cut in the person's session kept
   the chat busy, and a brief out of shape is a cutter's doubt made at the plan. **Rejected:** the plan cutting · a light brief
   queued · a question per change. D5's opening "**`mf-plan` grills a version to settled decisions and writes the brief;"
   becomes "**`mf-plan` grills a version to settled decisions and writes the brief, and at a hard close queues its cut (D59);".
@@ -149,9 +156,10 @@ script with `importlib` as `tests/test_verify_check.py` loads its own, each brie
 - `test_a_brief_out_of_shape_halts` — one brief with a `light` title, `At --output=x, 2026-11-05.`, an empty
   `## For the cut`, a `## Decisions` `Verify:` of `` `grep -c $(cat f) x` `` and an Acceptance of `` `cd x && make gate` ``:
   exit 1, each line of [D1](#d1) printed — light, no `At`, the empty section, `$(…)`, `cd`; a title with no depth prints its
-  own line.
-- `test_what_cannot_be_checked_exits_2` — a missing brief; a `Verify:` with an odd backtick; `VERIFY_CHECK` set on the module
-  to a missing path: each exits 2 with its `brief: cannot check — …` line.
+  own line. Items out of shape print the item-head halts — `not a slug`, `not a bump`, `not an after id`, `no after:` — and the
+  models halts — `not a model or effort`, `the models line is not …`, `no models line`.
+- `test_what_cannot_be_checked_exits_2` — a missing brief; a `Verify:` with an odd backtick; a `Verify:` with an unclosed quote;
+  `CONDUCT`, then `VERIFY_CHECK`, set on the module to a missing path: each exits 2 with its `brief: cannot check — …` line.
 
 Extended: `test_the_metrics_script_scan_reports_a_missing_script`, per [D4](#d4). No end-to-end test (`T1`); none deleted.
 

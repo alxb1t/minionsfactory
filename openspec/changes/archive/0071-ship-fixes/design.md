@@ -91,11 +91,11 @@ the person fixed or amended the committed merge: Step 4.4 |`, a `.red` naming an
 
 `conduct.py` gains `_red(primary, tree, change) -> str | None`: the `.red` file's `head:` sha resolved with `git rev-parse --verify
 <sha>^{commit}`, its full sha, or the raw text when it resolves to none; `None` when there is no file or no such line. Since the
-sha is the head the gate judged, a red gate over the person's fix names that fix, and the version reads halted again. `stage_of` reads it before its `_merge_open` block: the sha is `HEAD` → `("integrating", "red gate: …")`; any other
+sha is the head the gate judged, a red gate over the person's fix names that fix, and the version reads halted again. `stage_of` reads it when no merge is open, a headed `.red` beside an open merge being stale: the sha is `HEAD` → `("integrating", "red gate: …")`; any other
 sha — an ancestor after the person's fix, or none reachable after the person's amend of the merge — → `("integrate", "")`, and the
-integrator gates again. `_check_integrate` fails on the sha being `HEAD`, before the subject check, and reads the subject of
+integrator gates again. `_check_integrate` fails while a headed `.red` stands, before the subject check, and reads the subject of
 `HEAD`'s newest first-parent merge, `git rev-list --first-parent --merges -1 HEAD`, with only one-parent commits after it, so the
-person's fix commit after the merge passes. A `.red` with no `head:` line keeps today's open-merge reading.
+person's fix commit after the merge passes once a green gate deletes it. A `.red` with no `head:` line keeps today's open-merge reading.
 
 ### D3
 

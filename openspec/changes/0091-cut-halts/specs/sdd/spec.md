@@ -295,7 +295,7 @@ be parsed. It SHALL run no command it reads.
   follows a head, or a head holds a second `after:`, or an item has a second models line
 - **THEN** `brief_check.py` exits 1, naming the line or the item
 
-#### Scenario: A checked line holds a character not printable
+#### Scenario: A checked line holds other whitespace
 - **WHEN** a line of a brief's `## For the cut`, `## Dependencies` or `## Decisions` holds a no-break space, an ideographic
   space, a tab, a vertical tab, a form feed, U+200B or U+2060
 - **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: a character isprintable() refuses` for that line
