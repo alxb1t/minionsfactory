@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs: it stages a Markdown settle under `openspec/` and `docs/` and writes `integrate.settled`, the run checks the open
   merge, and `mf-integrate` `with settled=supervisor` commits it naming `the supervisor` (change
   `0090-supervisor-merge`, phase 2).
+- D45, D57 and D61 record the supervisor's settle and the kept brief; the threat model, `mf-ship` and README brought in
+  line (change `0090-supervisor-merge`, phase 3).
 
 ## [0.72.0] - 2026-11-07
 

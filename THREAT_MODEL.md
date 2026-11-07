@@ -66,7 +66,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   person's own fix then, or a grant landing as it ends, waits for a re-run.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
-  in the home folder, where no worker writes, so no worker names that brief.
+  in the home folder, where no worker writes, so no worker names that brief. A passed cut's brief path stays there, in
+  `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor tried, so no worker
+  buys a second try.
 
 ## Out of scope
 
@@ -87,7 +89,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
   amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
-  rule, decision check or delta bound, and a catch-up passes it by rule. The automatic grant
+  rule, decision check or delta bound, and a catch-up passes it by rule. At an integrate note the supervisor stages spec and
+  docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
+  `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; converge judges that merge
+  by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.

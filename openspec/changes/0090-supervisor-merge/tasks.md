@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
 
 - [x] 1 — The brief kept
 - [x] 2 — The integrate settle
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The brief kept
 
@@ -58,26 +58,26 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
 
 ## 3 — The record
 
-- [ ] 3.1 Edit D45 in `docs/decisions.md`, per [D7](design.md#d7), the words `whose settle of spec and docs text it commits`
+- [x] 3.1 Edit D45 in `docs/decisions.md`, per [D7](design.md#d7), the words `whose settle of spec and docs text it commits`
   on one line.
   Verify: `grep -n 'whose settle of spec and docs text it commits' docs/decisions.md` prints a line.
-- [ ] 3.2 Edit D57's file list in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 3.2 Edit D57's file list in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -n -F 'integrate.{md,red,resolved,settled}' docs/decisions.md` prints a line.
-- [ ] 3.3 Edit D61's trigger and its never list in `docs/decisions.md`, per [D7](design.md#d7), the words
+- [x] 3.3 Edit D61's trigger and its never list in `docs/decisions.md`, per [D7](design.md#d7), the words
   `integrate semantic-conflict halt` on one line.
   Verify: `grep -n 'integrate semantic-conflict halt' docs/decisions.md` prints a line.
-- [ ] 3.4 Add D61's **An integrate note** and **The brief** bullets and its Rejected clause in `docs/decisions.md`, per
+- [x] 3.4 Add D61's **An integrate note** and **The brief** bullets and its Rejected clause in `docs/decisions.md`, per
   [D7](design.md#d7).
   Verify: `grep -n -F '**The brief:** a passed cut records' docs/decisions.md` prints a line.
-- [ ] 3.5 Add the brief record to the cut-queue bullet of `THREAT_MODEL.md`'s *Entry points*, per [D7](design.md#d7).
+- [x] 3.5 Add the brief record to the cut-queue bullet of `THREAT_MODEL.md`'s *Entry points*, per [D7](design.md#d7).
   Verify: `grep -n -F 'briefs/<id>' THREAT_MODEL.md` prints a line.
-- [ ] 3.6 Add [D7](design.md#d7)'s integrate sentence to `THREAT_MODEL.md`'s *Out of scope*, the words
+- [x] 3.6 Add [D7](design.md#d7)'s integrate sentence to `THREAT_MODEL.md`'s *Out of scope*, the words
   `the integrate station then commits` on one line.
   Verify: `grep -n 'the integrate station then commits' THREAT_MODEL.md` prints a line.
-- [ ] 3.7 Edit Step 4's `integrating` sentence in `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
+- [x] 3.7 Edit Step 4's `integrating` sentence in `skills/mf-ship/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n 'supervised integrating' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 3.8 Edit the answered row of `skills/mf-ship/SKILL.md`, per [D7](design.md#d7), the words
+- [x] 3.8 Edit the answered row of `skills/mf-ship/SKILL.md`, per [D7](design.md#d7), the words
   `the supervisor at a converge or integrate halt` on one line.
   Verify: `grep -n 'the supervisor at a converge or integrate halt' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 3.9 Edit the `mf-supervise` row of `README.md`, per [D7](design.md#d7).
+- [x] 3.9 Edit the `mf-supervise` row of `README.md`, per [D7](design.md#d7).
   Verify: `grep -n 'a settle of an integrate note' README.md` prints a line.
