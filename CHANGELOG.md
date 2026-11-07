@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-cut-change` runs a first plan review always and a second only when a fix changes a decision or a task, each by a
   fresh worker; a build whose highest row of *Suggesting models* is the moderate one runs whole on Sonnet 5.5 · high,
   and `mf-plan`'s models line follows it (change `0093-lighter-build-cut`, phase 1).
+- D65 records the lighter plan review and moderate build; D7, D40 and D41 say so, and D42 accepts the plan-review scan
+  the Acceptance asked for (change `0093-lighter-build-cut`, phase 2).
 
 ## [0.76.0] - 2026-11-07
 

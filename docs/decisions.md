@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62      D11…D17, D40, D43, D49, D50, D63, D64
+     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -90,7 +90,8 @@ is kept beside them. `design.md` carries the measurement behind each decision, n
 the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). It
 re-checks the facts whose files moved since the brief's `At` line, and its helpers read them. It runs each `Verify:`
 search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
-built as written; it runs no gate.**
+built as written, a second review only after a fix that changes a decision or a task
+([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate.**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
   read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change
@@ -176,6 +177,18 @@ queue holds.**
 - **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
   again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
   nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
+
+### D65 · A lighter plan review and build
+
+**The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
+decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker
+([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one model a change, and one build session.**
+
+- **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
+  round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
+- **Rejected:** a second review after every fix · resuming a reviewer by a message · a build session per phase, which needs a
+  guard against re-spawning without end · a model per phase.
 
 ## The check loop and the release
 
@@ -278,9 +291,9 @@ code. Fold and archive land in one commit.**
 **A checker, a verification worker or the cut's plan reviewer is a new host subagent or fresh agent process
 receiving explicit task inputs, without the producer's transcript. The conductor dispatches, waits and reads findings
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
-freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file. The
-cut's helpers are fresh read-only workers, as its plan reviewer is, answering in the cut's thread and writing no
-file.**
+freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
+Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
+workers, as its plan reviewer is, answering in the cut's thread and writing no file.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
@@ -511,6 +524,8 @@ writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
+- **Names one model:** *Suggesting models*' moderate row, Sonnet 5.5 · high, taken only where the session offers it
+  ([D65](#d65--a-lighter-plan-review-and-build)).
 
 ### D42 · Skill prose is held by review, not by phrase scans
 
@@ -521,6 +536,8 @@ the bootstrap templates — never that a sentence exists.**
 - **Why:** a phrase scan proves a sentence exists, not that a station obeys it, and it freezes the wording: no
   sentence can be reworded without editing a test, so skill text only grows.
 - **Gave up:** the gate failing when a rule's sentence is deleted. Review reads the diff for it.
+- **Accepts:** the plan-review scan of `tests/test_skills.py`, which reads the opening words of cells in the cut's review
+  table and *Suggesting models*: the Acceptance of [D65](#d65--a-lighter-plan-review-and-build) asked for it.
 
 ### D44 · Versions run side by side in worktrees; one primary merges them
 

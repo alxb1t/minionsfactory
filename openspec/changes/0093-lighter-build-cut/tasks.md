@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The review and the moderate build
-- [ ] 2 — The record
+- [x] 2 — The record
 
 ## 1 — The review and the moderate build
 
@@ -23,15 +23,15 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The record
 
-- [ ] 2.1 Add D65 as the last decision of *Planning* in `docs/decisions.md`, as [D6](design.md#d6) quotes it.
+- [x] 2.1 Add D65 as the last decision of *Planning* in `docs/decisions.md`, as [D6](design.md#d6) quotes it.
   Verify: `grep -n '^### D65 · A lighter plan review and build$' docs/decisions.md` prints a line.
-- [ ] 2.2 Add `D65` as the last id of the map's Planning list in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.2 Add `D65` as the last id of the map's Planning list in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'D59, .*D65' docs/decisions.md` prints a line.
-- [ ] 2.3 Edit D7's bold text in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.3 Edit D7's bold text in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'a second review only after a fix' docs/decisions.md` prints a line.
-- [ ] 2.4 Edit D40's bold text in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.4 Edit D40's bold text in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'never a message to the reviewer before it' docs/decisions.md` prints a line.
-- [ ] 2.5 Add the *Names one model* bullet to D41 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.5 Add the *Names one model* bullet to D41 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'Names one model:' docs/decisions.md` prints a line.
-- [ ] 2.6 Add the **Accepts** bullet to D42 in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.6 Add the **Accepts** bullet to D42 in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'the plan-review scan of' docs/decisions.md` prints a line.
