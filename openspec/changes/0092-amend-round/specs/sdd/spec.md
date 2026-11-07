@@ -199,7 +199,7 @@ in a new unticked phase after the last, with its `## Progress` line, never under
 - **THEN** the rescue amends `tasks.md`, the run logs `rescue — fixed`, and the version builds on and releases in the same run
 
 #### Scenario: A decision halt
-- **WHEN** a build halts on a design premise the code rules out
+- **WHEN** a build halts on a design premise the code rules out, with no switch
 - **THEN** the rescue writes `.minions/changes/<id>/rescue.md`, and the version stays halted, its halt naming the file
 
 #### Scenario: A rescue outside the plan

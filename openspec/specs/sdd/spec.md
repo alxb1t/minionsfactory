@@ -95,11 +95,12 @@ other shipped skill SHALL carry a `## The card` section.
 When converge ran, `skills/mf-release/SKILL.md` SHALL halt unless `HEAD` equals the `head:` of both findings files.
 `skills/mf-converge/SKILL.md` SHALL offer a **catch-up round**: when both findings files are clean and their `head:`
 is an ancestor of `HEAD` but not `HEAD`, it runs one verify round over `head..HEAD`, with no pickup, unless the
-selection is merges and amends only, every merge replays by the fixed rules and no amend carries a `Rescue:` trailer, when
-the round is by rule and runs no worker.
-**Merges and amends** are merges, and the person's or the rescue's `docs(<id>): amend the change directory` commits touching only
-`openspec/changes/<id>/`. When the selection is merges and amends only, the run SHALL count its own rounds: one judge round and
-at most one fix round, then a halt, with `round:` carrying on past three. Any other selection SHALL count against the cap of three.
+selection is merges and amends only, every merge replays by the fixed rules and no amend carries a `Rescue:` or `Supervisor:`
+trailer, when the round is by rule and runs no worker.
+**Merges and amends** are merges, and the person's, the rescue's or the supervisor's `docs(<id>): amend the change directory`
+commits touching only `openspec/changes/<id>/`. When the selection is merges and amends only, the run SHALL count its own rounds:
+one judge round and at most one fix round, then a halt, with `round:` carrying on past three. Any other selection SHALL count
+against the cap of three.
 When that range holds a merge of the default branch, the round SHALL judge the merge by its
 `git show --remerge-diff`, and the range's other commits by their own diff, not the changes the merge brought in.
 
@@ -111,7 +112,7 @@ When that range holds a merge of the default branch, the round SHALL judge the m
 - **WHEN** both findings files are clean and their `head:` is an ancestor of `HEAD` but not `HEAD`
 - **THEN** `mf-converge` runs one verify round over `head..HEAD`, with no pickup
 - **AND WHEN** the selection is merges and amends only, every merge replays by the fixed rules and no amend carries a
-  `Rescue:` trailer
+  `Rescue:` or `Supervisor:` trailer
 - **THEN** the round is by rule: no freeze, no worker, no verify round, and no pickup
 
 #### Scenario: The catch-up round judges a merge-in by what the merge decided
@@ -134,9 +135,14 @@ When that range holds a merge of the default branch, the round SHALL judge the m
   directory, carrying its `Rescue:` trailer
 - **THEN** `mf-converge` judges it in one Step 7 round as round 4, with no halt at the cap and no round by rule
 
+#### Scenario: A supervisor's amend has its own count
+- **WHEN** the last judged round is 3, Step 9 halted `amend needed`, and the selection is the supervisor's amend of the change
+  directory, carrying its `Supervisor:` trailer
+- **THEN** `mf-converge` judges it in one Step 7 round as round 4, with no halt at the cap and no round by rule
+
 #### Scenario: A late commit at the cap halts
-- **WHEN** the last judged round is 3 and the selection holds a commit that is neither a merge nor the person's or the
-  rescue's amend
+- **WHEN** the last judged round is 3 and the selection holds a commit that is neither a merge nor the person's, the rescue's
+  or the supervisor's amend
 - **THEN** `mf-converge` halts, naming the revert and the re-converge from round 1
 
 ### Requirement: Anchored harms block, and drift has its own tier
@@ -1418,7 +1424,8 @@ tip, and SHALL hold no number before it.
 
 ### Requirement: A halt stops only its version, and a re-run resumes
 
-A failed check SHALL halt its version alone: that version SHALL start no new worker but its rescue, and every other version SHALL go on
+A failed check SHALL halt its version alone: that version SHALL start no new worker but its rescue and, under its switch, its
+supervisor, and every other version SHALL go on
 to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
 probe and a conductor crash SHALL stop the run. A run with every open version at a halt stage or `waiting` SHALL start
 no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
@@ -2228,7 +2235,8 @@ still halted. Any other halt naming no head, one past the judged head,
 and one whose head is no ancestor of `HEAD` SHALL stand. `skills/mf-converge/SKILL.md`, finding its newest run's top line a halt
 before round 1, SHALL open a plain new run, with no mark, as a fresh invocation does; finding a void
 catch-up halt, or a void `amend needed` halt, with both files clean, it SHALL run the catch-up round again, opening no new round 1,
-and SHALL judge an amend there carrying a `Rescue:` trailer in one Step 7 round over its diff, passing only a trailer-less amend by rule;
+and SHALL judge an amend there carrying a `Rescue:` or `Supervisor:` trailer in one Step 7 round over its diff, passing only a
+trailer-less amend by rule;
 finding any other void halt, it SHALL open a run marked `· amended`, and
 converge from round 1 over the whole change, the findings files restarting at `round: 1`. A run marked `· grant` that resumes
 SHALL stay a granted round.
@@ -2270,6 +2278,11 @@ SHALL stay a granted round.
 - **THEN** its stage is `converge`, and the next run is a catch-up round that passes the person's trailer-less amend by rule,
   with no new round 1
 
+#### Scenario: The supervisor's amend answers a drift halt
+- **WHEN** Step 9 halts `amend needed` with both findings files clean, and the supervisor's amend, carrying its `Supervisor:`
+  trailer, is taken
+- **THEN** the next run is a catch-up round whose one Step 7 round reads the amend, with no new round 1 and no round by rule
+
 #### Scenario: A granted round resumes
 - **WHEN** a granted round dies after its `fix` line, and a re-run resumes it
 - **THEN** it verifies and ends with no pickup
@@ -2284,10 +2297,10 @@ run no hook and fetch no missing object.
 It SHALL exit 2, rebuilding nothing, for a commit without two parents or whose second parent the default branch does not hold.
 `skills/mf-converge/SKILL.md`'s catch-up round SHALL first run *Catch-up scope*'s ancestry and parent checks, halting when one
 fails, then run `replay` for each merge in its selection; when every merge replays and the selection holds nothing else but the
-person's amends, none carrying a `Rescue:` trailer, which Step 1's gate and `gate_check.py` judge, it SHALL write both findings
-files `head: HEAD` and `verdict: clean` with a `## By rule` section naming each merge's paths and each amend, log
-`round N · by rule — clean, <paths>`, dispatch no worker, and count the round within the merges-and-amends count. Any other
-selection, one holding the rescue's amend among them, SHALL take the catch-up round as before.
+person's amends, none carrying a `Rescue:` or `Supervisor:` trailer, which Step 1's gate and `gate_check.py` judge, it SHALL
+write both findings files `head: HEAD` and `verdict: clean` with a `## By rule` section naming each merge's paths and each amend,
+log `round N · by rule — clean, <paths>`, dispatch no worker, and count the round within the merges-and-amends count. Any other
+selection, one holding the rescue's or the supervisor's amend among them, SHALL take the catch-up round as before.
 
 #### Scenario: A changelog the rule settled
 - **WHEN** the integrate merge conflicted in `CHANGELOG.md` alone, settled by `integrate.py changelog`
@@ -2304,6 +2317,11 @@ selection, one holding the rescue's amend among them, SHALL take the catch-up ro
 
 #### Scenario: A merge and the rescue's amend
 - **WHEN** the selection is a merge that replays and the rescue's amend of the change directory, carrying its `Rescue:` trailer
+- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
+
+#### Scenario: A merge and the supervisor's amend
+- **WHEN** the selection is a merge that replays and the supervisor's amend of the change directory, carrying its `Supervisor:`
+  trailer
 - **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
 
 #### Scenario: A merge someone judged
@@ -2465,19 +2483,21 @@ Step 7 round judges the rescue's amend. A version whose
 rescue at a converge or integrate halt leaves its stage on disk no halt SHALL stay halted for the run, a rejoin request taking it
 back none, the halt naming that stage and a moved `HEAD`: whatever answers the halt on disk while the rescue runs, or before
 the run reads its outcome, SHALL count as the rescue's answer and wait for a re-run — save the person's
-`docs(<id>): amend the change directory` commits, which answer an `amend needed`, `verify: halt` or clean catch-up halt
+`docs(<id>): amend the change directory` commits, none carrying a `Rescue:` or `Supervisor:` trailer, which answer an
+`amend needed`, `verify: halt` or clean catch-up halt
 by amends alone: the version SHALL go on in the run, logged `rescue — <id>: amended · <commit>`. A version SHALL
 get at most `RESCUES = 3` rescues in a run, and none for a sub-task it rescued before; a timeout, a usage limit and D47's halts that
 need the person SHALL get none. The run SHALL log `rescue — <id>: fixed · <sub-task> · <commit>`, `rescue — <id>: decided ·
 <sub-task> · <commit>` or `rescue — <id>: diagnosed · <file>`, and `report` SHALL print each. The rejoin folder and the grants folder SHALL be read and emptied through a directory file
-descriptor opened without following a link.
+descriptor opened without following a link. A sub-task an amend adds — the rescue's, the supervisor's or the person's — SHALL go
+in a new unticked phase after the last, with its `## Progress` line, never under a ticked phase, whose sub-tasks no build reads.
 
 #### Scenario: A check that cannot pass
 - **WHEN** a build halts on a `Verify:` whose search matches a line no task touches
 - **THEN** the rescue amends `tasks.md`, the run logs `rescue — fixed`, and the version builds on and releases in the same run
 
 #### Scenario: A decision halt
-- **WHEN** a build halts on a design premise the code rules out
+- **WHEN** a build halts on a design premise the code rules out, with no switch
 - **THEN** the rescue writes `.minions/changes/<id>/rescue.md`, and the version stays halted, its halt naming the file
 
 #### Scenario: A rescue outside the plan
@@ -2500,6 +2520,11 @@ descriptor opened without following a link.
 - **WHEN** the person commits `docs(<id>): amend the change directory` while the rescue of its `amend needed` halt runs
 - **THEN** the version goes on in the same run, and the run logs `rescue — <id>: amended`
 
+#### Scenario: A worker's amend is no person's
+- **WHEN** an amend of the change directory carrying a `Supervisor:` trailer follows a converge halt's head, and the supervisor's
+  check refused it
+- **THEN** the version stays halted for the run, as when the rescue answered it
+
 #### Scenario: A rescue that answers its cap
 - **WHEN** a rescue at a converge cap writes a grant and a rejoin request
 - **THEN** the run starts no further converge round, and logs the version still halted
@@ -2507,6 +2532,10 @@ descriptor opened without following a link.
 #### Scenario: The same sub-task again
 - **WHEN** a version halts again on a sub-task it was rescued from
 - **THEN** no rescue runs, and the halt names both
+
+#### Scenario: A sub-task added after its phase is ticked
+- **WHEN** an amend at a converge halt adds a sub-task the build must make, and every phase of `## Progress` is ticked
+- **THEN** the amend adds it in a new unticked phase after the last, and the version builds that phase before it converges
 
 #### Scenario: A link at the rejoin folder
 - **WHEN** a worker swaps the rejoin folder for a link to another directory after the run lists it
@@ -2655,7 +2684,7 @@ diagnosis.
 #### Scenario: A `Verify:` changed since the cut
 - **WHEN** converge halts at Step 1.6 with `verify: halt`
 - **THEN** the run writes the diagnosis with no worker, naming the person's amend commit and the command, and the version stays
-  halted
+  halted with no switch
 
 ### Requirement: Each release records its codebase
 
@@ -3005,3 +3034,61 @@ needs: ` · needs <id> <action>`, joined by `, `.
 #### Scenario: The run ends when nothing can move
 - **WHEN** every version thread has ended, and no halted version's stage or `HEAD` changed since its halt
 - **THEN** the run closes, naming each halted version's action
+
+### Requirement: A supervisor answers what the rescue leaves
+
+Under a version's switch, `decide = "recommended"`, when its rescue at a build check halt or a converge halt writes a
+diagnosis, the run diagnoses its converge `verify: halt`, or its rescue is spent on the halt — the sub-task rescued before in
+the run, or `RESCUES` reached — `conduct.py` SHALL spawn the `mf-supervise` station in that version's thread, with
+`decide=recommended`. It SHALL spawn none without the switch; at an integrate halt; at a halt the rescue's answer on disk holds
+for a re-run; at a converge halt while `security.md` holds an open card of `critical` or `high` severity, or its `amend needed`
+names one; when the rescue's worker failed or its amend was refused; nor when the models file's `[rescue]` table says
+`skip = true`. The station SHALL run on the `[supervise]` table's executor, model and effort; on Claude, an absent model SHALL be
+`claude-opus-5-5` and an absent effort `high`.
+
+`skills/mf-supervise/SKILL.md` SHALL answer the halt with one `docs(<id>): amend the change directory` commit carrying
+`Supervisor: <sub-task or stage>` and `Decided-by: supervisor` trailers, or commit nothing. It MAY edit any file under
+`openspec/changes/<id>/`, the spec delta included, tick a sub-task box whose `Verify:` it ran and saw pass, and add work as a new
+unticked phase after the last. It SHALL never edit code, a test or any other path, take a security card of `critical` or `high`
+severity, approve a gate makefile, accept a risk the threat model does not accept, untick a box, release, merge or push.
+
+`conduct.py` SHALL take the commit only when it is the one commit past the station's start, with one parent, the amend's
+subject, a `Supervisor:` trailer, a `Decided-by:` trailer reading `supervisor`, and paths under `openspec/changes/<id>/` alone. It
+SHALL then clear the version's halt and its diagnosis, log `supervise — <id>: decided · <sub-task or stage> · <commit>`, and go
+on in the same thread, with no restart and no wait for a poll. Any other outcome SHALL halt the version, naming what the station
+left; at a converge halt, an answer on disk SHALL then hold the version for a re-run as the rescue's does, the halt reading
+`supervisor answered its halt`, and the person's amends alone, none carrying a `Rescue:` or `Supervisor:` trailer, SHALL go on. A
+version SHALL get one supervisor try per halt and at most `SUPERVISES = 2` in a run; a halt the supervisor tried before SHALL
+name ` · supervised <sub-tasks>`. A grant SHALL be refused while the station runs, as while the rescue runs. `report` SHALL
+print `<id> · supervised <sub-task or stage> · <commit>` for each taken amend, the run's closing line and its `done` line SHALL
+name ` · supervised <ids>`, and the run's metrics SHALL count them as `supervisor-decided`.
+
+#### Scenario: A diagnosed halt under the switch
+- **WHEN** a build halts, its rescue writes a diagnosis, and the version's models file says `decide = "recommended"`
+- **THEN** the supervisor runs, its amend of the spec delta with both trailers is taken, the run logs
+  `supervise — <id>: decided`, and the version builds on and releases in the same run
+- **AND** `report` prints `<id> · supervised 1.1 · <commit>`, and the `done` line names ` · supervised <id>`
+
+#### Scenario: No switch
+- **WHEN** the models file has no `decide`, and the rescue diagnoses the halt
+- **THEN** no supervisor runs, and the version stays halted, its halt naming the diagnosis
+
+#### Scenario: An amend touching a test
+- **WHEN** the supervisor's commit touches a file under `tests/`
+- **THEN** the version halts, naming the file, and the run logs no `supervise —` line
+
+#### Scenario: A spent rescue
+- **WHEN** under the switch a version halts again on a sub-task its rescue amended before in the run
+- **THEN** the supervisor runs once, with no rescue
+- **AND WHEN** the version halts on that sub-task again
+- **THEN** no worker runs, and the halt names ` · rescued 1.1 · supervised 1.1`
+
+#### Scenario: A refused amend at a converge halt
+- **WHEN** the supervisor at an `amend needed` halt commits an amend of the change directory with no `Decided-by: supervisor`
+  trailer
+- **THEN** the version stays halted for the run, its halt reading `supervisor answered its halt`, and the closing line names
+  `a re-run` as its need
+
+#### Scenario: A blocking security card
+- **WHEN** converge halts `amend needed` naming a security card of `high` severity, under the switch
+- **THEN** the rescue diagnoses, no supervisor runs, and the version stays halted

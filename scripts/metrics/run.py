@@ -26,13 +26,13 @@ from typing import Any
 
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
-STATIONS = ("build", "converge", "integrate", "release", "rescue")
+STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
 HALT = re.compile(r"(\w+) (?:check fail|worker exit|timed out)\b")
 # why: a clock set back an hour is no midnight
 MIDNIGHT = timedelta(hours=12)
 STAGES = ("build", "converge", "catch-up", "integrate")
 # The stages a version's cost sums; the release's own log is still being written.
-SPENT = (*STAGES, "rescue")
+SPENT = (*STAGES, "rescue", "supervise")
 ROLES = ("review", "security")
 MODEL_USAGE = (
     "inputTokens",
@@ -328,6 +328,16 @@ class Version:
             for e in self.events
         )
 
+    def supervised(self) -> int:
+        """Return the supervisor amends the run took, each `decided` for the person.
+
+        Why: 0089-supervisor design D10.
+        """
+        return sum(
+            e.name == "supervise" and e.detail.startswith(f"{self.change}: decided")
+            for e in self.events
+        )
+
     @cached_property
     def status_runs(self) -> list[tuple[str, str]]:
         """Return the status log's runs as heading and body, newest first."""
@@ -532,6 +542,7 @@ METRICS: dict[str, Callable[[Version], Number]] = {
     "rescues-fixed": lambda v: v.rescues("fixed"),
     "rescues-diagnosed": lambda v: v.rescues("diagnosed"),
     "rescues-decided": lambda v: v.rescues("decided"),
+    "supervisor-decided": Version.supervised,
     "build-commits": lambda v: v.commits(fixes=False),
     "fix-commits": lambda v: v.commits(fixes=True),
     "cost-usd": lambda v: round(v.spent(SPENT)[0], 2),
