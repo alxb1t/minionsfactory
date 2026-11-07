@@ -7,8 +7,9 @@
     surfaces.py <security.md> <from> <to>
 
 Run from the repository root. Exit 0, `surfaces: no surface`: the security file is
-clean, every card `verified` or `accepted`, and no path of `<from>..<to>` matches a
-glob of `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds it. Exit 1,
+clean, every card and Status line `verified` or `accepted`, and no path of
+`<from>..<to>` matches a glob of `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds
+it. Exit 1,
 `surfaces: verify — <reason>`, the first that holds. Exit 2,
 `surfaces: cannot read — <why>`.
 Why: 0094-lighter-converge design D8.
@@ -16,6 +17,7 @@ Why: 0094-lighter-converge design D8.
 
 import argparse
 import fnmatch
+import os
 import re
 import subprocess
 import sys
@@ -27,6 +29,8 @@ THREAT_MODEL = Path("THREAT_MODEL.md")
 SETTLED = ("verified", "accepted")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
+# Any top-level bold line, off the card's form or not: names a stray Status's card.
+TITLE = re.compile(r"^[-*] \*\*([^\s*:]+)", re.MULTILINE)
 STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*[`*_]*(\w*)", re.MULTILINE)
 GLOB = re.compile(r"^- `([^`]+)`", re.MULTILINE)
 
@@ -64,18 +68,31 @@ def decide(security: Path, start: str, end: str) -> None:
         said = status[1] if status else ""
         if said not in SETTLED:
             raise Verify(f"security card {card[1]} is {said or 'unsettled'}")
+    # Every Status line too, so one under a title `CARD` misses still waits.
+    for status in STATUS.finditer(text):
+        if status[1] not in SETTLED:
+            titles = TITLE.findall(text, 0, status.start())
+            named = titles[-1] if titles else "unnamed"
+            raise Verify(f"security card {named} is {status[1] or 'unsettled'}")
+    # Replacement off, as `pin.py`'s and `conduct.py`'s history reads: a worker can
+    # write `refs/replace/`, and swap the list read at `<from>`.
+    unreplaced = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
     done = subprocess.run(
         # `-z`: else git quotes a path holding an unusual byte, and no glob matches it.
         ["git", "diff", "-z", "--name-only", "--no-renames", start, end],
         capture_output=True,
         text=True,
+        env=unreplaced,
     )
     if done.returncode != 0:
         raise Unread(f"git diff failed: {done.stderr.strip().split('\n')[0]}")
     # Read at `<from>`, which git just read: the fix being judged cannot edit the list
     # that judges it. A threat model absent there lists nothing.
     shown = subprocess.run(
-        ["git", "show", f"{start}:{THREAT_MODEL}"], capture_output=True, text=True
+        ["git", "show", f"{start}:{THREAT_MODEL}"],
+        capture_output=True,
+        text=True,
+        env=unreplaced,
     )
     listed = surfaces(shown.stdout) if shown.returncode == 0 else []
     if not listed:

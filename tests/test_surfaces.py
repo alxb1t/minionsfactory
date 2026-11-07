@@ -118,6 +118,16 @@ def test_a_fix_that_reaches_security_is_verified(
         "surfaces: verify — skills/x/scripts/z.py matches skills/*/scripts/*\n",
     )
 
+    # A replace ref cannot swap the list read at `<from>`.
+    listed = _git(tmp_path, "rev-parse", f"{quoted}:THREAT_MODEL.md")
+    narrowed = _git(tmp_path, "rev-parse", f"{edited}:THREAT_MODEL.md")
+    _git(tmp_path, "replace", listed, narrowed)
+    assert _run(capsys, security, quoted, edited) == (
+        1,
+        "surfaces: verify — skills/x/scripts/z.py matches skills/*/scripts/*\n",
+    )
+    _git(tmp_path, "replace", "-d", listed)
+
     # A Status off the card's exact form is not settled: only `verified` and
     # `accepted` are.
     for status, said in (
@@ -132,6 +142,15 @@ def test_a_fix_that_reaches_security_is_verified(
             1,
             f"surfaces: verify — security card S1 is {said}\n",
         )
+    # A Status under a title off the card's form is settled by the same allowlist.
+    security.write_text(
+        "---\nverdict: clean\n---\n\n- **S1 – a finding**\n"
+        "  - **Status:** fixed — a note\n"
+    )
+    assert _run(capsys, security, start, start) == (
+        1,
+        "surfaces: verify — security card S1 is fixed\n",
+    )
     security.write_text("---\nverdict: clean\n---\n\n- **S1 — a finding**\n")
     assert _run(capsys, security, start, start) == (
         1,

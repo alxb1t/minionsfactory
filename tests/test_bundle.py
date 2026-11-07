@@ -122,6 +122,14 @@ def test_a_bundle_that_cannot_be_written_is_refused(
     assert _run(capsys, out) == (2, f"bundle: cannot bundle — {missing}\n")
     assert not out.exists()
 
+    # A plan file that is not UTF-8 is a file it cannot read.
+    _change(tmp_path, "Design.\n")
+    design = tmp_path / "openspec" / "changes" / "0001-a" / "design.md"
+    design.write_bytes(b"caf\xe9\n")
+    reason = "openspec/changes/0001-a/design.md: invalid continuation byte"
+    assert _run(capsys, out) == (2, f"bundle: cannot bundle — {reason}\n")
+    assert not out.exists()
+
     _change(tmp_path, "Design.\n")
     target = tmp_path / "operator.rc"
     target.write_text("kept\n")

@@ -75,7 +75,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 The path globs a converge fix reaches security through: `skills/mf-converge/scripts/surfaces.py` reads this list at the
 head the last round judged and matches each with `fnmatch`, whose `*` crosses `/`, and a fix touching none takes its
-security head by rule.
+security head by rule. A test module stays off it: review judges every test edit under *Gate integrity*, and a test-only
+pickup verified by security would spend what [D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a
+`conftest.py`, whose hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run.
@@ -87,8 +89,23 @@ security head by rule.
 - `skills/mf-converge/references/worker.md` — the grades and anchors that decide what a security card blocks.
 - `skills/mf-rescue/SKILL.md` — the rescue's bounds, which never take a security `critical` or `high` card.
 - `skills/mf-supervise/SKILL.md` — the supervisor's bounds, which never take a security `critical` or `high` card.
+- `skills/mf-plan/SKILL.md` — its close, the one shell command a planning session runs outside the sandbox.
+- `skills/mf-bootstrap/SKILL.md` — how the templates become a new repo's gate and ignore list.
 - `Makefile` — the gate's recipe.
+- `GNUmakefile` — make reads it before `Makefile`.
+- `makefile` — make reads it before `Makefile`.
+- `*conftest.py` — pytest hooks, loaded at every collection: they can deselect or skip any test the gate runs.
+- `*pytest.ini` — pytest's settings, taken over `pyproject.toml`'s.
+- `*ruff.toml` — ruff's settings, taken over `pyproject.toml`'s, the nearest in any folder.
+- `ty.toml` — ty's settings, taken over `pyproject.toml`'s.
+- `.coveragerc` — coverage's settings, taken over `pyproject.toml`'s.
+- `setup.cfg` — coverage's and pytest's settings, coverage taking them over `pyproject.toml`'s.
+- `tox.ini` — coverage's and pytest's settings, coverage taking them over `pyproject.toml`'s.
+- `uv.toml` — uv's settings, its package index among them, taken over `pyproject.toml`'s.
+- `*zizmor.yml` — the CI workflow lint's settings.
 - `.betterleaks.toml` — the secret scan's allowlist.
+- `.gitleaks.toml` — the secret scan's settings, which it reads as it reads `.betterleaks.toml`.
+- `*leaksignore` — the secret scan's ignored findings, `.betterleaksignore` and `.gitleaksignore`.
 - `.gitignore` — what git can track, and so what the scan reads.
 - `pyproject.toml` — the dependencies and the tools' settings.
 - `uv.lock` — the pinned dependencies.

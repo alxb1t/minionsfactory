@@ -43,8 +43,9 @@ def _read(path: Path) -> str:
     """Return a file's text; one that cannot be read stops the run."""
     try:
         return path.read_text()
-    except OSError as error:
-        raise Stop(f"{path}: {error.strerror}") from error
+    except (OSError, UnicodeDecodeError) as error:
+        why = error.strerror if isinstance(error, OSError) else error.reason
+        raise Stop(f"{path}: {why}") from error
 
 
 def cited(plan: list[str], decisions: str) -> list[int]:
