@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0088-paydown-2`, phase 2).
 - `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time; converge
   writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`, phase 3).
+- The archived designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does;
+  `THREAT_MODEL.md`'s *Known gaps* lists only cards still carded and keeps each accepted route as its record (change
+  `0088-paydown-2`, phase 4).
 
 ## [0.71.0] - 2026-11-07
 

@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 - [x] 1 — The conductor's small cards
 - [x] 2 — The brief check
 - [x] 3 — The status-log stamp
-- [ ] 4 — The archives and the threat model
+- [x] 4 — The archives and the threat model
 
 ## 1 — The conductor's small cards
 
@@ -47,28 +47,28 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## 4 — The archives and the threat model
 
-- [ ] 4.1 Correct D2 of `openspec/changes/archive/0071-ship-fixes/design.md`, per [D8](design.md#d8).
+- [x] 4.1 Correct D2 of `openspec/changes/archive/0071-ship-fixes/design.md`, per [D8](design.md#d8).
   Verify: `grep -L -e 'reads it before its' -e 'fails on the sha being' openspec/changes/archive/0071-ship-fixes/design.md` prints `openspec/changes/archive/0071-ship-fixes/design.md`.
-- [ ] 4.2 Correct D1 of `openspec/changes/archive/0076-context-cost/design.md`, per [D8](design.md#d8).
+- [x] 4.2 Correct D1 of `openspec/changes/archive/0076-context-cost/design.md`, per [D8](design.md#d8).
   Verify: `grep -L 'above the logs found' openspec/changes/archive/0076-context-cost/design.md` prints `openspec/changes/archive/0076-context-cost/design.md`.
-- [ ] 4.3 Correct D1, its flow, the `## Tests` bullet and the *Risks* line of
+- [x] 4.3 Correct D1, its flow, the `## Tests` bullet and the *Risks* line of
   `openspec/changes/archive/0084-ship-fixes-2/design.md` for `0084·R4`, per [D8](design.md#d8).
   Verify: `grep -n '_granted_run' openspec/changes/archive/0084-ship-fixes-2/design.md` prints a line.
-- [ ] 4.4 Correct D6 and its `## Tests` bullet in `openspec/changes/archive/0084-ship-fixes-2/design.md` for `0084·R6`, per
+- [x] 4.4 Correct D6 and its `## Tests` bullet in `openspec/changes/archive/0084-ship-fixes-2/design.md` for `0084·R6`, per
   [D8](design.md#d8).
   Verify: `grep -L 'which a run.s worker writes' openspec/changes/archive/0084-ship-fixes-2/design.md` prints `openspec/changes/archive/0084-ship-fixes-2/design.md`.
-- [ ] 4.5 Correct D4 of `openspec/changes/archive/0085-self-healing-ship/design.md`, per [D8](design.md#d8).
+- [x] 4.5 Correct D4 of `openspec/changes/archive/0085-self-healing-ship/design.md`, per [D8](design.md#d8).
   Verify: `grep -L 'the text from that heading to the next' openspec/changes/archive/0085-self-healing-ship/design.md` prints `openspec/changes/archive/0085-self-healing-ship/design.md`.
-- [ ] 4.6 Correct D3, D4's D59 text and `## Tests` of `openspec/changes/archive/0083-plan-queues/design.md`, per
+- [x] 4.6 Correct D3, D4's D59 text and `## Tests` of `openspec/changes/archive/0083-plan-queues/design.md`, per
   [D8](design.md#d8).
   Verify: `grep -L -e 'merge and push each' -e "today's" openspec/changes/archive/0083-plan-queues/design.md` prints `openspec/changes/archive/0083-plan-queues/design.md`.
-- [ ] 4.7 Add the item-head and models checks to D1 of `openspec/changes/archive/0083-plan-queues/design.md`, per
+- [x] 4.7 Add the item-head and models checks to D1 of `openspec/changes/archive/0083-plan-queues/design.md`, per
   [D8](design.md#d8).
   Verify: `grep -n 'not a slug' openspec/changes/archive/0083-plan-queues/design.md` prints a line.
-- [ ] 4.8 Correct *What Changes* of `openspec/changes/archive/0083-plan-queues/proposal.md`, per [D8](design.md#d8).
+- [x] 4.8 Correct *What Changes* of `openspec/changes/archive/0083-plan-queues/proposal.md`, per [D8](design.md#d8).
   Verify: `grep -L "today's" openspec/changes/archive/0083-plan-queues/proposal.md` prints `openspec/changes/archive/0083-plan-queues/proposal.md`.
-- [ ] 4.9 Reword the carded list, the config-race line and the LFS line of *Known gaps* in `THREAT_MODEL.md`, per
+- [x] 4.9 Reword the carded list, the config-race line and the LFS line of *Known gaps* in `THREAT_MODEL.md`, per
   [D9](design.md#d9).
   Verify: `grep -L -e '0049·S7' -e '0049·R15' THREAT_MODEL.md` prints `THREAT_MODEL.md`.
-- [ ] 4.10 Add the `0050·R11` line to *Known gaps* in `THREAT_MODEL.md`, per [D9](design.md#d9).
+- [x] 4.10 Add the `0050·R11` line to *Known gaps* in `THREAT_MODEL.md`, per [D9](design.md#d9).
   Verify: `grep -n '0050·R11.: a concurrent worker' THREAT_MODEL.md` prints a line.
