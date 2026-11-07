@@ -22,8 +22,9 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1.4 Replace the taken-amend comment in `Run.rescue` and the grant comment in `Run.advance` of
   `skills/mf-ship/scripts/conduct.py`, as [D5](design.md#d5) quotes them.
   Verify: `grep -n 'converges afresh or catches up' skills/mf-ship/scripts/conduct.py` prints a line.
-- [x] 1.5 Add `_drift_halt` and the `drift-halts` converge mode to `tests/fake_worker.py`, and
-  `test_a_drift_amend_goes_on_by_rule` to `tests/test_conduct.py`, as the design's `## Tests` names them.
+- [x] 1.5 Add `test_a_drift_amend_goes_on_by_rule` to `tests/test_conduct.py`, unmarked, a direct call of
+  `conduct["_answered"]` on a Step 9 `amend needed — R6` halt with both findings files clean at its head, as the design's
+  `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_goes_on_by_rule` reports `1 passed`.
 
 ## 2 — The rescue's row and D15
@@ -44,9 +45,16 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 3.3 Send a selection holding a rescue's amend past By rule in *Catch-up round* item 4 of
   `skills/mf-converge/SKILL.md`, per [D5](design.md#d5), the words `skips By rule` on one line.
   Verify: `grep -n 'skips By rule' skills/mf-converge/SKILL.md` prints a line.
-- [x] 3.4 Make `_person_amends` in `tests/fake_worker.py` refuse a commit carrying a `Rescue:` trailer, and add
-  `_write_catch_up` and its call in the `by-rule` mode, as the design's `## Tests` names them.
-  Verify: `grep -n 'def _write_catch_up' tests/fake_worker.py` prints a line.
-- [x] 3.5 Assert the catch-up's `verdicts` line and no `by rule` line in `test_a_drift_amend_goes_on_by_rule` of
-  `tests/test_conduct.py`, as the design's `## Tests` names them.
+- [x] 3.4 Put the rescue's amend past the halt's head in `test_a_drift_amend_goes_on_by_rule` of `tests/test_conduct.py`,
+  one `docs(<id>): amend the change directory` commit of `design.md` alone carrying a `Rescue: R6` trailer, as the design's
+  `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_goes_on_by_rule` reports `1 passed`.
+- [x] 3.5 Assert in `test_a_drift_amend_goes_on_by_rule` of `tests/test_conduct.py` that `conduct["_answered"]` returns
+  true on the halt with the rescue's amend past its head, and false at the head itself, with no assertion on a fake's
+  output, as the design's `## Tests` names them.
+  Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_goes_on_by_rule` reports `1 passed`.
+- [ ] 3.6 Rework `test_a_drift_amend_goes_on_by_rule` in `tests/test_conduct.py` to the design's `## Tests`: drop its
+  `slow` mark, its fake-worker run and its assertions on the fake's `## Run 2 — d · catch-up` log, and call
+  `conduct["_answered"]` directly, per 1.5, 3.4 and 3.5. In `tests/fake_worker.py`, drop this change's `drift-halts` mode with
+  `_drift_halt`, and its rescue-amend branch with `_write_catch_up` and `_rescued`, each only if no other test uses it.
+  Verify: `grep -L -F 'startswith("# t\n\n## Run 2 — d · catch-up' tests/test_conduct.py` prints `tests/test_conduct.py`.

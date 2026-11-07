@@ -32,9 +32,9 @@ Read at `5650ab1` (v0.70.0), the brief's own sha: every fact citing a path stand
 
 ## Goals / Non-Goals
 
-**Goals:** a run of fake workers that meets the brief's Acceptance: a drift card naming the person's amend ends the round
-`amend needed`, not in the debt; under `decide = "recommended"` the rescue's amend answers it, and the version goes on with no
-new round 1.
+**Goals:** skill text, and a conductor test over its halt, that meet the brief's Acceptance: a drift card naming the person's
+amend ends the round `amend needed`, not in the debt; under `decide = "recommended"` the rescue's amend answers it, and the
+version goes on with no new round 1.
 
 **Non-Goals:** a change to `conduct.py`'s logic (F5 takes the halt); a `nit` naming an amend found after the pickup; the archives
 already released stale.
@@ -167,28 +167,23 @@ card" → "Everything else, save an amend card ([D15](#d15--anchored-harms-block
 
 ## Tests
 
-`git grep -c '^def test_' -- tests/` totals 235 at the cut, 116 in `tests/test_conduct.py`. Added: one integration test of the
-conductor, a run of `tests/fake_worker.py`, marked `slow` as `test_a_rescue_decides_under_the_switch` is (`T1`). No end-to-end
-test. `T2`: the rescue tests
-(`T:1546-1776`) reach `amend needed` with a blocking card and a `changes-requested` file alone. `conduct.py` reads no difference
-between the halts (`_amendable`, `C:823`): what differs is the state on disk and the converge run that follows it, and a step in
-`test_a_rescue_decides_under_the_switch` would need its own primary, the whole setup of a new test.
+`git grep -c '^def test_' -- tests/` totals 235 at the cut, 116 in `tests/test_conduct.py`. Added: one unit test of the
+conductor, an unmarked direct call of `conduct["_answered"]` (`T1`: the lowest layer that holds the behaviour). No
+end-to-end test. `T2`: the rescue tests
+(`T:1546-1776`) reach `amend needed` with a blocking card and a `changes-requested` file alone, each a full fake-worker run.
+`conduct.py` reads no difference between the halts (`_amendable`, `C:823`): what differs is the state on disk the answered
+halt is read against, which `_answered` reads alone; a run of `tests/fake_worker.py` would prove the fake's own fixed text, not
+the conductor (R3).
 
-- `test_a_drift_amend_goes_on_by_rule` — the fake's new `drift-halts` converge mode, checked right after `amend-halts`
-  (`F:440-442`) and while no prose amend stands, writes both findings files `verdict: clean` at `HEAD`, review holding an `open`
-  card R6, its **Priority** `drift · review · maintainability` and its **Fix** naming `openspec/changes/<id>/design.md`, and a
-  status log whose run holds `halt — amend needed — R6 · head <HEAD>` above its `start` line, newest first, as `_amend_needed`
-  writes them (`F:110-114`), through a new `_drift_halt` beside `_amend_needed`.
-  With `decide = "recommended"` atop the models file and the `rescue-decides` and
-  `by-rule` modes: the calls are probe, build, converge, `rescue … with decide=recommended`, converge, release; the log holds
-  `rescue — 0001-todo: decided · converge-halted · <sha7>`; the status log opens `## Run 2 — d · catch-up`, its round holding
-  a `verdicts` line and no `by rule` line, with no `· amended`; the run ends `done — released v0.1.0 · decided 0001-todo`.
-  The fake reads the rescue's amend as D5 does: `_person_amends` returns false for a commit whose message carries a
-  `Rescue:` trailer, so `_by_rule` returns none for it, and the `by-rule` mode, when the catch-up's selection is amends
-  alone and one carries the trailer, writes one verify round through a new `_write_catch_up` beside `_write_by_rule`: both
-  files `verdict: clean` at `HEAD`, `round: 2`, no `## By rule`, and a status log `## Run 2 — d · catch-up` holding
-  `round 2 · verdicts — review clean · open_blocking 0` above `round 2 · freeze — <judged head>..<HEAD>`. The test keeps
-  its name, which task 1.5's `Verify:` selects.
+- `test_a_drift_amend_goes_on_by_rule` — unmarked, no `slow`, and no `tests/fake_worker.py`: in a git tree holding the change,
+  both findings files `verdict: clean` at the halt's head, review holding an `open` card R6, its **Priority**
+  `drift · review · maintainability` and its **Fix** naming `openspec/changes/<id>/design.md`, and a status log whose run
+  holds `halt — amend needed — R6 · head <head>` above its `start` line, newest first, as Step 9 writes them. With the
+  rescue's amend past that head — one commit `docs(<id>): amend the change directory`, `design.md` alone, a `Rescue: R6`
+  trailer — `conduct["_answered"]` on the halt returns true; at the head itself, before the amend, false. No assertion reads
+  a fake's output: the `## Run 2 — d · catch-up` log the fake's by-rule writer prints is not asserted. The fake keeps none of
+  this change's `drift-halts` mode, `_drift_halt`, `_write_catch_up` or rescue-trailer reading that no other test runs. The
+  test keeps its name, which the `Verify:` of tasks 1.5, 3.4, 3.5 and 3.6 selects.
 
 No test is deleted or merged.
 
@@ -206,8 +201,8 @@ None.
   lost, and a later catch-up finds it there and goes on.
 - A card that names the path for an edit the fixer could make elsewhere halts once: the rescue reads it, and diagnoses when
   nothing in the plan is to amend.
-- The fake writes the Step 9 halt and the catch-up itself: the test proves the run's half; the skill text is held by review
-  (D42).
+- The test proves the conductor's half alone, `_answered` on the Step 9 halt; the catch-up the skill runs after it is held
+  by review (D42).
 - A Step 9 halt leaves both findings files `verdict: clean` at `HEAD`, and `mf-release`'s preconditions read the files, not the
   status log (`skills/mf-release/SKILL.md:111-135`): a release run by hand after the halt would pass them. Under `mf-ship` the
   stage stays halted (`stage_of`). Left out by the cutter (the brief's C1): a release precondition on the status log is a rule
