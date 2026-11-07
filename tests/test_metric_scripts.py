@@ -55,7 +55,7 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
             "CONTRIBUTING.md": "twelve thirteen",
             "THREAT_MODEL.md": "fourteen",
             "skills/mf-converge/references/worker.md": "fifteen sixteen",
-            "skills/mf-converge/references/generic-review.md": "seventeen",
+            "skills/mf-converge/references/generic-conformance.md": "seventeen",
         },
     )
     reading_set = _load("reading_set")
@@ -609,7 +609,7 @@ def _role_file(cards: str, refuted: str = "## Refuted\n\n- **x.** why\n") -> str
 def _finding(card: str, verdict: str, related: str) -> str:
     return (
         f"- **{card} — a defect**\n  - **Verdict:** {verdict}.\n"
-        f"  - **Priority:** nit · review · stability — why.\n"
+        f"  - **Priority:** nit · conformance · stability — why.\n"
         f"  - **Related:** {related}.\n"
     )
 
@@ -618,7 +618,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     read = _reader(tmp_path, env)
     first = {"type": "result", "total_cost_usd": 0.5, "modelUsage": {}}
-    review = _task("t1", "Converge review worker 0001")
+    conformance = _task("t1", "Converge conformance worker 0001")
     _worker_log(tmp_path, "0001-x/logs/20261101-230000-build.log", 1.0, 110)
     _worker_log(
         tmp_path,
@@ -627,9 +627,9 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         500,
         "not json, holding tool_use_id",
         first,
-        review,
+        conformance,
         # A description names its role in any case.
-        _task("t2", "Security station, round 1"),
+        _task("t2", "Adversarial station, round 1"),
         _task("t3", "Converge fix station 0001"),
         # Each subagent turn counts once, by its message id, every token kind summed.
         _turn(
@@ -642,7 +642,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         _turn("t3", "m3", input_tokens=999),
         _turn(None, "m4", input_tokens=999),
     )
-    verify = _task("t4", "Review station round 2")
+    verify = _task("t4", "Conformance station round 2")
     converge_2 = "0001-x/logs/20261101-230000-converge-2.log"
     _worker_log(
         tmp_path, converge_2, 0.5, 50, verify, _turn("t4", "m5", input_tokens=85)
@@ -659,11 +659,11 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     _write(
         tmp_path,
         {
-            ".minions/changes/0001-x/review.md": _role_file(reviewed, refuted),
-            ".minions/changes/0001-x/security.md": _role_file(
+            ".minions/changes/0001-x/conformance.md": _role_file(reviewed, refuted),
+            ".minions/changes/0001-x/adversarial.md": _role_file(
                 _finding("S1", "plausible", "none")
             ),
-            ".minions/changes/0002-y/review.md": _role_file(reviewed, ""),
+            ".minions/changes/0002-y/conformance.md": _role_file(reviewed, ""),
             "openspec/changes/archive/0001-x/proposal.md": "---\nbump: minor\n"
             "debt: [0000·R4, 0000·S2]\n---\n",
             "openspec/changes/0002-y/proposal.md": "---\nbump: patch\n---\n",
@@ -688,12 +688,12 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         "tokens-catch-up": 3,
         "tokens-integrate": 5,
         "cost-per-changed-line": 1.075,
-        "review-confirmed": 2,
-        "security-confirmed": 0,
-        "review-refuted": 2,
-        "security-refuted": 1,
-        "review-tokens-per-confirmed": 100,
-        "security-tokens-per-confirmed": "gap: no confirmed security card",
+        "conformance-confirmed": 2,
+        "adversarial-confirmed": 0,
+        "conformance-refuted": 2,
+        "adversarial-refuted": 1,
+        "conformance-tokens-per-confirmed": 100,
+        "adversarial-tokens-per-confirmed": "gap: no confirmed adversarial card",
         # R1 repeats an earlier change's card it does not pay; R3's is paid, and R2
         # repeats its own change's.
         "escapes": 1,
@@ -705,18 +705,25 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("debt-paid", "0002-y") == 0
     assert read("debt-paid", "0004-w") == 1
     assert read("debt-added", "0002-y") == 0
-    assert read("review-refuted", "0002-y") == "gap: no ## Refuted in 0002-y/review.md"
-    assert read("security-confirmed", "0003-z") == "gap: no 0003-z/security.md"
+    assert (
+        read("conformance-refuted", "0002-y")
+        == "gap: no ## Refuted in 0002-y/conformance.md"
+    )
+    assert read("adversarial-confirmed", "0003-z") == "gap: no 0003-z/adversarial.md"
     assert read("debt-paid", "0003-z") == "gap: no proposal.md for 0003-z"
     assert read("cost-usd-build", "0003-z") == (
         "gap: no result event in 0003-z/logs/20261102-090000-build.log"
     )
-    assert read("review-tokens-per-confirmed", "0003-z") == ("gap: no 0003-z/review.md")
-    # A security worker's turns are read, and no card to divide them by is a gap.
+    assert read("conformance-tokens-per-confirmed", "0003-z") == (
+        "gap: no 0003-z/conformance.md"
+    )
+    # An adversarial worker's turns are read, and no card to divide them by is a gap.
     run = _load("run")
-    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("security") == 30
-    with pytest.raises(run.Gap, match="no review subagent event in a converge log"):
-        run.Version(tmp_path, "0002-y", "a", "b").role_tokens("review")
+    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("adversarial") == 30
+    with pytest.raises(
+        run.Gap, match="no conformance subagent event in a converge log"
+    ):
+        run.Version(tmp_path, "0002-y", "a", "b").role_tokens("conformance")
     assert read("cost-per-changed-line", MF_METRICS_HEAD=env["MF_METRICS_BASE"]) == (
         "gap: no line changed"
     )
@@ -726,7 +733,7 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert read("cost-usd") == (
         "gap: no result event in 0001-x/logs/20261102-090000-converge-2.log"
     )
-    assert read("review-tokens-per-confirmed") == (
+    assert read("conformance-tokens-per-confirmed") == (
         "gap: no 0001-x/logs/20261102-090000-converge-2.log"
     )
     (tmp_path / ".minions/debt.md").unlink()

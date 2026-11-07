@@ -57,6 +57,7 @@ OLD_LAYOUT = (
     *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
     *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
     *("release/{}.held", "gate-check/{}"),
+    *("changes/{}/review.md", "changes/{}/security.md"),
 )
 
 

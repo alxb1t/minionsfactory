@@ -1,15 +1,15 @@
-# Converge's workers — what a review, security or fix worker reads
+# Converge's workers — what a conformance, adversarial or fix worker reads
 
-What a checker or the fixer of [converge](../SKILL.md) reads: the findings file it writes, review's passes, the
+What a checker or the fixer of [converge](../SKILL.md) reads: the findings file it writes, conformance's passes, the
 verify pass, the catch-up scope, the card and the rules for tests. The conductor reads it too.
 
-## Review and security
+## Conformance and adversarial
 
 **A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the debt. The
-station names `repeat of <id>` in its **Related** field and grades it up one level: security one step, a review
-`nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing.
+station names `repeat of <id>` in its **Related** field and grades it up one level: adversarial one step, a
+conformance `nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing.
 
-**Review runs these passes after its sections**, and its Summary says each ran:
+**Conformance runs these passes after its sections**, and its Summary says each ran:
 
 | pass | runs | cards |
 |---|---|---|
@@ -17,8 +17,8 @@ station names `repeat of <id>` in its **Related** field and grades it up one lev
 | test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so Step 8 picks it |
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
-**Scoping.** Judge the explicit base/head range and patch with surrounding source, by the loaded role
-resource. An **amend round** judges its whole range with the full plan in its reading set. For a merge-aware
+**Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
+adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set. For a merge-aware
 catch-up, reconstruct and judge only [Catch-up scope](#catch-up-scope). Report the scope actually resolved; halt
 when the inputs cannot support a verdict.
 
@@ -29,7 +29,7 @@ parses it, and it opens with this frontmatter, every key below:
 
 ```yaml
 ---
-type: review | security
+type: conformance | adversarial
 plan: <change-id>
 project: <repository name>
 branch: <branch name>
@@ -52,8 +52,8 @@ verify passes change a card's **Status** field and leave its other fields as the
 
 | station | grades | blocks on |
 |---|---|---|
-| security | `critical` · `high` · `medium` · `low` | `critical`, `high` |
-| review | `blocking` · `drift` · `nit` | `blocking` |
+| adversarial | `critical` · `high` · `medium` · `low` | `critical`, `high` |
+| conformance | `blocking` · `drift` · `nit` | `blocking` |
 
 **Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block, save that converge
 halts on an [amend card](#the-card) at Step 9. A spec scenario the code contradicts is `blocking`, not drift: the
@@ -61,8 +61,8 @@ spec is a contract. `open_blocking` counts that station's blocking
 tier, and a station writing `verdict: clean` must leave it at zero — its obligation, not a machine check.
 
 **Anchors always block.** An **anchor** is a harm class: data loss or an irreversible delete, spend, exposure of
-personal data or secrets, silent wrong output. An anchored finding is `blocking` in review and at least `high` in
-security, so the loop fixes it instead of deferring it. Outside the anchors, the grade is the station's.
+personal data or secrets, silent wrong output. An anchored finding is `blocking` in conformance and at least `high` in
+adversarial, so the loop fixes it instead of deferring it. Outside the anchors, the grade is the station's.
 Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded and does not block,
 anchors included.
 
@@ -97,7 +97,7 @@ files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-re
 ## The verify pass
 
 A verify-round checker re-reads its file, promotes or reopens each finding, rewrites its counters, appends to its
-`## Resolution log`, and declares a verdict. Review runs all of the passes above over this round's freeze, so a
+`## Resolution log`, and declares a verdict. Conformance runs all of the passes above over this round's freeze, so a
 fix's new test is judged like the build's.
 
 A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or the new
@@ -130,7 +130,7 @@ a failed command or a mismatch is a scope failure. Neither role may reopen inher
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
 empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
 zero changed files and the non-zero examined commit count. The conductor checks these against the freeze and
-runs the gate on HEAD under Step 7. The review still reports its stale-claim, test-cost and coverage-trace passes
+runs the gate on HEAD under Step 7. Conformance still reports its stale-claim, test-cost and coverage-trace passes
 (no changed paths, new tests or removed tests). All other zero-file scopes fail Step 5.
 
 ## The card
@@ -147,7 +147,7 @@ field — never a heading, since the debt's headings are its changes. This refer
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
 | **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran` |
 | **Verdict** | `confirmed`, or `plausible` and what would confirm it |
-| **Priority** | `<severity> · <role> · <category>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level |
+| **Priority** | `<severity> · conformance · <category>`, the id `R<n>`, or `<severity> · adversarial · <category>`, the id `S<n>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level. A **security card** is an adversarial card of category `security` |
 | **Round** | the round the card was found |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
@@ -156,7 +156,7 @@ field — never a heading, since the debt's headings are its changes. This refer
 | **Status** | `open`, `fixed`, `verified` or `wontfix`, with the one-line note the fix or verify pass adds |
 
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
-and name things rather than count them: "the review and security files", not "the two files".
+and name things rather than count them: "the conformance and adversarial files", not "the two files".
 
 **An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
 `design.md` by its path, `openspec/changes/<change-id>/design.md`. The fixer never edits those files, and converge
@@ -169,7 +169,7 @@ halts on such a card.
   - **What it affects:** `save()` in `src/upload.py` (`src/upload.py:42`).
   - **Evidence:** `body = request.body.read()` at `src/upload.py:42` — no length check before it · read.
   - **Verdict:** confirmed.
-  - **Priority:** medium · security · stability — one request can exhaust memory.
+  - **Priority:** medium · adversarial · stability — one request can exhaust memory.
   - **Round:** 1
   - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
   - **Trigger:** the next change that opens `src/upload.py`.
@@ -181,7 +181,7 @@ halts on such a card.
 ## Rules for tests
 
 `mf-build` owns this list; the ids are the same set, and `tests/test_skills.py` fails if they differ. The fix
-station writes tests to them; review's test-cost pass judges by them.
+station writes tests to them; conformance's test-cost pass judges by them.
 
 | id | rule | example / why |
 |---|---|---|

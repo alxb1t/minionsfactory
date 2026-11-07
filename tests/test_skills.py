@@ -420,6 +420,38 @@ def test_bundled_role_references_resolve() -> None:
     assert _file_problem(build.parent / "../mf-simplify/SKILL.md") is None
 
 
+def _packet(path: Path) -> list[str]:
+    """Return the first cell of each `## The packet` row, its backticks dropped.
+
+    e.g. "| `diff.patch` | the patch |" → "diff.patch"
+    """
+    rows = _section_labels(path, "## The packet", r"([^|]+?)")
+    return [cell.replace("`", "") for cell in rows[1:]]
+
+
+# Each role's packet is structure a test reads, never a sentence it holds.
+# Why: 0095-converge-roles design D5, C7.
+def test_the_packets_hold_what_each_role_reads() -> None:
+    references = _REPO / "skills" / "mf-converge" / "references"
+    assert _packet(references / "generic-conformance.md") == [
+        "<base>..<head>",
+        "diff.patch",
+        "refactor(<change-id>): simplify",
+        "proposal.md",
+        "design.md",
+        "tasks.md",
+        "specs/",
+        "bundle.md",
+        "AGENTS.md",
+        "CODING_STANDARDS.md",
+        "CODE_STANDARDS.md",
+        "CONTRIBUTING.md",
+        "ARCHITECTURE.md",
+        "docs/adr/*.md",
+    ]
+    assert "THREAT_MODEL.md" in _packet(references / "generic-adversarial.md")
+
+
 def test_resource_scan_reports_missing_empty_and_escaping_targets(
     tmp_path: Path,
 ) -> None:

@@ -33,7 +33,7 @@ SETS = {
         *(INDEX if path == DECISIONS else path for path in SHARED),
         "THREAT_MODEL.md",
         "skills/mf-converge/references/worker.md",
-        "skills/mf-converge/references/generic-review.md",
+        "skills/mf-converge/references/generic-conformance.md",
     ),
 }
 

@@ -13,7 +13,7 @@ One change goes from an idea to a tag on the default branch.
    plan ────▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
-                                           review ‖ security
+                                     conformance ‖ adversarial
 
    conducted by a person, or by mf-ship: a script that starts each station as a fresh agent process
 ```
@@ -27,7 +27,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-cut-change`](skills/mf-cut-change/SKILL.md) | cut a change from a settled grilling, written to `mf-build`'s input contract |
 | [`mf-build`](skills/mf-build/SKILL.md) | build the active change, one phase per pass, to a green gate |
 | [`mf-simplify`](skills/mf-simplify/SKILL.md) | simplify a built change's own lines, gated per angle, before review |
-| [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change review ‖ security loop, judging nothing itself |
+| [`mf-converge`](skills/mf-converge/SKILL.md) | conduct the end-of-change conformance ‖ adversarial loop, judging nothing itself |
 | [`mf-integrate`](skills/mf-integrate/SKILL.md) | merge the default branch into the next version by fixed rules and the union of what both sides only add, when its base moved |
 | [`mf-release`](skills/mf-release/SKILL.md) | verify, fold, archive, cut the changelog, tag — then, on a yes, merge and push |
 | [`mf-ship`](skills/mf-ship/SKILL.md) | take every cut version to the default branch unattended — build, converge, integrate, release — and each brief queued with `conduct.py cut` |
@@ -53,12 +53,12 @@ A bare install reads the `origin` URLs a run kept: run `/mf-ship` once first, or
 
 ## Execution
 
-Every host runs MF's own method: `mf-simplify` in the build, review and security at one depth.
+Every host runs MF's own method: `mf-simplify` in the build, conformance and adversarial at one depth.
 The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
 completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
-remote review service. Converge's conductor judges nothing and runs on the mid tier; review and security run on the
-strongest, each reading a bundle of what the change cites; the fixer moves up a tier only for a blocking card, and a fix
-that reaches no surface in `THREAT_MODEL.md` skips the security verify
+remote review service. Converge's conductor judges nothing and runs on the mid tier; conformance and adversarial run
+on the strongest, conformance reading a bundle of what the change cites; the fixer moves up a tier only for a blocking
+card, and a fix that reaches no surface in `THREAT_MODEL.md` skips the adversarial verify
 ([D64](docs/decisions.md#d64--converge-spends-where-judgment-is)).
 
 Use each host's syntax to load the `mf-*` instructions.

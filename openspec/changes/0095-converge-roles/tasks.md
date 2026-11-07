@@ -5,56 +5,56 @@ merges in before this build: find each of its symbols and sections by name, neve
 
 ## Progress
 
-- [ ] 1 — The roles
+- [x] 1 — The roles
 - [ ] 2 — The debt and the diff
 - [ ] 3 — Verify and the defaults
 - [ ] 4 — The record
 
 ## 1 — The roles
 
-- [ ] 1.1 **HALT CHECK** 0094's worker tables and `surfaces.py` stand in the tree this build starts from.
+- [x] 1.1 **HALT CHECK** 0094's worker tables and `surfaces.py` stand in the tree this build starts from.
   Verify: `grep -n -e '^WORKERS = ' -e 'def _worker_clause' skills/mf-ship/scripts/conduct.py` prints a line for each; `git grep -n 'surfaces: no surface' -- skills/mf-converge/scripts/surfaces.py` prints a line.
-- [ ] 1.2 Rename the roles in `tests/fake_worker.py` and the role tests of `tests/test_conduct.py` the design's `## Tests` names,
+- [x] 1.2 Rename the roles in `tests/fake_worker.py` and the role tests of `tests/test_conduct.py` the design's `## Tests` names,
   extending the move and rescue tests, then `ROLES`, `BLOCKS`, `OLD_LAYOUT`, `OLD_ROLES`, `_old_files`, `migrate_layout`, `_category`,
   `_security_blocks`, `_security_held` and `report` in `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2).
   Verify: `grep -n '^OLD_ROLES = ' skills/mf-ship/scripts/conduct.py` prints a line; `uv run pytest -q tests/test_conduct.py -k "moves_an_old_layout or rescue_amends_at_amend_needed or ships_past_a_slow_one or drift_amend or supervisor_amend_outside_the_change or dead_converge_halts or small_cap_is_granted or fix_after_a_cap_halt or only_on_disk_evidence or release_cut_short_is_recovered or amend_past_the_judged_head"` reports `11 passed`.
-- [ ] 1.3 Edit `tests/test_surfaces.py`, then `skills/mf-converge/scripts/surfaces.py`'s argument, reasons and docstring, per
+- [x] 1.3 Edit `tests/test_surfaces.py`, then `skills/mf-converge/scripts/surfaces.py`'s argument, reasons and docstring, per
   [D3](design.md#d3).
   Verify: `git grep -n 'adversarial card' -- skills/mf-converge/scripts/surfaces.py` prints a line; `uv run pytest -q tests/test_surfaces.py` reports `2 passed`.
-- [ ] 1.4 Edit 0094's worker tests and rename its surfaces run test in `tests/test_conduct.py` as the design's `## Tests` says,
+- [x] 1.4 Edit 0094's worker tests and rename its surfaces run test in `tests/test_conduct.py` as the design's `## Tests` says,
   then `WORKERS`, `OLD_WORKERS` and `_models` in `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_conduct.py -k "worker_clause or station_runs_on_its_executor or plan_is_read_once or carries_the_allowlist or takes_adversarial_by_rule"` reports `5 passed`.
-- [ ] 1.5 Extend the old-layout tests of `tests/test_gate_check.py` and `tests/test_integrate.py`, then `OLD_LAYOUT` in
+- [x] 1.5 Extend the old-layout tests of `tests/test_gate_check.py` and `tests/test_integrate.py`, then `OLD_LAYOUT` in
   `skills/mf-converge/scripts/gate_check.py` and `skills/mf-integrate/scripts/integrate.py`, and `unready`, per [D3](design.md#d3).
   Verify: `grep -n -F 'changes/{}/security.md' skills/mf-converge/scripts/gate_check.py skills/mf-integrate/scripts/integrate.py` prints a line for each file; `uv run pytest -q tests/test_gate_check.py tests/test_integrate.py -k "old_layout or lowest_ready_id"` reports `3 passed`.
-- [ ] 1.6 Edit `test_run_metrics_read_cost_and_review_yield`, then `ROLES` and `ROLE` in `scripts/metrics/run.py` and the role
+- [x] 1.6 Edit `test_run_metrics_read_cost_and_review_yield`, then `ROLES` and `ROLE` in `scripts/metrics/run.py` and the role
   entries of `metrics/catalogue.toml`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k cost_and_review_yield` reports `1 passed`; `grep -c '^id = "conformance-' metrics/catalogue.toml` prints `3`.
-- [ ] 1.7 Extend the review-metrics tests the design's `## Tests` names, then
+- [x] 1.7 Extend the review-metrics tests the design's `## Tests` names, then
   `skills/mf-review-metrics/scripts/review_metrics.py`, per [D4](design.md#d4).
   Verify: `grep -n '^OLD_ROLES = ' skills/mf-review-metrics/scripts/review_metrics.py` prints a line; `uv run pytest -q tests/test_review_metrics.py -k "both_layouts or tokens_are_read_per_role or codex_sessions_fill"` reports `3 passed`.
-- [ ] 1.8 Add `test_the_packets_hold_what_each_role_reads` to `tests/test_skills.py`; `git mv` both references and rewrite them,
+- [x] 1.8 Add `test_the_packets_hold_what_each_role_reads` to `tests/test_skills.py`; `git mv` both references and rewrite them,
   link them from *The workers* in `skills/mf-converge/SKILL.md`, and rename the path in `reading_set.py` and its test, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_skills.py tests/test_metric_scripts.py -k "packets_hold or role_references_resolve or reading_sets"` reports `3 passed`.
-- [ ] 1.9 Rename the roles in `skills/mf-converge/references/worker.md`, per [D5](design.md#d5).
+- [x] 1.9 Rename the roles in `skills/mf-converge/references/worker.md`, per [D5](design.md#d5).
   Verify: `grep -n '^## Conformance and adversarial$' skills/mf-converge/references/worker.md` prints a line.
-- [ ] 1.10 Rename the roles in `skills/mf-converge/SKILL.md` and add the old names to its old-layout bullet, per
+- [x] 1.10 Rename the roles in `skills/mf-converge/SKILL.md` and add the old names to its old-layout bullet, per
   [D6](design.md#d6).
   Verify: `grep -n -i -e 'review and security' -e "review's" -e "security's" -e 'review-and-security' -e 'review=' -e '<change-id>/security.md' -e 'review dispatch' -e 'security head' skills/mf-converge/SKILL.md` prints nothing.
-- [ ] 1.11 Rename the paths and preconditions in `skills/mf-release/SKILL.md` and add the old names to its old-layout list, per
+- [x] 1.11 Rename the paths and preconditions in `skills/mf-release/SKILL.md` and add the old names to its old-layout list, per
   [D6](design.md#d6).
   Verify: `grep -n '\*\*conformance is clean\*\*' skills/mf-release/SKILL.md` prints a line.
-- [ ] 1.12 Rename the roles in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, and add the old names to the
+- [x] 1.12 Rename the roles in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md`, and add the old names to the
   build's old-layout list, per [D6](design.md#d6).
   Verify: `grep -n 'the conformance and adversarial files' skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints a line for each file.
-- [ ] 1.13 Rename the read tables of `skills/mf-rescue/SKILL.md` and `skills/mf-supervise/SKILL.md`, adding the security-card
+- [x] 1.13 Rename the read tables of `skills/mf-rescue/SKILL.md` and `skills/mf-supervise/SKILL.md`, adding the security-card
   line under each, and add the old names to the old-layout list of `skills/mf-integrate/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'adversarial.md' skills/mf-rescue/SKILL.md skills/mf-supervise/SKILL.md` prints a line for each file; `grep -n 'changes/<change-id>/review.md' skills/mf-integrate/SKILL.md` prints a line.
-- [ ] 1.14 Rename the roles in `docs/principles.md`, per [D7](design.md#d7).
+- [x] 1.14 Rename the roles in `docs/principles.md`, per [D7](design.md#d7).
   Verify: `grep -n -i -e 'review and security' -e 'review ‖ security' -e "review's" docs/principles.md` prints nothing.
-- [ ] 1.15 Rename the roles in `docs/decisions.md`, D12's heading and bold text among them, per [D7](design.md#d7).
+- [x] 1.15 Rename the roles in `docs/decisions.md`, D12's heading and bold text among them, per [D7](design.md#d7).
   Verify: `grep -n '^### D12 · Conformance, adversarial and simplify are kept apart$' docs/decisions.md` prints a line; `grep -n -i -e 'review and security' -e 'review ‖ security' -e "review's" -e "security's" -e 'converge\.review' docs/decisions.md` prints nothing.
-- [ ] 1.16 Rename the roles in `AGENTS.md`'s opening note, `README.md`, `docs/README.md`, `THREAT_MODEL.md` and
+- [x] 1.16 Rename the roles in `AGENTS.md`'s opening note, `README.md`, `docs/README.md`, `THREAT_MODEL.md` and
   `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl`, per [D7](design.md#d7), "adversarial head" on one line.
   Verify: `grep -n 'conformance ‖ adversarial' README.md docs/README.md` prints a line for each file; `grep -n -e 'adversarial head' -e 'references/generic-adversarial.md' THREAT_MODEL.md` prints a line for each.
 

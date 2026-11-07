@@ -36,11 +36,20 @@ CHANGES = Path(".minions/changes")
 FINDINGS = Path(".minions/findings")
 RUNS = Path(".minions/runs")
 DATA = "review-metrics.json"
-FILES = ("review.md", "security.md", "status_log.md")
+FILES = (
+    "conformance.md",
+    "adversarial.md",
+    "review.md",
+    "security.md",
+    "status_log.md",
+)
 OLD_FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
 STATIONS = ("build", "converge", "integrate", "release", "rescue")
-ROLES = ("review", "security")
-# The forms a `verdicts` line names both roles' tokens in, and each one's scale.
+ROLES = ("conformance", "adversarial")
+# The checkers' names before 0095-converge-roles, read as written.
+OLD_ROLES = ("review", "security")
+# The old era's forms a `verdicts` line names both roles' tokens in, and each one's
+# scale.
 _TWO_ROLES = (
     (re.compile(r"\btokens review (\d+), security (\d+)"), 1),
     (re.compile(r"\btokens (\d+) \+ (\d+)"), 1),
@@ -299,14 +308,16 @@ def _run_seconds(run: str) -> int | None:
 def _role_tokens(detail: str) -> list[tuple[str, int | None]]:
     """Return a `verdicts` line's tokens per role; `both` takes a shared figure.
 
-    e.g. "review clean · tokens 9" → [("review", 9)],
+    e.g. "conformance clean · tokens 9" → [("conformance", 9)],
     "review clean · security clean · tokens unavailable" →
-    [("review", None), ("security", None)]. Why: 0077-run-metrics design D5.
+    [("review", None), ("security", None)]. Why: 0077-run-metrics design D5;
+    0095-converge-roles design D4.
     """
     for pattern, scale in _TWO_ROLES:
         if found := pattern.search(detail):
-            return [(role, int(found[n]) * scale) for n, role in enumerate(ROLES, 1)]
-    named = [role for role in ROLES if re.search(rf"\b{role}\b", detail)]
+            pairs = enumerate(OLD_ROLES, 1)
+            return [(role, int(found[n]) * scale) for n, role in pairs]
+    named = [role for role in (*ROLES, *OLD_ROLES) if re.search(rf"\b{role}\b", detail)]
     if found := re.search(r"\btokens (\d+)(?:\s|$)", detail):
         one = len(named) == 1 and detail.startswith(named[0])
         return [(named[0] if one else "both", int(found[1]))]
@@ -408,13 +419,15 @@ def _object(line: str) -> dict[str, Any]:
 def _session(path: Path) -> Record:
     """Return a Codex session's id, cwd, start, repo URL, role and parent.
 
-    A review or security worker's model, effort and last cumulative tokens too.
+    A checker's model, effort and last cumulative tokens too, its role under either
+    era's name.
     """
     with path.open(encoding="utf-8", errors="replace") as lines:
         meta = _dig(_object(next(lines, "")), "payload")
         spawn = _dig(meta, "source", "subagent", "thread_spawn")
         agent = str(_dig(spawn, "agent_path") or "").rpartition("/")[2]
-        role = next((role for role in ROLES if agent.startswith(role)), None)
+        roles = (*ROLES, *OLD_ROLES)
+        role = next((role for role in roles if agent.startswith(role)), None)
         session: Record = {
             "id": _dig(meta, "id"),
             "cwd": _dig(meta, "cwd"),
@@ -456,7 +469,7 @@ def _git_lines(repo: Path, *args: str) -> list[str]:
 
 
 def _codex_sessions(repo: Path) -> list[Record]:
-    """Return the Codex review and security workers of `repo`, each with its `tree`.
+    """Return the Codex checker workers of `repo`, each with its `tree`.
 
     A worker's repo URL is `origin`'s, or its parent ran in one of the repo's
     worktrees; `tree` is where its parent ran, else None; a guardian or fix worker
@@ -502,7 +515,7 @@ def _filled(
         record["tokens"] is not None
         or record["executor"] == "claude"
         or not window
-        or record["role"] not in ROLES
+        or record["role"] not in (*ROLES, *OLD_ROLES)
     ):
         return record
     found = [
@@ -676,7 +689,7 @@ def _packet(text: str | None) -> tuple[int | None, int | None]:
 
 
 def _first(fronts: list[dict[str, str]], key: str) -> str | None:
-    """Return `key` from the first frontmatter holding it, the review file's first."""
+    """Return `key` from the first frontmatter holding it, conformance's first."""
     return next((front[key] for front in fronts if front.get(key)), None)
 
 
@@ -727,6 +740,16 @@ def _file(repo: Path, change: str, name: str) -> Path:
     return repo / FINDINGS / f"{change}_{name}"
 
 
+def _checker(repo: Path, change: str, role: str, old: str) -> Path:
+    """Return a checker's findings file, by its name when it stands, else its old one.
+
+    e.g. ("0001-x", "conformance", "review") → `changes/0001-x/review.md` with no
+    `conformance.md`
+    """
+    named = _file(repo, change, f"{role}.md")
+    return named if named.is_file() else _file(repo, change, f"{old}.md")
+
+
 def _changes(repo: Path) -> set[str]:
     """Return the changes with a file in their folder or, unmoved, in `findings/`."""
     folders = (repo / CHANGES).iterdir() if (repo / CHANGES).is_dir() else ()
@@ -736,14 +759,18 @@ def _changes(repo: Path) -> set[str]:
 
 
 def read_change(repo: Path, change: str) -> Record:
-    """Return a change's record, each field parsed on its own, None when unreadable."""
+    """Return a change's record, each field parsed on its own, None when unreadable.
+
+    A checker's file is read by its name, else by its old one.
+    Why: 0095-converge-roles design D4.
+    """
     files = [
         found
-        for role, blocking in (
-            ("review", ("blocking",)),
-            ("security", ("critical", "high")),
+        for role, old, blocking in (
+            ("conformance", "review", ("blocking",)),
+            ("adversarial", "security", ("critical", "high")),
         )
-        if (found := _findings_file(_file(repo, change, f"{role}.md"), blocking))
+        if (found := _findings_file(_checker(repo, change, role, old), blocking))
     ]
     fronts = [found["front"] for found in files]
     included, skipped = _packet(_first(fronts, "packet"))

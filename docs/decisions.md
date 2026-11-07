@@ -195,14 +195,14 @@ suggested Sonnet 5.5 · high for its whole build, where the session offers it: o
 What happens between the last phase and the tag.
 
 ```
-  build ──▶ simplify, in place ──▶ freeze the diff ──▶ review ‖ security ──▶ all clean? ── yes ──▶ release
-                                                            ▲                    │ no
-                                                            └── verify ◀── fix ◀─┘
+  build ──▶ simplify, in place ──▶ freeze the diff ──▶ conformance ‖ adversarial ──▶ all clean? ── yes ──▶ release
+                                                            ▲                            │ no
+                                                            └── verify ◀────────── fix ◀─┘
 ```
 
 ### D11 · Every station runs MF's own method
 
-**Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
+**Every station runs MF's own method on every executor: `mf-simplify` in the build, the conformance and adversarial
 references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
 nothing. Workers follow the host, or the models file's `executor`; converge's take their model and effort from its worker
 tables ([D64](#d64--converge-spends-where-judgment-is)).**
@@ -212,16 +212,17 @@ tables ([D64](#d64--converge-spends-where-judgment-is)).**
 - **Rejected:** native engines in production — host-bound, and `/simplify` never runs the tests · silent native
   fallback · routing by a model or provider name.
 
-### D12 · Review, security and simplify are kept apart
+### D12 · Conformance, adversarial and simplify are kept apart
 
-**Review looks for too little, security for new exposure, simplify for too much. Each is its own pass.**
+**Conformance looks for what the plan asks and the code lacks, adversarial for what breaks it, simplify for too much.
+Each is its own pass.**
 
 - **Why:** one reader asked to both add what is missing and cut what is surplus does neither well.
 
 ### D13 · Simplify runs inside the build and blocks nothing
 
 **The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
-frozen diff, so review judges them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
+frozen diff, so converge's checkers judge them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
 verdict.**
 
 - **Why:** run last, it would land unreviewed edits after the final check. Given a verdict, taste would spin the
@@ -245,8 +246,8 @@ be clean.**
 
 | checker | grades | blocks on |
 |---|---|---|
-| review | `blocking` · `drift` · `nit` | `blocking` |
-| security | `critical` · `high` · `medium` · `low` | `critical` · `high` |
+| conformance | `blocking` · `drift` · `nit` | `blocking` |
+| adversarial | `critical` · `high` · `medium` · `low` | `critical` · `high` |
 
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
@@ -301,24 +302,25 @@ workers, as its plan reviewer is, answering in the cut's thread and writing no f
 
 ### D64 · Converge spends where judgment is
 
-**Converge's conductor runs on the mid tier · medium, its review and security workers on the strongest tier · high, and its
-fixer on the mid tier · high, on review's model when a card it is sent blocks: the models file's `[converge]`,
-`[converge.review]`, `[converge.security]` and `[converge.fix]`, which `conduct.py` reads once and passes in the converge
-prompt. Each worker reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living requirements
-the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of
-`THREAT_MODEL.md`, with no security card awaiting its checker, takes its security head by recomputation.**
+**Converge's conductor runs on the mid tier · medium, its conformance and adversarial workers on the strongest tier · high,
+and its fixer on the mid tier · high, on adversarial's model when a card it is sent blocks: the models file's `[converge]`,
+`[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
+converge prompt. Conformance reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living
+requirements the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no
+`## Surfaces` path of `THREAT_MODEL.md`, with no adversarial card awaiting its checker, takes its adversarial head by
+recomputation.**
 
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
 - **Accepts:** on Codex every worker runs on the conductor's model; a decision the change does not cite is read by its index
   line alone; the build keeps one model a change.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
-  it · a security verify skipped by the conductor's judgment.
+  it · an adversarial verify skipped by the conductor's judgment.
 
 ### D49 · One review method, one depth
 
 **Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
-living requirements in a bundle of what the change cites. The review and security files are the same for every
+living requirements in a bundle of what the change cites. The conformance and adversarial files are the same for every
 change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
@@ -416,7 +418,7 @@ build halts on a phase that breaks one unless the change amends it, and converge
 its bundle: of the decisions, those the change cites, in full, and an index of all. `mf-bootstrap` writes
 `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
-- **Why:** a review judges against what is written down; without a threat model, security falls back on generic
+- **Why:** a review judges against what is written down; without a threat model, adversarial falls back on generic
   categories.
 - **Rejected:** `SECURITY.md` — a reporting policy, another thing · an `ARCHITECTURE.md` template that goes stale ·
   plan and release reading them.
@@ -485,7 +487,7 @@ held is moved to a live file. Git keeps the old text; `openspec/changes/archive/
 
 ### D36 · Specs are bound by review, not by a checker
 
-**A scenario says what proves it in prose; review judges whether a test proves it. No marker ties a test to a
+**A scenario says what proves it in prose; conformance judges whether a test proves it. No marker ties a test to a
 scenario, and the gate does not check the binding.**
 
 - **Why:** a binding checker is per-language code no target repo can run, and it made every spec carry keys only it
@@ -499,14 +501,14 @@ retires it, checked once by that change's acceptance. A scan may name what a liv
 retired names.**
 
 - **Why:** a scan for retired words grows with every retirement, and tests a history rather than the system.
-- **Gave up:** a reintroduced name turning the gate red. Review's stale-claim pass looks for it instead.
+- **Gave up:** a reintroduced name turning the gate red. Conformance's stale-claim pass looks for it instead.
 
 ### D39 · A test is placed by its cost
 
 **A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
 engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
 `## Tests` table names it, its proofs carried by a remaining test or retired by a decision in force at the base.
-Review judges each new test's cost and traces each removed one's proofs.**
+Conformance judges each new test's cost and traces each removed one's proofs.**
 
 - **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.
@@ -732,8 +734,8 @@ end or at an install with none live, to the pending release or a newer tag `orig
 
 ### D56 · The cap policy
 
-**At a converge cap, `conduct.py` reads the open blocking cards — review's `blocking`, security's `critical` and `high`
-— and their fix sizes; when each is `one line`, `a test` or `one line and a test`, the run spawns converge with
+**At a converge cap, `conduct.py` reads the open blocking cards — conformance's `blocking`, adversarial's `critical`
+and `high` — and their fix sizes; when each is `one line`, `a test` or `one line and a test`, the run spawns converge with
 `grant=yes` itself, with no grant file and no rescue, and checks that round as a person's grant's. Any other cap — a
 blocker sized `a design change`, no card read, a granted round's, automatic or a person's, in this run or an earlier
 one, a second cap in the run, or `[converge] auto_grant = false` in the models file — writes the version a last halt
@@ -747,14 +749,14 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 
 ### D57 · One folder per change in `.minions/`
 
-**Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
+**Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
+`status_log.md`, `diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
-`runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker, and a file
-beside its new one or a link halts it; a hand-run station or script on an old layout halts, naming `/mf-ship`, and
-`review_metrics.py` reads both.**
+`runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
+old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or
+script on an old layout halts, naming `/mf-ship`, and `review_metrics.py` reads both.**
 
 - **Why:** a person, or a viewer, reading one version opens one folder, not seven by kind and one per run.
 - **Accepts:** a repo no run has moved halts its hand-run stations until a run moves it · a file the move does not name

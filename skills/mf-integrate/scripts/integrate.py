@@ -42,13 +42,14 @@ EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 # Each old-layout path of a change in the run directory.
-# Why: 0080-minions-layout design D1, D4.
+# Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D3.
 OLD_LAYOUT = (
     *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
     *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
     *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
     *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
     *("release/{}.held", "gate-check/{}"),
+    *("changes/{}/review.md", "changes/{}/security.md"),
 )
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
@@ -216,7 +217,7 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
         if not _shipped(cwd, change, dependency):
             return f"after {dependency}"
     folder = _change_dir(cwd, change)
-    files = [folder / f"{role}.md" for role in ("review", "security")]
+    files = [folder / f"{role}.md" for role in ("conformance", "adversarial")]
     patch = folder / "diff.patch"
     present = [file for file in files if file.is_file()]
     if not present and not patch.is_file():

@@ -91,7 +91,12 @@ RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
-WORKERS = ("converge.review", "converge.security", "converge.fix")
+WORKERS = ("converge.conformance", "converge.adversarial", "converge.fix")
+# A cut's worker table under its old name. Why: 0095-converge-roles design D2.
+OLD_WORKERS = {
+    "converge.conformance": "converge.review",
+    "converge.adversarial": "converge.security",
+}
 # The rescue, the supervisor and converge's workers are no stage: each is planned with
 # the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
 # 0094-lighter-converge design D1.
@@ -106,12 +111,12 @@ SETTLES = ("openspec/", "docs/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
-ROLES = ("review", "security")
+ROLES = ("conformance", "adversarial")
 # Each old-layout path of a change, by its name in the change's folder.
-# Why: 0080-minions-layout design D1, D4.
+# Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
 OLD_LAYOUT = {
-    "findings/{}_review.md": "review.md",
-    "findings/{}_security.md": "security.md",
+    "findings/{}_review.md": "conformance.md",
+    "findings/{}_security.md": "adversarial.md",
     "findings/{}_status_log.md": "status_log.md",
     "findings/{}_diff.patch": "diff.patch",
     "models/{}.toml": "models.toml",
@@ -126,11 +131,13 @@ OLD_LAYOUT = {
     "release/{}.held": "release.held",
     "gate-check/{}": "gate-check",
 }
+# A change folder's old findings names. Why: 0095-converge-roles design D2.
+OLD_ROLES = {"review.md": "conformance.md", "security.md": "adversarial.md"}
 OLD_ID = r"(\d{4}-[a-z0-9-]+)"
 OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
 OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
-BLOCKS = {"review": ("blocking",), "security": ("critical", "high")}
+BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
 SMALL = ("one line", "a test", "one line and a test")
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
@@ -686,10 +693,12 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
     """Return each change's old-layout files, each with its path in the change's folder.
 
-    A file `OLD_LAYOUT` does not name stays out, prefix matches and strays alike.
-    e.g. `findings/0001-x_review.md` → {"0001-x": [(…, "review.md")]}
+    A file `OLD_LAYOUT` or `OLD_ROLES` does not name stays out, prefix matches and
+    strays alike.
+    e.g. `findings/0001-x_review.md` → {"0001-x": [(…, "conformance.md")]}
+    e.g. `changes/0001-x/review.md` → conformance.md
     e.g. `runs/<stamp>/0001-x_converge-2.log` → `logs/<stamp>-converge-2.log`
-    Why: 0080-minions-layout design D4.
+    Why: 0080-minions-layout design D4; 0095-converge-roles design D2.
     """
     minions = primary / ".minions"
     found: dict[str, list[tuple[Path, str]]] = {}
@@ -700,6 +709,12 @@ def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
         for path in listed:
             if matched := pattern.fullmatch(path.name):
                 found.setdefault(matched[1], []).append((path, new))
+    changes = minions / "changes"
+    folders = sorted(changes.iterdir()) if changes.is_dir() else []
+    for folder in (f for f in folders if f.is_dir()):
+        for name, new in OLD_ROLES.items():
+            if os.path.lexists(folder / name):
+                found.setdefault(folder.name, []).append((folder / name, new))
     runs = minions / "runs"
     stamps = runs.iterdir() if runs.is_dir() else ()
     for stamp in (s for s in stamps if OLD_STAMP.fullmatch(s.name) and s.is_dir()):
@@ -2105,7 +2120,7 @@ def _models_file(runs: Path, change: str) -> dict[str, object]:
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
     """Return a table of the cut's models file; None with no file or no such table.
 
-    A dotted name walks in: e.g. "converge.review" → `[converge]`'s `review` table.
+    A dotted name walks in: e.g. "converge.fix" → `[converge]`'s `fix` table.
     """
     table: object = _models_file(runs, change)
     for part in name.split("."):
@@ -2130,11 +2145,13 @@ def _models(
     An absent executor is the run's, `run`; an absent model or effort is None, save
     the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` names no executor
     and runs on converge's, halting where converge's table does, with no Codex check
-    of its own. A table no executor can run halts the version.
+    of its own, and with no table of its own reads its `OLD_WORKERS` table. A table
+    no executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
-    design D1.
+    design D1; 0095-converge-roles design D2.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
+    names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
     tables = (_table(runs, change, name) for name in names.get(station, (station,)))
     table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
@@ -2221,6 +2238,15 @@ def _severity(card: str) -> str:
     return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
 
 
+def _category(card: str) -> str:
+    """Return a card's category: its `Priority`'s third part, in lower case, or "".
+
+    e.g. "high · adversarial · security — why" → "security"
+    """
+    parts = _field(card, "Priority").split(" · ")
+    return parts[2].split(" — ")[0].strip(" `").lower() if len(parts) > 2 else ""
+
+
 def _status(card: str) -> str:
     """Return a card's `Status`, its backticks dropped, as `_severity` drops them."""
     return _field(card, "Status").strip(" `")
@@ -2253,17 +2279,27 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
 def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     """Return whether a card an `amend needed` halt names is a blocking security one.
 
-    An unread `security.md` blocks. Why: 0085-self-healing-ship design D2.
+    A security card is an `adversarial.md` card of category `security`, or of none
+    read; an unread `adversarial.md` blocks. Why: 0085-self-healing-ship design D2;
+    0095-converge-roles design D2.
     e.g. "… · halt — amend needed — R1 S2 · head 7ee2179", S2 `high` → True
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
-        text = (_change_dir(runs.parent, change) / "security.md").read_text()
+        text = (_change_dir(runs.parent, change) / "adversarial.md").read_text()
     except (OSError, UnicodeDecodeError):
         return True
-    return any(
-        name in ids and _severity(card) in BLOCKS["security"]
-        for name, card in _cards_in(text)
+    return any(name in ids and _security_card(card) for name, card in _cards_in(text))
+
+
+def _security_card(card: str) -> bool:
+    """Return whether an adversarial card blocks, of category `security` or none.
+
+    Why: 0095-converge-roles design D2.
+    """
+    return _severity(card) in BLOCKS["adversarial"] and _category(card) in (
+        "security",
+        "",
     )
 
 
@@ -2271,17 +2307,17 @@ def _security_held(runs: Path, change: str, halt: str) -> bool:
     """Return whether a blocking security card bars the supervisor at a converge halt.
 
     A card bars it when the halt's `amend needed` ids name it or it is open; an
-    unread `security.md` bars it. Why: 0089-supervisor design D6.
+    unread `adversarial.md` bars it. Why: 0089-supervisor design D6;
+    0095-converge-roles design D2.
     e.g. "… · halt — cap reached · head abc1234", S1 `high` and open → True
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
-        text = (_change_dir(runs.parent, change) / "security.md").read_text()
+        text = (_change_dir(runs.parent, change) / "adversarial.md").read_text()
     except (OSError, UnicodeDecodeError):
         return True
     return any(
-        _severity(card) in BLOCKS["security"]
-        and (name in ids or _status(card).startswith("open"))
+        _security_card(card) and (name in ids or _status(card).startswith("open"))
         for name, card in _cards_in(text)
     )
 
@@ -4615,10 +4651,11 @@ class Run:
     def migrate_layout(self) -> str | None:
         """Move each change's old-layout files into its folder; return why to halt.
 
-        Every file is checked before any moves: one beside its new path, or a link
-        at an old file, an old folder, `changes/` or a change's folder, halts with
-        nothing moved. A move links the file in and unlinks the old, so it never
-        replaces one. Why: 0080-minions-layout design D4, D6.
+        Every file is checked before any moves: one beside its new path, two naming
+        one new path, or a link at an old file, an old folder, `changes/` or a
+        change's folder, halts with nothing moved. A move links the file in and
+        unlinks the old, so it never replaces one. Why: 0080-minions-layout design
+        D4, D6; 0095-converge-roles design D2.
         """
         found = _old_files(self.primary)
         minions = self.primary / ".minions"
@@ -4633,6 +4670,15 @@ class Run:
                 if link.is_symlink():
                     named = link.relative_to(self.primary)
                     return f"{named} is a link: a person settles what it names"
+            named_by: dict[str, Path] = {}
+            for old, new in files:
+                if (other := named_by.setdefault(new, old)) != old:
+                    return (
+                        f"{other.relative_to(self.primary)} and"
+                        f" {old.relative_to(self.primary)} both name"
+                        f" {(folder / new).relative_to(self.primary)}:"
+                        " a person settles which to keep"
+                    )
             for old, new in files:
                 if os.path.lexists(folder / new):
                     return (
@@ -5632,8 +5678,12 @@ def report(cwd: Path) -> str:
         if tag is not None and not _tagged(primary, tag):
             tag = None
         pushed = _pushed(primary, change, tag) if tag is not None else False
-        review = _change_dir(primary, change) / "review.md"
-        round_ = _frontmatter(review.read_text(), "round") if review.is_file() else None
+        conformance = _change_dir(primary, change) / "conformance.md"
+        round_ = (
+            _frontmatter(conformance.read_text(), "round")
+            if conformance.is_file()
+            else None
+        )
         page = runs / "metrics" / f"{change}.html"
         lines.append(
             " · ".join(

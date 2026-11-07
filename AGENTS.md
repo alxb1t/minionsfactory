@@ -5,8 +5,8 @@ line is an `mf-*` skill, and a person conducts them. The project is built the wa
 record is [`docs/README.md`](docs/README.md).
 
 > **This file is shared, role-independent context — what is *true* of this repo, not a script.** What you *do*
-> comes from the prompt or task you were given: author a change, build a phase, review the branch diff, run a
-> security pass, apply fixes. Where your prompt conflicts with this file, **the prompt wins**; infer no workflow
+> comes from the prompt or task you were given: author a change, build a phase, check the diff's conformance, run
+> an adversarial pass, apply fixes. Where your prompt conflicts with this file, **the prompt wins**; infer no workflow
 > from this file alone.
 
 ## The record

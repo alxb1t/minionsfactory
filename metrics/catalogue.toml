@@ -544,58 +544,58 @@ script = "scripts/metrics/run.py"
 args = ["cost-per-changed-line"]
 
 [[metric]]
-id = "review-confirmed"
-title = "Review's confirmed cards"
+id = "conformance-confirmed"
+title = "Conformance's confirmed cards"
 group = "run"
 unit = "cards"
 better = "higher"
 script = "scripts/metrics/run.py"
-args = ["review-confirmed"]
+args = ["conformance-confirmed"]
 
 [[metric]]
-id = "security-confirmed"
-title = "Security's confirmed cards"
+id = "adversarial-confirmed"
+title = "Adversarial's confirmed cards"
 group = "run"
 unit = "cards"
 better = "higher"
 script = "scripts/metrics/run.py"
-args = ["security-confirmed"]
+args = ["adversarial-confirmed"]
 
 [[metric]]
-id = "review-refuted"
-title = "Review's refuted candidates"
+id = "conformance-refuted"
+title = "Conformance's refuted candidates"
 group = "run"
 unit = "candidates"
 better = "lower"
 script = "scripts/metrics/run.py"
-args = ["review-refuted"]
+args = ["conformance-refuted"]
 
 [[metric]]
-id = "security-refuted"
-title = "Security's refuted candidates"
+id = "adversarial-refuted"
+title = "Adversarial's refuted candidates"
 group = "run"
 unit = "candidates"
 better = "lower"
 script = "scripts/metrics/run.py"
-args = ["security-refuted"]
+args = ["adversarial-refuted"]
 
 [[metric]]
-id = "review-tokens-per-confirmed"
-title = "Review's tokens per confirmed card"
+id = "conformance-tokens-per-confirmed"
+title = "Conformance's tokens per confirmed card"
 group = "run"
 unit = "tokens"
 better = "lower"
 script = "scripts/metrics/run.py"
-args = ["review-tokens-per-confirmed"]
+args = ["conformance-tokens-per-confirmed"]
 
 [[metric]]
-id = "security-tokens-per-confirmed"
-title = "Security's tokens per confirmed card"
+id = "adversarial-tokens-per-confirmed"
+title = "Adversarial's tokens per confirmed card"
 group = "run"
 unit = "tokens"
 better = "lower"
 script = "scripts/metrics/run.py"
-args = ["security-tokens-per-confirmed"]
+args = ["adversarial-tokens-per-confirmed"]
 
 [[metric]]
 id = "escapes"
