@@ -202,10 +202,12 @@ reality, it halts.**
 
 ### A new dependency halts for a person
 
-**A package is added only if the change's `design.md` lists it under `## Dependencies`, approved at the cut. Any
-other stops the build.**
+**A package is added only if the change's `design.md` lists it under `## Dependencies`, approved by a person: at the
+cut, or for a queued cut at the plan, the run checking it against the queued rows
+([D62](decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Any other stops the build.**
 
 - **Why:** an agent installing freely is the supply-chain surface.
 - **Held by:** `mf-build` stop-condition 4, which reads `## Dependencies` at the cut commit; `mf-cut-change`
-  Step 9; `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in
-  both skills.
+  Step 9; `conduct.py`'s cut check, held by
+  `tests/test_conduct.py::test_a_cut_halt_is_shown_and_rejoin_cuts_again`;
+  `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in both skills.

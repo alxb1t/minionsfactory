@@ -47,7 +47,13 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 ## Entry points
 
 - A brief, and the change directory the cut writes from it; an unattended cutter also writes the brief's `Cut` line and
-  `decided by the cutter` rows back.
+  `decided by the cutter` rows back, through an edit rule for the whole file. No package's approval is read from the brief
+  after the person's act: `conduct.py cut` copies the item's `## Dependencies` rows into the home queue, a `rejoin` keeps the
+  queued rows and takes a row they lack only with `--yes <hash>` of the new rows, a command the person runs, and the station
+  compares the committed `design.md` with that copy
+  ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row a cutter
+  plants reaches a later cut only through the person's re-plan, whose close shows each `## For the cut` item and
+  `## Dependencies` row before the yes (`0082·S5`).
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
@@ -65,11 +71,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   person's amends alone, which let it go on, so a request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
   person's own fix then, or a grant landing as it ends, waits for a re-run.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
-  burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
-  in the home folder, where no worker writes, so no worker names that brief. A passed cut's brief path stays there, in
-  `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor tried, so no worker
-  forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting
-  the same settle bound.
+  burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes and holds
+  the packages its cut may add, stands in the home folder, where no worker writes, so no worker names that brief or
+  widens that list. A passed cut's brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and
+  `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
+  worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
 
 ## Surfaces
 
