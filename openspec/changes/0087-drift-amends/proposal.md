@@ -5,7 +5,8 @@ bump: minor
 # Drift amends
 
 Drift that needs the person's amend of the change directory halts converge `amend needed` at the debt write, instead of
-going to the debt and shipping a stale archive; the rescue's amend answers it, and converge replays it by rule.
+going to the debt and shipping a stale archive; the rescue's amend answers it, and converge's catch-up round reads it in one
+Step 7 round, passing only the person's amend by rule.
 
 Read [design](design.md) for the decisions, [tasks](tasks.md) for the phases, and [the delta](specs/sdd/spec.md) for the
 requirements.
@@ -23,8 +24,10 @@ in the debt. v0.70.0's rescue can already write the amend at an `amend needed` h
 - **An amend card** — a card whose **Fix**, or whose `wontfix` note, names the change's `tasks.md` or `design.md` by path.
 - **Step 9 halts on amend cards** — a non-blocking amend card left `wontfix`, or `open` and `drift`, whose **Still true?**
   check still shows it, halts `amend needed — <card ids>` before the debt lock, writing nothing to the debt.
-- **The amend replays by rule** — an answered `amend needed` halt whose findings files are both still `verdict: clean` runs
-  the catch-up round again, as an answered catch-up halt does: no new round 1. There the amend cards go on as any card.
+- **The amend is caught up** — an answered `amend needed` halt whose findings files are both still `verdict: clean` runs
+  the catch-up round again, as an answered catch-up halt does: no new round 1. A rescue's amend, carrying a `Rescue:`
+  trailer, gets one Step 7 round there; only the person's passes by rule. An amend card whose id an answered halt named, or
+  whose qualified id the debt already holds, goes on as any card.
 - **The rescue's row** — `mf-rescue` amends what the halt's cards name, the `open` drift card's **Fix** included.
 - **D15 amended** — drift never blocks, save a card naming the plan's amend; D16's debt line names the same exception.
 
@@ -40,9 +43,9 @@ None.
   - *The converge fixer leaves the plan to the person* — MODIFIED: a blocking card's amend halts after the fix pass; the
     verify pass keeps an amend's `wontfix`; a non-blocking amend card halts at Step 9.
   - *Converge keeps deferred work in one repository debt file* — MODIFIED: an amend card halts instead of going to the debt,
-    save in the catch-up run its amend answered.
+    save one an answered halt named or the debt already holds.
   - *A converge halt answered by the person converges afresh* — MODIFIED: an answered `amend needed` halt with both findings
-    files clean runs the catch-up round again.
+    files clean runs the catch-up round again, a rescue's amend judged in one Step 7 round.
   - *A halted version is rescued in its run* — MODIFIED: the rescue amends what the halt's cards name; the version converges
     on in an `· amended` run, or in the catch-up round when both findings files are clean.
 

@@ -1,7 +1,8 @@
 # Drift amends — design
 
-A drift card that needs the plan amended halts converge at the debt write; the rescue's amend answers it, and converge passes
-the amend by rule. Skill text and a test; `conduct.py` already takes the halt. Verdict at the end: ready to build.
+A drift card that needs the plan amended halts converge at the debt write; the rescue's amend answers it, and converge's
+catch-up round reads the amend in one Step 7 round, passing only the person's by rule. Skill text and a test; `conduct.py`
+already takes the halt. Verdict at the end: ready to build.
 
 ## Context
 
@@ -45,8 +46,8 @@ already released stale.
 | [D1](#d1) | An **amend card** names `openspec/changes/<change-id>/tasks.md` or `design.md` in its **Fix** or its `wontfix` note | Q5 | the conductor judging which card "wants" an amend: it judges nothing |
 | [D2](#d2) | The verify pass keeps an amend card's `wontfix` | Q5 | `accepted`, as today |
 | [D3](#d3) | A blocking amend card halts after the fix pass; a non-blocking one goes on to verify | Q5 | halting the pickup round at its fix pass |
-| [D4](#d4) | Step 9 halts on a non-blocking amend card, `wontfix` or `open` `drift`, still true, before the lock; in the catch-up its amend opened, it goes on | Q5 | a halt on every re-run |
-| [D5](#d5) | An answered `amend needed` halt with both files clean runs the catch-up round again | Q5 | `· amended` from round 1 |
+| [D4](#d4) | Step 9 halts on a non-blocking amend card, `wontfix` or `open` `drift`, still true, before the lock. An amend card whose id an answered `amend needed` halt named, or whose qualified id already stands in the debt, goes on as every other card | Q5 | a halt on every re-run; the exception keyed on the catch-up run, not the card |
+| [D5](#d5) | An answered `amend needed` halt with both files clean runs the catch-up round again: an amend carrying a `Rescue:` trailer gets one Step 7 round over its diff, and only a trailer-less amend passes by rule | Q5 | `· amended` from round 1; a rescue's amend passing by rule, which leaves D53 and D60 false |
 | [D6](#d6) | The rescue amends what the cards name; D15 and D16's debt line amended | Q5, Q8 | — |
 
 ### D1
@@ -95,21 +96,24 @@ S's Step 9 gains a paragraph above the lock (`S:396`):
 
 > **Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is `wontfix`,
 > or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2. Any left → halt
-> `amend needed — <card ids>`, writing nothing to the debt. In a catch-up run whose selection holds the person's amend, they go
-> on as every other card.
+> `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered `amend needed` halt named, or
+> whose qualified id already stands in the debt, goes on as every other card.
 
 ```
   Step 9 ─▶ amend cards still true? ── none ─▶ lock ─▶ items 1–7
                  │ some
                  ▼
-       catch-up over the person's amend? ── yes ─▶ lock ─▶ items 1–7 (to the debt)
+       each named by an answered halt, or in the debt? ── yes ─▶ lock ─▶ items 1–7 (to the debt)
                  │ no
                  ▼
-       halt amend needed — <ids> ─▶ rescue's amend ─▶ catch-up by rule (D5) ─▶ Step 9
+       halt amend needed — <ids> ─▶ the amend ─▶ catch-up (D5) ─▶ Step 9
 ```
 
 The exception keeps a loop out: a run rescues a halted stage once (`Run.rescued`, `C:3084-3093`), so a second halt at the same
-cards would wait for the person over an amend already made.
+cards would wait for the person over an amend already made. It keys on the card, not the run: an amend card the amend missed
+goes to the debt once, and a later catch-up over a merge finds its qualified id there and goes on, Step 9's item 5 skipping it; a new
+amend card first found in a catch-up after an amend still halts. The halt's ids are read from the status log: a halt line
+`amend needed — <card ids>` whose head `HEAD` is past.
 
 ### D5
 
@@ -119,10 +123,20 @@ catch-up halt, and an answered `amend needed` halt whose findings files both sti
 (`S:151-154`) ends: "No grant is needed, and the catch-up round does not apply." → "No grant is needed, and the catch-up round
 does not apply, save to the person's amends, as the next paragraph says."
 
-A Step 9 halt leaves both files clean and judged at its head (D3), so the catch-up round applies (`S:183-184`); a selection of
-amends alone passes by rule (`S:208-209`), then Step 9 (D4). The run needs no change: F5 voids the halt past amends alone and
-spawns converge, which picks the catch-up from disk. A comment in `Run.rescue` and one in `Run.advance` go stale, and become, at
-their own indents:
+The amends paragraph's new sentence then gains, before its "; any other opens": ", an amend there carrying a `Rescue:`
+trailer judged in one Step 7 round, never by rule", the words `never by rule` on one line. *Catch-up round* item 4
+(`S:208-209`) ends: "A selection of amends alone, with no merge, passes by rule too." → "A selection of amends alone, with no
+merge, passes by rule too. A selection holding an amend that carries a `Rescue:` trailer, the rescue's, skips By rule →
+item 5, under the run's own count: one Step 7 round reads it.", the words `skips By rule` on one line.
+
+A Step 9 halt leaves both files clean and judged at its head (D3), so the catch-up round applies (`S:183-184`). The person's
+trailer-less amend alone passes by rule (`S:208-209`), then Step 9 (D4). The rescue's amend carries a `Rescue:` trailer
+(`R:77`), so items 5 and 6 freeze `<judged head>..HEAD` and run one Step 7 round over the amend's diff (`S:210-215`), then
+Step 9; it still counts as an amend in item 2, so a halt at round 3 meets no cap. D53's Why and D60's Accepts
+(`docs/decisions.md:581-582`, `:606-607` at `0fedc05`) and `THREAT_MODEL.md:82` say converge reads the whole change after a
+rescue's amend; the round reads the one commit past the judged head, so they stay true. The run needs no change: F5 voids the
+halt past amends alone, a rescue's included, and spawns converge, which picks the catch-up from disk. A comment in
+`Run.rescue` and one in `Run.advance` go stale, and become, at their own indents:
 
 ```
 before (C:3146):  # A taken amend is the rescue's answer: converge opens its amended run.
@@ -167,8 +181,14 @@ between the halts (`_amendable`, `C:823`): what differs is the state on disk and
   writes them (`F:110-114`), through a new `_drift_halt` beside `_amend_needed`.
   With `decide = "recommended"` atop the models file and the `rescue-decides` and
   `by-rule` modes: the calls are probe, build, converge, `rescue … with decide=recommended`, converge, release; the log holds
-  `rescue — 0001-todo: decided · converge-halted · <sha7>`; the status log opens `## Run 2 — d · catch-up`, with no `· amended`;
-  the run ends `done — released v0.1.0 · decided 0001-todo`.
+  `rescue — 0001-todo: decided · converge-halted · <sha7>`; the status log opens `## Run 2 — d · catch-up`, its round holding
+  a `verdicts` line and no `by rule` line, with no `· amended`; the run ends `done — released v0.1.0 · decided 0001-todo`.
+  The fake reads the rescue's amend as D5 does: `_person_amends` returns false for a commit whose message carries a
+  `Rescue:` trailer, so `_by_rule` returns none for it, and the `by-rule` mode, when the catch-up's selection is amends
+  alone and one carries the trailer, writes one verify round through a new `_write_catch_up` beside `_write_by_rule`: both
+  files `verdict: clean` at `HEAD`, `round: 2`, no `## By rule`, and a status log `## Run 2 — d · catch-up` holding
+  `round 2 · verdicts — review clean · open_blocking 0` above `round 2 · freeze — <judged head>..<HEAD>`. The test keeps
+  its name, which task 1.5's `Verify:` selects.
 
 No test is deleted or merged.
 
@@ -179,8 +199,11 @@ None.
 ## Risks / Trade-offs
 
 - A worker that names an amend in a card forces a halt and a rescue's amend: worker steering, the class `THREAT_MODEL.md`
-  accepts; the amend's paths are checked (D53), and the catch-up's gate and `gate_check.py` judge it.
-- An amend that misses the card's defect sends the card to the debt in the catch-up run (D4): it is carded, as today, not lost.
+  accepts; the amend's paths are checked (D53), the catch-up's gate and `gate_check.py` run over it, and its `Rescue:`
+  trailer sends it to one Step 7 round (D5), so review and security read it as D53 and D60 say. A rescue amend with no
+  trailer reads as the person's and passes by rule, as D60's Accepts already names.
+- An amend that misses the card's defect sends the card to the debt in the catch-up run (D4): it is carded, as today, not
+  lost, and a later catch-up finds it there and goes on.
 - A card that names the path for an edit the fixer could make elsewhere halts once: the rescue reads it, and diagnoses when
   nothing in the plan is to amend.
 - The fake writes the Step 9 halt and the catch-up itself: the test proves the run's half; the skill text is held by review
