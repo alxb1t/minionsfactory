@@ -5,9 +5,10 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 
 ## Conformance and adversarial
 
-**A repeat escalates.** A **repeat** is a finding that describes a defect already carded in the debt. The
-station names `repeat of <id>` in its **Related** field and grades it up one level: adversarial one step, a
-conformance `nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing.
+**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in the bundle's
+`## Debt cards on the diff's files` holds. The station names `repeat of <id>` in its **Related** field and grades it
+up one level: adversarial one step, a conformance `nit` or `drift` to `blocking`. The station judges the match; the
+conductor judges nothing. No worker reads `.minions/debt.md`.
 
 **Conformance runs these passes after its sections**, and its Summary says each ran:
 

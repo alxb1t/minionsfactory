@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tries to break it: `conformance.md` and `adversarial.md`, `generic-conformance.md` and `generic-adversarial.md` with a
   packet each; a run moves a folder's old `review.md` and `security.md`, and a hand-run station halts on them; a
   security card is an adversarial card of category `security` (change `0095-converge-roles`, phase 1).
+- `debt_match.py` appends the debt cards on the diff's files to the bundle, so no worker reads `.minions/debt.md`, and
+  each packet reads `diff.patch` once (change `0095-converge-roles`, phase 2).
 
 ## [0.77.0] - 2026-11-08
 

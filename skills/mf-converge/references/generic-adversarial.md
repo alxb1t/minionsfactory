@@ -21,10 +21,11 @@ the Summary names it.
 | input | what it is for |
 |---|---|
 | `<base>..<head>` | the judged range |
-| `diff.patch` | the frozen patch: every hunk you try to break |
+| `diff.patch` | the frozen patch: every hunk you try to break, read once; `git diff` or `git show` only for a file's context the patch does not hold |
 | the source and tests around each hunk | the callers, consumers, guards and tests a hunk leans on |
 | `THREAT_MODEL.md` | what is worth protecting, the trust boundaries, the entry points, and what is out of scope |
 | `AGENTS.md` | the target's shared context and guardrails |
+| `bundle.md` | its `## Debt cards on the diff's files` section alone, for the contract's repeat rule |
 
 ## Inspect: one section each, in this order
 

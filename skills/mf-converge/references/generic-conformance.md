@@ -22,13 +22,13 @@ the Summary names it.
 | input | what it is for |
 |---|---|
 | `<base>..<head>` | the judged range |
-| `diff.patch` | the frozen patch: every hunk you judge |
+| `diff.patch` | the frozen patch: every hunk you judge, read once; `git diff` or `git show` only for a file's context the patch does not hold |
 | `refactor(<change-id>): simplify` | the simplify commit's body, when the range holds one: its notes for review |
 | `proposal.md` | the change's scope |
 | `design.md` | the decisions the change settled, and its `## Tests` table |
 | `tasks.md` | each task as written, and its `Verify:` |
 | `specs/` | the spec delta, unless `.openspec.yaml` declares `skip_specs: true` |
-| `bundle.md` | the decisions the change cites, in full, an index of all, and the living requirements the delta modifies or removes, in place of `docs/decisions.md` and the living specs |
+| `bundle.md` | the decisions the change cites, in full, an index of all, the living requirements the delta modifies or removes, and the debt cards on the diff's files, in place of `docs/decisions.md`, the living specs and the debt |
 | `AGENTS.md` | the target's shared context; a subdirectory's only when the diff touches that subtree |
 | `CODING_STANDARDS.md` | a root standards file |
 | `CODE_STANDARDS.md` | a root standards file |
@@ -50,7 +50,8 @@ the Summary names it.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed error.
    Always a card, never left to the fixer's judgement.
 
-Then run the contract's stale-claim, test-cost and coverage-trace passes, and check debt repeats.
+Then run the contract's stale-claim, test-cost and coverage-trace passes, and check repeats against the bundle's debt
+cards.
 
 A section whose source document is missing, or reads `Not written yet:`, is **`inconclusive`**: say which document,
 check what can be checked without it, and go on. `inconclusive` never blocks and never reads as a pass.

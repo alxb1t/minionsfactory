@@ -6,7 +6,7 @@ merges in before this build: find each of its symbols and sections by name, neve
 ## Progress
 
 - [x] 1 — The roles
-- [ ] 2 — The debt and the diff
+- [x] 2 — The debt and the diff
 - [ ] 3 — Verify and the defaults
 - [ ] 4 — The record
 
@@ -60,16 +60,16 @@ merges in before this build: find each of its symbols and sections by name, neve
 
 ## 2 — The debt and the diff
 
-- [ ] 2.1 Add `skills/mf-converge/scripts/debt_match.py`, per [D8](design.md#d8), and `tests/test_debt_match.py`, as the
+- [x] 2.1 Add `skills/mf-converge/scripts/debt_match.py`, per [D8](design.md#d8), and `tests/test_debt_match.py`, as the
   design's `## Tests` names its tests.
   Verify: `uv run pytest -q tests/test_debt_match.py` reports `2 passed`.
-- [ ] 2.2 Add `debt_match.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
+- [x] 2.2 Add `debt_match.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`, per [D8](design.md#d8).
   Verify: `grep -n '"scripts/debt_match.py"' tests/test_skills.py` prints a line.
-- [ ] 2.3 Run `debt_match.py` after `bundle.py` in Step 2 and Step 6's re-freeze of `skills/mf-converge/SKILL.md`, and drop
+- [x] 2.3 Run `debt_match.py` after `bundle.py` in Step 2 and Step 6's re-freeze of `skills/mf-converge/SKILL.md`, and drop
   Step 3's debt bullet, per [D9](design.md#d9).
   Verify: `grep -n 'scripts/debt_match.py' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 2.4 Edit the repeat rule in `skills/mf-converge/references/worker.md`, add the bundle and the read-once rule to the
+- [x] 2.4 Edit the repeat rule in `skills/mf-converge/references/worker.md`, add the bundle and the read-once rule to the
   packets of both references, and extend `test_the_packets_hold_what_each_role_reads`, per [D9](design.md#d9), the section's
   name on one line.
   Verify: `grep -n "Debt cards on the diff's files" skills/mf-converge/references/worker.md` prints a line; `uv run pytest -q tests/test_skills.py -k packets_hold` reports `1 passed`.

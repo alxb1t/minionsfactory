@@ -270,7 +270,9 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 4. **Write the bundle** —
    `uv run --script <this package>/scripts/bundle.py <change-id> .minions/changes/<change-id>/bundle.md`: the
    decisions the change cites, an index of all, and the living requirements its delta modifies or removes. Exit 2,
-   or `uv` missing → **halt**, naming what it printed.
+   or `uv` missing → **halt**, naming what it printed. Then append the debt cards on the diff's files —
+   `uv run --script <this package>/scripts/debt_match.py .minions/debt.md .minions/changes/<change-id>/diff.patch .minions/changes/<change-id>/bundle.md`,
+   else an old `.minions/backlog.md` in place of the debt; exit 2, or `uv` missing → **halt**, naming what it printed.
 5. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.
 6. **Write `freeze` to the status log.**
@@ -287,9 +289,7 @@ files. Give each:
   for a merge-aware [catch-up scope](references/worker.md#catch-up-scope); the simplify commit's body is for review;
 - its mode and reference;
 - its findings path `.minions/changes/<change-id>/<role>.md`;
-- the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
-- `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
-  repeat rule of [conformance and adversarial](references/worker.md#conformance-and-adversarial).
+- the card, from [`## The card`](references/worker.md#the-card) — every finding is a card.
 
 Write `fan-out` to the status log at dispatch.
 
@@ -355,7 +355,8 @@ unchanged head and the previous freeze's patch, and Step 5 compares against that
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
 head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
-fix**, not the branch again. Rewrite the bundle as Step 2 does, halting as it says. Print the range · commit count ·
+fix**, not the branch again. Rewrite the bundle and its debt cards as Step 2 does, `debt_match.py` after
+`bundle.py`, halting as it says. Print the range · commit count ·
 files changed; `base` stays Step 2's merge-base.
 These numbers supersede the previous round's for Step 5. Write `freeze` to the status log. There are no per-round
 patch files: each findings file's `head:` and its `## Resolution log` are the per-round record, and a second
