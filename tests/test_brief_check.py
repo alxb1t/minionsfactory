@@ -85,6 +85,10 @@ def test_a_hard_brief_is_ready_for_the_cut(
     )
     assert brief_check.main([str(_write(tmp_path, tenth))]) == 0
     assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # The unattended cut's line, written right after the list, folds into no head.
+    cut = _READY + "Cut 2026-11-07 as 0083-plan-queues at f349aa8.\n"
+    assert brief_check.main([str(_write(tmp_path, cut))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
 def test_a_brief_out_of_shape_halts(
@@ -121,10 +125,15 @@ def test_a_brief_out_of_shape_halts(
         " build · converge · release · cut, each <model> <effort>",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
-    # An item that opens no number, and a head with a second after:, halt.
+    # An item that opens no number, and a head with a second after:, halt; so does a
+    # second after: on a lazy line, which Markdown folds into the head.
     shapes = _READY + (
         "- **x;y** · minor · after: none\n"
         "5. **ok** · minor · after: none · after: a;touch-p\n"
+        "   - models: build opus high · converge opus high · release opus high"
+        " · cut opus high\n"
+        "6. **ok** · minor · after: none\n"
+        "· after: a;touch-q\n"
         "   - models: build opus high · converge opus high · release opus high"
         " · cut opus high\n"
     )
@@ -133,7 +142,19 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: not a numbered item:"
         " `- **x;y** · minor · after: none`",
         "brief: halt — ## For the cut: item 5 — more than one after:",
+        "brief: halt — ## For the cut: item 6 — more than one after:",
     ]
+    # A vertical tab breaks no Markdown line: the text past it stays in the head.
+    tabbed = _READY + (
+        "5. **ok** · minor · after: none\x0b· after: a;touch-p\n"
+        "   - models: build opus high · converge opus high · release opus high"
+        " · cut opus high\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, tabbed))]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — ## For the cut: item 5 — not an after id:"
+        " `none\x0b· after: a;touch-p`\n"
+    )
     # Any other list marker, or an indent short of the head's text, opens no number.
     markers = _READY + (
         "* **x;touch-p** · minor · after: none\n"

@@ -55,10 +55,14 @@ def depth(brief: str) -> str | None:
 
 
 def sections(brief: str) -> dict[str, list[str]]:
-    """Return each `## ` section's lines, keyed by its heading, which they exclude."""
+    """Return each `## ` section's lines, keyed by its heading, which they exclude.
+
+    Lines break at a newline alone, as Markdown's do once the file is read; a vertical
+    tab or another `str.splitlines` separator stays inside its line.
+    """
     found: dict[str, list[str]] = {}
     lines: list[str] | None = None
-    for line in brief.splitlines():
+    for line in brief.split("\n"):
         if line.startswith("## "):
             lines = found.setdefault(line.rstrip(), [])
         elif lines is not None:
@@ -69,8 +73,10 @@ def sections(brief: str) -> dict[str, list[str]]:
 def items(lines: list[str]) -> list[str]:
     """Return each item of a section: its lines, stripped, joined by a space.
 
-    An item's line wraps onto each deeper line after it that opens no item.
-    e.g. ["- a", "  b", "- c"] → ["- a b", "- c"]
+    An item's line wraps onto each deeper line after it that opens no item, and, as
+    Markdown's lazy continuation does, onto any other line before a blank one that
+    opens no list marker or `|`.
+    e.g. ["- a", "  b", "c", "- d", "* e"] → ["- a b c", "- d"]
     """
     found: list[str] = []
     indent: int | None = None
@@ -80,7 +86,7 @@ def items(lines: list[str]) -> list[str]:
         if ITEM.match(text):
             found.append(text.strip())
             indent = at
-        elif indent is not None and text and at > indent:
+        elif indent is not None and text and (at > indent or not MARKER.match(text)):
             found[-1] += " " + text.strip()
         else:
             indent = None
