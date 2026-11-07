@@ -209,10 +209,18 @@ after it, and each the search script did not run — a test, a command — fail 
 which should hold? A search's "before" is the script's, so the reviewer reads only its "after". It answers with
 doubts, each with its `path:line`.
 
+| review | runs | reviewer |
+|---|---|---|
+| **first** | always, after the self-check | a fresh worker |
+| **second** | only when a fix after the first — yours, the person's or the switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task | a fresh worker, never a message to the first |
+
+Each review is a new worker given the change directory, `HEAD`'s sha and the question: a reviewer resumed by a message
+reads its own doubts as settled. A simple fix is not reviewed again.
+
 | the doubt | do |
 |---|---|
-| a check that cannot pass or breaks `I19`, a reader Step 3 missed, a task two readings would build differently | fix it without asking; then run the search script and the review once more |
-| one that changes a `design.md` decision or a brief's `## Decisions` row | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule |
+| a check that cannot pass or breaks `I19`, a reader Step 3 missed, a task two readings would build differently | fix it without asking; then run the search script once more, and the **second** review when the fix meets its row |
+| one that changes a `design.md` decision or a brief's `## Decisions` row | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule, its `C` row calling the **second** review |
 | one still standing after the second review | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule |
 
 A host with no fresh worker: read the plan yourself, with the same question, and name that read in the self-check
@@ -234,7 +242,8 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
 change, which commits.
 
-On edits, go back to Step 7. An edit the human asks for after the commit is a further commit on the branch,
+On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
+edit the human asks for after the commit is a further commit on the branch,
 `docs(<change-id>): amend the change directory`, with the same trailer block.
 
 ## Step 10 — Commit
@@ -365,10 +374,12 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 |---|---|
 | mechanical edits; a checklist to follow | the mid tier · medium |
 | settled text to place; small tests | the mid tier · high |
-| prose written fresh; moderate logic | the strongest tier · medium |
+| prose written fresh; moderate logic — **moderate** | Sonnet 5.5 · high, where the session offers it; else the strongest tier · medium |
 | new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
+A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
+a change, never one per phase.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
