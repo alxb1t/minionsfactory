@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   approval (change `0091-cut-halts`, phase 2).
 - Unattended, `mf-cut-change` commits a `## Dependencies` row the brief lists for its change and halts on any other; a
   hand cut halts on an id the queue holds, naming the brief and `conduct.py rejoin` (change `0091-cut-halts`, phase 3).
+- A cut halt the plan answers — a cutter's doubt, or a package the queued rows do not approve — ends
+  `· needs <id> its brief answered (…), then conduct.py rejoin <id>`, in the log, `status`, `report` and the closing
+  line, so the halt names its command (change `0091-cut-halts`, phase 4).
 
 ## [0.73.0] - 2026-11-07
 

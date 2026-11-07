@@ -70,6 +70,7 @@ SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
 APPROVED = ["item", "package", "constraint", "why"]
+UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -613,11 +614,8 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
         os.close(fd)
 
 
-def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
-    """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
-
-    Why: 0082-cut-station design D4.
-    """
+def _cutter_halt(primary: Path, change: str) -> str | None:
+    """Return the cutter's `cut.halt` line, read through no link; None with none."""
     fd = _folder_fd(primary / ".minions", "changes", change)
     try:
         halt = os.open("cut.halt", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
@@ -625,9 +623,31 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
         halt = None
     finally:
         os.close(fd)
-    if halt is not None:
-        with os.fdopen(halt, errors="replace") as file:
-            return file.readline().strip()[:300]
+    if halt is None:
+        return None
+    with os.fdopen(halt, errors="replace") as file:
+        return file.readline().strip()[:300]
+
+
+def _cut_answer(change: str, brief: str) -> str:
+    """Return the action a cut halt the plan answers needs.
+
+    e.g. "0001-a", "/b.md" → "its brief answered (/mf-plan 0001-a depth=hard brief=/b.md
+    from=/b.md), then conduct.py rejoin 0001-a". Why: 0091-cut-halts design D5.
+    """
+    return (
+        f"its brief answered (/mf-plan {change} depth=hard brief={brief}"
+        f" from={brief}), then conduct.py rejoin {change}"
+    )
+
+
+def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
+    """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
+
+    Why: 0082-cut-station design D4.
+    """
+    if (halt := _cutter_halt(primary, change)) is not None:
+        return halt
     if _subject(primary, change) != f"docs({change}): land the change directory":
         return f"{change}: no cut commit at the branch's tip"
     if not _holds(primary, change):
@@ -653,9 +673,7 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
             " package · constraint · why"
         )
     added = [f"{row[0]} {row[1]}" for row in rows[1:] if row[:2] not in approved]
-    if added:
-        return f"design.md adds what the brief did not approve: {', '.join(added)}"
-    return None
+    return f"{UNAPPROVED}: {', '.join(added)}" if added else None
 
 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
@@ -3158,12 +3176,21 @@ class Run:
         return f" · needs {needs}" if needs else ""
 
     def _needs(self, change: str) -> str:
-        """Return the one action a halted version needs, read from the run and disk."""
+        """Return the one action a halted version needs, read from the run and disk.
+
+        A queued cut whose halt ends in its answer needs that answer. Why:
+        0091-cut-halts design D5.
+        """
         with self.guard:
             if change in self.answered:
                 return "a re-run"
             if change in self.diagnosed:
                 return "rescue.md"
+        entry = _cuts(self.primary).get(change, {})
+        halt, brief = entry.get("halt"), entry.get("brief")
+        if isinstance(halt, str) and isinstance(brief, str):
+            if halt.endswith(answer := _cut_answer(change, brief)):
+                return answer
         stage, why, _ = self.on_disk(change) or ("", "", "")
         if _is_cap(stage, why):
             return "a grant or a re-plan"
@@ -3956,7 +3983,8 @@ class Run:
         none is dropped with its worktree first, past the config refusals `merge_in`
         runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
         waited for. None on a pass, its brief recorded, its queue entry and
-        reservation deleted.
+        reservation deleted. The cutter's own halt, and a package the entry does not
+        approve, end in `_cut_answer`. Why: 0091-cut-halts design D4, D5.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -3998,11 +4026,15 @@ class Run:
                     why = next(r for who, r in reversed(self.halts) if who == change)
                 return why, True
         why = _check_cut(primary, change, tree)
+        answered = why is not None and why == _cutter_halt(primary, change)
         if why is None:
             why = _unapproved(primary, change, entry.get("dependencies", []))
+            answered = why is not None and why.startswith(UNAPPROVED)
         result = "pass" if why is None else f"fail — {why}"
         self.log.event(change, "check", f"cut · {result}")
         if why is not None:
+            if answered:
+                why += f" · needs {change} {_cut_answer(change, entry['brief'])}"
             return why, False
         with _queue_lock(primary):
             folder = _queue(primary) / "briefs"

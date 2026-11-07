@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The brief
 - [x] 2 — The queue
 - [x] 3 — The cut
-- [ ] 4 — The answers
+- [x] 4 — The answers
 - [ ] 5 — The record
 
 ## 1 — The brief
@@ -60,11 +60,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The answers
 
-- [ ] 4.1 Add the phase 4 steps to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`, as the
+- [x] 4.1 Add the phase 4 steps to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`, as the
   design's `## Tests` row says, then `_cut_answer`, `_cutter_halt`, the suffix in `Run.cutting` and the branch in
   `Run._needs` of `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_halt_is_shown_and_rejoin_cuts_again` reports `1 passed`.
-- [ ] 4.2 Add D5's sentences to the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D5](design.md#d5).
+- [x] 4.2 Add D5's sentences to the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -n 'its brief answered' skills/mf-ship/SKILL.md` prints a line.
 
 ## 5 — The record

@@ -3368,21 +3368,33 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     _queued(conduct, root, "0002-b", brief, after=("0001-a",))
     doubt = "0001-a waits on one doubt: two readings · tasks.md:3"
 
+    def answer(change: str, named: Path) -> str:
+        return (
+            f" · needs {change} its brief answered (/mf-plan {change} depth=hard"
+            f" brief={named} from={named}), then conduct.py rejoin {change}"
+        )
+
+    # The threads log their halts in either order.
+    needs = [answer("0001-a", brief).removeprefix(" · needs "), "0002-b a fix"]
+    closing = tuple(f" · needs {', '.join(order)}" for order in (needs, needs[::-1]))
+
     def said(*command: str) -> list[str]:
         capsys.readouterr()
         _main(conduct, root, *command, monkeypatch=monkeypatch)
         return capsys.readouterr().out.splitlines()
 
     # The cutter's halt is the plan's: no rescue, and its dependent halts with it.
+    # The halt names its answer; the dependent's, answered by that id's, needs a fix.
     assert _run_claude(conduct, root, monkeypatch) == 1
     assert _calls(calls) == ["probe", "cut-change 0001-a"]
     lines = _log(root)
-    halted = f" · 0001-a · halt — cut-halted — {doubt}"
+    halted = f" · 0001-a · halt — cut-halted — {doubt}{answer('0001-a', brief)}"
     after = " · 0002-b · halt — cut-halted — after 0001-a is cut-halted"
     assert any(line.endswith(halted) for line in lines)
     assert any(line.endswith(after) for line in lines)
+    assert lines[-1].endswith(closing)
     assert said("status") == [
-        f"0001-a · cut-halted — {doubt}",
+        f"0001-a · cut-halted — {doubt}{answer('0001-a', brief)}",
         "0002-b · cut-halted — after 0001-a is cut-halted",
     ]
     assert any(line.endswith(halted) for line in said("report"))
@@ -3481,6 +3493,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     fake("cut-packages")
     assert _run_claude(conduct, root, monkeypatch) == 1
     unapproved = "design.md adds what the brief did not approve: right-pad ^2"
+    unapproved += answer("0020-p", packages)
     assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     logged = f" · 0020-p · halt — cut-halted — {unapproved}"
     assert any(entry.endswith(logged) for entry in _log(root))
