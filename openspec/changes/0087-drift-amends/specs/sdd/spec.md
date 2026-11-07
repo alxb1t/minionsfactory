@@ -258,8 +258,10 @@ code contradicts SHALL stay `blocking`.
 ### Requirement: A catch-up over a merge the fixed rules reproduce is clean by recomputation
 
 `skills/mf-integrate/scripts/integrate.py replay <merge>` SHALL rebuild the merge from its parents in a scratch worktree, settle
-its conflicts with the `changelog` and `decisions` rules alone, run the `delta` rule, and exit 0 when `delta` names no requirement
-and the rebuilt tree equals the merge's tree, else 1. Its git SHALL run no hook and fetch no missing object.
+a conflicted `CHANGELOG.md` with the `changelog` rule, run the `decisions` rule on every merge, conflicted or clean, run the
+`delta` rule, and exit 0 when `delta` names no requirement and the rebuilt tree equals the merge's tree, else 1. Its line SHALL
+name each path a rule settled: one git left unmerged, and `docs/decisions.md` when the `decisions` rule renumbered. Its git SHALL
+run no hook and fetch no missing object.
 It SHALL exit 2, rebuilding nothing, for a commit without two parents or whose second parent the default branch does not hold.
 `skills/mf-converge/SKILL.md`'s catch-up round SHALL first run *Catch-up scope*'s ancestry and parent checks, halting when one
 fails, then run `replay` for each merge in its selection; when every merge replays and the selection holds nothing else but the
@@ -273,6 +275,10 @@ selection, one holding the rescue's amend among them, SHALL take the catch-up ro
 - **THEN** the catch-up replays it, writes both findings files clean with `## By rule`, dispatches no worker, and the release
   passes its preconditions
 
+#### Scenario: A decision renumbered in a cleanly merged file
+- **WHEN** git merged `docs/decisions.md` with no conflict, and the integrate merge's `decisions` rule renumbered the branch's id
+- **THEN** replay prints `replay: by rule — docs/decisions.md` and exits 0
+
 #### Scenario: A merge and the person's amend
 - **WHEN** the selection is a merge that replays and the person's amend of the change directory, and Step 1 passes
 - **THEN** the catch-up writes both findings files clean with `## By rule`, naming the merge and the amend, and dispatches no worker
@@ -283,7 +289,7 @@ selection, one holding the rescue's amend among them, SHALL take the catch-up ro
 
 #### Scenario: A merge someone judged
 - **WHEN** the merge holds a hunk the integrator resolved as a union, a person's resolution, a test edited, or a requirement
-  the delta edits that the default branch changed
+  the delta edits that the default branch changed, the delta changing or removing a line of the default branch's block
 - **THEN** replay exits 1, and the catch-up round dispatches review and security as before
 
 #### Scenario: A merge of a commit the default branch does not hold

@@ -153,6 +153,11 @@ after:            # An answered halt converges afresh or catches up:
 
 The second wraps to keep ruff's E501 (88 columns) at its indent.
 
+The delta's *A catch-up over a merge the fixed rules reproduce is clean by recomputation* block starts from v0.70.1's text
+(0086-ship-fixes-3's D3 and D4: `decisions` on every merge, the replay line naming each rule-settled path) and adds only this
+decision's edits: none of the person's amends carries a `Rescue:` trailer, a selection holding the rescue's amend takes the
+catch-up round, and the scenario "A merge and the rescue's amend".
+
 ### D6
 
 R's `amend needed` row (`R:67`) keeps its first cells; its fix cell becomes:

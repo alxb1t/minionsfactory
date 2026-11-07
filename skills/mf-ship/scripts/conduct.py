@@ -62,6 +62,7 @@ REJOIN_POLL = 10
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
+DECISIONS = "docs/decisions.md"
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
@@ -342,11 +343,21 @@ def primary_of(cwd: Path) -> Path:
 
     A worker can write `commondir` and `.git`, so git can name a repo `_refuse_origin`
     has no kept URLs for: past that repo's own folder, kept URLs must stand, or stop
-    with 1. Why: 0052-security-hardening design D9.
+    with 1. A git that fails otherwise names its own error.
+    Why: 0052-security-hardening design D9; 0086-ship-fixes-3 design D6.
     """
-    if (common := _common_dir(cwd)) is None:
+    done = _run(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if done.returncode != 0 and "not a git repository" in done.stderr:
         raise Stop(2, "conduct: cannot run — not in a git repository")
-    primary = common.parent
+    if done.returncode != 0:
+        lines = [line for line in done.stderr.splitlines() if line.strip()]
+        first = lines[0] if lines else f"exit {done.returncode}"
+        raise Stop(
+            2,
+            f"conduct: cannot run — git rev-parse failed: {first};"
+            f" run it as uv run --script {Path(__file__)}",
+        )
+    primary = Path(done.stdout.strip()).resolve().parent
     if not cwd.resolve().is_relative_to(primary) and not _kept_file(primary).is_file():
         raise Stop(
             1,
@@ -2880,7 +2891,7 @@ class Run:
         self.delta = integrate["delta"]
         self.rules = {
             "CHANGELOG.md": integrate["changelog"],
-            "docs/decisions.md": integrate["decisions"],
+            DECISIONS: integrate["decisions"],
         }
         self.git_state = _git_state(primary)
         self.pushes = (_kept_origin(primary) or _urls(primary))[1]
@@ -3473,8 +3484,10 @@ class Run:
     def merge_in(self, tree: Path, change: str, default: str) -> None:
         """Merge the default branch into a branch, once the delta check passes.
 
-        A conflict goes to `settle`. A requirement both sides changed leaves the merge
-        open with its note, which `stage_of` reads as an `integrating` halt.
+        Each merge it opens, conflicted or clean, goes to `settle`; one already open
+        does not. A requirement both sides changed leaves the merge open with its
+        note, which `stage_of` reads as an `integrating` halt.
+        Why: 0086-ship-fixes-3 design D3.
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
@@ -3484,7 +3497,7 @@ class Run:
             return
         _refuse_config_commands(tree)
         merge = ("merge", "-q", "--no-ff", "--no-commit", default)
-        if not opened and _maybe(tree, *merge) is None:
+        if not opened and (_maybe(tree, *merge) is None or _merge_open(tree)):
             self.settle(tree, change, default)
         if moved := _delta(self.delta, tree):
             text = _note(tree, change, moved)
@@ -3501,9 +3514,12 @@ class Run:
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
 
     def settle(self, tree: Path, change: str, default: str) -> None:
-        """Settle a merge's conflicts by `integrate.py`'s rules; else abort it, stop.
+        """Settle a merge by `integrate.py`'s rules; else abort it, stop.
 
-        Why: 0063-rejoin design D6.
+        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md`, the
+        `docs/decisions.md` rule on every merge: a planned id moves on a clean one.
+        A clean merge whose rule halts names `merge --no-commit`, not `merge`.
+        Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3.
         """
         at, branch = shlex.quote(str(tree)), shlex.quote(default)
         run = f"git -C {at} merge {branch}, then re-run"
@@ -3514,7 +3530,7 @@ class Run:
         first = _conflicts(tree)
         stopped = ""
         for path, rule in self.rules.items():
-            if path in first and not stopped:
+            if (path in first or path == DECISIONS) and not stopped:
                 try:
                     rule(tree)
                 except Exception as error:
@@ -3522,6 +3538,15 @@ class Run:
         if not (left := _conflicts(tree)) and not stopped:
             return
         _git(tree, "merge", "--abort")
+        if not first:
+            # `git merge` would commit a clean merge at once, the rule unapplied.
+            raise Stop(
+                1,
+                f"conduct: halt — merging {default} into {change} is clean, but its"
+                f" decisions rule halted{stopped}: git -C {at} merge --no-ff"
+                f" --no-commit {branch}, settle the decision ids by hand, commit,"
+                " then re-run",
+            )
         raise Stop(
             1,
             f"conduct: halt — merging {default} into {change} conflicts in"

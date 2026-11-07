@@ -228,3 +228,15 @@ def test_stop_kills_only_a_recorded_caffeinate(
         text=True,
     )
     assert (done.returncode, done.stdout) == (0, "awake: none held\n")
+
+    arch = "missing compatible architecture (have 'arm64,arm64e', need 'x86_64')"
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    (folder / "git").write_text(f"#!/bin/sh\necho {shlex.quote(arch)} >&2\nexit 1\n")
+    (folder / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    assert awake.main(["stop", "0001-a"]) == 2
+    assert capsys.readouterr().out == (
+        f"awake: cannot run — git rev-parse failed: {arch};"
+        f" run it as uv run --script {_SCRIPT}\n"
+    )

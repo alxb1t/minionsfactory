@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answered halt logged since the newest `round 1 · start` named it or the debt holds it, so a later catch-up does not halt
   again (change `0087-drift-amends`, phase 3).
 
+## [0.70.1] - 2026-11-07
+
+Gate: local 1m55s · CI not read under mf-ship · 0.70.0: local 1m57s · CI not read under mf-ship
+
+- A planned decision id the default branch took is renumbered: `integrate.py decisions` and `gate_check.renumbered`
+  count an id the plan cites with its title, and `conduct.py` and `replay` run the `decisions` rule on every merge,
+  so such a version builds with no person; D45 says so. A clean merge whose rule halts names `git merge --no-ff
+  --no-commit` (change `0086-ship-fixes-3`, phase 1).
+- `integrate.py delta` keeps a MODIFIED requirement whose delta only inserts into the default branch's block and keeps
+  nothing it removed, so a delta that already holds the default branch's change merges with no note (change
+  `0086-ship-fixes-3`, phase 2).
+- `conduct.py`, `awake.py` and `integrate.py` say "not in a git repository", or "not a worktree root", only when git
+  says so; any other git failure prints git's first stderr line and `run it as uv run --script <path>` (change
+  `0086-ship-fixes-3`, phase 3).
+
 ## [0.70.0] - 2026-11-06
 
 Gate: local 1m57s · CI not read under mf-ship · 0.69.0: local 1m30s · CI not read under mf-ship

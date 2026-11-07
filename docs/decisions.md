@@ -483,13 +483,13 @@ it; the release merges in the primary.**
 ### D45 · One station merges the default branch into the next version
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
-applies fixed rules to the CHANGELOG, decision ids and spec delta, resolves a hunk both sides only add, hands a semantic
+applies fixed rules to the CHANGELOG, decision ids — the plan's planned ones too — and spec delta, resolves a hunk both sides only add, hands a semantic
 conflict to the person with the merge open, and commits the merge, its body naming every path it settled: a rule,
 the union, the person, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
 the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
-its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules and halts on any other, runs
+its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
 `integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
