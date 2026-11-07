@@ -616,10 +616,32 @@ def _requirement(spec: str | None, title: str) -> str | None:
     return "\n".join(block).strip() if block is not None else None
 
 
+def _inserts_only(base: str, main: str, side: str | None) -> bool:
+    """Return whether `side` only inserts into `main`, keeping nothing `main` removed.
+
+    Whitespace is no token: a rewrapped line inserts nothing.
+    e.g. "a.", "a. b.", "a, c. b." → True; "a. b.", "a.", "a, c. b." → False
+    Why: 0086-ship-fixes-3 design D4.
+    """
+
+    def words(text: str) -> list[str]:
+        return [token for token in TOKEN.findall(text) if not token.isspace()]
+
+    old, new = words(base), words(main)
+    if side is None or any(
+        start != end for start, end, _ in _changes(new, words(side))
+    ):
+        return False
+    removed = {i for start, end, _ in _changes(old, new) for i in range(start, end)}
+    kept = _changes(old, words(side))
+    return removed <= {i for start, end, _ in kept for i in range(start, end)}
+
+
 def delta(tree: Path) -> str:
     """Return the check that the default branch changed no requirement the delta edits.
 
-    Stops with exit 1, naming each MODIFIED or REMOVED title it changed since the base.
+    Stops with exit 1, naming each MODIFIED or REMOVED title it changed since the base,
+    save a MODIFIED one whose delta only inserts into the default branch's block.
     """
     base = _merge_base(tree)
     listing = _git(tree, "ls-tree", "--name-only", "HEAD:openspec/changes").split()
@@ -633,11 +655,18 @@ def delta(tree: Path) -> str:
         capability = Path(path).parent.name
         living = f"openspec/specs/{capability}/spec.md"
         before, after = (_show(tree, rev, living) for rev in (base, "MERGE_HEAD"))
-        for title in _requirements(_show(tree, "HEAD", path) or "", EDITED):
-            if _requirement(before, title) != _requirement(after, title):
-                moved.append(
-                    f"delta: changed on the default branch: {capability}: {title}"
-                )
+        spec = _show(tree, "HEAD", path) or ""
+        modified = set(_requirements(spec, EDITED[:1]))
+        modified -= set(_requirements(spec, EDITED[1:]))
+        for title in _requirements(spec, EDITED):
+            was, now = _requirement(before, title), _requirement(after, title)
+            if was == now or (
+                title in modified
+                and now is not None
+                and _inserts_only(was or "", now, _requirement(spec, title))
+            ):
+                continue
+            moved.append(f"delta: changed on the default branch: {capability}: {title}")
     if moved:
         raise Stop(1, "\n".join(moved))
     return "delta: the default branch changed no requirement the delta edits"
@@ -725,7 +754,11 @@ ON_A_MERGE = {
         decisions,
         "renumber the branch's new decisions, citations with them",
     ),
-    "delta": (delta, "name each delta title the default branch changed since the base"),
+    "delta": (
+        delta,
+        "name each delta title the default branch changed since the base,"
+        " save one the delta only inserts into",
+    ),
 }
 
 

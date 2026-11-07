@@ -535,3 +535,47 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert result.stdout == "delta: changed on the default branch: sdd: First\n"
+
+
+def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:
+    def living(first: str, second: str) -> str:
+        return (
+            "# sdd\n\n## Requirements\n\n"
+            f"### Requirement: First\n\n{first}\n\n"
+            f"### Requirement: Second\n\n{second}\n"
+        )
+
+    def check(base: str, main: str, edited: str) -> tuple[int, str]:
+        """Return `delta`'s exit and line for a merge of `main` over `base`."""
+        folder = tmp_path / str(len(list(tmp_path.iterdir())))
+        folder.mkdir()
+        spec = "openspec/specs/sdd/spec.md"
+        root = _primary(folder, {spec: base})
+        tree = _version(root, "0005-b")
+        _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": edited}, "delta")
+        _commit(root, {spec: main}, "main moves")
+        _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+        result = _run(root, "delta", str(tree))
+        return result.returncode, result.stdout
+
+    base = living("It SHALL hold.", "It SHALL wait.")
+    main = living("It SHALL hold. It SHALL log.", "It SHALL wait.")
+    modified = "## MODIFIED Requirements\n\n### Requirement: {}\n\n{}\n"
+    first = modified.format("First", "It SHALL hold.\nIt SHALL log. It SHALL keep.")
+    assert check(base, main, first) == (
+        0,
+        "delta: the default branch changed no requirement the delta edits\n",
+    )
+    rewritten = modified.format("First", "It SHALL hold. It SHALL print.")
+    named = "delta: changed on the default branch: sdd: First\n"
+    assert check(base, main, rewritten) == (1, named)
+    removed = "## REMOVED Requirements\n\n### Requirement: First\n\n**Reason**: x.\n"
+    assert check(base, main, removed) == (1, named)
+
+    # Main drops a sentence the base held: a delta keeping it is reported.
+    held = living("It SHALL hold.", "It SHALL wait. It SHALL warn.")
+    kept = modified.format("Second", "It SHALL wait, always. It SHALL warn.")
+    assert check(held, base, kept) == (
+        1,
+        "delta: changed on the default branch: sdd: Second\n",
+    )

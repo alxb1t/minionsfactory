@@ -108,7 +108,7 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    |---|---|
    | `changelog <worktree>` | the branch's `## [Unreleased]` entries kept above the default branch's released sections, blank lines intact |
    | `decisions <worktree>` | the branch's new decision renumbered to the next id free on the default branch, its citations and the group map with it; a decision the plan cites as `D<n> · <title>`, above the base's highest and headed nowhere on the branch, counts as new, unless the default branch's heading of that id carries the title |
-   | `delta <worktree>` | names each MODIFIED or REMOVED requirement of the branch's delta that the default branch changed since the base |
+   | `delta <worktree>` | names each MODIFIED or REMOVED requirement of the branch's delta that the default branch changed since the base, save a MODIFIED one whose delta only inserts into the default branch's block and keeps nothing it removed |
 
    `changelog` and `decisions` stage what they write. Exit 2 → **halt**, naming what it printed, the merge left
    open.

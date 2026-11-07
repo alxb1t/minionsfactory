@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — A planned decision id renumbered
-- [ ] 2 — An insert-only delta kept
+- [x] 2 — An insert-only delta kept
 - [ ] 3 — Git's own error
 
 ## 1 — A planned decision id renumbered
@@ -33,10 +33,10 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — An insert-only delta kept
 
-- [ ] 2.1 Add `_inserts_only` to `skills/mf-integrate/scripts/integrate.py` and read it in `delta`, per [D4](design.md#d4);
+- [x] 2.1 Add `_inserts_only` to `skills/mf-integrate/scripts/integrate.py` and read it in `delta`, per [D4](design.md#d4);
   add `test_delta_keeps_a_delta_that_only_inserts` to `tests/test_integrate.py`, as `## Tests` names it.
   Verify: `uv run pytest -q tests/test_integrate.py -k delta_keeps_a_delta_that_only_inserts` reports `1 passed`.
-- [ ] 2.2 Extend the `delta` row of `skills/mf-integrate/SKILL.md` Step 3.2, per [D7](design.md#d7).
+- [x] 2.2 Extend the `delta` row of `skills/mf-integrate/SKILL.md` Step 3.2, per [D7](design.md#d7).
   Verify: `grep -n 'only inserts into the default branch' skills/mf-integrate/SKILL.md` prints a line.
 
 ## 3 — Git's own error
