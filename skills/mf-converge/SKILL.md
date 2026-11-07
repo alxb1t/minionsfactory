@@ -392,7 +392,7 @@ dispatch rules, and write `fan-out`. Give each [verify](references/verify.md), i
 role reference or the worker reference. Each runs verify's pass, red runs included. Read the verdicts from disk under
 Step 5.
 
-A catch-up's judge round judges new commits, and the amend cards an amend answers, by the worker reference's
+A catch-up's judge round judges new commits, and the cards its range answers, by the worker reference's
 [scoping](references/worker.md#conformance-and-adversarial): it runs no `open_cards.py` and dispatches Step 3's
 inputs over its freeze. Its fix round's verify is a round after a fix, as above.
 

@@ -20,9 +20,12 @@ conductor judges nothing. No worker reads `.minions/debt.md`.
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
 adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set.
-In it, each checker re-judges its file's amend cards: one the amend settled goes `verified`, naming it, and one whose
-`wontfix` justification still holds stays `wontfix`, never `accepted`. For a merge-aware catch-up, reconstruct and
-judge only [Catch-up scope](#catch-up-scope). Report the scope actually resolved; halt when the inputs cannot support
+In it, each checker re-judges every card its file holds `fixed` or `wontfix`, since its range holds converge's own
+unverified fix as well as the amend; an `open` card stays `open`. A `fixed` card goes `verified`, or `open` with a
+one-line reason, and one whose **Fix** size includes `a test` goes `open` when its **Status** note holds no red run
+fitting its **When you'd hit it** scenario. A `wontfix` goes `accepted`, or `open` with a one-line reason, save an
+amend card: one the amend settled goes `verified`, naming it, and one whose justification still holds stays
+`wontfix`, never `accepted`. For a merge-aware catch-up, reconstruct and judge only [Catch-up scope](#catch-up-scope). Report the scope actually resolved; halt when the inputs cannot support
 a verdict.
 
 ### The findings file contract
@@ -99,8 +102,9 @@ files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-re
 
 ## The verify pass
 
-A verify round loads [verify](verify.md) alone, in place of the role reference and this one: its open cards, the fix
-diff, the transitions, red runs and the amend card's `wontfix`.
+A round after a fix loads [verify](verify.md) alone, in place of the role reference and this one: its open cards, the
+fix diff, the transitions, red runs and the amend card's `wontfix`. A catch-up's judge round keeps both and re-judges
+its cards by [Scoping](#conformance-and-adversarial).
 
 ## Catch-up scope
 
