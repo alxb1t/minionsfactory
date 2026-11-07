@@ -48,8 +48,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 - A brief, and the change directory the cut writes from it; an unattended cutter also writes the brief's `Cut` line and
   `decided by the cutter` rows back, through an edit rule for the whole file. No package's approval is read from the brief
-  after the person's act: `conduct.py cut`, and a `rejoin` after a re-plan, copy the item's `## Dependencies` rows into the
-  home queue, and the station compares the committed `design.md` with that copy
+  after the person's act: `conduct.py cut` copies the item's `## Dependencies` rows into the home queue, a `rejoin` keeps the
+  queued rows and takes a row they lack only with `--yes <hash>` of the new rows, a command the person runs, and the station
+  compares the committed `design.md` with that copy
   ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row a cutter
   plants reaches a later cut only through the person's re-plan, whose close shows each `## For the cut` item and
   `## Dependencies` row before the yes (`0082·S5`).

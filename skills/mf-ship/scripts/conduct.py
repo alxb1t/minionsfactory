@@ -12,7 +12,7 @@
         --executor claude|codex [--model <m>] [--effort <e>]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
-    conduct.py rejoin [<change-id>]
+    conduct.py rejoin [<change-id>] [--yes <hash>]
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
@@ -5089,6 +5089,14 @@ def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
     return approved
 
 
+def _rows_hash(rows: list[list[str]]) -> str:
+    """Return the sha256 of `rows` as JSON: the hash a rejoin's `--yes` names.
+
+    Why: 0091-cut-halts design D3.
+    """
+    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+
+
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
     """Write a queued cut's entry whole: to a temporary name, then moved in."""
     folder = _queue(primary) / "cuts"
@@ -5217,13 +5225,14 @@ def _requested(queue: Path) -> bool:
         os.close(fd)
 
 
-def rejoin(cwd: Path, change: str | None) -> str:
+def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    A queued cut's halt is cleared first, its brief's packages copied again; with no
-    run live, one starts for it. An unreadable entry or brief stops with 2, kept.
-    Why: 0063-rejoin design D1; 0082-cut-station design D3, D6; 0091-cut-halts
-    design D3.
+    A queued cut's halt is cleared first, its queued packages kept; a brief row they
+    lack is taken only when `yes` is `_rows_hash` of the new rows, else it stops with
+    1, kept. With no run live, one starts for it. An unreadable entry or brief stops
+    with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
+    0091-cut-halts design D3.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
@@ -5238,16 +5247,27 @@ def rejoin(cwd: Path, change: str | None) -> str:
                     " it, then queue the cut again",
                 )
             slug = change.split("-", 1)[1]
+            queued = entry.get("dependencies", [])
             approved = _approval(Path(entry["brief"]), slug, "rejoin")
-            _write_cut(
-                primary, change, {**entry, "halt": None, "dependencies": approved}
-            )
+            if new := [row for row in approved if row not in queued]:
+                if yes != (hashed := _rows_hash(new)):
+                    rows = ", ".join(" ".join(row) for row in new)
+                    raise Stop(
+                        1,
+                        "rejoin: halted — the brief adds rows the queue does not hold:"
+                        f" {rows}; the person's yes: conduct.py rejoin {change}"
+                        f" --yes {hashed}",
+                    )
+                entry = {**entry, "dependencies": queued + new}
+            _write_cut(primary, change, {**entry, "halt": None})
             if live:
                 _request(primary, change)
                 return f"rejoin: requested {change}"
             preconditions(cwd, entry["executor"])
             pid = _start_run(primary, entry["executor"])
             return f"rejoin: requested {change} · run started · pid {pid}"
+        if yes is not None:
+            raise Stop(2, "rejoin: cannot run — --yes answers a queued cut's packages")
         if not live:
             raise Stop(2, "rejoin: no run is live — run /mf-ship")
         if change is not None and change not in (
@@ -5630,6 +5650,7 @@ def main(argv_: list[str] | None = None) -> int:
     granting.add_argument("--executor", required=True, choices=("claude", "codex"))
     rejoining = commands.add_parser("rejoin", help="the live run takes a version back")
     rejoining.add_argument("change_id", metavar="change-id", nargs="?")
+    rejoining.add_argument("--yes", metavar="hash")
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -5672,7 +5693,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "grant":
             return grant(cwd, args.change_id, args.executor)
         elif args.command == "rejoin":
-            print(rejoin(cwd, args.change_id))
+            print(rejoin(cwd, args.change_id, args.yes))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":

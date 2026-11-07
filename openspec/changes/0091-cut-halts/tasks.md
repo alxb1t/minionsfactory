@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 3 — The cut
 - [x] 4 — The answers
 - [x] 5 — The record
-- [ ] 6 — Rejoin takes a new package only on the person's hash
+- [x] 6 — Rejoin takes a new package only on the person's hash
 
 ## 1 — The brief
 
@@ -86,21 +86,21 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 The person's decision on security S1, option (a): [D3](design.md#d3)'s C2.
 
-- [ ] 6.1 Extend the `0020-p` rejoin steps of `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`,
+- [x] 6.1 Extend the `0020-p` rejoin steps of `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`,
   as the design's `## Tests` row says, then `_rows_hash` and the `--yes <hash>` path in `rejoin` of
   `skills/mf-ship/scripts/conduct.py` — the queued rows kept, a new row taken only with the hash, else the halt naming each
   new row and the exact `conduct.py rejoin <id> --yes <hash>` command — per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_halt_is_shown_and_rejoin_cuts_again` reports `1 passed`.
-- [ ] 6.2 Drop the unconditional copy from `rejoin` in `skills/mf-ship/scripts/conduct.py`, so no rejoin writes the brief's
+- [x] 6.2 Drop the unconditional copy from `rejoin` in `skills/mf-ship/scripts/conduct.py`, so no rejoin writes the brief's
   rows over the queued ones, per [D3](design.md#d3).
   Verify: `grep -L '"halt": None, "dependencies": approved' skills/mf-ship/scripts/conduct.py` prints its path.
-- [ ] 6.3 Add `--yes` to `rejoin`'s parser and the module docstring's usage line, and edit `rejoin`'s docstring, in
+- [x] 6.3 Add `--yes` to `rejoin`'s parser and the module docstring's usage line, and edit `rejoin`'s docstring, in
   `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `grep -n 'conduct.py rejoin \[<change-id>\] \[--yes <hash>\]' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 6.4 Edit the `rejoin` command row and the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D3](design.md#d3) and
+- [x] 6.4 Edit the `rejoin` command row and the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D3](design.md#d3) and
   the row [D5](design.md#d5) quotes.
   Verify: `grep -L 'the rejoin copies the rows again' skills/mf-ship/SKILL.md` prints its path.
-- [ ] 6.5 Edit D62 and D58 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 6.5 Edit D62 and D58 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -L 'copies the brief.s approved packages again' docs/decisions.md` prints its path.
-- [ ] 6.6 Replace the rejoin clause of the brief bullet of *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8).
+- [x] 6.6 Replace the rejoin clause of the brief bullet of *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8).
   Verify: `grep -L 'a .rejoin. after a re-plan' THREAT_MODEL.md` prints its path.

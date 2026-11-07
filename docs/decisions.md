@@ -141,8 +141,8 @@ the `Verify:` commands.**
 its number in `.minions/cuts/<id>`. The run makes the branch and worktree, runs `mf-cut-change unattended=yes` sandboxed
 to that worktree, the run directory and the brief, checks the cut on disk and builds it. Unattended, the brief's switch
 `decide: recommended` takes the recommended option, logged in the brief; every other doubt halts at `cut-halted`, with no
-rescue, its line naming the answer: a re-plan and `conduct.py rejoin <id>`, which copies the brief's approved packages again
-([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Queuing a cut is the person's yes to cut, run, merge and push
+rescue, its line naming the answer: a re-plan and `conduct.py rejoin <id>`, which keeps the queued packages and takes a new
+one only with the person's `--yes <hash>` ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Queuing a cut is the person's yes to cut, run, merge and push
 it.**
 
 - **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
@@ -166,15 +166,16 @@ joins or starts; no ends on `/mf-cut-change`. The plan never cuts.**
 ### D62 · A queued cut's packages are approved at the plan
 
 **A hard brief's `## Dependencies` holds a row per package the person approved in a round — item, package, constraint,
-why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut copies
-them again; the cut station halts a cut whose `design.md` lists a package or constraint outside them, and never reads the
-brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
+why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut keeps
+them, taking a row they lack only with the person's `--yes <hash>` of the new rows; the cut station halts a cut whose
+`design.md` lists a package or constraint outside them, and never reads the brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
 queue holds.**
 
 - **Why:** a queued cut halted on packages approved in chat, where no station reads, its halt naming no answer, and the
   planning thread then cut the queued id by hand.
-- **Rejected:** approval read from the brief at cut time, which the cutter can edit · a nested line under the item ·
-  judging a looser constraint, which needs each ecosystem's version grammar.
+- **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
+  again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
+  nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
 
 ## The check loop and the release
 

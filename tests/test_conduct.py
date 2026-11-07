@@ -5,6 +5,7 @@ agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -3521,7 +3522,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     logged = f" · 0020-p · halt — cut-halted — {unapproved}"
     assert any(entry.endswith(logged) for entry in _log(root))
-    # A rejoin copies the brief's rows again; one it cannot read keeps the halt.
+    # A rejoin reads the brief's rows; one it cannot read keeps the halt.
     names["_start_run"] = lambda primary, executor: 4242
     packages.unlink()
     for text, refusal in (
@@ -3546,10 +3547,34 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
         "| p | right-pad | ^2 | a pad |\n"
     )
-    conduct["rejoin"](root, "0020-p")
-    assert conduct["_cuts"](root)["0020-p"]["dependencies"] == [
-        ["left-pad", "1.3.0"],
-        ["right-pad", "^2"],
+    # It keeps the queued rows, and takes the one the brief adds on its hash alone.
+    hashed = hashlib.sha256(json.dumps([["right-pad", "^2"]]).encode()).hexdigest()
+    adds = (
+        "rejoin: halted — the brief adds rows the queue does not hold: right-pad ^2;"
+        f" the person's yes: conduct.py rejoin 0020-p --yes {hashed}"
+    )
+    for yes in ((), ("--yes", "0" * 64)):
+        capsys.readouterr()
+        assert (
+            _main(conduct, root, "rejoin", "0020-p", *yes, monkeypatch=monkeypatch) == 1
+        )
+        assert capsys.readouterr().out.splitlines() == [adds]
+        entry = conduct["_cuts"](root)["0020-p"]
+        assert (entry["dependencies"], entry["halt"]) == (
+            [["left-pad", "1.3.0"]],
+            unapproved,
+        )
+    yes = ("--yes", hashed)
+    assert _main(conduct, root, "rejoin", "0020-p", *yes, monkeypatch=monkeypatch) == 0
+    entry = conduct["_cuts"](root)["0020-p"]
+    assert (entry["dependencies"], entry["halt"]) == (
+        [["left-pad", "1.3.0"], ["right-pad", "^2"]],
+        None,
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "rejoin", *yes, monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "rejoin: cannot run — --yes answers a queued cut's packages"
     ]
     names["_start_run"] = start
     calls.unlink()

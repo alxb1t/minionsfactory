@@ -27,7 +27,8 @@ then cut the queued id by hand. Each stop was one the plan could have settled. T
   models or Acceptance line, its continuation, a blank or the cut's line; every checked line printable; one heading form
   per checked section.
 - **The queue** — `conduct.py cut` copies the item's `## Dependencies` rows into its home-queue entry, and a `rejoin` of a
-  queued cut copies them again; the station halts a cut whose `design.md` lists a package or constraint outside them.
+  queued cut keeps them, taking a row they lack only with the person's `--yes <hash>`; the station halts a cut whose
+  `design.md` lists a package or constraint outside them.
 - **The cut** — unattended, a package the brief's rows list is committed without a halt; a hand cut halts on an id the
   queue holds.
 - **The answers** — a cut halt the plan answers ends `needs <id> its brief answered (/mf-plan …), then conduct.py rejoin
@@ -57,8 +58,8 @@ None.
   - *A settled brief is queued for a cut* — MODIFIED: `cut` copies the item's `## Dependencies` rows into its entry.
   - *A run cuts each queued brief in a station of its own* — MODIFIED: a cut passes only with its `design.md`'s packages
     inside those rows.
-  - *A cut halt is the plan's, answered by a re-plan and a rejoin* — MODIFIED: the halt names its answer; a rejoin copies
-    the rows again.
+  - *A cut halt is the plan's, answered by a re-plan and a rejoin* — MODIFIED: the halt names its answer; a rejoin keeps
+    the queued rows and takes a new one only with the person's `--yes <hash>`.
   - *An unattended cut decides by the brief's switch* — MODIFIED: a `## Dependencies` is no longer always a halt.
   - *A hard brief is checked before it is queued* — MODIFIED: the `## Dependencies` section, the line grammar, the
     printable rule and the heading rule.
