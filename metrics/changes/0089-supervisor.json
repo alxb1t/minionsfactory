@@ -1,0 +1,214 @@
+{
+  "change": "0089-supervisor",
+  "version": "0.72",
+  "base": "a2f9428",
+  "analyzed": "50f139d",
+  "measured_on": "local",
+  "collected_at": "2026-11-07T18:58:40+02:00",
+  "mf_version": "v0.71.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 20205
+    },
+    "converge-worker-reading-set": {
+      "value": 15885
+    },
+    "shared-context": {
+      "value": 10525
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 251
+    },
+    "gate-seconds": {
+      "value": 123
+    },
+    "largest-module-lines": {
+      "value": 7697
+    },
+    "modules-over-1000-lines": {
+      "value": 3
+    },
+    "complex-functions": {
+      "value": 19
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.3
+    },
+    "python-lines": {
+      "value": 26123
+    },
+    "dependencies": {
+      "value": 0
+    },
+    "dev-dependencies": {
+      "value": 7
+    },
+    "test-seconds": {
+      "value": 120.57
+    },
+    "slowest-test-seconds": {
+      "value": 32.56
+    },
+    "test-seconds-summed": {
+      "value": 984.69
+    },
+    "slow-tests": {
+      "value": 75
+    },
+    "total-coverage": {
+      "value": 97.26
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 91
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 21
+    },
+    "diff-lines": {
+      "value": 1739
+    },
+    "diff-files": {
+      "value": 20
+    },
+    "lead-minutes": {
+      "value": 208.4
+    },
+    "build-minutes": {
+      "value": 23.2
+    },
+    "converge-minutes": {
+      "value": 45.7
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 1
+    },
+    "grants": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 1
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 1
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 5
+    },
+    "fix-commits": {
+      "value": 3
+    },
+    "cost-usd": {
+      "value": 25.15
+    },
+    "cost-usd-build": {
+      "value": 7.92
+    },
+    "cost-usd-converge": {
+      "value": 16.54
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 51239796
+    },
+    "tokens-build": {
+      "value": 21498746
+    },
+    "tokens-converge": {
+      "value": 28978420
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "cost-per-changed-line": {
+      "value": 0.0145
+    },
+    "review-confirmed": {
+      "value": 6
+    },
+    "security-confirmed": {
+      "value": 3
+    },
+    "review-refuted": {
+      "value": 13
+    },
+    "security-refuted": {
+      "value": 13
+    },
+    "review-tokens-per-confirmed": {
+      "value": 2229158
+    },
+    "security-tokens-per-confirmed": {
+      "value": 1695375
+    },
+    "escapes": {
+      "value": 0
+    },
+    "debt-added": {
+      "value": 4
+    },
+    "debt-paid": {
+      "value": 2
+    }
+  }
+}
