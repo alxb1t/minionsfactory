@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time, on 0088's, 0089's an
 
 - [x] 1 — The amend round
 - [x] 2 — The conductor and the metrics
-- [ ] 3 — The record
+- [x] 3 — The record
 
 ## 1 — The amend round
 
@@ -76,27 +76,27 @@ Build the settled [design](design.md), one phase at a time, on 0088's, 0089's an
 
 ## 3 — The record
 
-- [ ] 3.1 Add D63 at the end of *The check loop and the release* in `docs/decisions.md`, after D50, as [D8](design.md#d8) quotes
+- [x] 3.1 Add D63 at the end of *The check loop and the release* in `docs/decisions.md`, after D50, as [D8](design.md#d8) quotes
   it, and its id after D50 in the map's list.
   Verify: `grep -n '^### D63 · An answered amend gets one round over its range$' docs/decisions.md` prints a line.
-- [ ] 3.2 Edit D15's drift line in `docs/decisions.md`, per [D8](design.md#d8), the words `answers it, in one amend round` on one
+- [x] 3.2 Edit D15's drift line in `docs/decisions.md`, per [D8](design.md#d8), the words `answers it, in one amend round` on one
   line.
   Verify: `grep -n 'answers it, in one amend round' docs/decisions.md` prints a line.
-- [ ] 3.3 Edit D47's answered sentence in `docs/decisions.md`, per [D8](design.md#d8), the words
+- [x] 3.3 Edit D47's answered sentence in `docs/decisions.md`, per [D8](design.md#d8), the words
   `is answered, and gets one amend round` on one line.
   Verify: `grep -n 'is answered, and gets one amend round' docs/decisions.md` prints a line.
-- [ ] 3.4 Edit D53's Why and D60's Accepts in `docs/decisions.md`, per [D8](design.md#d8), the words `every claim it changes` on
+- [x] 3.4 Edit D53's Why and D60's Accepts in `docs/decisions.md`, per [D8](design.md#d8), the words `every claim it changes` on
   one line in each.
   Verify: `grep -c 'every claim it changes' docs/decisions.md` prints `2`.
-- [ ] 3.5 Edit *Nothing reads as clean by being absent* and the *A merge* bullet of `docs/principles.md`, per [D8](design.md#d8).
+- [x] 3.5 Edit *Nothing reads as clean by being absent* and the *A merge* bullet of `docs/principles.md`, per [D8](design.md#d8).
   Verify: `grep -n 'A merge or an amend:' docs/principles.md` prints a line.
-- [ ] 3.6 Edit the rescue sentence of *Out of scope* in `THREAT_MODEL.md`, per [D8](design.md#d8), the words
+- [x] 3.6 Edit the rescue sentence of *Out of scope* in `THREAT_MODEL.md`, per [D8](design.md#d8), the words
   `every claim it changes` on one line.
   Verify: `grep -c 'every claim it changes' THREAT_MODEL.md` prints `1`.
-- [ ] 3.7 Edit 0089's supervisor paragraph of *Out of scope* in `THREAT_MODEL.md`, per [D8](design.md#d8), the words
+- [x] 3.7 Edit 0089's supervisor paragraph of *Out of scope* in `THREAT_MODEL.md`, per [D8](design.md#d8), the words
   `in an amend round, as every amend` on one line.
   Verify: `grep -n 'in an amend round, as every amend' THREAT_MODEL.md` prints a line.
-- [ ] 3.8 Edit the role line of `skills/mf-rescue/SKILL.md`, per [D8](design.md#d8).
+- [x] 3.8 Edit the role line of `skills/mf-rescue/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n 'converge judges your amend in one round' skills/mf-rescue/SKILL.md` prints a line.
-- [ ] 3.9 Edit 0089's role line of `skills/mf-supervise/SKILL.md`, per [D8](design.md#d8).
+- [x] 3.9 Edit 0089's role line of `skills/mf-supervise/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n 'converge judges your amend in one round' skills/mf-supervise/SKILL.md` prints a line.
