@@ -6745,8 +6745,9 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
     lock = ("converge", "halted on the debt lock: resumes at Step 9")
     assert stage_of(root, version) == lock
-    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
-    # and a person's commit past it answers none (0063-rejoin design D4).
+    # Twin: a halt past the judged head — a fix's, a catch-up's — is answered by an
+    # amend alone, and a person's other commit past it answers none (0063-rejoin
+    # design D4; 0092-amend-round design D2).
     for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
         own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
         log.write_text(f"# t\n\n## Run {run}\n{own}\n{start}\n")
