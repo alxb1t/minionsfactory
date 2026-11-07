@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-11-07
+
+Gate: local 1m56s · CI not read under mf-ship · 0.75.0: local 1m56s · CI not read under mf-ship
+
 - A hard brief holds `## Dependencies`, `None.` or a row per approved package, and `brief_check.py` reads
   `## For the cut` by a line grammar, holds checked lines to `isprintable()` and each checked heading to one form, so
   no unparsed form reaches the cut (change `0091-cut-halts`, phase 1).
