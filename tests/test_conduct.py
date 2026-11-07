@@ -964,13 +964,27 @@ def test_a_merge_in_renumbers_a_planned_decision(
     conduct = _conduct()
     fake()
     root = _primary(tmp_path)
-    _commit(root, {"docs/decisions.md": "# Decisions\n\n### D58 · Base\n"}, "D58")
+    based = {"docs/decisions.md": "# Decisions\n\n### D58 · Base\n"}
+    _commit(root, {**based, "CHANGELOG.md": "# Changelog\n"}, "D58")
     cite = "\nPer **D59 · Marks rule**.\n"
     waiting = _version(root, "0002-marks", f"- [ ] 1 — Marks\n{cite}")
     taken = "# Decisions\n\n### D58 · Base\n\n### D59 · Main rule\n"
     _commit(root, {"docs/decisions.md": taken}, "main takes D59")
     held_run = conduct["Run"](root, "claude")
     held_run.git_state = conduct["_git_state"](root)
+
+    # A clean merge whose decisions rule halts names the hand merge, not `git merge`.
+    halted = (
+        "conduct: halt — merging main into 0002-marks is clean, but its decisions"
+        " rule halted — changelog: halt — a side has no ## [Unreleased] heading:"
+        f" git -C {shlex.quote(str(waiting))} merge --no-ff --no-commit main,"
+        " settle the decision ids by hand, commit, then re-run"
+    )
+    with pytest.raises(conduct["Stop"], match=re.escape(halted) + "$"):
+        held_run.merge_in(waiting, "0002-marks", "main")
+    assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    unreleased = {"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"}
+    _commit(waiting, unreleased, "build: an unreleased heading")
 
     held_run.merge_in(waiting, "0002-marks", "main")
 

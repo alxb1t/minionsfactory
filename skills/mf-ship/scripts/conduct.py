@@ -3517,6 +3517,7 @@ class Run:
 
         The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md`, the
         `docs/decisions.md` rule on every merge: a planned id moves on a clean one.
+        A clean merge whose rule halts names `merge --no-commit`, not `merge`.
         Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3.
         """
         at, branch = shlex.quote(str(tree)), shlex.quote(default)
@@ -3536,10 +3537,19 @@ class Run:
         if not (left := _conflicts(tree)) and not stopped:
             return
         _git(tree, "merge", "--abort")
+        if not first:
+            # `git merge` would commit a clean merge at once, the rule unapplied.
+            raise Stop(
+                1,
+                f"conduct: halt — merging {default} into {change} is clean, but its"
+                f" decisions rule halted{stopped}: git -C {at} merge --no-ff"
+                f" --no-commit {branch}, settle the decision ids by hand, commit,"
+                " then re-run",
+            )
         raise Stop(
             1,
             f"conduct: halt — merging {default} into {change} conflicts in"
-            f" {', '.join(left or first or [DECISIONS])}{stopped}: {run}",
+            f" {', '.join(left or first)}{stopped}: {run}",
         )
 
     def catch_up(self, version: Version) -> None:

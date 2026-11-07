@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A planned decision id the default branch took is renumbered: `integrate.py decisions` and `gate_check.renumbered`
   count an id the plan cites with its title, and `conduct.py` and `replay` run the `decisions` rule on every merge,
-  so such a version builds with no person; D45 says so (change `0086-ship-fixes-3`, phase 1).
+  so such a version builds with no person; D45 says so. A clean merge whose rule halts names `git merge --no-ff
+  --no-commit` (change `0086-ship-fixes-3`, phase 1).
 - `integrate.py delta` keeps a MODIFIED requirement whose delta only inserts into the default branch's block and keeps
   nothing it removed, so a delta that already holds the default branch's change merges with no note (change
   `0086-ship-fixes-3`, phase 2).
