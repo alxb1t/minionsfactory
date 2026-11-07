@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — Converge halts on drift amends
-- [ ] 2 — The rescue's row and D15
+- [x] 2 — The rescue's row and D15
 
 ## 1 — Converge halts on drift amends
 
@@ -27,7 +27,7 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The rescue's row and D15
 
-- [ ] 2.1 Rewrite the fix cell of the `amend needed` row in `skills/mf-rescue/SKILL.md`'s kind table, per [D6](design.md#d6).
+- [x] 2.1 Rewrite the fix cell of the `amend needed` row in `skills/mf-rescue/SKILL.md`'s kind table, per [D6](design.md#d6).
   Verify: `grep -n 'open drift card' skills/mf-rescue/SKILL.md` prints a line.
-- [ ] 2.2 Rewrite D15's drift line and D16's debt sentence in `docs/decisions.md`, per [D6](design.md#d6).
+- [x] 2.2 Rewrite D15's drift line and D16's debt sentence in `docs/decisions.md`, per [D6](design.md#d6).
   Verify: `grep -n 'save an amend card' docs/decisions.md` prints a line.
