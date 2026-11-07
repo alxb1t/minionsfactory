@@ -38,7 +38,7 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
   Verify: `grep -n '^def _settled(' skills/mf-ship/scripts/conduct.py` prints a line.
 - [x] 2.2 Add `_merge_tried` beside `_brief_of`, widen `Run.supervise`'s trigger and record its try per [D2](design.md#d2),
   and give it [D4](design.md#d4)'s integrate branch, with `self.settled` in `Run.__init__`.
-  Verify: `grep -n 'self.settled.add(' skills/mf-ship/scripts/conduct.py` prints a line.
+  Verify: `grep -n 'self.settled\[change\] = sha' skills/mf-ship/scripts/conduct.py` prints a line.
 - [x] 2.3 Add `SETTLED` and `Run.stage`, read `self.stage(version)` in `Run.advance`, give `PROMPTS["integrate"]` its
   `{settled}` field, and fill it in `Run.advance`, with its docstring line, per [D4](design.md#d4).
   Verify: `grep -n 'with settled=supervisor' skills/mf-ship/scripts/conduct.py` prints a line.
