@@ -81,22 +81,29 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
   build worker's, and converge reviews the whole change after it. Under a version's switch, a rescue commits a worker-written
   card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
-  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. The automatic grant
+  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
+  ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
+  included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
+  trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
+  amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
+  worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
+  rule, decision check or delta bound, and a catch-up passes it by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.
 
 ## Known gaps
 
-Carded in `.minions/debt.md`, accepted until paid down: `0049·S5`, `0049·S7`, `0049·R15`, `0050·R5`, `0050·R11`,
-`0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
+Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
 - A Codex worker starts the operator's `mcp_servers`, its network off, so it reaches their tools until a change sets them
   empty.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
 - A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
-- `0049·S7` and `0050·R5`, what is left: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
+- `0050·R11`: a concurrent worker that swaps `<primary>/.git` for a link between `argv`'s check and a Codex worker's start puts
+  another repository's `.git` in that worker's writable roots.
+- The config race, what is left, `0050·R5` among it: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
   still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.
 - A cutter is given `.minions` by name, and the primary, its parent, is every other worker's: the station refuses a link
@@ -121,7 +128,7 @@ Carded in `.minions/debt.md`, accepted until paid down: `0049·S5`, `0049·S7`, 
 - `0049·S5`, its hostile route: a worker writes the claim, so it can name a process, with that process's start time, for
   `/mf-ship stop` or a stale clear to kill, or make a live run read stale. A pid at or below 1 is refused, and a group's
   leader must name an executor.
-- `0049·R15`, the LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
+- The LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
 - Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone.
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.

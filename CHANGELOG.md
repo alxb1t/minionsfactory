@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-11-07
+
+Gate: local 2m3s · CI not read under mf-ship · 0.71.1: local 1m58s · CI not read under mf-ship
+
+- `conduct.py` runs `mf-supervise` under a version's switch after its rescue diagnosed a build or converge halt or was
+  spent on it, once a halt and `SUPERVISES = 2` a version a run, `claude-opus-5-5` at `high` when `[supervise]` names
+  none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
+- A refused supervisor amend is held as a rescue's, never taken as the person's; a grant waits while the supervisor
+  runs, and no supervisor runs over a blocking security card (change `0089-supervisor`, phase 2).
+- A new skill, `mf-supervise`, writes the supervisor's one amend; `mf-rescue` and `mf-ship` put an amend's new sub-task
+  in a new phase after the last, and converge reads a `Supervisor:` amend in a round, never by rule (change
+  `0089-supervisor`, phase 3).
+- `report`, the run's close and the `supervisor-decided` metric name each supervisor amend; D61 records the supervisor,
+  with D15, D47, D53 and D60, the threat model, the principles, README and `AGENTS.md` brought in line (change
+  `0089-supervisor`, phase 4).
+- A findings card whose **Status** a station wrapped in backticks reads as open to the cap's automatic grant and the
+  supervisor's security bar, as its **Priority** already did (change `0089-supervisor`, converge).
+
+## [0.71.1] - 2026-11-07
+
+Gate: local 1m58s · CI not read under mf-ship · 0.71.0: local 1m55s · CI not read under mf-ship
+
+- `conduct.py`: a file at `.minions/debt.lock` halts the move as a file, not a lock; a kept-worktree re-cut names its
+  remedy, as `mf-ship`'s `cut-halted` row now does; a request taken at a poll's bottom waits out the poll; an amend that
+  answers a rescued halt drops the stale diagnosis (change `0088-paydown-2`, phase 1).
+- `brief_check.py` halts on a top-level `## For the cut` item, whatever its list marker, indent, tab or extra space, that
+  does not open `<n>. ` and one space, on a models line not written `- models:` or a second one, and on a head with a
+  second `after:`, and on a `## Decisions` or `## For the cut` line holding whitespace other than a space or a tab, and
+  reads a heading written with NBSP or U+3000 as its plain form, each `## For the cut` heading's list checked apart, so
+  fewer forms reach `conduct.py cut` unchecked; `0083·S3`'s others stay carded; a tenth item nested as the template
+  writes it passes; its
+  why line cites a tracked design (change `0088-paydown-2`, phase 2).
+- `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time, refusing a
+  log that is a link; converge writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`,
+  phase 3).
+- The archived designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does;
+  `THREAT_MODEL.md`'s *Known gaps* lists only cards still carded and keeps each accepted route as its record (change
+  `0088-paydown-2`, phase 4).
+- `brief_check.py`'s whitespace rule halts a checked line by its section and number, so an NBSP-led head after a blank
+  line no longer passes unchecked: one rule in place of a fold per whitespace form (change `0088-paydown-2`, phase 5).
+
 ## [0.71.0] - 2026-11-07
 
 Gate: local 1m55s · CI not read under mf-ship · 0.70.1: local 1m55s · CI not read under mf-ship

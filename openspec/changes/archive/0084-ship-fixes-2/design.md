@@ -47,12 +47,13 @@ worker's `mktemp` lands inside its sandbox.
 
 ### D1
 
-A **halt before round 1** is a converge halt, other than a `verify: halt` ([D2](#d2)), in a newest run with no `start` line. In
+A **halt before round 1** is a converge halt, other than a `verify: halt` ([D2](#d2)), in a newest run with no `start` line, not
+marked `· grant`. In
 `C`:
 
 - `_run_started(runs, change)` returns whether the newest run, from its `## Run` heading to the next, holds a line `_is_event`
-  reads as `start`; `C`'s `_started(pid)` keeps its name. `_before_round(runs, change, halt)` is `not _run_started(…)` and no
-  `verify: halt` in `halt`.
+  reads as `start`; `C`'s `_started(pid)` keeps its name. `_before_round(runs, change, halt)` is `not _run_started(…)`, not
+  `_granted_run(…)`, and no `verify: halt` in `halt`.
 - `_answered`, after its `halted == HEAD` return, returns `_ancestor(tree, halted, "HEAD")` for a halt before round 1: any commit
   past the head answers it, the findings files unread. `stage_of` gives it `AMENDED`, as today.
 - `_rerun(runs, tree, change, halt)` is `_before_round(…)` and the halt's `· head` resolving to `HEAD`. `stage_of` checks it after
@@ -64,7 +65,7 @@ A **halt before round 1** is a converge halt, other than a `verify: halt` ([D2](
   `("converge", RERUN)` and the change is in `reruns`; `RERAN = "halted before round 1 again at this head: a commit answers it"`.
 
 ```
-  converge halts, no start, head H
+  converge halts, no start, no grant, head H
       │
       ├── HEAD past H ─────────▶ converge · amended: HEAD past the halted head
       └── HEAD is H ── re-run in this run? ── no ──▶ converge · re-run   (advance adds it to reruns)
@@ -104,21 +105,23 @@ deadline, until no live thread in `threading.enumerate()` bears one of their nam
 `argv` adds `TMPDIR=<primary>/.minions/tmp` after `UV_CACHE_DIR`, on both executors' `env` prefix, and makes the folder when it is
 missing, so every caller — a run's worker, the probe's scratch repository, `conduct.py agent` — names one that exists. `_fresh_tmp(primary)` empties
 it: a link or a file there is unlinked, a folder removed with `shutil.rmtree`, then `mkdir(parents=True, exist_ok=True)`.
-`Run.ship` calls it after `self.unlock(DEBT_LOCK)` (`C:3638`), under the claim, before any probe or worker. The folder sits in
+A link at `.minions` halts the run, `.minions is a link: a person settles what it names`, and its target's `tmp` keeps its files:
+the delete runs through a descriptor on `.minions` itself. `Run.ship` calls it after `self.unlock(DEBT_LOCK)` (`C:3638`), under the claim, before any probe or worker. The folder sits in
 the primary, which every worker writes. Like `uv-cache`, it is no change's file and goes unlisted in D57.
 
-`skills/mf-release/SKILL.md` Step 2 gains one line: a scratch file for the fold is made with `mktemp`, which a run's worker writes
-under `.minions/tmp/`.
+`skills/mf-release/SKILL.md` Step 2 gains one line: a scratch file for the fold is made with `mktemp`, inside a run's worker's
+sandbox: its environment names `.minions/tmp/`, and a Claude worker's sandboxed command may use Claude Code's own `TMPDIR` instead.
 
 ## Tests
 
 `git grep -c '^def test_' -- tests/` totals 221 at the cut. Added: 2 — an integration test of the conductor with the fake
 worker, and a unit test of the collector. No end-to-end test.
 
-- `test_a_halt_before_round_1_runs_again_at_the_same_head` (`T`, new, marked `slow`: it holds live runs, per `T1`) — a run whose
-  only line is `round 1 · halt — gate red before round 1 · head H` at `HEAD` H: `stage_of` is `("converge", RERUN)` and `check`'s
-  converge names the halt; a commit past H gives `AMENDED`, and so does one past a `· catch-up` run's halt with a `catch-up` line
-  and no `start`. A live run with `tests/fake_worker.py`'s new `red-halts` mode and a
+- `test_a_halt_before_round_1_runs_again_at_the_same_head` (`T`, new, marked `slow`: it holds live runs, per `T1`) — its
+  `stage_of` `RERUN`, `check` and `AMENDED` steps sit in `test_a_fix_after_a_cap_halt_converges_afresh`: a run whose only line is
+  `round 1 · halt — gate red before round 1 · head H` at `HEAD` H gives `stage_of` `("converge", RERUN)`, and `check`'s converge
+  names the halt; a commit past H gives `AMENDED`, and so does one past a `· catch-up` run's halt with a `catch-up` line and no
+  `start`. A live run with `tests/fake_worker.py`'s new `red-halts` mode and a
   held second version: the halt, then `rejoin` with no commit and the fake reset, and converge runs again and releases. A second
   run, the halt on disk at `HEAD`, `red-halts` on: converge re-runs, halts again, and a `rejoin` logs
   `still halted — halted before round 1 again at this head: a commit answers it`. `T2`: no run test reaches a halt before round 1.
@@ -130,7 +133,8 @@ Extended or edited:
   gains a `start` line below the halt, so it still reads a halt after `start`; beside the `verify: halt` the line changes nothing.
 - `test_a_stale_lock_is_cleared_and_converge_resumes` (`T:2270`) — [D3](#d3); its first run starts over a `.minions/tmp/` holding a
   file, and a second over a `.minions/tmp` link to a folder outside the repository: after each, `.minions/tmp/` is an empty folder,
-  and the link's target keeps its file.
+  and the link's target keeps its file. A third starts over `.minions` a link: the run halts naming it, and the link's target keeps
+  its `tmp` file.
 - `test_a_failing_metric_is_unavailable_with_its_reason` — [D4](#d4).
 - `test_a_claude_worker_starts_in_the_sandbox` (`T:5552`) — each executor's `env` prints `TMPDIR=<root>/.minions/tmp`, and
   `<root>/.minions/tmp` is a folder after `argv`.
@@ -147,7 +151,7 @@ None.
 ## Risks / Trade-offs
 
 - A gate red for a real reason re-runs once per run before it stays out: one gate's time, against a person's commit per flake.
-- A plain new run after a halted `· amended` or `· grant` run drops that mark: Q3 settled a plain run.
+- A plain new run after a halted `· amended` run drops that mark: Q3 settled a plain run.
 - Claude Code's sandbox may set its own `TMPDIR` for a sandboxed Bash command; then a Claude worker's `mktemp` writes there,
   still inside its sandbox, and the prefix's value reaches the worker's own process and every Codex worker.
 - Emptying `.minions/tmp/` at a run's start removes a hand-run station's scratch file left there; a hand run sets no `TMPDIR`.

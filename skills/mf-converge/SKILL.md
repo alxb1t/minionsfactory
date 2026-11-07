@@ -61,12 +61,13 @@ Never ask for a gate, and never substitute a command that looks like it tests th
 top. Only you write it — each dispatch, return and decision. It is not a findings file:
 `mf-release` never reads it, and the rule against editing a findings file does not cover it.
 
-- **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from `date '+%H:%M:%S'`,
-  run through Bash, never by hand: a stale time is how a dead run shows.
+- **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Write it with
+  `uv run --script <this package>/scripts/stamp.py .minions/changes/<change-id>/status_log.md '<round N · event — detail>'`,
+  which takes the clock's time; never write a time by hand: a stale time is how a dead run shows.
 - **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
   catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
-  `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
-  under the title.
+  `# <change-id> — converge status` title if missing, and insert the heading with `stamp.py <log> --run N`,
+  `--mark <mark>` for a marked run.
 - **An old layout halts before the run opens.** A file of this change at one of its old paths, by exact name —
   `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
   `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
@@ -157,8 +158,8 @@ grant is needed, and the catch-up round does not apply, save to the person's ame
 `verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
 one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
 alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
-`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` trailer
-judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
+`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` or `Supervisor:`
+trailer judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
 naming no head, or one past the judged head — after this skill's own fix commit, or in a catch-up run — is no
 person's answer.
 
@@ -192,26 +193,26 @@ not `HEAD`:
   merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
                │ yes, its own count  │ yes
                ▼                     │
-  every merge replays,               ▼
-  no Rescue: amend? ───── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
-               │ yes                                                  │
-               ▼                                                      ▼
-  by rule: both files clean, no worker ─────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
+  every merge replays, no Rescue:    ▼
+  or Supervisor: amend? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+               │ yes                                                   │
+               ▼                                                       ▼
+  by rule: both files clean, no worker ──────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
 ```
 
 Open the run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — enumerate the selection as [Catch-up scope](references/worker.md#catch-up-scope) does, once, at the run's start.
-   **Merges and amends** — merges, and the person's or the rescue's `docs(<change-id>): amend the change directory`
-   commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
+   **Merges and amends** — merges, and the person's, the rescue's or the supervisor's
+   `docs(<change-id>): amend the change directory` commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
    most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
    files' `round:` is the last judged round, and at the cap → halt as drawn.
 3. **Run Step 1's preconditions.**
 4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
    worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that
-   carries a `Rescue:` trailer, the rescue's, skips By rule → item 5, under the run's own count: one Step 7 round
-   reads it.
+   carries a `Rescue:` or `Supervisor:` trailer, a worker's, skips By rule → item 5, under the run's own count: one
+   Step 7 round reads it.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
