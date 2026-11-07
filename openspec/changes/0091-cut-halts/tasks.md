@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The queue
 - [x] 3 — The cut
 - [x] 4 — The answers
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The brief
 
@@ -69,14 +69,14 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The record
 
-- [ ] 5.1 Add D62 after D59 in `docs/decisions.md`, and its id to the map's Planning list after D59, as
+- [x] 5.1 Add D62 after D59 in `docs/decisions.md`, and its id to the map's Planning list after D59, as
   [D8](design.md#d8) quotes it.
   Verify: `grep -n '^### D62 · A queued cut.s packages are approved at the plan$' docs/decisions.md` prints a line.
-- [ ] 5.2 Edit D38 and D58 in `docs/decisions.md`, per [D8](design.md#d8), the phrase below on one line.
+- [x] 5.2 Edit D38 and D58 in `docs/decisions.md`, per [D8](design.md#d8), the phrase below on one line.
   Verify: `grep -n 'against its queued copy' docs/decisions.md` prints a line.
-- [ ] 5.3 Edit the brief bullet and the cut-queue bullet of *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8), the
+- [x] 5.3 Edit the brief bullet and the cut-queue bullet of *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8), the
   phrase below on one line.
   Verify: `grep -n 'widens that list' THREAT_MODEL.md` prints a line.
-- [ ] 5.4 Edit *A new dependency halts for a person* in `docs/principles.md`, per [D8](design.md#d8), the phrase below on one
+- [x] 5.4 Edit *A new dependency halts for a person* in `docs/principles.md`, per [D8](design.md#d8), the phrase below on one
   line.
   Verify: `grep -n 'for a queued cut at the plan' docs/principles.md` prints a line.

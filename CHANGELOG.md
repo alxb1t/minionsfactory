@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A cut halt the plan answers — a cutter's doubt, or a package the queued rows do not approve — ends
   `· needs <id> its brief answered (…), then conduct.py rejoin <id>`, in the log, `status`, `report` and the closing
   line, so the halt names its command (change `0091-cut-halts`, phase 4).
+- D62 records that a queued cut's packages are approved at the plan; D38, D58, the principle *A new dependency halts
+  for a person* and `THREAT_MODEL.md`'s entry points say so (`0082·S5`) (change `0091-cut-halts`, phase 5).
 
 ## [0.73.0] - 2026-11-07
 
