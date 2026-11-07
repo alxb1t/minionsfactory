@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -6803,12 +6804,17 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
         "3 — d": "halt — verify: halt — 1.1",
         "4 — d": "halt — amend needed — R1",
     }
+    # The rescue's hold keeps the person's amends alone: a commit after the amend
+    # holds it. Why: 0085-self-healing-ship design D5; 0092-amend-round design D2.
+    rescue, alone = types.SimpleNamespace(primary=base), conduct["Run"]._amended_alone
     for run, why in halts.items():
         halt = f"10:00:00 · round 1 · {why} · head {merged}"
         log.write_text(f"# t\n\n## Run {run}\n{halt}\n{start}\n")
         assert stage_of(base, version) == amended
+        assert alone(rescue, cut, "0001-todo", merged)
         _commit(cut, {"src.txt": "x\n"}, "a person's commit past the amend")
         assert stage_of(base, version) == amended
+        assert not alone(rescue, cut, "0001-todo", merged)
         for files, message in (
             ({"src.txt": "x\n"}, "a person's commit past the halt"),
             ({design: "x\n", "src.txt": "x\n"}, amend),
@@ -6821,6 +6827,15 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
         _git(cut, "commit", "-q", "-m", amend)
         assert stage_of(base, version) == ("converge-halted", halt)
         _git(cut, "reset", "-q", "--hard", amended_head)
+    # A merge is no amend, its subject the amend's: an amend has one parent.
+    _git(cut, "reset", "-q", "--hard", merged)
+    _git(cut, "switch", "-q", "-c", "side")
+    _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nSide.\n"}, "a side")
+    _git(cut, "switch", "-q", "0001-todo")
+    _git(cut, "merge", "-q", "--no-ff", "-m", amend, "side")
+    assert stage_of(base, version) == ("converge-halted", halt)
+    _git(cut, "branch", "-q", "-D", "side")
+    _git(cut, "reset", "-q", "--hard", amended_head)
     # A catch-up halt over a findings file no longer clean is answered too: the
     # amend round re-judges it.
     review = base / ".minions" / "changes" / "0001-todo" / "review.md"
