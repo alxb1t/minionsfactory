@@ -917,7 +917,8 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     crash = tmp_path / "crash.py"
     crash.write_text(
         "def delta(tree):\n    raise OSError('no fork')\n\n"
-        "changelog = decisions = delta\n"
+        "def decisions(tree):\n    return 'decisions: none'\n\n"
+        "changelog = delta\n"
     )
     script = module["INTEGRATE"]
     monkeypatch.setitem(module, "INTEGRATE", crash)
@@ -955,6 +956,29 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+
+def test_a_merge_in_renumbers_a_planned_decision(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _commit(root, {"docs/decisions.md": "# Decisions\n\n### D58 · Base\n"}, "D58")
+    cite = "\nPer **D59 · Marks rule**.\n"
+    waiting = _version(root, "0002-marks", f"- [ ] 1 — Marks\n{cite}")
+    taken = "# Decisions\n\n### D58 · Base\n\n### D59 · Main rule\n"
+    _commit(root, {"docs/decisions.md": taken}, "main takes D59")
+    held_run = conduct["Run"](root, "claude")
+    held_run.git_state = conduct["_git_state"](root)
+
+    held_run.merge_in(waiting, "0002-marks", "main")
+
+    subject = _git(waiting, "log", "-1", "--format=%s").strip()
+    assert subject == "chore(integrate): merge main into 0002-marks"
+    tasks = (waiting / "openspec/changes/0002-marks/tasks.md").read_text()
+    assert tasks.endswith("\nPer **D60 · Marks rule**.\n")
+    assert _git(waiting, "status", "--porcelain").strip() == ""
 
 
 @pytest.mark.slow

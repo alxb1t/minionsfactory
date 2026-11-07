@@ -33,6 +33,9 @@ UNRELEASED = re.compile(r"^## \[Unreleased\]\n", re.MULTILINE)
 RELEASED = re.compile(r"^## \[", re.MULTILINE)
 DECISIONS = "docs/decisions.md"
 DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
+TITLED = re.compile(r"^### D(\d+) · (.+)$", re.MULTILINE)
+# A plan's citation with its title: to a `*`, backtick, quote, `|` or line end.
+PLANNED = re.compile(r"\bD(\d+) · ([^*`'\"|\n]+)")
 # A citation is `D45` in text or `#d45--` in a link's anchor.
 CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
@@ -481,6 +484,32 @@ def _ids(text: str) -> set[int]:
     return {int(n) for n in DECISION.findall(text)}
 
 
+def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
+    """Return the ids the plan cites with a title, above the base's, headed nowhere.
+
+    An id `theirs` heads with a title a citation matches is a dependency's. A title
+    matches when one starts with the other: a grep needle cuts a title short.
+    e.g. base D58, plan "D59 · Branch rule", theirs "### D59 · Main rule" → {59}
+    Why: 0086-ship-fixes-3 design D1.
+    """
+    top, taken = max(_ids(base), default=0), _ids(ours)
+    headed = {int(n): title.strip(" .,;:") for n, title in TITLED.findall(theirs)}
+    cited: dict[int, set[str]] = {}
+    for text in plan:
+        for number, title in PLANNED.findall(text):
+            if cut := title.strip(" .,;:"):
+                cited.setdefault(int(number), set()).add(cut)
+    planned = set()
+    for number, titles in cited.items():
+        heading = headed.get(number)
+        dependency = heading is not None and any(
+            heading.startswith(title) or title.startswith(heading) for title in titles
+        )
+        if number > top and number not in taken and not dependency:
+            planned.add(number)
+    return planned
+
+
 def _recite(tree: Path, path: str, ids: dict[int, int], base: str) -> None:
     """Merge the branch's renumbered citations using edit positions in the base.
 
@@ -523,17 +552,31 @@ def _renumber_changelog(tree: Path, ids: dict[int, int]) -> None:
 
 
 def decisions(tree: Path) -> str:
-    """Renumber the branch's new decisions past the default branch's, and merge."""
+    """Renumber the branch's new decisions past the default branch's, and merge.
+
+    New is a heading the branch added, or an id its plan cites (`_planned`). A merge
+    git settled in the decisions file, with no id moving, stands as git left it.
+    """
     base = _merge_base(tree)
     sides = [_show(tree, rev, DECISIONS) for rev in (base, "HEAD", "MERGE_HEAD")]
     if sides == [None, None, None]:
         return f"decisions: none — no {DECISIONS}"
     base_text, ours, theirs = (side or "" for side in sides)
+    listing = _git(tree, "diff", "--name-only", base, "HEAD", "--", "openspec/changes")
+    shown = (
+        _show(tree, "HEAD", path)
+        for path in listing.splitlines()
+        if not path.startswith("openspec/changes/archive/")
+    )
+    plan = [text for text in shown if text is not None]
     top = max(_ids(theirs), default=0)
-    new = sorted(_ids(ours) - _ids(base_text))
+    planned = _planned(plan, base_text, ours, theirs)
+    new = sorted((_ids(ours) - _ids(base_text)) | planned)
     ids: dict[int, int] = {}
     if new and new[0] <= top:
         ids = {old: top + i for i, old in enumerate(new, 1)}
+    if not ids and DECISIONS not in _unmerged(tree):
+        return "decisions: no id collides"
     _write(
         tree,
         DECISIONS,
@@ -611,7 +654,8 @@ def replay(cwd: Path, merge: str) -> str:
     """Return the paths the rules settled when they rebuild `merge`'s tree exactly.
 
     The merge is redone from its parents in a scratch worktree under the run
-    directory, `changelog` and `decisions` settling their files. A requirement
+    directory: `changelog` settles a conflicted CHANGELOG.md, and `decisions` runs on
+    every merge. A requirement
     `delta` names, a path left unmerged, or another tree, stops with exit 1; a
     commit without two parents, or whose second parent the default branch does not
     hold, with exit 2.
@@ -640,11 +684,14 @@ def replay(cwd: Path, merge: str) -> str:
         )
         if merged.returncode != 0 and not _unmerged(scratch):
             raise Stop(2, f"integrate: cannot run — git merge failed: {merged.stderr}")
+        unmerged = _unmerged(scratch)
         settled = []
-        for path, rule in (("CHANGELOG.md", changelog), (DECISIONS, decisions)):
-            if path in _unmerged(scratch):
-                rule(scratch)
-                settled.append(path)
+        if "CHANGELOG.md" in unmerged:
+            changelog(scratch)
+            settled.append("CHANGELOG.md")
+        said = decisions(scratch)
+        if DECISIONS in unmerged or said.startswith("decisions: renumbered"):
+            settled.append(DECISIONS)
         # A requirement both sides changed is the person's, however the files settle.
         try:
             delta(scratch)

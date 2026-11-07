@@ -4,31 +4,31 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — A planned decision id renumbered
+- [x] 1 — A planned decision id renumbered
 - [ ] 2 — An insert-only delta kept
 - [ ] 3 — Git's own error
 
 ## 1 — A planned decision id renumbered
 
-- [ ] 1.1 Add `TITLED`, `PLANNED` and `_planned` to `skills/mf-integrate/scripts/integrate.py`, and read the plan's planned ids
+- [x] 1.1 Add `TITLED`, `PLANNED` and `_planned` to `skills/mf-integrate/scripts/integrate.py`, and read the plan's planned ids
   in `decisions`, per [D1](design.md#d1).
   Verify: `grep -n '^def _planned' skills/mf-integrate/scripts/integrate.py` prints a line.
-- [ ] 1.2 Run `changelog` on an unmerged `CHANGELOG.md` and `decisions` on every merge in `replay`, its line naming the paths
+- [x] 1.2 Run `changelog` on an unmerged `CHANGELOG.md` and `decisions` on every merge in `replay`, its line naming the paths
   per [D3](design.md#d3).
   Verify: `grep -L 'if path in _unmerged(scratch)' skills/mf-integrate/scripts/integrate.py` prints `skills/mf-integrate/scripts/integrate.py`.
-- [ ] 1.3 Copy `TITLED`, `PLANNED` and `_planned` into `skills/mf-converge/scripts/gate_check.py`, and read them in
+- [x] 1.3 Copy `TITLED`, `PLANNED` and `_planned` into `skills/mf-converge/scripts/gate_check.py`, and read them in
   `renumbered`, per [D2](design.md#d2).
   Verify: `grep -n '^def _planned' skills/mf-converge/scripts/gate_check.py` prints a line.
-- [ ] 1.4 Add `test_decisions_renumbers_a_planned_id_the_default_branch_took` to `tests/test_integrate.py`, as the design's
+- [x] 1.4 Add `test_decisions_renumbers_a_planned_id_the_default_branch_took` to `tests/test_integrate.py`, as the design's
   `## Tests` names it.
   Verify: `uv run pytest -q tests/test_integrate.py -k planned_id_the_default_branch_took` reports `1 passed`.
-- [ ] 1.5 Run `settle` on every merge `merge_in` opens in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3); add
+- [x] 1.5 Run `settle` on every merge `merge_in` opens in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3); add
   `test_a_merge_in_renumbers_a_planned_decision` and edit `test_a_crashed_integrate_script_halts_and_a_rerun_merges`'s `crash.py`
   in `tests/test_conduct.py`, as `## Tests` says.
   Verify: `uv run pytest -q tests/test_conduct.py -k "merge_in_renumbers_a_planned_decision or crashed_integrate_script_halts"` reports `2 passed`.
-- [ ] 1.6 Amend D45 in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 1.6 Amend D45 in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -n "the plan's planned ones too" docs/decisions.md` prints a line.
-- [ ] 1.7 Extend the `decisions` row of `skills/mf-integrate/SKILL.md` Step 3.2, per [D7](design.md#d7).
+- [x] 1.7 Extend the `decisions` row of `skills/mf-integrate/SKILL.md` Step 3.2, per [D7](design.md#d7).
   Verify: `grep -n "above the base's highest" skills/mf-integrate/SKILL.md` prints a line.
 
 ## 2 — An insert-only delta kept

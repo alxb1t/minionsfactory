@@ -297,6 +297,75 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert list(bare.iterdir()) == []
 
 
+def test_decisions_renumbers_a_planned_id_the_default_branch_took(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _primary(
+        tmp_path, {"docs/decisions.md": "# Decisions\n" + _decision(58, "Base")}
+    )
+    plans = {
+        "0002-b": {
+            "design.md": "Per **D59 · Branch rule**, and per D59.\n",
+            "tasks.md": "Verify: `grep -n '^### D59 · Branch rule'"
+            " docs/decisions.md`\n",
+        },
+        "0003-c": {"design.md": "Per **D59 · Main rule**.\n"},
+        "0004-d": {"design.md": "Per D59.\n"},
+    }
+    trees = {}
+    for change, files in plans.items():
+        trees[change] = _version(root, change)
+        folder = f"openspec/changes/{change}"
+        _commit(
+            trees[change],
+            {f"{folder}/{name}": text for name, text in files.items()},
+            "plan",
+        )
+    theirs = "# Decisions\n" + _decision(58, "Base") + _decision(59, "Main rule")
+    _commit(root, {"docs/decisions.md": theirs}, "main takes D59")
+    for tree in trees.values():
+        _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+        assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
+
+    tree = trees["0002-b"]
+    result = _run(root, "decisions", str(tree))
+
+    assert (result.returncode, result.stdout) == (
+        0,
+        "decisions: renumbered D59 → D60, citations with them\n",
+    )
+    folder = tree / "openspec/changes/0002-b"
+    assert (folder / "design.md").read_text() == (
+        "Per **D60 · Branch rule**, and per D60.\n"
+    )
+    assert (folder / "tasks.md").read_text() == (
+        "Verify: `grep -n '^### D60 · Branch rule' docs/decisions.md`\n"
+    )
+    assert (tree / "docs/decisions.md").read_text() == theirs
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-b")
+    result = _run(tree, "replay", "HEAD")
+    assert (result.returncode, result.stdout) == (
+        0,
+        "replay: by rule — docs/decisions.md\n",
+    )
+    gate_check = runpy.run_path(
+        str(_REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py")
+    )
+    monkeypatch.chdir(tree)
+    assert gate_check["renumbered"]("HEAD") == {59: 60}
+
+    # A dependency's id, cited with its heading's title, and one cited bare, stay.
+    for change in ("0003-c", "0004-d"):
+        result = _run(root, "decisions", str(trees[change]))
+        assert (result.returncode, result.stdout) == (
+            0,
+            "decisions: no id collides\n",
+        )
+        design = trees[change] / f"openspec/changes/{change}/design.md"
+        assert design.read_text() == plans[change]["design.md"]
+        assert _git(trees[change], "diff", "--name-only") == ""
+
+
 def _changelog_merge(base: Path) -> tuple[Path, Path]:
     """Return a primary and a version whose merge of `main` conflicts in CHANGELOG.md.
 
