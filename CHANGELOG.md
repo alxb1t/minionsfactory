@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.1] - 2026-11-07
+
+Gate: local 1m55s · CI not read under mf-ship · 0.70.0: local 1m57s · CI not read under mf-ship
+
 - A planned decision id the default branch took is renumbered: `integrate.py decisions` and `gate_check.renumbered`
   count an id the plan cites with its title, and `conduct.py` and `replay` run the `decisions` rule on every merge,
   so such a version builds with no person; D45 says so. A clean merge whose rule halts names `git merge --no-ff
