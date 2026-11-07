@@ -5,25 +5,25 @@ before this build: find each section by its heading, never by a line number.
 
 ## Progress
 
-- [ ] 1 — Worker models
+- [x] 1 — Worker models
 - [ ] 2 — The bundle
 - [ ] 3 — Security by recomputation
 - [ ] 4 — The record
 
 ## 1 — Worker models
 
-- [ ] 1.1 Add `test_a_worker_clause_names_its_model_and_effort` to `tests/test_conduct.py` and extend the tests the design's
+- [x] 1.1 Add `test_a_worker_clause_names_its_model_and_effort` to `tests/test_conduct.py` and extend the tests the design's
   `## Tests` names in it, then `WORKERS`, `TOKEN`, `_table`, `_models`, `_worker_clause`, `PROMPTS` and `Run.advance` in
   `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "worker_clause or station_runs_on_its_executor or plan_is_read_once or carries_the_allowlist"` reports `4 passed`.
-- [ ] 1.2 Add the **Worker models** paragraph to *The workers* in `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
+- [x] 1.2 Add the **Worker models** paragraph to *The workers* in `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -n 'Worker models' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.3 Rewrite the `verdicts` row of *The status log*'s event table in `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
+- [x] 1.3 Rewrite the `verdicts` row of *The status log*'s event table in `skills/mf-converge/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -n 'worker was given' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.4 Rewrite Step 6's dispatch line in `skills/mf-converge/SKILL.md` for the fixer's model, per [D3](design.md#d3), "sent is
+- [x] 1.4 Rewrite Step 6's dispatch line in `skills/mf-converge/SKILL.md` for the fixer's model, per [D3](design.md#d3), "sent is
   blocking" on one line.
   Verify: `grep -n 'sent is blocking' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.5 Edit *Suggesting models* in `skills/mf-cut-change/SKILL.md` — the Converge bullet, the worker-table sentence and the TOML
+- [x] 1.5 Edit *Suggesting models* in `skills/mf-cut-change/SKILL.md` — the Converge bullet, the worker-table sentence and the TOML
   template — per [D4](design.md#d4).
   Verify: `grep -c '^\[converge\.' skills/mf-cut-change/SKILL.md` prints `3`.
 

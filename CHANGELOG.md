@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The models file's `[converge.review]`, `[converge.security]` and `[converge.fix]` are planned stations of `conduct.py`,
+  read once and passed in the converge prompt as `and <role>=<model>/<effort>`; converge puts each on its worker's
+  call, the fixer on review's model for a blocking card, and the cut writes them on tiers (change
+  `0094-lighter-converge`, phase 1).
+
 ## [0.74.0] - 2026-11-07
 
 Gate: local 5m48s · CI not read under mf-ship · 0.73.0: local 2m2s · CI not read under mf-ship

@@ -86,7 +86,7 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor, model and effort from the version's models file `[converge]`, else the run's, `default` where none is known; `tokens` the worker's figure, or `unavailable` |
+| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor you run on; the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -118,6 +118,12 @@ The events, and no others:
 the installed package; the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
 frontmatter keys it fixes, By rule writes them, and Steps 8 and 9 read the card's size and Status. Each role is one
 fresh worker. A `tier=` given → **halt**: the `tier` parameter was removed.
+
+**Worker models:** `review=`, `security=` and `fix=`, each `<model>/<effort>` with `default` for none, name each
+worker's model; `mf-ship` passes them from the models file, and a person may pass them by hand. Put each on its
+worker's call — on Claude Code the Agent tool's `model` is the family the name holds, `claude-opus-5-5` → `opus`, and
+its `effort` the effort; `default` passes none. A role given none, and every worker on a host whose call takes no model,
+Codex among them, runs on your model. Never read the models file yourself: a worker can write it.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
@@ -320,9 +326,10 @@ Step 9, so pickup can fix them first. Both `clean`, both scopes matching → con
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode of `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch a **fresh worker**, in the foreground, to clear every **open blocking** finding across both files — in the
-pickup round, exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at
-dispatch and again at its commit. The fixer:
+Dispatch a **fresh worker**, in the foreground, on `review=`'s model when any card it is
+sent is blocking, else on `fix=`'s, to clear every **open blocking** finding across both files — in the pickup round,
+exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at dispatch and
+again at its commit. The fixer:
 
 - fixes test-first where there is logic, to the [rules for tests](references/worker.md#rules-for-tests): a finding's regression test
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`);

@@ -3596,6 +3596,52 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     ]
 
 
+def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
+    conduct = _conduct()
+    clause = conduct["_worker_clause"]
+    assert (
+        clause("converge.review", ("claude", "claude-opus-5-5", "high"))
+        == " and review=claude-opus-5-5/high"
+    )
+    assert (
+        clause("converge.fix", ("claude", "claude-sonnet-5-5", None))
+        == " and fix=claude-sonnet-5-5/default"
+    )
+    assert clause("converge.review", ("codex", "gpt-5", "high")) == ""
+    assert clause("converge.security", ("claude", None, None)) == ""
+
+    minions = tmp_path / ".minions"
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text(
+        '[converge]\nexecutor = "claude"\n'
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+    )
+    models = conduct["_models"]
+    assert models(minions, "0001-todo", "converge.review", "codex") == (
+        "claude",
+        "claude-opus-5-5",
+        "high",
+    )
+    file = "conduct: halt — changes/0001-todo/models.toml"
+    for station, text, said in (
+        (
+            "converge.review",
+            '[converge.review]\nexecutor = "codex"\n',
+            f"{file}: converge.review names an executor",
+        ),
+        (
+            "converge.fix",
+            '[converge.fix]\nmodel = "x y"\n',
+            f"{file}: converge.fix 'x y' is not a model or effort",
+        ),
+    ):
+        table.write_text(text)
+        with pytest.raises(conduct["Stop"]) as stop:
+            models(minions, "0001-todo", station, "claude")
+        assert str(stop.value) == said
+
+
 def test_a_station_runs_on_its_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3606,15 +3652,19 @@ def test_a_station_runs_on_its_executor(
     minions = root / ".minions"
     (minions / "changes" / "0001-todo").mkdir(parents=True)
     table = (
-        '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\neffort = "high"\n'
+        '[converge]\nexecutor = "codex"\n'
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[release]\nmodel = "opus"\neffort = "high"\n'
     )
     (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
     started: list[tuple[str, str]] = []
+    prompts: list[str] = []
     argv = conduct["argv"]
 
     def spy(executor: str, prompt: str, *rest: object) -> list[str]:
         found = re.search(r"Run the mf-(\w+) skill", prompt)
         started.append((found[1] if found else "probe", executor))
+        prompts.append(prompt)
         return argv(executor, prompt, *rest)
 
     conduct["main"].__globals__["argv"] = spy
@@ -3625,6 +3675,17 @@ def test_a_station_runs_on_its_executor(
         "claude",
         "opus",
         "high",
+    )
+    # A worker table runs on converge's executor, with no Codex check.
+    assert models(minions, "0001-todo", "converge.review", "claude") == (
+        "codex",
+        "claude-opus-5-5",
+        "high",
+    )
+    assert models(minions, "0001-todo", "converge.fix", "claude") == (
+        "codex",
+        None,
+        None,
     )
 
     assert (
@@ -3651,6 +3712,9 @@ def test_a_station_runs_on_its_executor(
         ("converge", "codex"),
         ("release", "claude"),
     ]
+    # A worker on Codex is given no model: the Codex converge names none.
+    converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
+    assert converged and " and review=" not in converged[0]
 
     other = tmp_path / "other"
     other.mkdir()
@@ -5955,13 +6019,28 @@ def test_the_plan_is_read_once(
         return argv(*args)
 
     conduct["main"].__globals__["argv"] = spy
+    workers = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+    workers.parent.mkdir(parents=True, exist_ok=True)
+    workers.write_text(
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.fix]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
+    )
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
 
-    assert _calls(calls) == ["probe", "build 0001-todo", "converge 0001-todo"]
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo and review=claude and fix=claude",
+    ]
+    assert any(
+        " and review=claude-opus-5-5/high and fix=claude-sonnet-5-5/high." in str(arg)
+        for args in started
+        for arg in args
+    )
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml"
@@ -6036,6 +6115,14 @@ def test_the_plan_is_read_once(
         again.take_back = failing
         assert not again.take_back_safely(version, {})
         assert again.halts[-1] == ("0001-todo", said)
+
+    # A worker table is planned as a station is: a changed model halts its version.
+    fresh = conduct["Run"](root, "claude")
+    workers.write_text('[converge.fix]\nmodel = "a"\n')
+    fresh.read_plan([version])
+    workers.write_text('[converge.fix]\nmodel = "b"\n')
+    with pytest.raises(conduct["Stop"], match="changed during the run"):
+        fresh.planned_models("0001-todo", "converge.fix")
 
     def domains(*args: object) -> list[str]:
         command = argv(*args)
@@ -7908,9 +7995,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     conduct["main"].__globals__["work"] = started
     conductor.log.path.unlink()
 
-    assert conduct["PROMPTS"]["converge"].format(change="0001-todo", grant="") == (
+    converge = conduct["PROMPTS"]["converge"]
+    assert converge.format(change="0001-todo", workers="", grant="") == (
         "Run the mf-converge skill for change 0001-todo."
     )
+    assert converge.format(
+        change="0001-todo", workers=" and review=a/b", grant=" and grant=yes"
+    ).endswith("and review=a/b and grant=yes.")
     models = root / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True, exist_ok=True)
     (models / "models.toml").write_text('[converge]\ntier = "high"\n')
