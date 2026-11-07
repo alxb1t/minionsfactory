@@ -18,6 +18,7 @@ title = "Converge worker's reading set"
 group = "instruction load"
 unit = "words"
 better = "lower"
+watch = 10500
 noise = 50
 script = "scripts/metrics/reading_set.py"
 args = ["worker"]

@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50, D63
+     D5…D10, D38, D58, D59, D62      D11…D17, D40, D43, D49, D50, D63, D64
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -126,8 +126,10 @@ a deleted capability leaves no marker directory behind.**
 
 **`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
 that is not `None.`, a self-check item the cut cannot meet, and a plan-review doubt left to the person still wait for
-the person's OK; an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
-Starting `/mf-build` is the OK for the `Verify:` commands.**
+the person's OK; an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)),
+save a `## Dependencies` whose rows its brief approves, which it commits and the run checks
+against its queued copy ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Starting `/mf-build` is the OK for
+the `Verify:` commands.**
 
 - **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
   every time.
@@ -139,7 +141,8 @@ Starting `/mf-build` is the OK for the `Verify:` commands.**
 its number in `.minions/cuts/<id>`. The run makes the branch and worktree, runs `mf-cut-change unattended=yes` sandboxed
 to that worktree, the run directory and the brief, checks the cut on disk and builds it. Unattended, the brief's switch
 `decide: recommended` takes the recommended option, logged in the brief; every other doubt halts at `cut-halted`, with no
-rescue, answered by a re-plan and `conduct.py rejoin <id>`. Queuing a cut is the person's yes to cut, run, merge and push
+rescue, its line naming the answer: a re-plan and `conduct.py rejoin <id>`, which keeps the queued packages and takes a new
+one only with the person's `--yes <hash>` ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Queuing a cut is the person's yes to cut, run, merge and push
 it.**
 
 - **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
@@ -160,6 +163,20 @@ joins or starts; no ends on `/mf-cut-change`. The plan never cuts.**
   plan.
 - **Rejected:** the plan cutting · a light brief queued · a question per change.
 
+### D62 · A queued cut's packages are approved at the plan
+
+**A hard brief's `## Dependencies` holds a row per package the person approved in a round — item, package, constraint,
+why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut keeps
+them, taking a row they lack only with the person's `--yes <hash>` of the new rows; the cut station halts a cut whose
+`design.md` lists a package or constraint outside them, and never reads the brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
+queue holds.**
+
+- **Why:** a queued cut halted on packages approved in chat, where no station reads, its halt naming no answer, and the
+  planning thread then cut the queued id by hand.
+- **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
+  again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
+  nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
+
 ## The check loop and the release
 
 What happens between the last phase and the tag.
@@ -174,7 +191,8 @@ What happens between the last phase and the tag.
 
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
 references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
-nothing. Workers follow the host, or the models file's `executor`.**
+nothing. Workers follow the host, or the models file's `executor`; converge's take their model and effort from its worker
+tables ([D64](#d64--converge-spends-where-judgment-is)).**
 
 - **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
 - **Accepts:** no native command is used; the person runs them by hand to compare.
@@ -268,10 +286,27 @@ file.**
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
 
+### D64 · Converge spends where judgment is
+
+**Converge's conductor runs on the mid tier · medium, its review and security workers on the strongest tier · high, and its
+fixer on the mid tier · high, on review's model when a card it is sent blocks: the models file's `[converge]`,
+`[converge.review]`, `[converge.security]` and `[converge.fix]`, which `conduct.py` reads once and passes in the converge
+prompt. Each worker reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living requirements
+the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of
+`THREAT_MODEL.md`, with no security card awaiting its checker, takes its security head by recomputation.**
+
+- **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
+  reading set.
+- **Accepts:** on Codex every worker runs on the conductor's model; a decision the change does not cite is read by its index
+  line alone; the build keeps one model a change.
+- **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
+  it · a security verify skipped by the conductor's judgment.
+
 ### D49 · One review method, one depth
 
-**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front. The review and
-security files are the same for every change.**
+**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
+living requirements in a bundle of what the change cites. The review and security files are the same for every
+change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
   fraction of the cost.
@@ -364,8 +399,9 @@ converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING
 
 **Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
 in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
-build halts on a phase that breaks one unless the change amends it, and converge hands both to every worker.
-`mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
+build halts on a phase that breaks one unless the change amends it, and converge hands every worker the threat model and
+its bundle: of the decisions, those the change cites, in full, and an index of all. `mf-bootstrap` writes
+`THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
 - **Why:** a review judges against what is written down; without a threat model, security falls back on generic
   categories.
@@ -468,9 +504,10 @@ Review judges each new test's cost and traces each removed one's proofs.**
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
-writes it to `.minions/changes/<change-id>/models.toml`, never into the change, for `mf-ship`; model selection and provider
-setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut writes those
-([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
+writes it to `.minions/changes/<change-id>/models.toml`, converge's worker tables on
+[D64](#d64--converge-spends-where-judgment-is)'s tiers among it, never into the change, for `mf-ship`; model selection
+and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut
+writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
@@ -694,7 +731,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
+`diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to

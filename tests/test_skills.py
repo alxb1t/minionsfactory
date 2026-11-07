@@ -462,7 +462,8 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
 # 0034-gate-recipe-hardening design D5; 0037-serial-integration design Tests;
 # 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
-# 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7.
+# 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7;
+# 0094-lighter-converge design D5, D8.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
@@ -480,6 +481,8 @@ _METRICS_SCRIPTS = [
     ("mf-plan", "scripts/brief_check.py"),
     ("mf-plan", "../mf-ship/scripts/conduct.py"),
     ("mf-converge", "scripts/stamp.py"),
+    ("mf-converge", "scripts/bundle.py"),
+    ("mf-converge", "scripts/surfaces.py"),
 ]
 
 
@@ -533,6 +536,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -553,6 +558,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
     ]
 
 

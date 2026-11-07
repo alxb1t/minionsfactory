@@ -62,13 +62,16 @@ read-only except for their own findings file.**
 **A missing findings file is not clean. A station that resolved zero files must not write `clean`, except when
 each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A review
 without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a catch-up over
-merges alone, whose every merge `integrate.py replay` rebuilds by the fixed rules alone.**
+merges alone, whose every merge `integrate.py replay` rebuilds by the fixed rules alone. So is a security head over a
+fix that touches no surface the threat model lists, with no security card awaiting its checker: `surfaces.py`
+recomputes it.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
 - **Held by:** `mf-converge` Step 5 and its *By rule*; `mf-release` precondition 4, which states a skip and halts
   on a lone patch or findings file; the *Never* lists of `mf-converge` and `mf-release`;
-  `tests/test_integrate.py::test_replay_refuses_a_judged_merge`.
+  `tests/test_integrate.py::test_replay_refuses_a_judged_merge`;
+  `tests/test_surfaces.py::test_a_fix_that_reaches_no_surface_is_by_rule`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
   ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)).
 
@@ -199,10 +202,12 @@ reality, it halts.**
 
 ### A new dependency halts for a person
 
-**A package is added only if the change's `design.md` lists it under `## Dependencies`, approved at the cut. Any
-other stops the build.**
+**A package is added only if the change's `design.md` lists it under `## Dependencies`, approved by a person: at the
+cut, or for a queued cut at the plan, the run checking it against the queued rows
+([D62](decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Any other stops the build.**
 
 - **Why:** an agent installing freely is the supply-chain surface.
 - **Held by:** `mf-build` stop-condition 4, which reads `## Dependencies` at the cut commit; `mf-cut-change`
-  Step 9; `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in
-  both skills.
+  Step 9; `conduct.py`'s cut check, held by
+  `tests/test_conduct.py::test_a_cut_halt_is_shown_and_rejoin_cuts_again`;
+  `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in both skills.

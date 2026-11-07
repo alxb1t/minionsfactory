@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-11-07
+
+Gate: local 1m56s · CI not read under mf-ship · 0.75.0: local 1m56s · CI not read under mf-ship
+
+- A hard brief holds `## Dependencies`, `None.` or a row per approved package, and `brief_check.py` reads
+  `## For the cut` by a line grammar, holds checked lines to `isprintable()` and each checked heading to one form, so
+  no unparsed form reaches the cut (change `0091-cut-halts`, phase 1).
+- `conduct.py cut` copies the item's `## Dependencies` rows into the home queue, and the cut station halts a cut whose `design.md` lists a package or constraint outside them, never reading the brief for
+  approval (change `0091-cut-halts`, phase 2).
+- Unattended, `mf-cut-change` commits a `## Dependencies` row the brief lists for its change and halts on any other; a
+  hand cut halts on an id the queue holds, naming the brief and `conduct.py rejoin` (change `0091-cut-halts`, phase 3).
+- A cut halt the plan answers — a cutter's doubt, or a package the queued rows do not approve — ends
+  `· needs <id> its brief answered (…), then conduct.py rejoin <id>`, in the log, `status`, `report` and the closing
+  line, so the halt names its command (change `0091-cut-halts`, phase 4).
+- D62 records that a queued cut's packages are approved at the plan; D38, D58, the principle *A new dependency halts
+  for a person* and `THREAT_MODEL.md`'s entry points say so (`0082·S5`) (change `0091-cut-halts`, phase 5).
+- A `rejoin` of a queued cut keeps its queued packages and takes a row the brief adds only with
+  `conduct.py rejoin <id> --yes <hash>`, which its halt names, so a row a cutter plants after a disk fix is never queued
+  (`0091·S1`) (change `0091-cut-halts`, phase 6).
+
+## [0.75.0] - 2026-11-07
+
+Gate: local 1m56s · CI not read under mf-ship · 0.74.0: local 5m48s · CI not read under mf-ship
+
+- The models file's `[converge.review]`, `[converge.security]` and `[converge.fix]` are planned stations of `conduct.py`,
+  read once and passed in the converge prompt as `and <role>=<model>/<effort>`; converge puts each on its worker's
+  call, the fixer on review's model for a blocking card, and the cut writes them on tiers (change
+  `0094-lighter-converge`, phase 1).
+- Converge writes `bundle.md` at each freeze with `skills/mf-converge/scripts/bundle.py` — the decisions the change
+  cites, in full, an index of all, and the living requirements its delta modifies or removes — and each worker reads it
+  in place of `docs/decisions.md` and the living specs (change `0094-lighter-converge`, phase 2).
+- `THREAT_MODEL.md` and the bootstrap's template gain `## Surfaces`; `skills/mf-converge/scripts/surfaces.py` gives a fix
+  that touches none, with no security card awaiting its checker, its security head by rule, and review alone verifies
+  it (change `0094-lighter-converge`, phase 3).
+- D64 records what converge spends; D11 and D41 brought in line, `README.md` says it, and the worker reading set counts
+  the decisions' index, watched at 10,500 words (change `0094-lighter-converge`, phase 4).
+- `test_a_fix_reaching_no_surface_takes_security_by_rule` runs one fake run, the by-rule one: the verified path is
+  `test_a_fix_that_reaches_security_is_verified`'s at the unit layer (change `0094-lighter-converge`, phase 5).
+
 ## [0.74.0] - 2026-11-07
 
 Gate: local 5m48s · CI not read under mf-ship · 0.73.0: local 2m2s · CI not read under mf-ship

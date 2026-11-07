@@ -12,7 +12,7 @@
         --executor claude|codex [--model <m>] [--effort <e>]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
-    conduct.py rejoin [<change-id>]
+    conduct.py rejoin [<change-id>] [--yes <hash>]
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
@@ -68,6 +68,9 @@ GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUT
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
+DEPENDENCIES = "## Dependencies"
+APPROVED = ["item", "package", "constraint", "why"]
+UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -88,10 +91,12 @@ RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
-# The rescue and the supervisor are no stage: each runs in a halted version's thread,
-# and its models are planned with the stations'. Why: 0067-rescue design D3, D5;
-# 0089-supervisor design D2.
-PLANNED = (*STATIONS, "rescue", "supervise")
+WORKERS = ("converge.review", "converge.security", "converge.fix")
+# The rescue, the supervisor and converge's workers are no stage: each is planned with
+# the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
+# 0094-lighter-converge design D1.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS)
+TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 SUPERVISES = 2
@@ -185,7 +190,7 @@ NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
-    "converge": "Run the mf-converge skill for change {change}{grant}.",
+    "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
@@ -611,11 +616,8 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
         os.close(fd)
 
 
-def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
-    """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
-
-    Why: 0082-cut-station design D4.
-    """
+def _cutter_halt(primary: Path, change: str) -> str | None:
+    """Return the cutter's `cut.halt` line, read through no link; None with none."""
     fd = _folder_fd(primary / ".minions", "changes", change)
     try:
         halt = os.open("cut.halt", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
@@ -623,9 +625,31 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
         halt = None
     finally:
         os.close(fd)
-    if halt is not None:
-        with os.fdopen(halt, errors="replace") as file:
-            return file.readline().strip()[:300]
+    if halt is None:
+        return None
+    with os.fdopen(halt, errors="replace") as file:
+        return file.readline().strip()[:300]
+
+
+def _cut_answer(change: str, brief: str) -> str:
+    """Return the action a cut halt the plan answers needs.
+
+    e.g. "0001-a", "/b.md" → "its brief answered (/mf-plan 0001-a depth=hard brief=/b.md
+    from=/b.md), then conduct.py rejoin 0001-a". Why: 0091-cut-halts design D5.
+    """
+    return (
+        f"its brief answered (/mf-plan {change} depth=hard brief={brief}"
+        f" from={brief}), then conduct.py rejoin {change}"
+    )
+
+
+def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
+    """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
+
+    Why: 0082-cut-station design D4.
+    """
+    if (halt := _cutter_halt(primary, change)) is not None:
+        return halt
     if _subject(primary, change) != f"docs({change}): land the change directory":
         return f"{change}: no cut commit at the branch's tip"
     if not _holds(primary, change):
@@ -635,6 +659,28 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     if not (_change_dir(primary, change) / "models.toml").is_file():
         return f"no .minions/changes/{change}/models.toml"
     return None
+
+
+def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | None:
+    """Return why the cut's `design.md` lists a package `approved` does not hold.
+
+    None when it lists none. A constraint is approved as written. A section
+    `_headed` refuses is out of shape, never no section.
+    Why: 0091-cut-halts design D4.
+    """
+    design = _show(primary, change, f"openspec/changes/{change}/design.md") or ""
+    rows = _rows(design, DEPENDENCIES)
+    if (
+        not _headed(design, DEPENDENCIES)
+        or rows is None
+        or (rows and rows[0][:2] != ["package", "constraint"])
+    ):
+        return (
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why"
+        )
+    added = [f"{row[0]} {row[1]}" for row in rows[1:] if row[:2] not in approved]
+    return f"{UNAPPROVED}: {', '.join(added)}" if added else None
 
 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
@@ -2057,8 +2103,13 @@ def _models_file(runs: Path, change: str) -> dict[str, object]:
 
 
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
-    """Return a table of the cut's models file; None with no file or no such table."""
-    table = _models_file(runs, change).get(name)
+    """Return a table of the cut's models file; None with no file or no such table.
+
+    A dotted name walks in: e.g. "converge.review" → `[converge]`'s `review` table.
+    """
+    table: object = _models_file(runs, change)
+    for part in name.split("."):
+        table = table.get(part) if isinstance(table, dict) else None
     return table if isinstance(table, dict) else None
 
 
@@ -2077,23 +2128,51 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`. A table no executor can run halts the
-    version. Why: 0067-rescue design D5; 0089-supervisor design D2.
+    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` names no executor
+    and runs on converge's, halting where converge's table does, with no Codex check
+    of its own. A table no executor can run halts the version.
+    Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
+    design D1.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     tables = (_table(runs, change, name) for name in names.get(station, (station,)))
     table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
+    file = f"changes/{change}/models.toml"
+    if station in WORKERS:
+        if "executor" in table:
+            raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
+        for value in (model, effort):
+            if isinstance(value, str) and not TOKEN.fullmatch(value):
+                raise Stop(
+                    1,
+                    f"conduct: halt — {file}: {station} {value!r}"
+                    " is not a model or effort",
+                )
+        executor = _models(runs, change, "converge", run)[0]
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
-    file = f"changes/{change}/models.toml"
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
-    if executor == "codex" and (model or "").startswith("claude"):
+    codex = executor == "codex" and station not in WORKERS
+    if codex and (model or "").startswith("claude"):
         raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
     return str(executor), model, effort if isinstance(effort, str) else None
+
+
+def _worker_clause(station: str, models: tuple[str, str | None, str | None]) -> str:
+    """Return a converge worker's prompt clause; "" on Codex or with neither named.
+
+    e.g. ("converge.fix", ("claude", "m", None)) → " and fix=m/default"
+    Why: 0094-lighter-converge design D1.
+    """
+    executor, model, effort = models
+    if executor == "codex" or (model is None and effort is None):
+        return ""
+    role = station.split(".", 1)[1]
+    return f" and {role}={model or 'default'}/{effort or 'default'}"
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -3149,12 +3228,21 @@ class Run:
         return f" · needs {needs}" if needs else ""
 
     def _needs(self, change: str) -> str:
-        """Return the one action a halted version needs, read from the run and disk."""
+        """Return the one action a halted version needs, read from the run and disk.
+
+        A queued cut whose halt ends in its answer needs that answer. Why:
+        0091-cut-halts design D5.
+        """
         with self.guard:
             if change in self.answered:
                 return "a re-run"
             if change in self.diagnosed:
                 return "rescue.md"
+        entry = _cuts(self.primary).get(change, {})
+        halt, brief = entry.get("halt"), entry.get("brief")
+        if isinstance(halt, str) and isinstance(brief, str):
+            if halt.endswith(answer := _cut_answer(change, brief)):
+                return answer
         stage, why, _ = self.on_disk(change) or ("", "", "")
         if _is_cap(stage, why):
             return "a grant or a re-plan"
@@ -3655,8 +3743,15 @@ class Run:
                 with self.guard:
                     staged = self.settled.pop(version.change, None)
                 settled = "" if staged is None else " with settled=supervisor"
+                workers = "".join(
+                    _worker_clause(name, self.planned_models(version.change, name))
+                    for name in (WORKERS if stage == "converge" else ())
+                )
                 prompt = PROMPTS[stage].format(
-                    change=version.change, grant=clause, settled=settled
+                    change=version.change,
+                    workers=workers,
+                    grant=clause,
+                    settled=settled,
                 )
                 models = self.planned_models(version.change, stage)
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
@@ -3947,7 +4042,8 @@ class Run:
         none is dropped with its worktree first, past the config refusals `merge_in`
         runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
         waited for. None on a pass, its brief recorded, its queue entry and
-        reservation deleted.
+        reservation deleted. The cutter's own halt, and a package the entry does not
+        approve, end in `_cut_answer`. Why: 0091-cut-halts design D4, D5.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -3989,9 +4085,15 @@ class Run:
                     why = next(r for who, r in reversed(self.halts) if who == change)
                 return why, True
         why = _check_cut(primary, change, tree)
+        answered = why is not None and why == _cutter_halt(primary, change)
+        if why is None:
+            why = _unapproved(primary, change, entry.get("dependencies", []))
+            answered = why is not None and why.startswith(UNAPPROVED)
         result = "pass" if why is None else f"fail — {why}"
         self.log.event(change, "check", f"cut · {result}")
         if why is not None:
+            if answered:
+                why += f" · needs {change} {_cut_answer(change, entry['brief'])}"
             return why, False
         with _queue_lock(primary):
             folder = _queue(primary) / "briefs"
@@ -4019,10 +4121,10 @@ class Run:
         """Read each station's models, once per version: at the start, or as it joins.
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. The rescue's skip, `[converge] auto_grant` and the switch are
-        read with them.
+        halts in `take`. Converge's worker tables are read as stations are; the
+        rescue's skip, `[converge] auto_grant` and the switch are read with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
-        design D4; 0085-self-healing-ship design D3.
+        design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -4934,6 +5036,121 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     return found
 
 
+def _fence(mark: str, line: str) -> str:
+    """Return the fence open after `line`, given `mark`, the one open before it.
+
+    "" is none. A fence opens on a line of three or more backticks or tildes, up to
+    three spaces in, and closes only on a line of its own character, as long or longer.
+    e.g. "", "~~~ md" → "~~~"; "~~~", "```" → "~~~"; "```", "````" → ""
+    Why: 0091-cut-halts design D3.
+    """
+    if not mark:
+        opened = re.match(r" {0,3}(`{3,}|~{3,})", line)
+        return opened[1] if opened else ""
+    closed = re.fullmatch(rf" {{0,3}}{re.escape(mark[0])}{{{len(mark)},}} *", line)
+    return "" if closed else mark
+
+
+def _headed(text: str, heading: str) -> bool:
+    r"""Return whether `heading` stands at most once outside a fence, in no other form.
+
+    A line in another form keeps `heading`'s letters and digits, case-folded, as
+    `brief_check.py`'s `fold` reads one: a trailing space or colon, a leading space,
+    a CRLF end, a setext title. A fence left open fails too.
+    e.g. "## D\nNone.\n## D\n", "## D" → False
+    Why: 0091-cut-halts design D4.
+    """
+
+    def fold(line: str) -> str:
+        return "".join(char for char in line if char.isalnum()).casefold()
+
+    fence = ""
+    seen = False
+    for line in text.split("\n"):
+        if not fence and fold(line) == fold(heading):
+            if line != heading or seen:
+                return False
+            seen = True
+        fence = _fence(fence, line)
+    return not fence
+
+
+def _rows(text: str, heading: str) -> list[list[str]] | None:
+    r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
+
+    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence,
+    as `_fence` reads one, is never the heading, so a quoted example is not read.
+    Blank lines are skipped. No such heading, or a section
+    reading `None.` alone, is []. A section with no other line, one holding a line
+    that is no `|`-bounded row, with no delimiter row second, or with a row whose cell
+    count differs from the header's, is None. The section runs from the first line
+    equal to `heading` to the next line opening `#`.
+    e.g. "## D\n| a | b |\n|---|---|\n| `x` | y |\n" → [["a", "b"], ["x", "y"]]
+    Why: 0091-cut-halts design D3.
+    """
+    lines: list[str] | None = None
+    fence = ""
+    for line in text.split("\n"):
+        if lines is not None:
+            if line.startswith("#"):
+                break
+            if line.strip():
+                lines.append(line.strip())
+        elif not fence and line == heading:
+            lines = []
+        else:
+            fence = _fence(fence, line)
+    if lines is None or lines == ["None."]:
+        return []
+    if not lines or not all(len(row) > 1 and row[0] == row[-1] == "|" for row in lines):
+        return None
+    table = [[cell.strip(" `") for cell in row[1:-1].split("|")] for row in lines]
+    ruled = len(table) > 1 and all(re.fullmatch(r":?-+:?", cell) for cell in table[1])
+    if not ruled or any(len(row) != len(table[0]) for row in table):
+        return None
+    return [table[0], *table[2:]]
+
+
+def _approved(text: str, slug: str) -> list[list[str]] | None:
+    """Return `[package, constraint]` per `## Dependencies` row whose item is `slug`.
+
+    None for a section out of shape. Why: 0091-cut-halts design D3.
+    """
+    rows = _rows(text, DEPENDENCIES)
+    if rows is None or rows[:1] not in ([], [APPROVED]):
+        return None
+    return [
+        [package, constraint]
+        for item, package, constraint, _ in rows[1:]
+        if item == slug
+    ]
+
+
+def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
+    """Return the packages the brief at `path` approves for `slug`, or stop with 2."""
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        raise Stop(
+            2, f"{command}: cannot run — the brief {path} cannot be read"
+        ) from None
+    if (approved := _approved(text, slug)) is None:
+        raise Stop(
+            2,
+            f"{command}: cannot run — the brief's ## Dependencies is neither None."
+            " nor a table of item · package · constraint · why",
+        )
+    return approved
+
+
+def _rows_hash(rows: list[list[str]]) -> str:
+    """Return the sha256 of `rows` as JSON: the hash a rejoin's `--yes` names.
+
+    Why: 0091-cut-halts design D3.
+    """
+    return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
+
+
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
     """Write a queued cut's entry whole: to a temporary name, then moved in."""
     folder = _queue(primary) / "cuts"
@@ -4973,8 +5190,9 @@ def cut(
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    The live run takes it; with none live, a run starts. Why: 0082-cut-station
-    design D1.
+    The entry holds the packages the brief approves for `slug`. The live run takes
+    it; with none live, a run starts. Why: 0082-cut-station design D1; 0091-cut-halts
+    design D3.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
@@ -4988,6 +5206,7 @@ def cut(
     moved = "move the brief into a folder of its own"
     if why := _brief_refused(path.resolve(), executor, moved):
         raise Stop(2, f"cut: cannot run — {why}")
+    approved = _approval(path.resolve(), slug, "cut")
     ids = after.removeprefix("after=").split(",") if after else []
     primary = primary_of(cwd)
     with _queue_lock(primary):
@@ -5018,6 +5237,7 @@ def cut(
             "model": model,
             "effort": effort,
             "halt": None,
+            "dependencies": approved,
         }
         _write_cut(primary, change, entry)
         if live:
@@ -5059,12 +5279,14 @@ def _requested(queue: Path) -> bool:
         os.close(fd)
 
 
-def rejoin(cwd: Path, change: str | None) -> str:
+def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    A queued cut's halt is cleared first; with no run live, one starts for it. An
-    unreadable entry stops with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station
-    design D3, D6.
+    A queued cut's halt is cleared first, its queued packages kept; a brief row they
+    lack is taken only when `yes` is `_rows_hash` of the new rows, else it stops with
+    1, kept. With no run live, one starts for it. An unreadable entry or brief stops
+    with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
+    0091-cut-halts design D3.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
@@ -5078,6 +5300,19 @@ def rejoin(cwd: Path, change: str | None) -> str:
                     f"rejoin: cannot run — the queue entry {name} is unreadable: remove"
                     " it, then queue the cut again",
                 )
+            slug = change.split("-", 1)[1]
+            queued = entry.get("dependencies", [])
+            approved = _approval(Path(entry["brief"]), slug, "rejoin")
+            if new := [row for row in approved if row not in queued]:
+                if yes != (hashed := _rows_hash(new)):
+                    rows = ", ".join(" ".join(row) for row in new)
+                    raise Stop(
+                        1,
+                        "rejoin: halted — the brief adds rows the queue does not hold:"
+                        f" {rows}; the person's yes: conduct.py rejoin {change}"
+                        f" --yes {hashed}",
+                    )
+                entry = {**entry, "dependencies": queued + new}
             _write_cut(primary, change, {**entry, "halt": None})
             if live:
                 _request(primary, change)
@@ -5085,6 +5320,8 @@ def rejoin(cwd: Path, change: str | None) -> str:
             preconditions(cwd, entry["executor"])
             pid = _start_run(primary, entry["executor"])
             return f"rejoin: requested {change} · run started · pid {pid}"
+        if yes is not None:
+            raise Stop(2, "rejoin: cannot run — --yes answers a queued cut's packages")
         if not live:
             raise Stop(2, "rejoin: no run is live — run /mf-ship")
         if change is not None and change not in (
@@ -5467,6 +5704,7 @@ def main(argv_: list[str] | None = None) -> int:
     granting.add_argument("--executor", required=True, choices=("claude", "codex"))
     rejoining = commands.add_parser("rejoin", help="the live run takes a version back")
     rejoining.add_argument("change_id", metavar="change-id", nargs="?")
+    rejoining.add_argument("--yes", metavar="hash")
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
@@ -5509,7 +5747,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "grant":
             return grant(cwd, args.change_id, args.executor)
         elif args.command == "rejoin":
-            print(rejoin(cwd, args.change_id))
+            print(rejoin(cwd, args.change_id, args.yes))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "approve-gate":

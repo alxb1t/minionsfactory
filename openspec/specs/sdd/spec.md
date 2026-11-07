@@ -218,9 +218,9 @@ with a `## Run N` heading placed above the previous run, and each event SHALL be
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
 `start`, `freeze`, `fan-out`, `verdicts`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
 `done`, and a run SHALL end on `halt` or `done`. Each `verdicts` line SHALL name one role and end `executor <x> · model <m> ·
-effort <e> · tokens <n>`, the executor, model and effort from the version's models file, else the run's, and `tokens` the
-worker's figure or `unavailable`. The log SHALL NOT be a findings file: no station writes it and no
-release reads it.
+effort <e> · tokens <n>`: the executor the conductor runs on, the model and effort its worker was given, `default` where none,
+and `tokens` the worker's figure or `unavailable`. A security head written by rule SHALL write one `by rule` line,
+`no surface`. The log SHALL NOT be a findings file: no station writes it and no release reads it.
 
 #### Scenario: Converge names the log, its order and its events
 - **WHEN** `mf-converge` dispatches, receives or decides
@@ -229,8 +229,9 @@ release reads it.
 - **AND** the newest run and the newest line are on top, and no earlier line changes
 
 #### Scenario: A round's verdicts
-- **WHEN** a round's review and security files are read
-- **THEN** the log holds one `verdicts` line for each role, each naming that role's executor, model and effort
+- **WHEN** a round's review and security files are read, each written by its worker
+- **THEN** the log holds one `verdicts` line for each role, each naming the executor, and the model and effort that role's
+  worker was given
 
 #### Scenario: A converge run stops
 - **WHEN** the run halts or finishes
@@ -239,6 +240,11 @@ release reads it.
 #### Scenario: A catch-up by rule
 - **WHEN** every merge of a catch-up replays by the fixed rules
 - **THEN** the log holds one `by rule` line, `clean` and each merge's paths, and no `fan-out` or `verdicts` line for the round
+
+#### Scenario: A security head by rule
+- **WHEN** `surfaces.py` exits 0 in a verify round
+- **THEN** the log holds one `by rule` line, `no surface`, the round's `fan-out` names review alone, and its one `verdicts`
+  line is review's
 
 ### Requirement: A skill infers the one active change
 
@@ -264,8 +270,9 @@ naming both. The skill SHALL echo the id with
 `design.md`, as committed in the cut commit, lists it, and SHALL halt when the branch has changed that section
 since the cut. The cut commit SHALL be the one commit that adds `design.md`; more than one SHALL be a halt.
 `skills/mf-cut-change/SKILL.md` SHALL show `## Dependencies` to the human word for word when it is not `None.`,
-each entry an exact package name and a version constraint; an unattended cut SHALL show nothing, and SHALL halt in
-`cut.halt` instead, committing nothing, whatever the brief's switch.
+each entry a row of an exact package name and a version constraint. An unattended cut SHALL show nothing: it SHALL commit
+a row its brief's `## Dependencies` lists for its change, package and constraint as written, and SHALL halt in `cut.halt`
+on any other row, committing nothing, whatever the brief's switch.
 
 #### Scenario: A dependency added on the branch halts the build
 - **WHEN** a build pass finds a package in `## Dependencies` that the cut commit's `design.md` does not list
@@ -274,6 +281,13 @@ each entry an exact package name and a version constraint; an unattended cut SHA
 #### Scenario: A design re-added on the branch halts the build
 - **WHEN** `design.md` was deleted and added again on the branch, so more than one commit adds it
 - **THEN** the build halts rather than choose a cut commit
+
+#### Scenario: An unattended cut adds an approved package
+- **WHEN** an unattended cut's design needs a package its brief's `## Dependencies` lists for its change, with that
+  constraint
+- **THEN** the cut lists it in `design.md`'s `## Dependencies` and commits without a halt
+- **AND WHEN** the design needs a package the brief does not list, or another constraint
+- **THEN** the cut writes `cut.halt`, naming the package, and commits nothing
 
 ### Requirement: The cut runs no check before the human reads it
 
@@ -413,7 +427,8 @@ its checklist.
 `skills/mf-cut-change/SKILL.md` SHALL commit the change once its self-check passes, without waiting for the human.
 It SHALL wait for the human's OK before the commit only when `## Dependencies` is not `None.`, when a
 self-check item cannot be met, or when the plan review leaves a doubt to the person; an unattended cut SHALL halt there
-instead, committing nothing. An edit after the commit SHALL be a further commit on the branch.
+instead, committing nothing, save a `## Dependencies` whose every row its brief's `## Dependencies` lists for its change,
+which it commits. An edit after the commit SHALL be a further commit on the branch.
 
 #### Scenario: The cut's show step commits without waiting
 - **WHEN** the self-check passes, `## Dependencies` is `None.`, and the plan review leaves no doubt to the person
@@ -422,7 +437,7 @@ instead, committing nothing. An edit after the commit SHALL be a further commit 
 #### Scenario: A dependency, or an unmet item
 - **WHEN** `## Dependencies` is not `None.`, or a self-check item cannot be met
 - **THEN** the cut waits for the human's OK before committing
-- **AND WHEN** the cut is unattended
+- **AND WHEN** the cut is unattended and a self-check item cannot be met, or a row is one its brief does not list
 - **THEN** it halts in `cut.halt` and commits nothing
 
 #### Scenario: A plan-review doubt left to the person
@@ -601,10 +616,11 @@ Build, and converge for every worker it dispatches, SHALL also read a root `CODI
 `CODE_STANDARDS.md` or `CONTRIBUTING.md` that `AGENTS.md` does not name. A contradiction between those files SHALL
 go to the person: review cards it as drift, and the build halts on one that decides its phase's code. No filename
 SHALL take precedence over another.
-Cut, build, and converge for every worker it dispatches, SHALL read the architecture decisions and the threat model —
-the documents `AGENTS.md` names, else `docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md`
-when present. The build SHALL halt on a phase that contradicts a decision in force, unless a task of the change
-amends that decision.
+Cut and build SHALL read the architecture decisions and the threat model — the documents `AGENTS.md` names, else
+`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. Converge SHALL hand every worker
+the threat model and, in place of `docs/decisions.md`, the decisions the change cites, in full, and an index of all, as its
+bundle holds them; other architecture documents go to every worker whole. The build SHALL halt on a phase that contradicts a
+decision in force, unless a task of the change amends that decision.
 The root context SHALL explicitly direct reading of the shared principles and decisions rather than rely on
 host-specific import syntax.
 
@@ -629,6 +645,10 @@ host-specific import syntax.
 #### Scenario: An existing repo has standards its AGENTS.md does not name
 - **WHEN** the build starts on a repo whose root holds `CODE_STANDARDS.md` and whose `AGENTS.md` does not name it
 - **THEN** the build reads it, and converge hands it to every worker
+
+#### Scenario: A converge worker's decisions
+- **WHEN** converge dispatches a worker in a repo whose `docs/decisions.md` has `### D` headings
+- **THEN** the worker reads the decisions the change cites, in full, and the index from `bundle.md`, and not the whole file
 
 #### Scenario: A phase contradicts a decision in force
 - **WHEN** a phase's tasks would break a decision in the repo's `docs/decisions.md`, and no task amends it
@@ -873,8 +893,12 @@ Before its first round, `mf-plan` SHALL report as facts: the debt cards whose tr
 for `debt:`; a recommendation to pay down first when the debt holds more than ten open cards; whether
 the version's bump fits the repository's rule for a patch; the decisions in force the version touches, naming any overturn; a split
 when one diff would be too large for review; re-measured facts when continuing a brief written against an older
-commit; and, when the target holds `metrics/catalogue.toml`, the metrics past their watch in the latest tracked data
-file.
+commit; each package the version would add, its exact name and version constraint; and, when the target holds
+`metrics/catalogue.toml`, the metrics past their watch in the latest tracked data file. Where the host starts background
+workers, the fact-finding and these checks SHALL run in background helpers: the station SHALL return to the chat at once,
+saying it is gathering the facts, and SHALL write `## Facts` and post its first round when they report; a re-measure
+between rounds SHALL run in the background too. The rounds, the person's answers and the brief's writes SHALL stay in the
+main thread. A package the version would add SHALL be put to the person in a round, each approved or not.
 
 #### Scenario: A version planned in a repo with metrics
 - **WHEN** the target has a catalogue and a tracked data file with a metric past its watch
@@ -884,12 +908,24 @@ file.
 - **WHEN** `from=` names a brief whose facts cite an older commit than the default branch's
 - **THEN** the station re-measures those facts before its first round
 
+#### Scenario: A plan on a host with background workers
+- **WHEN** `mf-plan` starts where the host runs background workers
+- **THEN** it dispatches the fact-finding and the checks to background helpers and returns to the chat at once
+- **AND WHEN** they report
+- **THEN** it writes `## Facts` and posts its first round
+
+#### Scenario: A version that adds a package
+- **WHEN** the version's phases need a package the target does not hold
+- **THEN** the facts name the package and its constraint, and a round asks the person to approve it
+
 ### Requirement: The plan station writes the brief after every round
 
 `mf-plan` SHALL require `brief=<path>` and SHALL write the brief there after every round, with the sections: a title
 naming the version, its form, its depth (`light` or `hard`) and the date; one bold line; an `At <sha>, <YYYY-MM-DD>.` line naming
 the commit the newest round read; `## Facts`, each with
-`path:line` at a named commit; `## Decisions`, one row per settled question; `## Phases`; `## Not in this`;
+`path:line` at a named commit; `## Decisions`, one row per settled question; in a hard brief, `## Dependencies`, `None.` or
+one row per package the person approved, naming the `## For the cut` item's slug, the package, its version constraint and
+why; `## Phases`; `## Not in this`;
 `## Open`, the frontier still to ask; and `## For the cut`, filled when the frontier is empty. A hard brief's `## For the cut`
 SHALL name, per change in cut order, its slug, bump, `after`, `debt:` ids, `decide: recommended` when the person delegates a
 cut's doubts, its Acceptance as commands, and a model and effort for the build, converge, release and the cut station, from
@@ -909,6 +945,12 @@ SHALL NOT write the brief's path into the target.
 #### Scenario: A hard close names the models
 - **WHEN** a hard close fills `## For the cut`
 - **THEN** each change's item names a model and effort for the build, converge, release and the cut station
+
+#### Scenario: A hard brief names its packages
+- **WHEN** the person approved a package in a round of a hard plan
+- **THEN** the brief's `## Dependencies` holds its row: the item's slug, the package, its constraint and why
+- **AND WHEN** the version adds no package
+- **THEN** `## Dependencies` reads `None.`
 
 ### Requirement: The cut halts on a light brief
 
@@ -1391,7 +1433,9 @@ beside the page: one record per round and role, with its executor, model, effort
 
 `skills/mf-cut-change/SKILL.md` SHALL take a change id only when its number is higher than every id under
 `openspec/changes/` and `openspec/changes/archive/` on the default branch and on every branch named by a change id and not merged
-into it, and than every reservation in `.minions/cuts/`; an unattended cut SHALL instead find its own reservation there. It
+into it, and than every reservation in `.minions/cuts/`; an unattended cut SHALL instead find its own reservation there. A cut
+by hand of an id whose reservation stands SHALL halt first with
+`<id> is queued for the cut station: answer it in the brief, then conduct.py rejoin <id>`. It
 SHALL take `bump=minor|patch`, write `bump:` into `proposal.md`'s frontmatter, and assign no number.
 
 #### Scenario: Two cuts while one change is open
@@ -1401,6 +1445,11 @@ SHALL take `bump=minor|patch`, write `bump:` into `proposal.md`'s frontmatter, a
 #### Scenario: A cut by hand beside a queued cut
 - **WHEN** `.minions/cuts/0041-q` stands, and a cut by hand is asked for id `0041-y`
 - **THEN** the cut halts: the id is reserved
+
+#### Scenario: A cut by hand of a queued id
+- **WHEN** `.minions/cuts/0041-q` stands, and a cut by hand is asked for id `0041-q`
+- **THEN** the cut halts with `0041-q is queued for the cut station: answer it in the brief, then conduct.py rejoin 0041-q`,
+  and writes nothing
 
 ### Requirement: The release assigns the version
 
@@ -2033,10 +2082,12 @@ integrate when the default branch holds a first-parent commit past `origin` that
 ### Requirement: Converge runs one depth
 
 `skills/mf-converge/SKILL.md`, with its worker reference `skills/mf-converge/references/worker.md`, SHALL run one depth: each role's one fresh worker SHALL judge the change from a packet given up
-front, reading beyond the diff only to trace a named angle, and SHALL run review's stale-claim, test-cost and coverage-trace
+front, its decisions and living requirements from the change's bundle, reading beyond the diff only to trace a named angle,
+and SHALL run review's stale-claim, test-cost and coverage-trace
 passes itself. It SHALL take no `tier=`, and SHALL halt, naming the parameter as removed, when one is given. The review and
 security files' frontmatter SHALL record `mode`, `workers`, `model` and `packet`, and no tier. The cut SHALL write no `tier` into
-`.minions/changes/<change-id>/models.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge.
+`.minions/changes/<change-id>/models.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge. The converge
+prompt SHALL carry the worker models, when any, before a grant clause.
 
 #### Scenario: Converge runs
 - **WHEN** converge runs
@@ -2770,12 +2821,15 @@ in the primary, SHALL take the next free change number under the repository's qu
 `openspec/changes/` and `openspec/changes/archive/` on the default branch, every branch named by a change id and its committed
 change directories, every reservation in `.minions/cuts/` and every queued cut. It SHALL write the reservation
 `.minions/cuts/<id>` and keep the cut's bump, brief path, `after` ids, executor, model and effort in the queue in the home
-folder, where no worker writes, then hand the cut to the live run, or, with none live, start a run detached and wait, under
-the lock, until that run holds its claim or has ended. A slug that is not lowercase words joined by `-`, a bump other than
-`minor` or `patch`, a brief that is no file, or an `after` id that names no open version or queued cut SHALL exit 2 and
+folder, where no worker writes, with the package and constraint of each row of the brief's `## Dependencies` whose item is
+`<slug>`, then hand the cut to the live run, or, with none live, start a run detached and wait, under
+the lock, until that run holds its claim or has ended. A brief with no `## Dependencies` approves no package. A slug that is
+not lowercase words joined by `-`, a bump other than
+`minor` or `patch`, a brief that is no file, a brief whose `## Dependencies` is neither `None.` nor a table of item, package,
+constraint and why, or an `after` id that names no open version or queued cut SHALL exit 2 and
 reserve nothing; so SHALL a run that cannot start, its precondition named. Queuing a cut SHALL be the person's yes to cut,
-run, merge and push that version. A run SHALL take the queue lock before it removes its claim, and then start the next run
-when a rejoin request or a queued cut it never read stands.
+run, merge and push that version, and to the packages its rows name. A run SHALL take the queue lock before it removes its
+claim, and then start the next run when a rejoin request or a queued cut it never read stands.
 
 #### Scenario: Two cuts at once with no run live
 - **WHEN** two `conduct.py cut` calls run at once and no run is live
@@ -2795,17 +2849,27 @@ when a rejoin request or a queued cut it never read stands.
 - **WHEN** `brief=` names no file
 - **THEN** `conduct.py cut` exits 2, naming it, and reserves nothing
 
+#### Scenario: A brief's packages
+- **WHEN** the brief's `## Dependencies` holds rows for the queued slug and for another item
+- **THEN** the queue entry holds the package and constraint of the slug's rows alone
+- **AND WHEN** the section is prose, neither `None.` nor a table
+- **THEN** `conduct.py cut` exits 2, naming the section, and reserves nothing
+
 ### Requirement: A run cuts each queued brief in a station of its own
 
 A run SHALL read the queue at its start and at every poll, and take each queued cut with no halt that it has not read
 before, or that a request names. For each, `conduct.py` SHALL make the branch named by its id and its linked worktree from the
 default branch, as code, then run `mf-cut-change` with `unattended=yes` as a fresh sandboxed worker in that worktree, logged
 as the station `cut`. The cut SHALL pass when the branch's tip is the change's `docs(<id>): land the change directory` commit,
-the branch holds `openspec/changes/<id>/`, its tree is clean and `.minions/changes/<id>/models.toml` stands; the run SHALL then
+the branch holds `openspec/changes/<id>/`, its tree is clean, `.minions/changes/<id>/models.toml` stands, and each row of the
+`## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written; a
+`## Dependencies` that is neither `None.` nor a table of package, constraint and why SHALL fail it, as SHALL a line outside a
+fence that reads as `## Dependencies` once every character but a letter or a digit is dropped and case is folded but is not
+it as written, a second `## Dependencies`, or a fence left open; a missing one adds no package. The run SHALL then
 delete its queue entry and reservation, read its models file and probe a new executor, and take the version through its
 stations as any open version. A branch that already holds the change SHALL be checked, not cut again. A cut whose
 `after` names a queued cut SHALL wait until that cut passes, and halt when it halts. The cutter's executor SHALL be probed
-before its first worker, as a version's is.
+before its first worker, as a version's is. The run SHALL never read the brief for a package's approval.
 
 #### Scenario: A queued cut is built
 - **WHEN** a run takes a queued cut and the cutter commits its change directory and models file
@@ -2814,6 +2878,14 @@ before its first worker, as a version's is.
 #### Scenario: A cut queued during a run
 - **WHEN** a cut is queued while a run is live
 - **THEN** the run takes it at its next poll, beside the versions it is running
+
+#### Scenario: A cut that adds the approved packages
+- **WHEN** the cutter commits a `design.md` whose `## Dependencies` lists only packages and constraints the queue entry holds
+- **THEN** the cut passes, and the version goes into `build`
+
+#### Scenario: A cut that adds another package
+- **WHEN** the committed `design.md` lists a package the queue entry does not hold, or a constraint other than the one it holds
+- **THEN** the cut halts at `cut-halted`, naming each such package and constraint
 
 ### Requirement: The cutter reaches its worktree, the run directory and its brief
 
@@ -2842,19 +2914,49 @@ cut on one. The station SHALL halt a cut whose brief, or whose `.minions`, is a 
 ### Requirement: A cut halt is the plan's, answered by a re-plan and a rejoin
 
 A cut that does not pass SHALL put its queued cut at the stage `cut-halted`, with one line: the line the cutter wrote in
-`.minions/changes/<id>/cut.halt`, else the failed check or worker exit, kept in its queue entry. No rescue SHALL run. `status`
-SHALL print `<id> · cut` for a queued cut and `<id> · cut-halted — <line>` for a halted one, and `report` SHALL print its halt
-line. A run's start SHALL log each halted cut as a halt and take it into no thread. `conduct.py rejoin <id>` naming a queued cut
-SHALL clear its halt under the queue lock, then request it from the live run, or start a run when none is live; the run SHALL
-then drop the cut's branch and worktree, when its branch holds no change, and cut again from the brief.
+`.minions/changes/<id>/cut.halt`, else the failed check or worker exit, kept in its queue entry. The cutter's own line, and a
+package outside the queue entry's rows, SHALL end
+` · needs <id> its brief answered (/mf-plan <id> depth=hard brief=<brief> from=<brief>), then conduct.py rejoin <id>`, `<brief>`
+the path its queue entry holds; every other cut halt keeps its line. No rescue SHALL run. `status`
+SHALL print `<id> · cut` for a queued cut and `<id> · cut-halted — <line>` for a halted one, `report` SHALL print its halt
+line, and the run's closing line SHALL name ` · needs <id> its brief answered (…), then conduct.py rejoin <id>` for a cut
+halted with that answer. A run's start SHALL log each halted cut as a halt and take it into no thread. `conduct.py rejoin <id>`
+naming a queued cut SHALL clear its halt, under the queue lock, keeping the queue entry's already-queued package rows, then
+request it from the live run, or start a run when none is live; a brief it cannot read, or whose `## Dependencies` is
+neither `None.` nor a table, SHALL exit 2, naming it, and keep the halt. A row of the brief's `## Dependencies` for its slug
+that the entry does not already hold SHALL be queued only when the rejoin is given `--yes <hash>`, `<hash>` the sha256 of
+those new rows; without it, or with another hash, the rejoin SHALL exit 1, keep the entry and its halt, and name each new
+row and the exact `conduct.py rejoin <id> --yes <hash>` command, the person's yes to those rows. `--yes` on a rejoin naming
+no queued cut SHALL exit 2. The run SHALL then drop the cut's branch and worktree,
+when its branch holds no change, and cut again from the brief.
 
 #### Scenario: A cutter halts
 - **WHEN** the cutter writes `cut.halt` and commits nothing
-- **THEN** the run logs `<id> · halt — cut-halted — <its line>`, runs no rescue, and `status` prints `<id> · cut-halted — <its line>`
+- **THEN** the run logs `<id> · halt — cut-halted — <its line> · needs <id> its brief answered (…), then conduct.py rejoin <id>`,
+  runs no rescue, `status` prints `<id> · cut-halted — ` and the same line, and the closing line names the answer
 
 #### Scenario: A re-plan and a rejoin
 - **WHEN** the person re-plans the brief and runs `conduct.py rejoin <id>`
 - **THEN** the cut's half-done branch is dropped, the brief is cut again, and a cut that passes goes into `build`
+
+#### Scenario: A package approved at the re-plan
+- **WHEN** a cut halted on a package outside its queued rows, and the person's re-plan adds that row to the brief's
+  `## Dependencies` before `conduct.py rejoin <id>`
+- **THEN** the rejoin exits 1 naming that row and `conduct.py rejoin <id> --yes <hash>`
+- **AND WHEN** the person runs that command
+- **THEN** the row is queued beside the queued rows, and the branch's cut is checked again and passes
+
+#### Scenario: A rejoin whose brief adds a package row
+- **WHEN** a queued cut's entry holds `left-pad 1.3.0`, its brief's `## Dependencies` also lists `right-pad ^2` for its slug,
+  and `conduct.py rejoin <id>` runs with no `--yes`, after a fix on disk and no re-plan
+- **THEN** it exits 1 naming `right-pad ^2` and `conduct.py rejoin <id> --yes <hash>`, the entry holds `left-pad 1.3.0`
+  alone and keeps its halt, and no run is asked to take the cut
+- **AND WHEN** `conduct.py rejoin <id> --yes <hash>` runs with that hash
+- **THEN** the entry holds `left-pad 1.3.0` and `right-pad ^2`, its halt cleared, and the run takes the cut back
+
+#### Scenario: A failed check on disk
+- **WHEN** a cut halts on a dirty tree, a missing models file, a kept worktree or a worker's exit
+- **THEN** its line names no brief, and the closing line names `a fix`
 
 ### Requirement: An unattended cut decides by the brief's switch
 
@@ -2862,9 +2964,11 @@ then drop the cut's branch and worktree, when its branch holds no change, and cu
 awake hold, start in the worktree the conductor made with its own reservation standing, and never wait for the person. Where
 the brief's `## For the cut` item for the change says `decide: recommended`, a moved fact that fails and a plan-review doubt
 that changes a settled decision or survives the second review SHALL take the recommended option, and the cut SHALL add a row
-`| C<n> | decided by the cutter: … | <reason> |` to the brief's `## Decisions`. A `## Dependencies` that is not `None.`, a
+`| C<n> | decided by the cutter: … | <reason> |` to the brief's `## Decisions`. A `## Dependencies` row the brief's
+`## Dependencies` does not list for the change, package and constraint as written, a
 self-check item the cut cannot meet, a doubt with no clear recommendation and a `debt:` id not found SHALL always halt, and
-without the switch every doubt SHALL halt. A halt SHALL write one line to `.minions/changes/<id>/cut.halt` and commit nothing.
+without the switch every doubt SHALL halt; a row the brief lists SHALL be committed without a halt. A halt SHALL write one line
+to `.minions/changes/<id>/cut.halt` and commit nothing.
 After its commit, the cut SHALL write `.minions/changes/<id>/models.toml` from the brief's models, with
 `decide = "recommended"` when the brief says so, and add `Cut <YYYY-MM-DD> as <id> at <sha>.` after the brief's `## For the cut`
 list; it SHALL write nothing else outside the change and the run directory.
@@ -2875,8 +2979,10 @@ list; it SHALL write nothing else outside the change and the run directory.
 - **THEN** the cut takes it, adds a `decided by the cutter` row to the brief, and commits
 
 #### Scenario: A dependency
-- **WHEN** an unattended cut's `## Dependencies` is not `None.`
+- **WHEN** an unattended cut's `## Dependencies` holds a row its brief's `## Dependencies` does not list for the change
 - **THEN** it writes `cut.halt` and commits nothing, whatever the switch
+- **AND WHEN** every row is one the brief lists, as written
+- **THEN** it commits
 
 ### Requirement: The cut checks the brief's `At` value before any command takes it
 
@@ -2893,15 +2999,19 @@ command with it. Else it SHALL run `git rev-parse --verify --quiet '<sha>^{commi
 say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 lowercase hex digits, when its
 `## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
 `## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
-variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one. It
-SHALL also exit 1 when a top-level item of `## For the cut` does not open `<n>. ` and one space, when an item's head names a
-slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or more than
-one, when the item has no `models:` line naming the build, converge, release and cut station in order, each with a model and
-effort of `[A-Za-z0-9._-]` alone, or when an item's models line is not written `- models:`, or it has more than one. It
-SHALL also exit 1 when a line of `## Decisions` or `## For the cut`, lines split at a newline alone, holds a character other
-than a space or a tab for which `str.isspace()` is true, printing
-`brief: halt — <section> line <n>: whitespace other than a space or a tab`. That rule claims no more than that check: a
-format character (`Cf`, such as U+200B or U+2060), a heading line, and other Markdown forms are not covered by it.
+variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one.
+Lines split at a newline alone. It SHALL also exit 1 when a line of `## For the cut` is none of: a blank line; a head, opening
+`<n>. ` and one space at the line's start; a `- models: ` or `- **Acceptance:** ` line indented three spaces or as far as its
+head's text; a line indented at least two spaces past its Acceptance line, after that line or its continuation; or the cut's
+`Cut <YYYY-MM-DD> as <id> at <sha>.` line. It SHALL also exit 1 when a head names a slug or an `after` entry that `conduct.py`'s
+`SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or more than one, or when an item has no `models:` line, more
+than one, or one not naming the build, converge, release and cut station in order, each with a model and effort of
+`[A-Za-z0-9._-]` alone. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or `## For the cut` holds a
+character for which `str.isprintable()` is false, printing `brief: halt — <section> line <n>: a character isprintable()
+refuses`; when a line of the brief that is not `## Decisions`, `## Dependencies` or `## For the cut` as written reads as one of
+them once every character but a letter or a digit is dropped and case is folded, or a second line is one of them as written;
+when the brief has no `## Dependencies`; and when that section is neither `None.` nor a table of item, package, constraint
+and why whose every row names a `## For the cut` item's slug, a package and a constraint.
 It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
 be parsed. It SHALL run no command it reads.
 
@@ -2909,25 +3019,36 @@ be parsed. It SHALL run no command it reads.
 - **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`, or an
   item's slug or cut effort holds `$(…)` or `;`
 - **THEN** `brief_check.py` exits 1, naming each
-- **AND WHEN** a `## For the cut` item opens `- ` where `<n>. ` is due, or its head holds a second `after:`, or it has a
-  second models line
-- **THEN** `brief_check.py` exits 1, naming the item
+- **AND WHEN** a `## For the cut` line opens `- ` where `<n>. ` is due, a `| ` line sits under a head, an unindented line
+  follows a head, or a head holds a second `after:`, or an item has a second models line
+- **THEN** `brief_check.py` exits 1, naming the line or the item
 
 #### Scenario: A checked line holds other whitespace
-- **WHEN** a line of a brief's `## For the cut` or `## Decisions` holds a character other than a space or a tab for which
-  `str.isspace()` is true: a no-break space, an ideographic space, a vertical tab or a form feed
-- **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`
-  for that line
+- **WHEN** a line of a brief's `## For the cut`, `## Dependencies` or `## Decisions` holds a no-break space, an ideographic
+  space, a tab, a vertical tab, a form feed, U+200B or U+2060
+- **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: a character isprintable() refuses` for that line
+
+#### Scenario: A For the cut heading in another form
+- **WHEN** a brief holds ` ## For the cut`, `##<tab>For the cut`, `## For the cut ##`, `## For the cut` followed by U+200B, or
+  `For the cut` underlined `---`, besides its `## For the cut`, or that heading twice
+- **THEN** `brief_check.py` exits 1, naming each such line
+
+#### Scenario: A brief's packages
+- **WHEN** a hard brief has no `## Dependencies`, or one that is prose, or a row naming no `## For the cut` item
+- **THEN** `brief_check.py` exits 1, naming each
+- **AND WHEN** it reads `None.`, or each row names an item, a package and a constraint
+- **THEN** that section halts nothing
 
 #### Scenario: A hard brief
-- **WHEN** a hard brief has its `At` line, a filled `## For the cut` and plain commands
+- **WHEN** a hard brief has its `At` line, its `## Dependencies`, a filled `## For the cut` and plain commands
 - **THEN** `brief_check.py` exits 0 and prints `brief: ready for the cut`
 
 ### Requirement: The plan's close queues the cut on the person's yes
 
 At a hard close, once the person confirms the settled table, `skills/mf-plan/SKILL.md` SHALL run `brief_check.py` on the
 brief, and fix and run it again until it exits 0. Unless `then=ship` was given, it SHALL then run `conduct.py status`, show
-each `## For the cut` item as the brief holds it, its `models:` line and Acceptance included, and each open version or queued
+each `## For the cut` item as the brief holds it, its `models:` line and Acceptance included, each `## Dependencies` row, and
+each open version or queued
 cut `status` names that is not at a halt, and ask once, "confirm, and queue it?". On yes, or `then=ship`, it SHALL run
 `conduct.py cut <slug> <bump> brief=<path> [after=<ids>] --executor <executor> --model <m> --effort <e>` from the primary for
 each change of `## For the cut`, in order, an `after` that names an earlier change of the brief given as the id its `cut`
@@ -2937,8 +3058,8 @@ queued version, and each open version that run takes. On no, it SHALL end on one
 the person. It SHALL still never cut: no branch, no change directory.
 
 #### Scenario: The person says yes
-- **WHEN** a hard close's brief passes `brief_check.py`, the close shows its `## For the cut` items and `conduct.py status`,
-  and the person answers yes
+- **WHEN** a hard close's brief passes `brief_check.py`, the close shows its `## For the cut` items, its `## Dependencies` rows
+  and `conduct.py status`, and the person answers yes
 - **THEN** `mf-plan` runs `conduct.py cut` for each change in order, pastes each line, and returns to the chat
 
 #### Scenario: The person says no
@@ -3150,3 +3271,92 @@ catch-up round again. A run marked `· grant` that resumes SHALL stay a granted 
 #### Scenario: A granted round resumes
 - **WHEN** a granted round dies after its `fix` line, and a re-run resumes it
 - **THEN** it verifies and ends with no pickup
+
+### Requirement: Converge's workers take their models from the models file
+
+`.minions/changes/<change-id>/models.toml` MAY hold `[converge.review]`, `[converge.security]` and `[converge.fix]`, each with a
+`model` and an `effort`; `[converge]` stays the conductor's. `conduct.py` SHALL read them once with the run's plan. It SHALL halt
+a version, before its worker starts, on a worker table that names an `executor`, or a `model` or `effort` holding anything but
+letters, digits, `.`, `_` and `-`, and SHALL halt a version whose worker table later differs, as for any station's table. It
+SHALL pass each worker table that names a model or an effort in the converge prompt as `and <role>=<model>/<effort>`, `default`
+for the one absent, before any grant clause; with converge on Codex it SHALL pass none. Converge SHALL put each on its worker's
+call and SHALL NOT read the models file itself. A fixer sent any blocking card SHALL run on review's model and effort, and
+otherwise on the fixer's. A role given none, or a host whose worker call takes no model, SHALL run its worker on the
+conductor's model. The cut SHALL write the worker tables: review and security on the strongest tier · high, the fixer on the
+mid tier · high, and `[converge]` on the mid tier · medium unless the brief names converge's model, each mapped to the offered
+models.
+
+#### Scenario: The converge prompt names each worker's model
+- **WHEN** a version's models file holds `[converge.review]` with `model = "claude-opus-5-5"` and `effort = "high"`, and
+  `[converge.fix]` with `model = "claude-sonnet-5-5"` and `effort = "high"`, and its converge runs on Claude
+- **THEN** its converge prompt reads `Run the mf-converge skill for change <change-id> and review=claude-opus-5-5/high and
+  fix=claude-sonnet-5-5/high.`
+
+#### Scenario: Converge on Codex
+- **WHEN** a version's `[converge]` names `executor = "codex"` and its models file holds a worker table
+- **THEN** its converge prompt names no worker model, and every worker runs on the conductor's model
+
+#### Scenario: A worker table names an executor
+- **WHEN** `[converge.review]` names `executor = "codex"`
+- **THEN** that version halts naming the table, and no worker starts for it
+
+#### Scenario: A worker table changes during the run
+- **WHEN** a worker changes `[converge.fix]`'s model after the run read its plan
+- **THEN** that version halts, naming the models file as changed during the run
+
+#### Scenario: The fixer by grade
+- **WHEN** converge dispatches a fixer sent a blocking card
+- **THEN** the fixer runs on review's model and effort
+- **AND WHEN** it dispatches a fixer sent only non-blocking cards
+- **THEN** the fixer runs on the fixer's model and effort
+
+### Requirement: Converge hands each worker a bundle of what the change cites
+
+At each freeze, converge SHALL run `skills/mf-converge/scripts/bundle.py`, which writes
+`.minions/changes/<change-id>/bundle.md`: each repo decision the change's proposal, design, tasks or spec delta cites — by a
+`decisions.md#d<n>` link, or by `D<n> · ` and that decision's title — in full; an index, each `### D` heading of
+`docs/decisions.md`; and each living requirement the delta modifies or removes, in full. A decisions file with no `### D`
+heading SHALL go into the bundle whole. A design's own decision ids SHALL cite no repo decision. Each worker SHALL read the
+bundle in place of the decisions file and the living spec, opening a decision the index names only to trace review's
+architecture angle. `bundle.py` SHALL refuse to write through a link, and SHALL exit 2, writing nothing, on a file it cannot
+read.
+
+#### Scenario: A change cites a decision
+- **WHEN** a change's design links `docs/decisions.md#d48--…` and names a `D3` of its own
+- **THEN** `bundle.md` holds D48 in full and every decision's heading in its index
+- **AND** it holds no other decision's body
+
+#### Scenario: A delta modifies a requirement
+- **WHEN** a change's delta modifies a living requirement
+- **THEN** `bundle.md` holds that requirement as the living spec states it, in full
+
+#### Scenario: A decisions file with no headings
+- **WHEN** a target's `docs/decisions.md` holds no `### D` heading
+- **THEN** `bundle.md` holds the whole file
+
+### Requirement: A fix that reaches no surface takes its security head by recomputation
+
+`THREAT_MODEL.md` MAY hold `## Surfaces`, one ``- `<glob>` `` line per path a fix reaches security through, and the
+bootstrap's template SHALL hold the section unwritten. In a Step 7 round after a fix commit, converge SHALL run
+`skills/mf-converge/scripts/surfaces.py` over the fix range. It SHALL print `surfaces: no surface` and exit 0 when the security
+file says `verdict: clean`, holds no card whose Status is other than `verified` or `accepted`, and the range touches no path a
+glob listed at its start matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed glob among the
+reasons. On exit 0 converge SHALL write the security file's `head:` to the fix head by rule, with `mode: by-rule` and
+`workers: 0`, and dispatch review alone; on exit 1 it SHALL dispatch both. A catch-up run, its fix round included, SHALL
+dispatch both, as before.
+
+#### Scenario: A fix reaches no surface
+- **WHEN** a fix touches no listed path, and the security file is clean with every card `verified` or `accepted`
+- **THEN** `surfaces.py` exits 0, the security file's `head:` is the fix head with `mode: by-rule`, and no security worker runs
+
+#### Scenario: A fix touches a surface
+- **WHEN** a fix touches a path a listed glob matches
+- **THEN** `surfaces.py` exits 1 naming the path and its glob, and security verifies the fix
+
+#### Scenario: A security card awaits its checker
+- **WHEN** the security file holds a card whose Status is `fixed`
+- **THEN** `surfaces.py` exits 1 naming the card, and security verifies the fix
+
+#### Scenario: A threat model lists no surface
+- **WHEN** `THREAT_MODEL.md` has no `## Surfaces` glob, or no `THREAT_MODEL.md` exists
+- **THEN** `surfaces.py` exits 1, and security verifies the fix

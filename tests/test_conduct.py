@@ -5,6 +5,7 @@ agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -2947,6 +2948,7 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         "model": None,
         "effort": None,
         "halt": None,
+        "dependencies": [],
     }
     assert cuts == dict.fromkeys(cuts, entry)
     reserved = root / ".minions" / "cuts"
@@ -3006,14 +3008,29 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     capsys.readouterr()
     alone = tmp_path / "alone" / "brief.md"
     alone.parent.mkdir()
-    alone.write_text("# brief\n")
+    alone.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| d | left-pad | 1.3.0 | a pad |\n"
+        "| other | a | 1 | b |\n| d | `right-pad` | ^2 | a pad |\n"
+    )
     args = ("cut", "d", "patch", f"brief={alone}", "--executor", "codex")
     args += ("--model", "opus")
     assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
     picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
     picked["brief"] = str(alone.resolve())
+    picked["dependencies"] = [["left-pad", "1.3.0"], ["right-pad", "^2"]]
     assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
+    # A brief whose `## Dependencies` is prose reserves nothing.
+    before = sorted(os.listdir(reserved))
+    prose = tmp_path / "prose" / "brief.md"
+    prose.parent.mkdir()
+    prose.write_text("# brief\n\n## Dependencies\n\nleft-pad, any version\n")
+    assert refused("e", "minor", f"brief={prose}") == (
+        f"{cannot}the brief's ## Dependencies is neither None. nor a table of"
+        " item · package · constraint · why"
+    )
+    assert sorted(os.listdir(reserved)) == before
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
@@ -3206,6 +3223,7 @@ def _queued(
     after: tuple[str, ...] = (),
     executor: str = "claude",
     halt: str | None = None,
+    dependencies: tuple[tuple[str, str], ...] = (),
 ) -> None:
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
@@ -3219,6 +3237,7 @@ def _queued(
         "model": None,
         "effort": None,
         "halt": halt,
+        "dependencies": [list(row) for row in dependencies],
     }
     conduct["_write_cut"](root, change, entry)
 
@@ -3291,6 +3310,15 @@ def test_a_queued_cut_is_cut_then_built(
     assert "cut-change 0004-c" not in _calls(calls)
     assert "release 0004-c" in _calls(calls)
 
+    # A cut whose `design.md` lists only the packages its entry approves passes.
+    approved = (("left-pad", "1.3.0"), ("right-pad", "^2"))
+    _queued(conduct, root, "0005-p", brief, dependencies=approved)
+    calls.unlink()
+    fake("cut-packages")
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert any(line.endswith(" · 0005-p · check — cut · pass") for line in _log(root))
+    assert "release 0005-p" in _calls(calls)
+
 
 def test_a_cut_brief_reaches_the_supervisor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -3342,21 +3370,33 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     _queued(conduct, root, "0002-b", brief, after=("0001-a",))
     doubt = "0001-a waits on one doubt: two readings · tasks.md:3"
 
+    def answer(change: str, named: Path) -> str:
+        return (
+            f" · needs {change} its brief answered (/mf-plan {change} depth=hard"
+            f" brief={named} from={named}), then conduct.py rejoin {change}"
+        )
+
+    # The threads log their halts in either order.
+    needs = [answer("0001-a", brief).removeprefix(" · needs "), "0002-b a fix"]
+    closing = tuple(f" · needs {', '.join(order)}" for order in (needs, needs[::-1]))
+
     def said(*command: str) -> list[str]:
         capsys.readouterr()
         _main(conduct, root, *command, monkeypatch=monkeypatch)
         return capsys.readouterr().out.splitlines()
 
     # The cutter's halt is the plan's: no rescue, and its dependent halts with it.
+    # The halt names its answer; the dependent's, answered by that id's, needs a fix.
     assert _run_claude(conduct, root, monkeypatch) == 1
     assert _calls(calls) == ["probe", "cut-change 0001-a"]
     lines = _log(root)
-    halted = f" · 0001-a · halt — cut-halted — {doubt}"
+    halted = f" · 0001-a · halt — cut-halted — {doubt}{answer('0001-a', brief)}"
     after = " · 0002-b · halt — cut-halted — after 0001-a is cut-halted"
     assert any(line.endswith(halted) for line in lines)
     assert any(line.endswith(after) for line in lines)
+    assert lines[-1].endswith(closing)
     assert said("status") == [
-        f"0001-a · cut-halted — {doubt}",
+        f"0001-a · cut-halted — {doubt}{answer('0001-a', brief)}",
         "0002-b · cut-halted — after 0001-a is cut-halted",
     ]
     assert any(line.endswith(halted) for line in said("report"))
@@ -3431,6 +3471,18 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         ("0005-d", "cut-dirty", "the tree is not clean"),
         ("0006-m", "cut-bare", "no .minions/changes/0006-m/models.toml"),
         ("0007-x", "dies-cut", "cut worker exit 1"),
+        (
+            "0021-q",
+            "cut-prose",
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why",
+        ),
+        (
+            "0022-t",
+            "cut-twice",
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why",
+        ),
     ):
         _queued(conduct, root, change, brief)
         fake(mode)
@@ -3440,6 +3492,98 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         assert any(entry.endswith(logged) for entry in _log(root)) != (
             mode == "dies-cut"
         )
+    # A heading in another form, or a fence left open or closed by another mark,
+    # fails closed rather than reading as no section.
+    neither = conduct["_cuts"](root)["0022-t"]["halt"]
+    table = "## Dependencies\n| package | constraint | why |\n|---|---|---|\n"
+    table += "| evil | 1 | x |\n"
+    show = names["_show"]
+    for text, line in (
+        (table.replace("s\n", "s \n", 1), neither),
+        (table.replace("s\n", "s:\n", 1), neither),
+        (f" {table}", neither),
+        (table.replace("## Dependencies", "Dependencies\n---"), neither),
+        (table.replace("\n", "\r\n"), neither),
+        (f"```\n{table}", neither),
+        (f"```\n~~~\n```\n{table}", f"{conduct['UNAPPROVED']}: evil 1"),
+    ):
+        names["_show"] = lambda cwd, rev, path, text=text: text
+        assert conduct["_unapproved"](root, "0022-t", []) == line
+    names["_show"] = show
+
+    # A package the entry does not approve halts the cut, naming it.
+    packages = tmp_path / "packages.md"
+    packages.write_text("# brief\n")
+    left = (("left-pad", "1.3.0"),)
+    _queued(conduct, root, "0020-p", packages, dependencies=left)
+    fake("cut-packages")
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    unapproved = "design.md adds what the brief did not approve: right-pad ^2"
+    unapproved += answer("0020-p", packages)
+    assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    logged = f" · 0020-p · halt — cut-halted — {unapproved}"
+    assert any(entry.endswith(logged) for entry in _log(root))
+    # A rejoin reads the brief's rows; one it cannot read keeps the halt.
+    names["_start_run"] = lambda primary, executor: 4242
+    packages.unlink()
+    for text, refusal in (
+        (None, f"the brief {packages} cannot be read"),
+        (
+            "# brief\n\n## Dependencies\n\nleft-pad, any version\n",
+            "the brief's ## Dependencies is neither None. nor a table of"
+            " item · package · constraint · why",
+        ),
+    ):
+        if text is not None:
+            packages.write_text(text)
+        with pytest.raises(conduct["Stop"]) as refused:
+            conduct["rejoin"](root, "0020-p")
+        assert (refused.value.code, str(refused.value)) == (
+            2,
+            f"rejoin: cannot run — {refusal}",
+        )
+        assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    packages.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
+        "| p | right-pad | ^2 | a pad |\n"
+    )
+    # It keeps the queued rows, and takes the one the brief adds on its hash alone.
+    hashed = hashlib.sha256(json.dumps([["right-pad", "^2"]]).encode()).hexdigest()
+    adds = (
+        "rejoin: halted — the brief adds rows the queue does not hold: right-pad ^2;"
+        f" the person's yes: conduct.py rejoin 0020-p --yes {hashed}"
+    )
+    for yes in ((), ("--yes", "0" * 64)):
+        capsys.readouterr()
+        assert (
+            _main(conduct, root, "rejoin", "0020-p", *yes, monkeypatch=monkeypatch) == 1
+        )
+        assert capsys.readouterr().out.splitlines() == [adds]
+        entry = conduct["_cuts"](root)["0020-p"]
+        assert (entry["dependencies"], entry["halt"]) == (
+            [["left-pad", "1.3.0"]],
+            unapproved,
+        )
+    yes = ("--yes", hashed)
+    assert _main(conduct, root, "rejoin", "0020-p", *yes, monkeypatch=monkeypatch) == 0
+    entry = conduct["_cuts"](root)["0020-p"]
+    assert (entry["dependencies"], entry["halt"]) == (
+        [["left-pad", "1.3.0"], ["right-pad", "^2"]],
+        None,
+    )
+    capsys.readouterr()
+    assert _main(conduct, root, "rejoin", *yes, monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "rejoin: cannot run — --yes answers a queued cut's packages"
+    ]
+    names["_start_run"] = start
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert "cut-change 0020-p" not in _calls(calls)
+    assert any(line.endswith(" · 0020-p · check — cut · pass") for line in _log(root))
+    assert "release 0020-p" in _calls(calls)
 
     # A crash in the station sets its halt, a stop's line or `conduct.py failed`.
     def broken(primary: Path, change: str, tree: Path) -> str | None:
@@ -3596,6 +3740,52 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     ]
 
 
+def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
+    conduct = _conduct()
+    clause = conduct["_worker_clause"]
+    assert (
+        clause("converge.review", ("claude", "claude-opus-5-5", "high"))
+        == " and review=claude-opus-5-5/high"
+    )
+    assert (
+        clause("converge.fix", ("claude", "claude-sonnet-5-5", None))
+        == " and fix=claude-sonnet-5-5/default"
+    )
+    assert clause("converge.review", ("codex", "gpt-5", "high")) == ""
+    assert clause("converge.security", ("claude", None, None)) == ""
+
+    minions = tmp_path / ".minions"
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text(
+        '[converge]\nexecutor = "claude"\n'
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+    )
+    models = conduct["_models"]
+    assert models(minions, "0001-todo", "converge.review", "codex") == (
+        "claude",
+        "claude-opus-5-5",
+        "high",
+    )
+    file = "conduct: halt — changes/0001-todo/models.toml"
+    for station, text, said in (
+        (
+            "converge.review",
+            '[converge.review]\nexecutor = "codex"\n',
+            f"{file}: converge.review names an executor",
+        ),
+        (
+            "converge.fix",
+            '[converge.fix]\nmodel = "x y"\n',
+            f"{file}: converge.fix 'x y' is not a model or effort",
+        ),
+    ):
+        table.write_text(text)
+        with pytest.raises(conduct["Stop"]) as stop:
+            models(minions, "0001-todo", station, "claude")
+        assert str(stop.value) == said
+
+
 def test_a_station_runs_on_its_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3606,15 +3796,19 @@ def test_a_station_runs_on_its_executor(
     minions = root / ".minions"
     (minions / "changes" / "0001-todo").mkdir(parents=True)
     table = (
-        '[converge]\nexecutor = "codex"\n[release]\nmodel = "opus"\neffort = "high"\n'
+        '[converge]\nexecutor = "codex"\n'
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[release]\nmodel = "opus"\neffort = "high"\n'
     )
     (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
     started: list[tuple[str, str]] = []
+    prompts: list[str] = []
     argv = conduct["argv"]
 
     def spy(executor: str, prompt: str, *rest: object) -> list[str]:
         found = re.search(r"Run the mf-(\w+) skill", prompt)
         started.append((found[1] if found else "probe", executor))
+        prompts.append(prompt)
         return argv(executor, prompt, *rest)
 
     conduct["main"].__globals__["argv"] = spy
@@ -3625,6 +3819,17 @@ def test_a_station_runs_on_its_executor(
         "claude",
         "opus",
         "high",
+    )
+    # A worker table runs on converge's executor, with no Codex check.
+    assert models(minions, "0001-todo", "converge.review", "claude") == (
+        "codex",
+        "claude-opus-5-5",
+        "high",
+    )
+    assert models(minions, "0001-todo", "converge.fix", "claude") == (
+        "codex",
+        None,
+        None,
     )
 
     assert (
@@ -3651,6 +3856,9 @@ def test_a_station_runs_on_its_executor(
         ("converge", "codex"),
         ("release", "claude"),
     ]
+    # A worker on Codex is given no model: the Codex converge names none.
+    converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
+    assert converged and " and review=" not in converged[0]
 
     other = tmp_path / "other"
     other.mkdir()
@@ -3669,6 +3877,30 @@ def test_a_station_runs_on_its_executor(
         line.endswith(" · run · halt — probe-codex — codex is not on PATH")
         for line in _log(second)
     )
+
+
+@pytest.mark.slow
+def test_a_fix_reaching_no_surface_takes_security_by_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("fix-surfaces")
+    threats = "# t\n\n## Surfaces\n\n- `0001-todo.txt` — a surface\n"
+    # A fix touching no listed path releases with security by rule.
+    # Why: 0094-lighter-converge D8.
+    monkeypatch.setenv("FAKE_FIX", "notes.txt")
+    root = _primary(tmp_path)
+    _commit(root, {"THREAT_MODEL.md": threats}, "threats")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    security = root / ".minions" / "changes" / "0001-todo" / "security.md"
+    assert "mode: by-rule\n" in security.read_text()
+    assert _git(root, "tag", "-l") == "v0.1.0"
 
 
 def test_a_models_mismatch_halts_its_version(
@@ -5955,13 +6187,28 @@ def test_the_plan_is_read_once(
         return argv(*args)
 
     conduct["main"].__globals__["argv"] = spy
+    workers = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+    workers.parent.mkdir(parents=True, exist_ok=True)
+    workers.write_text(
+        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.fix]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
+    )
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
 
-    assert _calls(calls) == ["probe", "build 0001-todo", "converge 0001-todo"]
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo and review=claude and fix=claude",
+    ]
+    assert any(
+        " and review=claude-opus-5-5/high and fix=claude-sonnet-5-5/high." in str(arg)
+        for args in started
+        for arg in args
+    )
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml"
@@ -6036,6 +6283,14 @@ def test_the_plan_is_read_once(
         again.take_back = failing
         assert not again.take_back_safely(version, {})
         assert again.halts[-1] == ("0001-todo", said)
+
+    # A worker table is planned as a station is: a changed model halts its version.
+    fresh = conduct["Run"](root, "claude")
+    workers.write_text('[converge.fix]\nmodel = "a"\n')
+    fresh.read_plan([version])
+    workers.write_text('[converge.fix]\nmodel = "b"\n')
+    with pytest.raises(conduct["Stop"], match="changed during the run"):
+        fresh.planned_models("0001-todo", "converge.fix")
 
     def domains(*args: object) -> list[str]:
         command = argv(*args)
@@ -7908,9 +8163,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     conduct["main"].__globals__["work"] = started
     conductor.log.path.unlink()
 
-    assert conduct["PROMPTS"]["converge"].format(change="0001-todo", grant="") == (
+    converge = conduct["PROMPTS"]["converge"]
+    assert converge.format(change="0001-todo", workers="", grant="") == (
         "Run the mf-converge skill for change 0001-todo."
     )
+    assert converge.format(
+        change="0001-todo", workers=" and review=a/b", grant=" and grant=yes"
+    ).endswith("and review=a/b and grant=yes.")
     models = root / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True, exist_ok=True)
     (models / "models.toml").write_text('[converge]\ntier = "high"\n')
