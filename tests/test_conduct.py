@@ -3742,24 +3742,21 @@ def test_a_fix_reaching_no_surface_takes_security_by_rule(
     conduct = _conduct()
     fake("fix-surfaces")
     threats = "# t\n\n## Surfaces\n\n- `0001-todo.txt` — a surface\n"
-    # A fix touching no listed path releases with security by rule; one touching a
-    # listed path releases with security verified. Why: 0094-lighter-converge D8.
-    for fix, mode in (("notes.txt", "by-rule"), ("0001-todo.txt", "parallel")):
-        monkeypatch.setenv("FAKE_FIX", fix)
-        folder = tmp_path / mode
-        folder.mkdir()
-        root = _primary(folder)
-        _commit(root, {"THREAT_MODEL.md": threats}, "threats")
-        _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    # A fix touching no listed path releases with security by rule.
+    # Why: 0094-lighter-converge D8.
+    monkeypatch.setenv("FAKE_FIX", "notes.txt")
+    root = _primary(tmp_path)
+    _commit(root, {"THREAT_MODEL.md": threats}, "threats")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
-        assert (
-            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-            == 0
-        )
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
 
-        security = root / ".minions" / "changes" / "0001-todo" / "security.md"
-        assert f"mode: {mode}\n" in security.read_text()
-        assert _git(root, "tag", "-l") == "v0.1.0"
+    security = root / ".minions" / "changes" / "0001-todo" / "security.md"
+    assert "mode: by-rule\n" in security.read_text()
+    assert _git(root, "tag", "-l") == "v0.1.0"
 
 
 def test_a_models_mismatch_halts_its_version(

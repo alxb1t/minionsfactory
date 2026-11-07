@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it (change `0094-lighter-converge`, phase 3).
 - D64 records what converge spends; D11 and D41 brought in line, `README.md` says it, and the worker reading set counts
   the decisions' index, watched at 10,500 words (change `0094-lighter-converge`, phase 4).
+- `test_a_fix_reaching_no_surface_takes_security_by_rule` runs one fake run, the by-rule one: the verified path is
+  `test_a_fix_that_reaches_security_is_verified`'s at the unit layer (change `0094-lighter-converge`, phase 5).
 
 ## [0.74.0] - 2026-11-07
 

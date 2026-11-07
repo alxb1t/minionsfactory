@@ -9,7 +9,7 @@ before this build: find each section by its heading, never by a line number.
 - [x] 2 — The bundle
 - [x] 3 — Security by recomputation
 - [x] 4 — The record
-- [ ] 5 — The slow test's second primary
+- [x] 5 — The slow test's second primary
 
 ## 1 — Worker models
 
@@ -91,6 +91,6 @@ before this build: find each section by its heading, never by a line number.
 
 ## 5 — The slow test's second primary
 
-- [ ] 5.1 Drop the `("0001-todo.txt", "parallel")` iteration of `test_a_fix_reaching_no_surface_takes_security_by_rule` in
+- [x] 5.1 Drop the `("0001-todo.txt", "parallel")` iteration of `test_a_fix_reaching_no_surface_takes_security_by_rule` in
   `tests/test_conduct.py`, keeping the `notes.txt` by-rule run and its comment's first clause, as the design's `## Tests` says.
   Verify: `grep -c '"0001-todo.txt", "parallel"' tests/test_conduct.py` prints `0`.
