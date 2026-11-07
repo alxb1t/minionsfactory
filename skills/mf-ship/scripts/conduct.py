@@ -2117,6 +2117,11 @@ def _severity(card: str) -> str:
     return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
 
 
+def _status(card: str) -> str:
+    """Return a card's `Status`, its backticks dropped, as `_severity` drops them."""
+    return _field(card, "Status").strip(" `")
+
+
 def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """Return each open blocking card's id and fix size; None when a file is unread.
 
@@ -2134,7 +2139,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
             return None
         for name, card in _cards_in(text):
             blocking = _severity(card) in BLOCKS[role]
-            if blocking and re.match(r"open\b", _field(card, "Status")):
+            if blocking and re.match(r"open\b", _status(card)):
                 sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
                 size = sized[1].strip(" `.") if sized else ""
                 found.append((name, size or "a design change"))
@@ -2172,7 +2177,7 @@ def _security_held(runs: Path, change: str, halt: str) -> bool:
         return True
     return any(
         _severity(card) in BLOCKS["security"]
-        and (name in ids or _field(card, "Status").startswith("open"))
+        and (name in ids or _status(card).startswith("open"))
         for name, card in _cards_in(text)
     )
 
@@ -2994,10 +2999,11 @@ class Run:
         self.probing = threading.Lock()
 
     def halt(self, who: str, reason: str) -> None:
-        """Record and log a halt; its version starts no new worker but its rescue.
+        """Record and log a halt; its version starts only its rescue and supervisor.
 
-        A version's read on disk then is the re-check's baseline.
-        Why: 0085-self-healing-ship design D6.
+        The supervisor runs under the version's switch alone. A version's read on
+        disk then is the re-check's baseline. Why: 0085-self-healing-ship design D6;
+        0089-supervisor design D1.
         """
         seen = None if who == "run" else self.on_disk(who)
         with self.guard:

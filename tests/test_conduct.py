@@ -2358,6 +2358,14 @@ def test_a_supervisor_amend_outside_the_change_halts(
     assert held(minions, "0001-todo", halt)
     security.write_text(card.replace("open", "verified — held"))
     assert not held(minions, "0001-todo", halt)
+    # A Status wrapped in backticks, as stations write them, reads the same.
+    security.write_text(card.replace("open", "`open`"))
+    assert held(minions, "0001-todo", halt)
+    # A blocking card the halt's `amend needed` names bars it whatever its Status.
+    named = "10:00:00 · round 3 · halt — amend needed — S1 · head abc1234"
+    security.write_text(card.replace("open", "wontfix — amend"))
+    assert held(minions, "0001-todo", named)
+    assert not held(minions, "0001-todo", named.replace("S1", "S2"))
 
 
 def test_a_refused_supervisor_amend_is_not_the_persons(
@@ -6111,12 +6119,13 @@ def test_a_small_cap_is_granted_automatically(
     security.write_text(unsized)
     assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
     security.write_text(cards)
-    # A Priority or a size wrapped in backticks, as stations write them, reads the same.
+    # A Priority, a size or a Status wrapped in backticks, as stations write them,
+    # reads the same.
     review = minions / "changes" / "0001-todo" / "review.md"
     plain = review.read_text()
     quoted = plain.replace(
         "blocking · review · stability", "`blocking · review · stability`"
-    )
+    ).replace("**Status:** open", "**Status:** `open`")
     review.write_text(quoted.replace("size: one line.", "size: `one line`."))
     assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
     # One that is no regular file is unread: a device or a FIFO could hang the run.

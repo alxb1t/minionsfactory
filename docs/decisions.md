@@ -568,7 +568,8 @@ hostile repo needs a container.**
 `conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt or an `amend needed` halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table, save under
 [D60](#d60--a-run-heals-its-own-halts)'s switch; the run then clears the halt and builds or converges on. Every other halt it
-diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file;
+diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file, save what its
+supervisor answers under the switch ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses));
 a commit at any other converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
 a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, save the person's amends, which
 let the version go on, and stands for the run, no rejoin
@@ -627,7 +628,9 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
 - **Why:** a supervising chat answered most of 0087's halts and 0085's integrate flag, none with code, each a judgment the
   rescue may not make, and each a restart.
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
-  round, never by rule · its spend, bounded per version.
+  round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
+  a catch-up passes by rule ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
+  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
   widening the rescue · a supervisor without the switch.
 

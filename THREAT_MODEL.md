@@ -84,7 +84,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
   ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
   included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
-  trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. A
+  trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
+  amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
   rule, decision check or delta bound, and a catch-up passes it by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the

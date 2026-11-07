@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `report`, the run's close and the `supervisor-decided` metric name each supervisor amend; D61 records the supervisor,
   with D15, D47, D53 and D60, the threat model, the principles, README and `AGENTS.md` brought in line (change
   `0089-supervisor`, phase 4).
+- A findings card whose **Status** a station wrapped in backticks reads as open to the cap's automatic grant and the
+  supervisor's security bar, as its **Priority** already did (change `0089-supervisor`, converge).
 
 ## [0.71.1] - 2026-11-07
 
