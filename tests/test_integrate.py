@@ -4,7 +4,9 @@ Real git in a scratch repository with linked worktrees and real merges.
 Why: 0037-serial-integration design D2.
 """
 
+import os
 import runpy
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -297,6 +299,75 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert list(bare.iterdir()) == []
 
 
+def test_decisions_renumbers_a_planned_id_the_default_branch_took(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _primary(
+        tmp_path, {"docs/decisions.md": "# Decisions\n" + _decision(58, "Base")}
+    )
+    plans = {
+        "0002-b": {
+            "design.md": "Per **D59 · Branch rule**, and per D59.\n",
+            "tasks.md": "Verify: `grep -n '^### D59 · Branch rule'"
+            " docs/decisions.md`\n",
+        },
+        "0003-c": {"design.md": "Per **D59 · Main rule**.\n"},
+        "0004-d": {"design.md": "Per D59.\n"},
+    }
+    trees = {}
+    for change, files in plans.items():
+        trees[change] = _version(root, change)
+        folder = f"openspec/changes/{change}"
+        _commit(
+            trees[change],
+            {f"{folder}/{name}": text for name, text in files.items()},
+            "plan",
+        )
+    theirs = "# Decisions\n" + _decision(58, "Base") + _decision(59, "Main rule")
+    _commit(root, {"docs/decisions.md": theirs}, "main takes D59")
+    for tree in trees.values():
+        _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+        assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
+
+    tree = trees["0002-b"]
+    result = _run(root, "decisions", str(tree))
+
+    assert (result.returncode, result.stdout) == (
+        0,
+        "decisions: renumbered D59 → D60, citations with them\n",
+    )
+    folder = tree / "openspec/changes/0002-b"
+    assert (folder / "design.md").read_text() == (
+        "Per **D60 · Branch rule**, and per D60.\n"
+    )
+    assert (folder / "tasks.md").read_text() == (
+        "Verify: `grep -n '^### D60 · Branch rule' docs/decisions.md`\n"
+    )
+    assert (tree / "docs/decisions.md").read_text() == theirs
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-b")
+    result = _run(tree, "replay", "HEAD")
+    assert (result.returncode, result.stdout) == (
+        0,
+        "replay: by rule — docs/decisions.md\n",
+    )
+    gate_check = runpy.run_path(
+        str(_REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py")
+    )
+    monkeypatch.chdir(tree)
+    assert gate_check["renumbered"]("HEAD") == {59: 60}
+
+    # A dependency's id, cited with its heading's title, and one cited bare, stay.
+    for change in ("0003-c", "0004-d"):
+        result = _run(root, "decisions", str(trees[change]))
+        assert (result.returncode, result.stdout) == (
+            0,
+            "decisions: no id collides\n",
+        )
+        design = trees[change] / f"openspec/changes/{change}/design.md"
+        assert design.read_text() == plans[change]["design.md"]
+        assert _git(trees[change], "diff", "--name-only") == ""
+
+
 def _changelog_merge(base: Path) -> tuple[Path, Path]:
     """Return a primary and a version whose merge of `main` conflicts in CHANGELOG.md.
 
@@ -466,3 +537,79 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert result.stdout == "delta: changed on the default branch: sdd: First\n"
+
+
+def test_a_git_failure_names_its_line(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(tmp_path)}
+
+    def delta(where: Path) -> tuple[int, str]:
+        done = subprocess.run(
+            [sys.executable, str(_SCRIPT), "delta", str(where)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        return done.returncode, done.stdout
+
+    assert delta(outside) == (
+        2,
+        f"integrate: cannot run — {outside} is not a worktree root\n",
+    )
+    arch = "missing compatible architecture (have 'arm64,arm64e', need 'x86_64')"
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    (folder / "git").write_text(f"#!/bin/sh\necho {shlex.quote(arch)} >&2\nexit 1\n")
+    (folder / "git").chmod(0o755)
+    env["PATH"] = f"{folder}{os.pathsep}{env['PATH']}"
+    assert delta(root) == (
+        2,
+        f"integrate: cannot run — git rev-parse failed: {arch};"
+        f" run it as uv run --script {_SCRIPT}\n",
+    )
+
+
+def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:
+    def living(first: str, second: str) -> str:
+        return (
+            "# sdd\n\n## Requirements\n\n"
+            f"### Requirement: First\n\n{first}\n\n"
+            f"### Requirement: Second\n\n{second}\n"
+        )
+
+    def check(base: str, main: str, edited: str) -> tuple[int, str]:
+        """Return `delta`'s exit and line for a merge of `main` over `base`."""
+        folder = tmp_path / str(len(list(tmp_path.iterdir())))
+        folder.mkdir()
+        spec = "openspec/specs/sdd/spec.md"
+        root = _primary(folder, {spec: base})
+        tree = _version(root, "0005-b")
+        _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": edited}, "delta")
+        _commit(root, {spec: main}, "main moves")
+        _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+        result = _run(root, "delta", str(tree))
+        return result.returncode, result.stdout
+
+    base = living("It SHALL hold.", "It SHALL wait.")
+    main = living("It SHALL hold. It SHALL log.", "It SHALL wait.")
+    modified = "## MODIFIED Requirements\n\n### Requirement: {}\n\n{}\n"
+    first = modified.format("First", "It SHALL hold.\nIt SHALL log. It SHALL keep.")
+    assert check(base, main, first) == (
+        0,
+        "delta: the default branch changed no requirement the delta edits\n",
+    )
+    rewritten = modified.format("First", "It SHALL hold. It SHALL print.")
+    named = "delta: changed on the default branch: sdd: First\n"
+    assert check(base, main, rewritten) == (1, named)
+    removed = "## REMOVED Requirements\n\n### Requirement: First\n\n**Reason**: x.\n"
+    assert check(base, main, removed) == (1, named)
+
+    # Main drops a sentence the base held: a delta keeping it is reported.
+    held = living("It SHALL hold.", "It SHALL wait. It SHALL warn.")
+    kept = modified.format("Second", "It SHALL wait, always. It SHALL warn.")
+    assert check(held, base, kept) == (
+        1,
+        "delta: changed on the default branch: sdd: Second\n",
+    )
