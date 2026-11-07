@@ -182,12 +182,15 @@ Tiers keep D41: on Claude Code they map to Opus 5.5 and Sonnet 5.5, the brief's 
 `skills/mf-converge/scripts/surfaces.py`, a `uv` script, run from the repository root:
 `surfaces.py <security.md> <from> <to>`.
 
-- Exit 0, `surfaces: no surface`, when the security file's frontmatter says `verdict: clean`, every card's `**Status:**` is
-  `verified` or `accepted`, `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds it — `git show <from>:THREAT_MODEL.md`, so the
-  fix being judged cannot edit the list that judges it — lists a glob, and no path of
-  `git diff -z --name-only --no-renames <from> <to>` matches one under `fnmatch.fnmatchcase`, whose `*` crosses `/`.
+- Exit 0, `surfaces: no surface`, when the security file's frontmatter says `verdict: clean`, every card's `**Status:**`, and
+  every other `**Status:**` line in the file, one under a title off the card's form among them, is `verified` or `accepted`,
+  `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds it — `git show <from>:THREAT_MODEL.md`, so the fix being judged cannot
+  edit the list that judges it — lists a glob, and no path of `git diff -z --name-only --no-renames <from> <to>` matches one
+  under `fnmatch.fnmatchcase`, whose `*` crosses `/`. Both git reads run with `GIT_NO_REPLACE_OBJECTS=1`, as `pin.py`'s and
+  `conduct.py`'s do, so a replace ref cannot swap the list read at `<from>`.
 - Exit 1, `surfaces: verify — <reason>`, the first that holds: `security.md is not clean`; `security card <id> is <status>`,
-  `unsettled` for a card with no Status; `THREAT_MODEL.md lists no surface`, a threat model absent at `<from>` included;
+  `unsettled` for a card with no Status, a stray Status's `<id>` the nearest top-level bold title above it, or `unnamed`;
+  `THREAT_MODEL.md lists no surface`, a threat model absent at `<from>` included;
   `<path> matches <glob>`. Settled is an allowlist: any other Status, one off the card's form among them, waits. A `wontfix`
   waits with `fixed`: the fixer's claim the checker has not judged, or an amend card's, which stays `wontfix` once judged and
   halts at Step 9, so security keeps running.
@@ -208,10 +211,14 @@ included, and a fixer that committed nothing, dispatch both: C9, decided by the 
   `by rule` row → "a catch-up run → Step 9; else Step 7's review dispatch". *Never*'s findings-file line names Step 7's security
   head beside By rule's write.
 - `THREAT_MODEL.md` gains `## Surfaces` between *Entry points* and *Out of scope*: one answer-first line naming `surfaces.py`
-  and `fnmatch`, then one `` - `<glob>` — <why> `` line each for `skills/*/scripts/*`, `scripts/*`,
+  and `fnmatch`, and a sentence keeping a test module off the list — review judges every test edit under *Gate integrity*,
+  and a test-only pickup verified by security would spend what D64 saves — while a `conftest.py`, whose hooks reshape the
+  whole run, is on it; then one `` - `<glob>` — <why> `` line each for `skills/*/scripts/*`, `scripts/*`,
   `skills/mf-bootstrap/templates/*`, `skills/mf-ship/SKILL.md`, `skills/mf-release/SKILL.md`,
   `skills/mf-converge/references/generic-security.md`, `skills/mf-converge/SKILL.md`, `skills/mf-converge/references/worker.md`,
-  `skills/mf-rescue/SKILL.md`, `skills/mf-supervise/SKILL.md`, `Makefile`, `.betterleaks.toml`, `.gitignore`, `pyproject.toml`,
+  `skills/mf-rescue/SKILL.md`, `skills/mf-supervise/SKILL.md`, `skills/mf-plan/SKILL.md`, `skills/mf-bootstrap/SKILL.md`,
+  `Makefile`, `GNUmakefile`, `makefile`, `*conftest.py`, `*pytest.ini`, `*ruff.toml`, `ty.toml`, `.coveragerc`, `setup.cfg`,
+  `tox.ini`, `uv.toml`, `*zizmor.yml`, `.betterleaks.toml`, `.gitleaks.toml`, `*leaksignore`, `.gitignore`, `pyproject.toml`,
   `uv.lock`, `.github/*`, `AGENTS.md` and `THREAT_MODEL.md`. *Out of scope*'s worker-steering bullet gains, at its end: "So is
   the security head by rule: it reads the security file's cards, which a worker writes, so a forged Status skips one verify; it
   reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix cannot drop the glob its own edit
