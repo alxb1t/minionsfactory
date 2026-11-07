@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.72
 after: [0088-paydown-2]
 debt: [0085·S1, 0087·S1]
 ---

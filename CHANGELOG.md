@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-11-07
+
+Gate: local 2m3s · CI not read under mf-ship · 0.71.1: local 1m58s · CI not read under mf-ship
+
 - `conduct.py` runs `mf-supervise` under a version's switch after its rescue diagnosed a build or converge halt or was
   spent on it, once a halt and `SUPERVISES = 2` a version a run, `claude-opus-5-5` at `high` when `[supervise]` names
   none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
