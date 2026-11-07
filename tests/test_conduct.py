@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -1643,7 +1644,7 @@ def test_a_rescue_amends_at_amend_needed(
     assert any(line.endswith(fixed(root)) for line in lines)
     assert lines[-1].endswith(" · run · done — released v0.1.0")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
 
     # Halted so on disk at the run's start, beside a version that builds, it gets
     # the same through the entry rescue.
@@ -1849,7 +1850,7 @@ def test_an_amend_during_a_rescue_goes_on(
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
 
-def test_a_drift_amend_goes_on_by_rule(tmp_path: Path) -> None:
+def test_a_drift_amend_answers_its_halt(tmp_path: Path) -> None:
     # Step 9's `amend needed` halt on an open drift card, both findings files clean at
     # its head, is answered by the rescue's amend past that head and not at the head.
     # Why: 0087-drift-amends design D4, D5.
@@ -6692,7 +6693,7 @@ def test_a_grant_buys_one_round(
     shutil.rmtree(active)
 
 
-def test_a_fix_after_a_cap_halt_converges_afresh(
+def test_a_fix_after_a_cap_halt_gets_one_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
@@ -6744,8 +6745,9 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
     log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 3 · {locked}\n")
     lock = ("converge", "halted on the debt lock: resumes at Step 9")
     assert stage_of(root, version) == lock
-    # Twin: a halt past the judged head is converge's own — a fix's, a catch-up's,
-    # and a person's commit past it answers none (0063-rejoin design D4).
+    # Twin: a halt past the judged head — a fix's, a catch-up's — is answered by an
+    # amend alone, and a person's other commit past it answers none (0063-rejoin
+    # design D4; 0092-amend-round design D2).
     for run, why in (("1 — d", "the verify fan-out"), ("2 — d · catch-up", "red")):
         own = f"10:00:00 · round 3 · halt — {why} · head {fixed}"
         log.write_text(f"# t\n\n## Run {run}\n{own}\n{start}\n")
@@ -6776,12 +6778,12 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
 
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
     assert not grants.exists()
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · amended\n")
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
     assert _git(root, "tag", "-l") == "v0.1.0"
 
-    # The person's amends answer a clean catch-up halt, a verify halt and an
-    # `amend needed` halt; any other commit past the halt does not.
-    # Why: 0071-ship-fixes design D5, D6.
+    # An amend answers a halt past the judged head, and a commit after it is judged
+    # in its round; a commit with no amend before it answers none.
+    # Why: 0071-ship-fixes design D5, D6; 0092-amend-round design D2.
     (tmp_path / "caught").mkdir()
     base = _primary(tmp_path / "caught")
     cut = _version(base, "0001-todo", "- [x] 1 — Todo\n")
@@ -6803,47 +6805,161 @@ def test_a_fix_after_a_cap_halt_converges_afresh(
         "3 — d": "halt — verify: halt — 1.1",
         "4 — d": "halt — amend needed — R1",
     }
+    # The rescue's hold keeps the person's amends alone: a commit after the amend
+    # holds it. Why: 0085-self-healing-ship design D5; 0092-amend-round design D2.
+    rescue, alone = types.SimpleNamespace(primary=base), conduct["Run"]._amended_alone
     for run, why in halts.items():
         halt = f"10:00:00 · round 1 · {why} · head {merged}"
         log.write_text(f"# t\n\n## Run {run}\n{halt}\n{start}\n")
         assert stage_of(base, version) == amended
+        assert alone(rescue, cut, "0001-todo", merged)
+        _commit(cut, {"src.txt": "x\n"}, "a person's commit past the amend")
+        assert stage_of(base, version) == amended
+        assert not alone(rescue, cut, "0001-todo", merged)
         for files, message in (
             ({"src.txt": "x\n"}, "a person's commit past the halt"),
             ({design: "x\n", "src.txt": "x\n"}, amend),
         ):
+            _git(cut, "reset", "-q", "--hard", merged)
             _commit(cut, files, message)
             assert stage_of(base, version) == ("converge-halted", halt)
-            _git(cut, "reset", "-q", "--hard", amended_head)
-        _git(cut, "switch", "-q", "-c", "side", "HEAD~1")
-        _commit(cut, {design: "side\n"}, amend)
-        _git(cut, "switch", "-q", "0001-todo")
-        _git(cut, "merge", "-q", "--no-ff", "-X", "theirs", "-m", amend, "side")
-        assert stage_of(base, version) == ("converge-halted", halt)
         _git(cut, "reset", "-q", "--hard", amended_head)
-        _git(cut, "branch", "-q", "-D", "side")
         _git(cut, "reset", "-q", "--soft", "HEAD~2")
         _git(cut, "commit", "-q", "-m", amend)
         assert stage_of(base, version) == ("converge-halted", halt)
         _git(cut, "reset", "-q", "--hard", amended_head)
-    # A catch-up halt over a findings file no longer clean is converge's own.
+    # A merge is no amend, its subject the amend's: an amend has one parent.
+    _git(cut, "reset", "-q", "--hard", merged)
+    _git(cut, "switch", "-q", "-c", "side")
+    _commit(cut, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nSide.\n"}, "a side")
+    _git(cut, "switch", "-q", "0001-todo")
+    _git(cut, "merge", "-q", "--no-ff", "-m", amend, "side")
+    assert stage_of(base, version) == ("converge-halted", halt)
+    _git(cut, "branch", "-q", "-D", "side")
+    _git(cut, "reset", "-q", "--hard", amended_head)
+    # A catch-up halt over a findings file no longer clean is answered too: the
+    # amend round re-judges it.
     review = base / ".minions" / "changes" / "0001-todo" / "review.md"
     clean = review.read_text()
     review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"
     log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n{start}\n")
-    assert stage_of(base, version) == ("converge-halted", halt)
+    assert stage_of(base, version) == amended
     review.write_text(clean)
     assert stage_of(base, version) == amended
 
-    calls = fake("by-rule")
+    calls = fake("amends")
     calls.unlink()
     assert (
         _main(conduct, base, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
     assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
-    assert f"- {amended_head} — the person's amend" in review.read_text()
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
     assert _git(base, "tag", "-l") == "v0.1.0"
+
+
+@pytest.mark.slow
+def test_an_amend_past_the_judged_head_gets_one_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A halt past the judged head, after converge's own fix, is answered by an amend:
+    # one round judges the range from the files' head.
+    # Why: 0092-amend-round design D1, D2.
+    conduct = _conduct()
+    stage_of, amendable = conduct["stage_of"], conduct["_amendable"]
+    amended = ("converge", conduct["AMENDED"])
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    subject = "docs(0001-todo): amend the change directory"
+
+    def halted(root: Path) -> tuple[Path, str, str]:
+        tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+        judged = _git(tree, "rev-parse", "HEAD")
+        _findings(root, "0001-todo", judged, "blocking")
+        _commit(tree, {"src.txt": "fixed\n"}, "fix(0001-todo): R1")
+        fixed = _git(tree, "rev-parse", "HEAD")
+        _done(root, "0001-todo", fixed)
+        halt = f"10:00:01 · round 1 · halt — amend needed — R1 · head {fixed}"
+        start = "10:00:00 · round 1 · start — base a · head b"
+        log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+        log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n{start}\n")
+        version = conduct["find_version"](root, "0001-todo")
+        assert stage_of(root, version) == ("converge-halted", halt)
+        return tree, judged, halt
+
+    def run(root: Path, code: int) -> None:
+        assert (
+            _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+
+    root = _primary(tmp_path)
+    tree, judged, _ = halted(root)
+    progress = "## Progress\n\n- [x] 1 — Todo\n"
+    _commit(tree, {tasks: f"{progress}\nAmended.\nTwice.\n"}, subject)
+    amend = _git(tree, "rev-parse", "HEAD")
+    assert stage_of(root, conduct["find_version"](root, "0001-todo")) == amended
+    calls = fake("amends")
+    run(root, 0)
+    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    folder = root / ".minions" / "changes" / "0001-todo"
+    text = (folder / "status_log.md").read_text()
+    assert text.startswith("# t\n\n## Run 2 — d · amend\n")
+    assert f"· round 2 · freeze — {judged}..{amend}" in text
+    own = text.split("## Run 2 — d · amend\n")[1].split("## Run")[0]
+    assert "· round 1 ·" not in own
+    assert "round: 2" in (folder / "review.md").read_text()
+
+    # An amend adding a phase brings the build's code into the round's range.
+    (tmp_path / "phase").mkdir()
+    root = _primary(tmp_path / "phase")
+    tree, judged, _ = halted(root)
+    _commit(tree, {tasks: f"{progress}- [ ] 2 — Two\n"}, subject)
+    version = conduct["find_version"](root, "0001-todo")
+    assert stage_of(root, version) == ("build", "phase 2 unticked")
+    calls.unlink()
+    run(root, 0)
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    built = _git(root, "log", "-1", "--format=%H", "--grep=^build$", "0001-todo")
+    text = (root / ".minions" / "changes" / "0001-todo" / "status_log.md").read_text()
+    assert f"· round 2 · freeze — {judged}..{built}" in text
+
+    # An amended `Verify:` that fails halts before the round's `start`, with no
+    # rescue: re-run at its head, and answered by any commit past it.
+    (tmp_path / "verify").mkdir()
+    root = _primary(tmp_path / "verify")
+    tree, _, _ = halted(root)
+    _commit(tree, {tasks: f"{progress}\nAmended.\nTwice.\n"}, subject)
+    calls.unlink()
+    fake("verify-fails")
+    run(root, 1)
+    made = _calls(calls)
+    assert made[:2] == ["probe", "converge 0001-todo"]
+    assert not any(call.startswith(("release", "rescue")) for call in made)
+    assert any(
+        " · halt — " in line and "verify failed — 1.1" in line for line in _log(root)
+    )
+    version = conduct["find_version"](root, "0001-todo")
+    assert stage_of(root, version) == ("converge", conduct["RERUN"])
+    _commit(tree, {"src.txt": "mine\n"}, "a person's fix")
+    assert stage_of(root, version) == amended
+
+    # A halt in an amend run with both files clean is one the person's amend answers
+    # during a rescue, as in a catch-up run.
+    runs = root / ".minions"
+    head = _git(tree, "rev-parse", "HEAD")
+    _findings(root, "0001-todo", head)
+    halt = f"10:00:00 · round 2 · halt — red · head {head}"
+    log = runs / "changes" / "0001-todo" / "status_log.md"
+    log.write_text(f"# t\n\n## Run 3 — d · amend\n{halt}\n")
+    assert amendable(runs, "0001-todo", halt)
+    log.write_text(f"# t\n\n## Run 3 — d\n{halt}\n")
+    assert not amendable(runs, "0001-todo", halt)
 
 
 def test_a_verify_halt_is_diagnosed_without_a_worker(
@@ -6907,8 +7023,8 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     assert not conductor.rescue(version, "converge-halted", ())
     assert not (root / name).exists()
 
-    # The person's amend answers it: the version converges afresh, as
-    # test_a_fix_after_a_cap_halt_converges_afresh runs an answered halt to release.
+    # The person's amend answers it: the version converges again, as
+    # test_a_fix_after_a_cap_halt_gets_one_round runs an answered halt to release.
     tasks = "openspec/changes/0001-todo/tasks.md"
     amend = "docs(0001-todo): amend the change directory"
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
@@ -6930,7 +7046,7 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     _done(root, "0001-todo", head)
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     halt = f"10:00:00 · round 1 · halt — gate red before round 1 · head {head}"
-    # test_a_fix_after_a_cap_halt_converges_afresh reads its stage and check.
+    # test_a_fix_after_a_cap_halt_gets_one_round reads its stage and check.
     log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n")
 
     # Halted in the run, it runs again on a rejoin with no commit, and releases.

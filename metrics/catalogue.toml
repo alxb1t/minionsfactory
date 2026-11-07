@@ -345,6 +345,15 @@ script = "scripts/metrics/run.py"
 args = ["grants"]
 
 [[metric]]
+id = "amend-rounds"
+title = "Amend rounds after an answered halt"
+group = "run"
+unit = "rounds"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["amend-rounds"]
+
+[[metric]]
 id = "halts-build"
 title = "Build halts"
 group = "run"
