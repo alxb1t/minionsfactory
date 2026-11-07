@@ -194,7 +194,8 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   ```
 
 `## For the cut` is filled when the frontier is empty: one item per change, in cut order. The models come from the
-session's menu, by `mf-cut-change`'s *Suggesting models* table; the cut station's own is the strongest tier · high by
+session's menu, by `mf-cut-change`'s *Suggesting models* table —
+Sonnet 5.5 · high for a build whose highest row is the moderate one; the cut station's own is the strongest tier · high by
 default. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
 proposed fix. The cut station writes `models.toml` from the `models:` line.
 

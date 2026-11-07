@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `mf-cut-change` runs a first plan review always and a second only when a fix changes a decision or a task, each by a
+  fresh worker; a build whose highest row of *Suggesting models* is the moderate one runs whole on Sonnet 5.5 · high,
+  and `mf-plan`'s models line follows it (change `0093-lighter-build-cut`, phase 1).
+
 ## [0.76.0] - 2026-11-07
 
 Gate: local 1m56s · CI not read under mf-ship · 0.75.0: local 1m56s · CI not read under mf-ship

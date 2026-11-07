@@ -4,21 +4,21 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The review and the moderate build
+- [x] 1 — The review and the moderate build
 - [ ] 2 — The record
 
 ## 1 — The review and the moderate build
 
-- [ ] 1.1 Add `_section_rows`, `_cut_review_problems` and their constants and tests to `tests/test_skills.py`, after the plan
+- [x] 1.1 Add `_section_rows`, `_cut_review_problems` and their constants and tests to `tests/test_skills.py`, after the plan
   station's block, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_skills.py -k plan_review_scan` reports `1 passed`.
-- [ ] 1.2 Add the review table and its paragraph to Step 8.5, and edit the doubts table's first and second rows, in
+- [x] 1.2 Add the review table and its paragraph to Step 8.5, and edit the doubts table's first and second rows, in
   `skills/mf-cut-change/SKILL.md`, per [D1](design.md#d1) and [D2](design.md#d2).
   Verify: `grep -n 'never a message to the first' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 1.3 Edit the moderate row of *Suggesting models* and add its sentence in `skills/mf-cut-change/SKILL.md`, per
+- [x] 1.3 Edit the moderate row of *Suggesting models* and add its sentence in `skills/mf-cut-change/SKILL.md`, per
   [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_skills.py -k plan_review` reports `2 passed`.
-- [ ] 1.4 Edit *The brief*'s closing paragraph in `skills/mf-plan/SKILL.md`, per [D4](design.md#d4).
+- [x] 1.4 Edit *The brief*'s closing paragraph in `skills/mf-plan/SKILL.md`, per [D4](design.md#d4).
   Verify: `grep -n 'Sonnet 5.5 · high for a build' skills/mf-plan/SKILL.md` prints a line.
 
 ## 2 — The record
