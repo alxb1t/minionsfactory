@@ -10,7 +10,8 @@ Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prin
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
 slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape. Why: 0083-plan-queues design D1; 0088-paydown-2 design D5.
+to their shape. A checked line holds no whitespace but spaces and tabs. Why:
+0083-plan-queues design D1; 0088-paydown-2 design D5.
 """
 
 import argparse
@@ -197,6 +198,18 @@ def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     return [f"## For the cut: {line}" for line in found]
 
 
+def whitespace(heading: str, lines: list[str]) -> list[str]:
+    """Return a halt for each line of a section holding whitespace not a space or tab.
+
+    Lines count from 1 under the heading.
+    """
+    return [
+        f"{heading} line {number}: whitespace other than a space or a tab"
+        for number, line in enumerate(lines, 1)
+        if any(char.isspace() and char not in " \t" for char in line)
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check a brief; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -223,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         found.append("no At <sha>, <YYYY-MM-DD>. line")
     if not any(line.strip() for line in parts.get("## For the cut", [])):
         found.append("## For the cut is empty")
+    for heading in CHECKED:
+        found += whitespace(heading, parts.get(heading, []))
     found += fields(parts.get("## For the cut", []), slug)
     for line in found:
         print(f"brief: halt — {line}")

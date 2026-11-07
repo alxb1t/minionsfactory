@@ -152,11 +152,13 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, tabbed))]) == 1
     assert capsys.readouterr().out == (
+        "brief: halt — ## For the cut line 5: whitespace other than a space or a tab\n"
         "brief: halt — ## For the cut: item 5 — not an after id:"
         " `none\x0b· after: a;touch-p`\n"
     )
     # Only spaces and tabs blank a Markdown line or indent one: a line of NBSP, U+3000,
-    # `\x0b` or `\x0c`, or NBSP before `- x`, folds into the head with the lazy line.
+    # `\x0b` or `\x0c`, or NBSP before `- x`, halts, and folds into the head with the
+    # lazy line.
     models = (
         "   - models: build opus high · converge opus high · release opus high"
         " · cut opus high\n"
@@ -173,8 +175,34 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, unblank))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        f"brief: halt — ## For the cut: item {n} — more than one after:"
-        for n in range(2, 7)
+        *(
+            f"brief: halt — ## For the cut line {n}: whitespace other than a space"
+            " or a tab"
+            for n in (6, 10, 14, 18, 22)
+        ),
+        *(
+            f"brief: halt — ## For the cut: item {n} — more than one after:"
+            for n in range(2, 7)
+        ),
+    ]
+    # A `## Decisions` line, R5's NBSP-led head after a blank line with its models line,
+    # and an NBSP-led Acceptance line, which no item holds, halt by the line.
+    hidden = _READY.replace("| 1 | a check", "| 1 |\N{IDEOGRAPHIC SPACE}a check") + (
+        "\n"
+        "\xa02. **x;touch-q** · minor · after: none\n"
+        "\xa0\xa0\xa0\xa0- models: build a b · converge a b · release a b · cut a b;c\n"
+        "\n"
+        "\xa0\xa0\xa0\xa0- **Acceptance:** `echo $(id) x`\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, hidden))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — {heading} line {n}: whitespace other than a space or a tab"
+        for heading, n in (
+            ("## Decisions", 3),
+            ("## For the cut", 6),
+            ("## For the cut", 7),
+            ("## For the cut", 9),
+        )
     ]
     # Any other list marker, or an indent short of the head's text, opens no number.
     markers = _READY + (
