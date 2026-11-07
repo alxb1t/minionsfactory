@@ -10,7 +10,8 @@
 Run from the repository root. `start` holds `caffeinate` for two hours at most, or until
 the session's host process exits; its pid is recorded in `.minions/awake/<change-id>`
 beside the primary checkout. `stop` kills that pid only while `ps` names it
-`caffeinate`. Exit 0, or 2 for an id that is no change id or a directory outside a repo.
+`caffeinate`. Exit 0, or 2 for an id that is no change id, a directory outside a repo,
+or a git that fails.
 Why: 0081-cut-awake design D1.
 """
 
@@ -34,7 +35,11 @@ class Stop(Exception):
 
 
 def _record(change_id: str) -> Path:
-    """Return the hold's record for `change_id`, beside the primary checkout."""
+    """Return the hold's record for `change_id`, beside the primary checkout.
+
+    A git that fails outside "not a git repository" names its own error.
+    Why: 0086-ship-fixes-3 design D6.
+    """
     if not CHANGE_ID.fullmatch(change_id):
         raise Stop(f"awake: cannot run — not a change id: {change_id}")
     done = subprocess.run(
@@ -42,8 +47,15 @@ def _record(change_id: str) -> Path:
         capture_output=True,
         text=True,
     )
-    if done.returncode != 0:
+    if done.returncode != 0 and "not a git repository" in done.stderr:
         raise Stop("awake: cannot run — not in a git repository")
+    if done.returncode != 0:
+        lines = [line for line in done.stderr.splitlines() if line.strip()]
+        first = lines[0] if lines else f"exit {done.returncode}"
+        raise Stop(
+            f"awake: cannot run — git rev-parse failed: {first};"
+            f" run it as uv run --script {Path(__file__)}"
+        )
     return Path(done.stdout.strip()).parent / ".minions" / "awake" / change_id
 
 

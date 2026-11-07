@@ -43,10 +43,13 @@ SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 GATE_MAKEFILE = re.compile(r"`(?:[^`\s]*/)?Makefile`|`[^`\s]*\.mk`")
 DIRECTORY = re.compile(r": Entering directory [`'](.*)'$")
 READING = re.compile(r"Reading makefile [`'](.+?)'(?: \(|\.\.\.)")
-# `integrate.py`'s: the decisions file, a decision's heading, and a cited id.
+# `integrate.py`'s: the decisions file, a decision's heading, a cited id, a heading
+# with its title, and a plan's citation with its title.
 DECISIONS = "docs/decisions.md"
 DECISION = re.compile(r"^### D(\d+) ", re.MULTILINE)
 CITATION = re.compile(r"(\bD|#d)(\d+)\b")
+TITLED = re.compile(r"^### D(\d+) · (.+)$", re.MULTILINE)
+PLANNED = re.compile(r"\bD(\d+) · ([^*`'\"|\n]+)")
 # `integrate.py`'s: each old-layout path of a change in the run directory.
 OLD_LAYOUT = (
     *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
@@ -239,21 +242,59 @@ def _show(rev: str, path: str) -> str:
     return _git("show", f"{rev}:{path}") if listed else ""
 
 
+def _ids(text: str) -> set[int]:
+    """Return the decision ids `text` heads a section with."""
+    return {int(n) for n in DECISION.findall(text)}
+
+
+def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
+    """Return the ids the plan cites with a title, above the base's, headed nowhere.
+
+    An id `theirs` heads with a title a citation matches is a dependency's. A title
+    matches when one starts with the other: a grep needle cuts a title short.
+    e.g. base D58, plan "D59 · Branch rule", theirs "### D59 · Main rule" → {59}
+    Why: 0086-ship-fixes-3 design D1.
+    """
+    top, taken = max(_ids(base), default=0), _ids(ours)
+    headed = {int(n): title.strip(" .,;:") for n, title in TITLED.findall(theirs)}
+    cited: dict[int, set[str]] = {}
+    for text in plan:
+        for number, title in PLANNED.findall(text):
+            if cut := title.strip(" .,;:"):
+                cited.setdefault(int(number), set()).add(cut)
+    planned = set()
+    for number, titles in cited.items():
+        heading = headed.get(number)
+        dependency = heading is not None and any(
+            heading.startswith(title) or title.startswith(heading) for title in titles
+        )
+        if number > top and number not in taken and not dependency:
+            planned.add(number)
+    return planned
+
+
 def renumbered(merge: str) -> dict[int, int]:
     """Return the decision ids `integrate.py decisions` moves in a merge, by its rule.
 
-    The first parent's new ids move past the second parent's highest, when the
-    lowest collides. e.g. base none, ours D2, theirs D2 → {2: 3}
-    Why: 0066-plan-halts design D3.
+    The first parent's new ids, headed or planned, move past the second parent's
+    highest, when the lowest collides. e.g. base none, ours D2, theirs D2 → {2: 3};
+    base D58, ours plans `D59 · x`, theirs heads `D59 · y` → {59: 60}
+    Why: 0066-plan-halts design D3; 0086-ship-fixes-3 design D2.
     """
     ours, theirs = _git("rev-list", "--parents", "-n", "1", merge).split()[1:]
     base = _git("merge-base", ours, theirs).strip()
-    base_ids, our_ids, their_ids = (
-        {int(n) for n in DECISION.findall(_show(rev, DECISIONS))}
-        for rev in (base, ours, theirs)
+    base_text, our_text, their_text = (
+        _show(rev, DECISIONS) for rev in (base, ours, theirs)
     )
-    top = max(their_ids, default=0)
-    new = sorted(our_ids - base_ids)
+    listing = _git("diff", "--name-only", base, ours, "--", "openspec/changes")
+    plan = [
+        _show(ours, path)
+        for path in listing.splitlines()
+        if not path.startswith("openspec/changes/archive/")
+    ]
+    top = max(_ids(their_text), default=0)
+    planned = _planned(plan, base_text, our_text, their_text)
+    new = sorted((_ids(our_text) - _ids(base_text)) | planned)
     ids: dict[int, int] = {}
     if new and new[0] <= top:
         ids = {old: top + i for i, old in enumerate(new, 1)}

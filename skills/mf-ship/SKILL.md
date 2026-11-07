@@ -124,7 +124,8 @@ secret: <rule> in <file> at <commit>; nothing pushed` — is the person's too: t
 the unpushed history and revoke it, before a re-run; one naming `an octopus merge, which the scan cannot read` is theirs
 as well: they redo it as merges of one branch each. A version still building gets `main` merged in when `main` changed its gate
 since its base; halted because that merge conflicts where no rule settles it, it needs `git -C <tree> merge <default>`,
-resolved, before a re-run, and one halted on that merge left open with no note needs
+resolved, before a re-run — on a clean merge whose decisions rule halted, `git -C <tree> merge --no-ff --no-commit
+<default>`, the ids settled by hand and committed — and one halted on that merge left open with no note needs
 it finished, `git -C <tree> commit`; a built one goes on to integrate. A run with a halt closes on `halted <ids> · blocked <ids> · released <tags> · decided <ids> · needs <id> <action>`, once
 nothing can move: what it released stays released, each `needs` names what that halted version waits on, and a re-run
 resumes the rest. While `origin` cannot be read, a run goes on and releases

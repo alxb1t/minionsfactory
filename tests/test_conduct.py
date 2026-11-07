@@ -917,7 +917,8 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     crash = tmp_path / "crash.py"
     crash.write_text(
         "def delta(tree):\n    raise OSError('no fork')\n\n"
-        "changelog = decisions = delta\n"
+        "def decisions(tree):\n    return 'decisions: none'\n\n"
+        "changelog = delta\n"
     )
     script = module["INTEGRATE"]
     monkeypatch.setitem(module, "INTEGRATE", crash)
@@ -955,6 +956,66 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+
+def test_a_merge_in_renumbers_a_planned_decision(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    based = {"docs/decisions.md": "# Decisions\n\n### D58 · Base\n"}
+    _commit(root, {**based, "CHANGELOG.md": "# Changelog\n"}, "D58")
+    cite = "\nPer **D59 · Marks rule**.\n"
+    waiting = _version(root, "0002-marks", f"- [ ] 1 — Marks\n{cite}")
+    taken = "# Decisions\n\n### D58 · Base\n\n### D59 · Main rule\n"
+    _commit(root, {"docs/decisions.md": taken}, "main takes D59")
+    held_run = conduct["Run"](root, "claude")
+    held_run.git_state = conduct["_git_state"](root)
+
+    # A clean merge whose decisions rule halts names the hand merge, not `git merge`.
+    halted = (
+        "conduct: halt — merging main into 0002-marks is clean, but its decisions"
+        " rule halted — changelog: halt — a side has no ## [Unreleased] heading:"
+        f" git -C {shlex.quote(str(waiting))} merge --no-ff --no-commit main,"
+        " settle the decision ids by hand, commit, then re-run"
+    )
+    with pytest.raises(conduct["Stop"], match=re.escape(halted) + "$"):
+        held_run.merge_in(waiting, "0002-marks", "main")
+    assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    unreleased = {"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"}
+    _commit(waiting, unreleased, "build: an unreleased heading")
+
+    held_run.merge_in(waiting, "0002-marks", "main")
+
+    subject = _git(waiting, "log", "-1", "--format=%s").strip()
+    assert subject == "chore(integrate): merge main into 0002-marks"
+    tasks = (waiting / "openspec/changes/0002-marks/tasks.md").read_text()
+    assert tasks.endswith("\nPer **D60 · Marks rule**.\n")
+    assert _git(waiting, "status", "--porcelain").strip() == ""
+
+
+def test_a_git_failure_names_its_line_and_uv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    assert _main(conduct, outside, "status", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out == "conduct: cannot run — not in a git repository\n"
+
+    arch = "missing compatible architecture (have 'arm64,arm64e', need 'x86_64')"
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    (folder / "git").write_text(f"#!/bin/sh\necho {shlex.quote(arch)} >&2\nexit 1\n")
+    (folder / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    assert _main(conduct, outside, "status", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out == (
+        f"conduct: cannot run — git rev-parse failed: {arch};"
+        f" run it as uv run --script {_SCRIPT}\n"
+    )
 
 
 @pytest.mark.slow

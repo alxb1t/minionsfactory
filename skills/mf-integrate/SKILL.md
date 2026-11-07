@@ -80,7 +80,8 @@ halts.
 **Ready** is every `## Progress` box ticked and every `after:` id in its tree, and both findings files clean, or
 converge skipped: no findings file and no diff patch. A named version whose merge is open with its note is ready:
 `conduct.py` opens the merge of a cut-only branch — a dependent's, or one the default branch passed before its first
-worker — before its build, or of a started one behind a gate change, its changelog and decisions conflicts settled.
+worker — before its build, or of a started one behind a gate change, its changelog conflict settled and its decisions
+rule run on either.
 
 Then, in the worktree:
 
@@ -107,8 +108,8 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    | command | settles |
    |---|---|
    | `changelog <worktree>` | the branch's `## [Unreleased]` entries kept above the default branch's released sections, blank lines intact |
-   | `decisions <worktree>` | the branch's new decision renumbered to the next id free on the default branch, its citations and the group map with it |
-   | `delta <worktree>` | names each MODIFIED or REMOVED requirement of the branch's delta that the default branch changed since the base |
+   | `decisions <worktree>` | the branch's new decision renumbered to the next id free on the default branch, its citations and the group map with it; a decision the plan cites as `D<n> · <title>`, above the base's highest and headed nowhere on the branch, counts as new, unless the default branch's heading of that id carries the title |
+   | `delta <worktree>` | names each MODIFIED or REMOVED requirement of the branch's delta that the default branch changed since the base, save a MODIFIED one whose delta only inserts into the default branch's block and keeps nothing it removed |
 
    `changelog` and `decisions` stage what they write. Exit 2 → **halt**, naming what it printed, the merge left
    open.
@@ -123,9 +124,9 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
 4. **What is left:** a rule that exited 1, or a path `git -C <worktree> diff --name-only --diff-filter=U` prints,
    is a **semantic conflict** → item 5. It is not additive when one side edits what the other removed, two values
    stand for one thing, the designs disagree, a choice between behaviours is open, or both sides changed one
-   requirement (the `delta` rule). On a resumed run the rules ran before the halt, or a cut-only branch — a
-   dependent's, or one the default branch passed before its first worker — gave them nothing to settle, or `conduct.py`
-   settled a started one's changelog and decisions conflicts behind a gate change: only the paths count, and item 3 does not run. Nothing left → Step 4.
+   requirement (the `delta` rule). On a resumed run the rules ran before the halt, or `conduct.py` ran the decisions
+   rule on a cut-only branch's merge — a dependent's, or one the default branch passed before its first worker — or
+   settled a started one's changelog conflict and ran its decisions rule behind a gate change: only the paths count, and item 3 does not run. Nothing left → Step 4.
 5. **Hand it over.** Write `.minions/changes/<change-id>/integrate.md`, then **halt** with the merge in progress. Never
    resolve it against either design, and never `git merge --abort`. For each conflicting file or requirement:
 
@@ -163,7 +164,7 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    | line | for |
    |---|---|
    | `<path>: integrate.py changelog` | `CHANGELOG.md`, when `changelog` wrote it |
-   | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered |
+   | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered — by `conduct.py`'s run of it too, when that moved the plan's ids |
    | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/changes/<change-id>/integrate.resolved` holds |
    | `<path>: the person` | each path the note named, after a note halt |
    | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 or item 4 fixed |
