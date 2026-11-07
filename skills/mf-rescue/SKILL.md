@@ -86,12 +86,14 @@ A fix that needs any path but `openspec/changes/<change-id>/tasks.md` and `desig
 ## Step 3a — The fix
 
 1. Edit `tasks.md`, and `design.md`'s prose where the fix needs it. Tick no box and untick none.
-2. Read each edited `Verify:` once against `HEAD`: it is one command and names files that exist or that a task
+2. A sub-task the fix adds goes in a new unticked phase after the last, with its `## Progress` line: one under a ticked
+   phase is never built.
+3. Read each edited `Verify:` once against `HEAD`: it is one command and names files that exist or that a task
    creates. Run no gate, no build and no test suite.
-3. Stage `openspec/changes/<change-id>/tasks.md` and `design.md` by name — and `proposal.md` under the switch — never
+4. Stage `openspec/changes/<change-id>/tasks.md` and `design.md` by name — and `proposal.md` under the switch — never
    `git add -A`. The build's other dirty paths stay unstaged for the build to continue; a tick it made in `tasks.md`
    goes in with your fix.
-4. One commit:
+5. One commit:
 
    ```
    docs(<change-id>): amend the change directory

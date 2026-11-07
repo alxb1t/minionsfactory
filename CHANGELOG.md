@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
 - A refused supervisor amend is held as a rescue's, never taken as the person's; a grant waits while the supervisor
   runs, and no supervisor runs over a blocking security card (change `0089-supervisor`, phase 2).
+- A new skill, `mf-supervise`, writes the supervisor's one amend; `mf-rescue` and `mf-ship` put an amend's new sub-task
+  in a new phase after the last, and converge reads a `Supervisor:` amend in a round, never by rule (change
+  `0089-supervisor`, phase 3).
 
 ## [0.71.1] - 2026-11-07
 

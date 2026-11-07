@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — The station
 - [x] 2 — The check's refusals
-- [ ] 3 — The skills
+- [x] 3 — The skills
 - [ ] 4 — The record
 
 ## 1 — The station
@@ -64,15 +64,15 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — The skills
 
-- [ ] 3.1 Write `skills/mf-supervise/SKILL.md` to [D7](design.md#d7)'s table, its commit message and [D8](design.md#d8)'s rule.
+- [x] 3.1 Write `skills/mf-supervise/SKILL.md` to [D7](design.md#d7)'s table, its commit message and [D8](design.md#d8)'s rule.
   Verify: `grep -n '^name: mf-supervise$' skills/mf-supervise/SKILL.md` prints a line.
-- [ ] 3.2 Add [D8](design.md#d8)'s item 2 to Step 3a of `skills/mf-rescue/SKILL.md`, renumbering the items after it, the words
+- [x] 3.2 Add [D8](design.md#d8)'s item 2 to Step 3a of `skills/mf-rescue/SKILL.md`, renumbering the items after it, the words
   `new unticked phase after the last` on one line.
   Verify: `grep -n 'new unticked phase after the last' skills/mf-rescue/SKILL.md` prints a line.
-- [ ] 3.3 Edit the flow, the diagnosed and answered rows, and Step 4's close of `skills/mf-ship/SKILL.md`, per
+- [x] 3.3 Edit the flow, the diagnosed and answered rows, and Step 4's close of `skills/mf-ship/SKILL.md`, per
   [D8](design.md#d8) and [D10](design.md#d10), the words `supervisor answered its halt` on one line.
   Verify: `grep -n 'supervisor answered its halt' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 3.4 Add `Supervisor:` to the three `Rescue:` readers of `skills/mf-converge/SKILL.md`, and the supervisor's amend to item
+- [x] 3.4 Add `Supervisor:` to the three `Rescue:` readers of `skills/mf-converge/SKILL.md`, and the supervisor's amend to item
   2's merges and amends, per [D9](design.md#d9).
   Verify: `grep -c 'Supervisor:' skills/mf-converge/SKILL.md` prints `3`.
 
