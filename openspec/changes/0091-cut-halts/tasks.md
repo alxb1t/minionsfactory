@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The brief
-- [ ] 2 — The queue
+- [x] 2 — The queue
 - [ ] 3 — The cut
 - [ ] 4 — The answers
 - [ ] 5 — The record
@@ -32,18 +32,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The queue
 
-- [ ] 2.1 Add modes `cut-packages` and `cut-prose` to `_cut` in `tests/fake_worker.py`, and `dependencies` to `_queued` in
+- [x] 2.1 Add modes `cut-packages` and `cut-prose` to `_cut` in `tests/fake_worker.py`, and `dependencies` to `_queued` in
   `tests/test_conduct.py`, as the design's `## Tests` says.
   Verify: `grep -n 'cut-prose' tests/fake_worker.py` prints a line.
-- [ ] 2.2 Extend `test_parallel_cuts_reserve_apart_and_start_one_run` in `tests/test_conduct.py`, as the design's `## Tests`
+- [x] 2.2 Extend `test_parallel_cuts_reserve_apart_and_start_one_run` in `tests/test_conduct.py`, as the design's `## Tests`
   row says, then `_approved`, `_approval` and the copy in `cut` of `skills/mf-ship/scripts/conduct.py`, per
   [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k parallel_cuts_reserve_apart_and_start_one_run` reports `1 passed`.
-- [ ] 2.3 Add the `0005-p` step to `test_a_queued_cut_is_cut_then_built`, and the `0021-q` loop entry and the `0020-p` halt
+- [x] 2.3 Add the `0005-p` step to `test_a_queued_cut_is_cut_then_built`, and the `0021-q` loop entry and the `0020-p` halt
   to `test_a_cut_halt_is_shown_and_rejoin_cuts_again`, in `tests/test_conduct.py`, then `_unapproved` and its call in
   `Run.cutting` of `skills/mf-ship/scripts/conduct.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_halt_is_shown_and_rejoin_cuts_again` reports `1 passed`.
-- [ ] 2.4 Add the `0020-p` rejoin steps to `test_a_cut_halt_is_shown_and_rejoin_cuts_again`, as the design's `## Tests` row
+- [x] 2.4 Add the `0020-p` rejoin steps to `test_a_cut_halt_is_shown_and_rejoin_cuts_again`, as the design's `## Tests` row
   says, then `_approval`'s use in `rejoin` of `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k "queued_cut_is_cut_then_built or cut_halt_is_shown"` reports `2 passed`.
 

@@ -639,6 +639,25 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     return None
 
 
+def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | None:
+    """Return why the cut's `design.md` lists a package `approved` does not hold.
+
+    None when it lists none. A constraint is approved as written.
+    Why: 0091-cut-halts design D4.
+    """
+    design = _show(primary, change, f"openspec/changes/{change}/design.md")
+    rows = _rows(design or "", DEPENDENCIES)
+    if rows is None or (rows and rows[0][:2] != ["package", "constraint"]):
+        return (
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why"
+        )
+    added = [f"{row[0]} {row[1]}" for row in rows[1:] if row[:2] not in approved]
+    if added:
+        return f"design.md adds what the brief did not approve: {', '.join(added)}"
+    return None
+
+
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
     """Return each change's old-layout files, each with its path in the change's folder.
 
@@ -3979,6 +3998,8 @@ class Run:
                     why = next(r for who, r in reversed(self.halts) if who == change)
                 return why, True
         why = _check_cut(primary, change, tree)
+        if why is None:
+            why = _unapproved(primary, change, entry.get("dependencies", []))
         result = "pass" if why is None else f"fail — {why}"
         self.log.event(change, "check", f"cut · {result}")
         if why is not None:
@@ -4960,6 +4981,38 @@ def _rows(text: str, heading: str) -> list[list[str]] | None:
     return [table[0], *table[2:]]
 
 
+def _approved(text: str, slug: str) -> list[list[str]] | None:
+    """Return `[package, constraint]` per `## Dependencies` row whose item is `slug`.
+
+    None for a section out of shape. Why: 0091-cut-halts design D3.
+    """
+    rows = _rows(text, DEPENDENCIES)
+    if rows is None or rows[:1] not in ([], [APPROVED]):
+        return None
+    return [
+        [package, constraint]
+        for item, package, constraint, _ in rows[1:]
+        if item == slug
+    ]
+
+
+def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
+    """Return the packages the brief at `path` approves for `slug`, or stop with 2."""
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        raise Stop(
+            2, f"{command}: cannot run — the brief {path} cannot be read"
+        ) from None
+    if (approved := _approved(text, slug)) is None:
+        raise Stop(
+            2,
+            f"{command}: cannot run — the brief's ## Dependencies is neither None."
+            " nor a table of item · package · constraint · why",
+        )
+    return approved
+
+
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
     """Write a queued cut's entry whole: to a temporary name, then moved in."""
     folder = _queue(primary) / "cuts"
@@ -4999,8 +5052,9 @@ def cut(
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    The live run takes it; with none live, a run starts. Why: 0082-cut-station
-    design D1.
+    The entry holds the packages the brief approves for `slug`. The live run takes
+    it; with none live, a run starts. Why: 0082-cut-station design D1; 0091-cut-halts
+    design D3.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
@@ -5014,6 +5068,7 @@ def cut(
     moved = "move the brief into a folder of its own"
     if why := _brief_refused(path.resolve(), executor, moved):
         raise Stop(2, f"cut: cannot run — {why}")
+    approved = _approval(path.resolve(), slug, "cut")
     ids = after.removeprefix("after=").split(",") if after else []
     primary = primary_of(cwd)
     with _queue_lock(primary):
@@ -5044,6 +5099,7 @@ def cut(
             "model": model,
             "effort": effort,
             "halt": None,
+            "dependencies": approved,
         }
         _write_cut(primary, change, entry)
         if live:
@@ -5088,9 +5144,10 @@ def _requested(queue: Path) -> bool:
 def rejoin(cwd: Path, change: str | None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    A queued cut's halt is cleared first; with no run live, one starts for it. An
-    unreadable entry stops with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station
-    design D3, D6.
+    A queued cut's halt is cleared first, its brief's packages copied again; with no
+    run live, one starts for it. An unreadable entry or brief stops with 2, kept.
+    Why: 0063-rejoin design D1; 0082-cut-station design D3, D6; 0091-cut-halts
+    design D3.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
@@ -5104,7 +5161,11 @@ def rejoin(cwd: Path, change: str | None) -> str:
                     f"rejoin: cannot run — the queue entry {name} is unreadable: remove"
                     " it, then queue the cut again",
                 )
-            _write_cut(primary, change, {**entry, "halt": None})
+            slug = change.split("-", 1)[1]
+            approved = _approval(Path(entry["brief"]), slug, "rejoin")
+            _write_cut(
+                primary, change, {**entry, "halt": None, "dependencies": approved}
+            )
             if live:
                 _request(primary, change)
                 return f"rejoin: requested {change}"

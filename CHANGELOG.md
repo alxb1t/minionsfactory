@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A hard brief holds `## Dependencies`, `None.` or a row per approved package, and `brief_check.py` reads
   `## For the cut` by a line grammar, holds checked lines to `isprintable()` and each checked heading to one form, so
   no unparsed form reaches the cut (change `0091-cut-halts`, phase 1).
+- `conduct.py cut`, and a `rejoin` of a queued cut, copy the item's `## Dependencies` rows into the home queue, and the
+  cut station halts a cut whose `design.md` lists a package or constraint outside them, never reading the brief for
+  approval (change `0091-cut-halts`, phase 2).
 
 ## [0.73.0] - 2026-11-07
 

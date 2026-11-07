@@ -2946,6 +2946,7 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         "model": None,
         "effort": None,
         "halt": None,
+        "dependencies": [],
     }
     assert cuts == dict.fromkeys(cuts, entry)
     reserved = root / ".minions" / "cuts"
@@ -3005,14 +3006,29 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     capsys.readouterr()
     alone = tmp_path / "alone" / "brief.md"
     alone.parent.mkdir()
-    alone.write_text("# brief\n")
+    alone.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| d | left-pad | 1.3.0 | a pad |\n"
+        "| other | a | 1 | b |\n| d | `right-pad` | ^2 | a pad |\n"
+    )
     args = ("cut", "d", "patch", f"brief={alone}", "--executor", "codex")
     args += ("--model", "opus")
     assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
     picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
     picked["brief"] = str(alone.resolve())
+    picked["dependencies"] = [["left-pad", "1.3.0"], ["right-pad", "^2"]]
     assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
+    # A brief whose `## Dependencies` is prose reserves nothing.
+    before = sorted(os.listdir(reserved))
+    prose = tmp_path / "prose" / "brief.md"
+    prose.parent.mkdir()
+    prose.write_text("# brief\n\n## Dependencies\n\nleft-pad, any version\n")
+    assert refused("e", "minor", f"brief={prose}") == (
+        f"{cannot}the brief's ## Dependencies is neither None. nor a table of"
+        " item · package · constraint · why"
+    )
+    assert sorted(os.listdir(reserved)) == before
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
@@ -3205,6 +3221,7 @@ def _queued(
     after: tuple[str, ...] = (),
     executor: str = "claude",
     halt: str | None = None,
+    dependencies: tuple[tuple[str, str], ...] = (),
 ) -> None:
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
@@ -3218,6 +3235,7 @@ def _queued(
         "model": None,
         "effort": None,
         "halt": halt,
+        "dependencies": [list(row) for row in dependencies],
     }
     conduct["_write_cut"](root, change, entry)
 
@@ -3289,6 +3307,15 @@ def test_a_queued_cut_is_cut_then_built(
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert "cut-change 0004-c" not in _calls(calls)
     assert "release 0004-c" in _calls(calls)
+
+    # A cut whose `design.md` lists only the packages its entry approves passes.
+    approved = (("left-pad", "1.3.0"), ("right-pad", "^2"))
+    _queued(conduct, root, "0005-p", brief, dependencies=approved)
+    calls.unlink()
+    fake("cut-packages")
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert any(line.endswith(" · 0005-p · check — cut · pass") for line in _log(root))
+    assert "release 0005-p" in _calls(calls)
 
 
 def test_a_cut_brief_reaches_the_supervisor(
@@ -3430,6 +3457,12 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         ("0005-d", "cut-dirty", "the tree is not clean"),
         ("0006-m", "cut-bare", "no .minions/changes/0006-m/models.toml"),
         ("0007-x", "dies-cut", "cut worker exit 1"),
+        (
+            "0021-q",
+            "cut-prose",
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why",
+        ),
     ):
         _queued(conduct, root, change, brief)
         fake(mode)
@@ -3439,6 +3472,55 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         assert any(entry.endswith(logged) for entry in _log(root)) != (
             mode == "dies-cut"
         )
+
+    # A package the entry does not approve halts the cut, naming it.
+    packages = tmp_path / "packages.md"
+    packages.write_text("# brief\n")
+    left = (("left-pad", "1.3.0"),)
+    _queued(conduct, root, "0020-p", packages, dependencies=left)
+    fake("cut-packages")
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    unapproved = "design.md adds what the brief did not approve: right-pad ^2"
+    assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    logged = f" · 0020-p · halt — cut-halted — {unapproved}"
+    assert any(entry.endswith(logged) for entry in _log(root))
+    # A rejoin copies the brief's rows again; one it cannot read keeps the halt.
+    names["_start_run"] = lambda primary, executor: 4242
+    packages.unlink()
+    for text, refusal in (
+        (None, f"the brief {packages} cannot be read"),
+        (
+            "# brief\n\n## Dependencies\n\nleft-pad, any version\n",
+            "the brief's ## Dependencies is neither None. nor a table of"
+            " item · package · constraint · why",
+        ),
+    ):
+        if text is not None:
+            packages.write_text(text)
+        with pytest.raises(conduct["Stop"]) as refused:
+            conduct["rejoin"](root, "0020-p")
+        assert (refused.value.code, str(refused.value)) == (
+            2,
+            f"rejoin: cannot run — {refusal}",
+        )
+        assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    packages.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
+        "| p | right-pad | ^2 | a pad |\n"
+    )
+    conduct["rejoin"](root, "0020-p")
+    assert conduct["_cuts"](root)["0020-p"]["dependencies"] == [
+        ["left-pad", "1.3.0"],
+        ["right-pad", "^2"],
+    ]
+    names["_start_run"] = start
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert "cut-change 0020-p" not in _calls(calls)
+    assert any(line.endswith(" · 0020-p · check — cut · pass") for line in _log(root))
+    assert "release 0020-p" in _calls(calls)
 
     # A crash in the station sets its halt, a stop's line or `conduct.py failed`.
     def broken(primary: Path, change: str, tree: Path) -> str | None:

@@ -306,6 +306,25 @@ def _supervise(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
         _commit(tree, {f"{folder}/design.md": prose}, f"{subject}Supervisor: R1")
 
 
+# A fenced brief table opens it, so the station must skip a quoted example.
+_PACKAGES = """\
+# design
+
+```markdown
+## Dependencies
+| item | package | constraint | why |
+|---|---|---|---|
+| first-call | livekit-client | ^2.5.0 | the browser's audio |
+```
+
+## Dependencies
+| package | constraint | why |
+|---|---|---|
+| left-pad | 1.3.0 | a pad |
+| right-pad | ^2 | a pad |
+"""
+
+
 def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -> None:
     """Commit the change directory, write its models file; or halt, die, fall short."""
     folder = _folder(primary, change)
@@ -324,6 +343,10 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
         f"{spec}/proposal.md": f"---\nbump: {bump}\n{line}---\n",
         f"{spec}/tasks.md": "## Progress\n\n- [ ] 1 — One\n",
     }
+    if "cut-packages" in modes:
+        files[f"{spec}/design.md"] = _PACKAGES
+    if "cut-prose" in modes:
+        files[f"{spec}/design.md"] = "## Dependencies\n\nleft-pad, any version\n"
     if "cut-empty" in modes:
         files = {"cut.txt": "x\n"}
     _commit(tree, files, f"docs({change}): land the change directory")
