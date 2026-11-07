@@ -30,6 +30,7 @@ CONDUCT = Path(__file__).resolve().parents[2] / "mf-ship" / "scripts" / "conduct
 AT = re.compile(r"At ([0-9a-f]{7,40}), (\d{4}-\d{2}-\d{2})\.")
 ITEM = re.compile(r"- |\d+\. |\| ")
 HEAD = re.compile(r"(\d+)\. (.*)")
+MARKER = re.compile(r"(?:[-*+]|\d+[.)])(?:\s|$)|\|")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 CHECKED = ("## Decisions", "## For the cut")
@@ -149,14 +150,19 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    A head is an item opening `<n>. `; its `- models:` item follows it. An item with
-    no indent opens a head.
+    A head is an item opening `<n>. `; its `- models:` item follows it. A line opening
+    a list marker or `| ` short of the last head's text column, or of four spaces
+    before any head, is a top-level item and opens a head.
     """
-    found = [
-        f"not a numbered item: `{line.rstrip()}`"
-        for line in lines
-        if ITEM.match(line) and not HEAD.match(line)
-    ]
+    found: list[str] = []
+    column = 4
+    for line in lines:
+        text = line.expandtabs(4).lstrip()
+        at = len(line.expandtabs(4)) - len(text)
+        if (opened := HEAD.match(text)) and at < column:
+            column = at + len(opened[1]) + 2
+        elif MARKER.match(text) and at < column:
+            found.append(f"not a numbered item: `{line.rstrip()}`")
     numbers: list[str] = []
     named: set[str] = set()
     for item in items(lines):

@@ -49,6 +49,10 @@ None.
     naming it (`0076·R3`).
   - *A hard brief is checked before it is queued* — MODIFIED: an item that does not open `<n>. `, and a head with a second
     `after:`, halt (`0083·S3`).
+  - *Converge keeps a status log* — MODIFIED: each line and run heading is written by `stamp.py`, which takes the clock's
+    time, not taken from `date` (`hand·N1`).
+  - *A halt stops only its version, and a re-run resumes* — MODIFIED: a file at `.minions/debt.lock` is among the halts that
+    need the person (`0079·R5`).
 
 ## Impact
 

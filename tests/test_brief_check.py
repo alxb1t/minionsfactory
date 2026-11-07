@@ -125,6 +125,25 @@ def test_a_brief_out_of_shape_halts(
         " `- **x;y** · minor · after: none`",
         "brief: halt — ## For the cut: item 5 — more than one after:",
     ]
+    # Any other list marker, or an indent short of the head's text, opens no number.
+    markers = _READY + (
+        "* **x;touch-p** · minor · after: none\n"
+        " - **y;touch-p** · minor · after: none\n"
+        "+ **z** · minor · after: none\n"
+        "  2) **w** · minor · after: none\n"
+        "   * a nested note\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, markers))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `* **x;touch-p** · minor · after: none`",
+        "brief: halt — ## For the cut: not a numbered item:"
+        " ` - **y;touch-p** · minor · after: none`",
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `+ **z** · minor · after: none`",
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `  2) **w** · minor · after: none`",
+    ]
 
 
 def test_what_cannot_be_checked_exits_2(
