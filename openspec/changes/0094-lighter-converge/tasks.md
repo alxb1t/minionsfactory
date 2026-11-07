@@ -7,7 +7,7 @@ before this build: find each section by its heading, never by a line number.
 
 - [x] 1 — Worker models
 - [x] 2 — The bundle
-- [ ] 3 — Security by recomputation
+- [x] 3 — Security by recomputation
 - [ ] 4 — The record
 
 ## 1 — Worker models
@@ -52,25 +52,25 @@ before this build: find each section by its heading, never by a line number.
 
 ## 3 — Security by recomputation
 
-- [ ] 3.1 Add `skills/mf-converge/scripts/surfaces.py`, per [D8](design.md#d8), and `tests/test_surfaces.py`, as the design's
+- [x] 3.1 Add `skills/mf-converge/scripts/surfaces.py`, per [D8](design.md#d8), and `tests/test_surfaces.py`, as the design's
   `## Tests` names its tests.
   Verify: `uv run pytest -q tests/test_surfaces.py` reports `2 passed`.
-- [ ] 3.2 Add `surfaces.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
+- [x] 3.2 Add `surfaces.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`, per [D8](design.md#d8).
   Verify: `grep -n '"scripts/surfaces.py"' tests/test_skills.py` prints a line.
-- [ ] 3.3 Add the surfaces run and the security head by rule to Step 7 of `skills/mf-converge/SKILL.md`, per [D8](design.md#d8).
+- [x] 3.3 Add the surfaces run and the security head by rule to Step 7 of `skills/mf-converge/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n 'scripts/surfaces.py' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.4 Edit the status log's `by rule` row, the resume table's `by rule` row and *Never*'s findings-file line in
+- [x] 3.4 Edit the status log's `by rule` row, the resume table's `by rule` row and *Never*'s findings-file line in
   `skills/mf-converge/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n 'review dispatch' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.5 Add `## Surfaces` and the *Out of scope* sentence to `THREAT_MODEL.md`, per [D8](design.md#d8).
+- [x] 3.5 Add `## Surfaces` and the *Out of scope* sentence to `THREAT_MODEL.md`, per [D8](design.md#d8).
   Verify: `grep -n '^## Surfaces' THREAT_MODEL.md` prints a line.
-- [ ] 3.6 Add `## Surfaces` to `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl`, per [D8](design.md#d8).
+- [x] 3.6 Add `## Surfaces` to `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl`, per [D8](design.md#d8).
   Verify: `grep -n '^## Surfaces' skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl` prints a line.
-- [ ] 3.7 Add the `fix-surfaces` mode to `tests/fake_worker.py` and `test_a_fix_reaching_no_surface_takes_security_by_rule` to
+- [x] 3.7 Add the `fix-surfaces` mode to `tests/fake_worker.py` and `test_a_fix_reaching_no_surface_takes_security_by_rule` to
   `tests/test_conduct.py`, as the design's `## Tests` says.
   Verify: `uv run pytest -q tests/test_conduct.py -k fix_reaching_no_surface` reports `1 passed`.
-- [ ] 3.8 Add the recomputed security head and its test to *Nothing reads as clean by being absent* in `docs/principles.md`, per
+- [x] 3.8 Add the recomputed security head and its test to *Nothing reads as clean by being absent* in `docs/principles.md`, per
   [D8](design.md#d8).
   Verify: `grep -n 'test_a_fix_that_reaches_no_surface_is_by_rule' docs/principles.md` prints a line.
 

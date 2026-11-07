@@ -91,7 +91,7 @@ The events, and no others:
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
-| `by rule` | `### By rule` | `clean`, then each merge's paths as `replay` printed them |
+| `by rule` | `### By rule`, Step 7 | `clean`, then each merge's paths as `replay` printed them, or `no surface` |
 | `debt` | Step 9 | the cards written, moot and cleared, by id |
 | `halt` | wherever this skill halts | the reason, as reported, then `· head <sha>` |
 | `done` | Step 10 | rounds used, cards to the debt |
@@ -174,7 +174,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
-| `by rule` | Step 9 |
+| `by rule` | a catch-up run → Step 9; else Step 7's review dispatch |
 
 ## Catch-up round
 
@@ -370,9 +370,24 @@ record drifts.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
-workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
-own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
+Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log.
+
+**The security head by rule:** after a Step 6 commit, run
+`uv run --script <this package>/scripts/surfaces.py .minions/changes/<change-id>/security.md <previous head> <new head>`,
+the re-freeze's range.
+
+- **Exit 0** → in the security file set `head:` to `HEAD`, `round:` to this round, `reviewed:` to today,
+  `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`; add
+  `- <previous head>..<new head>: no surface` under a `## By rule` section above its `## Resolution log`; append
+  `<date> · round N · by rule: no surface` to the log; write `by rule` to the status log,
+  `round N · by rule — no surface`; and dispatch review alone. Step 5 reads that file for `verdict: clean` and its
+  `head:` alone, with no `verdicts` line.
+- **Exit 1** → dispatch both. Exit 2, or `uv` missing → **halt**, naming what it printed.
+- A catch-up run, its fix round and an `· amend` run's included, and a fixer that committed nothing, run no
+  `surfaces.py`: dispatch both.
+
+Dispatch review, and security unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's inputs and
+dispatch rules, and write `fan-out`. Also pass each its own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
 runs included. Read the verdicts from disk under Step 5.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
@@ -443,7 +458,8 @@ Write `done` to the status log. The last line: `Next: /mf-release, in a fresh se
 
 - **Never review in your own context.** Fresh workers cannot be dispatched, awaited and read from shared disk →
   **halt and say so**; never report a verdict you produced.
-- **Never edit a findings file**, save [By rule](#by-rule)'s write. The stations own their files; you read them.
+- **Never edit a findings file**, save [By rule](#by-rule)'s write and Step 7's security head by rule. The stations
+  own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert only: the log is the record of what the loop did.
 - **Never pick a non-`drift` card sized `a design change`, or an older debt card.** Pickup takes this run's

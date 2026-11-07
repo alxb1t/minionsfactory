@@ -71,6 +71,26 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting
   the same settle bound.
 
+## Surfaces
+
+The path globs a converge fix reaches security through: `skills/mf-converge/scripts/surfaces.py` matches each with
+`fnmatch`, whose `*` crosses `/`, and a fix touching none takes its security head by rule.
+
+- `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
+- `scripts/*` — the metric scripts the gate and the collector run.
+- `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
+- `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
+- `skills/mf-release/SKILL.md` — the merge and push on the person's yes.
+- `skills/mf-converge/references/generic-security.md` — what security checks.
+- `Makefile` — the gate's recipe.
+- `.betterleaks.toml` — the secret scan's allowlist.
+- `.gitignore` — what git can track, and so what the scan reads.
+- `pyproject.toml` — the dependencies and the tools' settings.
+- `uv.lock` — the pinned dependencies.
+- `.github/*` — CI and its tools.
+- `AGENTS.md` — `Ship tools:` and `Ship network:`, which reach every worker's sandbox.
+- `THREAT_MODEL.md` — this file: what security weighs, and this list.
+
 ## Out of scope
 
 - A malicious operator, and the host CLI's own security.
@@ -99,7 +119,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
-  one a version a run.
+  one a version a run. So is the security head by rule: it reads the security file's cards, which a worker writes, so a
+  forged Status skips one verify.
 
 ## Known gaps
 

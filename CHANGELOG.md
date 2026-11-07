@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge writes `bundle.md` at each freeze with `skills/mf-converge/scripts/bundle.py` — the decisions the change
   cites, in full, an index of all, and the living requirements its delta modifies or removes — and each worker reads it
   in place of `docs/decisions.md` and the living specs (change `0094-lighter-converge`, phase 2).
+- `THREAT_MODEL.md` and the bootstrap's template gain `## Surfaces`; `skills/mf-converge/scripts/surfaces.py` gives a fix
+  that touches none, with no security card awaiting its checker, its security head by rule, and review alone verifies
+  it (change `0094-lighter-converge`, phase 3).
 
 ## [0.74.0] - 2026-11-07
 
