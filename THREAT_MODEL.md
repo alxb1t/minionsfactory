@@ -68,7 +68,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
   in the home folder, where no worker writes, so no worker names that brief. A passed cut's brief path stays there, in
   `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor tried, so no worker
-  buys a second try.
+  forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting
+  the same settle bound.
 
 ## Out of scope
 
@@ -91,7 +92,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
   rule, decision check or delta bound, and a catch-up passes it by rule. At an integrate note the supervisor stages spec and
   docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
-  `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; converge judges that merge
+  `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
+  integrate's merge holds a path past the checked tree but a test its body names fixed, and converge judges that merge
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most

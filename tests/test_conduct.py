@@ -2575,6 +2575,32 @@ def test_a_supervisor_settle_outside_the_text_halts(
         f"supervisor moved HEAD off {start.head[:7]}",
     )
 
+    # The merge integrate commits holds the settled tree, save a test it names fixed.
+    kept = conduct["_settle_kept"]
+
+    def merged(name: str, files: dict[str, str], body: str) -> tuple[Path, str]:
+        repo, start = conflicted(name)
+        resolve(repo)
+        mark(repo)
+        staged = settled(repo, repo, change, start)[0]
+        assert staged is not None
+        for path, text in files.items():
+            (repo / path).parent.mkdir(parents=True, exist_ok=True)
+            (repo / path).write_text(text)
+            _git(repo, "add", path)
+        _git(repo, "commit", "-q", "-m", f"merge\n\n{body}")
+        return repo, staged
+
+    repo, staged = merged("kept", {}, "docs/a.md: the supervisor")
+    assert kept(repo, staged) is None
+
+    repo, staged = merged("past-the-settle", {"src.py": "x = 1\n"}, "")
+    assert kept(repo, staged) == "the merge holds src.py past the supervisor's settle"
+
+    fixed = {"tests/test_a.py": "assert True\n"}
+    repo, staged = merged("test-fixed", fixed, "tests/test_a.py: test fixed — kept")
+    assert kept(repo, staged) is None
+
 
 def test_a_linked_rejoin_folder_deletes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

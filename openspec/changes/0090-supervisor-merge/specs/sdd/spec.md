@@ -33,7 +33,8 @@ on in the same thread, with no restart and no wait for a poll. At an `integratin
 `openspec/` or `docs/`, the work tree holds nothing unstaged or untracked, no path stays unmerged, and `integrate.settled` was
 written during the station's run. It SHALL then clear the version's halt and its diagnosis, log
 `supervise — <id>: decided · integrating · <tree>`, `<tree>` the staged tree, and spawn `mf-integrate` `with settled=supervisor`
-in the same thread. Any other outcome SHALL halt the version, naming what the station left; at a converge halt, an answer on
+in the same thread, halting the version when the merge commit holds a path past that tree other than a test its body names
+fixed. Any other outcome SHALL halt the version, naming what the station left; at a converge or integrate halt, an answer on
 disk SHALL then hold the version for a re-run as the rescue's does, the halt reading `supervisor answered its halt`, and the
 person's amends alone, none carrying a `Rescue:` or `Supervisor:` trailer, SHALL go on. A version SHALL get one supervisor try
 per halt and at most `SUPERVISES = 2` in a run; a halt the supervisor tried before SHALL name ` · supervised <sub-tasks>`. A

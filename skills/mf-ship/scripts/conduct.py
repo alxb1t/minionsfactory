@@ -2353,6 +2353,24 @@ def _settled(
     return _git(tree, "write-tree").strip(), ""
 
 
+def _settle_kept(tree: Path, staged: str) -> str | None:
+    """Return why integrate's merge holds more than the settled tree, or None.
+
+    The newest first-parent merge may differ from `staged` only by the tests its
+    body names `test fixed`: `_settled` checks the index once, before integrate
+    commits it. Why: 0090-supervisor-merge security S2.
+    """
+    merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    body = _git(tree, "log", "-1", "--format=%b", merge).splitlines()
+    fixed = {
+        line.split(": test fixed", 1)[0] for line in body if ": test fixed" in line
+    }
+    moved = set(_git(tree, "diff", "--name-only", staged, f"{merge}^{{tree}}").split())
+    if past := sorted(moved - fixed):
+        return f"the merge holds {' '.join(past)} past the supervisor's settle"
+    return None
+
+
 def _mtime(path: Path) -> int | None:
     """Return a regular file's modification time in nanoseconds, else None."""
     try:
@@ -3046,7 +3064,8 @@ class Run:
         self.decides: set[str] = set()
         self.decided: list[str] = []
         self.supervisions: dict[str, list[str]] = {}
-        self.settled: set[str] = set()
+        # Each settle `_settled` took, by change: the tree integrate must commit.
+        self.settled: dict[str, str] = {}
         self.supervisor_decided: list[str] = []
         self.diagnosed: set[str] = set()
         # Each halted version's stage, why and `HEAD` on disk at its halt, and a
@@ -3379,7 +3398,7 @@ class Run:
                         self.diagnosed.discard(change)
                         self.supervisor_decided.append(change)
                         if start is not None:
-                            self.settled.add(change)
+                            self.settled[change] = sha
                 else:
                     self.halt(change, why or nothing)
         finally:
@@ -3560,9 +3579,10 @@ class Run:
         converge or integrate halt then gets its rescue, and its supervisor after it. A
         halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
         taken amend, at a halt met on entry or after a check, goes on. A supervisor's
-        taken settle goes on to integrate. Why: 0070-cap-policy design D2, D3;
-        0084-ship-fixes-2 design D1; 0085-self-healing-ship design D1;
-        0089-supervisor design D1; 0090-supervisor-merge design D4.
+        taken settle goes on to integrate, whose merge must hold the settled tree.
+        Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
+        0085-self-healing-ship design D1; 0089-supervisor design D1;
+        0090-supervisor-merge design D4, security S2.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -3621,12 +3641,8 @@ class Run:
                             f"{version.change}: one more round past the cap",
                         )
                 with self.guard:
-                    settled = (
-                        " with settled=supervisor"
-                        if version.change in self.settled
-                        else ""
-                    )
-                    self.settled.discard(version.change)
+                    staged = self.settled.pop(version.change, None)
+                settled = "" if staged is None else " with settled=supervisor"
                 prompt = PROMPTS[stage].format(
                     change=version.change, grant=clause, settled=settled
                 )
@@ -3646,6 +3662,9 @@ class Run:
                     self.waited(str(down))
                     self.offline = True
                     reason = check(self.primary, stage, version, True, True)
+                merged = version.tree if stage == "integrate" else None
+                if reason is None and staged is not None and merged is not None:
+                    reason = _settle_kept(merged, staged)
                 held = None if reason is None else self.held(version, stage, cwd)
                 spent = "" if held is None else self.rescued(version.change, held)
                 if held is not None:
