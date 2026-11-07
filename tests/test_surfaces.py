@@ -40,18 +40,20 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def _commit(root: Path, path: str, text: str = "fixed\n") -> str:
+    """Commit `text` at `path` and return the new head."""
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text(text)
+    _git(root, "add", path)
+    _git(root, "commit", "-q", "-m", path)
+    return _git(root, "rev-parse", "HEAD")
+
+
 def _fix(root: Path, path: str) -> tuple[str, str]:
     """Return the heads before and after a fix that touches `path`."""
     _git(root, "init", "-q", "-b", "main")
-    (root / "THREAT_MODEL.md").write_text(_THREATS)
-    _git(root, "add", ".")
-    _git(root, "commit", "-q", "-m", "base")
-    start = _git(root, "rev-parse", "HEAD")
-    (root / path).parent.mkdir(parents=True, exist_ok=True)
-    (root / path).write_text("fixed\n")
-    _git(root, "add", ".")
-    _git(root, "commit", "-q", "-m", "fix")
-    return start, _git(root, "rev-parse", "HEAD")
+    start = _commit(root, "THREAT_MODEL.md", _THREATS)
+    return start, _commit(root, path)
 
 
 def _security(root: Path, verdict: str = "clean", status: str = "verified") -> Path:
@@ -101,26 +103,57 @@ def test_a_fix_that_reaches_security_is_verified(
         "surfaces: verify — skills/x/scripts/y.py matches skills/*/scripts/*\n",
     )
 
-    for status in ("fixed", "wontfix"):
+    # A path git would quote is matched as it is named.
+    quoted = _commit(tmp_path, "skills/x/scripts/helper_é.py")
+    assert _run(capsys, security, end, quoted) == (
+        1,
+        "surfaces: verify — skills/x/scripts/helper_é.py matches skills/*/scripts/*\n",
+    )
+
+    # The list is read at `<from>`, so a fix cannot drop the glob its own edit matches.
+    _commit(tmp_path, "THREAT_MODEL.md", _THREATS.replace("skills/*/", "docs/"))
+    edited = _commit(tmp_path, "skills/x/scripts/z.py")
+    assert _run(capsys, security, quoted, edited) == (
+        1,
+        "surfaces: verify — skills/x/scripts/z.py matches skills/*/scripts/*\n",
+    )
+
+    # A Status off the card's exact form is not settled: only `verified` and
+    # `accepted` are.
+    for status, said in (
+        ("fixed", "fixed"),
+        ("wontfix", "wontfix"),
+        ("**fixed**", "fixed"),
+        ("*open*", "open"),
+        ("Fixed", "Fixed"),
+    ):
         _security(tmp_path, status=status)
         assert _run(capsys, security, start, start) == (
             1,
-            f"surfaces: verify — security card S1 is {status}\n",
+            f"surfaces: verify — security card S1 is {said}\n",
         )
+    security.write_text("---\nverdict: clean\n---\n\n- **S1 — a finding**\n")
+    assert _run(capsys, security, start, start) == (
+        1,
+        "surfaces: verify — security card S1 is unsettled\n",
+    )
     _security(tmp_path, verdict="changes-requested")
     assert _run(capsys, security, start, start) == (
         1,
         "surfaces: verify — security.md is not clean\n",
     )
 
+    # A threat model that lists no glob at `<from>`, or holds no file there.
     _security(tmp_path)
-    (tmp_path / "THREAT_MODEL.md").write_text("# threat model\n\n## Out of scope\n")
-    assert _run(capsys, security, start, start) == (
-        1,
-        "surfaces: verify — THREAT_MODEL.md lists no surface\n",
-    )
+    bare = _commit(tmp_path, "THREAT_MODEL.md", "# threat model\n\n## Out of scope\n")
+    _git(tmp_path, "rm", "-q", "THREAT_MODEL.md")
+    _git(tmp_path, "commit", "-q", "-m", "gone")
+    for head in (bare, _git(tmp_path, "rev-parse", "HEAD")):
+        assert _run(capsys, security, head, head) == (
+            1,
+            "surfaces: verify — THREAT_MODEL.md lists no surface\n",
+        )
 
-    (tmp_path / "THREAT_MODEL.md").write_text(_THREATS)
     code, said = _run(capsys, security, "nowhere", end)
     assert code == 2 and said.startswith("surfaces: cannot read — git diff failed: ")
     security.unlink()

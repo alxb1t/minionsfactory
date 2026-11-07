@@ -7,9 +7,10 @@
     surfaces.py <security.md> <from> <to>
 
 Run from the repository root. Exit 0, `surfaces: no surface`: the security file is
-clean, no card awaits its checker, and no path of `<from>..<to>` matches a glob of
-`THREAT_MODEL.md`'s `## Surfaces`. Exit 1, `surfaces: verify — <reason>`, the first
-that holds. Exit 2, `surfaces: cannot read — <why>`.
+clean, every card `verified` or `accepted`, and no path of `<from>..<to>` matches a
+glob of `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds it. Exit 1,
+`surfaces: verify — <reason>`, the first that holds. Exit 2,
+`surfaces: cannot read — <why>`.
 Why: 0094-lighter-converge design D8.
 """
 
@@ -21,11 +22,12 @@ import sys
 from pathlib import Path
 
 THREAT_MODEL = Path("THREAT_MODEL.md")
-# A `wontfix` waits too: the fixer's claim, or an amend card's, which stays `wontfix`.
-AWAITING = ("open", "fixed", "wontfix")
+# Settled by an allowlist: any other Status, one off the card's form or none at all,
+# waits for its checker. A `wontfix` waits too, an amend card's staying `wontfix`.
+SETTLED = ("verified", "accepted")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
-STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*`?(\w*)", re.MULTILINE)
+STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*[`*_]*(\w*)", re.MULTILINE)
 GLOB = re.compile(r"^- `([^`]+)`", re.MULTILINE)
 
 
@@ -59,19 +61,26 @@ def decide(security: Path, start: str, end: str) -> None:
     ends = [card.start() for card in starts[1:]] + [len(text)]
     for card, end_at in zip(starts, ends[: len(starts)], strict=True):
         status = STATUS.search(text, card.end(), end_at)
-        if status and status[1] in AWAITING:
-            raise Verify(f"security card {card[1]} is {status[1]}")
-    listed = surfaces(THREAT_MODEL.read_text()) if THREAT_MODEL.is_file() else []
-    if not listed:
-        raise Verify(f"{THREAT_MODEL} lists no surface")
+        said = status[1] if status else ""
+        if said not in SETTLED:
+            raise Verify(f"security card {card[1]} is {said or 'unsettled'}")
     done = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", start, end],
+        # `-z`: else git quotes a path holding an unusual byte, and no glob matches it.
+        ["git", "diff", "-z", "--name-only", "--no-renames", start, end],
         capture_output=True,
         text=True,
     )
     if done.returncode != 0:
         raise Unread(f"git diff failed: {done.stderr.strip().split('\n')[0]}")
-    for path in done.stdout.splitlines():
+    # Read at `<from>`, which git just read: the fix being judged cannot edit the list
+    # that judges it. A threat model absent there lists nothing.
+    shown = subprocess.run(
+        ["git", "show", f"{start}:{THREAT_MODEL}"], capture_output=True, text=True
+    )
+    listed = surfaces(shown.stdout) if shown.returncode == 0 else []
+    if not listed:
+        raise Verify(f"{THREAT_MODEL} lists no surface")
+    for path in filter(None, done.stdout.split("\0")):
         if glob := next((g for g in listed if fnmatch.fnmatchcase(path, g)), None):
             raise Verify(f"{path} matches {glob}")
 

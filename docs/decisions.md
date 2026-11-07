@@ -714,7 +714,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
+`diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to

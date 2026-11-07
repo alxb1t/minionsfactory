@@ -67,8 +67,8 @@ read.
 `THREAT_MODEL.md` MAY hold `## Surfaces`, one ``- `<glob>` `` line per path a fix reaches security through, and the
 bootstrap's template SHALL hold the section unwritten. In a Step 7 round after a fix commit, converge SHALL run
 `skills/mf-converge/scripts/surfaces.py` over the fix range. It SHALL print `surfaces: no surface` and exit 0 when the security
-file says `verdict: clean`, holds no card whose Status is `open`, `fixed` or `wontfix`, and the range touches no path a listed
-glob matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed glob among the
+file says `verdict: clean`, holds no card whose Status is other than `verified` or `accepted`, and the range touches no path a
+glob listed at its start matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed glob among the
 reasons. On exit 0 converge SHALL write the security file's `head:` to the fix head by rule, with `mode: by-rule` and
 `workers: 0`, and dispatch review alone; on exit 1 it SHALL dispatch both. A catch-up run, its fix round included, SHALL
 dispatch both, as before.
