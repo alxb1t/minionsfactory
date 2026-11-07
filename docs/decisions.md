@@ -484,8 +484,9 @@ it; the release merges in the primary.**
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
 applies fixed rules to the CHANGELOG, decision ids — the plan's planned ones too — and spec delta, resolves a hunk both sides only add, hands a semantic
-conflict to the person with the merge open, and commits the merge, its body naming every path it settled: a rule,
-the union, the person, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
+conflict to the person with the merge open — under a version's switch to its supervisor first,
+whose settle of spec and docs text it commits ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) — and commits
+the merge, its body naming every path it settled: a rule, the union, the person, the supervisor, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
 the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
@@ -614,17 +615,23 @@ need and each version a rescue decided for.**
 
 ### D61 · A supervisor answers what rescue diagnoses
 
-**Under a version's `decide = "recommended"`, when its rescue diagnoses a build or converge halt or is spent on it — the
-sub-task rescued before, or `RESCUES` reached — `conduct.py` runs `mf-supervise` in the version's thread. It may amend anything
-under `openspec/changes/<id>/`, the spec delta included, and tick a sub-task whose `Verify:` it ran green; it never edits code or
-a test, takes a security `critical` or `high` card, approves a gate makefile, accepts a threat-model risk, answers an integrate
-halt, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
+**Under a version's `decide = "recommended"`, when its rescue diagnoses a build, converge or
+integrate semantic-conflict halt or is spent on it — the sub-task rescued before, or `RESCUES` reached — `conduct.py` runs
+`mf-supervise` in the version's thread. It may amend anything under `openspec/changes/<id>/`, the spec delta included, and tick
+a sub-task whose `Verify:` it ran green; it never edits code or a test, takes a security `critical` or `high` card, approves a
+gate makefile, accepts a threat-model risk, answers an integrate red gate, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
 trailers and paths under the change directory alone, logs it `decided`, clears the halt and goes on in the thread; anything else
 halts the version for the person. One try a halt, at most `SUPERVISES = 2` a version a run; `[supervise]` picks its model,
 `claude-opus-5-5` at `high` on Claude when it names none. The close and `report` name each.**
 
 - **New work:** a sub-task an amend adds — the supervisor's, the rescue's or the person's — goes in a new unticked phase after
   the last, never under a ticked one: the build reads `## Progress` boxes alone.
+- **An integrate note:** it stages its resolution in Markdown under `openspec/` and `docs/` alone and writes
+  `integrate.settled`, leaving the merge and the note open; the run checks the index and the work tree, then runs
+  `mf-integrate` `with settled=supervisor`, which commits the merge naming `the supervisor`. One try an open merge, across
+  runs: the home queue's `supervised/<id>` records it.
+- **The brief:** a passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names
+  it, read as evidence.
 - **Why:** a supervising chat answered most of 0087's halts and 0085's integrate flag, none with code, each a judgment the
   rescue may not make, and each a restart.
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
@@ -632,7 +639,7 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
   a catch-up passes by rule ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
   `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
-  widening the rescue · a supervisor without the switch.
+  widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.
 
 ### D55 · One pinned MF release per machine
 
@@ -669,7 +676,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved}`,
+`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to

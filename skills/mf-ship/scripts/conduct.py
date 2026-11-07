@@ -95,6 +95,10 @@ PLANNED = (*STATIONS, "rescue", "supervise")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 SUPERVISES = 2
+# A supervisor at an integrate note stages Markdown under these alone.
+# Why: 0090-supervisor-merge design D3.
+SETTLES = ("openspec/", "docs/")
+SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("review", "security")
@@ -182,11 +186,11 @@ DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
     "converge": "Run the mf-converge skill for change {change}{grant}.",
-    "integrate": "Run the mf-integrate skill for change {change}.",
+    "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
     "supervise": (
-        "Run the mf-supervise skill for change {change} with decide=recommended."
+        "Run the mf-supervise skill for change {change} with decide=recommended{brief}."
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
@@ -250,6 +254,15 @@ class ShipLines(NamedTuple):
 
     tools: list[str]
     network: list[str]
+
+
+class Opened(NamedTuple):
+    """An open merge as its supervisor found it: `HEAD`, `MERGE_HEAD`, index, mark."""
+
+    head: str
+    merge: str
+    index: str
+    written: int | None
 
 
 class Stop(Exception):
@@ -2291,6 +2304,73 @@ def _supervised(tree: Path, change: str, before: str) -> tuple[str | None, str]:
     return sha, ""
 
 
+def _opened(primary: Path, tree: Path, change: str) -> Opened:
+    """Return the open merge in `tree` before its supervisor runs."""
+    return Opened(
+        _git(tree, "rev-parse", "HEAD").strip(),
+        _git(tree, "rev-parse", "MERGE_HEAD").strip(),
+        _git(tree, "ls-files", "-s"),
+        _mtime(_change_dir(primary, change) / "integrate.settled"),
+    )
+
+
+def _settled(
+    primary: Path, tree: Path, change: str, start: Opened
+) -> tuple[str | None, str]:
+    """Return the tree the supervisor staged in the open merge, or None and why.
+
+    It takes Markdown under `openspec/` and `docs/` alone, with `HEAD`, the merge and
+    the note as they stood, nothing unstaged or unmerged, and `integrate.settled`
+    written since `start`. No mark is (None, ""). Why: 0090-supervisor-merge design D3.
+    """
+    if _git(tree, "rev-parse", "HEAD").strip() != start.head:
+        return None, f"supervisor moved HEAD off {start.head[:7]}"
+    merge = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD")
+    if merge is None or merge.strip() != start.merge:
+        return None, "supervisor closed the merge"
+    marks = _change_dir(primary, change)
+    if not (marks / "integrate.md").is_file():
+        return None, f"supervisor removed .minions/changes/{change}/integrate.md"
+    entries = set(start.index.splitlines()) ^ set(
+        _git(tree, "ls-files", "-s").splitlines()
+    )
+    changed = {entry.split("\t", 1)[1] for entry in entries}
+    if touched := sorted(
+        path
+        for path in changed
+        if not (path.startswith(SETTLES) and path.endswith(".md"))
+    ):
+        return None, f"supervisor touched {' '.join(touched)}"
+    unmerged = _conflicts(tree)
+    unstaged = set(_git(tree, "diff", "--name-only").split()) - set(unmerged)
+    unstaged |= set(_git(tree, "ls-files", "--others", "--exclude-standard").split())
+    if unstaged:
+        return None, f"supervisor left unstaged {' '.join(sorted(unstaged))}"
+    if _mtime(marks / "integrate.settled") in (None, start.written):
+        return None, ""
+    if unmerged:
+        return None, f"supervisor left {' '.join(unmerged)} unmerged"
+    return _git(tree, "write-tree").strip(), ""
+
+
+def _settle_kept(tree: Path, staged: str) -> str | None:
+    """Return why integrate's merge holds more than the settled tree, or None.
+
+    The newest first-parent merge may differ from `staged` only by the tests its
+    body names `test fixed`: `_settled` checks the index once, before integrate
+    commits it. Why: 0090-supervisor-merge security S2.
+    """
+    merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    body = _git(tree, "log", "-1", "--format=%b", merge).splitlines()
+    fixed = {
+        line.split(": test fixed", 1)[0] for line in body if ": test fixed" in line
+    }
+    moved = set(_git(tree, "diff", "--name-only", staged, f"{merge}^{{tree}}").split())
+    if past := sorted(moved - fixed):
+        return f"the merge holds {' '.join(past)} past the supervisor's settle"
+    return None
+
+
 def _mtime(path: Path) -> int | None:
     """Return a regular file's modification time in nanoseconds, else None."""
     try:
@@ -2984,6 +3064,8 @@ class Run:
         self.decides: set[str] = set()
         self.decided: list[str] = []
         self.supervisions: dict[str, list[str]] = {}
+        # Each settle `_settled` took, by change: the tree integrate must commit.
+        self.settled: dict[str, str] = {}
         self.supervisor_decided: list[str] = []
         self.diagnosed: set[str] = set()
         # Each halted version's stage, why and `HEAD` on disk at its halt, and a
@@ -3248,20 +3330,22 @@ class Run:
     def supervise(self, version: Version, held: str, spent: bool) -> bool:
         """Run a version's supervisor on `held`; True when the version goes on.
 
-        It runs under the switch, at a build or `converge-halted` halt its rescue
-        diagnosed or was `spent` on, once a halt, while the rescue answered nothing on
-        disk and no blocking security card bars it. It goes on on an amend
-        `_supervised` takes; any other outcome halts the version again, held as the
-        rescue's is. Why: 0089-supervisor design D1, D4, D5, D6.
+        It runs under the switch, at a build, `converge-halted` or semantic-conflict
+        `integrating` halt its rescue diagnosed or was `spent` on, once a halt and once
+        an open merge, while the rescue answered nothing on disk and no blocking
+        security card bars it. It goes on on an amend `_supervised` takes, or a settle
+        `_settled` takes, which goes on to integrate; any other outcome halts the
+        version again, held as the rescue's is. Why: 0089-supervisor design D1, D4,
+        D5, D6; 0090-supervisor-merge design D2, D4.
         """
         change, tree = version.change, version.tree
         minions = self.primary / ".minions"
+        integrating = held == "integrating"
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
             tree is None
             or change not in self.decides
-            or held == "integrating"
             or not left
             or self.supervised(change, held)
             or self.stopped("run")
@@ -3271,17 +3355,41 @@ class Run:
                     minions, change, _converge_halt(minions, change) or ""
                 )
             )
+            or (
+                integrating
+                and (
+                    not stage_of(self.primary, version)[1].startswith(
+                        "semantic conflict"
+                    )
+                    or _merge_tried(
+                        self.primary,
+                        change,
+                        _git(tree, "rev-parse", "MERGE_HEAD").strip(),
+                    )
+                )
+            )
         ):
             return False
         with self.guard:
             self.supervisions.setdefault(change, []).append(held)
         models = self.planned_models(change, "supervise")
-        before = _git(tree, "rev-parse", "HEAD").strip()
-        prompt = PROMPTS["supervise"].format(change=change)
+        start = _opened(self.primary, tree, change) if integrating else None
+        if start is not None:
+            with _queue_lock(self.primary):
+                folder = _queue(self.primary) / "supervised"
+                folder.mkdir(mode=0o700, exist_ok=True)
+                (folder / change).write_text(f"{start.merge}\n")
+        before = start.head if start else _git(tree, "rev-parse", "HEAD").strip()
+        prompt = _supervise_prompt(self.primary, change)
         sha = None
         try:
             if self.spawn(change, "supervise", tree, prompt, models) is not None:
-                sha, why = _supervised(tree, change, before)
+                if start is not None:
+                    sha, why = _settled(self.primary, tree, change, start)
+                    nothing = "supervisor settled nothing"
+                else:
+                    sha, why = _supervised(tree, change, before)
+                    nothing = "supervisor wrote no amend"
                 if sha is not None:
                     detail = f"{change}: decided · {held} · {sha[:7]}"
                     self.log.event("run", "supervise", detail)
@@ -3289,8 +3397,10 @@ class Run:
                         self.halts = [halt for halt in self.halts if halt[0] != change]
                         self.diagnosed.discard(change)
                         self.supervisor_decided.append(change)
+                        if start is not None:
+                            self.settled[change] = sha
                 else:
-                    self.halt(change, why or "supervisor wrote no amend")
+                    self.halt(change, why or nothing)
         finally:
             going = (
                 held in RESCUED
@@ -3449,6 +3559,18 @@ class Run:
         self.log.event("run", "grant", f"{change}: automatic · {ids}")
         return True, ""
 
+    def stage(self, version: Version) -> tuple[str, str]:
+        """Return `stage_of`'s read; a note the supervisor settled reads `integrate`.
+
+        Why: 0090-supervisor-merge design D4.
+        """
+        stage, why = stage_of(self.primary, version)
+        with self.guard:
+            settled = version.change in self.settled
+        if settled and stage == "integrating" and why.startswith("semantic conflict"):
+            return "integrate", SETTLED
+        return stage, why
+
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
@@ -3456,9 +3578,11 @@ class Run:
         grant's is, and one it refuses a `re-plan` halt line; a build check,
         converge or integrate halt then gets its rescue, and its supervisor after it. A
         halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
-        taken amend, at a halt met on entry or after a check, goes on. Why:
-        0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
-        0085-self-healing-ship design D1; 0089-supervisor design D1.
+        taken amend, at a halt met on entry or after a check, goes on. A supervisor's
+        taken settle goes on to integrate, whose merge must hold the settled tree.
+        Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
+        0085-self-healing-ship design D1; 0089-supervisor design D1;
+        0090-supervisor-merge design D4, security S2.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -3468,7 +3592,7 @@ class Run:
                 if auto:
                     stage, why = "converge", "granted automatically"
                 else:
-                    stage, why = stage_of(self.primary, version)
+                    stage, why = self.stage(version)
                 if stage in STUCK:
                     auto, refused = self.auto_grant(version, stage, why)
                     if auto:
@@ -3516,7 +3640,12 @@ class Run:
                             "grant",
                             f"{version.change}: one more round past the cap",
                         )
-                prompt = PROMPTS[stage].format(change=version.change, grant=clause)
+                with self.guard:
+                    staged = self.settled.pop(version.change, None)
+                settled = "" if staged is None else " with settled=supervisor"
+                prompt = PROMPTS[stage].format(
+                    change=version.change, grant=clause, settled=settled
+                )
                 models = self.planned_models(version.change, stage)
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
@@ -3533,6 +3662,9 @@ class Run:
                     self.waited(str(down))
                     self.offline = True
                     reason = check(self.primary, stage, version, True, True)
+                merged = version.tree if stage == "integrate" else None
+                if reason is None and staged is not None and merged is not None:
+                    reason = _settle_kept(merged, staged)
                 held = None if reason is None else self.held(version, stage, cwd)
                 spent = "" if held is None else self.rescued(version.change, held)
                 if held is not None:
@@ -3802,7 +3934,8 @@ class Run:
         A branch that holds its change is checked, not cut again; one that holds
         none is dropped with its worktree first, past the config refusals `merge_in`
         runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
-        waited for. None on a pass, its queue entry and reservation deleted.
+        waited for. None on a pass, its brief recorded, its queue entry and
+        reservation deleted.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -3849,6 +3982,9 @@ class Run:
         if why is not None:
             return why, False
         with _queue_lock(primary):
+            folder = _queue(primary) / "briefs"
+            folder.mkdir(mode=0o700, exist_ok=True)
+            (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
             _remove_in(primary / ".minions", "cuts", name=change)
             (_queue(primary) / "cuts" / change).unlink()
@@ -4704,6 +4840,41 @@ def _queue(primary: Path) -> Path:
     e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+def _brief_of(primary: Path, change: str) -> str | None:
+    """Return the brief path a passed cut recorded for `change`, while it names a file.
+
+    The record stands in the home queue, where no worker writes; a version cut by
+    hand has none. Why: 0090-supervisor-merge design D1.
+    """
+    try:
+        named = (_queue(primary) / "briefs" / change).read_text().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return named if named and Path(named).is_file() else None
+
+
+def _merge_tried(primary: Path, change: str, merge: str) -> bool:
+    """Return whether a supervisor was spawned on `change`'s open merge `merge`.
+
+    The record stands in the home queue, where no worker writes, so the try holds
+    across runs. Why: 0090-supervisor-merge design D2.
+    """
+    try:
+        return (_queue(primary) / "supervised" / change).read_text().strip() == merge
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def _supervise_prompt(primary: Path, change: str) -> str:
+    """Return the supervisor's prompt, naming the brief `_brief_of` reads.
+
+    e.g. "… with decide=recommended and brief=/b/brief.md."
+    """
+    named = _brief_of(primary, change)
+    brief = f" and brief={named}" if named else ""
+    return PROMPTS["supervise"].format(change=change, brief=brief)
 
 
 @contextlib.contextmanager
