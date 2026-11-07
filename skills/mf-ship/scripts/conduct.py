@@ -68,6 +68,8 @@ GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUT
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
+DEPENDENCIES = "## Dependencies"
+APPROVED = ["item", "package", "constraint", "why"]
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -4920,6 +4922,42 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
             entry = {"halt": "the queue entry is unreadable"}
         found[name] = entry
     return found
+
+
+def _rows(text: str, heading: str) -> list[list[str]] | None:
+    r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
+
+    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence
+    — from a line opening ``` or ~~~ to the next — is never the heading, so a quoted
+    example is not read. Blank lines are skipped. No such heading, or a section
+    reading `None.` alone, is []. A section with no other line, one holding a line
+    that is no `|`-bounded row, with no delimiter row second, or with a row whose cell
+    count differs from the header's, is None. The section runs from the first line
+    equal to `heading` to the next line opening `#`.
+    e.g. "## D\n| a | b |\n|---|---|\n| `x` | y |\n" → [["a", "b"], ["x", "y"]]
+    Why: 0091-cut-halts design D3.
+    """
+    lines: list[str] | None = None
+    fenced = False
+    for line in text.split("\n"):
+        if lines is not None:
+            if line.startswith("#"):
+                break
+            if line.strip():
+                lines.append(line.strip())
+        elif line.startswith(("```", "~~~")):
+            fenced = not fenced
+        elif not fenced and line == heading:
+            lines = []
+    if lines is None or lines == ["None."]:
+        return []
+    if not lines or not all(len(row) > 1 and row[0] == row[-1] == "|" for row in lines):
+        return None
+    table = [[cell.strip(" `") for cell in row[1:-1].split("|")] for row in lines]
+    ruled = len(table) > 1 and all(re.fullmatch(r":?-+:?", cell) for cell in table[1])
+    if not ruled or any(len(row) != len(table[0]) for row in table):
+        return None
+    return [table[0], *table[2:]]
 
 
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:

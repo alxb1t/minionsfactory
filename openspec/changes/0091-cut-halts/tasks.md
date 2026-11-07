@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The brief
+- [x] 1 — The brief
 - [ ] 2 — The queue
 - [ ] 3 — The cut
 - [ ] 4 — The answers
@@ -12,22 +12,22 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The brief
 
-- [ ] 1.1 Add `DEPENDENCIES`, `APPROVED` and `_rows` beside `_cuts` in `skills/mf-ship/scripts/conduct.py`, per
+- [x] 1.1 Add `DEPENDENCIES`, `APPROVED` and `_rows` beside `_cuts` in `skills/mf-ship/scripts/conduct.py`, per
   [D3](design.md#d3).
   Verify: `grep -n '^def _rows' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Add `## Dependencies` to `_READY`, `_OUT_OF_SHAPE`'s line and the section steps to `tests/test_brief_check.py`, as
+- [x] 1.2 Add `## Dependencies` to `_READY`, `_OUT_OF_SHAPE`'s line and the section steps to `tests/test_brief_check.py`, as
   the design's `## Tests` rows say for 1.2, then the section's halts in `skills/mf-plan/scripts/brief_check.py`, `_rows`
   loaded from `CONDUCT`, per [D2](design.md#d2).
   Verify: `grep -n 'no ## Dependencies section' skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 1.3 Edit `test_a_brief_out_of_shape_halts` and `test_what_cannot_be_checked_exits_2`, as the design's `## Tests` rows
+- [x] 1.3 Edit `test_a_brief_out_of_shape_halts` and `test_what_cannot_be_checked_exits_2`, as the design's `## Tests` rows
   say, then the grammar, printable and heading rules and the docstring in `brief_check.py`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_brief_check.py` reports `3 passed`.
-- [ ] 1.4 Add `## Dependencies` and its paragraph to the template of `skills/mf-plan/SKILL.md`, per [D7](design.md#d7).
+- [x] 1.4 Add `## Dependencies` and its paragraph to the template of `skills/mf-plan/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n '| item | package | constraint | why |' skills/mf-plan/SKILL.md` prints a line.
-- [ ] 1.5 Add the packages row to Step 3, the packages bullet to Step 4, and edit Step 6's items 2 and 3 in
+- [x] 1.5 Add the packages row to Step 3, the packages bullet to Step 4, and edit Step 6's items 2 and 3 in
   `skills/mf-plan/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n 'each .## Dependencies. row' skills/mf-plan/SKILL.md` prints a line.
-- [ ] 1.6 Add the background bullet to Step 2's *Helpers* in `skills/mf-plan/SKILL.md`, per [D7](design.md#d7).
+- [x] 1.6 Add the background bullet to Step 2's *Helpers* in `skills/mf-plan/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n 'gathering the facts' skills/mf-plan/SKILL.md` prints a line.
 
 ## 2 — The queue
