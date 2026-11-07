@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.1] - 2026-11-07
+
+Gate: local 1m58s · CI not read under mf-ship · 0.71.0: local 1m55s · CI not read under mf-ship
+
 - `conduct.py`: a file at `.minions/debt.lock` halts the move as a file, not a lock; a kept-worktree re-cut names its
   remedy, as `mf-ship`'s `cut-halted` row now does; a request taken at a poll's bottom waits out the poll; an amend that
   answers a rescued halt drops the stale diagnosis (change `0088-paydown-2`, phase 1).
