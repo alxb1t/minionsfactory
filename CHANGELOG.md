@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `mf-converge` answers a halt past its head with one catch-up run marked `· amend` over `<judged head>..HEAD`, in
+  place of the `· amended` reopen from round 1; its amended `Verify:` lines run first, and no amend passes by rule
+  (change `0092-amend-round`, phase 1).
+
 ## [0.73.0] - 2026-11-07
 
 Gate: local 2m2s · CI not read under mf-ship · 0.72.0: local 2m3s · CI not read under mf-ship

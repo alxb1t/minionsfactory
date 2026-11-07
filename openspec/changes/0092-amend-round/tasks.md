@@ -4,35 +4,35 @@ Build the settled [design](design.md), one phase at a time, on 0088's, 0089's an
 
 ## Progress
 
-- [ ] 1 — The amend round
+- [x] 1 — The amend round
 - [ ] 2 — The conductor and the metrics
 - [ ] 3 — The record
 
 ## 1 — The amend round
 
-- [ ] 1.1 **HALT CHECK** 0089's `Supervisor:` words stand in the passages of `skills/mf-converge/SKILL.md` that
+- [x] 1.1 **HALT CHECK** 0089's `Supervisor:` words stand in the passages of `skills/mf-converge/SKILL.md` that
   [D1](design.md#d1) replaces whole, as the design's F8 reads them.
   Verify: `grep -c 'Supervisor:' skills/mf-converge/SKILL.md` prints `3`.
-- [ ] 1.2 Replace the paragraphs from "The top line is any other `halt`" through "is no person's answer." in *Resuming a run* of
+- [x] 1.2 Replace the paragraphs from "The top line is any other `halt`" through "is no person's answer." in *Resuming a run* of
   `skills/mf-converge/SKILL.md` with [D1](design.md#d1)'s **An answered halt** paragraph.
   Verify: `grep -n 'An answered halt:' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.3 Replace the last sentence of *A halt before round 1* in `skills/mf-converge/SKILL.md` with [D1](design.md#d1)'s, the
+- [x] 1.3 Replace the last sentence of *A halt before round 1* in `skills/mf-converge/SKILL.md` with [D1](design.md#d1)'s, the
   words `a new run of its mark runs the` on one line.
   Verify: `grep -n 'a new run of its mark runs the' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.4 Edit the status log's run, the catch-up's check, its diagram and the run's mark in `skills/mf-converge/SKILL.md`, per
+- [x] 1.4 Edit the status log's run, the catch-up's check, its diagram and the run's mark in `skills/mf-converge/SKILL.md`, per
   [D1](design.md#d1).
   Verify: `grep -n 'merges only, replay?' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.5 In the catch-up of `skills/mf-converge/SKILL.md`, replace item 2's merges-and-amends sentence with
+- [x] 1.5 In the catch-up of `skills/mf-converge/SKILL.md`, replace item 2's merges-and-amends sentence with
   [D4](design.md#d4)'s, item 3 with [D3](design.md#d3)'s and item 4 with [D5](design.md#d5)'s, the words
   `verify failed — <sub-task ids>` on one line.
   Verify: `grep -n 'verify failed — <sub-task ids>' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.6 Drop By rule's amend clauses, per [D5](design.md#d5), and edit Step 7's own-count sentence, per [D1](design.md#d1), in
+- [x] 1.6 Drop By rule's amend clauses, per [D5](design.md#d5), and edit Step 7's own-count sentence, per [D1](design.md#d1), in
   `skills/mf-converge/SKILL.md`, the words `or an answered halt's, has` on one line.
   Verify: `grep -n "or an answered halt's, has" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.7 Make [D6](design.md#d6)'s edits to `skills/mf-converge/references/worker.md`, the words
+- [x] 1.7 Make [D6](design.md#d6)'s edits to `skills/mf-converge/references/worker.md`, the words
   `An **amend round** judges its whole range` on one line.
   Verify: `grep -n -F 'An **amend round** judges its whole range' skills/mf-converge/references/worker.md` prints a line.
-- [ ] 1.8 **HALT CHECK** `skills/mf-converge/SKILL.md` and `skills/mf-converge/references/worker.md` hold fewer than the 7,408
+- [x] 1.8 **HALT CHECK** `skills/mf-converge/SKILL.md` and `skills/mf-converge/references/worker.md` hold fewer than the 7,408
   words they held at `bb4cf51`, as [D1](design.md#d1)'s **Words** plans.
   Verify: `wc -w skills/mf-converge/SKILL.md skills/mf-converge/references/worker.md` prints a `total` below `7408`.
 
