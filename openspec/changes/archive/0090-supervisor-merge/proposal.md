@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.73
 after: [0088-paydown-2, 0089-supervisor]
 ---
 

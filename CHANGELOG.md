@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-11-07
+
+Gate: local 2m2s · CI not read under mf-ship · 0.72.0: local 2m3s · CI not read under mf-ship
+
 - A passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names it as
   `brief=<path>` while it names a file, so the plan's intent outlives the queue entry (change
   `0090-supervisor-merge`, phase 1).
