@@ -2158,6 +2158,25 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     )
 
 
+def _security_held(runs: Path, change: str, halt: str) -> bool:
+    """Return whether a blocking security card bars the supervisor at a converge halt.
+
+    A card bars it when the halt's `amend needed` ids name it or it is open; an
+    unread `security.md` bars it. Why: 0089-supervisor design D6.
+    e.g. "… · halt — cap reached · head abc1234", S1 `high` and open → True
+    """
+    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
+    try:
+        text = (_change_dir(runs.parent, change) / "security.md").read_text()
+    except (OSError, UnicodeDecodeError):
+        return True
+    return any(
+        _severity(card) in BLOCKS["security"]
+        and (name in ids or _field(card, "Status").startswith("open"))
+        for name, card in _cards_in(text)
+    )
+
+
 def _rescue_amends(
     runs: Path, change: str, station: str, decide: bool
 ) -> tuple[str, ...]:
@@ -3216,10 +3235,12 @@ class Run:
 
         It runs under the switch, at a build or `converge-halted` halt its rescue
         diagnosed or was `spent` on, once a halt, while the rescue answered nothing on
-        disk. It goes on on an amend `_supervised` takes; any other outcome halts the
-        version again. Why: 0089-supervisor design D1, D4, D5.
+        disk and no blocking security card bars it. It goes on on an amend
+        `_supervised` takes; any other outcome halts the version again, held as the
+        rescue's is. Why: 0089-supervisor design D1, D4, D5, D6.
         """
         change, tree = version.change, version.tree
+        minions = self.primary / ".minions"
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -3229,6 +3250,12 @@ class Run:
             or not left
             or self.supervised(change, held)
             or self.stopped("run")
+            or (
+                held == "converge-halted"
+                and _security_held(
+                    minions, change, _converge_halt(minions, change) or ""
+                )
+            )
         ):
             return False
         with self.guard:
@@ -3236,18 +3263,26 @@ class Run:
         models = self.planned_models(change, "supervise")
         before = _git(tree, "rev-parse", "HEAD").strip()
         prompt = PROMPTS["supervise"].format(change=change)
-        if self.spawn(change, "supervise", tree, prompt, models) is None:
-            return False
-        sha, why = _supervised(tree, change, before)
-        if sha is None:
-            self.halt(change, why or "supervisor wrote no amend")
-            return False
-        self.log.event("run", "supervise", f"{change}: decided · {held} · {sha[:7]}")
-        with self.guard:
-            self.halts = [halt for halt in self.halts if halt[0] != change]
-            self.diagnosed.discard(change)
-            self.supervisor_decided.append(change)
-        return True
+        sha = None
+        try:
+            if self.spawn(change, "supervise", tree, prompt, models) is not None:
+                sha, why = _supervised(tree, change, before)
+                if sha is not None:
+                    detail = f"{change}: decided · {held} · {sha[:7]}"
+                    self.log.event("run", "supervise", detail)
+                    with self.guard:
+                        self.halts = [halt for halt in self.halts if halt[0] != change]
+                        self.diagnosed.discard(change)
+                        self.supervisor_decided.append(change)
+                else:
+                    self.halt(change, why or "supervisor wrote no amend")
+        finally:
+            going = (
+                held in RESCUED
+                and sha is None
+                and self.hold(version, tree, before, "supervise")
+            )
+        return sha is not None or going
 
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
@@ -3273,15 +3308,18 @@ class Run:
             self.diagnosed.add(change)
         self.halt(change, f"rescue diagnosed — {name}")
 
-    def hold(self, version: Version, tree: Path, before: str) -> bool:
+    def hold(
+        self, version: Version, tree: Path, before: str, who: str = "rescue"
+    ) -> bool:
         """Keep a version halted for the run when its rescue answered its halt on disk.
 
         A rescue at a cap or integrate halt may only diagnose, yet a commit past
         the halted head, a settled merge, a removed note or a grant it writes reads as
         no halt, and its rejoin request would take the version back. The halt names
         the stage on disk and a moved `HEAD`, for the person. The person's amends
-        alone go on, the diagnosis dropped: True. Why: 0067-rescue design D3;
-        0085-self-healing-ship design D5; 0088-paydown-2 design D4.
+        alone go on, the diagnosis dropped: True. `who` is the station, `rescue` or
+        `supervise`. Why: 0067-rescue design D3; 0085-self-healing-ship design D5;
+        0088-paydown-2 design D4; 0089-supervisor design D6.
         """
         change = version.change
         stage, why = stage_of(self.primary, version)
@@ -3292,10 +3330,11 @@ class Run:
             with self.guard:
                 self.halts = [halt for halt in self.halts if halt[0] != change]
                 self.diagnosed.discard(change)
-            self.log.event("run", "rescue", f"{change}: amended · {head[:7]}")
+            self.log.event("run", who, f"{change}: amended · {head[:7]}")
             return True
         moved = f" · HEAD {head[:7]}" if head != before else ""
-        answered = f"rescue answered its halt — {stage}: {why}{moved}"
+        name = "supervisor" if who == "supervise" else "rescue"
+        answered = f"{name} answered its halt — {stage}: {why}{moved}"
         with self.guard:
             self.answered[change] = answered
         self.halt(change, answered)
@@ -3305,8 +3344,9 @@ class Run:
         """Return whether the person's amends alone answer the converge halt rescued.
 
         The halt is one the person's amend answers, only amends follow its head, and
-        none since the rescue began carries a `Rescue:` trailer: a refused rescue
-        amend carries one. Why: 0085-self-healing-ship design D5.
+        none since the rescue began carries a `Rescue:` or `Supervisor:` trailer: a
+        refused rescue or supervisor amend carries one. Why: 0085-self-healing-ship
+        design D5; 0089-supervisor design D6.
         """
         runs = self.primary / ".minions"
         halt = _converge_halt(runs, change) or ""
@@ -3316,9 +3356,8 @@ class Run:
         )
         if not halted or not _amendable(runs, change, halt):
             return False
-        rescued = _git(
-            tree, "log", "--format=%(trailers:key=Rescue)", f"{before}..HEAD"
-        )
+        trailers = "--format=%(trailers:key=Rescue)%(trailers:key=Supervisor)"
+        rescued = _git(tree, "log", trailers, f"{before}..HEAD")
         return _amended_only(tree, change, halted.strip()) and not rescued.strip()
 
     def held(self, version: Version, stage: str, tree: Path) -> str | None:
@@ -4863,9 +4902,10 @@ def _request(primary: Path, name: str) -> None:
 
 
 def _rescuing(runs: Path, change: str) -> bool:
-    """Return whether the newest run log's last rescue event for `change` is a spawn.
+    """Return whether the newest run log's last rescue or supervisor event is a spawn.
 
     e.g. `… · 0001-todo · spawn — rescue · model default`, no `finish — rescue` after
+    Why: 0089-supervisor design D6.
     """
     log = last_log(runs)
     lines = log.read_text(errors="replace").splitlines() if log else []
@@ -4875,7 +4915,7 @@ def _rescuing(runs: Path, change: str) -> bool:
         if (found := EVENT.match(line))
         and found[1] == change
         and found[2] in ("spawn", "finish")
-        and line[found.end() :].startswith("rescue · ")
+        and line[found.end() :].startswith(("rescue · ", "supervise · "))
     ]
     return events[-1:] == ["spawn"]
 
@@ -4884,9 +4924,10 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     """Record one more round for a version halted at the cap, then start a run.
 
     With a run live, the grant goes with a rejoin request instead, and none while
-    that version's rescue runs: `Run.hold` takes a grant then for the rescue's. The
-    queue lock is held from the claim read to the request or the start.
-    Why: 0063-rejoin design D5; 0067-rescue design D3; 0082-cut-station design D3.
+    that version's rescue or supervisor runs: `Run.hold` takes a grant then for
+    theirs. The queue lock is held from the claim read to the request or the start.
+    Why: 0063-rejoin design D5; 0067-rescue design D3; 0082-cut-station design D3;
+    0089-supervisor design D6.
     """
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
@@ -4908,8 +4949,8 @@ def grant(cwd: Path, change: str, executor: str) -> int:
         if live and _rescuing(runs, change):
             raise Stop(
                 2,
-                f"grant: cannot run — {change} is at {stage} with its rescue running:"
-                " grant once it ends",
+                f"grant: cannot run — {change} is at {stage}"
+                " with its rescue or supervisor running: grant once it ends",
             )
         if not live:
             preconditions(cwd, executor)

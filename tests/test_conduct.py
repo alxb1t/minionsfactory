@@ -2273,6 +2273,128 @@ def test_a_spent_rescue_starts_the_supervisor_once(
     assert conductor.supervised("0002-marks", "1.1") == ""
 
 
+@pytest.mark.slow
+def test_a_supervisor_amend_outside_the_change_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0089-supervisor design D3, D4, D6.
+    conduct = _conduct()
+    fake("halt-0001-todo", "rescue-diagnose", "supervise-test")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _switched(root, "0001-todo")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    lines = _log(root)
+    assert lines[-2].endswith(
+        " · 0001-todo · halt — supervisor touched tests/test_todo.py"
+    )
+    assert not any(" · run · supervise — " in line for line in lines)
+
+    (tmp_path / "none").mkdir()
+    none = _primary(tmp_path / "none")
+    _version(none, "0002-marks", "- [ ] 1 — Marks\n")
+    _switched(none, "0002-marks")
+    fake("halt-0002-marks", "rescue-diagnose", "supervise-none")
+    assert (
+        _main(conduct, none, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _log(none)[-2].endswith(" · 0002-marks · halt — supervisor wrote no amend")
+
+    # An amend is one commit of one parent, with the amend's subject and both
+    # trailers, under the change's folder.
+    supervised, folder = conduct["_supervised"], "openspec/changes/0001-todo"
+    start = _git(tree, "rev-parse", "HEAD")
+    assert supervised(tree, "0001-todo", start) == (None, "")
+    subject = "docs(0001-todo): amend the change directory\n\n"
+    both = f"{subject}Supervisor: 1.1\nDecided-by: supervisor"
+    delta = {f"{folder}/specs/sdd/spec.md": "## ADDED Requirements\n"}
+    _commit(tree, delta, both)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert supervised(tree, "0001-todo", start) == (head, "")
+    refused = "is not one amend with Supervisor: and Decided-by: supervisor trailers"
+    _commit(tree, {f"{folder}/tasks.md": "Again.\n"}, both)
+    second = _git(tree, "rev-parse", "HEAD")
+    assert supervised(tree, "0001-todo", start) == (
+        None,
+        f"supervisor commit {second[:7]} {refused}",
+    )
+    for message in (f"{subject}Supervisor: 1.1\nDecided-by: rescue", subject + "x"):
+        _git(tree, "reset", "-q", "--hard", start)
+        _commit(tree, delta, message)
+        sha = _git(tree, "rev-parse", "HEAD")
+        assert supervised(tree, "0001-todo", start) == (
+            None,
+            f"supervisor commit {sha[:7]} {refused}",
+        )
+    assert supervised(tree, "0001-todo", head) == (
+        None,
+        f"supervisor moved HEAD off {head[:7]}",
+    )
+
+    # A blocking security card bars the supervisor while it is open, and so does an
+    # unread file; the halt names no card.
+    held, minions = conduct["_security_held"], root / ".minions"
+    halt = "10:00:00 · round 3 · halt — cap reached · head abc1234"
+    assert held(minions, "0001-todo", halt)
+    card = (
+        "- **S1 — a finding**\n"
+        "  - **Priority:** high · security · stability — why.\n"
+        "  - **Fix:** a fix · size: one line.\n"
+        "  - **Status:** open\n"
+    )
+    security = minions / "changes" / "0001-todo" / "security.md"
+    security.write_text(card)
+    assert held(minions, "0001-todo", halt)
+    security.write_text(card.replace("open", "verified — held"))
+    assert not held(minions, "0001-todo", halt)
+
+
+def test_a_refused_supervisor_amend_is_not_the_persons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Its refused amend carries its trailer: held for a re-run, never taken as the
+    # person's. Why: 0089-supervisor design D6.
+    conduct = _conduct()
+    calls = fake("amend-halts", "rescue-diagnose", "supervise-undecided")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _switched(root, "0001-todo")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls)[-2:] == [
+        "rescue 0001-todo with decide=recommended",
+        "supervise 0001-todo with decide=recommended",
+    ]
+    lines = _log(root)
+    assert any(
+        " · 0001-todo · halt — supervisor answered its halt — converge: " in line
+        for line in lines
+    )
+    assert " · needs 0001-todo a re-run" in lines[-1]
+
+
+def test_a_grant_waits_for_the_supervisor(tmp_path: Path) -> None:
+    # Why: 0089-supervisor design D6.
+    rescuing, runs = _conduct()["_rescuing"], tmp_path / "runs"
+    runs.mkdir()
+    log = runs / "20261107-120000.md"
+    log.write_text(
+        "# run\n\n12:00:00 · 0001-todo · spawn — supervise · model default\n"
+    )
+    assert rescuing(runs, "0001-todo")
+    with log.open("a") as file:
+        file.write("12:00:09 · 0001-todo · finish — supervise · exit 0 · 9s\n")
+    assert not rescuing(runs, "0001-todo")
+
+
 def test_a_linked_rejoin_folder_deletes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -6312,8 +6434,8 @@ def test_a_grant_buys_one_round(
     with newest.open("a") as file:
         file.write("12:00:00 · 0001-todo · spawn — rescue · model default\n")
     rescuing = (
-        "grant: cannot run — 0001-todo is at converge-halted with its rescue running:"
-        " grant once it ends"
+        "grant: cannot run — 0001-todo is at converge-halted"
+        " with its rescue or supervisor running: grant once it ends"
     )
     request = conduct["_queue"](root) / "rejoin" / "0001-todo"
     assert grant() == (2, rescuing)

@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time.
 ## Progress
 
 - [x] 1 — The station
-- [ ] 2 — The check's refusals
+- [x] 2 — The check's refusals
 - [ ] 3 — The skills
 - [ ] 4 — The record
 
@@ -41,25 +41,25 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 2 — The check's refusals
 
-- [ ] 2.1 Give `Run.hold` its `who` parameter and its two strings, and run it in `Run.supervise`'s `finally`, per
+- [x] 2.1 Give `Run.hold` its `who` parameter and its two strings, and run it in `Run.supervise`'s `finally`, per
   [D6](design.md#d6).
   Verify: `grep -n 'self.hold(version, tree, before, "supervise")' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 Make `_amended_alone` read both trailers and say so in its docstring, per [D6](design.md#d6).
+- [x] 2.2 Make `_amended_alone` read both trailers and say so in its docstring, per [D6](design.md#d6).
   Verify: `grep -n -F '%(trailers:key=Rescue)%(trailers:key=Supervisor)' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.3 Add `_security_held` beside `_security_blocks`, and read it in `Run.supervise` at `converge-halted`, per
+- [x] 2.3 Add `_security_held` beside `_security_blocks`, and read it in `Run.supervise` at `converge-halted`, per
   [D1](design.md#d1) and [D6](design.md#d6).
   Verify: `grep -n '^def _security_held(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.4 Make `_rescuing` read `supervise` spawns, and reword `grant`'s refusal, per [D6](design.md#d6), with the string
+- [x] 2.4 Make `_rescuing` read `supervise` spawns, and reword `grant`'s refusal, per [D6](design.md#d6), with the string
   `test_a_grant_buys_one_round` in `tests/test_conduct.py` asserts, the words `its rescue or supervisor running` on one line in each.
   Verify: `grep -l 'its rescue or supervisor running' skills/mf-ship/scripts/conduct.py tests/test_conduct.py` prints both paths.
-- [ ] 2.5 Add the `supervise-test`, `supervise-undecided` and `supervise-none` modes to `_supervise` in `tests/fake_worker.py`, as
+- [x] 2.5 Add the `supervise-test`, `supervise-undecided` and `supervise-none` modes to `_supervise` in `tests/fake_worker.py`, as
   the design's `## Tests` tables them.
   Verify: `grep -n 'supervise-undecided' tests/fake_worker.py` prints a line.
-- [ ] 2.6 Add `test_a_supervisor_amend_outside_the_change_halts` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.6 Add `test_a_supervisor_amend_outside_the_change_halts` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_amend_outside_the_change_halts` reports `1 passed`.
-- [ ] 2.7 Add `test_a_refused_supervisor_amend_is_not_the_persons` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.7 Add `test_a_refused_supervisor_amend_is_not_the_persons` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k refused_supervisor_amend_is_not_the_persons` reports `1 passed`.
-- [ ] 2.8 Add `test_a_grant_waits_for_the_supervisor` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.8 Add `test_a_grant_waits_for_the_supervisor` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k grant_waits_for_the_supervisor` reports `1 passed`.
 
 ## 3 — The skills

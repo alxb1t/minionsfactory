@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` runs `mf-supervise` under a version's switch after its rescue diagnosed a build or converge halt or was
   spent on it, once a halt and `SUPERVISES = 2` a version a run, `claude-opus-5-5` at `high` when `[supervise]` names
   none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
+- A refused supervisor amend is held as a rescue's, never taken as the person's; a grant waits while the supervisor
+  runs, and no supervisor runs over a blocking security card (change `0089-supervisor`, phase 2).
 
 ## [0.71.1] - 2026-11-07
 

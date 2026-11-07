@@ -256,18 +256,27 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
 
 
 def _supervise(tree: Path, change: str, modes: set[str]) -> None:
-    """Amend the plan, the spec delta besides, hollowly or outside it, as decided."""
+    """Amend the plan, the spec delta besides, hollowly or outside it, as decided.
+
+    Or amend the prose undecided; `supervise-none` commits nothing.
+    """
     folder = f"openspec/changes/{change}"
-    message = (
-        f"docs({change}): amend the change directory\n\nfix\n\n"
-        "Supervisor: 1.1\nDecided-by: supervisor"
-    )
-    text = (tree / folder / "tasks.md").read_text()
+    subject = f"docs({change}): amend the change directory\n\nfix\n\n"
+    message = f"{subject}Supervisor: 1.1\nDecided-by: supervisor"
+    tasks = f"{folder}/tasks.md"
+    text = (tree / tasks).read_text()
     if "supervise-delta" in modes:
         spec = {f"{folder}/specs/sdd/spec.md": "## ADDED Requirements\n"}
-        _commit(tree, {f"{folder}/tasks.md": text + _AMENDED, **spec}, message)
+        _commit(tree, {tasks: text + _AMENDED, **spec}, message)
     elif "supervise-hollow" in modes:
-        _commit(tree, {f"{folder}/tasks.md": text + "Look again.\n"}, message)
+        _commit(tree, {tasks: text + "Look again.\n"}, message)
+    elif "supervise-test" in modes:
+        test = {"tests/test_todo.py": "x = 1\n"}
+        _commit(tree, {tasks: text + _AMENDED, **test}, message)
+    elif "supervise-undecided" in modes:
+        design = tree / folder / "design.md"
+        prose = (design.read_text() if design.is_file() else "") + _PROSE
+        _commit(tree, {f"{folder}/design.md": prose}, f"{subject}Supervisor: R1")
 
 
 def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -> None:
