@@ -270,8 +270,9 @@ file.**
 
 ### D49 · One review method, one depth
 
-**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front. The review and
-security files are the same for every change.**
+**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
+living requirements in a bundle of what the change cites. The review and security files are the same for every
+change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
   fraction of the cost.
@@ -364,8 +365,9 @@ converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING
 
 **Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
 in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
-build halts on a phase that breaks one unless the change amends it, and converge hands both to every worker.
-`mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
+build halts on a phase that breaks one unless the change amends it, and converge hands every worker the threat model and
+its bundle: of the decisions, those the change cites, in full, and an index of all. `mf-bootstrap` writes
+`THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
 - **Why:** a review judges against what is written down; without a threat model, security falls back on generic
   categories.

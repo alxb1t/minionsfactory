@@ -10,9 +10,11 @@ Catch-up scope, The card and Rules for tests. It owns the card, severity anchors
 test-cost and coverage-trace passes, and red runs.
 
 **The packet**, given up front: base and head ids, the judged range and patch; the simplify commit's body, when the
-range holds one; the change's proposal, design and tasks, its spec delta unless it declares `skip_specs: true`, and the
-living specs the delta touches; the target's `AGENTS.md`, its mandatory context, its root standards files, architecture
-decisions and threat model; a subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your
+range holds one; the change's proposal, design and tasks, and its spec delta unless it declares `skip_specs: true`; the
+change's bundle, `bundle.md`, in place of `docs/decisions.md` and the living specs: the decisions the change cites, in
+full, an index of all, and the living requirements the delta modifies or removes; the target's `AGENTS.md`, its
+mandatory context, its root standards files, other architecture documents and threat model, each whole; a
+subdirectory's `AGENTS.md` only when the diff touches that subtree; this resource; your
 mode; your findings path; the debt, when it exists. Read beyond the diff only to trace a section's angle — the callers of a changed
 symbol, the consumers of a changed enum — never to explore. A verify pass adds your findings file and the scoped fix
 range. An input missing or unusable → halt, naming it.
@@ -23,14 +25,14 @@ range. An input missing or unusable → halt, naming it.
    replaced guard, name the invariant it held and find where it survives. Trace callers and callees of changed
    return shapes, preconditions, errors and ordering. Read every consumer of a changed enum or status outside the
    diff. A finding is a class: grep the same pattern at every sibling site.
-2. **Spec.** Against the delta and the living specs it touches: a requirement missing or partial; scope the spec
+2. **Spec.** Against the delta and the bundle's living requirements: a requirement missing or partial; scope the spec
    does not ask for; a requirement that looks implemented but is wrong. Quote the requirement line.
 3. **Standards.** Only rules written in the target's standards files and `AGENTS.md`, each finding citing the
    file and the rule's line; the repo's rule overrides a general smell. Nothing a formatter, linter or type checker
    already enforces. A contradiction between standards files is a `drift` card, inside the diff or not: the person
    settles it.
-4. **Architecture.** Against the decisions in force: a change that breaks one, and no task of the change amends it.
-   Cite the decision's id.
+4. **Architecture.** Against the bundle's decisions, and any decision the index names that the diff reaches, opened
+   in `docs/decisions.md`: a change that breaks one, and no task of the change amends it. Cite the decision's id.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed
    error. Always a card, never left to the fixer's judgement.
 

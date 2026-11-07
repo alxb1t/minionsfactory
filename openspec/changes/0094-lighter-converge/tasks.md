@@ -6,7 +6,7 @@ before this build: find each section by its heading, never by a line number.
 ## Progress
 
 - [x] 1 — Worker models
-- [ ] 2 — The bundle
+- [x] 2 — The bundle
 - [ ] 3 — Security by recomputation
 - [ ] 4 — The record
 
@@ -29,24 +29,24 @@ before this build: find each section by its heading, never by a line number.
 
 ## 2 — The bundle
 
-- [ ] 2.1 Add `skills/mf-converge/scripts/bundle.py`, per [D5](design.md#d5), and `tests/test_bundle.py`, as the design's
+- [x] 2.1 Add `skills/mf-converge/scripts/bundle.py`, per [D5](design.md#d5), and `tests/test_bundle.py`, as the design's
   `## Tests` names its tests.
   Verify: `uv run pytest -q tests/test_bundle.py` reports `2 passed`.
-- [ ] 2.2 Add `bundle.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
+- [x] 2.2 Add `bundle.py` to `_METRICS_SCRIPTS` and its `not named` line to each expected list of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`, per [D5](design.md#d5).
   Verify: `grep -n '"scripts/bundle.py"' tests/test_skills.py` prints a line.
-- [ ] 2.3 Add **Write the bundle** to Step 2, and the bundle's rewrite to Step 6's re-freeze, in `skills/mf-converge/SKILL.md`,
+- [x] 2.3 Add **Write the bundle** to Step 2, and the bundle's rewrite to Step 6's re-freeze, in `skills/mf-converge/SKILL.md`,
   per [D6](design.md#d6).
   Verify: `grep -n 'scripts/bundle.py' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 2.4 Rewrite Step 3's context bullet and add the bundle bullet in `skills/mf-converge/SKILL.md`, per [D6](design.md#d6),
+- [x] 2.4 Rewrite Step 3's context bullet and add the bundle bullet in `skills/mf-converge/SKILL.md`, per [D6](design.md#d6),
   "index of all" on one line.
   Verify: `grep -n 'index of all' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 2.5 Rewrite the packet, **Spec** and **Architecture** of `skills/mf-converge/references/generic-review.md`, per
+- [x] 2.5 Rewrite the packet, **Spec** and **Architecture** of `skills/mf-converge/references/generic-review.md`, per
   [D6](design.md#d6).
   Verify: `grep -n 'bundle' skills/mf-converge/references/generic-review.md` prints a line.
-- [ ] 2.6 Add the worker line to `AGENTS.md`, per [D7](design.md#d7).
+- [x] 2.6 Add the worker line to `AGENTS.md`, per [D7](design.md#d7).
   Verify: `grep -n 'bundle.md' AGENTS.md` prints a line.
-- [ ] 2.7 Rewrite D48's and D49's bold text in `docs/decisions.md`, per [D7](design.md#d7), "its bundle" and "in a bundle" each
+- [x] 2.7 Rewrite D48's and D49's bold text in `docs/decisions.md`, per [D7](design.md#d7), "its bundle" and "in a bundle" each
   on one line.
   Verify: `grep -c -e 'its bundle' -e 'in a bundle' docs/decisions.md` prints `2`.
 

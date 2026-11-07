@@ -266,9 +266,13 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
    change it never read.
 3. **Write the patch** — `mkdir -p .minions/changes/<change-id>`, then `.minions/changes/<change-id>/diff.patch`, holding
    `<base>..HEAD`. It sits under the gitignored `.minions/` and is never committed.
-4. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
+4. **Write the bundle** —
+   `uv run --script <this package>/scripts/bundle.py <change-id> .minions/changes/<change-id>/bundle.md`: the
+   decisions the change cites, an index of all, and the living requirements its delta modifies or removes. Exit 2,
+   or `uv` missing → **halt**, naming what it printed.
+5. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.
-5. **Write `freeze` to the status log.**
+6. **Write `freeze` to the status log.**
 
 ## Step 3 — Dispatch fresh read-only workers
 
@@ -284,10 +288,11 @@ files. Give each:
 - the body of the range's `refactor(<change-id>): simplify` commit, when it has one: its notes are for review;
 - its findings path `.minions/changes/<change-id>/<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
-  it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
-  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
-  and spec delta under `openspec/changes/<change-id>/`, with the living specs the delta touches — review reads the
-  design's `## Tests` table;
+  it does not name, the architecture documents and threat model — the ones it names, else `ARCHITECTURE.md`,
+  `docs/adr/*.md` and `THREAT_MODEL.md` when present, each whole — and the change's proposal, design, tasks and spec
+  delta under `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
+- `.minions/changes/<change-id>/bundle.md`, in place of `docs/decisions.md` and the living specs: the decisions the
+  change cites, in full, an index of all, and the living requirements the delta modifies or removes;
 - its mode and reference;
 - the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
 - `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
@@ -357,7 +362,8 @@ unchanged head and the previous freeze's patch, and Step 5 compares against that
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
 head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
-fix**, not the branch again. Print the range · commit count · files changed; `base` stays Step 2's merge-base.
+fix**, not the branch again. Rewrite the bundle as Step 2 does, halting as it says. Print the range · commit count ·
+files changed; `base` stays Step 2's merge-base.
 These numbers supersede the previous round's for Step 5. Write `freeze` to the status log. There are no per-round
 patch files: each findings file's `head:` and its `## Resolution log` are the per-round record, and a second
 record drifts.
