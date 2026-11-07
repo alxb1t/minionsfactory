@@ -1775,46 +1775,41 @@ def test_an_amend_during_a_rescue_goes_on(
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
 
-@pytest.mark.slow
-def test_a_drift_amend_goes_on_by_rule(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
+def test_a_drift_amend_goes_on_by_rule(tmp_path: Path) -> None:
+    # Step 9's `amend needed` halt on an open drift card, both findings files clean at
+    # its head, is answered by the rescue's amend past that head and not at the head.
+    # Why: 0087-drift-amends design D4, D5.
     conduct = _conduct()
-    calls = fake("drift-halts", "rescue-decides", "by-rule")
     root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
-    table.parent.mkdir(parents=True)
-    table.write_text('decide = "recommended"\n[build]\n')
-
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    design = "openspec/changes/0001-todo/design.md"
+    _commit(tree, {design: "## Context\n"}, "build")
+    head = _git(tree, "rev-parse", "HEAD")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    for role in ("review", "security"):
+        text = f"---\nverdict: clean\nhead: {head}\nround: 1\n---\n"
+        if role == "review":
+            text += (
+                "\n- **R6 — a finding**\n"
+                "  - **Priority:** drift · review · maintainability — why.\n"
+                f"  - **Fix:** amend `{design}`'s prose · size: one line.\n"
+                "  - **Status:** open\n"
+            )
+        (folder / f"{role}.md").write_text(text)
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 1 — d\n"
+        f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}\n"
+        "10:00:00 · round 1 · start — base a · head b\n"
     )
+    answered, runs = conduct["_answered"], root / ".minions"
+    halt = conduct["_converge_halt"](runs, "0001-todo")
+    assert halt == f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}"
+    assert not answered(runs, tree, "0001-todo", halt)
 
-    assert _calls(calls) == [
-        "probe",
-        "build 0001-todo",
-        "converge 0001-todo",
-        "rescue 0001-todo with decide=recommended",
-        "converge 0001-todo",
-        "release 0001-todo",
-    ]
-    grep = ("--grep=amend the change", "0001-todo")
-    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
-    lines = _log(root)
-    assert any(
-        line.endswith(
-            f" · run · rescue — 0001-todo: decided · converge-halted · {amend}"
-        )
-        for line in lines
-    )
-    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · catch-up\n")
-    assert "· round 2 · verdicts — review clean · open_blocking 0\n" in log.read_text()
-    assert "· by rule" not in log.read_text()
-    assert "· amended" not in log.read_text()
-    assert lines[-1].endswith(" · run · done — released v0.1.0 · decided 0001-todo")
+    message = "docs(0001-todo): amend the change directory\n\nfix\n\nRescue: R6"
+    _commit(tree, {design: "## Context\n\nThe amended prose.\n"}, message)
+    assert answered(runs, tree, "0001-todo", halt)
 
 
 @pytest.mark.slow

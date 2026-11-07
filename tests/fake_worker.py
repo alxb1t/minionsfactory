@@ -114,39 +114,14 @@ def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
     )
 
 
-def _drift_halt(root: Path, change: str, head: str) -> None:
-    """Write converge's Step 9 `amend needed — R6` halt at `head`, both files clean.
-
-    Review's `open` drift card R6 names a `design.md` amend by its path in its Fix.
-    """
-    folder = _folder(root, change)
-    folder.mkdir(parents=True, exist_ok=True)
-    design = f"openspec/changes/{change}/design.md"
-    for name in ("review", "security"):
-        text = f"---\nverdict: clean\nhead: {head}\nround: 1\n---\n"
-        if name == "review":
-            text += (
-                "\n- **R6 — a finding**\n"
-                "  - **Priority:** drift · review · maintainability — why.\n"
-                f"  - **Fix:** amend `{design}`'s prose · size: one line.\n"
-                "  - **Status:** open\n"
-            )
-        (folder / f"{name}.md").write_text(text)
-    (folder / "status_log.md").write_text(
-        "# t\n\n## Run 1 — d\n"
-        f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}\n"
-        "10:00:00 · round 1 · start — base a · head b\n"
-    )
-
-
 def _done(root: Path, change: str, head: str) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
-def _amend(tree: Path, change: str, sha: str) -> bool:
-    """Return whether `sha` amends the change directory, by its subject and paths."""
+def _person_amends(tree: Path, change: str, sha: str) -> bool:
+    """Return whether `sha` is the person's amend of the change directory."""
     subject = _git(tree, "log", "-1", "--format=%s", sha)
     listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only", sha)
     folder = f"openspec/changes/{change}/"
@@ -155,41 +130,20 @@ def _amend(tree: Path, change: str, sha: str) -> bool:
     )
 
 
-def _rescued(tree: Path, sha: str) -> bool:
-    """Return whether `sha`'s message carries a `Rescue:` trailer."""
-    return bool(_git(tree, "log", "-1", "--format=%(trailers:key=Rescue)", sha))
-
-
-def _person_amends(tree: Path, change: str, sha: str) -> bool:
-    """Return whether `sha` is the person's amend: one with no `Rescue:` trailer."""
-    return _amend(tree, change, sha) and not _rescued(tree, sha)
-
-
-def _selection(tree: Path, folder: Path) -> tuple[str, list[str]] | None:
-    """Return the judged head and the catch-up's first-parent selection.
-
-    None when no catch-up applies: no review file's head, or that head is `HEAD`.
-    """
-    review = folder / "review.md"
-    text = review.read_text() if review.is_file() else ""
-    found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
-    if not found or found[1] == _git(tree, "rev-parse", "HEAD"):
-        return None
-    return found[1], _git(
-        tree, "rev-list", "--first-parent", f"{found[1]}..HEAD"
-    ).split()
-
-
 def _by_rule(tree: Path, folder: Path, change: str) -> list[str] | None:
     """Return a line per commit when a catch-up selects merges that replay and amends.
 
     A merge's line is its `replay` line; an amend's names the person's amend. None
     when no catch-up applies, the selection holds another commit, or one exits 1.
     """
-    picked = _selection(tree, folder)
-    if picked is None:
+    review = folder / "review.md"
+    text = review.read_text() if review.is_file() else ""
+    found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
+    head = _git(tree, "rev-parse", "HEAD")
+    if not found or found[1] == head:
         return None
-    span, selected = f"{picked[0]}..HEAD", picked[1]
+    span = f"{found[1]}..HEAD"
+    selected = _git(tree, "rev-list", "--first-parent", span).split()
     merges = _git(tree, "rev-list", "--first-parent", "--merges", span).split()
     if not selected or not all(
         sha in merges or _person_amends(tree, change, sha) for sha in selected
@@ -223,18 +177,6 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     (folder / "status_log.md").write_text(
         "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
         f"10:00:00 · round 2 · by rule — clean, {paths}\n"
-    )
-
-
-def _write_catch_up(folder: Path, judged: str, head: str) -> None:
-    """Write both findings files clean at `head`, judged in one round; log the round."""
-    for role in ("review", "security"):
-        text = f"---\nverdict: clean\nhead: {head}\nround: 2\n---\n"
-        (folder / f"{role}.md").write_text(text)
-    (folder / "status_log.md").write_text(
-        "# t\n\n## Run 2 — d · catch-up\n10:00:02 · round 2 · done — ok\n"
-        "10:00:01 · round 2 · verdicts — review clean · open_blocking 0\n"
-        f"10:00:00 · round 2 · freeze — {judged}..{head}\n"
     )
 
 
@@ -498,9 +440,6 @@ def _fake(prompt: str) -> None:
         if "amend-halts" in modes and not _prose(here, str(change)):
             _amend_needed(primary, str(change), _git(here, "rev-parse", "HEAD"))
             return
-        if "drift-halts" in modes and not _prose(here, str(change)):
-            _drift_halt(primary, str(change), _git(here, "rev-parse", "HEAD"))
-            return
         folder = _folder(primary, str(change))
         # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.
         before = {
@@ -517,15 +456,6 @@ def _fake(prompt: str) -> None:
             return
         if "by-rule" in modes and (lines := _by_rule(here, folder, str(change))):
             _write_by_rule(folder, _git(here, "rev-parse", "HEAD"), lines)
-            return
-        # A rescue's amend skips By rule. Why: 0087-drift-amends design D5.
-        picked = _selection(here, folder) if "by-rule" in modes else None
-        if (
-            picked
-            and all(_amend(here, str(change), sha) for sha in picked[1])
-            and any(_rescued(here, sha) for sha in picked[1])
-        ):
-            _write_catch_up(folder, picked[0], _git(here, "rev-parse", "HEAD"))
             return
         log = folder / "status_log.md"
         held = log.read_text() if log.is_file() else ""
