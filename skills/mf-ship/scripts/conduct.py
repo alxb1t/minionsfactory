@@ -662,12 +662,17 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
 def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | None:
     """Return why the cut's `design.md` lists a package `approved` does not hold.
 
-    None when it lists none. A constraint is approved as written.
+    None when it lists none. A constraint is approved as written. A section
+    `_headed` refuses is out of shape, never no section.
     Why: 0091-cut-halts design D4.
     """
-    design = _show(primary, change, f"openspec/changes/{change}/design.md")
-    rows = _rows(design or "", DEPENDENCIES)
-    if rows is None or (rows and rows[0][:2] != ["package", "constraint"]):
+    design = _show(primary, change, f"openspec/changes/{change}/design.md") or ""
+    rows = _rows(design, DEPENDENCIES)
+    if (
+        not _headed(design, DEPENDENCIES)
+        or rows is None
+        or (rows and rows[0][:2] != ["package", "constraint"])
+    ):
         return (
             "design.md's ## Dependencies is neither None. nor a table of"
             " package · constraint · why"
@@ -4977,12 +4982,51 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     return found
 
 
+def _fence(mark: str, line: str) -> str:
+    """Return the fence open after `line`, given `mark`, the one open before it.
+
+    "" is none. A fence opens on a line of three or more backticks or tildes, up to
+    three spaces in, and closes only on a line of its own character, as long or longer.
+    e.g. "", "~~~ md" → "~~~"; "~~~", "```" → "~~~"; "```", "````" → ""
+    Why: 0091-cut-halts design D3.
+    """
+    if not mark:
+        opened = re.match(r" {0,3}(`{3,}|~{3,})", line)
+        return opened[1] if opened else ""
+    closed = re.fullmatch(rf" {{0,3}}{re.escape(mark[0])}{{{len(mark)},}} *", line)
+    return "" if closed else mark
+
+
+def _headed(text: str, heading: str) -> bool:
+    r"""Return whether `heading` stands at most once outside a fence, in no other form.
+
+    A line in another form keeps `heading`'s letters and digits, case-folded, as
+    `brief_check.py`'s `fold` reads one: a trailing space or colon, a leading space,
+    a CRLF end, a setext title. A fence left open fails too.
+    e.g. "## D\nNone.\n## D\n", "## D" → False
+    Why: 0091-cut-halts design D4.
+    """
+
+    def fold(line: str) -> str:
+        return "".join(char for char in line if char.isalnum()).casefold()
+
+    fence = ""
+    seen = False
+    for line in text.split("\n"):
+        if not fence and fold(line) == fold(heading):
+            if line != heading or seen:
+                return False
+            seen = True
+        fence = _fence(fence, line)
+    return not fence
+
+
 def _rows(text: str, heading: str) -> list[list[str]] | None:
     r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
 
-    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence
-    — from a line opening ``` or ~~~ to the next — is never the heading, so a quoted
-    example is not read. Blank lines are skipped. No such heading, or a section
+    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence,
+    as `_fence` reads one, is never the heading, so a quoted example is not read.
+    Blank lines are skipped. No such heading, or a section
     reading `None.` alone, is []. A section with no other line, one holding a line
     that is no `|`-bounded row, with no delimiter row second, or with a row whose cell
     count differs from the header's, is None. The section runs from the first line
@@ -4991,17 +5035,17 @@ def _rows(text: str, heading: str) -> list[list[str]] | None:
     Why: 0091-cut-halts design D3.
     """
     lines: list[str] | None = None
-    fenced = False
+    fence = ""
     for line in text.split("\n"):
         if lines is not None:
             if line.startswith("#"):
                 break
             if line.strip():
                 lines.append(line.strip())
-        elif line.startswith(("```", "~~~")):
-            fenced = not fenced
-        elif not fenced and line == heading:
+        elif not fence and line == heading:
             lines = []
+        else:
+            fence = _fence(fence, line)
     if lines is None or lines == ["None."]:
         return []
     if not lines or not all(len(row) > 1 and row[0] == row[-1] == "|" for row in lines):

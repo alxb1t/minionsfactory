@@ -183,8 +183,9 @@ default branch, as code, then run `mf-cut-change` with `unattended=yes` as a fre
 as the station `cut`. The cut SHALL pass when the branch's tip is the change's `docs(<id>): land the change directory` commit,
 the branch holds `openspec/changes/<id>/`, its tree is clean, `.minions/changes/<id>/models.toml` stands, and each row of the
 `## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written; a
-`## Dependencies` that is neither `None.` nor a table of package, constraint and why SHALL fail it, and a missing one adds no
-package. The run SHALL then
+`## Dependencies` that is neither `None.` nor a table of package, constraint and why SHALL fail it, as SHALL a line outside a
+fence that reads as `## Dependencies` once every character but a letter or a digit is dropped and case is folded but is not
+it as written, a second `## Dependencies`, or a fence left open; a missing one adds no package. The run SHALL then
 delete its queue entry and reservation, read its models file and probe a new executor, and take the version through its
 stations as any open version. A branch that already holds the change SHALL be checked, not cut again. A cut whose
 `after` names a queued cut SHALL wait until that cut passes, and halt when it halts. The cutter's executor SHALL be probed

@@ -3475,6 +3475,12 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
             "design.md's ## Dependencies is neither None. nor a table of"
             " package · constraint · why",
         ),
+        (
+            "0022-t",
+            "cut-twice",
+            "design.md's ## Dependencies is neither None. nor a table of"
+            " package · constraint · why",
+        ),
     ):
         _queued(conduct, root, change, brief)
         fake(mode)
@@ -3484,6 +3490,24 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         assert any(entry.endswith(logged) for entry in _log(root)) != (
             mode == "dies-cut"
         )
+    # A heading in another form, or a fence left open or closed by another mark,
+    # fails closed rather than reading as no section.
+    neither = conduct["_cuts"](root)["0022-t"]["halt"]
+    table = "## Dependencies\n| package | constraint | why |\n|---|---|---|\n"
+    table += "| evil | 1 | x |\n"
+    show = names["_show"]
+    for text, line in (
+        (table.replace("s\n", "s \n", 1), neither),
+        (table.replace("s\n", "s:\n", 1), neither),
+        (f" {table}", neither),
+        (table.replace("## Dependencies", "Dependencies\n---"), neither),
+        (table.replace("\n", "\r\n"), neither),
+        (f"```\n{table}", neither),
+        (f"```\n~~~\n```\n{table}", f"{conduct['UNAPPROVED']}: evil 1"),
+    ):
+        names["_show"] = lambda cwd, rev, path, text=text: text
+        assert conduct["_unapproved"](root, "0022-t", []) == line
+    names["_show"] = show
 
     # A package the entry does not approve halts the cut, naming it.
     packages = tmp_path / "packages.md"

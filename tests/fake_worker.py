@@ -347,6 +347,9 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
         files[f"{spec}/design.md"] = _PACKAGES
     if "cut-prose" in modes:
         files[f"{spec}/design.md"] = "## Dependencies\n\nleft-pad, any version\n"
+    if "cut-twice" in modes:
+        listed = _PACKAGES.partition("```\n\n")[2]
+        files[f"{spec}/design.md"] = f"## Dependencies\n\nNone.\n\n{listed}"
     if "cut-empty" in modes:
         files = {"cut.txt": "x\n"}
     _commit(tree, files, f"docs({change}): land the change directory")
