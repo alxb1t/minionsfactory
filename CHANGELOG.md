@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-11-07
+
+Gate: local 5m48s · CI not read under mf-ship · 0.73.0: local 2m2s · CI not read under mf-ship
+
+- `mf-converge` answers a halt past its head with one catch-up run marked `· amend` over `<judged head>..HEAD`, in
+  place of the `· amended` reopen from round 1; its amended `Verify:` lines run first, and no amend passes by rule
+  (change `0092-amend-round`, phase 1).
+- `conduct.py` answers a converge halt past its head by any amend of the change directory among the commits after it,
+  as the skill does; `_amendable` reads the `· amend` mark, and the new `amend-rounds` metric counts amend runs, which
+  `converge-rounds` skips (change `0092-amend-round`, phase 2).
+- D63 records the amend round; D15, D47, D53, D60 and D61, the principles, the threat model and the rescue's and
+  supervisor's role lines brought in line (change `0092-amend-round`, phase 3).
+
 ## [0.73.0] - 2026-11-07
 
 Gate: local 2m2s · CI not read under mf-ship · 0.72.0: local 2m3s · CI not read under mf-ship

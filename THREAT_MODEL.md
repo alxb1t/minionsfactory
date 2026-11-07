@@ -82,16 +82,18 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
-  build worker's, and converge reviews the whole change after it. Under a version's switch, a rescue commits a worker-written
-  card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
+  build worker's, and converge judges the amend and every claim it changes
+  ([D63](docs/decisions.md#d63--an-answered-amend-gets-one-round-over-its-range)). An amend answers a converge halt of any
+  kind past its head, a halt past the judged head included, bounded by the amend round's own count. Under a version's
+  switch, a rescue commits a worker-written card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
   besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
   ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
   included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
   trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
   amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
-  rule, decision check or delta bound, and a catch-up passes it by rule. At an integrate note the supervisor stages spec and
-  docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
+  rule, decision check or delta bound, and converge judges it in an amend round, as every amend. At an integrate note the
+  supervisor stages spec and docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
   `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
   integrate's merge holds a path past the checked tree but a test its body names fixed, and converge judges that merge
   by its remerge-diff, never by rule. The automatic grant

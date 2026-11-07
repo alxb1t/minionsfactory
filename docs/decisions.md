@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
+     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50, D63
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -220,7 +220,8 @@ be clean.**
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts — save an amend card, one naming the plan's amend: converge halts
-  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's answers it.
+  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's
+  answers it, in one amend round ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
 - **A repeat goes up one level:** a finding that repeats a debt card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
   drift tier keeps prose out of the loop.
@@ -301,6 +302,22 @@ chart, and a record per round and role. Numbers only; it writes into no repo and
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
+
+### D63 · An answered amend gets one round over its range
+
+**A converge halt answered past its head — by any commit when both findings files judged that head, else by an amend of the
+change directory, the person's, the rescue's or the supervisor's — opens one amend round: a catch-up run marked `· amend` over
+`<judged head>..HEAD`, holding the amend, the build's code for a phase it added and converge's own unverified fix. Before its
+`start` it runs each `Verify:` the range adds to `tasks.md`; then one judge round and at most one fix round, a blocker left
+`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. The checkers keep the full plan, and the stale-claim pass
+searches the whole tree for each claim the amend changes.**
+
+- **Why:** an amended run restarted at round 1 over the whole change with a fresh cap of three: 24% of converge's spend, a
+  two-line amend buying a 13-file round, and 0087's and 0088's loops. A scoped round would have missed one nit; the
+  stale-claim pass and the `Verify:` re-run catch what an amend breaks outside its diff.
+- **Accepts:** code an amend contradicts outside the range, which only the stale-claim pass searches · a decision or
+  spec-delta amend judged in one round.
+- **Rejected:** a full reopen after a decision amend · a fresh cap of three per amend · by rule for the person's amends.
 
 ## The target repo
 
@@ -514,8 +531,9 @@ it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
 whose converge or integrate halt was answered while its rescue ran, the person's own fix included, save by the person's
 amends alone, which waits for a re-run.
-A version taken back brings each version it blocked. A clean catch-up, verify or `amend needed` halt followed only by the
-person's `docs(<id>): amend the change directory` commits is answered. A re-run resumes from
+A version taken back brings each version it blocked. A converge halt followed by an amend of the change directory, or by
+any commit when the findings files judged its head, is answered, and gets one amend round
+([D63](#d63--an-answered-amend-gets-one-round-over-its-range)). A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
@@ -583,7 +601,7 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
-  whole change after it.
+  amend and every claim it changes ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
@@ -608,8 +626,8 @@ need and each version a rescue decided for.**
 
 - **Why:** a supervising chat answered every halt of 2026-11-05/06, about 70% of them the line's own gaps, and most of the
   rest a prose amend a fresh reader could write.
-- **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change
-  after it, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
+- **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge judges the amend and
+  every claim it changes, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
 - **Rejected:** `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the run writes itself ·
   a push notification.
 
@@ -636,7 +654,7 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
   rescue may not make, and each a restart.
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
   round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
-  a catch-up passes by rule ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
+  converge judges in an amend round, as every amend ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
   `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
   widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.

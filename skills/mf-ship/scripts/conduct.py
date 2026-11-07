@@ -845,14 +845,17 @@ def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
 
 
 def _amendable(runs: Path, change: str, halt: str) -> bool:
-    """Return whether the person's amend answers a converge halt of this kind.
+    """Return whether the person's amend during a rescue answers a halt of this kind.
 
-    The kinds: a halt in a catch-up run with both findings files still clean, a
-    `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5.
+    The kinds: a halt in a catch-up or amend run with both findings files still
+    clean, a `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5;
+    0092-amend-round design D7.
     """
     if "verify: halt" in halt or "amend needed" in halt:
         return True
-    if not _run_marked(runs, change, "catch-up"):
+    if not (
+        _run_marked(runs, change, "catch-up") or _run_marked(runs, change, "amend")
+    ):
         return False
     files = (_change_dir(runs.parent, change) / f"{role}.md" for role in ROLES)
     return all(
@@ -861,40 +864,49 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
     )
 
 
-def _amended_only(tree: Path, change: str, halted: str) -> bool:
-    """Return whether only the person's amends of the change directory follow `halted`.
+def _amends(tree: Path, change: str, halted: str) -> list[bool]:
+    """Return, per commit past `halted`, whether it is an amend of the change directory.
 
-    `halted` is an ancestor of `HEAD` and not it, and each commit past it has one
-    parent, the amend's subject, and paths under `openspec/changes/<change>/` alone.
-    Why: 0071-ship-fixes design D5.
+    An amend has one parent, the amend's subject, and paths under
+    `openspec/changes/<change>/` alone. None is listed unless `halted` is an ancestor
+    of `HEAD` and not it. Why: 0071-ship-fixes design D5; 0092-amend-round design D2.
     """
     head = _git(tree, "rev-parse", "HEAD").strip()
     if halted == head or not _ancestor(tree, halted, "HEAD"):
-        return False
+        return []
     folder = f"openspec/changes/{change}/"
     subject = f"docs({change}): amend the change directory"
     listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
+    amends = []
     for line in _git(tree, "rev-list", "--parents", f"{halted}..HEAD").splitlines():
         sha, *parents = line.split()
         paths = _git(tree, *listed, sha).split()
-        if (
-            len(parents) != 1
-            or _subject(tree, sha) != subject
-            or not all(path.startswith(folder) for path in paths)
-        ):
-            return False
-    return True
+        amends.append(
+            len(parents) == 1
+            and _subject(tree, sha) == subject
+            and all(path.startswith(folder) for path in paths)
+        )
+    return amends
+
+
+def _amended_only(tree: Path, change: str, halted: str) -> bool:
+    """Return whether only amends of the change directory follow `halted`.
+
+    Why: 0071-ship-fixes design D5.
+    """
+    amends = _amends(tree, change, halted)
+    return bool(amends) and all(amends)
 
 
 def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
-    """Return whether a person's commit answered a converge halt.
+    """Return whether a commit answered a converge halt.
 
-    The halt names the head it stopped at, both findings files judged that head,
-    and `HEAD` descends from it and is not it. A halt past the judged head — after
-    converge's own fix, or in a catch-up run — names no head the files judged, and a
-    rewritten history leaves no descendant. A halt the person's amend answers is
-    answered by amends alone past its head, and a halt before round 1 by any commit.
-    Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1.
+    The halt names the head it stopped at, `HEAD` descends from it and is not it,
+    and both findings files judged that head, or an amend of the change directory
+    follows it: converge judges the range from the files' head in one amend round. A
+    rewritten history leaves no descendant, and a halt before round 1 is answered
+    by any commit. Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1;
+    0092-amend-round design D2.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -908,7 +920,7 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
         return False
     if _before_round(runs, change, halt):
         return _ancestor(tree, halted, "HEAD")
-    if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
+    if any(_amends(tree, change, halted)):
         return True
     for role in ROLES:
         file = _change_dir(runs.parent, change) / f"{role}.md"
@@ -3629,7 +3641,7 @@ class Run:
                 person = not auto and stage == "converge"
                 auto = False
                 if person and _granted(minions, version.change, take=True):
-                    # An answered halt converges afresh or catches up:
+                    # An answered halt gets one amend round:
                     # the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
                     if clause:
