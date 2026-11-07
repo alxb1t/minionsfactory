@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.74
 after: [0090-supervisor-merge]
 debt: [0071·S2]
 ---
