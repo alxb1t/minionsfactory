@@ -242,7 +242,8 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
 change, which commits.
 
-On edits, go back to Step 7. An edit the human asks for after the commit is a further commit on the branch,
+On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
+edit the human asks for after the commit is a further commit on the branch,
 `docs(<change-id>): amend the change directory`, with the same trailer block.
 
 ## Step 10 — Commit
@@ -377,7 +378,8 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 | new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
-A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high: one model a change, never one per phase.
+A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
+a change, never one per phase.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
