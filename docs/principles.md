@@ -78,8 +78,8 @@ merges and the person's amends, whose every merge `integrate.py replay` rebuilds
 halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
-- **A merge:** a catch-up over merges and the person's or the rescue's amends counts its own rounds: one judge
-  round, at most one fix round.
+- **A merge:** a catch-up over merges and the person's, the rescue's or the supervisor's amends counts its own rounds:
+  one judge round, at most one fix round.
 - **Held by:** `mf-converge` Step 7 and its catch-up round.
 
 ## The gate

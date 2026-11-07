@@ -66,7 +66,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   person's own fix then, or a grant landing as it ends, waits for a re-run.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
-  in the home folder, where no worker writes, so no worker names that brief.
+  in the home folder, where no worker writes, so no worker names that brief. A passed cut's brief path stays there, in
+  `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor tried, so no worker
+  forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting
+  the same settle bound.
 
 ## Out of scope
 
@@ -81,7 +84,17 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
   build worker's, and converge reviews the whole change after it. Under a version's switch, a rescue commits a worker-written
   card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
-  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. The automatic grant
+  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
+  ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
+  included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
+  trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
+  amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
+  worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
+  rule, decision check or delta bound, and a catch-up passes it by rule. At an integrate note the supervisor stages spec and
+  docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
+  `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
+  integrate's merge holds a path past the checked tree but a test its body names fixed, and converge judges that merge
+  by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.

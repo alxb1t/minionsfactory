@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-11-07
+
+Gate: local 2m2s · CI not read under mf-ship · 0.72.0: local 2m3s · CI not read under mf-ship
+
+- A passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names it as
+  `brief=<path>` while it names a file, so the plan's intent outlives the queue entry (change
+  `0090-supervisor-merge`, phase 1).
+- Under the switch, the supervisor also answers an `integrating` halt on a semantic conflict, once an open merge across
+  runs: it stages a Markdown settle under `openspec/` and `docs/` and writes `integrate.settled`, the run checks the open
+  merge, and `mf-integrate` `with settled=supervisor` commits it naming `the supervisor` (change
+  `0090-supervisor-merge`, phase 2).
+- D45, D57 and D61 record the supervisor's settle and the kept brief; the threat model, `mf-ship` and README brought in
+  line (change `0090-supervisor-merge`, phase 3).
+
+## [0.72.0] - 2026-11-07
+
+Gate: local 2m3s · CI not read under mf-ship · 0.71.1: local 1m58s · CI not read under mf-ship
+
+- `conduct.py` runs `mf-supervise` under a version's switch after its rescue diagnosed a build or converge halt or was
+  spent on it, once a halt and `SUPERVISES = 2` a version a run, `claude-opus-5-5` at `high` when `[supervise]` names
+  none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
+- A refused supervisor amend is held as a rescue's, never taken as the person's; a grant waits while the supervisor
+  runs, and no supervisor runs over a blocking security card (change `0089-supervisor`, phase 2).
+- A new skill, `mf-supervise`, writes the supervisor's one amend; `mf-rescue` and `mf-ship` put an amend's new sub-task
+  in a new phase after the last, and converge reads a `Supervisor:` amend in a round, never by rule (change
+  `0089-supervisor`, phase 3).
+- `report`, the run's close and the `supervisor-decided` metric name each supervisor amend; D61 records the supervisor,
+  with D15, D47, D53 and D60, the threat model, the principles, README and `AGENTS.md` brought in line (change
+  `0089-supervisor`, phase 4).
+- A findings card whose **Status** a station wrapped in backticks reads as open to the cap's automatic grant and the
+  supervisor's security bar, as its **Priority** already did (change `0089-supervisor`, converge).
+
 ## [0.71.1] - 2026-11-07
 
 Gate: local 1m58s · CI not read under mf-ship · 0.71.0: local 1m55s · CI not read under mf-ship

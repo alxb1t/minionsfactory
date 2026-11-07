@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
 
 ## The shape
@@ -220,7 +220,7 @@ be clean.**
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts — save an amend card, one naming the plan's amend: converge halts
-  `amend needed` on it at the debt write, and the person's amend or the rescue's answers it.
+  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's answers it.
 - **A repeat goes up one level:** a finding that repeats a debt card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
   drift tier keeps prose out of the loop.
@@ -484,8 +484,9 @@ it; the release merges in the primary.**
 
 **`mf-integrate`, run in the primary, merges the default branch into a version's worktree,
 applies fixed rules to the CHANGELOG, decision ids — the plan's planned ones too — and spec delta, resolves a hunk both sides only add, hands a semantic
-conflict to the person with the merge open, and commits the merge, its body naming every path it settled: a rule,
-the union, the person, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
+conflict to the person with the merge open — under a version's switch to its supervisor first,
+whose settle of spec and docs text it commits ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) — and commits
+the merge, its body naming every path it settled: a rule, the union, the person, the supervisor, a test fixed. It gates the committed merge in its worktree; a red gate halts with `.red` naming
 the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
@@ -519,7 +520,8 @@ disk: only a stage left in `HALTS`, a git config key or `origin` URL the run ref
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
 step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
-person once a rescue, where one runs, has left it halted. A converge cap of small cards is the run's to grant, never
+person once a rescue, where one runs, and under the switch its supervisor
+([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)), has left it halted. A converge cap of small cards is the run's to grant, never
 past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap-policy)).**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
@@ -533,7 +535,8 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   the **offline base**, and each release and the close push what is pending. The first offline base needs the person:
   `conduct.py anchor`, in their session.
 - **Accepts:** what a command `Ship tools:` names runs, inside the sandbox.
-- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
+- **Rejected:** an LLM conductor waiting on the workers — the supervisor is a station a halt starts
+  ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
   version held until `origin` answers.
 
@@ -566,7 +569,8 @@ hostile repo needs a container.**
 `conduct.py` runs `mf-rescue` in the halted version's thread. It may fix a build halt or an `amend needed` halt with one `docs(<id>): amend the change directory` commit, carrying a `Rescue:` trailer and touching the
 change's `tasks.md` and `design.md` alone, never `design.md`'s decisions table, save under
 [D60](#d60--a-run-heals-its-own-halts)'s switch; the run then clears the halt and builds or converges on. Every other halt it
-diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file;
+diagnoses in `.minions/changes/<id>/rescue.md`, and the version stays halted, the halt naming the file, save what its
+supervisor answers under the switch ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses));
 a commit at any other converge or integrate halt keeps the halt, and such a halt answered on disk while its rescue runs — a commit,
 a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, save the person's amends, which
 let the version go on, and stands for the run, no rejoin
@@ -583,7 +587,8 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
-  for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)).
+  for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)) · a rescue amend
+  with no `Rescue:` trailer, which reads as the person's ([D60](#d60--a-run-heals-its-own-halts)).
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/changes/<id>/build.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision with no switch · counting only what a rescue did in the tree as its answer — a grant it writes would take the
@@ -605,8 +610,36 @@ need and each version a rescue decided for.**
   rest a prose amend a fresh reader could write.
 - **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change
   after it, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
-- **Rejected:** a supervisor role · `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the
-  run writes itself · a push notification.
+- **Rejected:** `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the run writes itself ·
+  a push notification.
+
+### D61 · A supervisor answers what rescue diagnoses
+
+**Under a version's `decide = "recommended"`, when its rescue diagnoses a build, converge or
+integrate semantic-conflict halt or is spent on it — the sub-task rescued before, or `RESCUES` reached — `conduct.py` runs
+`mf-supervise` in the version's thread. It may amend anything under `openspec/changes/<id>/`, the spec delta included, and tick
+a sub-task whose `Verify:` it ran green; it never edits code or a test, takes a security `critical` or `high` card, approves a
+gate makefile, accepts a threat-model risk, answers an integrate red gate, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
+trailers and paths under the change directory alone, logs it `decided`, clears the halt and goes on in the thread; anything else
+halts the version for the person. One try a halt, at most `SUPERVISES = 2` a version a run; `[supervise]` picks its model,
+`claude-opus-5-5` at `high` on Claude when it names none. The close and `report` name each.**
+
+- **New work:** a sub-task an amend adds — the supervisor's, the rescue's or the person's — goes in a new unticked phase after
+  the last, never under a ticked one: the build reads `## Progress` boxes alone.
+- **An integrate note:** it stages its resolution in Markdown under `openspec/` and `docs/` alone and writes
+  `integrate.settled`, leaving the merge and the note open; the run checks the index and the work tree, then runs
+  `mf-integrate` `with settled=supervisor`, which commits the merge naming `the supervisor`. One try an open merge, across
+  runs: the home queue's `supervised/<id>` records it.
+- **The brief:** a passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names
+  it, read as evidence.
+- **Why:** a supervising chat answered most of 0087's halts and 0085's integrate flag, none with code, each a judgment the
+  rescue may not make, and each a restart.
+- **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
+  round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
+  a catch-up passes by rule ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
+  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
+- **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
+  widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.
 
 ### D55 · One pinned MF release per machine
 
@@ -643,7 +676,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved}`,
+`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
