@@ -1836,6 +1836,43 @@ def test_an_amend_during_a_rescue_goes_on(
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
 
+def test_a_drift_amend_goes_on_by_rule(tmp_path: Path) -> None:
+    # Step 9's `amend needed` halt on an open drift card, both findings files clean at
+    # its head, is answered by the rescue's amend past that head and not at the head.
+    # Why: 0087-drift-amends design D4, D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    design = "openspec/changes/0001-todo/design.md"
+    _commit(tree, {design: "## Context\n"}, "build")
+    head = _git(tree, "rev-parse", "HEAD")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    for role in ("review", "security"):
+        text = f"---\nverdict: clean\nhead: {head}\nround: 1\n---\n"
+        if role == "review":
+            text += (
+                "\n- **R6 — a finding**\n"
+                "  - **Priority:** drift · review · maintainability — why.\n"
+                f"  - **Fix:** amend `{design}`'s prose · size: one line.\n"
+                "  - **Status:** open\n"
+            )
+        (folder / f"{role}.md").write_text(text)
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 1 — d\n"
+        f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}\n"
+        "10:00:00 · round 1 · start — base a · head b\n"
+    )
+    answered, runs = conduct["_answered"], root / ".minions"
+    halt = conduct["_converge_halt"](runs, "0001-todo")
+    assert halt == f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}"
+    assert not answered(runs, tree, "0001-todo", halt)
+
+    message = "docs(0001-todo): amend the change directory\n\nfix\n\nRescue: R6"
+    _commit(tree, {design: "## Context\n\nThe amended prose.\n"}, message)
+    assert answered(runs, tree, "0001-todo", halt)
+
+
 @pytest.mark.slow
 def test_a_halt_answered_on_disk_comes_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]

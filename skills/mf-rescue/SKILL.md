@@ -64,7 +64,7 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 |---|---|---|
 | a `**HUMAN` phase — the halt's phase, or its sub-task's, is marked `**HUMAN` | diagnosis | — |
 | converge's `verify: halt` | diagnosed by the run | — |
-| converge's `amend needed` | fix | the amend its `wontfix` cards name, in `tasks.md` and `design.md`'s prose |
+| converge's `amend needed` | fix | the amend its cards name — a `wontfix` card's note, or an open drift card's **Fix** — in `tasks.md` and `design.md`'s prose |
 | a `Verify:` that cannot pass — its search matches a line no task touches, its expected output is wrong at `HEAD` | fix | the `Verify:` the task's own result passes |
 | a reader a deletion missed — a file the change turns red that no task names | fix | the file, named in the task that turns it red |
 | a task two readings would build differently | fix | the reading `design.md`'s decisions settle; neither settled → diagnosis |

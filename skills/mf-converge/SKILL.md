@@ -151,14 +151,16 @@ still clean, runs the catch-up round again, so the commits since are judged.
 The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
 `git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
 marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
-grant is needed, and the catch-up round does not apply.
+grant is needed, and the catch-up round does not apply, save to the person's amends, as the next paragraph says.
 
 **The person's amends** answer a halt in a catch-up run with both findings files still `verdict: clean`, a
 `verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
 one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
-alone. The answered catch-up halt runs the [Catch-up round](#catch-up-round) again; any other opens `· amended` from
-round 1, as above. Any other halt naming no head, or one past the judged head — after this skill's own fix commit,
-or in a catch-up run — is no person's answer.
+alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
+`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` trailer
+judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
+naming no head, or one past the judged head — after this skill's own fix commit, or in a catch-up run — is no
+person's answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
@@ -189,8 +191,9 @@ not `HEAD`:
                ▼
   merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
                │ yes, its own count  │ yes
-               ▼                     ▼
-  every merge replays? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+               ▼                     │
+  every merge replays,               ▼
+  no Rescue: amend? ───── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
                │ yes                                                  │
                ▼                                                      ▼
   by rule: both files clean, no worker ─────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
@@ -200,13 +203,15 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — enumerate the selection as [Catch-up scope](references/worker.md#catch-up-scope) does, once, at the run's start.
-   **Merges and amends** — merges, and the person's `docs(<change-id>): amend the change directory` commits touching
-   `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at most one fix round,
-   and `round:` carries on past three. Any other selection counts against the cap of three: the files' `round:` is
-   the last judged round, and at the cap → halt as drawn.
+   **Merges and amends** — merges, and the person's or the rescue's `docs(<change-id>): amend the change directory`
+   commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
+   most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
+   files' `round:` is the last judged round, and at the cap → halt as drawn.
 3. **Run Step 1's preconditions.**
 4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
-   worker. A selection of amends alone, with no merge, passes by rule too.
+   worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that
+   carries a `Rescue:` trailer, the rescue's, skips By rule → item 5, under the run's own count: one Step 7 round
+   reads it.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
@@ -341,7 +346,8 @@ dispatch and again at its commit. The fixer:
   `verdict: clean`**. Those are the verify pass's;
 - marks a finding it believes wrong `wontfix` **with a justification**, never silently;
 - **never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is `wontfix`, naming the amend
-  the person commits, and the round halts `amend needed — <card ids>`;
+  the person commits by its path. A blocking card's halts the round `amend needed — <card ids>` after the fix pass;
+  a non-blocking card's is verified, and halts at Step 9;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
   debt — only you do, in Step 9; a second writer would duplicate ids;
 - **commits** the fix staged **by name** (never `git add -A`), Conventional Commits, the message ending with
@@ -392,6 +398,12 @@ tier are on the card — and no human confirms it.
 ## Step 9 — Write the debt
 
 Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
+
+**Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is
+`wontfix`, or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2.
+Any left → halt `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered
+`amend needed` halt logged since the newest `round 1 · start` line named, or whose qualified id
+already stands in the debt, goes on as every other card.
 
 **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
 retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old

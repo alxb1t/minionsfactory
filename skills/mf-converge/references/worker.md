@@ -54,8 +54,9 @@ verify passes change a card's **Status** field and leave its other fields as the
 | security | `critical` · `high` · `medium` · `low` | `critical`, `high` |
 | review | `blocking` · `drift` · `nit` | `blocking` |
 
-**Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block. A spec scenario the
-code contradicts is `blocking`, not drift: the spec is a contract. `open_blocking` counts that station's blocking
+**Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block, save that converge
+halts on an [amend card](#the-card) at Step 9. A spec scenario the code contradicts is `blocking`, not drift: the
+spec is a contract. `open_blocking` counts that station's blocking
 tier, and a station writing `verdict: clean` must leave it at zero — its obligation, not a machine check.
 
 **Anchors always block.** An **anchor** is a harm class: data loss or an irreversible delete, spend, exposure of
@@ -69,7 +70,8 @@ anchors included.
 ```
   open ──fix pass──▶ fixed ───────────────────┬─▶ verify pass, the same checker:
     │                                         │     fixed → verified · wontfix → accepted
-    └──fix pass──▶ wontfix + justification ───┘     either → open again, with a one-line reason
+    └──fix pass──▶ wontfix + justification ───┘     an amend card's wontfix stays wontfix
+                                                    either → open again, with a one-line reason
 ```
 
 `fixed` is the producer's claim, not a resolution. The verify pass re-judges each finding against the scoped fix
@@ -100,6 +102,9 @@ fix's new test is judged like the build's.
 A card whose **Fix** size includes `a test` is **reopened** when its **Status** note holds no red run, or the new
 test does not exercise the card's **When you'd hit it** scenario. The station cannot re-run the test on the
 parent; it checks that the run is there and fits the scenario.
+
+An amend card's `wontfix` stays `wontfix` when its justification holds, never `accepted`: converge's Step 9
+halts on it. A justification that does not hold reopens it, as any `wontfix`.
 
 ## Catch-up scope
 
@@ -150,6 +155,10 @@ field — never a heading, since the debt's headings are its changes. This refer
 
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
 and name things rather than count them: "the review and security files", not "the two files".
+
+**An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
+`design.md` by its path, `openspec/changes/<change-id>/design.md`. The fixer never edits those files, and converge
+halts on such a card.
 
 ```
 - **S1 — The upload reads a file of any size into memory**
