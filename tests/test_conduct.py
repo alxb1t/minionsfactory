@@ -1812,11 +1812,24 @@ def test_an_amend_during_a_rescue_goes_on(
     calls = fake("amend-halts", "rescue-person-amends")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    # As a rescue that wrote rescue.md, the change is diagnosed when the hold runs.
+    hold = conduct["Run"].hold
+    held: list[tuple[bool, bool]] = []
+
+    def diagnosed(self: object, version: object, tree: Path, before: str) -> bool:
+        marked: set[str] = vars(self)["diagnosed"]
+        marked.add("0001-todo")
+        going: bool = hold(self, version, tree, before)
+        held.append((going, "0001-todo" in marked))
+        return going
+
+    monkeypatch.setattr(conduct["Run"], "hold", diagnosed)
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
+    assert held == [(True, False)]
 
     assert _calls(calls) == [
         "probe",
@@ -1953,11 +1966,19 @@ def test_a_halt_answered_on_disk_comes_back(
     conductor.join({})
     assert taken == [conduct["find_version"](root, "0003-late")] and reads == []
     assert polled[-3:] == ["read", "wait", "read"]
-    # A request taken at a poll's bottom sends the run to the next poll's top.
+    # A request taken at a poll's bottom waits out the poll, then reads its top.
     answers = [False, True, False, False]
-    conductor.take_requests = lambda threads: answers.pop(0)
+    polled.clear()
+
+    def requested(threads: dict[str, threading.Thread]) -> bool:
+        answer = answers.pop(0)
+        polled.append(f"take {answer}")
+        return answer
+
+    conductor.take_requests = requested
     conductor.join({})
     assert answers == []
+    assert polled[polled.index("take True") + 1 :][:2] == ["wait", "take False"]
     # A failed read of the open versions takes nothing, and the log says why.
     conductor.halt("0003-late", "build timed out")
     listed = globals_["open_versions"]
@@ -3081,7 +3102,9 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         "ref: refs/heads/0018-v\n"
     )
     assert conductor.cutting("0018-v") == (
-        f"the branch's worktree {other} is kept: not at the cut's path",
+        f"the branch's worktree {other} is kept: not at the cut's path; a person"
+        " reads it, then removes it with git worktree remove or moves it back to"
+        " the cut's path, before conduct.py rejoin 0018-v",
         False,
     )
     assert (other / "notes.txt").is_file()
@@ -3571,6 +3594,16 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert code == 1 and old.is_file() and not new.exists() and held.is_dir()
     assert "run · halt — .minions/debt.lock is held" in text
     assert text.count(moved) == 2
+
+    # A plain file at the debt lock halts as a file: no stale clear removes it.
+    held.rmdir()
+    held.write_text("")
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and held.is_file()
+    assert "run · halt — .minions/debt.lock is a file, not a lock" in text
+    assert text.count(moved) == 2
+    held.unlink()
+    held.mkdir()
 
     # Twin: a stale debt lock is removed, and the move releases its own.
     held.rmdir()

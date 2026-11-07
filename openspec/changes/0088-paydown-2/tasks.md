@@ -4,25 +4,25 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## Progress
 
-- [ ] 1 — The conductor's small cards
+- [x] 1 — The conductor's small cards
 - [ ] 2 — The brief check
 - [ ] 3 — The status-log stamp
 - [ ] 4 — The archives and the threat model
 
 ## 1 — The conductor's small cards
 
-- [ ] 1.1 Add the plain-file step to `test_a_run_moves_an_old_backlog_to_the_debt` in `tests/test_conduct.py`, as the design's
+- [x] 1.1 Add the plain-file step to `test_a_run_moves_an_old_backlog_to_the_debt` in `tests/test_conduct.py`, as the design's
   `## Tests` says, then the file check in `Run.migrate_debt` of `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k run_moves_an_old_backlog_to_the_debt` reports `1 passed`.
-- [ ] 1.2 Edit the `0018-v` assertion of `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`, then the
+- [x] 1.2 Edit the `0018-v` assertion of `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`, then the
   kept line in `Run.cutting` of `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_halt_is_shown_and_rejoin_cuts_again` reports `1 passed`.
-- [ ] 1.3 Add the kept-worktree sentence to the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D2](design.md#d2).
+- [x] 1.3 Add the kept-worktree sentence to the `cut-halted` row of `skills/mf-ship/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -n 'git worktree remove <path>' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 1.4 Extend the bottom-take step of `test_a_halt_answered_on_disk_comes_back` in `tests/test_conduct.py`, then the sleep in
+- [x] 1.4 Extend the bottom-take step of `test_a_halt_answered_on_disk_comes_back` in `tests/test_conduct.py`, then the sleep in
   `Run.join` of `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k halt_answered_on_disk_comes_back` reports `1 passed`.
-- [ ] 1.5 Wrap `Run.hold` in `test_an_amend_during_a_rescue_goes_on` in `tests/test_conduct.py`, then discard the diagnosis in
+- [x] 1.5 Wrap `Run.hold` in `test_an_amend_during_a_rescue_goes_on` in `tests/test_conduct.py`, then discard the diagnosis in
   `Run.hold` of `skills/mf-ship/scripts/conduct.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k amend_during_a_rescue_goes_on` reports `1 passed`.
 
