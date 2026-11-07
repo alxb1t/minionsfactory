@@ -4,7 +4,9 @@ Real git in a scratch repository with linked worktrees and real merges.
 Why: 0037-serial-integration design D2.
 """
 
+import os
 import runpy
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -535,6 +537,38 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert result.stdout == "delta: changed on the default branch: sdd: First\n"
+
+
+def test_a_git_failure_names_its_line(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(tmp_path)}
+
+    def delta(where: Path) -> tuple[int, str]:
+        done = subprocess.run(
+            [sys.executable, str(_SCRIPT), "delta", str(where)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        return done.returncode, done.stdout
+
+    assert delta(outside) == (
+        2,
+        f"integrate: cannot run — {outside} is not a worktree root\n",
+    )
+    arch = "missing compatible architecture (have 'arm64,arm64e', need 'x86_64')"
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    (folder / "git").write_text(f"#!/bin/sh\necho {shlex.quote(arch)} >&2\nexit 1\n")
+    (folder / "git").chmod(0o755)
+    env["PATH"] = f"{folder}{os.pathsep}{env['PATH']}"
+    assert delta(root) == (
+        2,
+        f"integrate: cannot run — git rev-parse failed: {arch};"
+        f" run it as uv run --script {_SCRIPT}\n",
+    )
 
 
 def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:

@@ -343,11 +343,21 @@ def primary_of(cwd: Path) -> Path:
 
     A worker can write `commondir` and `.git`, so git can name a repo `_refuse_origin`
     has no kept URLs for: past that repo's own folder, kept URLs must stand, or stop
-    with 1. Why: 0052-security-hardening design D9.
+    with 1. A git that fails otherwise names its own error.
+    Why: 0052-security-hardening design D9; 0086-ship-fixes-3 design D6.
     """
-    if (common := _common_dir(cwd)) is None:
+    done = _run(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if done.returncode != 0 and "not a git repository" in done.stderr:
         raise Stop(2, "conduct: cannot run — not in a git repository")
-    primary = common.parent
+    if done.returncode != 0:
+        lines = [line for line in done.stderr.splitlines() if line.strip()]
+        first = lines[0] if lines else f"exit {done.returncode}"
+        raise Stop(
+            2,
+            f"conduct: cannot run — git rev-parse failed: {first};"
+            f" run it as uv run --script {Path(__file__)}",
+        )
+    primary = Path(done.stdout.strip()).resolve().parent
     if not cwd.resolve().is_relative_to(primary) and not _kept_file(primary).is_file():
         raise Stop(
             1,

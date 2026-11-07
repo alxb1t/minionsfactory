@@ -981,6 +981,29 @@ def test_a_merge_in_renumbers_a_planned_decision(
     assert _git(waiting, "status", "--porcelain").strip() == ""
 
 
+def test_a_git_failure_names_its_line_and_uv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    assert _main(conduct, outside, "status", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out == "conduct: cannot run — not in a git repository\n"
+
+    arch = "missing compatible architecture (have 'arm64,arm64e', need 'x86_64')"
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    (folder / "git").write_text(f"#!/bin/sh\necho {shlex.quote(arch)} >&2\nexit 1\n")
+    (folder / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    assert _main(conduct, outside, "status", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out == (
+        f"conduct: cannot run — git rev-parse failed: {arch};"
+        f" run it as uv run --script {_SCRIPT}\n"
+    )
+
+
 @pytest.mark.slow
 def test_the_integrate_script_is_loaded_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]

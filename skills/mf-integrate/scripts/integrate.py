@@ -292,9 +292,22 @@ def next_version(cwd: Path, change: str | None = None) -> str:
 
 
 def _tree(path: str) -> Path:
-    """Return the worktree root given; anything else stops with exit 2."""
+    """Return the worktree root given; anything else stops with exit 2.
+
+    A git that fails outside "not a git repository" names its own error.
+    Why: 0086-ship-fixes-3 design D6.
+    """
     tree = Path(path).resolve()
-    top = _maybe(tree, "rev-parse", "--show-toplevel") if tree.is_dir() else None
+    done = _run(tree, "rev-parse", "--show-toplevel") if tree.is_dir() else None
+    if done and done.returncode != 0 and "not a git repository" not in done.stderr:
+        lines = [line for line in done.stderr.splitlines() if line.strip()]
+        first = lines[0] if lines else f"exit {done.returncode}"
+        raise Stop(
+            2,
+            f"integrate: cannot run — git rev-parse failed: {first};"
+            f" run it as uv run --script {Path(__file__)}",
+        )
+    top = done.stdout if done and done.returncode == 0 else None
     if top is None or Path(top.strip()).resolve() != tree:
         raise Stop(2, f"integrate: cannot run — {path} is not a worktree root")
     return tree

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `integrate.py delta` keeps a MODIFIED requirement whose delta only inserts into the default branch's block and keeps
   nothing it removed, so a delta that already holds the default branch's change merges with no note (change
   `0086-ship-fixes-3`, phase 2).
+- `conduct.py`, `awake.py` and `integrate.py` say "not in a git repository", or "not a worktree root", only when git
+  says so; any other git failure prints git's first stderr line and `run it as uv run --script <path>` (change
+  `0086-ship-fixes-3`, phase 3).
 
 ## [0.70.0] - 2026-11-06
 

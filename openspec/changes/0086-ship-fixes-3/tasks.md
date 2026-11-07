@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time.
 
 - [x] 1 — A planned decision id renumbered
 - [x] 2 — An insert-only delta kept
-- [ ] 3 — Git's own error
+- [x] 3 — Git's own error
 
 ## 1 — A planned decision id renumbered
 
@@ -41,12 +41,12 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Git's own error
 
-- [ ] 3.1 Run git through `_run` in `primary_of` in `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6); add
+- [x] 3.1 Run git through `_run` in `primary_of` in `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6); add
   `test_a_git_failure_names_its_line_and_uv` to `tests/test_conduct.py`, as `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k git_failure_names_its_line_and_uv` reports `1 passed`.
-- [ ] 3.2 Name git's failure in `_record` in `skills/mf-cut-change/scripts/awake.py`, per [D6](design.md#d6); extend
+- [x] 3.2 Name git's failure in `_record` in `skills/mf-cut-change/scripts/awake.py`, per [D6](design.md#d6); extend
   `test_stop_kills_only_a_recorded_caffeinate` in `tests/test_awake.py`, as `## Tests` says.
   Verify: `grep -n 'git rev-parse failed' skills/mf-cut-change/scripts/awake.py` prints a line.
-- [ ] 3.3 Name git's failure in `_tree` in `skills/mf-integrate/scripts/integrate.py`, per [D6](design.md#d6); add
+- [x] 3.3 Name git's failure in `_tree` in `skills/mf-integrate/scripts/integrate.py`, per [D6](design.md#d6); add
   `test_a_git_failure_names_its_line` to `tests/test_integrate.py`, as `## Tests` names it.
   Verify: `uv run pytest -q tests/test_integrate.py -k git_failure_names_its_line` reports `1 passed`.
