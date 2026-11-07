@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 ## Progress
 
 - [x] 1 — The conductor's small cards
-- [ ] 2 — The brief check
+- [x] 2 — The brief check
 - [ ] 3 — The status-log stamp
 - [ ] 4 — The archives and the threat model
 
@@ -28,10 +28,10 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## 2 — The brief check
 
-- [ ] 2.1 Add the item-form and second-`after:` steps to `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`, then
+- [x] 2.1 Add the item-form and second-`after:` steps to `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`, then
   both halts in `fields` and `head` of `skills/mf-plan/scripts/brief_check.py`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_brief_check.py -k brief_out_of_shape_halts` reports `1 passed`.
-- [ ] 2.2 Rewrite the why line of `skills/mf-plan/scripts/brief_check.py`'s module docstring, per [D5](design.md#d5).
+- [x] 2.2 Rewrite the why line of `skills/mf-plan/scripts/brief_check.py`'s module docstring, per [D5](design.md#d5).
   Verify: `grep -L 'converge card' skills/mf-plan/scripts/brief_check.py` prints `skills/mf-plan/scripts/brief_check.py`.
 
 ## 3 — The status-log stamp

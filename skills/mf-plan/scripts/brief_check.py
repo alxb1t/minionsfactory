@@ -10,7 +10,7 @@ Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prin
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
 slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape. Why: 0083-plan-queues design D1, and its converge card S2.
+to their shape. Why: 0083-plan-queues design D1; 0088-paydown-2 design D5.
 """
 
 import argparse
@@ -115,9 +115,12 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
         found.append(f"item {number} — not a slug: `{name}`")
     if (bump := "".join(parts[1:2]).strip("` ")) not in BUMPS:
         found.append(f"item {number} — not a bump: `{bump}`")
-    after = next((part[6:] for part in parts if part.startswith("after:")), None)
-    if after is None:
+    afters = [part[6:] for part in parts if part.startswith("after:")]
+    if len(afters) > 1:
+        return [*found, f"item {number} — more than one after:"]
+    if not afters:
         return [*found, f"item {number} — no after:"]
+    after = afters[0]
     if (after := after.strip("[] `")) == "none":
         return found
     for named in after.split(","):
@@ -146,9 +149,14 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    A head is an item opening `<n>. `; its `- models:` item follows it.
+    A head is an item opening `<n>. `; its `- models:` item follows it. An item with
+    no indent opens a head.
     """
-    found: list[str] = []
+    found = [
+        f"not a numbered item: `{line.rstrip()}`"
+        for line in lines
+        if ITEM.match(line) and not HEAD.match(line)
+    ]
     numbers: list[str] = []
     named: set[str] = set()
     for item in items(lines):

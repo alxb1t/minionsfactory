@@ -112,6 +112,19 @@ def test_a_brief_out_of_shape_halts(
         " build · converge · release · cut, each <model> <effort>",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
+    # An item that opens no number, and a head with a second after:, halt.
+    shapes = _READY + (
+        "- **x;y** · minor · after: none\n"
+        "5. **ok** · minor · after: none · after: a;touch-p\n"
+        "   - models: build opus high · converge opus high · release opus high"
+        " · cut opus high\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, shapes))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `- **x;y** · minor · after: none`",
+        "brief: halt — ## For the cut: item 5 — more than one after:",
+    ]
 
 
 def test_what_cannot_be_checked_exits_2(

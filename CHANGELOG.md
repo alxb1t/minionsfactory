@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py`: a file at `.minions/debt.lock` halts the move as a file, not a lock; a kept-worktree re-cut names its
   remedy, as `mf-ship`'s `cut-halted` row now does; a request taken at a poll's bottom waits out the poll; an amend that
   answers a rescued halt drops the stale diagnosis (change `0088-paydown-2`, phase 1).
+- `brief_check.py` halts on a `## For the cut` item that does not open `<n>. ` and on a head with a second `after:`, so
+  the close pastes no unchecked field into `conduct.py cut`; its why line cites a tracked design (change
+  `0088-paydown-2`, phase 2).
 
 ## [0.71.0] - 2026-11-07
 
