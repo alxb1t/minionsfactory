@@ -202,10 +202,10 @@ Open the run marked `· catch-up`, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — enumerate the selection as [Catch-up scope](references/worker.md#catch-up-scope) does, once, at the run's start.
-   **Merges and amends** — merges, and the person's `docs(<change-id>): amend the change directory` commits touching
-   `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at most one fix round,
-   and `round:` carries on past three. Any other selection counts against the cap of three: the files' `round:` is
-   the last judged round, and at the cap → halt as drawn.
+   **Merges and amends** — merges, and the person's or the rescue's `docs(<change-id>): amend the change directory`
+   commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
+   most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
+   files' `round:` is the last judged round, and at the cap → halt as drawn.
 3. **Run Step 1's preconditions.**
 4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
    worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that

@@ -54,8 +54,9 @@ verify passes change a card's **Status** field and leave its other fields as the
 | security | `critical` · `high` · `medium` · `low` | `critical`, `high` |
 | review | `blocking` · `drift` · `nit` | `blocking` |
 
-**Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block. A spec scenario the
-code contradicts is `blocking`, not drift: the spec is a contract. `open_blocking` counts that station's blocking
+**Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block, save that converge
+halts on an [amend card](#the-card) at Step 9. A spec scenario the code contradicts is `blocking`, not drift: the
+spec is a contract. `open_blocking` counts that station's blocking
 tier, and a station writing `verdict: clean` must leave it at zero — its obligation, not a machine check.
 
 **Anchors always block.** An **anchor** is a harm class: data loss or an irreversible delete, spend, exposure of

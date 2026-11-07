@@ -48,6 +48,12 @@ None.
     files clean runs the catch-up round again, a rescue's amend judged in one Step 7 round.
   - *A halted version is rescued in its run* — MODIFIED: the rescue amends what the halt's cards name; the version converges
     on in an `· amended` run, or in the catch-up round when both findings files are clean.
+  - *The release ships only a reviewed head* — MODIFIED: merges and amends include the rescue's amend, which keeps the
+    catch-up's own count; the round is by rule only when no amend carries a `Rescue:` trailer.
+  - *Anchored harms block, and drift has its own tier* — MODIFIED: drift never blocks, save an amend card, on which converge
+    halts at Step 9.
+  - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — MODIFIED: by rule passes the person's
+    amends alone, never one carrying a `Rescue:` trailer.
 
 ## Impact
 
