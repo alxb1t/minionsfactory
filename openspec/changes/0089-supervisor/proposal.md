@@ -57,6 +57,9 @@ None.
     round, as a `Rescue:` one.
   - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — MODIFIED: by rule passes no amend carrying
     a `Supervisor:` trailer.
+  - *A halt stops only its version, and a re-run resumes* — MODIFIED: a halted version starts no new worker but its rescue
+    and, under its switch, its supervisor.
+  - *A verify halt is diagnosed by the run* — MODIFIED: the version stays halted with no switch.
 
 ## Impact
 
