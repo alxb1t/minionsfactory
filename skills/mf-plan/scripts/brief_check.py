@@ -10,7 +10,8 @@ Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prin
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
 slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape. Why: 0083-plan-queues design D1, and its converge card S2.
+to their shape. A checked line holds no whitespace but spaces and tabs. Why:
+0083-plan-queues design D1; 0088-paydown-2 design D5.
 """
 
 import argparse
@@ -30,6 +31,10 @@ CONDUCT = Path(__file__).resolve().parents[2] / "mf-ship" / "scripts" / "conduct
 AT = re.compile(r"At ([0-9a-f]{7,40}), (\d{4}-\d{2}-\d{2})\.")
 ITEM = re.compile(r"- |\d+\. |\| ")
 HEAD = re.compile(r"(\d+)\. (.*)")
+TOP = re.compile(r"(\d+)\. \S")
+NESTED = ("- models:", "- **Acceptance:**")
+MARKER = re.compile(r"(?:[-*+]|\d+[.)])(?:\s|$)|\|")
+MODELS_LINE = re.compile(r"(?:[-*+]|\d+[.)])\s+\W*models\W*:", re.IGNORECASE)
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 CHECKED = ("## Decisions", "## For the cut")
@@ -50,33 +55,52 @@ def depth(brief: str) -> str | None:
     return LIGHT if "light" in parts else "the title names no depth"
 
 
-def sections(brief: str) -> dict[str, list[str]]:
-    """Return each `## ` section's lines, keyed by its heading, which they exclude."""
-    found: dict[str, list[str]] = {}
-    lines: list[str] | None = None
-    for line in brief.splitlines():
+def headed(brief: str) -> list[tuple[str, list[str]]]:
+    """Return each `## ` heading's key and the lines under it, in order.
+
+    Lines break at a newline alone, as Markdown's do once the file is read; a vertical
+    tab or another `str.splitlines` separator stays inside its line. A heading keys
+    with each whitespace run as one space, so `## For the cut` written with NBSP or
+    U+3000 is the same section.
+    """
+    found: list[tuple[str, list[str]]] = []
+    for line in brief.split("\n"):
         if line.startswith("## "):
-            lines = found.setdefault(line.rstrip(), [])
-        elif lines is not None:
-            lines.append(line)
+            found.append(("## " + " ".join(line[3:].split()), []))
+        elif found:
+            found[-1][1].append(line)
+    return found
+
+
+def sections(brief: str) -> dict[str, list[str]]:
+    """Return each `## ` section's lines, keyed by its heading, which they exclude.
+
+    A heading written twice keys one section, its lines in order, per `headed`.
+    """
+    found: dict[str, list[str]] = {}
+    for heading, lines in headed(brief):
+        found.setdefault(heading, []).extend(lines)
     return found
 
 
 def items(lines: list[str]) -> list[str]:
     """Return each item of a section: its lines, stripped, joined by a space.
 
-    An item's line wraps onto each deeper line after it that opens no item.
-    e.g. ["- a", "  b", "- c"] → ["- a b", "- c"]
+    An item's line wraps onto each deeper line after it that opens no item, and, as
+    Markdown's lazy continuation does, onto any other line before a blank one that
+    opens no list marker or `|`. As in CommonMark, only spaces and tabs indent a line
+    or blank it: a line of NBSP or a form feed is text.
+    e.g. ["- a", "  b", "c", "- d", "* e"] → ["- a b c", "- d"]
     """
     found: list[str] = []
     indent: int | None = None
     for line in lines:
-        text = line.lstrip()
+        text = line.lstrip(" \t")
         at = len(line) - len(text)
         if ITEM.match(text):
             found.append(text.strip())
             indent = at
-        elif indent is not None and text and at > indent:
+        elif indent is not None and text and (at > indent or not MARKER.match(text)):
             found[-1] += " " + text.strip()
         else:
             indent = None
@@ -115,9 +139,12 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
         found.append(f"item {number} — not a slug: `{name}`")
     if (bump := "".join(parts[1:2]).strip("` ")) not in BUMPS:
         found.append(f"item {number} — not a bump: `{bump}`")
-    after = next((part[6:] for part in parts if part.startswith("after:")), None)
-    if after is None:
+    afters = [part[6:] for part in parts if part.startswith("after:")]
+    if len(afters) > 1:
+        return [*found, f"item {number} — more than one after:"]
+    if not afters:
         return [*found, f"item {number} — no after:"]
+    after = afters[0]
     if (after := after.strip("[] `")) == "none":
         return found
     for named in after.split(","):
@@ -146,9 +173,27 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    A head is an item opening `<n>. `; its `- models:` item follows it.
+    `lines` are one heading's, as a heading starts a new list. A head is an item
+    opening `<n>. ` and one space; its `- models:` item follows it. A line opening
+    a list marker or `| ` short of the last head's text column, or of four spaces
+    before any head, tabs read as 4, is a top-level item and opens a head.
+    Past a `10. ` head's three spaces, short of its text column, only the template's
+    `- models:` and `- **Acceptance:**` lines sit. A models line is written `- models:`,
+    once a head.
     """
     found: list[str] = []
+    column = nested = 4
+    for line in lines:
+        raw = line.lstrip()
+        text = line.expandtabs(4).lstrip()
+        at = len(line.expandtabs(4)) - len(text)
+        if MODELS_LINE.match(raw) and not raw.startswith("- models:"):
+            found.append(f"a models line not written `- models:`: `{line.rstrip()}`")
+        elif at < column and MARKER.match(text):
+            if opened := TOP.match(raw):
+                column, nested = at + len(opened[1]) + 2, at + 3
+            elif at < nested or not raw.startswith(NESTED):
+                found.append(f"not a numbered item: `{line.rstrip()}`")
     numbers: list[str] = []
     named: set[str] = set()
     for item in items(lines):
@@ -156,12 +201,26 @@ def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
             numbers.append(opened[1])
             found += head(opened[1], opened[2].split(" · "), slug)
         elif numbers and item.startswith("- models:"):
+            if numbers[-1] in named:
+                found.append(f"item {numbers[-1]} — more than one models line")
             named.add(numbers[-1])
             found += models(numbers[-1], item.removeprefix("- models:"))
     found += [
         f"item {number} — no models line" for number in numbers if number not in named
     ]
     return [f"## For the cut: {line}" for line in found]
+
+
+def whitespace(heading: str, lines: list[str]) -> list[str]:
+    """Return a halt for each line of a section holding whitespace not a space or tab.
+
+    Lines count from 1 under the heading.
+    """
+    return [
+        f"{heading} line {number}: whitespace other than a space or a tab"
+        for number, line in enumerate(lines, 1)
+        if any(char.isspace() and char not in " \t" for char in line)
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -190,7 +249,11 @@ def main(argv: list[str] | None = None) -> int:
         found.append("no At <sha>, <YYYY-MM-DD>. line")
     if not any(line.strip() for line in parts.get("## For the cut", [])):
         found.append("## For the cut is empty")
-    found += fields(parts.get("## For the cut", []), slug)
+    for heading in CHECKED:
+        found += whitespace(heading, parts.get(heading, []))
+    for heading, lines in headed(brief):
+        if heading == "## For the cut":
+            found += fields(lines, slug)
     for line in found:
         print(f"brief: halt — {line}")
     for heading in CHECKED:

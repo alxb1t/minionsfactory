@@ -95,7 +95,8 @@ answers a run-wide halt.
 ### D4
 
 `_amend(tree, change, before, amends)` returns `(sha, why, decided)`. A **decided amend** touches `proposal.md`, or changes the
-`## Decisions` section of `design.md` — the text from that heading to the next `## ` heading, `_show(tree, before, …)` against
+`## Decisions` section of `design.md` — the text from the first line that starts `## Decisions` to the next `## ` heading, and every
+`## ` heading of the design, so a copied, added or renamed heading reads as decided — `_show(tree, before, …)` against
 `_show(tree, sha, …)`, a missing file read as empty. Without `proposal.md` in `amends` — no switch — a decided amend is `None`, `rescue changed a decision:
 <path>`. With it, a decided amend whose `%(trailers:key=Decided-by)` is not `rescue` is `None`, `rescue commit <sha7> decided
 with no Decided-by: rescue trailer`.
