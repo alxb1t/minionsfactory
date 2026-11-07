@@ -197,7 +197,10 @@ so every existing halt line stands.
 - **No security blocker.** `_security_held(runs, change, halt) -> bool` beside `_security_blocks`. It reads `security.md` once,
   True when that read fails, as `_security_blocks` does; then True when a card whose severity is in `BLOCKS["security"]` is named
   by the halt's `amend needed` ids or has a **Status** starting `open`. It calls no `_security_blocks`, so no branch is
-  unreachable. `supervise()` reads it at `converge-halted` alone: a build halt has no findings file.
+  unreachable. `supervise()` reads it at `converge-halted` alone. A build halt can still follow a cap whose `security.md` holds an
+  open blocking card: the amend's new phase ([D8](#d8)) halts its build, and the supervisor may rewrite that phase's sub-tasks with
+  no bar read. The gap is accepted, not closed: the supervisor touches the change directory alone, and the next converge re-judges
+  the whole change with a fresh security worker (`0089·S4`).
 
 ### D7
 
@@ -373,6 +376,9 @@ None.
   name it.
 - **The trailer-less route** — a worker amend with no trailer reads as the person's → D60 already accepts it; this change records it
   in the threat model rather than closing it, since the conductor cannot tell the person's commit from a worker's by content.
+- **A build halt after a security cap** — the supervisor answers a build halt in an amend's new phase while `security.md` still
+  holds an open blocking card, since the bar is read at `converge-halted` alone → it edits the plan, never code, and the next
+  converge's fresh security worker re-judges the whole change ([D6](#d6), `0089·S4`).
 - **The supervisor's spend** → one Opus run per try, at most two a version a run, and only under the switch.
 - **A ticked box** → the conductor runs no `Verify:`: the skill runs it before the tick, and the build's next phase and converge
   read the tree after it; a false tick is a worker's claim the gate and review still judge.
