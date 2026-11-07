@@ -101,8 +101,11 @@ In `Run.join`, the bottom branch reads `if self.take_requests(threads): time.sle
 
 ### D5
 
-- **The item form.** `fields` gains a check over the section's raw lines: a line with no indent that `ITEM` matches and `HEAD`
-  does not → `not a numbered item: <the line, in backticks>`, under the `## For the cut: ` prefix, e.g.
+- **The item form.** `fields` gains a check over the section's raw lines: a line, tabs read as 4, short of the last head's text
+  column (or of four spaces before any head) that opens `-`, `*`, `+`, `<n>.`, `<n>)` or `|` and does not open `<n>. ` and one
+  space → `not a numbered item: <the line, in backticks>`, save the template's `- models:` and `- **Acceptance:**` lines from
+  the head's indent plus three; a models line not written `- models:` → ``a models line not written `- models:`: <the line>``,
+  and a second → `item <n> — more than one models line`. Each goes under the `## For the cut: ` prefix, e.g.
   ``brief: halt — ## For the cut: not a numbered item: `- **x;y** · minor · after: none` ``.
 - **The second `after:`.** `head` counts the parts that start `after:`; more than one →
   `item <n> — more than one after:`, and no `after` entry is read.
@@ -231,7 +234,8 @@ Extended or edited, each card's step red before its fix:
 | `test_a_halt_answered_on_disk_comes_back` (`T:1779`, `slow`) | the bottom-take step (`T:1858-1862`) logs each `take_requests` call in `polled`, and a `wait` stands between the bottom take that returned True and the next top take |
 | `test_an_amend_during_a_rescue_goes_on` (`T:1747`) | `Run.hold`, wrapped with `monkeypatch`, adds the change to `self.diagnosed` before the real call, as a rescue that wrote `rescue.md` does, and records whether it is still there after; the record is `[(True, False)]` |
 | `test_the_metrics_script_scan_reports_a_missing_script` (`tests/test_skills.py:510`) | `stamp.py`'s `not named` line, per [D7](#d7) |
-| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:` |
+| `test_a_hard_brief_is_ready_for_the_cut` (`tests/test_brief_check.py:69`) | a tenth item nested three spaces in, as the template writes it, is ready |
+| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:`; the `*`, one-space `- `, `+` and two-space `2)` items halt `not a numbered item`; a `2.<tab>` head, a `3.  ` head and a three-space `- ` under a `10. ` head halt the same; a `* models:`, `-<tab>models:` or `-  models:` line halts `a models line not written`, and a second `- models:` halts `more than one models line` |
 
 No test is deleted or merged.
 
