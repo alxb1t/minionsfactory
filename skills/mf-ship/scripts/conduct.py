@@ -3154,7 +3154,7 @@ class Run:
                     why = f"rescue diagnosed — {name}"
                 self.halt(change, why or "rescue wrote no amend and no diagnosis")
         finally:
-            # A taken amend is the rescue's answer: converge opens its amended run.
+            # A taken amend is the rescue's answer: converge picks its run from disk.
             going = held in RESCUED and sha is None and self.hold(version, tree, before)
         return sha is not None or going
 
@@ -3354,7 +3354,8 @@ class Run:
                 person = not auto and stage == "converge"
                 auto = False
                 if person and _granted(minions, version.change, take=True):
-                    # An amended run starts from round 1: the grant goes unspent.
+                    # An answered halt converges afresh or catches up:
+                    # the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
                     if clause:
                         with self.guard:
