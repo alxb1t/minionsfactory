@@ -145,8 +145,8 @@ that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
 `THREAT_MODEL.md` MAY hold `## Surfaces`, one ``- `<glob>` `` line per path a fix reaches security through, and the
 bootstrap's template SHALL hold the section unwritten. In a Step 7 round after a fix commit, converge SHALL run
 `skills/mf-converge/scripts/surfaces.py` over the fix range. It SHALL print `surfaces: no surface` and exit 0 when the
-adversarial file says `verdict: clean`, holds no card whose Status is `open`, `fixed` or `wontfix`, and the range touches no
-path a listed glob matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed
+adversarial file says `verdict: clean`, holds no card whose Status is other than `verified` or `accepted`, and the range
+touches no path a glob listed at its start matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed
 glob among the reasons. On exit 0 converge SHALL write the adversarial file's `head:` to the fix head by rule, with
 `mode: by-rule` and `workers: 0`, and dispatch conformance alone; on exit 1 it SHALL dispatch both. A catch-up run, its fix
 round included, SHALL dispatch both, as before.
@@ -237,7 +237,7 @@ and `tokens` the worker's figure or `unavailable`. An adversarial head written b
 - **WHEN** every merge of a catch-up replays by the fixed rules
 - **THEN** the log holds one `by rule` line, `clean` and each merge's paths, and no `fan-out` or `verdicts` line for the round
 
-#### Scenario: An adversarial head by rule
+#### Scenario: A security head by rule
 - **WHEN** `surfaces.py` exits 0 in a verify round
 - **THEN** the log holds one `by rule` line, `no surface`, the round's `fan-out` names conformance alone, and its one
   `verdicts` line is conformance's
@@ -632,7 +632,7 @@ in a new unticked phase after the last, with its `## Progress` line, never under
 - **THEN** the rescue amends `tasks.md`, the run logs `rescue — fixed`, and the version builds on and releases in the same run
 
 #### Scenario: A decision halt
-- **WHEN** a build halts on a design premise the code rules out
+- **WHEN** a build halts on a design premise the code rules out, with no switch
 - **THEN** the rescue writes `.minions/changes/<id>/rescue.md`, and the version stays halted, its halt naming the file
 
 #### Scenario: A rescue outside the plan

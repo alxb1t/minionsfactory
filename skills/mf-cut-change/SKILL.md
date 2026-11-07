@@ -39,8 +39,11 @@ plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt
   `| C<n> | decided by the cutter: <what> | <reason> |` to the brief's `## Decisions` table, `<n>` one above its last
   `C` row, else 1.
 - **Without the switch** — each of those is a halt.
-- **Always a halt** — a `## Dependencies` that is not `None.`, a self-check item the cut cannot meet, a doubt with no
-  clear recommendation, a `debt:` id not found, and every halt of the steps.
+- **Always a halt** — a `## Dependencies` row the brief's `## Dependencies` does not list for this change, package and
+  constraint as written, a self-check item the cut cannot meet, a doubt with no clear recommendation, a `debt:` id not
+  found, and every halt of the steps.
+- **A package the brief lists** — commits without a halt. The brief stays evidence: the run compares the committed rows
+  with the copy it queued, never with the brief (D62).
 - **An unattended halt** writes one line to `.minions/changes/<change-id>/cut.halt` —
   `<change-id> waits on one doubt: <the doubt> · <path:line>`, or `<change-id> failed: <the check>` — commits nothing,
   and ends its turn.
@@ -75,6 +78,8 @@ Every one holds, or **halt** naming the one that failed:
 - `make -n gate` exits 0 and prints at least one command; paste its output. No root `Makefile`, no `gate`
   target, an empty recipe, or only `is up to date` / `Nothing to be done` → halt, naming the root `Makefile`.
   `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`;
+- by hand, `.minions/cuts/<change-id>` does not stand; it stands → halt with
+  `<change-id> is queued for the cut station: answer it in the brief, then conduct.py rejoin <change-id>`;
 - `change-id` is free: its number is higher than every id under `openspec/changes/` and `openspec/changes/archive/`
   on the default branch and on every unmerged version branch — each `git branch --no-merged <default-branch> --list
   '[0-9]*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`, and than every reservation in
@@ -160,8 +165,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
   leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
-- `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Each dependency
-  names an exact package and a version constraint.
+- `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
+  `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
+  unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
 
 ## Step 7 — Validate
 
@@ -203,10 +209,18 @@ after it, and each the search script did not run — a test, a command — fail 
 which should hold? A search's "before" is the script's, so the reviewer reads only its "after". It answers with
 doubts, each with its `path:line`.
 
+| review | runs | reviewer |
+|---|---|---|
+| **first** | always, after the self-check | a fresh worker |
+| **second** | only when a fix after the first — yours, the person's or the switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task | a fresh worker, never a message to the first |
+
+Each review is a new worker given the change directory, `HEAD`'s sha and the question: a reviewer resumed by a message
+reads its own doubts as settled. A simple fix is not reviewed again.
+
 | the doubt | do |
 |---|---|
-| a check that cannot pass or breaks `I19`, a reader Step 3 missed, a task two readings would build differently | fix it without asking; then run the search script and the review once more |
-| one that changes a `design.md` decision or a brief's `## Decisions` row | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule |
+| a check that cannot pass or breaks `I19`, a reader Step 3 missed, a task two readings would build differently | fix it without asking; then run the search script once more, and the **second** review when the fix meets its row |
+| one that changes a `design.md` decision or a brief's `## Decisions` row | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule, its `C` row calling the **second** review |
 | one still standing after the second review | wait for the person, in Step 9's table; unattended, the [switch](#parameters)'s rule |
 
 A host with no fresh worker: read the plan yourself, with the same question, and name that read in the self-check
@@ -225,9 +239,11 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
 | a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
-Unattended, show nothing: each waiting row is a halt.
+Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
+change, which commits.
 
-On edits, go back to Step 7. An edit the human asks for after the commit is a further commit on the branch,
+On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
+edit the human asks for after the commit is a further commit on the branch,
 `docs(<change-id>): amend the change directory`, with the same trailer block.
 
 ## Step 10 — Commit
@@ -347,7 +363,8 @@ After the commit, suggest in chat a model for the build, the check loop and the 
 session's menu; with no menu, describe the capability needed — never invent model names.
 
 When the brief's `## For the cut` item for this change names models, write exactly those: the person chose them at the
-plan's close. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
+plan's close. The brief names no worker table: write `[converge.review]`, `[converge.security]` and `[converge.fix]`
+from the Converge bullet. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
@@ -357,14 +374,17 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 |---|---|
 | mechanical edits; a checklist to follow | the mid tier · medium |
 | settled text to place; small tests | the mid tier · high |
-| prose written fresh; moderate logic | the strongest tier · medium |
+| prose written fresh; moderate logic — **moderate** | Sonnet 5.5 · high, where the session offers it; else the strongest tier · medium |
 | new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
+A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
+a change, never one per phase.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it, in the build's model. Say which you found.
+  output — means run it: the conductor, `[converge]`, on the mid tier · medium, review and security on the strongest
+  tier · high, and the fixer on the mid tier · high. Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -382,6 +402,15 @@ effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
 # executor = "codex"  # optional, per table; absent, the run's. A cross-host pairing is usually the person's edit
+[converge.review]
+model = "<offered model>"
+effort = "<effort>"
+[converge.security]
+model = "<offered model>"
+effort = "<effort>"
+[converge.fix]
+model = "<offered model>"
+effort = "<effort>"
 [release]
 model = "<offered model>"
 ```
@@ -393,7 +422,8 @@ A suggestion, never an instruction: the human chooses — at the plan's close, w
 - Never build, or edit anything outside `openspec/changes/<change-id>/` and `.minions/changes/<change-id>/`, save,
   unattended, the brief's `Cut` line and `decided by the cutter` rows.
 - Never run `mf-simplify`, review, converge or release; never push or merge.
-- Never commit a `## Dependencies` that is not `None.` before the human's OK.
+- Never commit a `## Dependencies` that is not `None.` before the human's OK; unattended, before the brief's
+  `## Dependencies` lists each row for this change, as written.
 - Never overturn a settled decision alone, or invent scope the source did not settle.
 - Never write the brief's path, or any absolute path, into the change.
 - Never write the model suggestion into the change, or into a tracked file.

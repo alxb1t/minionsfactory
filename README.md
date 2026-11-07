@@ -56,7 +56,10 @@ A bare install reads the `origin` URLs a run kept: run `/mf-ship` once first, or
 Every host runs MF's own method: `mf-simplify` in the build, review and security at one depth.
 The host must support instruction loading and, for convergence, fresh subagents or fresh agent processes whose
 completion and findings the conductor can read. Workers may run sequentially over the same frozen head and need no
-remote review service.
+remote review service. Converge's conductor judges nothing and runs on the mid tier; review and security run on the
+strongest, each reading a bundle of what the change cites; the fixer moves up a tier only for a blocking card, and a fix
+that reaches no surface in `THREAT_MODEL.md` skips the security verify
+([D64](docs/decisions.md#d64--converge-spends-where-judgment-is)).
 
 Use each host's syntax to load the `mf-*` instructions.
 Authentication and provider configuration belong to the operator. Model suggestions use offered menus and

@@ -47,7 +47,13 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 ## Entry points
 
 - A brief, and the change directory the cut writes from it; an unattended cutter also writes the brief's `Cut` line and
-  `decided by the cutter` rows back.
+  `decided by the cutter` rows back, through an edit rule for the whole file. No package's approval is read from the brief
+  after the person's act: `conduct.py cut` copies the item's `## Dependencies` rows into the home queue, a `rejoin` keeps the
+  queued rows and takes a row they lack only with `--yes <hash>` of the new rows, a command the person runs, and the station
+  compares the committed `design.md` with that copy
+  ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row a cutter
+  plants reaches a later cut only through the person's re-plan, whose close shows each `## For the cut` item and
+  `## Dependencies` row before the yes (`0082·S5`).
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
 - Findings files, status logs and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
@@ -65,11 +71,53 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   person's amends alone, which let it go on, so a request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
   person's own fix then, or a grant landing as it ends, waits for a re-run.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
-  burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes, stands
-  in the home folder, where no worker writes, so no worker names that brief. A passed cut's brief path stays there, in
-  `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor tried, so no worker
-  forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting
-  the same settle bound.
+  burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes and holds
+  the packages its cut may add, stands in the home folder, where no worker writes, so no worker names that brief or
+  widens that list. A passed cut's brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and
+  `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
+  worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
+
+## Surfaces
+
+The path globs a converge fix reaches security through: `skills/mf-converge/scripts/surfaces.py` reads this list at the
+head the last round judged and matches each with `fnmatch`, whose `*` crosses `/`, and a fix touching none takes its
+security head by rule. A test module stays off it: review judges every test edit under *Gate integrity*, and a test-only
+pickup verified by security would spend what [D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a
+`conftest.py`, whose hooks reshape the whole run, is on it.
+
+- `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
+- `scripts/*` — the metric scripts the gate and the collector run.
+- `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
+- `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
+- `skills/mf-release/SKILL.md` — the merge and push on the person's yes.
+- `skills/mf-converge/references/generic-security.md` — what security checks.
+- `skills/mf-converge/SKILL.md` — when security runs, its head by rule among it, and what may write a findings file.
+- `skills/mf-converge/references/worker.md` — the grades and anchors that decide what a security card blocks.
+- `skills/mf-rescue/SKILL.md` — the rescue's bounds, which never take a security `critical` or `high` card.
+- `skills/mf-supervise/SKILL.md` — the supervisor's bounds, which never take a security `critical` or `high` card.
+- `skills/mf-plan/SKILL.md` — its close, the one shell command a planning session runs outside the sandbox.
+- `skills/mf-bootstrap/SKILL.md` — how the templates become a new repo's gate and ignore list.
+- `Makefile` — the gate's recipe.
+- `GNUmakefile` — make reads it before `Makefile`.
+- `makefile` — make reads it before `Makefile`.
+- `*conftest.py` — pytest hooks, loaded at every collection: they can deselect or skip any test the gate runs.
+- `*pytest.ini` — pytest's settings, taken over `pyproject.toml`'s.
+- `*ruff.toml` — ruff's settings, taken over `pyproject.toml`'s, the nearest in any folder.
+- `ty.toml` — ty's settings, taken over `pyproject.toml`'s.
+- `.coveragerc` — coverage's settings, taken over `pyproject.toml`'s.
+- `setup.cfg` — coverage's and pytest's settings, coverage taking them over `pyproject.toml`'s.
+- `tox.ini` — coverage's and pytest's settings, coverage taking them over `pyproject.toml`'s.
+- `uv.toml` — uv's settings, its package index among them, taken over `pyproject.toml`'s.
+- `*zizmor.yml` — the CI workflow lint's settings.
+- `.betterleaks.toml` — the secret scan's allowlist.
+- `.gitleaks.toml` — the secret scan's settings, which it reads as it reads `.betterleaks.toml`.
+- `*leaksignore` — the secret scan's ignored findings, `.betterleaksignore` and `.gitleaksignore`.
+- `.gitignore` — what git can track, and so what the scan reads.
+- `pyproject.toml` — the dependencies and the tools' settings.
+- `uv.lock` — the pinned dependencies.
+- `.github/*` — CI and its tools.
+- `AGENTS.md` — `Ship tools:` and `Ship network:`, which reach every worker's sandbox.
+- `THREAT_MODEL.md` — this file: what security weighs, and this list.
 
 ## Out of scope
 
@@ -82,22 +130,26 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
-  build worker's, and converge reviews the whole change after it. Under a version's switch, a rescue commits a worker-written
-  card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
+  build worker's, and converge judges the amend and every claim it changes
+  ([D63](docs/decisions.md#d63--an-answered-amend-gets-one-round-over-its-range)). An amend answers a converge halt of any
+  kind past its head, a halt past the judged head included, bounded by the amend round's own count. Under a version's
+  switch, a rescue commits a worker-written card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
   besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
   ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
   included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
   trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
   amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
-  rule, decision check or delta bound, and a catch-up passes it by rule. At an integrate note the supervisor stages spec and
-  docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
+  rule, decision check or delta bound, and converge judges it in an amend round, as every amend. At an integrate note the
+  supervisor stages spec and docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
   `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
   integrate's merge holds a path past the checked tree but a test its body names fixed, and converge judges that merge
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
-  one a version a run.
+  one a version a run. So is the security head by rule: it reads the security file's cards, which a worker writes, so a
+  forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
+  cannot drop the glob its own edit matches.
 
 ## Known gaps
 

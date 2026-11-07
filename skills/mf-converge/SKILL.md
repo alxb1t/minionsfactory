@@ -65,7 +65,7 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
   `uv run --script <this package>/scripts/stamp.py .minions/changes/<change-id>/status_log.md '<round N · event — detail>'`,
   which takes the clock's time; never write a time by hand: a stale time is how a dead run shows.
 - **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
-  catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
+  catch-up run's heading ends `· catch-up`, or `· amend` after an answered halt: `mkdir -p .minions/changes/<change-id>`, create the file with a
   `# <change-id> — converge status` title if missing, and insert the heading with `stamp.py <log> --run N`,
   `--mark <mark>` for a marked run.
 - **An old layout halts before the run opens.** A file of this change at one of its old paths, by exact name —
@@ -86,12 +86,12 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor, model and effort from the version's models file `[converge]`, else the run's, `default` where none is known; `tokens` the worker's figure, or `unavailable` |
+| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor you run on; the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
-| `by rule` | `### By rule` | `clean`, then each merge's paths as `replay` printed them |
+| `by rule` | `### By rule`, Step 7 | `clean`, then each merge's paths as `replay` printed them, or `no surface` |
 | `debt` | Step 9 | the cards written, moot and cleared, by id |
 | `halt` | wherever this skill halts | the reason, as reported, then `· head <sha>` |
 | `done` | Step 10 | rounds used, cards to the debt |
@@ -118,6 +118,12 @@ The events, and no others:
 the installed package; the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
 frontmatter keys it fixes, By rule writes them, and Steps 8 and 9 read the card's size and Status. Each role is one
 fresh worker. A `tier=` given → **halt**: the `tier` parameter was removed.
+
+**Worker models:** `review=`, `security=` and `fix=`, each `<model>/<effort>` with `default` for none, name each
+worker's model; `mf-ship` passes them from the models file, and a person may pass them by hand. Put each on its
+worker's call — on Claude Code the Agent tool's `model` is the family the name holds, `claude-opus-5-5` → `opus`, and
+its `effort` the effort; `default` passes none. A role given none, and every worker on a host whose call takes no model,
+Codex among them, runs on your model. Never read the models file yourself: a worker can write it.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
@@ -146,22 +152,14 @@ Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
 **A halt before round 1:** the top line is a `halt` in a run with no `start` line, not marked `· grant`, and no
 `verify: halt` → open a plain new run, with no mark, as a fresh invocation does; no grant is needed. A granted round
 writes no `start`, and its halt is none: its cap stays halted for the re-plan. A catch-up run halted before its
-`start` — in its catch-up check or Step 1 — is one too: the new run's own catch-up check, over both findings files
-still clean, runs the catch-up round again, so the commits since are judged.
+`start` — in its catch-up check or Step 1 — is one too: a new run of its mark runs the
+[Catch-up round](#catch-up-round) again, so the commits since are judged.
 
-The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
-`git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
-marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
-grant is needed, and the catch-up round does not apply, save to the person's amends, as the next paragraph says.
-
-**The person's amends** answer a halt in a catch-up run with both findings files still `verdict: clean`, a
-`verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
-one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
-alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
-`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` or `Supervisor:`
-trailer judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
-naming no head, or one past the judged head — after this skill's own fix commit, or in a catch-up run — is no
-person's answer.
+**An answered halt:** the top line is any other `halt`, `HEAD` descends from its `· head <sha>` and is not it, and both
+findings files' `head:` is `<sha>`, or `git rev-list <sha>..HEAD` names an **amend**: one parent, the subject
+`docs(<change-id>): amend the change directory`, paths under `openspec/changes/<change-id>/` alone. Open a catch-up run marked
+`· amend`, naming the halt in its first event, and run the [Catch-up round](#catch-up-round) from the files' `head:`, whatever
+their verdicts; no grant is needed. Files missing, or naming two heads → a plain new run. Any other halt is no answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
@@ -176,7 +174,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
-| `by rule` | Step 9 |
+| `by rule` | a catch-up run → Step 9; else Step 7's review dispatch |
 
 ## Catch-up round
 
@@ -184,35 +182,32 @@ A **catch-up round** judges commits that landed after the last round. `mf-releas
 `head:` of both findings files — **the judged head** — and this round gets it there.
 
 Check before Step 1. It applies when both findings files exist, both say `verdict: clean`, and their `head:` is
-not `HEAD`:
+not `HEAD` — or in a run marked `· amend`, whatever the files say:
 
 ```
   judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
                │ yes
                ▼
-  merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
-               │ yes, its own count  │ yes
-               ▼                     │
-  every merge replays, no Rescue:    ▼
-  or Supervisor: amend? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+  merges, amends or · amend? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
+               │ yes, its own count          │ yes
+               ▼                             ▼
+  merges only, replay? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ──┐
                │ yes                                                   │
                ▼                                                       ▼
   by rule: both files clean, no worker ──────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
 ```
 
-Open the run marked `· catch-up`, and write `catch-up` to the status log.
+Open the run marked `· catch-up`, or `· amend` after an answered halt, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — enumerate the selection as [Catch-up scope](references/worker.md#catch-up-scope) does, once, at the run's start.
-   **Merges and amends** — merges, and the person's, the rescue's or the supervisor's
-   `docs(<change-id>): amend the change directory` commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
-   most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
+   **Its own count** — an `· amend` run, and a selection of merges and [amends](#resuming-a-run), have one judge round
+   and at most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
    files' `round:` is the last judged round, and at the cap → halt as drawn.
-3. **Run Step 1's preconditions.**
-4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
-   worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that
-   carries a `Rescue:` or `Supervisor:` trailer, a worker's, skips By rule → item 5, under the run's own count: one
-   Step 7 round reads it.
+3. **Run Step 1's preconditions**, and before `start` each `Verify:` line the range adds to `tasks.md`, ticked or not: one that
+   fails → halt `verify failed — <sub-task ids>`.
+4. **Merges alone → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no worker. A
+   selection holding an amend, and an `· amend` run, never pass by rule.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
@@ -230,12 +225,12 @@ worker reads it.
    naming it. Then, for each merge in the selection, run
    `uv run --script ../mf-integrate/scripts/integrate.py replay <merge>`, `../mf-integrate/` resolved from this
    skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`; `replay` exits 2 on a merge whose
-   second parent the default branch does not hold. Skip each amend: Step 1's gate and `gate_check.py` judged it.
+   second parent the default branch does not hold.
 2. Any exit 1 → the round as before, from item 5. Exit 2, or `uv` missing → **halt**, naming what it printed.
 3. Every exit 0 → in each findings file, set `head:` to `HEAD`, `round:` to the run's own count, `reviewed:` to
    today, `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`. Add a `## By rule`
    section above its `## Resolution log`, one line per merge — `- <sha> (<parents>): <the paths replay printed>` —
-   and one per amend — `- <sha>: the person's amend` — and append `<date> · round N · by rule — clean` to the log.
+   and append `<date> · round N · by rule — clean` to the log.
 4. Write `by rule` to the status log: `round N · by rule — clean, <paths>`.
 
 ## Step 1 — Preconditions (each one halts, naming what is missing)
@@ -271,9 +266,13 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
    change it never read.
 3. **Write the patch** — `mkdir -p .minions/changes/<change-id>`, then `.minions/changes/<change-id>/diff.patch`, holding
    `<base>..HEAD`. It sits under the gitignored `.minions/` and is never committed.
-4. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
+4. **Write the bundle** —
+   `uv run --script <this package>/scripts/bundle.py <change-id> .minions/changes/<change-id>/bundle.md`: the
+   decisions the change cites, an index of all, and the living requirements its delta modifies or removes. Exit 2,
+   or `uv` missing → **halt**, naming what it printed.
+5. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.
-5. **Write `freeze` to the status log.**
+6. **Write `freeze` to the status log.**
 
 ## Step 3 — Dispatch fresh read-only workers
 
@@ -289,10 +288,11 @@ files. Give each:
 - the body of the range's `refactor(<change-id>): simplify` commit, when it has one: its notes are for review;
 - its findings path `.minions/changes/<change-id>/<role>.md`;
 - root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
-  it does not name, the architecture decisions and threat model — the ones it names, else `docs/decisions.md`,
-  `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present — and the change's proposal, design, tasks
-  and spec delta under `openspec/changes/<change-id>/`, with the living specs the delta touches — review reads the
-  design's `## Tests` table;
+  it does not name, the architecture documents and threat model — the ones it names, else `ARCHITECTURE.md`,
+  `docs/adr/*.md` and `THREAT_MODEL.md` when present, each whole — and the change's proposal, design, tasks and spec
+  delta under `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
+- `.minions/changes/<change-id>/bundle.md`, in place of `docs/decisions.md` and the living specs: the decisions the
+  change cites, in full, an index of all, and the living requirements the delta modifies or removes;
 - its mode and reference;
 - the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
 - `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
@@ -331,9 +331,10 @@ Step 9, so pickup can fix them first. Both `clean`, both scopes matching → con
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode of `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch a **fresh worker**, in the foreground, to clear every **open blocking** finding across both files — in the
-pickup round, exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at
-dispatch and again at its commit. The fixer:
+Dispatch a **fresh worker**, in the foreground, on `review=`'s model when any card it is
+sent is blocking, else on `fix=`'s, to clear every **open blocking** finding across both files — in the pickup round,
+exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at dispatch and
+again at its commit. The fixer:
 
 - fixes test-first where there is logic, to the [rules for tests](references/worker.md#rules-for-tests): a finding's regression test
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`);
@@ -361,23 +362,39 @@ unchanged head and the previous freeze's patch, and Step 5 compares against that
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
 head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
-fix**, not the branch again. Print the range · commit count · files changed; `base` stays Step 2's merge-base.
+fix**, not the branch again. Rewrite the bundle as Step 2 does, halting as it says. Print the range · commit count ·
+files changed; `base` stays Step 2's merge-base.
 These numbers supersede the previous round's for Step 5. Write `freeze` to the status log. There are no per-round
 patch files: each findings file's `head:` and its `## Resolution log` are the per-round record, and a second
 record drifts.
 
 ## Step 7 — Verify, and the cap
 
-Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log. Dispatch review and security again as **fresh**
-workers at `round ≥ 2`, with Step 3's inputs and dispatch rules, and write `fan-out`. Also pass each its
-own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
+Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log.
+
+**The security head by rule:** after a Step 6 commit, run
+`uv run --script <this package>/scripts/surfaces.py .minions/changes/<change-id>/security.md <previous head> <new head>`,
+the re-freeze's range.
+
+- **Exit 0** → in the security file set `head:` to `HEAD`, `round:` to this round, `reviewed:` to today,
+  `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`; add
+  `- <previous head>..<new head>: no surface` under a `## By rule` section above its `## Resolution log`; append
+  `<date> · round N · by rule: no surface` to the log; write `by rule` to the status log,
+  `round N · by rule — no surface`; and dispatch review alone. Step 5 reads that file for `verdict: clean` and its
+  `head:` alone, with no `verdicts` line.
+- **Exit 1** → dispatch both. Exit 2, or `uv` missing → **halt**, naming what it printed.
+- A catch-up run, its fix round and an `· amend` run's included, and a fixer that committed nothing, run no
+  `surfaces.py`: dispatch both.
+
+Dispatch review, and security unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's inputs and
+dispatch rules, and write `fan-out`. Also pass each its own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
 runs included. Read the verdicts from disk under Step 5.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
-**The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends has
-[its own count](#catch-up-round). At the cap, **halt**: leave every findings file **exactly as it stands**, write
-nothing to the debt — the findings files hold every card — and report the blocking findings still `open`,
+**The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends,
+or an answered halt's, has [its own count](#catch-up-round). At the cap, **halt**: leave every findings file
+**exactly as it stands**, write nothing to the debt — the findings files hold every card — and report the blocking findings still `open`,
 **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third opinion: a loop
 that cannot converge in three rounds is a plan problem, and the halt *is* the finding.
 
@@ -441,7 +458,8 @@ Write `done` to the status log. The last line: `Next: /mf-release, in a fresh se
 
 - **Never review in your own context.** Fresh workers cannot be dispatched, awaited and read from shared disk →
   **halt and say so**; never report a verdict you produced.
-- **Never edit a findings file**, save [By rule](#by-rule)'s write. The stations own their files; you read them.
+- **Never edit a findings file**, save [By rule](#by-rule)'s write and Step 7's security head by rule. The stations
+  own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert only: the log is the record of what the loop did.
 - **Never pick a non-`drift` card sized `a design change`, or an older debt card.** Pickup takes this run's

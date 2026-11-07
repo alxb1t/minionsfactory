@@ -462,7 +462,8 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # path, the release through `../<owner>/`. Why: 0030-change-impact design D6;
 # 0034-gate-recipe-hardening design D5; 0037-serial-integration design Tests;
 # 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
-# 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7.
+# 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7;
+# 0094-lighter-converge design D5, D8.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
@@ -480,6 +481,8 @@ _METRICS_SCRIPTS = [
     ("mf-plan", "scripts/brief_check.py"),
     ("mf-plan", "../mf-ship/scripts/conduct.py"),
     ("mf-converge", "scripts/stamp.py"),
+    ("mf-converge", "scripts/bundle.py"),
+    ("mf-converge", "scripts/surfaces.py"),
 ]
 
 
@@ -533,6 +536,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -553,6 +558,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
     ]
 
 
@@ -588,4 +595,92 @@ def test_the_plan_scan_reports_a_missing_section(tmp_path: Path) -> None:
     assert _plan_problems(tmp_path) == [
         f"skills/{_PLAN}/SKILL.md: `{_PLAN_PARAMETERS}` names no `brief`",
         f"skills/{_PLAN}/SKILL.md: no `{_PLAN_NEVER}`",
+    ]
+
+
+# The cut's plan review is a fresh worker each time, a second one conditional, and a
+# moderate build names one model. The scan reads the opening words of cells, the one D42
+# accepts. Why: 0093-lighter-build-cut design D5.
+_CUT = "mf-cut-change"
+_REVIEW = "## Step 8.5 — Plan review"
+_MODELS = "## Suggesting models"
+
+
+def _section_rows(path: Path, heading: str) -> list[list[str]]:
+    """Return the stripped cells of each table row in `path`'s `heading` section.
+
+    The section runs up to the next `## ` heading: e.g. "| **first** | always |" →
+    ["**first**", "always"].
+    """
+    rows: list[list[str]] = []
+    inside = False
+    for line in path.read_text().splitlines():
+        if line.startswith("## "):
+            inside = line == heading
+        elif inside and line.startswith("|") and line.endswith("|"):
+            rows.append([cell.strip() for cell in line[1:-1].split("|")])
+    return rows
+
+
+def _cut_review_problems(base: Path) -> list[str]:
+    """Return one line per breach of the cut's plan review and moderate build."""
+    prefix = f"skills/{_CUT}/SKILL.md"
+    path = base / prefix
+    if not path.is_file():
+        return [f"{prefix}: does not exist"]
+    problems: list[str] = []
+    reviews = {row[0]: row for row in _section_rows(path, _REVIEW)}
+    for label in ("first", "second"):
+        row = reviews.get(f"**{label}**")
+        if row is None:
+            problems.append(f"{prefix}: `{_REVIEW}` has no **{label}** row")
+            continue
+        if not row[-1].startswith("a fresh worker"):
+            problems.append(f"{prefix}: the **{label}** review is not a fresh worker")
+        if label == "second" and not row[1].startswith("only when"):
+            problems.append(f"{prefix}: the **second** review is not conditional")
+    models = _section_rows(path, _MODELS)
+    if not any(row[-1].startswith("Sonnet 5.5 · high") for row in models):
+        problems.append(f"{prefix}: `{_MODELS}` names no Sonnet 5.5 · high build")
+    return problems
+
+
+def test_the_cut_holds_its_plan_review_and_moderate_build() -> None:
+    assert _cut_review_problems(_REPO) == []
+
+
+def test_the_plan_review_scan_reports_each_breach(tmp_path: Path) -> None:
+    prefix = f"skills/{_CUT}/SKILL.md"
+    _plant(
+        tmp_path,
+        {
+            _CUT: f"{_REVIEW}\n\n| review | runs | reviewer |\n|---|---|---|\n"
+            "| **first** | always | the cutter |\n"
+            "| **second** | always | a message to the first |\n\n"
+            f"{_MODELS}\n\n| the change holds | build with |\n|---|---|\n"
+            "| prose | the strongest tier · medium |\n"
+        },
+    )
+
+    assert _cut_review_problems(tmp_path) == [
+        f"{prefix}: the **first** review is not a fresh worker",
+        f"{prefix}: the **second** review is not a fresh worker",
+        f"{prefix}: the **second** review is not conditional",
+        f"{prefix}: `{_MODELS}` names no Sonnet 5.5 · high build",
+    ]
+
+    # A row past its section's end must not count.
+    _plant(
+        tmp_path,
+        {
+            _CUT: f"{_REVIEW}\n\n## Step 9\n\n"
+            "| **second** | only when | a fresh worker |\n\n"
+            f"{_MODELS}\n\n## Never\n\n| x | Sonnet 5.5 · high |\n"
+        },
+    )
+
+    assert _cut_review_problems(tmp_path) == [
+        f"{prefix}: `{_REVIEW}` has no **first** row",
+        f"{prefix}: `{_REVIEW}` has no **second** row",
+        f"{prefix}: `{_MODELS}` names no Sonnet 5.5 · high build",
     ]

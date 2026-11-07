@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
+     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -90,7 +90,8 @@ is kept beside them. `design.md` carries the measurement behind each decision, n
 the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). It
 re-checks the facts whose files moved since the brief's `At` line, and its helpers read them. It runs each `Verify:`
 search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
-built as written; it runs no gate.**
+built as written, a second review only after a fix that changes a decision or a task
+([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate.**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
   read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change
@@ -126,8 +127,10 @@ a deleted capability leaves no marker directory behind.**
 
 **`mf-cut-change` commits the change once its self-check passes, and the person reads it after. A `## Dependencies`
 that is not `None.`, a self-check item the cut cannot meet, and a plan-review doubt left to the person still wait for
-the person's OK; an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
-Starting `/mf-build` is the OK for the `Verify:` commands.**
+the person's OK; an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)),
+save a `## Dependencies` whose rows its brief approves, which it commits and the run checks
+against its queued copy ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Starting `/mf-build` is the OK for
+the `Verify:` commands.**
 
 - **Why:** the cut is almost always right, and a wrong one costs one more commit; the wait cost a *"please commit"*
   every time.
@@ -139,7 +142,8 @@ Starting `/mf-build` is the OK for the `Verify:` commands.**
 its number in `.minions/cuts/<id>`. The run makes the branch and worktree, runs `mf-cut-change unattended=yes` sandboxed
 to that worktree, the run directory and the brief, checks the cut on disk and builds it. Unattended, the brief's switch
 `decide: recommended` takes the recommended option, logged in the brief; every other doubt halts at `cut-halted`, with no
-rescue, answered by a re-plan and `conduct.py rejoin <id>`. Queuing a cut is the person's yes to cut, run, merge and push
+rescue, its line naming the answer: a re-plan and `conduct.py rejoin <id>`, which keeps the queued packages and takes a new
+one only with the person's `--yes <hash>` ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Queuing a cut is the person's yes to cut, run, merge and push
 it.**
 
 - **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
@@ -160,6 +164,32 @@ joins or starts; no ends on `/mf-cut-change`. The plan never cuts.**
   plan.
 - **Rejected:** the plan cutting · a light brief queued · a question per change.
 
+### D62 · A queued cut's packages are approved at the plan
+
+**A hard brief's `## Dependencies` holds a row per package the person approved in a round — item, package, constraint,
+why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut keeps
+them, taking a row they lack only with the person's `--yes <hash>` of the new rows; the cut station halts a cut whose
+`design.md` lists a package or constraint outside them, and never reads the brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
+queue holds.**
+
+- **Why:** a queued cut halted on packages approved in chat, where no station reads, its halt naming no answer, and the
+  planning thread then cut the queued id by hand.
+- **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
+  again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
+  nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
+
+### D65 · A lighter plan review and build
+
+**The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
+decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker
+([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one model a change, and one build session.**
+
+- **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
+  round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
+- **Rejected:** a second review after every fix · resuming a reviewer by a message · a build session per phase, which needs a
+  guard against re-spawning without end · a model per phase.
+
 ## The check loop and the release
 
 What happens between the last phase and the tag.
@@ -174,7 +204,8 @@ What happens between the last phase and the tag.
 
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
 references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
-nothing. Workers follow the host, or the models file's `executor`.**
+nothing. Workers follow the host, or the models file's `executor`; converge's take their model and effort from its worker
+tables ([D64](#d64--converge-spends-where-judgment-is)).**
 
 - **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
 - **Accepts:** no native command is used; the person runs them by hand to compare.
@@ -220,7 +251,8 @@ be clean.**
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts — save an amend card, one naming the plan's amend: converge halts
-  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's answers it.
+  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's
+  answers it, in one amend round ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
 - **A repeat goes up one level:** a finding that repeats a debt card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
   drift tier keeps prose out of the loop.
@@ -259,18 +291,35 @@ code. Fold and archive land in one commit.**
 **A checker, a verification worker or the cut's plan reviewer is a new host subagent or fresh agent process
 receiving explicit task inputs, without the producer's transcript. The conductor dispatches, waits and reads findings
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
-freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file. The
-cut's helpers are fresh read-only workers, as its plan reviewer is, answering in the cut's thread and writing no
-file.**
+freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
+Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
+workers, as its plan reviewer is, answering in the cut's thread and writing no file.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
 
+### D64 · Converge spends where judgment is
+
+**Converge's conductor runs on the mid tier · medium, its review and security workers on the strongest tier · high, and its
+fixer on the mid tier · high, on review's model when a card it is sent blocks: the models file's `[converge]`,
+`[converge.review]`, `[converge.security]` and `[converge.fix]`, which `conduct.py` reads once and passes in the converge
+prompt. Each worker reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living requirements
+the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of
+`THREAT_MODEL.md`, with no security card awaiting its checker, takes its security head by recomputation.**
+
+- **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
+  reading set.
+- **Accepts:** on Codex every worker runs on the conductor's model; a decision the change does not cite is read by its index
+  line alone; the build keeps one model a change.
+- **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
+  it · a security verify skipped by the conductor's judgment.
+
 ### D49 · One review method, one depth
 
-**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front. The review and
-security files are the same for every change.**
+**Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
+living requirements in a bundle of what the change cites. The review and security files are the same for every
+change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
   fraction of the cost.
@@ -301,6 +350,22 @@ chart, and a record per round and role. Numbers only; it writes into no repo and
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
+
+### D63 · An answered amend gets one round over its range
+
+**A converge halt answered past its head — by any commit when both findings files judged that head, else by an amend of the
+change directory, the person's, the rescue's or the supervisor's — opens one amend round: a catch-up run marked `· amend` over
+`<judged head>..HEAD`, holding the amend, the build's code for a phase it added and converge's own unverified fix. Before its
+`start` it runs each `Verify:` the range adds to `tasks.md`; then one judge round and at most one fix round, a blocker left
+`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. The checkers keep the full plan, and the stale-claim pass
+searches the whole tree for each claim the amend changes.**
+
+- **Why:** an amended run restarted at round 1 over the whole change with a fresh cap of three: 24% of converge's spend, a
+  two-line amend buying a 13-file round, and 0087's and 0088's loops. A scoped round would have missed one nit; the
+  stale-claim pass and the `Verify:` re-run catch what an amend breaks outside its diff.
+- **Accepts:** code an amend contradicts outside the range, which only the stale-claim pass searches · a decision or
+  spec-delta amend judged in one round.
+- **Rejected:** a full reopen after a decision amend · a fresh cap of three per amend · by rule for the person's amends.
 
 ## The target repo
 
@@ -347,8 +412,9 @@ converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING
 
 **Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
 in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
-build halts on a phase that breaks one unless the change amends it, and converge hands both to every worker.
-`mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
+build halts on a phase that breaks one unless the change amends it, and converge hands every worker the threat model and
+its bundle: of the decisions, those the change cites, in full, and an index of all. `mf-bootstrap` writes
+`THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
 - **Why:** a review judges against what is written down; without a threat model, security falls back on generic
   categories.
@@ -451,12 +517,15 @@ Review judges each new test's cost and traces each removed one's proofs.**
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
-writes it to `.minions/changes/<change-id>/models.toml`, never into the change, for `mf-ship`; model selection and provider
-setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut writes those
-([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
+writes it to `.minions/changes/<change-id>/models.toml`, converge's worker tables on
+[D64](#d64--converge-spends-where-judgment-is)'s tiers among it, never into the change, for `mf-ship`; model selection
+and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut
+writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
+- **Names one model:** *Suggesting models*' moderate row, Sonnet 5.5 · high, taken only where the session offers it
+  ([D65](#d65--a-lighter-plan-review-and-build)).
 
 ### D42 · Skill prose is held by review, not by phrase scans
 
@@ -467,6 +536,8 @@ the bootstrap templates — never that a sentence exists.**
 - **Why:** a phrase scan proves a sentence exists, not that a station obeys it, and it freezes the wording: no
   sentence can be reworded without editing a test, so skill text only grows.
 - **Gave up:** the gate failing when a rule's sentence is deleted. Review reads the diff for it.
+- **Accepts:** the plan-review scan of `tests/test_skills.py`, which reads the opening words of cells in the cut's review
+  table and *Suggesting models*: the Acceptance of [D65](#d65--a-lighter-plan-review-and-build) asked for it.
 
 ### D44 · Versions run side by side in worktrees; one primary merges them
 
@@ -514,8 +585,9 @@ it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
 whose converge or integrate halt was answered while its rescue ran, the person's own fix included, save by the person's
 amends alone, which waits for a re-run.
-A version taken back brings each version it blocked. A clean catch-up, verify or `amend needed` halt followed only by the
-person's `docs(<id>): amend the change directory` commits is answered. A re-run resumes from
+A version taken back brings each version it blocked. A converge halt followed by an amend of the change directory, or by
+any commit when the findings files judged its head, is answered, and gets one amend round
+([D63](#d63--an-answered-amend-gets-one-round-over-its-range)). A re-run resumes from
 disk: only a stage left in `HALTS`, a git config key or `origin` URL the run refuses, a git config that changed during the
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
@@ -583,7 +655,7 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
-  whole change after it.
+  amend and every claim it changes ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
@@ -608,8 +680,8 @@ need and each version a rescue decided for.**
 
 - **Why:** a supervising chat answered every halt of 2026-11-05/06, about 70% of them the line's own gaps, and most of the
   rest a prose amend a fresh reader could write.
-- **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change
-  after it, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
+- **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge judges the amend and
+  every claim it changes, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
 - **Rejected:** `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the run writes itself ·
   a push notification.
 
@@ -636,7 +708,7 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
   rescue may not make, and each a restart.
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
   round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
-  a catch-up passes by rule ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
+  converge judges in an amend round, as every amend ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
   `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
   widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.
@@ -676,7 +748,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `review.md`, `security.md`, `status_log.md`,
-`diff.patch`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
+`diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
