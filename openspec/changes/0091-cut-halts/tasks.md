@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The brief
 - [x] 2 — The queue
-- [ ] 3 — The cut
+- [x] 3 — The cut
 - [ ] 4 — The answers
 - [ ] 5 — The record
 
@@ -49,12 +49,12 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The cut
 
-- [ ] 3.1 Edit the *Always a halt* bullet and add the *A package the brief lists* bullet in the Unattended paragraph of
+- [x] 3.1 Edit the *Always a halt* bullet and add the *A package the brief lists* bullet in the Unattended paragraph of
   `skills/mf-cut-change/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'A package the brief lists' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.2 Add the queued-id bullet to Step 1 of `skills/mf-cut-change/SKILL.md`, per [D6](design.md#d6).
+- [x] 3.2 Add the queued-id bullet to Step 1 of `skills/mf-cut-change/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'is queued for the cut station' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.3 Edit Step 6's `design.md` bullet, Step 9's unattended line and the *Never* dependency line of
+- [x] 3.3 Edit Step 6's `design.md` bullet, Step 9's unattended line and the *Never* dependency line of
   `skills/mf-cut-change/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n '| package | constraint | why |' skills/mf-cut-change/SKILL.md` prints a line.
 

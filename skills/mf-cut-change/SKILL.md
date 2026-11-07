@@ -39,8 +39,11 @@ plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt
   `| C<n> | decided by the cutter: <what> | <reason> |` to the brief's `## Decisions` table, `<n>` one above its last
   `C` row, else 1.
 - **Without the switch** — each of those is a halt.
-- **Always a halt** — a `## Dependencies` that is not `None.`, a self-check item the cut cannot meet, a doubt with no
-  clear recommendation, a `debt:` id not found, and every halt of the steps.
+- **Always a halt** — a `## Dependencies` row the brief's `## Dependencies` does not list for this change, package and
+  constraint as written, a self-check item the cut cannot meet, a doubt with no clear recommendation, a `debt:` id not
+  found, and every halt of the steps.
+- **A package the brief lists** — commits without a halt. The brief stays evidence: the run compares the committed rows
+  with the copy it queued, never with the brief (D62).
 - **An unattended halt** writes one line to `.minions/changes/<change-id>/cut.halt` —
   `<change-id> waits on one doubt: <the doubt> · <path:line>`, or `<change-id> failed: <the check>` — commits nothing,
   and ends its turn.
@@ -75,6 +78,8 @@ Every one holds, or **halt** naming the one that failed:
 - `make -n gate` exits 0 and prints at least one command; paste its output. No root `Makefile`, no `gate`
   target, an empty recipe, or only `is up to date` / `Nothing to be done` → halt, naming the root `Makefile`.
   `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`;
+- by hand, `.minions/cuts/<change-id>` does not stand; it stands → halt with
+  `<change-id> is queued for the cut station: answer it in the brief, then conduct.py rejoin <change-id>`;
 - `change-id` is free: its number is higher than every id under `openspec/changes/` and `openspec/changes/archive/`
   on the default branch and on every unmerged version branch — each `git branch --no-merged <default-branch> --list
   '[0-9]*'` names, read with `git ls-tree -r --name-only <branch> -- openspec/changes/`, and than every reservation in
@@ -160,8 +165,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
   leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
-- `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Each dependency
-  names an exact package and a version constraint.
+- `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
+  `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
+  unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
 
 ## Step 7 — Validate
 
@@ -225,7 +231,8 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
 | a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
-Unattended, show nothing: each waiting row is a halt.
+Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
+change, which commits.
 
 On edits, go back to Step 7. An edit the human asks for after the commit is a further commit on the branch,
 `docs(<change-id>): amend the change directory`, with the same trailer block.
@@ -393,7 +400,8 @@ A suggestion, never an instruction: the human chooses — at the plan's close, w
 - Never build, or edit anything outside `openspec/changes/<change-id>/` and `.minions/changes/<change-id>/`, save,
   unattended, the brief's `Cut` line and `decided by the cutter` rows.
 - Never run `mf-simplify`, review, converge or release; never push or merge.
-- Never commit a `## Dependencies` that is not `None.` before the human's OK.
+- Never commit a `## Dependencies` that is not `None.` before the human's OK; unattended, before the brief's
+  `## Dependencies` lists each row for this change, as written.
 - Never overturn a settled decision alone, or invent scope the source did not settle.
 - Never write the brief's path, or any absolute path, into the change.
 - Never write the model suggestion into the change, or into a tracked file.

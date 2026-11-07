@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py cut`, and a `rejoin` of a queued cut, copy the item's `## Dependencies` rows into the home queue, and the
   cut station halts a cut whose `design.md` lists a package or constraint outside them, never reading the brief for
   approval (change `0091-cut-halts`, phase 2).
+- Unattended, `mf-cut-change` commits a `## Dependencies` row the brief lists for its change and halts on any other; a
+  hand cut halts on an id the queue holds, naming the brief and `conduct.py rejoin` (change `0091-cut-halts`, phase 3).
 
 ## [0.73.0] - 2026-11-07
 
