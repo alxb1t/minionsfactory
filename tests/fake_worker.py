@@ -303,7 +303,8 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
     if "cut-dirty" in modes:
         (tree / "stray.txt").write_text("x\n")
     if "cut-bare" not in modes:
-        (folder / "models.toml").write_text("[build]\n[converge]\n[release]\n")
+        switch = 'decide = "recommended"\n' if "cut-decides" in modes else ""
+        (folder / "models.toml").write_text(f"{switch}[build]\n[converge]\n[release]\n")
 
 
 def _fake(prompt: str) -> None:
@@ -314,6 +315,8 @@ def _fake(prompt: str) -> None:
     station, change = (found[1], found[2]) if found else ("probe", None)
     # Every key=value clause but the one every release prompt carries.
     clauses = "".join(re.findall(r" (?:with|and) (?!merge=yes\b)\w+=\w+", prompt))
+    if station == "supervise" and (brief := re.search(r" and brief=(\S+)\.\s", prompt)):
+        clauses += f" and brief={Path(brief[1]).name}"
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
         calls.write(f"{called}{clauses}\n")

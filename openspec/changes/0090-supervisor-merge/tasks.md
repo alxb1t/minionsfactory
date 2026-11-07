@@ -4,30 +4,30 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
 
 ## Progress
 
-- [ ] 1 — The brief kept
+- [x] 1 — The brief kept
 - [ ] 2 — The integrate settle
 - [ ] 3 — The record
 
 ## 1 — The brief kept
 
-- [ ] 1.1 **HALT CHECK** 0089's `Run.supervise` stands in `skills/mf-ship/scripts/conduct.py`, called at both sites of
+- [x] 1.1 **HALT CHECK** 0089's `Run.supervise` stands in `skills/mf-ship/scripts/conduct.py`, called at both sites of
   `advance`, as [the design's F1](design.md#context) reads it.
   Verify: `grep -c 'self.supervise(' skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 1.2 Record the brief in `cutting`'s pass, with its docstring line, and add `_brief_of` beside `_queue` in
+- [x] 1.2 Record the brief in `cutting`'s pass, with its docstring line, and add `_brief_of` beside `_queue` in
   `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1).
   Verify: `grep -n '^def _brief_of(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.3 Give `PROMPTS["supervise"]` its `{brief}` field, add `_supervise_prompt` beside `_brief_of`, and have `Run.supervise`
+- [x] 1.3 Give `PROMPTS["supervise"]` its `{brief}` field, add `_supervise_prompt` beside `_brief_of`, and have `Run.supervise`
   take its prompt from it, per [D1](design.md#d1).
   Verify: `grep -n '_supervise_prompt(self.primary' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.4 Add the `cut-decides` mode to `_cut` and the brief clause to `_fake`'s call line in `tests/fake_worker.py`, as the
+- [x] 1.4 Add the `cut-decides` mode to `_cut` and the brief clause to `_fake`'s call line in `tests/fake_worker.py`, as the
   design's `## Tests` tables them.
   Verify: `grep -n 'cut-decides' tests/fake_worker.py` prints a line.
-- [ ] 1.5 In `test_a_queued_cut_is_cut_then_built` of `tests/test_conduct.py`, assert the record after the first run, as the
+- [x] 1.5 In `test_a_queued_cut_is_cut_then_built` of `tests/test_conduct.py`, assert the record after the first run, as the
   design's `## Tests` names it.
   Verify: `grep -n -F '"briefs" / "0001-a"' tests/test_conduct.py` prints a line.
-- [ ] 1.6 Add `test_a_cut_brief_reaches_the_supervisor` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 1.6 Add `test_a_cut_brief_reaches_the_supervisor` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_brief_reaches_the_supervisor` reports `1 passed`.
-- [ ] 1.7 Add the `brief` parameter and Step 1's read of the brief to `skills/mf-supervise/SKILL.md`, per [D6](design.md#d6),
+- [x] 1.7 Add the `brief` parameter and Step 1's read of the brief to `skills/mf-supervise/SKILL.md`, per [D6](design.md#d6),
   the words `passed cut recorded one` on one line.
   Verify: `grep -n 'passed cut recorded one' skills/mf-supervise/SKILL.md` prints a line.
 

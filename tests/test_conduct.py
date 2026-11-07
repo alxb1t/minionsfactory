@@ -3060,6 +3060,8 @@ def test_a_queued_cut_is_cut_then_built(
     assert any(line.endswith(" · 0001-a · check — cut · pass") for line in lines)
     assert not (root / ".minions" / "cuts" / "0001-a").exists()
     assert conduct["_cuts"](root) == {}
+    record = conduct["_queue"](root) / "briefs" / "0001-a"
+    assert record.read_text() == f"{brief}\n"
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
     # A cut queued while a run builds a held version is taken at a poll.
@@ -3095,6 +3097,38 @@ def test_a_queued_cut_is_cut_then_built(
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert "cut-change 0004-c" not in _calls(calls)
     assert "release 0004-c" in _calls(calls)
+
+
+def test_a_cut_brief_reaches_the_supervisor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0090-supervisor-merge design D1.
+    conduct = _conduct()
+    calls = fake("cut-decides", "halt-0001-a", "rescue-diagnose", "supervise-delta")
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    assert _calls(calls) == [
+        "probe",
+        "cut-change 0001-a",
+        "build 0001-a",
+        "rescue 0001-a with decide=recommended",
+        "supervise 0001-a with decide=recommended and brief=brief.md",
+        "build 0001-a",
+        "converge 0001-a",
+        "release 0001-a",
+    ]
+    prompt = conduct["_supervise_prompt"]
+    assert prompt(root, "0001-a").endswith(
+        f" with decide=recommended and brief={brief}."
+    )
+    brief.unlink()
+    assert prompt(root, "0001-a").endswith(" with decide=recommended.")
+    assert prompt(root, "0002-none").endswith(" with decide=recommended.")
 
 
 @pytest.mark.slow

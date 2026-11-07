@@ -186,7 +186,7 @@ PROMPTS = {
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
     "supervise": (
-        "Run the mf-supervise skill for change {change} with decide=recommended."
+        "Run the mf-supervise skill for change {change} with decide=recommended{brief}."
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
@@ -3277,7 +3277,7 @@ class Run:
             self.supervisions.setdefault(change, []).append(held)
         models = self.planned_models(change, "supervise")
         before = _git(tree, "rev-parse", "HEAD").strip()
-        prompt = PROMPTS["supervise"].format(change=change)
+        prompt = _supervise_prompt(self.primary, change)
         sha = None
         try:
             if self.spawn(change, "supervise", tree, prompt, models) is not None:
@@ -3802,7 +3802,8 @@ class Run:
         A branch that holds its change is checked, not cut again; one that holds
         none is dropped with its worktree first, past the config refusals `merge_in`
         runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
-        waited for. None on a pass, its queue entry and reservation deleted.
+        waited for. None on a pass, its brief recorded, its queue entry and
+        reservation deleted.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -3849,6 +3850,9 @@ class Run:
         if why is not None:
             return why, False
         with _queue_lock(primary):
+            folder = _queue(primary) / "briefs"
+            folder.mkdir(mode=0o700, exist_ok=True)
+            (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
             _remove_in(primary / ".minions", "cuts", name=change)
             (_queue(primary) / "cuts" / change).unlink()
@@ -4704,6 +4708,29 @@ def _queue(primary: Path) -> Path:
     e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+def _brief_of(primary: Path, change: str) -> str | None:
+    """Return the brief path a passed cut recorded for `change`, while it names a file.
+
+    The record stands in the home queue, where no worker writes; a version cut by
+    hand has none. Why: 0090-supervisor-merge design D1.
+    """
+    try:
+        named = (_queue(primary) / "briefs" / change).read_text().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return named if named and Path(named).is_file() else None
+
+
+def _supervise_prompt(primary: Path, change: str) -> str:
+    """Return the supervisor's prompt, naming the brief `_brief_of` reads.
+
+    e.g. "… with decide=recommended and brief=/b/brief.md."
+    """
+    named = _brief_of(primary, change)
+    brief = f" and brief={named}" if named else ""
+    return PROMPTS["supervise"].format(change=change, brief=brief)
 
 
 @contextlib.contextmanager
