@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.75
 after: [0092-amend-round]
 ---
 
