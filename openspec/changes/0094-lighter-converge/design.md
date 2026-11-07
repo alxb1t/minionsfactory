@@ -182,12 +182,15 @@ Tiers keep D41: on Claude Code they map to Opus 5.5 and Sonnet 5.5, the brief's 
 `skills/mf-converge/scripts/surfaces.py`, a `uv` script, run from the repository root:
 `surfaces.py <security.md> <from> <to>`.
 
-- Exit 0, `surfaces: no surface`, when the security file's frontmatter says `verdict: clean`, no card's `**Status:**` is `open`,
-  `fixed` or `wontfix`, `THREAT_MODEL.md`'s `## Surfaces` lists a glob, and no path of
-  `git diff --name-only --no-renames <from> <to>` matches one under `fnmatch.fnmatchcase`, whose `*` crosses `/`.
-- Exit 1, `surfaces: verify — <reason>`, the first that holds: `security.md is not clean`; `security card <id> is <status>`;
-  `THREAT_MODEL.md lists no surface`; `<path> matches <glob>`. A `wontfix` counts with `fixed`: the fixer's claim the checker
-  has not judged, or an amend card's, which stays `wontfix` once judged and halts at Step 9, so security keeps running.
+- Exit 0, `surfaces: no surface`, when the security file's frontmatter says `verdict: clean`, every card's `**Status:**` is
+  `verified` or `accepted`, `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds it — `git show <from>:THREAT_MODEL.md`, so the
+  fix being judged cannot edit the list that judges it — lists a glob, and no path of
+  `git diff -z --name-only --no-renames <from> <to>` matches one under `fnmatch.fnmatchcase`, whose `*` crosses `/`.
+- Exit 1, `surfaces: verify — <reason>`, the first that holds: `security.md is not clean`; `security card <id> is <status>`,
+  `unsettled` for a card with no Status; `THREAT_MODEL.md lists no surface`, a threat model absent at `<from>` included;
+  `<path> matches <glob>`. Settled is an allowlist: any other Status, one off the card's form among them, waits. A `wontfix`
+  waits with `fixed`: the fixer's claim the checker has not judged, or an amend card's, which stays `wontfix` once judged and
+  halts at Step 9, so security keeps running.
 - Exit 2, `surfaces: cannot read — <why>`: a missing security file, or a `git diff` that fails.
 - `tests/test_skills.py`'s `_METRICS_SCRIPTS` gains `("mf-converge", "scripts/surfaces.py")`.
 
@@ -207,9 +210,12 @@ included, and a fixer that committed nothing, dispatch both: C9, decided by the 
 - `THREAT_MODEL.md` gains `## Surfaces` between *Entry points* and *Out of scope*: one answer-first line naming `surfaces.py`
   and `fnmatch`, then one `` - `<glob>` — <why> `` line each for `skills/*/scripts/*`, `scripts/*`,
   `skills/mf-bootstrap/templates/*`, `skills/mf-ship/SKILL.md`, `skills/mf-release/SKILL.md`,
-  `skills/mf-converge/references/generic-security.md`, `Makefile`, `.betterleaks.toml`, `.gitignore`, `pyproject.toml`,
+  `skills/mf-converge/references/generic-security.md`, `skills/mf-converge/SKILL.md`, `skills/mf-converge/references/worker.md`,
+  `skills/mf-rescue/SKILL.md`, `skills/mf-supervise/SKILL.md`, `Makefile`, `.betterleaks.toml`, `.gitignore`, `pyproject.toml`,
   `uv.lock`, `.github/*`, `AGENTS.md` and `THREAT_MODEL.md`. *Out of scope*'s worker-steering bullet gains, at its end: "So is
-  the security head by rule: it reads the security file's cards, which a worker writes, so a forged Status skips one verify."
+  the security head by rule: it reads the security file's cards, which a worker writes, so a forged Status skips one verify; it
+  reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix cannot drop the glob its own edit
+  matches."
 - `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl` gains `## Surfaces` before `## Out of scope`: "Not written yet: the path
   globs a fix reaches security through, one `` - `<glob>` — why `` line each; with none, every fix gets a security verify."
 - `docs/principles.md`'s *Nothing reads as clean by being absent* gains, after the sentence naming `integrate.py replay`: "So is
@@ -290,8 +296,10 @@ for a blocking card, and a fix that reaches no surface in `THREAT_MODEL.md` skip
   listing `0001-todo.txt`; `tests/fake_worker.py`'s new converge mode `fix-surfaces` writes both findings files at the head,
   commits a fix at `FAKE_FIX`, runs `surfaces.py` over it, and writes review at the new head and security at the new head with
   `mode: by-rule` on exit 0, `mode: parallel` on exit 1. With `FAKE_FIX=notes.txt` the version releases with security
-  `mode: by-rule`; in a second primary with `FAKE_FIX=0001-todo.txt` it releases with `mode: parallel`. No existing test runs a
-  fix round through a run, so this one is new (`T2`), and its commit body says why.
+  `mode: by-rule`. No existing test runs a fix round through a run, so this one is new (`T2`), and its commit body says why. Its
+  second primary, `FAKE_FIX=0001-todo.txt` releasing with `mode: parallel`, is retired by 5.1: it repeated a whole fake run to
+  show exit 1 on a listed path, which `test_a_fix_that_reaches_security_is_verified` proves at the unit layer (`T1`, `T2`;
+  converge's R4).
 
 Extended or edited:
 
@@ -303,7 +311,8 @@ Extended or edited:
 | `test_reading_sets_count_words` (`tests/test_metric_scripts.py:46`) | the existing step's `six`, no heading, covers the whole-file fallback, `worker` staying 13; then `docs/decisions.md` rewritten `### D1 · six` and `body words`: `shared` 14, `converge` 21, `worker` 16 |
 | `test_the_metrics_script_scan_reports_a_missing_script` (`tests/test_skills.py:511`) | `bundle.py`'s and `surfaces.py`'s `not named` lines in each expected list |
 
-No test is deleted or merged.
+No test is deleted or merged; one step is dropped, `test_a_fix_reaching_no_surface_takes_security_by_rule`'s second primary,
+by 5.1.
 
 ## Dependencies
 

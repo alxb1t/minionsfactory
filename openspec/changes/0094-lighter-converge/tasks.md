@@ -9,6 +9,7 @@ before this build: find each section by its heading, never by a line number.
 - [x] 2 — The bundle
 - [x] 3 — Security by recomputation
 - [x] 4 — The record
+- [ ] 5 — The slow test's second primary
 
 ## 1 — Worker models
 
@@ -87,3 +88,9 @@ before this build: find each section by its heading, never by a line number.
   Verify: `grep -c '^watch = 10500$' metrics/catalogue.toml` prints `2`.
 - [x] 4.5 Add the converge sentence to *Execution* in `README.md`, per [D11](design.md#d11).
   Verify: `grep -n 'd64--converge-spends-where-judgment-is' README.md` prints a line.
+
+## 5 — The slow test's second primary
+
+- [ ] 5.1 Drop the `("0001-todo.txt", "parallel")` iteration of `test_a_fix_reaching_no_surface_takes_security_by_rule` in
+  `tests/test_conduct.py`, keeping the `notes.txt` by-rule run and its comment's first clause, as the design's `## Tests` says.
+  Verify: `grep -c '"0001-todo.txt", "parallel"' tests/test_conduct.py` prints `0`.
