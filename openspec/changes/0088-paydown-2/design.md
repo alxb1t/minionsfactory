@@ -62,7 +62,7 @@ the debt at the release.
 | [D2](#d2) | The kept-worktree halt names its remedy, and the `cut-halted` row stops sending it to a re-plan | D1, `0082·R8` | the remedy in the row alone |
 | [D3](#d3) | A request taken at a poll's bottom sleeps out the poll before the next top | D1, `0085·R10` | a fixed `REJOIN_POLL` sleep |
 | [D4](#d4) | `hold`'s amended-alone branch discards the diagnosis | D1, `0085·R11` | — |
-| [D5](#d5) | `brief_check.py` halts on an item that does not open `<n>. ` and on a second `after:`; its why line cites the design | D1, `0083·S3`, `0083·R5` | — |
+| [D5](#d5) | `brief_check.py` halts on an item that does not open `<n>. `, on a second `after:`, and on a checked line holding whitespace other than a space or a tab; its why line cites the design | D1, `0083·S3`, `0083·R5`, re-plan of review R5 | a fold per whitespace form |
 | [D6](#d6) | The probe's MCP halt is written into the sandbox requirement, the delta alone | D1, `0076·R3`, C2 | a phase of its own |
 | [D7](#d7) | `stamp.py` writes each status-log event and run heading with the clock's time | D5, `hand·N1` | a script printing the time alone |
 | [D8](#d8) | The stale archives corrected in place, each to its card's fix | D2 | a new note beside each |
@@ -109,6 +109,17 @@ In `Run.join`, the bottom branch reads `if self.take_requests(threads): time.sle
   ``brief: halt — ## For the cut: not a numbered item: `- **x;y** · minor · after: none` ``.
 - **The second `after:`.** `head` counts the parts that start `after:`; more than one →
   `item <n> — more than one after:`, and no `after` entry is read.
+- **The lines.** A section splits on `\n` alone. An item folds each following non-blank line that opens no list marker or `|`,
+  as Markdown's lazy continuation does, until a blank line, so a second `after:` on a lazy line or past a vertical tab halts
+  `more than one after:` or `not an after id`.
+- **The whitespace rule** (a re-plan of review R5, converge Run 2 round 3). A line of `## Decisions` or `## For the cut` that
+  holds a character `ch` with `ch.isspace() and ch not in " \t"` — NBSP, U+3000, `\x0b`, `\x0c`, `\r`, NEL, U+2028 and U+2029
+  among them — halts ``brief: halt — <section> line <n>: whitespace other than a space or a tab``, `<n>` the line's number under
+  its heading from 1, e.g. `brief: halt — ## For the cut line 4: whitespace other than a space or a tab`. These halts print
+  after `## For the cut is empty` and before `fields`' halts, `## Decisions` first, each in line order; the other checks still
+  run. One rule closes the class in place of a fold per form: R1, S2 and R5 were each a whitespace form the item parser did
+  not fold (`0083·S3`'s class), and each fold left the next form open. A line the rule halts needs no fold, so only spaces and
+  tabs are left to indent or blank a line, as in CommonMark.
 - **The why line** (`B:13`) → "Why: 0083-plan-queues design D1; 0088-paydown-2 design D5." `0083`'s D1 gains the field checks
   under [D8](#d8).
 
@@ -135,10 +146,14 @@ same way.
   the title — a blank line and that rest, its leading blank lines dropped. An event goes on the line right after the first
   `## Run` line.
 - **The time** is local, from `_now()`, a module function returning `datetime.now()`, so a test fixes it.
-- **Exit 2**, `stamp: cannot stamp — <why>`, the log unchanged: a log that cannot be read (`<path>: <strerror>`), an event with
-  no `## Run` line (`no ## Run heading`), a `--run` whose first line is no `# ` title (`no # title`), and an event beside
-  `--run`, neither, or `--mark` with no `--run` (`give one event, or --run with an optional --mark`), checked in `main` after
-  parsing, with no `argparse` group.
+- **The write.** The log is read through one `O_RDONLY | O_NOFOLLOW` descriptor and replaced through `<log>.tmp`, created
+  `O_EXCL | O_NOFOLLOW` and renamed over it.
+- **Exit 2**, `stamp: cannot stamp — <why>`, the log unchanged: a log that cannot be read (`<path>: <strerror>`), a log that is
+  a link (`<log> is a link`), refused by the read's own `O_RDONLY | O_NOFOLLOW` open, not by a check by name, a staged
+  `<log>.tmp` that cannot be created (`<name> could not be created`), a rename over the log that fails
+  (`<log name> could not be replaced`), the `.tmp` removed, an event with no `## Run` line (`no ## Run heading`), a `--run`
+  whose first line is no `# ` title (`no # title`), and an event beside `--run`, neither, or `--mark` with no `--run`
+  (`give one event, or --run with an optional --mark`), checked in `main` after parsing, with no `argparse` group.
 - **`tests/test_skills.py`** — `_METRICS_SCRIPTS` gains `("mf-converge", "scripts/stamp.py")`, appended last, its comment's why
   list `0088-paydown-2 design D7`; each expected list of `test_the_metrics_script_scan_reports_a_missing_script` gains
   `skills/mf-converge/SKILL.md: scripts/stamp.py: not named`, last.
@@ -223,19 +238,21 @@ already reaches its state (`T2`).
   it, above `Run 1`'s lines. The script run as a command, `[sys.executable, <script>, <log>, <event>]`, exits 0 the same.
 - `test_a_log_out_of_shape_is_not_stamped` (new) — a missing log, an event on a log with no `## Run`, a `--run` on a log whose
   first line is no title, an event beside `--run`, and neither: each exits 2 with its `stamp: cannot stamp — …` line, the log
-  unchanged.
+  unchanged. Then the log a link (`is a link`); a link swapped in past a check by name (`Path.is_symlink` patched to `False`),
+  still refused; a folder at `status_log.md.tmp` (`could not be created`); and the log swapped for a folder before the rename,
+  exiting 2 with `status_log.md could not be replaced` and no `.tmp` left.
 
 Extended or edited, each card's step red before its fix:
 
 | test | gains |
 |---|---|
-| `test_a_run_moves_an_old_backlog_to_the_debt` (`T:3382`) | after the young-debt-lock step (`T:3469-3475`): `held.rmdir()`, `held` a plain file, the run halts `.minions/debt.lock is a file, not a lock`, the old file unmoved; then `held.unlink()` and `held.mkdir()`, so the stale-lock twin's `held.rmdir()` (`T:3478`) still finds a folder |
+| `test_a_run_moves_an_old_backlog_to_the_debt` (`T:3382`) | after the young-debt-lock step (`T:3469-3475`): `held.rmdir()`, `held` a plain file, the run halts `.minions/debt.lock is a file, not a lock`, the old file unmoved; then `held.unlink()` and `held.mkdir()`, then the folder-link step: `held` a link to a folder, the run halts the same and the folder is kept, then `held.unlink()` and `held.mkdir()`; so the stale-lock twin's `held.rmdir()` (`T:3478`) still finds a folder |
 | `test_a_cut_halt_is_shown_and_rejoin_cuts_again` (`T:2738`, `slow`) | `T:2985-2988` expects [D2](#d2)'s full line for `0018-v` |
 | `test_a_halt_answered_on_disk_comes_back` (`T:1779`, `slow`) | the bottom-take step (`T:1858-1862`) logs each `take_requests` call in `polled`, and a `wait` stands between the bottom take that returned True and the next top take |
 | `test_an_amend_during_a_rescue_goes_on` (`T:1747`) | `Run.hold`, wrapped with `monkeypatch`, adds the change to `self.diagnosed` before the real call, as a rescue that wrote `rescue.md` does, and records whether it is still there after; the record is `[(True, False)]` |
 | `test_the_metrics_script_scan_reports_a_missing_script` (`tests/test_skills.py:510`) | `stamp.py`'s `not named` line, per [D7](#d7) |
 | `test_a_hard_brief_is_ready_for_the_cut` (`tests/test_brief_check.py:69`) | a tenth item nested three spaces in, as the template writes it, is ready |
-| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:`; the `*`, one-space `- `, `+` and two-space `2)` items halt `not a numbered item`; a `2.<tab>` head, a `3.  ` head and a three-space `- ` under a `10. ` head halt the same; a `* models:`, `-<tab>models:` or `-  models:` line halts `a models line not written`, and a second `- models:` halts `more than one models line` |
+| `test_a_brief_out_of_shape_halts` (`tests/test_brief_check.py:81`) | `- **x;y** · minor · after: none` as a top-level item halts `not a numbered item`, and `5. **ok** · minor · after: none · after: a;touch-p`, with its models line, halts `item 5 — more than one after:`; the `*`, one-space `- `, `+` and two-space `2)` items halt `not a numbered item`; a `2.<tab>` head, a `3.  ` head and a three-space `- ` under a `10. ` head halt the same; a `* models:`, `-<tab>models:` or `-  models:` line halts `a models line not written`, and a second `- models:` halts `more than one models line`; the lazy-line `· after: a;touch-q` halts `more than one after:` and the vertical-tab head `not an after id`; per the whitespace rule, a line of NBSP, U+3000, `\x0b` or `\x0c`, R5's NBSP-led head after a blank line with its NBSP-indented models line, and an NBSP-led `- **Acceptance:**` line each halt `<section> line <n>: whitespace other than a space or a tab`, a `## Decisions` line among them, and the vertical-tab and `unblank` steps expect the rule's line beside their own |
 
 No test is deleted or merged.
 
@@ -251,6 +268,8 @@ None.
   gate.
 - `0083`'s archive corrected to the code at this base reads without [D5](#d5)'s new halts → those are this change's, recorded
   here.
+- A brief saved with `\r\n` line ends halts the whitespace rule on each checked line → the halt names the line; the planner
+  saves it with `\n`, as `mf-plan` writes it.
 
 ## Verdict
 

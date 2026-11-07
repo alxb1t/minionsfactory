@@ -25,8 +25,8 @@ are archived designs the shipped code contradicts, and the rest settled here are
   answers a rescued halt drops the stale diagnosis (`0085·R11`).
 - **`mf-ship`'s `cut-halted` row** — a kept-worktree halt is no plan's: a person removes or moves that worktree, then rejoins.
 - **`brief_check.py`** — halts on a `## For the cut` item that does not open `<n>. ` and one space, on a head with a second
-  `after:`, and on a models line not written `- models:` or a second one (`0083·S3`); its docstring cites a tracked reason
-  (`0083·R5`).
+  `after:`, on a models line not written `- models:` or a second one, and on a line of `## Decisions` or `## For the cut`
+  holding whitespace other than a space or a tab (`0083·S3`); its docstring cites a tracked reason (`0083·R5`).
 - **The stamp** — `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time;
   converge's status log takes no time by hand (`hand·N1`).
 - **The archives** — the designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does
@@ -49,7 +49,8 @@ None.
   - *A worker runs in an OS sandbox* — MODIFIED: the run's probe fails when a Claude worker's `init` event lists an MCP server,
     naming it (`0076·R3`).
   - *A hard brief is checked before it is queued* — MODIFIED: an item that does not open `<n>. ` and one space, a head with a
-    second `after:`, and a models line not written `- models:` or a second one, halt (`0083·S3`).
+    second `after:`, a models line not written `- models:` or a second one, and a checked line holding whitespace other than
+    a space or a tab, halt (`0083·S3`).
   - *Converge keeps a status log* — MODIFIED: each line and run heading is written by `stamp.py`, which takes the clock's
     time, not taken from `date` (`hand·N1`).
   - *A halt stops only its version, and a re-run resumes* — MODIFIED: a file at `.minions/debt.lock` is among the halts that

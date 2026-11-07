@@ -8,6 +8,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 - [x] 2 — The brief check
 - [x] 3 — The status-log stamp
 - [x] 4 — The archives and the threat model
+- [ ] 5 — The whitespace rule
 
 ## 1 — The conductor's small cards
 
@@ -72,3 +73,15 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
   Verify: `grep -L -e '0049·S7' -e '0049·R15' THREAT_MODEL.md` prints `THREAT_MODEL.md`.
 - [x] 4.10 Add the `0050·R11` line to *Known gaps* in `THREAT_MODEL.md`, per [D9](design.md#d9).
   Verify: `grep -n '0050·R11.: a concurrent worker' THREAT_MODEL.md` prints a line.
+
+## 5 — The whitespace rule
+
+- [ ] 5.1 Add the whitespace rule to `main` of `skills/mf-plan/scripts/brief_check.py`, per [D5](design.md#d5), once 5.2's steps
+  run red: a line of `## Decisions` or `## For the cut` holding a character other than a space or a tab for which
+  `isspace()` holds halts `<section> line <n>: whitespace other than a space or a tab`. Remove a per-form fold the rule makes
+  dead only if the tests still pass; the CHANGELOG's brief-check line names the rule.
+  Verify: `grep -n 'whitespace other than a space or a tab' skills/mf-plan/scripts/brief_check.py` prints a line.
+- [ ] 5.2 Add the whitespace-rule steps to `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`, as the design's
+  `## Tests` row says: lines of NBSP, U+3000, `\x0b` and `\x0c` each halt with their section and line number, R5's NBSP-led head
+  after a blank line among them; the vertical-tab and `unblank` steps expect the rule's line.
+  Verify: `uv run pytest -q tests/test_brief_check.py -k brief_out_of_shape_halts` reports `1 passed`.

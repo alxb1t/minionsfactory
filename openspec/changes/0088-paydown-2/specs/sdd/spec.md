@@ -131,8 +131,11 @@ variable, loop or `cd`. A command is a backticked span that holds a space and is
 SHALL also exit 1 when a top-level item of `## For the cut` does not open `<n>. ` and one space, when an item's head names a
 slug or an `after` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or more than
 one, when the item has no `models:` line naming the build, converge, release and cut station in order, each with a model and
-effort of `[A-Za-z0-9._-]` alone, or when an item's models line is not written `- models:`, or it has more than one. It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be
-read or a span cannot be parsed. It SHALL run no command it reads.
+effort of `[A-Za-z0-9._-]` alone, or when an item's models line is not written `- models:`, or it has more than one. It
+SHALL also exit 1 when a line of `## Decisions` or `## For the cut`, lines split at a newline alone, holds a whitespace
+character other than a space or a tab, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`.
+It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
+be parsed. It SHALL run no command it reads.
 
 #### Scenario: A brief out of shape
 - **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`, or an
@@ -141,6 +144,12 @@ read or a span cannot be parsed. It SHALL run no command it reads.
 - **AND WHEN** a `## For the cut` item opens `- ` where `<n>. ` is due, or its head holds a second `after:`, or it has a
   second models line
 - **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A checked line holds other whitespace
+- **WHEN** a line of a brief's `## For the cut` or `## Decisions` holds a no-break space, an ideographic space, a vertical
+  tab or a form feed
+- **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: whitespace other than a space or a tab`
+  for that line
 
 #### Scenario: A hard brief
 - **WHEN** a hard brief has its `At` line, a filled `## For the cut` and plain commands
