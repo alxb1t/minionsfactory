@@ -4,39 +4,39 @@ Build the settled [design](design.md), one phase at a time.
 
 ## Progress
 
-- [ ] 1 — The station
+- [x] 1 — The station
 - [ ] 2 — The check's refusals
 - [ ] 3 — The skills
 - [ ] 4 — The record
 
 ## 1 — The station
 
-- [ ] 1.1 **HALT CHECK** `advance` in `skills/mf-ship/scripts/conduct.py` still calls the rescue at its entry and check sites
+- [x] 1.1 **HALT CHECK** `advance` in `skills/mf-ship/scripts/conduct.py` still calls the rescue at its entry and check sites
   alone, as [D1](design.md#d1) reads them.
   Verify: `grep -c 'self.rescue(version' skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 1.2 Add `"supervise"` to `EVENTS`' third group and to `PLANNED`, `SUPERVISES = 2` and `SUPERVISOR` beside `RESCUES`, and
+- [x] 1.2 Add `"supervise"` to `EVENTS`' third group and to `PLANNED`, `SUPERVISES = 2` and `SUPERVISOR` beside `RESCUES`, and
   `PROMPTS["supervise"]` in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1), [D2](design.md#d2) and [D5](design.md#d5).
   Verify: `grep -n 'SUPERVISES = 2' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.3 Give `_models` the supervisor's Claude default and its docstring line, per [D2](design.md#d2), and add
+- [x] 1.3 Give `_models` the supervisor's Claude default and its docstring line, per [D2](design.md#d2), and add
   `test_the_supervisor_runs_on_its_own_table` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_runs_on_its_own_table` reports `1 passed`.
-- [ ] 1.4 Add `_supervised` beside `_amend` in `skills/mf-ship/scripts/conduct.py`, its refusals as [D3](design.md#d3)'s table
+- [x] 1.4 Add `_supervised` beside `_amend` in `skills/mf-ship/scripts/conduct.py`, its refusals as [D3](design.md#d3)'s table
   words them.
   Verify: `grep -n '^def _supervised(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.5 Add `self.supervisions` and `self.supervisor_decided` to `Run.__init__`, and `Run.supervised` and `Run.supervise` beside
+- [x] 1.5 Add `self.supervisions` and `self.supervisor_decided` to `Run.__init__`, and `Run.supervised` and `Run.supervise` beside
   `Run.rescue`, per [D1](design.md#d1), [D4](design.md#d4) and [D5](design.md#d5), with no `_security_held` read and no `finally`:
   2.1 and 2.3 add them.
   Verify: `grep -n 'def supervise(self' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.6 Call `self.supervise` after the rescue at both sites of `Run.advance`, and append `Run.supervised`'s suffix to both
+- [x] 1.6 Call `self.supervise` after the rescue at both sites of `Run.advance`, and append `Run.supervised`'s suffix to both
   halts, per [D1](design.md#d1) and [D5](design.md#d5).
   Verify: `grep -c 'self.supervise(' skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 1.7 Add `_supervise` to `tests/fake_worker.py` with its `supervise-delta` and `supervise-hollow` modes, dispatched on
+- [x] 1.7 Add `_supervise` to `tests/fake_worker.py` with its `supervise-delta` and `supervise-hollow` modes, dispatched on
   `station == "supervise"` beside `_rescue`, as the design's `## Tests` tables them.
   Verify: `grep -n 'def _supervise(' tests/fake_worker.py` prints a line.
-- [ ] 1.8 Add `test_a_supervisor_answers_a_diagnosed_halt` to `tests/test_conduct.py`, its `done` line ending
+- [x] 1.8 Add `test_a_supervisor_answers_a_diagnosed_halt` to `tests/test_conduct.py`, its `done` line ending
   `released v0.1.0` and no `report` assertion, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_answers_a_diagnosed_halt` reports `1 passed`.
-- [ ] 1.9 Add `test_a_spent_rescue_starts_the_supervisor_once` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 1.9 Add `test_a_spent_rescue_starts_the_supervisor_once` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k spent_rescue_starts_the_supervisor_once` reports `1 passed`.
 
 ## 2 — The check's refusals

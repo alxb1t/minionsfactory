@@ -2166,6 +2166,113 @@ def test_rescue_skip_runs_none(
         models(minions, "0001-todo", "rescue", "claude")
 
 
+def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
+    # Its own table, else Claude's default; no fallback to `[build]`, none on Codex.
+    # Why: 0089-supervisor design D2.
+    models, minions = _conduct()["_models"], tmp_path / ".minions"
+    default = ("claude", "claude-opus-5-5", "high")
+    assert models(minions, "0001-todo", "supervise", "claude") == default
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text('[supervise]\nmodel = "m"\n')
+    named = ("claude", "m", "high")
+    assert models(minions, "0001-todo", "supervise", "claude") == named
+    table.write_text('[build]\nmodel = "m"\neffort = "low"\n')
+    assert models(minions, "0001-todo", "supervise", "claude") == default
+    table.unlink()
+    assert models(minions, "0001-todo", "supervise", "codex") == ("codex", None, None)
+
+
+def _switched(root: Path, change: str) -> None:
+    """Write `change`'s models file holding the switch alone."""
+    table = root / ".minions" / "changes" / change / "models.toml"
+    table.parent.mkdir(parents=True, exist_ok=True)
+    table.write_text('decide = "recommended"\n')
+
+
+@pytest.mark.slow
+def test_a_supervisor_answers_a_diagnosed_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Under the switch, a halt its rescue diagnosed gets the supervisor, whose amend of
+    # the spec delta goes on in the run; with no switch, none runs.
+    # Why: 0089-supervisor design D1, D3, D4.
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-diagnose", "supervise-delta")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _switched(root, "0001-todo")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "rescue 0001-todo with decide=recommended",
+        "supervise 0001-todo with decide=recommended",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)
+    listed = ("diff-tree", "-r", "--no-commit-id", "--name-only", amend)
+    assert "openspec/changes/0001-todo/specs/sdd/spec.md" in _git(root, *listed).split()
+    lines = _log(root)
+    assert any(
+        line.endswith(f" · run · supervise — 0001-todo: decided · 1.1 · {amend[:7]}")
+        for line in lines
+    )
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+    calls.unlink()
+    fake("halt-0002-marks", "rescue-diagnose", "supervise-delta")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
+
+
+def test_a_spent_rescue_starts_the_supervisor_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0089-supervisor design D1, D5.
+    conduct = _conduct()
+    calls = fake("halt-0001-todo", "rescue-hollow", "supervise-hollow")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _switched(root, "0001-todo")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "rescue 0001-todo with decide=recommended",
+        "build 0001-todo",
+        "supervise 0001-todo with decide=recommended",
+        "build 0001-todo",
+    ]
+    assert _log(root)[-2].endswith(
+        " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+        " · rescued 1.1 · supervised 1.1"
+    )
+
+    # The third halt gets none, whatever its sub-task.
+    conductor = conduct["Run"](root, "claude")
+    conductor.supervisions["0001-todo"] = ["1.1", "1.2"]
+    assert conductor.supervised("0001-todo", "2.1") == " · supervised 1.1 1.2"
+    assert conductor.supervised("0002-marks", "1.1") == ""
+
+
 def test_a_linked_rejoin_folder_deletes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

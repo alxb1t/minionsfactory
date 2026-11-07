@@ -255,6 +255,21 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
             (folder / change).touch()
 
 
+def _supervise(tree: Path, change: str, modes: set[str]) -> None:
+    """Amend the plan, the spec delta besides, hollowly or outside it, as decided."""
+    folder = f"openspec/changes/{change}"
+    message = (
+        f"docs({change}): amend the change directory\n\nfix\n\n"
+        "Supervisor: 1.1\nDecided-by: supervisor"
+    )
+    text = (tree / folder / "tasks.md").read_text()
+    if "supervise-delta" in modes:
+        spec = {f"{folder}/specs/sdd/spec.md": "## ADDED Requirements\n"}
+        _commit(tree, {f"{folder}/tasks.md": text + _AMENDED, **spec}, message)
+    elif "supervise-hollow" in modes:
+        _commit(tree, {f"{folder}/tasks.md": text + "Look again.\n"}, message)
+
+
 def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -> None:
     """Commit the change directory, write its models file; or halt, die, fall short."""
     folder = _folder(primary, change)
@@ -372,6 +387,8 @@ def _fake(prompt: str) -> None:
             )
     elif station == "rescue":
         _rescue(here, primary, str(change), modes)
+    elif station == "supervise":
+        _supervise(here, str(change), modes)
     elif station == "cut-change":
         _cut(here, primary, str(change), prompt, modes)
     elif (
