@@ -3034,7 +3034,7 @@ class Run:
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
         return f"halted {halted} · blocked {blocked} · released {released}" + (
-            self.decisions() + self.needs() + self.unpushed()
+            self.decisions() + self.supervisors() + self.needs() + self.unpushed()
         )
 
     def needs(self) -> str:
@@ -3070,6 +3070,15 @@ class Run:
         with self.guard:
             ids = " ".join(dict.fromkeys(self.decided))
         return f" · decided {ids}" if ids else ""
+
+    def supervisors(self) -> str:
+        """Return ` · supervised <ids>`, each version a supervisor decided for, or "".
+
+        Why: 0089-supervisor design D10.
+        """
+        with self.guard:
+            ids = " ".join(dict.fromkeys(self.supervisor_decided))
+        return f" · supervised {ids}" if ids else ""
 
     def unpushed(self) -> str:
         """Return ` · unpushed <names>`, as `status` names them, or "" with none.
@@ -4516,7 +4525,10 @@ class Run:
             return 1
         released = " ".join(self.released)
         self.log.event(
-            "run", "done", f"released {released}{self.decisions()}{self.unpushed()}"
+            "run",
+            "done",
+            f"released {released}{self.decisions()}{self.supervisors()}"
+            f"{self.unpushed()}",
         )
         return 0
 
@@ -5225,6 +5237,10 @@ def report(cwd: Path) -> str:
         elif found[2] == "rescue":
             kind, _, rest = stage.partition(" · ")
             lines.append(f"{change} · {'rescued' if kind == 'fixed' else kind} {rest}")
+        elif found[2] == "supervise":
+            kind, _, rest = stage.partition(" · ")
+            said = "supervised" if kind == "decided" else kind
+            lines.append(f"{change} · {said} {rest}")
     lines.append(closing)
     return "\n".join(lines)
 

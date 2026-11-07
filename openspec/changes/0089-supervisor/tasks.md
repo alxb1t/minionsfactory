@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time.
 - [x] 1 — The station
 - [x] 2 — The check's refusals
 - [x] 3 — The skills
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The station
 
@@ -78,40 +78,40 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 4 — The record
 
-- [ ] 4.1 Add the `supervise` branch to `report`, and `Run.supervisors` to `Run.closing` and to the `done` line `Run.ship` logs, in
+- [x] 4.1 Add the `supervise` branch to `report`, and `Run.supervisors` to `Run.closing` and to the `done` line `Run.ship` logs, in
   `skills/mf-ship/scripts/conduct.py`, per [D10](design.md#d10).
   Verify: `grep -c 'self.supervisors()' skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 4.2 In `test_a_supervisor_answers_a_diagnosed_halt` of `tests/test_conduct.py`, assert the `done` line ending
+- [x] 4.2 In `test_a_supervisor_answers_a_diagnosed_halt` of `tests/test_conduct.py`, assert the `done` line ending
   `released v0.1.0 · supervised 0001-todo` and `report`'s `0001-todo · supervised 1.1 · <sha7>`, as the design's `## Tests` names them.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_answers_a_diagnosed_halt` reports `1 passed`.
-- [ ] 4.3 Add `"supervise"` to `STATIONS` and `SPENT`, `Version.supervised` and `METRICS["supervisor-decided"]` in
+- [x] 4.3 Add `"supervise"` to `STATIONS` and `SPENT`, `Version.supervised` and `METRICS["supervisor-decided"]` in
   `scripts/metrics/run.py`, per [D10](design.md#d10).
   Verify: `grep -n '"supervisor-decided"' scripts/metrics/run.py` prints a line.
-- [ ] 4.4 Add the `supervisor-decided` metric after `rescues-decided` in `metrics/catalogue.toml`, per [D10](design.md#d10).
+- [x] 4.4 Add the `supervisor-decided` metric after `rescues-decided` in `metrics/catalogue.toml`, per [D10](design.md#d10).
   Verify: `grep -n 'id = "supervisor-decided"' metrics/catalogue.toml` prints a line.
-- [ ] 4.5 Extend `_RUN_B` and `expected` of `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the
+- [x] 4.5 Extend `_RUN_B` and `expected` of `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the
   design's `## Tests` names them.
   Verify: `grep -n 'supervise — 0001-x: decided' tests/test_metric_scripts.py` prints a line.
-- [ ] 4.6 Add D61 after D60 in `docs/decisions.md`, as [D10](design.md#d10) quotes it, and its id to the map's *Repo
+- [x] 4.6 Add D61 after D60 in `docs/decisions.md`, as [D10](design.md#d10) quotes it, and its id to the map's *Repo
   conventions* list after D60.
   Verify: `grep -n '^### D61 · A supervisor answers what rescue diagnoses$' docs/decisions.md` prints a line.
-- [ ] 4.7 Edit D15's drift line in `docs/decisions.md`, per [D10](design.md#d10), the words
+- [x] 4.7 Edit D15's drift line in `docs/decisions.md`, per [D10](design.md#d10), the words
   `the rescue's or the supervisor's answers it` on one line.
   Verify: `grep -n "the rescue's or the supervisor's answers it" docs/decisions.md` prints a line.
-- [ ] 4.8 Edit D47's `HALTS` sentence and its Rejected line in `docs/decisions.md`, per [D10](design.md#d10), the words
+- [x] 4.8 Edit D47's `HALTS` sentence and its Rejected line in `docs/decisions.md`, per [D10](design.md#d10), the words
   `and under the switch its supervisor` on one line.
   Verify: `grep -n 'and under the switch its supervisor' docs/decisions.md` prints a line.
-- [ ] 4.9 Add the trailer-less rescue amend to D53's Accepts in `docs/decisions.md`, per [D10](design.md#d10), the words
+- [x] 4.9 Add the trailer-less rescue amend to D53's Accepts in `docs/decisions.md`, per [D10](design.md#d10), the words
   `which reads as the person's` on one line.
   Verify: `grep -n "which reads as the person's" docs/decisions.md` prints a line.
-- [ ] 4.10 Drop "a supervisor role" from D60's Rejected in `docs/decisions.md`, per [D10](design.md#d10).
+- [x] 4.10 Drop "a supervisor role" from D60's Rejected in `docs/decisions.md`, per [D10](design.md#d10).
   Verify: `grep -L 'a supervisor role' docs/decisions.md` prints `docs/decisions.md`.
-- [ ] 4.11 Add [D10](design.md#d10)'s paragraph to *Out of scope* in `THREAT_MODEL.md`, the words
+- [x] 4.11 Add [D10](design.md#d10)'s paragraph to *Out of scope* in `THREAT_MODEL.md`, the words
   `known by its subject and paths alone` on one line.
   Verify: `grep -n 'known by its subject and paths alone' THREAT_MODEL.md` prints a line.
-- [ ] 4.12 Edit the *A merge* bullet of `docs/principles.md`, per [D9](design.md#d9), the words
+- [x] 4.12 Edit the *A merge* bullet of `docs/principles.md`, per [D9](design.md#d9), the words
   `the rescue's or the supervisor's amends` on one line.
   Verify: `grep -n "the rescue's or the supervisor's amends" docs/principles.md` prints a line.
-- [ ] 4.13 Add the `mf-supervise` row to `README.md` and the `mf-supervise` clause to `AGENTS.md`'s *Layout*, per
+- [x] 4.13 Add the `mf-supervise` row to `README.md` and the `mf-supervise` clause to `AGENTS.md`'s *Layout*, per
   [D10](design.md#d10).
   Verify: `grep -l 'mf-supervise' README.md AGENTS.md` prints both paths.

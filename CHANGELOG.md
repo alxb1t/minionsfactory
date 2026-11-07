@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A new skill, `mf-supervise`, writes the supervisor's one amend; `mf-rescue` and `mf-ship` put an amend's new sub-task
   in a new phase after the last, and converge reads a `Supervisor:` amend in a round, never by rule (change
   `0089-supervisor`, phase 3).
+- `report`, the run's close and the `supervisor-decided` metric name each supervisor amend; D61 records the supervisor,
+  with D15, D47, D53 and D60, the threat model, the principles, README and `AGENTS.md` brought in line (change
+  `0089-supervisor`, phase 4).
 
 ## [0.71.1] - 2026-11-07
 

@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
 
 ## The shape
@@ -220,7 +220,7 @@ be clean.**
 - **The anchors always block:** data loss, spend, exposure of personal data or secrets, silent wrong output.
   Save one class: a route in a class the threat model's *Out of scope* accepts by name is carded, anchors included.
 - **Drift never blocks:** prose the code contradicts — save an amend card, one naming the plan's amend: converge halts
-  `amend needed` on it at the debt write, and the person's amend or the rescue's answers it.
+  `amend needed` on it at the debt write, and the person's amend, the rescue's or the supervisor's answers it.
 - **A repeat goes up one level:** a finding that repeats a debt card.
 - **Why:** left to judgement, a costly defect is graded a nit and a typo blocking. The anchors fix the floor; the
   drift tier keeps prose out of the loop.
@@ -519,7 +519,8 @@ disk: only a stage left in `HALTS`, a git config key or `origin` URL the run ref
 run, a default-branch commit or version tag no release made, a claimed group it cannot kill, an `origin` it cannot read with no
 offline base, or a precondition it stops on, a skill with no link among them, needs the person. A version halt's first
 step is its rescue ([D53](#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): a stage in `HALTS` needs the
-person once a rescue, where one runs, has left it halted. A converge cap of small cards is the run's to grant, never
+person once a rescue, where one runs, and under the switch its supervisor
+([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)), has left it halted. A converge cap of small cards is the run's to grant, never
 past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap-policy)).**
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
@@ -533,7 +534,8 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   the **offline base**, and each release and the close push what is pending. The first offline base needs the person:
   `conduct.py anchor`, in their session.
 - **Accepts:** what a command `Ship tools:` names runs, inside the sandbox.
-- **Rejected:** an LLM conductor waiting on the workers · `mfa-*` copies of the stations · a state file · workers that
+- **Rejected:** an LLM conductor waiting on the workers — the supervisor is a station a halt starts
+  ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
   version held until `origin` answers.
 
@@ -583,7 +585,8 @@ timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
-  for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)).
+  for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)) · a rescue amend
+  with no `Rescue:` trailer, which reads as the person's ([D60](#d60--a-run-heals-its-own-halts)).
 - **Rejected:** reading the build worker's output for the halt — `mf-build` writes `.minions/changes/<id>/build.halt` · a prompt in
   `conduct.py` — the station is a skill · a rejoin request · one rescue a version · a station in `STATIONS` · a rescue
   that changes a decision with no switch · counting only what a rescue did in the tree as its answer — a grant it writes would take the
@@ -605,8 +608,28 @@ need and each version a rescue decided for.**
   rest a prose amend a fresh reader could write.
 - **Accepts:** a decided amend that passes the path and trailer checks is a worker's decision: converge reads the whole change
   after it, and the close and `report` name it · a rescue amend with no `Rescue:` trailer reads as the person's, and goes on.
-- **Rejected:** a supervisor role · `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the
-  run writes itself · a push notification.
+- **Rejected:** `[rescue] decide` · an `AGENTS.md` switch ([D56](#d56--the-cap-policy)) · a request the run writes itself ·
+  a push notification.
+
+### D61 · A supervisor answers what rescue diagnoses
+
+**Under a version's `decide = "recommended"`, when its rescue diagnoses a build or converge halt or is spent on it — the
+sub-task rescued before, or `RESCUES` reached — `conduct.py` runs `mf-supervise` in the version's thread. It may amend anything
+under `openspec/changes/<id>/`, the spec delta included, and tick a sub-task whose `Verify:` it ran green; it never edits code or
+a test, takes a security `critical` or `high` card, approves a gate makefile, accepts a threat-model risk, answers an integrate
+halt, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
+trailers and paths under the change directory alone, logs it `decided`, clears the halt and goes on in the thread; anything else
+halts the version for the person. One try a halt, at most `SUPERVISES = 2` a version a run; `[supervise]` picks its model,
+`claude-opus-5-5` at `high` on Claude when it names none. The close and `report` name each.**
+
+- **New work:** a sub-task an amend adds — the supervisor's, the rescue's or the person's — goes in a new unticked phase after
+  the last, never under a ticked one: the build reads `## Progress` boxes alone.
+- **Why:** a supervising chat answered most of 0087's halts and 0085's integrate flag, none with code, each a judgment the
+  rescue may not make, and each a restart.
+- **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
+  round, never by rule · its spend, bounded per version.
+- **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
+  widening the rescue · a supervisor without the switch.
 
 ### D55 · One pinned MF release per machine
 

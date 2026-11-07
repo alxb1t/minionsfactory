@@ -2192,7 +2192,10 @@ def _switched(root: Path, change: str) -> None:
 
 @pytest.mark.slow
 def test_a_supervisor_answers_a_diagnosed_halt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     # Under the switch, a halt its rescue diagnosed gets the supervisor, whose amend of
     # the spec delta goes on in the run; with no switch, none runs.
@@ -2226,7 +2229,11 @@ def test_a_supervisor_answers_a_diagnosed_halt(
         line.endswith(f" · run · supervise — 0001-todo: decided · 1.1 · {amend[:7]}")
         for line in lines
     )
-    assert lines[-1].endswith(" · run · done — released v0.1.0")
+    assert lines[-1].endswith(" · run · done — released v0.1.0 · supervised 0001-todo")
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    said = capsys.readouterr().out.splitlines()
+    assert f"0001-todo · supervised 1.1 · {amend[:7]}" in said
 
     calls.unlink()
     fake("halt-0002-marks", "rescue-diagnose", "supervise-delta")

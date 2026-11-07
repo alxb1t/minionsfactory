@@ -376,6 +376,7 @@ _RUN_B = """# Ship run 20261102-090000
 09:08:11 · 0001-x · finish — release · exit 0 · 120s
 09:08:11 · run · rescue — 0001-x: fixed · 2.1 · abc1234
 09:08:11 · run · rescue — 0001-x: decided · 2.2 · abc1235
+09:08:11 · run · supervise — 0001-x: decided · 2.3 · abc1236
 09:09:00 · 0003-z · spawn — build · model m
 09:09:30 · 0005-v · spawn — release · model m
 """
@@ -492,6 +493,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "rescues-fixed": 1,
         "rescues-diagnosed": 1,
         "rescues-decided": 1,
+        "supervisor-decided": 1,
         "build-commits": 3,
         "fix-commits": 1,
     }
