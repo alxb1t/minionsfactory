@@ -48,6 +48,10 @@ None.
     the note first, and integrate's next run commits it.
   - *The integrate merge commit names every path it settled* — MODIFIED: `<path>: the supervisor` after a note the supervisor
     settled.
+  - *A halt stops only its version, and a re-run resumes* — MODIFIED: a semantic-conflict halt waits for the person only when
+    the run takes no supervisor settle.
+  - *A version declares what it builds on* — MODIFIED: a dependent's note halts it with no build only when the run takes no
+    supervisor settle.
 
 ## Impact
 

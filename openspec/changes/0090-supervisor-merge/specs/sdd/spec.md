@@ -141,3 +141,114 @@ that line and the trailer block, and the merge commit SHALL stay as it was.
 - **WHEN** integrate halted on a red gate, the person committed a fix past the merge, and a merged test the union broke is still red
 - **THEN** the integrator commits the test fix on its own, its message `<path>: test fixed — …` and the trailer block, and the
   merge commit names no test fixed
+
+### Requirement: A halt stops only its version, and a re-run resumes
+
+A failed check SHALL halt its version alone: that version SHALL start no new worker but its rescue and, under its switch, its
+supervisor, and every other version SHALL go on
+to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
+probe and a conductor crash SHALL stop the run. A run with every open version at a halt stage or `waiting` SHALL start
+no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
+converge's cap, an open integrate merge, a red gate, a release stopped before its merge, and a worker past its timeout
+SHALL each halt their version.
+
+Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
+close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
+`halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
+outside git and the run directory, except the claim, `origin`'s URLs, the offline base, the release ledger and a person's gate approval
+in the home folder: a re-run derives every stage again and continues. A halt SHALL need
+the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
+`.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
+base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
+changed during the run, an `origin` that left the kept URLs, an `origin` it cannot read with no offline base, an old
+`.minions/backlog.md` beside `.minions/debt.md` or a file at `.minions/backlog.lock` or `.minions/debt.lock`, or one that is a
+link, or a default-branch commit no ledger entry stands behind. A worker stopped by a usage limit SHALL be halted with its reset
+time named.
+
+#### Scenario: A HUMAN phase halts its version
+- **WHEN** a version's first unticked phase is marked `**HUMAN`
+- **THEN** that version halts, naming the phase, and every other version goes on
+
+#### Scenario: A later version halts, and the earlier ships
+- **WHEN** two versions run and the later one's build check fails
+- **THEN** the earlier is released, merged and pushed
+- **AND** the run closes naming the later as halted and the earlier's tag as released, and exits 1
+
+#### Scenario: A later version ships past a halted one
+- **WHEN** two versions run and the earlier one's build check fails
+- **THEN** the later is released, merged and pushed
+- **AND** the run closes naming the earlier as halted and the later's tag as released, and exits 1
+
+#### Scenario: A halted dependency blocks a chain
+- **WHEN** a version halts, a second has it in `after:`, and a third has the second in `after:`
+- **THEN** neither starts a worker, each logs `blocked — by <id>`, and the closing line names both as blocked
+
+#### Scenario: No open version can start
+- **WHEN** one version sits at a `**HUMAN` phase, and every other is `waiting`
+- **THEN** the run starts no worker, and closes naming the first as halted and the others as blocked
+
+#### Scenario: A failed probe stops the run
+- **WHEN** the probe's check fails
+- **THEN** no version starts a worker, and the run closes naming `run` as halted
+
+#### Scenario: The person re-runs after a halt
+- **WHEN** the person handles the halt and runs `mf-ship` again
+- **THEN** each version continues from its stage on disk, and the finished stations do not run again
+
+#### Scenario: The person resolves a semantic conflict
+- **WHEN** integrate halted on a semantic conflict, with the merge open and its note under `.minions/changes/<change-id>/`,
+  and the run takes no supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **THEN** a re-run of `mf-ship` halts again and integrates nothing, whatever the person staged
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` runs the catch-up round, then the release
+
+#### Scenario: The person fixes a red gate
+- **WHEN** integrate halted on a red gate, with the merge committed and `.minions/changes/<change-id>/integrate.red` naming it
+- **THEN** a re-run of `mf-ship` halts again and integrates nothing
+- **AND WHEN** the person commits a fix past the merge
+- **THEN** a re-run of `mf-ship` integrates again, gating the fix, then runs the catch-up round and the release
+
+#### Scenario: Grant takes only the cap
+- **WHEN** a person runs `/mf-ship grant <change-id>` on a version halted on anything but converge's cap
+- **THEN** it exits 2, and records nothing
+
+### Requirement: A version declares what it builds on
+
+`skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open version with a lower
+number, and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
+change's design, and a MODIFIED title a delta takes from an `after:` change's delta, SHALL count as present at the cut.
+`conduct.py` SHALL start a dependent only once each id has released,
+and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta` on the open
+merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its note
+under `.minions/changes/<change-id>/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
+has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency
+has not released. An `after:` edited past the cut SHALL stop no other version: an unreleased id that is not lower SHALL
+block its version, and an edit that leaves a running version `waiting` SHALL halt it.
+
+#### Scenario: An edit makes a cycle
+- **WHEN** two versions name each other in `after:`, or one names itself, and a third is free
+- **THEN** the named versions block with no worker, the third ships, and the run closes
+
+#### Scenario: A worker edits its own `after:`
+- **WHEN** a build worker adds an unreleased id to its version's `after:`
+- **THEN** that version halts on `waiting`, and every other version goes on
+
+#### Scenario: A dependent waits
+- **WHEN** a version names a lower open version in `after:`, and `mf-ship` runs
+- **THEN** its build starts only after that version's release, on a tree that holds it
+- **AND** unrelated versions run in parallel meanwhile
+
+#### Scenario: A dependent's delta edits what its dependency changed
+- **WHEN** a dependent's delta modifies a requirement the default branch changed since its base, and the run takes no
+  supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **THEN** the merge stays open, the note names both changes, and the version halts with no build
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` builds the version
+
+#### Scenario: A cut names a dependency it cannot have
+- **WHEN** `after=` names an id that is merged, unknown, or not lower than the change's
+- **THEN** the cut halts, naming it
+
+#### Scenario: A dependent built by hand
+- **WHEN** `mf-build` starts on a change whose `after:` id is not in `HEAD`'s archive
+- **THEN** it halts, naming `I17`
