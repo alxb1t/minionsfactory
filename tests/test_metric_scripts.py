@@ -62,7 +62,14 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
 
     assert reading_set.words(tmp_path, "shared") == 9
     assert reading_set.words(tmp_path, "converge") == 16
+    # A decisions file with no `### D` heading counts whole in the worker's index.
     assert reading_set.words(tmp_path, "worker") == 13
+
+    # A worker reads the decisions' index, its `### D` lines, not the whole file.
+    _write(tmp_path, {"docs/decisions.md": "### D1 · six\nbody words"})
+    assert reading_set.words(tmp_path, "shared") == 14
+    assert reading_set.words(tmp_path, "converge") == 21
+    assert reading_set.words(tmp_path, "worker") == 16
 
 
 def test_rule_ids_are_counted_once(tmp_path: Path) -> None:
@@ -382,6 +389,9 @@ _RUN_B = """# Ship run 20261102-090000
 """
 _STATUS = """# 0001-x — converge status
 
+## Run 4 — 2026-11-02 10:00 · amend
+10:30:00 · round 8 · done — converged in one amend round
+
 ## Run 3 — 2026-11-02 09:05 · catch-up
 09:06:00 · round 7 · done — converged by rule
 
@@ -486,6 +496,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "converge-rounds": 4,
         "blockers-round-1": 2,
         "grants": 1,
+        "amend-rounds": 1,
         "halts-build": 0,
         "halts-converge": 2,
         "halts-integrate": 1,

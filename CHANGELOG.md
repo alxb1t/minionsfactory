@@ -23,6 +23,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conduct.py rejoin <id> --yes <hash>`, which its halt names, so a row a cutter plants after a disk fix is never queued
   (`0091·S1`) (change `0091-cut-halts`, phase 6).
 
+## [0.75.0] - 2026-11-07
+
+Gate: local 1m56s · CI not read under mf-ship · 0.74.0: local 5m48s · CI not read under mf-ship
+
+- The models file's `[converge.review]`, `[converge.security]` and `[converge.fix]` are planned stations of `conduct.py`,
+  read once and passed in the converge prompt as `and <role>=<model>/<effort>`; converge puts each on its worker's
+  call, the fixer on review's model for a blocking card, and the cut writes them on tiers (change
+  `0094-lighter-converge`, phase 1).
+- Converge writes `bundle.md` at each freeze with `skills/mf-converge/scripts/bundle.py` — the decisions the change
+  cites, in full, an index of all, and the living requirements its delta modifies or removes — and each worker reads it
+  in place of `docs/decisions.md` and the living specs (change `0094-lighter-converge`, phase 2).
+- `THREAT_MODEL.md` and the bootstrap's template gain `## Surfaces`; `skills/mf-converge/scripts/surfaces.py` gives a fix
+  that touches none, with no security card awaiting its checker, its security head by rule, and review alone verifies
+  it (change `0094-lighter-converge`, phase 3).
+- D64 records what converge spends; D11 and D41 brought in line, `README.md` says it, and the worker reading set counts
+  the decisions' index, watched at 10,500 words (change `0094-lighter-converge`, phase 4).
+- `test_a_fix_reaching_no_surface_takes_security_by_rule` runs one fake run, the by-rule one: the verified path is
+  `test_a_fix_that_reaches_security_is_verified`'s at the unit layer (change `0094-lighter-converge`, phase 5).
+
+## [0.74.0] - 2026-11-07
+
+Gate: local 5m48s · CI not read under mf-ship · 0.73.0: local 2m2s · CI not read under mf-ship
+
+- `mf-converge` answers a halt past its head with one catch-up run marked `· amend` over `<judged head>..HEAD`, in
+  place of the `· amended` reopen from round 1; its amended `Verify:` lines run first, and no amend passes by rule
+  (change `0092-amend-round`, phase 1).
+- `conduct.py` answers a converge halt past its head by any amend of the change directory among the commits after it,
+  as the skill does; `_amendable` reads the `· amend` mark, and the new `amend-rounds` metric counts amend runs, which
+  `converge-rounds` skips (change `0092-amend-round`, phase 2).
+- D63 records the amend round; D15, D47, D53, D60 and D61, the principles, the threat model and the rescue's and
+  supervisor's role lines brought in line (change `0092-amend-round`, phase 3).
+
 ## [0.73.0] - 2026-11-07
 
 Gate: local 2m2s · CI not read under mf-ship · 0.72.0: local 2m3s · CI not read under mf-ship

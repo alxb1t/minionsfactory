@@ -40,11 +40,13 @@ def _folder(root: Path, change: str) -> Path:
     return root / ".minions" / "changes" / change
 
 
-def _findings(root: Path, change: str, head: str, verdict: str = "clean") -> None:
+def _findings(
+    root: Path, change: str, head: str, verdict: str = "clean", round: int = 1
+) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     for role in ("review", "security"):
-        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
+        text = f"---\nverdict: {verdict}\nhead: {head}\nround: {round}\n---\n"
         (folder / f"{role}.md").write_text(text)
     log = folder / "status_log.md"
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
@@ -120,22 +122,8 @@ def _done(root: Path, change: str, head: str) -> None:
     (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
-def _person_amends(tree: Path, change: str, sha: str) -> bool:
-    """Return whether `sha` is the person's amend of the change directory."""
-    subject = _git(tree, "log", "-1", "--format=%s", sha)
-    listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only", sha)
-    folder = f"openspec/changes/{change}/"
-    return subject == f"docs({change}): amend the change directory" and all(
-        path.startswith(folder) for path in _git(tree, *listed).split()
-    )
-
-
-def _by_rule(tree: Path, folder: Path, change: str) -> list[str] | None:
-    """Return a line per commit when a catch-up selects merges that replay and amends.
-
-    A merge's line is its `replay` line; an amend's names the person's amend. None
-    when no catch-up applies, the selection holds another commit, or one exits 1.
-    """
+def _by_rule(tree: Path, folder: Path) -> list[str] | None:
+    """Return a line per merge when a catch-up selects merges alone, each replaying."""
     review = folder / "review.md"
     text = review.read_text() if review.is_file() else ""
     found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
@@ -145,16 +133,11 @@ def _by_rule(tree: Path, folder: Path, change: str) -> list[str] | None:
     span = f"{found[1]}..HEAD"
     selected = _git(tree, "rev-list", "--first-parent", span).split()
     merges = _git(tree, "rev-list", "--first-parent", "--merges", span).split()
-    if not selected or not all(
-        sha in merges or _person_amends(tree, change, sha) for sha in selected
-    ):
+    if not selected or not all(sha in merges for sha in selected):
         return None
     script = Path(__file__).resolve().parent.parent / "skills" / "mf-integrate"
     lines = []
     for sha in selected:
-        if sha not in merges:
-            lines.append(f"- {sha} — the person's amend")
-            continue
         done = subprocess.run(
             [sys.executable, str(script / "scripts" / "integrate.py"), "replay", sha],
             cwd=tree,
@@ -178,6 +161,33 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
         "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
         f"10:00:00 · round 2 · by rule — clean, {paths}\n"
     )
+
+
+def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
+    """Judge the head clean, commit a fix at `FAKE_FIX`, then judge it as Step 7 does.
+
+    Security takes the fix head by rule, `mode: by-rule`, when `surfaces.py` exits 0.
+    """
+    folder = _folder(primary, change)
+    start = _git(tree, "rev-parse", "HEAD")
+    _findings(primary, change, start)
+    _commit(tree, {os.environ["FAKE_FIX"]: "fixed\n"}, "fix")
+    end = _git(tree, "rev-parse", "HEAD")
+    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
+    done = subprocess.run(
+        [sys.executable, str(script / "scripts" / "surfaces.py")]
+        + [str(folder / "security.md"), start, end],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+    )
+    # Read by its line, not its exit: a crash exits 1 too.
+    said = done.stdout.split(" — ")[0].strip()
+    mode = {"surfaces: no surface": "by-rule", "surfaces: verify": "parallel"}[said]
+    _findings(primary, change, end, round=2)
+    security = folder / "security.md"
+    text = security.read_text().replace("round: 2\n", f"round: 2\nmode: {mode}\n")
+    security.write_text(text)
 
 
 def _integrate(
@@ -523,28 +533,48 @@ def _fake(prompt: str) -> None:
             _amend_needed(primary, str(change), _git(here, "rev-parse", "HEAD"))
             return
         folder = _folder(primary, str(change))
+        log = folder / "status_log.md"
+        held = log.read_text() if log.is_file() else ""
+        head = _git(here, "rev-parse", "HEAD")
+        if "verify-fails" in modes:
+            # The amend round's amended `Verify:` fails before its `start`.
+            run = (
+                "## Run 2 — d · amend\n"
+                f"10:00:00 · round 2 · halt — verify failed — 1.1 · head {head}\n\n"
+            )
+            log.write_text(held.replace("## Run", run + "## Run", 1))
+            return
         # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.
         before = {
             "verify-halts": "verify: halt — 1.1",
             "red-halts": "gate red before round 1",
         }
         if reason := next((before[mode] for mode in before if mode in modes), None):
-            head = _git(here, "rev-parse", "HEAD")
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "status_log.md").write_text(
                 "# t\n\n## Run 1 — d\n"
                 f"10:00:00 · round 1 · halt — {reason} · head {head}\n"
             )
             return
-        if "by-rule" in modes and (lines := _by_rule(here, folder, str(change))):
-            _write_by_rule(folder, _git(here, "rev-parse", "HEAD"), lines)
+        if "fix-surfaces" in modes:
+            _fix_surfaces(here, primary, str(change))
             return
-        log = folder / "status_log.md"
-        held = log.read_text() if log.is_file() else ""
-        _findings(primary, str(change), _git(here, "rev-parse", "HEAD"))
+        if "by-rule" in modes and (lines := _by_rule(here, folder)):
+            _write_by_rule(folder, head, lines)
+            return
         if "amends" in modes or "amend-halts" in modes:
-            run = "## Run 2 — d · amended\n10:00:00 · round 1 · done — ok\n\n"
+            review = folder / "review.md"
+            text = review.read_text() if review.is_file() else ""
+            found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
+            judged = found[1] if found else head
+            _findings(primary, str(change), head, round=2)
+            run = (
+                "## Run 2 — d · amend\n10:00:01 · round 2 · done — ok\n"
+                f"10:00:00 · round 2 · freeze — {judged}..{head}\n\n"
+            )
             log.write_text(held.replace("## Run", run + "## Run", 1))
+        else:
+            _findings(primary, str(change), head)
         if "dies-converge" in modes:
             log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
             sys.exit(1)

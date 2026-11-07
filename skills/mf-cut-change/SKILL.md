@@ -354,7 +354,8 @@ After the commit, suggest in chat a model for the build, the check loop and the 
 session's menu; with no menu, describe the capability needed — never invent model names.
 
 When the brief's `## For the cut` item for this change names models, write exactly those: the person chose them at the
-plan's close. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
+plan's close. The brief names no worker table: write `[converge.review]`, `[converge.security]` and `[converge.fix]`
+from the Converge bullet. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
@@ -371,7 +372,8 @@ The highest row any phase matches decides the capability; map it to the offered 
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it, in the build's model. Say which you found.
+  output — means run it: the conductor, `[converge]`, on the mid tier · medium, review and security on the strongest
+  tier · high, and the fixer on the mid tier · high. Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -389,6 +391,15 @@ effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
 # executor = "codex"  # optional, per table; absent, the run's. A cross-host pairing is usually the person's edit
+[converge.review]
+model = "<offered model>"
+effort = "<effort>"
+[converge.security]
+model = "<offered model>"
+effort = "<effort>"
+[converge.fix]
+model = "<offered model>"
+effort = "<effort>"
 [release]
 model = "<offered model>"
 ```

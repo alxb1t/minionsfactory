@@ -91,10 +91,12 @@ RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
-# The rescue and the supervisor are no stage: each runs in a halted version's thread,
-# and its models are planned with the stations'. Why: 0067-rescue design D3, D5;
-# 0089-supervisor design D2.
-PLANNED = (*STATIONS, "rescue", "supervise")
+WORKERS = ("converge.review", "converge.security", "converge.fix")
+# The rescue, the supervisor and converge's workers are no stage: each is planned with
+# the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
+# 0094-lighter-converge design D1.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS)
+TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 SUPERVISES = 2
@@ -188,7 +190,7 @@ NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 PROMPTS = {
     "build": "Run the mf-build skill for change {change}.",
-    "converge": "Run the mf-converge skill for change {change}{grant}.",
+    "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
@@ -889,14 +891,17 @@ def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
 
 
 def _amendable(runs: Path, change: str, halt: str) -> bool:
-    """Return whether the person's amend answers a converge halt of this kind.
+    """Return whether the person's amend during a rescue answers a halt of this kind.
 
-    The kinds: a halt in a catch-up run with both findings files still clean, a
-    `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5.
+    The kinds: a halt in a catch-up or amend run with both findings files still
+    clean, a `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5;
+    0092-amend-round design D7.
     """
     if "verify: halt" in halt or "amend needed" in halt:
         return True
-    if not _run_marked(runs, change, "catch-up"):
+    if not (
+        _run_marked(runs, change, "catch-up") or _run_marked(runs, change, "amend")
+    ):
         return False
     files = (_change_dir(runs.parent, change) / f"{role}.md" for role in ROLES)
     return all(
@@ -905,40 +910,49 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
     )
 
 
-def _amended_only(tree: Path, change: str, halted: str) -> bool:
-    """Return whether only the person's amends of the change directory follow `halted`.
+def _amends(tree: Path, change: str, halted: str) -> list[bool]:
+    """Return, per commit past `halted`, whether it is an amend of the change directory.
 
-    `halted` is an ancestor of `HEAD` and not it, and each commit past it has one
-    parent, the amend's subject, and paths under `openspec/changes/<change>/` alone.
-    Why: 0071-ship-fixes design D5.
+    An amend has one parent, the amend's subject, and paths under
+    `openspec/changes/<change>/` alone. None is listed unless `halted` is an ancestor
+    of `HEAD` and not it. Why: 0071-ship-fixes design D5; 0092-amend-round design D2.
     """
     head = _git(tree, "rev-parse", "HEAD").strip()
     if halted == head or not _ancestor(tree, halted, "HEAD"):
-        return False
+        return []
     folder = f"openspec/changes/{change}/"
     subject = f"docs({change}): amend the change directory"
     listed = ("diff-tree", "--root", "-m", "-r", "--no-commit-id", "--name-only")
+    amends = []
     for line in _git(tree, "rev-list", "--parents", f"{halted}..HEAD").splitlines():
         sha, *parents = line.split()
         paths = _git(tree, *listed, sha).split()
-        if (
-            len(parents) != 1
-            or _subject(tree, sha) != subject
-            or not all(path.startswith(folder) for path in paths)
-        ):
-            return False
-    return True
+        amends.append(
+            len(parents) == 1
+            and _subject(tree, sha) == subject
+            and all(path.startswith(folder) for path in paths)
+        )
+    return amends
+
+
+def _amended_only(tree: Path, change: str, halted: str) -> bool:
+    """Return whether only amends of the change directory follow `halted`.
+
+    Why: 0071-ship-fixes design D5.
+    """
+    amends = _amends(tree, change, halted)
+    return bool(amends) and all(amends)
 
 
 def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
-    """Return whether a person's commit answered a converge halt.
+    """Return whether a commit answered a converge halt.
 
-    The halt names the head it stopped at, both findings files judged that head,
-    and `HEAD` descends from it and is not it. A halt past the judged head — after
-    converge's own fix, or in a catch-up run — names no head the files judged, and a
-    rewritten history leaves no descendant. A halt the person's amend answers is
-    answered by amends alone past its head, and a halt before round 1 by any commit.
-    Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1.
+    The halt names the head it stopped at, `HEAD` descends from it and is not it,
+    and both findings files judged that head, or an amend of the change directory
+    follows it: converge judges the range from the files' head in one amend round. A
+    rewritten history leaves no descendant, and a halt before round 1 is answered
+    by any commit. Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1;
+    0092-amend-round design D2.
     e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
@@ -952,7 +966,7 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
         return False
     if _before_round(runs, change, halt):
         return _ancestor(tree, halted, "HEAD")
-    if _amendable(runs, change, halt) and _amended_only(tree, change, halted):
+    if any(_amends(tree, change, halted)):
         return True
     for role in ROLES:
         file = _change_dir(runs.parent, change) / f"{role}.md"
@@ -2089,8 +2103,13 @@ def _models_file(runs: Path, change: str) -> dict[str, object]:
 
 
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
-    """Return a table of the cut's models file; None with no file or no such table."""
-    table = _models_file(runs, change).get(name)
+    """Return a table of the cut's models file; None with no file or no such table.
+
+    A dotted name walks in: e.g. "converge.review" → `[converge]`'s `review` table.
+    """
+    table: object = _models_file(runs, change)
+    for part in name.split("."):
+        table = table.get(part) if isinstance(table, dict) else None
     return table if isinstance(table, dict) else None
 
 
@@ -2109,23 +2128,51 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`. A table no executor can run halts the
-    version. Why: 0067-rescue design D5; 0089-supervisor design D2.
+    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` names no executor
+    and runs on converge's, halting where converge's table does, with no Codex check
+    of its own. A table no executor can run halts the version.
+    Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
+    design D1.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     tables = (_table(runs, change, name) for name in names.get(station, (station,)))
     table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
+    file = f"changes/{change}/models.toml"
+    if station in WORKERS:
+        if "executor" in table:
+            raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
+        for value in (model, effort):
+            if isinstance(value, str) and not TOKEN.fullmatch(value):
+                raise Stop(
+                    1,
+                    f"conduct: halt — {file}: {station} {value!r}"
+                    " is not a model or effort",
+                )
+        executor = _models(runs, change, "converge", run)[0]
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
-    file = f"changes/{change}/models.toml"
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
-    if executor == "codex" and (model or "").startswith("claude"):
+    codex = executor == "codex" and station not in WORKERS
+    if codex and (model or "").startswith("claude"):
         raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
     return str(executor), model, effort if isinstance(effort, str) else None
+
+
+def _worker_clause(station: str, models: tuple[str, str | None, str | None]) -> str:
+    """Return a converge worker's prompt clause; "" on Codex or with neither named.
+
+    e.g. ("converge.fix", ("claude", "m", None)) → " and fix=m/default"
+    Why: 0094-lighter-converge design D1.
+    """
+    executor, model, effort = models
+    if executor == "codex" or (model is None and effort is None):
+        return ""
+    role = station.split(".", 1)[1]
+    return f" and {role}={model or 'default'}/{effort or 'default'}"
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -3682,7 +3729,7 @@ class Run:
                 person = not auto and stage == "converge"
                 auto = False
                 if person and _granted(minions, version.change, take=True):
-                    # An answered halt converges afresh or catches up:
+                    # An answered halt gets one amend round:
                     # the grant goes unspent.
                     clause = "" if why == AMENDED else " and grant=yes"
                     if clause:
@@ -3696,8 +3743,15 @@ class Run:
                 with self.guard:
                     staged = self.settled.pop(version.change, None)
                 settled = "" if staged is None else " with settled=supervisor"
+                workers = "".join(
+                    _worker_clause(name, self.planned_models(version.change, name))
+                    for name in (WORKERS if stage == "converge" else ())
+                )
                 prompt = PROMPTS[stage].format(
-                    change=version.change, grant=clause, settled=settled
+                    change=version.change,
+                    workers=workers,
+                    grant=clause,
+                    settled=settled,
                 )
                 models = self.planned_models(version.change, stage)
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
@@ -4067,10 +4121,10 @@ class Run:
         """Read each station's models, once per version: at the start, or as it joins.
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. The rescue's skip, `[converge] auto_grant` and the switch are
-        read with them.
+        halts in `take`. Converge's worker tables are read as stations are; the
+        rescue's skip, `[converge] auto_grant` and the switch are read with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
-        design D4; 0085-self-healing-ship design D3.
+        design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
