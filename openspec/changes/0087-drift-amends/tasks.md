@@ -36,9 +36,11 @@ Build the settled [design](design.md), one phase at a time.
 
 ## 3 — Amend cards keyed on the card, the rescue's amend read
 
-- [x] 3.1 Rewrite the last sentence of *Amend cards first* in Step 9 of `skills/mf-converge/SKILL.md` to the card-keyed rule,
-  per [D4](design.md#d4), the words `already stands in the debt` on one line.
-  Verify: `grep -n 'already stands in the debt' skills/mf-converge/SKILL.md` prints a line.
+- [x] 3.1 Rewrite the last sentence of *Amend cards first* in Step 9 of `skills/mf-converge/SKILL.md` to the card-keyed rule
+  scoped to the current numbering, per [D4](design.md#d4), the words `already stands in the debt` and `since the newest`
+  each on one line, with the delta's *Converge keeps deferred work in one repository debt file* requirement, its *An amend
+  card after its amend* scenario and the phase 3 CHANGELOG entry to match.
+  Verify: `grep -l 'since the newest' skills/mf-converge/SKILL.md openspec/changes/0087-drift-amends/specs/sdd/spec.md` prints both paths.
 - [x] 3.2 Add the rescue's amend to the amends paragraph of *Resuming a run* in `skills/mf-converge/SKILL.md`, per
   [D5](design.md#d5), the words `never by rule` on one line.
   Verify: `grep -n 'never by rule' skills/mf-converge/SKILL.md` prints a line.

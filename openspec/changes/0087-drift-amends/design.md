@@ -46,7 +46,7 @@ already released stale.
 | [D1](#d1) | An **amend card** names `openspec/changes/<change-id>/tasks.md` or `design.md` in its **Fix** or its `wontfix` note | Q5 | the conductor judging which card "wants" an amend: it judges nothing |
 | [D2](#d2) | The verify pass keeps an amend card's `wontfix` | Q5 | `accepted`, as today |
 | [D3](#d3) | A blocking amend card halts after the fix pass; a non-blocking one goes on to verify | Q5 | halting the pickup round at its fix pass |
-| [D4](#d4) | Step 9 halts on a non-blocking amend card, `wontfix` or `open` `drift`, still true, before the lock. An amend card whose id an answered `amend needed` halt named, or whose qualified id already stands in the debt, goes on as every other card | Q5 | a halt on every re-run; the exception keyed on the catch-up run, not the card |
+| [D4](#d4) | Step 9 halts on a non-blocking amend card, `wontfix` or `open` `drift`, still true, before the lock. An amend card whose id an answered `amend needed` halt logged since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, goes on as every other card | Q5 | a halt on every re-run; the exception keyed on the catch-up run, not the card |
 | [D5](#d5) | An answered `amend needed` halt with both files clean runs the catch-up round again: an amend carrying a `Rescue:` trailer gets one Step 7 round over its diff, and only a trailer-less amend passes by rule | Q5 | `· amended` from round 1; a rescue's amend passing by rule, which leaves D53 and D60 false |
 | [D6](#d6) | The rescue amends what the cards name; D15 and D16's debt line amended | Q5, Q8 | — |
 
@@ -96,14 +96,16 @@ S's Step 9 gains a paragraph above the lock (`S:396`):
 
 > **Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is `wontfix`,
 > or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2. Any left → halt
-> `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered `amend needed` halt named, or
-> whose qualified id already stands in the debt, goes on as every other card.
+> `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered `amend needed` halt logged
+> since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, goes on as every other
+> card.
 
 ```
   Step 9 ─▶ amend cards still true? ── none ─▶ lock ─▶ items 1–7
                  │ some
                  ▼
-       each named by an answered halt, or in the debt? ── yes ─▶ lock ─▶ items 1–7 (to the debt)
+       each named by an answered halt since the newest round 1 · start,
+       or in the debt? ── yes ─▶ lock ─▶ items 1–7 (to the debt)
                  │ no
                  ▼
        halt amend needed — <ids> ─▶ the amend ─▶ catch-up (D5) ─▶ Step 9
@@ -113,7 +115,9 @@ The exception keeps a loop out: a run rescues a halted stage once (`Run.rescued`
 cards would wait for the person over an amend already made. It keys on the card, not the run: an amend card the amend missed
 goes to the debt once, and a later catch-up over a merge finds its qualified id there and goes on, Step 9's item 5 skipping it; a new
 amend card first found in a catch-up after an amend still halts. The halt's ids are read from the status log: a halt line
-`amend needed — <card ids>` whose head `HEAD` is past.
+`amend needed — <card ids>` whose head `HEAD` is past, logged since the newest `round 1 · start` line: an `· amended` run
+restarts at round 1 and reuses card ids, so an older run's halt names other cards, while a catch-up run's `start` carries
+its own round past 1 and keeps the halt it answers in scope.
 
 ### D5
 
