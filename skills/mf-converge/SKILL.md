@@ -151,13 +151,14 @@ still clean, runs the catch-up round again, so the commits since are judged.
 The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
 `git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
 marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
-grant is needed, and the catch-up round does not apply.
+grant is needed, and the catch-up round does not apply, save to the person's amends, as the next paragraph says.
 
 **The person's amends** answer a halt in a catch-up run with both findings files still `verdict: clean`, a
 `verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
 one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
-alone. The answered catch-up halt runs the [Catch-up round](#catch-up-round) again; any other opens `· amended` from
-round 1, as above. Any other halt naming no head, or one past the judged head — after this skill's own fix commit,
+alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
+`verdict: clean`, run the [Catch-up round](#catch-up-round) again; any other opens `· amended` from round 1, as
+above. Any other halt naming no head, or one past the judged head — after this skill's own fix commit,
 or in a catch-up run — is no person's answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
@@ -341,7 +342,8 @@ dispatch and again at its commit. The fixer:
   `verdict: clean`**. Those are the verify pass's;
 - marks a finding it believes wrong `wontfix` **with a justification**, never silently;
 - **never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is `wontfix`, naming the amend
-  the person commits, and the round halts `amend needed — <card ids>`;
+  the person commits by its path. A blocking card's halts the round `amend needed — <card ids>` after the fix pass;
+  a non-blocking card's is verified, and halts at Step 9;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
   debt — only you do, in Step 9; a second writer would duplicate ids;
 - **commits** the fix staged **by name** (never `git add -A`), Conventional Commits, the message ending with
@@ -392,6 +394,11 @@ tier are on the card — and no human confirms it.
 ## Step 9 — Write the debt
 
 Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
+
+**Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is
+`wontfix`, or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2.
+Any left → halt `amend needed — <card ids>`, writing nothing to the debt. In a catch-up run whose selection holds the
+person's amend, they go on as every other card.
 
 **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
 retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old

@@ -114,6 +114,31 @@ def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
     )
 
 
+def _drift_halt(root: Path, change: str, head: str) -> None:
+    """Write converge's Step 9 `amend needed — R6` halt at `head`, both files clean.
+
+    Review's `open` drift card R6 names a `design.md` amend by its path in its Fix.
+    """
+    folder = _folder(root, change)
+    folder.mkdir(parents=True, exist_ok=True)
+    design = f"openspec/changes/{change}/design.md"
+    for name in ("review", "security"):
+        text = f"---\nverdict: clean\nhead: {head}\nround: 1\n---\n"
+        if name == "review":
+            text += (
+                "\n- **R6 — a finding**\n"
+                "  - **Priority:** drift · review · maintainability — why.\n"
+                f"  - **Fix:** amend `{design}`'s prose · size: one line.\n"
+                "  - **Status:** open\n"
+            )
+        (folder / f"{name}.md").write_text(text)
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 1 — d\n"
+        f"10:00:01 · round 1 · halt — amend needed — R6 · head {head}\n"
+        "10:00:00 · round 1 · start — base a · head b\n"
+    )
+
+
 def _done(root: Path, change: str, head: str) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
@@ -439,6 +464,9 @@ def _fake(prompt: str) -> None:
             return
         if "amend-halts" in modes and not _prose(here, str(change)):
             _amend_needed(primary, str(change), _git(here, "rev-parse", "HEAD"))
+            return
+        if "drift-halts" in modes and not _prose(here, str(change)):
+            _drift_halt(primary, str(change), _git(here, "rev-parse", "HEAD"))
             return
         folder = _folder(primary, str(change))
         # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.

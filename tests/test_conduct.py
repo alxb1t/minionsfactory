@@ -1776,6 +1776,46 @@ def test_an_amend_during_a_rescue_goes_on(
 
 
 @pytest.mark.slow
+def test_a_drift_amend_goes_on_by_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("drift-halts", "rescue-decides", "by-rule")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    table = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text('decide = "recommended"\n[build]\n')
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "converge 0001-todo",
+        "rescue 0001-todo with decide=recommended",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+    grep = ("--grep=amend the change", "0001-todo")
+    amend = _git(root, "log", "-1", "--format=%H", *grep)[:7]
+    lines = _log(root)
+    assert any(
+        line.endswith(
+            f" · run · rescue — 0001-todo: decided · converge-halted · {amend}"
+        )
+        for line in lines
+    )
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    assert log.read_text().startswith("# t\n\n## Run 2 — d · catch-up\n")
+    assert "· amended" not in log.read_text()
+    assert lines[-1].endswith(" · run · done — released v0.1.0 · decided 0001-todo")
+
+
+@pytest.mark.slow
 def test_a_halt_answered_on_disk_comes_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
