@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names it as
   `brief=<path>` while it names a file, so the plan's intent outlives the queue entry (change
   `0090-supervisor-merge`, phase 1).
+- Under the switch, the supervisor also answers an `integrating` halt on a semantic conflict, once an open merge across
+  runs: it stages a Markdown settle under `openspec/` and `docs/` and writes `integrate.settled`, the run checks the open
+  merge, and `mf-integrate` `with settled=supervisor` commits it naming `the supervisor` (change
+  `0090-supervisor-merge`, phase 2).
 
 ## [0.72.0] - 2026-11-07
 

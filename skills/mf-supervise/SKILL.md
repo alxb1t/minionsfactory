@@ -1,6 +1,6 @@
 ---
 name: mf-supervise
-description: Supervise a version its rescue left halted — under decide=recommended, answer the build or converge halt the rescue diagnosed or was spent on with one amend of the change directory, carrying Supervisor: and Decided-by: supervisor trailers, or commit nothing and say why; never code, a test, any other path, a security critical or high card, a gate makefile approval, a risk the threat model does not accept, an integrate or run-wide halt, a release, merge or push. Use when mf-ship's conductor starts it in a version's thread after its rescue diagnosed or was spent.
+description: Supervise a version its rescue left halted — under decide=recommended, answer the build or converge halt the rescue diagnosed or was spent on with one amend of the change directory, carrying Supervisor: and Decided-by: supervisor trailers, or settle an integrate note in spec or docs text for integrate to commit, or commit nothing and say why; never code, a test, any other path, a security critical or high card, a gate makefile approval, a risk the threat model does not accept, an integrate red gate or run-wide halt, a release, merge or push. Use when mf-ship's conductor starts it in a version's thread after its rescue diagnosed or was spent.
 ---
 
 # mf-supervise — answer the halt the rescue left
@@ -15,6 +15,7 @@ Missing root `AGENTS.md` → no answer (Step 3b), naming it.
 ```
   read the halt and rescue.md ─▶ can the change directory answer it? ─┬─ yes ─▶ edit ─▶ one commit, both trailers
                                                                       └─ no ──▶ undo your edits ─▶ no commit
+  an integrate note ─▶ stage the Markdown resolution ─▶ integrate.settled ─▶ no commit: integrate commits it
 ```
 
 Why a station: a supervising chat answered most halts the rescue left — an amend needing the spec delta, a sub-task
@@ -52,6 +53,7 @@ Read each, as it exists, `rescue.md` first:
 | the newest `.minions/changes/<change-id>/logs/<stamp>-build[-<n>].log`, by its stamp and then `n`, never the name's sort | the build worker's output: its last lines |
 | `.minions/changes/<change-id>/status_log.md` | converge's rounds, for a converge halt |
 | `.minions/changes/<change-id>/review.md`, `security.md` | the findings cards a converge halt names |
+| `.minions/changes/<change-id>/integrate.md`, `integrate.resolved` | an integrate halt's note — each conflict, both intents and a proposal — and the unions integrate resolved |
 | `openspec/changes/<change-id>/` | the proposal, design, tasks and spec delta |
 | the `brief`, when given | the plan's intent, as settled before the cut |
 | the code at `HEAD` | what the tasks and the design name |
@@ -67,11 +69,11 @@ below cannot answer gets no answer (Step 3b).
 
 | you may | you never |
 |---|---|
-| edit any file under `openspec/changes/<change-id>/`, the spec delta included | edit code, a test, `CHANGELOG.md` or any other path |
+| edit any file under `openspec/changes/<change-id>/`, the spec delta included | edit code, a test, `CHANGELOG.md` or any other path, save Step 3c's Markdown |
 | tick a `- [ ] N.M` box once its `Verify:` ran green | tick or untick a `## Progress` box, or untick a sub-task box |
 | add new work as a new phase, per the rule below | touch a `**HUMAN` phase |
 | | take a security `critical` or `high` card, approve a gate makefile, or accept a risk the threat model does not |
-| | answer an integrate or run-wide halt, release, merge or push |
+| | answer an integrate red gate or a run-wide halt, release, merge or push |
 
 **New work goes in a new phase.** A sub-task you add goes in a new unticked phase after the last, `N` the last phase's
 number: a `- [ ] N+1 — <title>` line at the end of `## Progress` and a `## N+1 — <title>` section of `- [ ] N+1.M`
@@ -105,6 +107,21 @@ An edit to an existing task stays where it is.
 
 Undo your edits to the change directory, commit nothing, and say why in the close-out. The build's own edits stay.
 
+## Step 3c — an integrate note
+
+At an `integrating` halt on a semantic conflict, decide before you edit; with no answer, edit nothing (Step 3b).
+
+1. Resolve each conflict the note names in Markdown under `openspec/` or `docs/` alone, per both designs and the brief.
+2. `git add <path>` each by name.
+3. Write `.minions/changes/<change-id>/integrate.settled`, one line per note heading:
+   `<heading>: <what the resolution keeps>`.
+4. Leave the merge and the note open. Never commit, `git merge --abort`, or touch another path: the conductor runs
+   `mf-integrate`, which commits it.
+
+The conductor takes the settle only when `HEAD` and the merge stand, the note stands, every index path you changed is
+Markdown under `openspec/` or `docs/`, nothing is unstaged, untracked or unmerged, and you wrote `integrate.settled`;
+anything else halts the version for the person.
+
 ## Step 4 — Report, then stop
 
 **Close-out:** at most three sentences — the halt, your answer and the commit's short sha, or why there is none. The last
@@ -112,11 +129,12 @@ line: `Next: the conductor reads it`. Then **stop**.
 
 ## Never
 
-- **Never edit code, a test, `CHANGELOG.md`** or any path outside `openspec/changes/<change-id>/`.
+- **Never edit code, a test, `CHANGELOG.md`** or any path outside `openspec/changes/<change-id>/`, save Step 3c's
+  Markdown.
 - **Never take a security `critical` or `high` card, approve a gate makefile, or accept a risk** the threat model does
   not accept.
 - **Never touch a `**HUMAN` phase**, tick or untick a `## Progress` box, or untick a sub-task box.
-- **Never answer an integrate or run-wide halt**, run release, merge or push.
+- **Never answer an integrate red gate or a run-wide halt**, run release, merge or push.
 - **Never write a second commit.**
 - **Never `git add -A`.** Stage by name.
 - **Never commit a secret, or a real absolute path from the machine the run is on.** Cite repository-relative paths.

@@ -180,9 +180,24 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     )
 
 
-def _integrate(tree: Path, message: str, modes: set[str]) -> None:
-    """Merge `main` into `tree`, or finish a merge a dead worker left open."""
-    if _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False):
+def _integrate(
+    tree: Path, message: str, modes: set[str], settled: Path | None = None
+) -> None:
+    """Merge `main` into `tree`, or finish a merge a dead worker left open.
+
+    In the change's `settled` folder, a merge the supervisor settled is committed as
+    staged, naming each note heading `the supervisor`.
+    """
+    if settled is not None and _git(
+        tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False
+    ):
+        note = settled / "integrate.md"
+        headings = re.findall(r"^## (.+)$", note.read_text(), re.MULTILINE)
+        body = "".join(f"{h}: the supervisor\n" for h in headings if h != "Resolved")
+        _git(tree, "commit", "-q", "-m", message, "-m", body)
+        note.unlink()
+        (settled / "integrate.settled").unlink()
+    elif _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False):
         _git(tree, "checkout", "--theirs", "--", ".")
         _git(tree, "add", ".")
         _git(tree, "commit", "-q", "-m", message)
@@ -255,12 +270,24 @@ def _rescue(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
             (folder / change).touch()
 
 
-def _supervise(tree: Path, change: str, modes: set[str]) -> None:
+def _supervise(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
     """Amend the plan, the spec delta besides, hollowly or outside it, as decided.
 
-    Or amend the prose undecided; `supervise-none` commits nothing.
+    Or amend the prose undecided; `supervise-none` commits nothing. At an integrate
+    note, stage a settle of the delta, or of code, and write the mark, uncommitted.
     """
     folder = f"openspec/changes/{change}"
+    if modes & {"supervise-settle", "supervise-settle-code"}:
+        if "supervise-settle" in modes:
+            spec = tree / folder / "specs" / "sdd" / "spec.md"
+            spec.write_text(spec.read_text() + "Settled.\n")
+            _git(tree, "add", str(spec))
+        else:
+            (tree / "src.py").write_text("x = 1\n")
+            _git(tree, "add", "src.py")
+        mark = _folder(primary, change) / "integrate.settled"
+        mark.write_text("sdd: First: the branch's block kept\n")
+        return
     subject = f"docs({change}): amend the change directory\n\nfix\n\n"
     message = f"{subject}Supervisor: 1.1\nDecided-by: supervisor"
     tasks = f"{folder}/tasks.md"
@@ -400,7 +427,7 @@ def _fake(prompt: str) -> None:
     elif station == "rescue":
         _rescue(here, primary, str(change), modes)
     elif station == "supervise":
-        _supervise(here, str(change), modes)
+        _supervise(here, primary, str(change), modes)
     elif station == "cut-change":
         _cut(here, primary, str(change), prompt, modes)
     elif (
@@ -497,7 +524,9 @@ def _fake(prompt: str) -> None:
             sys.exit(1)
     elif station == "integrate":
         message = f"chore(integrate): merge main into {change}"
-        _integrate(primary.parent / str(change), message, modes)
+        settled = "with settled=supervisor" in prompt
+        folder = _folder(primary, str(change)) if settled else None
+        _integrate(primary.parent / str(change), message, modes, folder)
     elif station == "release":
         branch = _git(here, "branch", "--show-current")
         tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"

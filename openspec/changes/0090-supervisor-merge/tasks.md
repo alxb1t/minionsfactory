@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
 ## Progress
 
 - [x] 1 — The brief kept
-- [ ] 2 — The integrate settle
+- [x] 2 — The integrate settle
 - [ ] 3 — The record
 
 ## 1 — The brief kept
@@ -33,26 +33,26 @@ Build the settled [design](design.md), one phase at a time, on 0089-supervisor's
 
 ## 2 — The integrate settle
 
-- [ ] 2.1 Add `Opened` beside `ShipLines`, `SETTLES` beside `SUPERVISES`, and `_opened` and `_settled` beside `_supervised` in
+- [x] 2.1 Add `Opened` beside `ShipLines`, `SETTLES` beside `SUPERVISES`, and `_opened` and `_settled` beside `_supervised` in
   `skills/mf-ship/scripts/conduct.py`, its refusals as [D3](design.md#d3)'s table words them.
   Verify: `grep -n '^def _settled(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 Add `_merge_tried` beside `_brief_of`, widen `Run.supervise`'s trigger and record its try per [D2](design.md#d2),
+- [x] 2.2 Add `_merge_tried` beside `_brief_of`, widen `Run.supervise`'s trigger and record its try per [D2](design.md#d2),
   and give it [D4](design.md#d4)'s integrate branch, with `self.settled` in `Run.__init__`.
   Verify: `grep -n 'self.settled.add(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.3 Add `SETTLED` and `Run.stage`, read `self.stage(version)` in `Run.advance`, give `PROMPTS["integrate"]` its
+- [x] 2.3 Add `SETTLED` and `Run.stage`, read `self.stage(version)` in `Run.advance`, give `PROMPTS["integrate"]` its
   `{settled}` field, and fill it in `Run.advance`, with its docstring line, per [D4](design.md#d4).
   Verify: `grep -n 'with settled=supervisor' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.4 Give `_supervise` its `primary` parameter and the `supervise-settle` and `supervise-settle-code` modes, and
+- [x] 2.4 Give `_supervise` its `primary` parameter and the `supervise-settle` and `supervise-settle-code` modes, and
   `_integrate` its `settled` parameter, in `tests/fake_worker.py`, as the design's `## Tests` tables them.
   Verify: `grep -n 'supervise-settle-code' tests/fake_worker.py` prints a line.
-- [ ] 2.5 Add `test_a_supervisor_settles_an_integrate_note` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.5 Add `test_a_supervisor_settles_an_integrate_note` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_settles_an_integrate_note` reports `1 passed`.
-- [ ] 2.6 Add `test_a_supervisor_settle_outside_the_text_halts` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.6 Add `test_a_supervisor_settle_outside_the_text_halts` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_settle_outside_the_text_halts` reports `1 passed`.
-- [ ] 2.7 Add the `settled` parameter, Step 2's resumed-run reading, Step 3.1's and Step 4.5's `integrate.settled` and Step
+- [x] 2.7 Add the `settled` parameter, Step 2's resumed-run reading, Step 3.1's and Step 4.5's `integrate.settled` and Step
   4.3's `the supervisor` row to `skills/mf-integrate/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -n '<path>: the supervisor' skills/mf-integrate/SKILL.md` prints a line.
-- [ ] 2.8 Add Step 1's read of the note, Step 2's never-list edits, Step 3c and the description's clause to
+- [x] 2.8 Add Step 1's read of the note, Step 2's never-list edits, Step 3c and the description's clause to
   `skills/mf-supervise/SKILL.md`, per [D6](design.md#d6).
   Verify: `grep -n 'Step 3c — an integrate note' skills/mf-supervise/SKILL.md` prints a line.
 

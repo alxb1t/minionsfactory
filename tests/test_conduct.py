@@ -2410,6 +2410,172 @@ def test_a_grant_waits_for_the_supervisor(tmp_path: Path) -> None:
     assert not rescuing(runs, "0001-todo")
 
 
+def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a primary and `0002-marks`' worktree under the switch.
+
+    Its delta modifies the requirement `0001-todo` folds, so its integrate notes it.
+    """
+    root = _primary(tmp_path)
+    living = "openspec/specs/sdd/spec.md"
+    _commit(root, {living: "### Requirement: First\n\nThe base.\n"}, "spec")
+    first = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
+    _commit(first, fold, "fold\n\nChange: 0001-todo")
+    tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
+    _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
+    _switched(root, "0002-marks")
+    return root, tree
+
+
+@pytest.mark.slow
+def test_a_supervisor_settles_an_integrate_note(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0090-supervisor-merge design D2, D3, D4.
+    conduct = _conduct()
+    calls = fake("rescue-diagnose", "supervise-settle")
+    root, _ = _delta_noted(tmp_path)
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    assert [call for call in _calls(calls) if "0002-marks" in call] == [
+        "rescue 0002-marks with decide=recommended",
+        "supervise 0002-marks with decide=recommended",
+        "integrate 0002-marks with settled=supervisor",
+        "build 0002-marks",
+        "converge 0002-marks",
+        "release 0002-marks",
+    ]
+    subject = "--grep=^chore(integrate): merge main into 0002-marks$"
+    merge = _git(root, "log", "-1", "--format=%H", subject)
+    staged = _git(root, "rev-parse", f"{merge}^{{tree}}")
+    lines = _log(root)
+    assert any(
+        line.endswith(
+            f" · run · supervise — 0002-marks: decided · integrating · {staged[:7]}"
+        )
+        for line in lines
+    )
+    assert "sdd: First: the supervisor" in _git(root, "log", "-1", "--format=%B", merge)
+    marks = root / ".minions" / "changes" / "0002-marks"
+    assert not (marks / "integrate.md").exists()
+    assert not (marks / "integrate.settled").exists()
+    assert lines[-1].endswith(
+        " · run · done — released v0.1.0 v0.2.0 · supervised 0002-marks"
+    )
+
+
+@pytest.mark.slow
+def test_a_supervisor_settle_outside_the_text_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0090-supervisor-merge design D2, D3.
+    conduct = _conduct()
+    calls = fake("rescue-diagnose", "supervise-settle-code")
+    root, tree = _delta_noted(tmp_path)
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+
+    lines = _log(root)
+    assert any(
+        line.endswith(" · 0002-marks · halt — supervisor touched src.py")
+        for line in lines
+    )
+    assert not any(" · run · supervise — " in line for line in lines)
+    merge = _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    assert merge
+    assert (root / ".minions" / "changes" / "0002-marks" / "integrate.md").is_file()
+
+    # The open merge got its one try: a later run starts no supervisor on it. A run
+    # with nothing but stuck versions starts no thread, so `0003-more` starts one.
+    _version(root, "0003-more", "- [ ] 1 — More\n")
+    calls.unlink()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert [call for call in _calls(calls) if "0002-marks" in call] == [
+        "rescue 0002-marks with decide=recommended"
+    ]
+    tried = conduct["_merge_tried"]
+    assert tried(root, "0002-marks", merge)
+    assert not tried(root, "0002-marks", "0" * 40)
+
+    # Each case starts from its own conflicted merge of `docs/a.md`, its note written.
+    settled, opened, change = conduct["_settled"], conduct["_opened"], "0009-x"
+
+    def conflicted(name: str) -> tuple[Path, Any]:
+        repo = tmp_path / name
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _commit(repo, {".gitignore": ".minions/\n", "docs/a.md": "base\n"}, "base")
+        _git(repo, "switch", "-q", "-c", "side")
+        _commit(repo, {"docs/a.md": "side\n"}, "side")
+        _git(repo, "switch", "-q", "main")
+        _commit(repo, {"docs/a.md": "main\n"}, "main")
+        _git(repo, "merge", "-q", "side", check=False)
+        note = repo / ".minions" / "changes" / change / "integrate.md"
+        note.parent.mkdir(parents=True)
+        note.write_text("## docs: a\n")
+        return repo, opened(repo, repo, change)
+
+    def mark(repo: Path) -> None:
+        folder = repo / ".minions" / "changes" / change
+        (folder / "integrate.settled").write_text("docs: a: both kept\n")
+
+    def resolve(repo: Path) -> None:
+        (repo / "docs" / "a.md").write_text("both\n")
+        _git(repo, "add", "docs/a.md")
+
+    repo, start = conflicted("nothing")
+    assert settled(repo, repo, change, start) == (None, "")
+
+    repo, start = conflicted("mark-alone")
+    mark(repo)
+    assert settled(repo, repo, change, start) == (
+        None,
+        "supervisor left docs/a.md unmerged",
+    )
+
+    repo, start = conflicted("taken")
+    resolve(repo)
+    mark(repo)
+    assert settled(repo, repo, change, start) == (_git(repo, "write-tree"), "")
+
+    repo, start = conflicted("code")
+    resolve(repo)
+    mark(repo)
+    (repo / "src.py").write_text("x = 1\n")
+    _git(repo, "add", "src.py")
+    assert settled(repo, repo, change, start) == (None, "supervisor touched src.py")
+
+    repo, start = conflicted("unstaged")
+    resolve(repo)
+    mark(repo)
+    (repo / "docs" / "a.md").write_text("edited\n")
+    assert settled(repo, repo, change, start) == (
+        None,
+        "supervisor left unstaged docs/a.md",
+    )
+
+    repo, start = conflicted("no-note")
+    (repo / ".minions" / "changes" / change / "integrate.md").unlink()
+    assert settled(repo, repo, change, start) == (
+        None,
+        f"supervisor removed .minions/changes/{change}/integrate.md",
+    )
+
+    repo, start = conflicted("aborted")
+    _git(repo, "merge", "--abort")
+    assert settled(repo, repo, change, start) == (None, "supervisor closed the merge")
+
+    repo, start = conflicted("committed")
+    resolve(repo)
+    _git(repo, "commit", "-q", "-m", "merge")
+    assert settled(repo, repo, change, start) == (
+        None,
+        f"supervisor moved HEAD off {start.head[:7]}",
+    )
+
+
 def test_a_linked_rejoin_folder_deletes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
