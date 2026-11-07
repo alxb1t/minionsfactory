@@ -8,7 +8,7 @@ before this build: find each section by its heading, never by a line number.
 - [x] 1 — Worker models
 - [x] 2 — The bundle
 - [x] 3 — Security by recomputation
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — Worker models
 
@@ -76,14 +76,14 @@ before this build: find each section by its heading, never by a line number.
 
 ## 4 — The record
 
-- [ ] 4.1 Add D64 after D40 in `docs/decisions.md`, and `D64` to the map's check-loop list, per [D9](design.md#d9).
+- [x] 4.1 Add D64 after D40 in `docs/decisions.md`, and `D64` to the map's check-loop list, per [D9](design.md#d9).
   Verify: `grep -n '^### D64 · Converge spends where judgment is$' docs/decisions.md` prints a line.
-- [ ] 4.2 Amend D11's last bold sentence and D41's models-file clause in `docs/decisions.md`, per [D9](design.md#d9).
+- [x] 4.2 Amend D11's last bold sentence and D41's models-file clause in `docs/decisions.md`, per [D9](design.md#d9).
   Verify: `grep -c 'd64--converge-spends-where-judgment-is' docs/decisions.md` prints `2`.
-- [ ] 4.3 Extend `test_reading_sets_count_words` in `tests/test_metric_scripts.py`, then the `worker` set's index in
+- [x] 4.3 Extend `test_reading_sets_count_words` in `tests/test_metric_scripts.py`, then the `worker` set's index in
   `scripts/metrics/reading_set.py`, per [D10](design.md#d10).
   Verify: `uv run --script scripts/metrics/reading_set.py worker` prints a number below `10500`.
-- [ ] 4.4 Add `watch = 10500` to `converge-worker-reading-set` in `metrics/catalogue.toml`, per [D10](design.md#d10).
+- [x] 4.4 Add `watch = 10500` to `converge-worker-reading-set` in `metrics/catalogue.toml`, per [D10](design.md#d10).
   Verify: `grep -c '^watch = 10500$' metrics/catalogue.toml` prints `2`.
-- [ ] 4.5 Add the converge sentence to *Execution* in `README.md`, per [D11](design.md#d11).
+- [x] 4.5 Add the converge sentence to *Execution* in `README.md`, per [D11](design.md#d11).
   Verify: `grep -n 'd64--converge-spends-where-judgment-is' README.md` prints a line.

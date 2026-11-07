@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `THREAT_MODEL.md` and the bootstrap's template gain `## Surfaces`; `skills/mf-converge/scripts/surfaces.py` gives a fix
   that touches none, with no security card awaiting its checker, its security head by rule, and review alone verifies
   it (change `0094-lighter-converge`, phase 3).
+- D64 records what converge spends; D11 and D41 brought in line, `README.md` says it, and the worker reading set counts
+  the decisions' index, watched at 10,500 words (change `0094-lighter-converge`, phase 4).
 
 ## [0.74.0] - 2026-11-07
 

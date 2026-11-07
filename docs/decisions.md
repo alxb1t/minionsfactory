@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50, D63
+     D5…D10, D38, D58, D59           D11…D17, D40, D43, D49, D50, D63, D64
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
 ```
@@ -174,7 +174,8 @@ What happens between the last phase and the tag.
 
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the review and security
 references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
-nothing. Workers follow the host, or the models file's `executor`.**
+nothing. Workers follow the host, or the models file's `executor`; converge's take their model and effort from its worker
+tables ([D64](#d64--converge-spends-where-judgment-is)).**
 
 - **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
 - **Accepts:** no native command is used; the person runs them by hand to compare.
@@ -267,6 +268,22 @@ file.**
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
   unobservable sibling threads. Missing worker capability halts.
+
+### D64 · Converge spends where judgment is
+
+**Converge's conductor runs on the mid tier · medium, its review and security workers on the strongest tier · high, and its
+fixer on the mid tier · high, on review's model when a card it is sent blocks: the models file's `[converge]`,
+`[converge.review]`, `[converge.security]` and `[converge.fix]`, which `conduct.py` reads once and passes in the converge
+prompt. Each worker reads `bundle.md` — the decisions the change cites, in full, an index of all, and the living requirements
+the delta modifies or removes — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of
+`THREAT_MODEL.md`, with no security card awaiting its checker, takes its security head by recomputation.**
+
+- **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
+  reading set.
+- **Accepts:** on Codex every worker runs on the conductor's model; a decision the change does not cite is read by its index
+  line alone; the build keeps one model a change.
+- **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
+  it · a security verify skipped by the conductor's judgment.
 
 ### D49 · One review method, one depth
 
@@ -470,9 +487,10 @@ Review judges each new test's cost and traces each removed one's proofs.**
 
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
-writes it to `.minions/changes/<change-id>/models.toml`, never into the change, for `mf-ship`; model selection and provider
-setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut writes those
-([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
+writes it to `.minions/changes/<change-id>/models.toml`, converge's worker tables on
+[D64](#d64--converge-spends-where-judgment-is)'s tiers among it, never into the change, for `mf-ship`; model selection
+and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut
+writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
