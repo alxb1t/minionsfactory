@@ -116,7 +116,8 @@ The events, and no others:
 
 **Every host runs MF's method:** each checker loads [conformance](references/generic-conformance.md) or
 [adversarial](references/generic-adversarial.md), and with it [the worker reference](references/worker.md), resolved from
-the installed package; the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
+the installed package; a round after a fix loads [verify](references/verify.md) alone in their place, per Step 7;
+the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
 frontmatter keys it fixes, By rule writes them, and Steps 8 and 9 read the card's size and Status. Each role is one
 fresh worker. A `tier=` given → **halt**: the `tier` parameter was removed.
 
@@ -387,11 +388,12 @@ exit 2, or `uv` missing → **halt**, naming what it printed.
 
 Dispatch conformance, and adversarial unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's
 dispatch rules, and write `fan-out`. Give each [verify](references/verify.md), its `<role>.open.md`, the fix diff
-`diff.patch`, its findings path and, for conformance, the design's `## Tests` section — never Step 3's packet. Each
-runs [the verify pass](references/worker.md#the-verify-pass), red runs included. Read the verdicts from disk under
+`diff.patch`, its findings path and, for conformance, the design's `## Tests` section — never Step 3's packet, its
+role reference or the worker reference. Each runs verify's pass, red runs included. Read the verdicts from disk under
 Step 5.
 
-A catch-up's judge round judges new commits no card describes: it runs no `open_cards.py` and dispatches Step 3's
+A catch-up's judge round judges new commits, and the amend cards an amend answers, by the worker reference's
+[scoping](references/worker.md#conformance-and-adversarial): it runs no `open_cards.py` and dispatches Step 3's
 inputs over its freeze. Its fix round's verify is a round after a fix, as above.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.

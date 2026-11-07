@@ -19,9 +19,11 @@ conductor judges nothing. No worker reads `.minions/debt.md`.
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
-adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set. For a merge-aware
-catch-up, reconstruct and judge only [Catch-up scope](#catch-up-scope). Report the scope actually resolved; halt
-when the inputs cannot support a verdict.
+adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set.
+In it, each checker re-judges its file's amend cards: one the amend settled goes `verified`, naming it, and one whose
+`wontfix` justification still holds stays `wontfix`, never `accepted`. For a merge-aware catch-up, reconstruct and
+judge only [Catch-up scope](#catch-up-scope). Report the scope actually resolved; halt when the inputs cannot support
+a verdict.
 
 ### The findings file contract
 
@@ -97,8 +99,8 @@ files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-re
 
 ## The verify pass
 
-A verify round loads [verify](verify.md): its open cards, the fix diff, the transitions, red runs and the amend
-card's `wontfix`.
+A verify round loads [verify](verify.md) alone, in place of the role reference and this one: its open cards, the fix
+diff, the transitions, red runs and the amend card's `wontfix`.
 
 ## Catch-up scope
 
