@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 - [x] 1 — The conductor's small cards
 - [x] 2 — The brief check
-- [ ] 3 — The status-log stamp
+- [x] 3 — The status-log stamp
 - [ ] 4 — The archives and the threat model
 
 ## 1 — The conductor's small cards
@@ -36,12 +36,12 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## 3 — The status-log stamp
 
-- [ ] 3.1 Add `skills/mf-converge/scripts/stamp.py`, per [D7](design.md#d7), and `tests/test_stamp.py`, as the design's
+- [x] 3.1 Add `skills/mf-converge/scripts/stamp.py`, per [D7](design.md#d7), and `tests/test_stamp.py`, as the design's
   `## Tests` names its tests.
   Verify: `uv run pytest -q tests/test_stamp.py` reports `2 passed`.
-- [ ] 3.2 Rewrite the event and run-heading lines of *The status log* in `skills/mf-converge/SKILL.md`, per [D7](design.md#d7).
+- [x] 3.2 Rewrite the event and run-heading lines of *The status log* in `skills/mf-converge/SKILL.md`, per [D7](design.md#d7).
   Verify: `grep -n 'scripts/stamp.py' skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.3 Add `stamp.py` to `_METRICS_SCRIPTS` and to each expected list of
+- [x] 3.3 Add `stamp.py` to `_METRICS_SCRIPTS` and to each expected list of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`, per [D7](design.md#d7).
   Verify: `grep -n '"scripts/stamp.py"' tests/test_skills.py` prints a line.
 

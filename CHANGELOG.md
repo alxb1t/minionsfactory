@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `brief_check.py` halts on a `## For the cut` item that does not open `<n>. ` and on a head with a second `after:`, so
   the close pastes no unchecked field into `conduct.py cut`; its why line cites a tracked design (change
   `0088-paydown-2`, phase 2).
+- `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time; converge
+  writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`, phase 3).
 
 ## [0.71.0] - 2026-11-07
 
