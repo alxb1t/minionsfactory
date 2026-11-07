@@ -65,7 +65,7 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
   `uv run --script <this package>/scripts/stamp.py .minions/changes/<change-id>/status_log.md '<round N · event — detail>'`,
   which takes the clock's time; never write a time by hand: a stale time is how a dead run shows.
 - **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
-  catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
+  catch-up run's heading ends `· catch-up`, or `· amend` after an answered halt: `mkdir -p .minions/changes/<change-id>`, create the file with a
   `# <change-id> — converge status` title if missing, and insert the heading with `stamp.py <log> --run N`,
   `--mark <mark>` for a marked run.
 - **An old layout halts before the run opens.** A file of this change at one of its old paths, by exact name —
@@ -146,22 +146,14 @@ Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
 **A halt before round 1:** the top line is a `halt` in a run with no `start` line, not marked `· grant`, and no
 `verify: halt` → open a plain new run, with no mark, as a fresh invocation does; no grant is needed. A granted round
 writes no `start`, and its halt is none: its cap stays halted for the re-plan. A catch-up run halted before its
-`start` — in its catch-up check or Step 1 — is one too: the new run's own catch-up check, over both findings files
-still clean, runs the catch-up round again, so the commits since are judged.
+`start` — in its catch-up check or Step 1 — is one too: a new run of its mark runs the
+[Catch-up round](#catch-up-round) again, so the commits since are judged.
 
-The top line is any other `halt`, its `· head <sha>` is both findings files' `head:`, and `HEAD` is past it —
-`git merge-base --is-ancestor <sha> HEAD` exits 0, and `<sha>` is not `HEAD` → a person answered it: open a run
-marked `· amended`, naming it in its first event, and start at Step 1 over the whole change, writing `round: 1`. No
-grant is needed, and the catch-up round does not apply, save to the person's amends, as the next paragraph says.
-
-**The person's amends** answer a halt in a catch-up run with both findings files still `verdict: clean`, a
-`verify: halt`, and an `amend needed` halt: `HEAD` is past its `· head <sha>`, and every commit in `<sha>..HEAD` has
-one parent, the subject `docs(<change-id>): amend the change directory`, and paths under `openspec/changes/<change-id>/`
-alone. The answered catch-up halt, and an answered `amend needed` halt whose findings files both still say
-`verdict: clean`, run the [Catch-up round](#catch-up-round) again, an amend there carrying a `Rescue:` or `Supervisor:`
-trailer judged in one Step 7 round, never by rule; any other opens `· amended` from round 1, as above. Any other halt
-naming no head, or one past the judged head — after this skill's own fix commit, or in a catch-up run — is no
-person's answer.
+**An answered halt:** the top line is any other `halt`, `HEAD` descends from its `· head <sha>` and is not it, and both
+findings files' `head:` is `<sha>`, or `git rev-list <sha>..HEAD` names an **amend**: one parent, the subject
+`docs(<change-id>): amend the change directory`, paths under `openspec/changes/<change-id>/` alone. Open a catch-up run marked
+`· amend`, naming the halt in its first event, and run the [Catch-up round](#catch-up-round) from the files' `head:`, whatever
+their verdicts; no grant is needed. Files missing, or naming two heads → a plain new run. Any other halt is no answer.
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
@@ -184,35 +176,32 @@ A **catch-up round** judges commits that landed after the last round. `mf-releas
 `head:` of both findings files — **the judged head** — and this round gets it there.
 
 Check before Step 1. It applies when both findings files exist, both say `verdict: clean`, and their `head:` is
-not `HEAD`:
+not `HEAD` — or in a run marked `· amend`, whatever the files say:
 
 ```
   judged head ancestor of HEAD? ── no ─▶ halt: history rewritten, re-converge from round 1
                │ yes
                ▼
-  merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
-               │ yes, its own count  │ yes
-               ▼                     │
-  every merge replays, no Rescue:    ▼
-  or Supervisor: amend? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+  merges, amends or · amend? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
+               │ yes, its own count          │ yes
+               ▼                             ▼
+  merges only, replay? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ──┐
                │ yes                                                   │
                ▼                                                       ▼
   by rule: both files clean, no worker ──────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
 ```
 
-Open the run marked `· catch-up`, and write `catch-up` to the status log.
+Open the run marked `· catch-up`, or `· amend` after an answered halt, and write `catch-up` to the status log.
 
 1. **Ancestry** — `git merge-base --is-ancestor <judged head> HEAD` exits non-zero → halt as drawn.
 2. **Cap** — enumerate the selection as [Catch-up scope](references/worker.md#catch-up-scope) does, once, at the run's start.
-   **Merges and amends** — merges, and the person's, the rescue's or the supervisor's
-   `docs(<change-id>): amend the change directory` commits touching `openspec/changes/<change-id>/` alone → the run has **its own count**: one judge round and at
-   most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
+   **Its own count** — an `· amend` run, and a selection of merges and [amends](#resuming-a-run), have one judge round
+   and at most one fix round, and `round:` carries on past three. Any other selection counts against the cap of three: the
    files' `round:` is the last judged round, and at the cap → halt as drawn.
-3. **Run Step 1's preconditions.**
-4. **Merges and amends → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no
-   worker. A selection of amends alone, with no merge, passes by rule too. A selection holding an amend that
-   carries a `Rescue:` or `Supervisor:` trailer, a worker's, skips By rule → item 5, under the run's own count: one
-   Step 7 round reads it.
+3. **Run Step 1's preconditions**, and before `start` each `Verify:` line the range adds to `tasks.md`, ticked or not: one that
+   fails → halt `verify failed — <sub-task ids>`.
+4. **Merges alone → try [By rule](#by-rule).** Every merge replays → Step 9, never Step 8: no freeze, no worker. A
+   selection holding an amend, and an `· amend` run, never pass by rule.
 5. **Freeze `<judged head>..HEAD`** as Step 6's re-freeze does.
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
@@ -230,12 +219,12 @@ worker reads it.
    naming it. Then, for each merge in the selection, run
    `uv run --script ../mf-integrate/scripts/integrate.py replay <merge>`, `../mf-integrate/` resolved from this
    skill's package. Its line is `replay: by rule — <paths>`, or `no conflict`; `replay` exits 2 on a merge whose
-   second parent the default branch does not hold. Skip each amend: Step 1's gate and `gate_check.py` judged it.
+   second parent the default branch does not hold.
 2. Any exit 1 → the round as before, from item 5. Exit 2, or `uv` missing → **halt**, naming what it printed.
 3. Every exit 0 → in each findings file, set `head:` to `HEAD`, `round:` to the run's own count, `reviewed:` to
    today, `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`. Add a `## By rule`
    section above its `## Resolution log`, one line per merge — `- <sha> (<parents>): <the paths replay printed>` —
-   and one per amend — `- <sha>: the person's amend` — and append `<date> · round N · by rule — clean` to the log.
+   and append `<date> · round N · by rule — clean` to the log.
 4. Write `by rule` to the status log: `round N · by rule — clean, <paths>`.
 
 ## Step 1 — Preconditions (each one halts, naming what is missing)
@@ -375,9 +364,9 @@ runs included. Read the verdicts from disk under Step 5.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
-**The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends has
-[its own count](#catch-up-round). At the cap, **halt**: leave every findings file **exactly as it stands**, write
-nothing to the debt — the findings files hold every card — and report the blocking findings still `open`,
+**The cap is three rounds, and the pickup round counts.** A catch-up over merges and amends,
+or an answered halt's, has [its own count](#catch-up-round). At the cap, **halt**: leave every findings file
+**exactly as it stands**, write nothing to the debt — the findings files hold every card — and report the blocking findings still `open`,
 **by id**, naming the pickup round if one ran. No auto-escalation, no widened fix pass, no third opinion: a loop
 that cannot converge in three rounds is a plan problem, and the halt *is* the finding.
 

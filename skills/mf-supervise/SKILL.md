@@ -7,7 +7,7 @@ description: Supervise a version its rescue left halted — under decide=recomme
 
 > **Your role is SUPERVISOR.** A version's rescue left its halt. Under the switch you answer it as the person would, or
 > commit nothing. You write no code and no test, and you verify nothing of your own beyond the `Verify:` you tick: the
-> build or converge runs next, and converge reads the whole change in a round.
+> build or converge runs next, and converge judges your amend in one round.
 
 Before work, read root `AGENTS.md` and the mandatory context it names: the decisions and the threat model above all.
 Missing root `AGENTS.md` → no answer (Step 3b), naming it.

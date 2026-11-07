@@ -350,11 +350,11 @@ class Version:
         return list(zip(parts[1::2], parts[2::2], strict=True))
 
     def rounds(self) -> int:
-        """Return the highest round a run that is no catch-up reached."""
+        """Return the highest round a run that is no catch-up or amend run reached."""
         found = [
             int(n)
             for heading, body in self.status_runs
-            if not heading.rstrip().endswith("· catch-up")
+            if not heading.rstrip().endswith(("· catch-up", "· amend"))
             for n in re.findall(r"· round (\d+) ·", body)
         ]
         if not found:
@@ -381,6 +381,10 @@ class Version:
     def grants(self) -> int:
         """Return the converge runs marked as a grant's."""
         return sum(h.rstrip().endswith("· grant") for h, _ in self.status_runs)
+
+    def amends(self) -> int:
+        """Return the converge runs marked as an answered halt's amend round."""
+        return sum(h.rstrip().endswith("· amend") for h, _ in self.status_runs)
 
     def commits(self, fixes: bool) -> int:
         """Return the commits up to `build.done`'s head, or after it, if `fixes`.
@@ -535,6 +539,7 @@ METRICS: dict[str, Callable[[Version], Number]] = {
     "converge-rounds": Version.rounds,
     "blockers-round-1": Version.blockers,
     "grants": Version.grants,
+    "amend-rounds": Version.amends,
     **{
         f"halts-{station}": lambda v, s=station: v.halts(s)
         for station in ("build", "converge", "integrate", "release")

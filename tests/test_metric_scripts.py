@@ -382,6 +382,9 @@ _RUN_B = """# Ship run 20261102-090000
 """
 _STATUS = """# 0001-x — converge status
 
+## Run 4 — 2026-11-02 10:00 · amend
+10:30:00 · round 8 · done — converged in one amend round
+
 ## Run 3 — 2026-11-02 09:05 · catch-up
 09:06:00 · round 7 · done — converged by rule
 
@@ -486,6 +489,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "converge-rounds": 4,
         "blockers-round-1": 2,
         "grants": 1,
+        "amend-rounds": 1,
         "halts-build": 0,
         "halts-converge": 2,
         "halts-integrate": 1,
