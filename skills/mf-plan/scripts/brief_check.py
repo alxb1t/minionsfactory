@@ -59,13 +59,15 @@ def sections(brief: str) -> dict[str, list[str]]:
     """Return each `## ` section's lines, keyed by its heading, which they exclude.
 
     Lines break at a newline alone, as Markdown's do once the file is read; a vertical
-    tab or another `str.splitlines` separator stays inside its line.
+    tab or another `str.splitlines` separator stays inside its line. A heading keys
+    with each whitespace run as one space, so `## For the cut` written with NBSP or
+    U+3000 is the same section.
     """
     found: dict[str, list[str]] = {}
     lines: list[str] | None = None
     for line in brief.split("\n"):
         if line.startswith("## "):
-            lines = found.setdefault(line.rstrip(), [])
+            lines = found.setdefault("## " + " ".join(line[3:].split()), [])
         elif lines is not None:
             lines.append(line)
     return found

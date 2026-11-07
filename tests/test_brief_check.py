@@ -204,6 +204,28 @@ def test_a_brief_out_of_shape_halts(
             ("## For the cut", 9),
         )
     ]
+    # A second `## For the cut` heading written with NBSP or U+3000 is the same
+    # section, so its items are checked as a plain second heading's are.
+    spaced_heading = _READY + "".join(
+        f"\n## For{space}the cut\n"
+        f"{n}. **x;touch-q** · minor · after: none\n"
+        "   - models: build a b · converge a b · release a b · cut a b;c\n"
+        "   - **Acceptance:** `echo $(id) x`\n"
+        for n, space in ((2, "\xa0"), (3, "\N{IDEOGRAPHIC SPACE}"))
+    )
+    assert brief_check.main([str(_write(tmp_path, spaced_heading))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        *(
+            line
+            for n in (2, 3)
+            for line in (
+                f"brief: halt — ## For the cut: item {n} — not a slug: `x;touch-q`",
+                f"brief: halt — ## For the cut: item {n} — not a model or effort:"
+                " `b;c`",
+            )
+        ),
+        *2 * ["brief: halt — ## For the cut: I19 — `$(…)`: `echo $(id) x`"],
+    ]
     # Any other list marker, or an indent short of the head's text, opens no number.
     markers = _READY + (
         "* **x;touch-p** · minor · after: none\n"

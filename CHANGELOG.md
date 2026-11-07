@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answers a rescued halt drops the stale diagnosis (change `0088-paydown-2`, phase 1).
 - `brief_check.py` halts on a top-level `## For the cut` item, whatever its list marker, indent, tab or extra space, that
   does not open `<n>. ` and one space, on a models line not written `- models:` or a second one, and on a head with a
-  second `after:`, and on a `## Decisions` or `## For the cut` line holding whitespace other than a space or a tab, so
-  the close pastes no unchecked field into `conduct.py cut`; a tenth item nested as the template writes it passes; its
+  second `after:`, and on a `## Decisions` or `## For the cut` line holding whitespace other than a space or a tab, and
+  reads a heading written with NBSP or U+3000 as its plain form, so the close pastes no unchecked field into
+  `conduct.py cut`; a tenth item nested as the template writes it passes; its
   why line cites a tracked design (change `0088-paydown-2`, phase 2).
 - `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time, refusing a
   log that is a link; converge writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`,
