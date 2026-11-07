@@ -217,9 +217,13 @@ the path its queue entry holds; every other cut halt keeps its line. No rescue S
 SHALL print `<id> · cut` for a queued cut and `<id> · cut-halted — <line>` for a halted one, `report` SHALL print its halt
 line, and the run's closing line SHALL name ` · needs <id> its brief answered (…), then conduct.py rejoin <id>` for a cut
 halted with that answer. A run's start SHALL log each halted cut as a halt and take it into no thread. `conduct.py rejoin <id>`
-naming a queued cut SHALL clear its halt and copy the brief's `## Dependencies` rows for its slug again, under the queue lock,
-then request it from the live run, or start a run when none is live; a brief it cannot read, or whose `## Dependencies` is
-neither `None.` nor a table, SHALL exit 2, naming it, and keep the halt. The run SHALL then drop the cut's branch and worktree,
+naming a queued cut SHALL clear its halt, under the queue lock, keeping the queue entry's already-queued package rows, then
+request it from the live run, or start a run when none is live; a brief it cannot read, or whose `## Dependencies` is
+neither `None.` nor a table, SHALL exit 2, naming it, and keep the halt. A row of the brief's `## Dependencies` for its slug
+that the entry does not already hold SHALL be queued only when the rejoin is given `--yes <hash>`, `<hash>` the sha256 of
+those new rows; without it, or with another hash, the rejoin SHALL exit 1, keep the entry and its halt, and name each new
+row and the exact `conduct.py rejoin <id> --yes <hash>` command, the person's yes to those rows. `--yes` on a rejoin naming
+no queued cut SHALL exit 2. The run SHALL then drop the cut's branch and worktree,
 when its branch holds no change, and cut again from the brief.
 
 #### Scenario: A cutter halts
@@ -234,7 +238,17 @@ when its branch holds no change, and cut again from the brief.
 #### Scenario: A package approved at the re-plan
 - **WHEN** a cut halted on a package outside its queued rows, and the person's re-plan adds that row to the brief's
   `## Dependencies` before `conduct.py rejoin <id>`
-- **THEN** the rejoin copies the rows again, and the branch's cut is checked again and passes
+- **THEN** the rejoin exits 1 naming that row and `conduct.py rejoin <id> --yes <hash>`
+- **AND WHEN** the person runs that command
+- **THEN** the row is queued beside the queued rows, and the branch's cut is checked again and passes
+
+#### Scenario: A rejoin whose brief adds a package row
+- **WHEN** a queued cut's entry holds `left-pad 1.3.0`, its brief's `## Dependencies` also lists `right-pad ^2` for its slug,
+  and `conduct.py rejoin <id>` runs with no `--yes`, after a fix on disk and no re-plan
+- **THEN** it exits 1 naming `right-pad ^2` and `conduct.py rejoin <id> --yes <hash>`, the entry holds `left-pad 1.3.0`
+  alone and keeps its halt, and no run is asked to take the cut
+- **AND WHEN** `conduct.py rejoin <id> --yes <hash>` runs with that hash
+- **THEN** the entry holds `left-pad 1.3.0` and `right-pad ^2`, its halt cleared, and the run takes the cut back
 
 #### Scenario: A failed check on disk
 - **WHEN** a cut halts on a dirty tree, a missing models file, a kept worktree or a worker's exit

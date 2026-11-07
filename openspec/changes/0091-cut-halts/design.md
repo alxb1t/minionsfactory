@@ -63,7 +63,7 @@ fake worker, a queued cut whose `design.md` lists only the approved packages pas
 |---|---|---|---|
 | [D1](#d1) | A hard brief's `## Dependencies`, between `## Decisions` and `## Phases`: `None.`, or rows `item · package · constraint · why`, `item` the `## For the cut` slug | W1, W3 | a nested line under the item, which the grammar refuses |
 | [D2](#d2) | `brief_check.py` reads `## For the cut` by a line grammar, holds checked lines to `isprintable()`, and allows one form of each checked heading | Z1, W9 | another per-form fold |
-| [D3](#d3) | `conduct.py` reads the table with `_rows`; `cut` copies the item's rows into the entry's `dependencies`, and a `rejoin` copies them again | W2; C2 | the brief read at cut time |
+| [D3](#d3) | `conduct.py` reads the table with `_rows`; `cut` copies the item's rows into the entry's `dependencies`; a `rejoin` keeps them and takes a row they lack only with `--yes <hash>` of the new rows — the person's decision on S1, option (a) | W2; C2; S1 | the brief read at cut time · a rejoin copying the brief's rows unconditionally · copying only after a plan-answered halt · the disk-fix route as an accepted risk |
 | [D4](#d4) | The station halts a cut whose `design.md` lists a row outside the entry's, as written | W2, W4; C1 | a looseness comparison |
 | [D5](#d5) | A halt the plan answers ends `· needs <id> its brief answered (…), then conduct.py rejoin <id>`; `_needs` reads it | W5; C3 | the answer on every cut halt |
 | [D6](#d6) | The cut skill: unattended, a row the brief lists commits and any other halts; a hand cut halts on a queued id | W4, W6 | the cutter reading the queue |
@@ -153,12 +153,34 @@ def _approved(text: str, slug: str) -> list[list[str]] | None:
   nor a table of item · package · constraint · why")`.
 - **`cut`**, after `_brief_refused` and before the lock, takes `_approval(path.resolve(), slug, "cut")`, so a refusal reserves
   nothing. The entry gains `"dependencies": <the list>`. A brief with no section copies `[]`.
-- **`rejoin`** of a queued cut, under the lock, takes `_approval(Path(entry["brief"]), <the id's slug>, "rejoin")` and writes
-  `{**entry, "halt": None, "dependencies": <the list>}`; a refusal stops 2 with the entry kept. The slug is
-  `CHANGE_ID.fullmatch(change)[2]`.
+- **`rejoin`** of a queued cut, under the lock, takes `_approval(Path(entry["brief"]), <the id's slug>, "rejoin")`; a refusal
+  stops 2 with the entry kept. The slug is `CHANGE_ID.fullmatch(change)[2]`. `queued` is `entry.get("dependencies", [])`, and
+  `new` each brief row not in `queued`, in the brief's order:
+  - **No `new` row** → it writes `{**entry, "halt": None}`: the queued rows stand, one the brief dropped included, and
+    `--yes` is not read.
+  - **A `new` row** → it writes `{**entry, "halt": None, "dependencies": queued + new}` only when `--yes` equals
+    `_rows_hash(new)`, `hashlib.sha256(json.dumps(new).encode()).hexdigest()`. Without it, or with another hash, it stops 1,
+    the entry and its halt kept and nothing requested:
+    `rejoin: halted — the brief adds rows the queue does not hold: <package> <constraint>, …; the person's yes: conduct.py rejoin <id> --yes <hash>`,
+    every new row in order and the hash written out.
+  - **`--yes` on any other rejoin** — no id, or one naming no queued cut — stops 2:
+    `rejoin: cannot run — --yes answers a queued cut's packages`.
+  - **The parser** gives `rejoin` an optional `--yes`, metavar `hash`; the module docstring's usage line reads
+    `conduct.py rejoin [<change-id>] [--yes <hash>]`, and `rejoin`'s docstring says the queued rows are kept and a new one
+    taken only with the hash.
+- **`mf-ship`'s rows**: the `rejoin` command row of `skills/mf-ship/SKILL.md` gains "`rejoin <change-id>` naming a queued cut
+  keeps its queued packages; a brief row the queue does not hold exits 1 naming each row and
+  `conduct.py rejoin <change-id> --yes <hash>`, the person's yes to those rows, which queues them; `--yes` on any other
+  rejoin exits 2"; the `cut-halted` row reads as [D5](#d5) quotes it.
 - **`CUT_KEYS` stands**: an entry queued before this change reads `entry.get("dependencies", [])`, so it approves nothing.
-- **C2, decided by the cutter.** The rejoin copies again because a re-plan's approval reaches the queue no other way, and the
-  rejoin, like `cut`, is the person's act after the person's re-plan ([D8](#d8)).
+- **C2, the person's decision on S1 (2026-11-07), option (a).** A rejoin keeps the queue entry's already-queued rows, and
+  takes a row it does not already hold only when given `--yes <hash>` of the new rows set, as `/mf-ship approve-gate` records
+  the person's yes to an exact diff's hash; without it, a rejoin whose brief adds or widens a row halts naming the rows and
+  the exact `conduct.py rejoin <id> --yes <hash>` command. A worker cannot forge the hash: the person runs the command. Why:
+  security S1 — a rejoin after a disk fix, with no re-plan, as `mf-ship`'s `cut-halted` row prescribes, would otherwise queue
+  a row a prompt-injected cutter planted in the brief, so the cutter's first answer, a rejoin copying the rows again
+  unconditionally, goes. Rejected: copying only on a rejoin after a plan-answered halt; recording the disk-fix route as an
+  accepted risk ([D8](#d8)).
 
 ### D4
 
@@ -201,8 +223,10 @@ def _cut_answer(change: str, brief: str) -> str:
   answered by that id's.
 - **`mf-ship`'s `cut-halted` row** gains: "A line ending `· needs <change-id> its brief answered (…), then conduct.py rejoin
   <change-id>` names the command: a cutter's doubt, or a package the queued rows do not approve. A package is answered in
-  the re-plan — its row approved in `## Dependencies`, and the rejoin copies the rows again and checks the branch — or
-  dropped, the branch and its worktree removed before the rejoin."
+  the re-plan — its row approved in `## Dependencies`, then `conduct.py rejoin <change-id>`, which halts naming the row and
+  `conduct.py rejoin <change-id> --yes <hash>`; the person runs that, the row is queued and the branch checked — or
+  dropped, the branch and its worktree removed before the rejoin." The clause from "then `conduct.py rejoin`" is the
+  person's decision on S1 ([D3](#d3)'s C2), built in phase 6.
 
 ### D6
 
@@ -254,31 +278,37 @@ cutter and halts at [D4](#d4).
 > ### D62 · A queued cut's packages are approved at the plan
 >
 > **A hard brief's `## Dependencies` holds a row per package the person approved in a round — item, package, constraint,
-> why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut copies
-> them again; the cut station halts a cut whose `design.md` lists a package or constraint outside them, and never reads the
+> why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut keeps
+> them, taking a row they lack only with the person's `--yes <hash>` of the new rows; the cut station halts a cut whose `design.md` lists a package or constraint outside them, and never reads the
 > brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
 > queue holds.**
 >
 > - **Why:** a queued cut halted on packages approved in chat, where no station reads, its halt naming no answer, and the
 >   planning thread then cut the queued id by hand.
-> - **Rejected:** approval read from the brief at cut time, which the cutter can edit · a nested line under the item ·
->   judging a looser constraint, which needs each ecosystem's version grammar.
+> - **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
+>   again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
+>   nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
 
 - **D38**: "an unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station))." → "an
   unattended cut halts there instead ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), save a `## Dependencies`
   whose rows its brief approves, which it commits and the run checks against its queued copy
   ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan))."
 - **D58**: "answered by a re-plan and `conduct.py rejoin <id>`." → "its line naming the answer: a re-plan and
-  `conduct.py rejoin <id>`, which copies the brief's approved packages again
+  `conduct.py rejoin <id>`, which keeps the queued packages and takes a new one only with the person's `--yes <hash>`
   ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan))."
+- **The person's decision on S1** amends D62 and D58 as quoted above, after phase 5 landed their first text: phase 6
+  rewrites "and a rejoin of a queued cut copies them again" in D62, adds its rejected clause, and rewrites "which copies the
+  brief's approved packages again" in D58.
 - **`THREAT_MODEL.md`**, *Entry points*: the brief bullet (`:49-50`) gains, after "rows back": ", through an edit rule for the
-  whole file. No package's approval is read from the brief after the person's act: `conduct.py cut`, and a `rejoin` after a
-  re-plan, copy the item's `## Dependencies` rows into the home queue, and the station compares the committed `design.md`
-  with that copy ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row
+  whole file. No package's approval is read from the brief after the person's act: `conduct.py cut` copies the item's
+  `## Dependencies` rows into the home queue, a `rejoin` keeps the queued rows and takes a row they lack only with
+  `--yes <hash>` of the new rows, a command the person runs, and the station compares the committed `design.md` with that
+  copy ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row
   a cutter plants reaches a later cut only through the person's re-plan, whose close shows each `## For the cut` item and
   `## Dependencies` row before the yes (`0082·S5`)." The cut-queue bullet's "which names the brief a cutter writes," → "which
   names the brief a cutter writes and holds the packages its cut may add," and "so no worker names that brief." → "so no
-  worker names that brief or widens that list."
+  worker names that brief or widens that list." The rejoin clause, "a `rejoin` keeps … a command the person runs", is the
+  person's decision on S1 ([D3](#d3)'s C2); phase 6 writes it in place of phase 5's "and a `rejoin` after a re-plan, copy".
 - **`docs/principles.md`**, *A new dependency halts for a person*: "approved at the cut." → "approved by a person: at the
   cut, or for a queued cut at the plan, the run checking it against the queued rows
   ([D62](decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan))."; its *Held by* gains, after "`mf-cut-change`
@@ -301,7 +331,7 @@ the repo has no browser layer.
 | `test_what_cannot_be_checked_exits_2` | its `odd` and `unclosed` briefs write their `Verify:` as a continuation of `_READY`'s Acceptance, five spaces in, so the grammar passes them and the span parse still exits 2 |
 | `test_parallel_cuts_reserve_apart_and_start_one_run` (`T:2439`) | the expected `entry` holds `"dependencies": []`; the claimed-run step's `alone` brief (`T:2549-2558`) holds a `## Dependencies` table with `d`'s rows `left-pad 1.3.0` and `right-pad ^2` and an `other` row, and `0006-d`'s expected entry gains `"dependencies": [["left-pad", "1.3.0"], ["right-pad", "^2"]]`; then a brief in a folder of its own whose `## Dependencies` is prose, queued with `refused`, exits 2 with D3's line and leaves `.minions/cuts/` as it was |
 | `test_a_queued_cut_is_cut_then_built` (`T:2769`) | `0005-p`, queued approving `left-pad 1.3.0` and `right-pad ^2`, mode `cut-packages`: `check — cut · pass`, released |
-| `test_a_cut_halt_is_shown_and_rejoin_cuts_again` (`T:2836`) | phase 2, right after the loop of checks (`T:2936-2950`), before the crash step: the loop gains `("0021-q", "cut-prose", <D4's prose line>)`; then `0020-p`, its own brief `packages.md` reading `# brief\n`, approving `left-pad 1.3.0` alone, mode `cut-packages`, halts `design.md adds what the brief did not approve: right-pad ^2`; a rejoin with `packages.md` removed, then holding a prose `## Dependencies`, exits 2 with D3's lines, the halt kept; `packages.md` then holds a `p` table of both rows, `rejoin 0020-p` copies both, and the next run checks the branch, passes and releases it; the later steps then find `0021-q` halted beside `0004-e` to `0007-x`, as they find those. Phase 4: the doubt and `right-pad` lines end D5's answer, `status` and `report` with them; the first run's last line holds ` · needs 0001-a its brief answered (/mf-plan 0001-a depth=hard brief=<brief> from=<brief>), then conduct.py rejoin 0001-a, 0002-b a fix`; the `0021-q` line holds no answer |
+| `test_a_cut_halt_is_shown_and_rejoin_cuts_again` (`T:2836`) | phase 2, right after the loop of checks (`T:2936-2950`), before the crash step: the loop gains `("0021-q", "cut-prose", <D4's prose line>)`; then `0020-p`, its own brief `packages.md` reading `# brief\n`, approving `left-pad 1.3.0` alone, mode `cut-packages`, halts `design.md adds what the brief did not approve: right-pad ^2`; a rejoin with `packages.md` removed, then holding a prose `## Dependencies`, exits 2 with D3's lines, the halt kept; `packages.md` then holds a `p` table of both rows: `rejoin 0020-p`, and then with a hash of 64 `0`s, exits 1 with D3's halt naming `right-pad ^2` and `conduct.py rejoin 0020-p --yes <hash>`, the entry's rows and halt kept; `rejoin 0020-p --yes <that hash>` queues `left-pad 1.3.0` then `right-pad ^2`, and a `rejoin` with `--yes` and no id exits 2 with D3's line; the next run checks the branch, passes and releases it; the later steps then find `0021-q` halted beside `0004-e` to `0007-x`, as they find those. Phase 4: the doubt and `right-pad` lines end D5's answer, `status` and `report` with them; the first run's last line holds ` · needs 0001-a its brief answered (/mf-plan 0001-a depth=hard brief=<brief> from=<brief>), then conduct.py rejoin 0001-a, 0002-b a fix`; the `0021-q` line holds no answer |
 
 `_queued` (`T:2743`) gains `dependencies: tuple[tuple[str, str], ...] = ()`, written as the entry's `"dependencies"` lists. `_cut`
 (`F:258`) gains mode `cut-packages`, committing `openspec/changes/<id>/design.md` that opens with a fenced example of
@@ -322,8 +352,9 @@ None.
 - **The printable rule refuses a tab in a decision row** → it names the line; a tab there was already a form the old rules
   folded one at a time.
 - **The heading rule refuses a prose line that reads `Decisions` alone** → it fails closed and names the line.
-- **The rejoin reads a brief the cutter could have edited** → the re-plan before it reads that brief and shows each row
-  before the yes; a row the person did not see stays the reach the threat model records ([D8](#d8)).
+- **The rejoin reads a brief the cutter could have edited** → it keeps the queued rows and takes a row they lack only with
+  the person's `--yes <hash>` of the new rows, which its halt names after showing each; a disk-fix rejoin with no re-plan
+  queues nothing new. The person's decision on S1, option (a) ([D3](#d3)'s C2, [D8](#d8)).
 - **A package halt on a branch that holds its change** is checked again, not cut again → the `mf-ship` row says to remove the
   branch for a package the person drops.
 - **The merge with 0088, 0089 and 0090** meets `B`, `cutting`, `_needs`, the `mf-ship` row and `THREAT_MODEL.md` through their
