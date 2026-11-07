@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Converge halts `amend needed` on an amend card — one whose **Fix** or `wontfix` note names the change's `tasks.md` or
   `design.md` — at Step 9, before the debt, instead of shipping a stale archive; the verify pass keeps its `wontfix`, and
-  the answered halt, both files clean, replays by rule in the catch-up round (change `0087-drift-amends`, phase 1).
+  the answered halt, both files clean, goes on in the catch-up round (change `0087-drift-amends`, phase 1).
 - The record: `mf-rescue` amends what an `amend needed` halt's cards name, an open drift card's **Fix** included; D15's
   drift line and D16's debt line name the amend card as the exception (change `0087-drift-amends`, phase 2).
 - The catch-up after an answered `amend needed` halt reads a rescue's amend, its `Rescue:` trailer, in one Step 7 round;

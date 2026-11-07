@@ -191,8 +191,9 @@ not `HEAD`:
                ▼
   merges and amends? ── no ─▶ round < 3 ? ── no ─▶ halt: revert the late commits, or re-converge from round 1
                │ yes, its own count  │ yes
-               ▼                     ▼
-  every merge replays? ── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
+               ▼                     │
+  every merge replays,               ▼
+  no Rescue: amend? ───── no ─▶ freeze <head>..HEAD ─▶ Step 7 verify ─┐
                │ yes                                                  │
                ▼                                                      ▼
   by rule: both files clean, no worker ─────────────────▶ Step 9 debt ─▶ Step 10 report   (no pickup)
