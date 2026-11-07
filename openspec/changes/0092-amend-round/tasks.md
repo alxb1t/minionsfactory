@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time, on 0088's, 0089's an
 ## Progress
 
 - [x] 1 — The amend round
-- [ ] 2 — The conductor and the metrics
+- [x] 2 — The conductor and the metrics
 - [ ] 3 — The record
 
 ## 1 — The amend round
@@ -38,39 +38,39 @@ Build the settled [design](design.md), one phase at a time, on 0088's, 0089's an
 
 ## 2 — The conductor and the metrics
 
-- [ ] 2.1 **HALT CHECK** `_answered` and `Run._amended_alone` in `skills/mf-ship/scripts/conduct.py` still read `_amendable`, as
+- [x] 2.1 **HALT CHECK** `_answered` and `Run._amended_alone` in `skills/mf-ship/scripts/conduct.py` still read `_amendable`, as
   the design's F4 reads them.
   Verify: `grep -c '_amendable(runs, change, halt)' skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 2.2 Add `_amends` above `_amended_only` in `skills/mf-ship/scripts/conduct.py`, and rewrite `_amended_only` through it, per
+- [x] 2.2 Add `_amends` above `_amended_only` in `skills/mf-ship/scripts/conduct.py`, and rewrite `_amended_only` through it, per
   [D2](design.md#d2).
   Verify: `grep -n '^def _amends(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.3 In `_answered` of `skills/mf-ship/scripts/conduct.py`, replace the `_amendable` and `_amended_only` test with
+- [x] 2.3 In `_answered` of `skills/mf-ship/scripts/conduct.py`, replace the `_amendable` and `_amended_only` test with
   [D2](design.md#d2)'s, and its docstring with D2's; edit `Run.advance`'s answered-halt comment, per D2.
   Verify: `grep -n 'if any(_amends(tree, change, halted)):' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.4 Have `_amendable` in `skills/mf-ship/scripts/conduct.py` read the `· amend` mark beside `· catch-up`, with its docstring,
+- [x] 2.4 Have `_amendable` in `skills/mf-ship/scripts/conduct.py` read the `· amend` mark beside `· catch-up`, with its docstring,
   per [D7](design.md#d7).
   Verify: `grep -n '_run_marked(runs, change, "amend")' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.5 Make the edits the design's fake table names to `_findings`, `_by_rule`, `_person_amends` and the converge branch of
+- [x] 2.5 Make the edits the design's fake table names to `_findings`, `_by_rule`, `_person_amends` and the converge branch of
   `tests/fake_worker.py`.
   Verify: `grep -n 'verify-fails' tests/fake_worker.py` prints a line.
-- [ ] 2.6 In `test_a_rescue_amends_at_amend_needed` of `tests/test_conduct.py`, assert the heading `## Run 2 — d · amend`, as the
+- [x] 2.6 In `test_a_rescue_amends_at_amend_needed` of `tests/test_conduct.py`, assert the heading `## Run 2 — d · amend`, as the
   design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue_amends_at_amend_needed` reports `1 passed`.
-- [ ] 2.7 Rename `test_a_fix_after_a_cap_halt_converges_afresh` in `tests/test_conduct.py` to
+- [x] 2.7 Rename `test_a_fix_after_a_cap_halt_converges_afresh` in `tests/test_conduct.py` to
   `test_a_fix_after_a_cap_halt_gets_one_round`, and edit it, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k fix_after_a_cap_halt_gets_one_round` reports `1 passed`.
-- [ ] 2.8 Edit the comments in `test_a_verify_halt_is_diagnosed_without_a_worker` and
+- [x] 2.8 Edit the comments in `test_a_verify_halt_is_diagnosed_without_a_worker` and
   `test_a_halt_before_round_1_runs_again_at_the_same_head` of `tests/test_conduct.py`, as the design's `## Tests` names them.
   Verify: `git grep -n converges_afresh -- tests` prints nothing.
-- [ ] 2.9 Rename `test_a_drift_amend_goes_on_by_rule` in `tests/test_conduct.py` to `test_a_drift_amend_answers_its_halt`.
+- [x] 2.9 Rename `test_a_drift_amend_goes_on_by_rule` in `tests/test_conduct.py` to `test_a_drift_amend_answers_its_halt`.
   Verify: `uv run pytest -q tests/test_conduct.py -k drift_amend_answers_its_halt` reports `1 passed`.
-- [ ] 2.10 Add `test_an_amend_past_the_judged_head_gets_one_round` to `tests/test_conduct.py`, as the design's `## Tests` names it.
+- [x] 2.10 Add `test_an_amend_past_the_judged_head_gets_one_round` to `tests/test_conduct.py`, as the design's `## Tests` names it.
   Verify: `uv run pytest -q tests/test_conduct.py -k amend_past_the_judged_head_gets_one_round` reports `1 passed`.
-- [ ] 2.11 Make [D7](design.md#d7)'s edits to `Version.rounds`, `Version.amends` and `METRICS` in `scripts/metrics/run.py`.
+- [x] 2.11 Make [D7](design.md#d7)'s edits to `Version.rounds`, `Version.amends` and `METRICS` in `scripts/metrics/run.py`.
   Verify: `grep -n '"amend-rounds": Version.amends' scripts/metrics/run.py` prints a line.
-- [ ] 2.12 Add [D7](design.md#d7)'s `amend-rounds` entry after `grants` in `metrics/catalogue.toml`.
+- [x] 2.12 Add [D7](design.md#d7)'s `amend-rounds` entry after `grants` in `metrics/catalogue.toml`.
   Verify: `grep -n 'id = "amend-rounds"' metrics/catalogue.toml` prints a line.
-- [ ] 2.13 Extend `_STATUS` and `expected` of `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the
+- [x] 2.13 Extend `_STATUS` and `expected` of `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the
   design's `## Tests` names them.
   Verify: `grep -n '"amend-rounds": 1,' tests/test_metric_scripts.py` prints a line.
 

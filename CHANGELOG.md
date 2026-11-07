@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-converge` answers a halt past its head with one catch-up run marked `· amend` over `<judged head>..HEAD`, in
   place of the `· amended` reopen from round 1; its amended `Verify:` lines run first, and no amend passes by rule
   (change `0092-amend-round`, phase 1).
+- `conduct.py` answers a converge halt past its head by any amend of the change directory among the commits after it,
+  as the skill does; `_amendable` reads the `· amend` mark, and the new `amend-rounds` metric counts amend runs, which
+  `converge-rounds` skips (change `0092-amend-round`, phase 2).
 
 ## [0.73.0] - 2026-11-07
 
