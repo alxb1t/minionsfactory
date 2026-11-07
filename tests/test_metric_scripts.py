@@ -62,7 +62,14 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
 
     assert reading_set.words(tmp_path, "shared") == 9
     assert reading_set.words(tmp_path, "converge") == 16
+    # A decisions file with no `### D` heading counts whole in the worker's index.
     assert reading_set.words(tmp_path, "worker") == 13
+
+    # A worker reads the decisions' index, its `### D` lines, not the whole file.
+    _write(tmp_path, {"docs/decisions.md": "### D1 · six\nbody words"})
+    assert reading_set.words(tmp_path, "shared") == 14
+    assert reading_set.words(tmp_path, "converge") == 21
+    assert reading_set.words(tmp_path, "worker") == 16
 
 
 def test_rule_ids_are_counted_once(tmp_path: Path) -> None:

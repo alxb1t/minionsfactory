@@ -163,6 +163,33 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     )
 
 
+def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
+    """Judge the head clean, commit a fix at `FAKE_FIX`, then judge it as Step 7 does.
+
+    Security takes the fix head by rule, `mode: by-rule`, when `surfaces.py` exits 0.
+    """
+    folder = _folder(primary, change)
+    start = _git(tree, "rev-parse", "HEAD")
+    _findings(primary, change, start)
+    _commit(tree, {os.environ["FAKE_FIX"]: "fixed\n"}, "fix")
+    end = _git(tree, "rev-parse", "HEAD")
+    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
+    done = subprocess.run(
+        [sys.executable, str(script / "scripts" / "surfaces.py")]
+        + [str(folder / "security.md"), start, end],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+    )
+    # Read by its line, not its exit: a crash exits 1 too.
+    said = done.stdout.split(" — ")[0].strip()
+    mode = {"surfaces: no surface": "by-rule", "surfaces: verify": "parallel"}[said]
+    _findings(primary, change, end, round=2)
+    security = folder / "security.md"
+    text = security.read_text().replace("round: 2\n", f"round: 2\nmode: {mode}\n")
+    security.write_text(text)
+
+
 def _integrate(
     tree: Path, message: str, modes: set[str], settled: Path | None = None
 ) -> None:
@@ -502,6 +529,9 @@ def _fake(prompt: str) -> None:
                 "# t\n\n## Run 1 — d\n"
                 f"10:00:00 · round 1 · halt — {reason} · head {head}\n"
             )
+            return
+        if "fix-surfaces" in modes:
+            _fix_surfaces(here, primary, str(change))
             return
         if "by-rule" in modes and (lines := _by_rule(here, folder)):
             _write_by_rule(folder, head, lines)

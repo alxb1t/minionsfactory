@@ -17,6 +17,9 @@ context.**
 
 **Before designing, building or reviewing — the cut, build and converge — also read [the threat model](THREAT_MODEL.md).**
 
+**A converge worker reads, of the decisions, those its change cites, in full, and an index of all — its `bundle.md` — in
+place of the whole page.**
+
 - **A patch** (`vX.Y.Z`) fixes what the line already does — debt cards, a rule that misstates the behaviour, a
   defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.
 
