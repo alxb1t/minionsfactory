@@ -3602,6 +3602,16 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
     assert code == 1 and old.is_file() and not new.exists() and held.is_file()
     assert "run · halt — .minions/debt.lock is a file, not a lock" in text
     assert text.count(moved) == 2
+
+    # A link at the debt lock halts as a file too, its target folder kept.
+    held.unlink()
+    folder = tmp_path / "a-folder"
+    folder.mkdir()
+    held.symlink_to(folder)
+    code, text = start()
+    assert code == 1 and old.is_file() and not new.exists() and held.is_symlink()
+    assert text.count("run · halt — .minions/debt.lock is a file, not a lock") == 2
+    assert folder.is_dir() and text.count(moved) == 2
     held.unlink()
     held.mkdir()
 

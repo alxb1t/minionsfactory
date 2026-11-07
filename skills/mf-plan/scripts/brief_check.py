@@ -30,7 +30,10 @@ CONDUCT = Path(__file__).resolve().parents[2] / "mf-ship" / "scripts" / "conduct
 AT = re.compile(r"At ([0-9a-f]{7,40}), (\d{4}-\d{2}-\d{2})\.")
 ITEM = re.compile(r"- |\d+\. |\| ")
 HEAD = re.compile(r"(\d+)\. (.*)")
+TOP = re.compile(r"(\d+)\. \S")
+NESTED = ("- models:", "- **Acceptance:**")
 MARKER = re.compile(r"(?:[-*+]|\d+[.)])(?:\s|$)|\|")
+MODELS_LINE = re.compile(r"(?:[-*+]|\d+[.)])\s+\W*models\W*:", re.IGNORECASE)
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 CHECKED = ("## Decisions", "## For the cut")
@@ -150,19 +153,26 @@ def models(number: str, text: str) -> list[str]:
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
-    A head is an item opening `<n>. `; its `- models:` item follows it. A line opening
-    a list marker or `| ` short of the last head's text column, or of four spaces
-    before any head, is a top-level item and opens a head.
+    A head is an item opening `<n>. ` and one space; its `- models:` item follows it.
+    A line opening a list marker or `| ` short of the last head's text column, or of
+    four spaces before any head, tabs read as 4, is a top-level item and opens a head.
+    Past a `10. ` head's three spaces, short of its text column, only the template's
+    `- models:` and `- **Acceptance:**` lines sit. A models line is written `- models:`,
+    once a head.
     """
     found: list[str] = []
-    column = 4
+    column = nested = 4
     for line in lines:
+        raw = line.lstrip()
         text = line.expandtabs(4).lstrip()
         at = len(line.expandtabs(4)) - len(text)
-        if (opened := HEAD.match(text)) and at < column:
-            column = at + len(opened[1]) + 2
-        elif MARKER.match(text) and at < column:
-            found.append(f"not a numbered item: `{line.rstrip()}`")
+        if MODELS_LINE.match(raw) and not raw.startswith("- models:"):
+            found.append(f"a models line not written `- models:`: `{line.rstrip()}`")
+        elif at < column and MARKER.match(text):
+            if opened := TOP.match(raw):
+                column, nested = at + len(opened[1]) + 2, at + 3
+            elif at < nested or not raw.startswith(NESTED):
+                found.append(f"not a numbered item: `{line.rstrip()}`")
     numbers: list[str] = []
     named: set[str] = set()
     for item in items(lines):
@@ -170,6 +180,8 @@ def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
             numbers.append(opened[1])
             found += head(opened[1], opened[2].split(" · "), slug)
         elif numbers and item.startswith("- models:"):
+            if numbers[-1] in named:
+                found.append(f"item {numbers[-1]} — more than one models line")
             named.add(numbers[-1])
             found += models(numbers[-1], item.removeprefix("- models:"))
     found += [

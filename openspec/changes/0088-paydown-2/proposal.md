@@ -31,8 +31,8 @@ are archived designs the shipped code contradicts, and the rest settled here are
 - **The archives** — the designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does
   (`0071·R7`, `0076·R2`, `0083·R4`, `0084·R4`, `0084·R6`, `0085·R12`).
 - **`THREAT_MODEL.md`** — *Known gaps* lists only cards still in the debt, and keeps each accepted route as its record.
-- **Settled closed** — `0049·R15`, `0064·S4`, `0049·S7` (stale or fixed) and `0049·S5`, `0050·R11`, `0052·S15` (accepted in the
-  threat model) leave the debt at this release.
+- **Settled closed** — `0049·R15`, `0049·S7` (stale or fixed) and `0049·S5`, `0050·R11`, `0052·S15`, `0064·S4` (accepted in the
+  threat model; `0064·S4`'s filter and merge-driver route is *Known gaps*' config-race line) leave the debt at this release.
 
 ## Capabilities
 

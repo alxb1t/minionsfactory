@@ -81,3 +81,21 @@ def test_a_log_out_of_shape_is_not_stamped(
         assert stamp.main([str(log), *argv]) == 2
         assert capsys.readouterr().out == f"stamp: cannot stamp — {said}"
         assert log.read_text() == text
+
+    # A worker can write the run directory: no stamp is written through a link.
+    note = tmp_path / "note.md"
+    note.write_text(_TITLE)
+    log.unlink()
+    log.symlink_to(note)
+    assert stamp.main([str(log), "--run", "2"]) == 2
+    assert capsys.readouterr().out == f"stamp: cannot stamp — {log} is a link\n"
+    assert note.read_text() == _TITLE
+    log.unlink()
+    log.write_text(_TITLE + _RUN_1)
+    staged = tmp_path / "status_log.md.tmp"
+    staged.mkdir()
+    assert stamp.main([str(log), "round 1 · x"]) == 2
+    assert capsys.readouterr().out == (
+        "stamp: cannot stamp — status_log.md.tmp could not be created\n"
+    )
+    assert log.read_text() == _TITLE + _RUN_1

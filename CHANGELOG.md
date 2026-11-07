@@ -10,12 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py`: a file at `.minions/debt.lock` halts the move as a file, not a lock; a kept-worktree re-cut names its
   remedy, as `mf-ship`'s `cut-halted` row now does; a request taken at a poll's bottom waits out the poll; an amend that
   answers a rescued halt drops the stale diagnosis (change `0088-paydown-2`, phase 1).
-- `brief_check.py` halts on a top-level `## For the cut` item, whatever its list marker or small indent, that does not
-  open `<n>. `, and on a head with a second `after:`, so
-  the close pastes no unchecked field into `conduct.py cut`; its why line cites a tracked design (change
-  `0088-paydown-2`, phase 2).
-- `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time; converge
-  writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`, phase 3).
+- `brief_check.py` halts on a top-level `## For the cut` item, whatever its list marker, indent, tab or extra space, that
+  does not open `<n>. ` and one space, on a models line not written `- models:` or a second one, and on a head with a
+  second `after:`, so the close pastes no unchecked field into `conduct.py cut`; a tenth item nested as the template
+  writes it passes; its why line cites a tracked design (change `0088-paydown-2`, phase 2).
+- `skills/mf-converge/scripts/stamp.py` writes each status-log event and run heading with the clock's time, refusing a
+  log that is a link; converge writes no time by hand, so a log's times show a dead run truly (change `0088-paydown-2`,
+  phase 3).
 - The archived designs of `0071`, `0076`, `0083`, `0084` and `0085`, and `0083`'s proposal, say what the code does;
   `THREAT_MODEL.md`'s *Known gaps* lists only cards still carded and keeps each accepted route as its record (change
   `0088-paydown-2`, phase 4).

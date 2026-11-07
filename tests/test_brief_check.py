@@ -76,6 +76,15 @@ def test_a_hard_brief_is_ready_for_the_cut(
         [sys.executable, str(_SCRIPT), str(brief)], capture_output=True, text=True
     )
     assert (done.returncode, done.stdout) == (0, "brief: ready for the cut\n")
+    # A tenth item, its lines nested three spaces in as the template writes them.
+    tenth = _READY + (
+        "10. **a-ten** · minor · after: none · debt: none · decide: recommended\n"
+        "   - models: build opus high · converge opus high · release opus high"
+        " · cut opus high\n"
+        "   - **Acceptance:** `make gate` passes\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, tenth))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
 def test_a_brief_out_of_shape_halts(
@@ -143,6 +152,45 @@ def test_a_brief_out_of_shape_halts(
         " `+ **z** · minor · after: none`",
         "brief: halt — ## For the cut: not a numbered item:"
         " `  2) **w** · minor · after: none`",
+    ]
+    # A tab or extra spaces after a head's number opens no `<n>. `; under a `10. `
+    # head, only the template's own lines sit three spaces in.
+    spaced = _READY + (
+        "2.\t**x;touch-p** · minor · after: a;touch-q\n"
+        "3.  **ok** · minor · after: none\n"
+        "    - models: build a b · converge a b · release a b · cut a b\n"
+        "   - **y;touch-p** · minor · after: a;touch-q\n"
+        "10. **ok** · minor · after: none\n"
+        "   - **z;touch-p** · minor · after: a;touch-q\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, spaced))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `2.\t**x;touch-p** · minor · after: a;touch-q`",
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `3.  **ok** · minor · after: none`",
+        "brief: halt — ## For the cut: not a numbered item:"
+        " `   - **z;touch-p** · minor · after: a;touch-q`",
+    ]
+    # A models line in another form, or a second one, halts.
+    twice = _READY + (
+        "2. **ok** · minor · after: none\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+        "   * models: build a b · converge a b · release a b · cut a b;c\n"
+        "   -\tmodels: build a b · converge a b · release a b · cut a b;c\n"
+        "   -  models: build a b · converge a b · release a b · cut a b;c\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, twice))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: a models line not written `- models:`:"
+        " `   * models: build a b · converge a b · release a b · cut a b;c`",
+        "brief: halt — ## For the cut: a models line not written `- models:`:"
+        " `   -\tmodels: build a b · converge a b · release a b · cut a b;c`",
+        "brief: halt — ## For the cut: a models line not written `- models:`:"
+        " `   -  models: build a b · converge a b · release a b · cut a b;c`",
+        "brief: halt — ## For the cut: item 2 — more than one models line",
     ]
 
 
