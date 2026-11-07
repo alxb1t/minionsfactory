@@ -402,7 +402,8 @@ Write the deferred work to `.minions/debt.md`, once, after the loop is clean.
 **Amend cards first**, before the lock. Take every non-blocking [amend card](references/worker.md#the-card) that is
 `wontfix`, or `open` and `drift`, and run its **Still true?** check: one the check shows gone is moot, as in item 2.
 Any left → halt `amend needed — <card ids>`, writing nothing to the debt. An amend card whose id an answered
-`amend needed` halt named, or whose qualified id already stands in the debt, goes on as every other card.
+`amend needed` halt logged since the newest `round 1 · start` line named, or whose qualified id
+already stands in the debt, goes on as every other card.
 
 **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`; it exists → wait 5 seconds and
 retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends, written or halted. An old

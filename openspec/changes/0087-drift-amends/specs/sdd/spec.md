@@ -29,8 +29,9 @@ Step 7's verify round SHALL run `gate_check.py` as Step 1.6 does, after the gate
 
 `skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
 shows the defect, to one file, `.minions/debt.md`, under a heading for its change — save an amend card that halts, as *The
-converge fixer leaves the plan to the person* says; an amend card whose id an answered `amend needed` halt named, or whose
-qualified id already stands in the debt, SHALL go on as every other card. After both verdicts are
+converge fixer leaves the plan to the person* says; an amend card whose id an answered `amend needed` halt logged
+since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
+other card. After both verdicts are
 clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
 sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
 round. It SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
@@ -51,9 +52,10 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 
 #### Scenario: An amend card after its amend
 - **WHEN** Step 9 finds an amend card whose **Still true?** check still shows the defect, and an answered `amend needed` halt
-  named its id, or its qualified id already stands in the debt
+  logged since the newest `round 1 · start` line named its id, or its qualified id already stands in the debt
 - **THEN** converge writes it to the debt unless its id is there already, and halts nothing
-- **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt named and the debt does not hold
+- **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt logged since the newest
+  `round 1 · start` line named and the debt does not hold
 - **THEN** it halts `amend needed — <its id>`
 
 ### Requirement: A converge halt answered by the person converges afresh

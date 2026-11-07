@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drift line and D16's debt line name the amend card as the exception (change `0087-drift-amends`, phase 2).
 - The catch-up after an answered `amend needed` halt reads a rescue's amend, its `Rescue:` trailer, in one Step 7 round;
   only the person's passes by rule, so review still reads what a rescue writes. An amend card goes on to the debt when an
-  answered halt named it or the debt holds it, so a later catch-up does not halt again (change `0087-drift-amends`, phase 3).
+  answered halt logged since the newest `round 1 · start` named it or the debt holds it, so a later catch-up does not halt
+  again (change `0087-drift-amends`, phase 3).
 
 ## [0.70.0] - 2026-11-06
 
