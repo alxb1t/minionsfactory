@@ -177,8 +177,9 @@ held == "integrating" ─▶ start = _opened(...) ─▶ spawn ─▶ _settled(.
 ```
 
 - **Taken.** It logs `supervise — <id>: decided · integrating · <tree7>`, clears the halts and `diagnosed`, appends the
-  version to `self.supervisor_decided`, and adds it to `self.settled: set[str]`, a new field of `Run.__init__` beside
-  `self.supervisions`. It returns True.
+  version to `self.supervisor_decided`, and records `self.settled[change] = sha` in `self.settled: dict[str, str]`, a new
+  field of `Run.__init__` beside `self.supervisions`, keyed by change to the tree `_settled` took: the tree integrate must
+  commit. It returns True.
 - **Not taken.** No answer halts `supervisor settled nothing`; a refusal halts with its reason.
 - **Held.** `before`, which `hold()` gets in the `finally`, is `start.head`. A refusal that left the note standing reads
   `integrating` there, in `HALTS`, so `hold()` returns False.
@@ -191,14 +192,18 @@ at `integrate`, and the one under `self.merging` spawns it. `PROMPTS["integrate"
 
 ```python
 with self.guard:
-    settled = " with settled=supervisor" if version.change in self.settled else ""
-    self.settled.discard(version.change)
+    staged = self.settled.pop(version.change, None)
+settled = "" if staged is None else " with settled=supervisor"
 prompt = PROMPTS[stage].format(change=version.change, grant=clause, settled=settled)
 ```
 
-Every other template ignores `settled`. The integrate check then judges the commit as any integrate's; a red gate halts
-`integrating` on `red gate: …`, which D2 gives no supervisor. `advance`'s docstring gains "A supervisor's taken settle goes
-on to integrate." and `Why: 0090-supervisor-merge design D4`.
+Every other template ignores `settled`. The integrate check reads the commit first, as for every integrate; a red gate halts
+`integrating` on `red gate: …`, which D2 gives no supervisor. Once that check passes on a staged settle,
+`_settle_kept(tree, staged) -> str | None`, beside `_settled`, reads the newest first-parent merge in the version's tree,
+the one `_check_integrate` reads, and halts `the merge holds <paths, sorted, space-joined> past the supervisor's settle`
+when that merge's tree differs from `staged` by a path its body does not name `<path>: test fixed`: `_settled` checks the
+index once, before integrate commits it. `advance`'s docstring gains "A supervisor's taken settle goes on to integrate,
+whose merge must hold the settled tree." and `Why: 0090-supervisor-merge design D4`.
 
 ### D5
 
@@ -256,12 +261,14 @@ rules do not rebuild, and on a requirement `delta` names.
   and its Rejected gains " · the supervisor committing the merge, which stays integrate's".
 - **`THREAT_MODEL.md`**: the *Entry points* cut-queue bullet, after "so no worker names that brief.", gains "A passed cut's
   brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and `supervised/<id>` names the open merge a supervisor
-  tried, so no worker buys a second try."; *Out of scope*, after the sentence 0089 ends "and a
+  tried, so no worker forges that record; a worker that moves the worktree's `MERGE_HEAD` reads as a new merge and gets it a
+  try, each meeting the same settle bound."; *Out of scope*, after the sentence 0089 ends "and a
   catch-up passes it by rule.", gains:
 
 > At an integrate note the supervisor stages spec and docs text the integrate station then commits, bounded by the index's
 > changed paths — Markdown under `openspec/` and `docs/` alone — the open merge and note left standing, and the
-> `integrate.settled` it writes; converge judges that merge by its remerge-diff, never by rule.
+> `integrate.settled` it writes; the run halts when integrate's merge holds a path past the checked tree but a test its
+> body names fixed, and converge judges that merge by its remerge-diff, never by rule.
 
 - **`skills/mf-ship/SKILL.md`**, Step 4: "An `integrating` halt is the person's: they settle the note," → "An `integrating`
   halt is the person's, save a note the version's supervisor settled under the switch, which `mf-integrate` commits in the
@@ -288,7 +295,10 @@ since its run must stay halted.
 | `test_a_queued_cut_is_cut_then_built` | extended | after the first run, `conduct["_queue"](root) / "briefs" / "0001-a"` reads `f"{brief}\n"` |
 | `test_a_cut_brief_reaches_the_supervisor` | fake run, then unit | a cut queued with `brief`, modes `cut-decides`, `halt-0001-a`, `rescue-diagnose`, `supervise-delta`: the calls are `probe`, `cut-change 0001-a`, `build 0001-a`, `rescue 0001-a with decide=recommended`, `supervise 0001-a with decide=recommended and brief=brief.md`, `build 0001-a`, `converge 0001-a`, `release 0001-a`; the run exits 0. Then `_supervise_prompt(root, "0001-a")` ends `with decide=recommended and brief=<brief>.`; with `brief` deleted, and for `0002-none`, which has no record, it ends `with decide=recommended.` |
 | `test_a_supervisor_settles_an_integrate_note` | fake run | `test_a_dependents_delta_halts_as_integrating`'s setup, `0002-marks`' models file `decide = "recommended"\n`, modes `rescue-diagnose`, `supervise-settle`: the `0002-marks` calls are `rescue 0002-marks with decide=recommended`, `supervise 0002-marks with decide=recommended`, `integrate 0002-marks with settled=supervisor`, `build 0002-marks`, `converge 0002-marks`, `release 0002-marks`; the log holds `run · supervise — 0002-marks: decided · integrating · <tree7>`, `<tree7>` the integrate merge commit's tree; that commit's body holds `sdd: First: the supervisor`; no `integrate.md` or `integrate.settled` stands; the last line ends `· run · done — released v0.1.0 v0.2.0 · supervised 0002-marks`; the run exits 0 |
-| `test_a_supervisor_settle_outside_the_text_halts` | fake run, then unit | the same setup, modes `rescue-diagnose`, `supervise-settle-code`: a `0002-marks` halt line ends `halt — supervisor touched src.py`; no line holds `run · supervise — `; `MERGE_HEAD` verifies and the note stands; the run exits 1. A second run's `0002-marks` calls are `rescue 0002-marks with decide=recommended` alone, and it exits 1. Then `_merge_tried(root, "0002-marks", <MERGE_HEAD>)` is True, and with another sha False. Then `_settled` on a hand-made conflicted merge of `docs/a.md`, its note written, after `start = _opened(...)`: nothing done gives `(None, "")`; the mark alone gives `supervisor left docs/a.md unmerged`; `docs/a.md` resolved and added with the mark gives `git write-tree`'s sha; `src.py` added gives `supervisor touched src.py`; `docs/a.md` edited after its add gives `supervisor left unstaged docs/a.md`; the note removed gives `supervisor removed .minions/changes/<id>/integrate.md`; `git merge --abort` gives `supervisor closed the merge`; a commit gives `supervisor moved HEAD off <head7>`. Each case starts from its own fresh conflicted merge, built by one helper in the test, so no case leans on another's edits (`T3`) |
+| `test_a_supervisor_settle_outside_the_text_halts` | fake run, then unit | the same setup, modes `rescue-diagnose`, `supervise-settle-code`: a `0002-marks` halt line ends `halt — supervisor touched src.py`; no line holds `run · supervise — `; `MERGE_HEAD` verifies and the note stands; the run exits 1. A second run's `0002-marks` calls are `rescue 0002-marks with decide=recommended` alone, and it exits 1. Then `_merge_tried(root, "0002-marks", <MERGE_HEAD>)` is True, and with another sha False. Then `_settled` on a hand-made conflicted merge of `docs/a.md`, its note written, after `start = _opened(...)`: nothing done gives `(None, "")`; the mark alone gives `supervisor left docs/a.md unmerged`; `docs/a.md` resolved and added with the mark gives `git write-tree`'s sha; `src.py` added gives `supervisor touched src.py`; `docs/a.md` edited after its add gives `supervisor left unstaged docs/a.md`; the note removed gives `supervisor removed .minions/changes/<id>/integrate.md`; `git merge --abort` gives `supervisor closed the merge`; a commit gives `supervisor moved HEAD off <head7>`. Then
+`_settle_kept` on a merge committed over a settle `_settled` took: nothing added, its body `docs/a.md: the supervisor`, gives
+None; `src.py` added gives `the merge holds src.py past the supervisor's settle`; `tests/test_a.py` added, its body
+`tests/test_a.py: test fixed — kept`, gives None. Each case starts from its own fresh conflicted merge, built by one helper in the test, so no case leans on another's edits (`T3`) |
 
 The fake gains:
 
