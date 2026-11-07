@@ -35,6 +35,7 @@ hunks both sides only add, and judgement is the person's.
 | parameter | required | form |
 |---|---|---|
 | `change-id` | no | the version to merge; `mf-ship` and every hand-over name it |
+| `settled` | no | `settled=supervisor` — given by `conduct.py` alone, when the version's supervisor settled its note |
 
 The current directory is the **primary**, the checkout on the default branch.
 
@@ -87,7 +88,7 @@ Then, in the worktree:
 
 | `git -C <worktree> rev-parse -q --verify MERGE_HEAD` | and | then |
 |---|---|---|
-| succeeds | `.minions/changes/<change-id>/integrate.md` exists | **a resumed run**: the person settled the note. Go to Step 3.4 |
+| succeeds | `.minions/changes/<change-id>/integrate.md` exists | **a resumed run**: the person settled the note, or under `settled=supervisor` the supervisor did. Go to Step 3.4 |
 | succeeds | no note — an `integrate.resolved` is not one | an interrupted run: Step 3.2 |
 | fails | `integrate.red` names `HEAD` | **halt**, copying `integrate.red` |
 | fails | `integrate.red` names another commit, and `git merge-base --is-ancestor <default-branch> <branch>` exits 0 | the person fixed or amended the committed merge: Step 4.4 |
@@ -98,8 +99,8 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
 
 ## Step 3 — Merge and apply the rules
 
-1. **Merge, uncommitted:** delete a `.minions/changes/<change-id>/integrate.resolved` an aborted merge left, and an
-   `integrate.red` an earlier merge's red gate left, then
+1. **Merge, uncommitted:** delete a `.minions/changes/<change-id>/integrate.resolved` an aborted merge left, an
+   `integrate.red` an earlier merge's red gate left, and a stale `integrate.settled`, then
    `git -C <worktree> merge --no-ff --no-commit <default-branch>`. A conflict is not a failure here; the rules come
    next.
 2. **Apply the rules**, each run even when one before it exits 1, in this order — `decisions` renumbers the
@@ -167,6 +168,7 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered — by `conduct.py`'s run of it too, when that moved the plan's ids |
    | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/changes/<change-id>/integrate.resolved` holds |
    | `<path>: the person` | each path the note named, after a note halt |
+   | `<path>: the supervisor` | each path the note named, after a note the supervisor settled (`settled=supervisor`); none is then `the person` |
    | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 or item 4 fixed |
 
        chore(integrate): merge <default-branch> into <branch>
@@ -190,8 +192,8 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    other red → **halt**
    with the merge committed: write `.minions/changes/<change-id>/integrate.red` holding `gate red`, the date and
    `head: <the full sha the gate judged>`, from `git -C <worktree> rev-parse HEAD`; never weaken the gate to pass.
-5. Green → delete `.minions/changes/<change-id>/integrate.md`, `integrate.red` and `integrate.resolved` when they
-   exist: the merge settled it.
+5. Green → delete `.minions/changes/<change-id>/integrate.md`, `integrate.red`, `integrate.resolved` and
+   `integrate.settled` when they exist: the merge settled it.
 
 ## Step 5 — Report
 
