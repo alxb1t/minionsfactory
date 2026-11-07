@@ -23,10 +23,12 @@ plan, so it is caught there.
 ## What Changes
 
 - **`skills/mf-plan/scripts/brief_check.py <brief>`** — exit 1 on a title that is not `hard`, no `At <sha>, <date>.` line,
-  an empty `## For the cut`, or an Acceptance or `Verify:` command that breaks `verify_check.py`'s shell rules.
+  an empty `## For the cut`, an Acceptance or `Verify:` command that breaks `verify_check.py`'s shell rules, or an item whose
+  slug, bump, `after` or models line is out of shape.
 - **`mf-plan`'s close** — `## For the cut` names per change its slug, bump, `after`, `debt`, `decide: recommended` and the
-  models of the build, converge, release and the cut station; `brief_check.py` must pass; then "confirm, and queue it?" —
-  yes, or `then=ship` given up front, runs `conduct.py cut` per change in order; no ends on today's `Next:` line.
+  models of the build, converge, release and the cut station; `brief_check.py` must pass; the close shows the items and
+  `conduct.py status`, then asks "confirm, and queue it?" — yes, or `then=ship` given up front, runs `conduct.py cut` per
+  change in order and reaches every merge and push in the run; no ends on one `Next: /mf-cut-change` line per change.
 - **Its role and *Never*** — the plan queues a cut on the person's yes; it still never cuts.
 - **The record** — a new decision for the plan's close.
 

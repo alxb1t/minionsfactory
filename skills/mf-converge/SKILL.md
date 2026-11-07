@@ -61,12 +61,13 @@ Never ask for a gate, and never substitute a command that looks like it tests th
 top. Only you write it — each dispatch, return and decision. It is not a findings file:
 `mf-release` never reads it, and the rule against editing a findings file does not cover it.
 
-- **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Take the time from `date '+%H:%M:%S'`,
-  run through Bash, never by hand: a stale time is how a dead run shows.
+- **An event** is one line: `HH:MM:SS · round N · <event> — <detail>`. Write it with
+  `uv run --script <this package>/scripts/stamp.py .minions/changes/<change-id>/status_log.md '<round N · event — detail>'`,
+  which takes the clock's time; never write a time by hand: a stale time is how a dead run shows.
 - **A run** is one invocation, and any that [resume](#resuming-a-run) it. Open it once you have the change id and have checked for a catch-up round, so a
   catch-up run's heading ends `· catch-up`: `mkdir -p .minions/changes/<change-id>`, create the file with a
-  `# <change-id> — converge status` title if missing, and insert `## Run N — <date '+%Y-%m-%d %H:%M'>` directly
-  under the title.
+  `# <change-id> — converge status` title if missing, and insert the heading with `stamp.py <log> --run N`,
+  `--mark <mark>` for a marked run.
 - **An old layout halts before the run opens.** A file of this change at one of its old paths, by exact name —
   `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
   `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
