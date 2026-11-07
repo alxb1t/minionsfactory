@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-11-07
+
+Gate: local 1m55s · CI not read under mf-ship · 0.70.1: local 1m55s · CI not read under mf-ship
+
 - Converge halts `amend needed` on an amend card — one whose **Fix** or `wontfix` note names the change's `tasks.md` or
   `design.md` — at Step 9, before the debt, instead of shipping a stale archive; the verify pass keeps its `wontfix`, and
   the answered halt, both files clean, goes on in the catch-up round (change `0087-drift-amends`, phase 1).

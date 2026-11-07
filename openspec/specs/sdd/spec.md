@@ -95,8 +95,9 @@ other shipped skill SHALL carry a `## The card` section.
 When converge ran, `skills/mf-release/SKILL.md` SHALL halt unless `HEAD` equals the `head:` of both findings files.
 `skills/mf-converge/SKILL.md` SHALL offer a **catch-up round**: when both findings files are clean and their `head:`
 is an ancestor of `HEAD` but not `HEAD`, it runs one verify round over `head..HEAD`, with no pickup, unless the
-selection is merges and amends only and every merge replays by the fixed rules, when the round is by rule and runs no worker.
-**Merges and amends** are merges, and the person's `docs(<id>): amend the change directory` commits touching only
+selection is merges and amends only, every merge replays by the fixed rules and no amend carries a `Rescue:` trailer, when
+the round is by rule and runs no worker.
+**Merges and amends** are merges, and the person's or the rescue's `docs(<id>): amend the change directory` commits touching only
 `openspec/changes/<id>/`. When the selection is merges and amends only, the run SHALL count its own rounds: one judge round and
 at most one fix round, then a halt, with `round:` carrying on past three. Any other selection SHALL count against the cap of three.
 When that range holds a merge of the default branch, the round SHALL judge the merge by its
@@ -109,7 +110,8 @@ When that range holds a merge of the default branch, the round SHALL judge the m
 #### Scenario: Converge catches up
 - **WHEN** both findings files are clean and their `head:` is an ancestor of `HEAD` but not `HEAD`
 - **THEN** `mf-converge` runs one verify round over `head..HEAD`, with no pickup
-- **AND WHEN** the selection is merges and amends only and every merge replays by the fixed rules
+- **AND WHEN** the selection is merges and amends only, every merge replays by the fixed rules and no amend carries a
+  `Rescue:` trailer
 - **THEN** the round is by rule: no freeze, no worker, no verify round, and no pickup
 
 #### Scenario: The catch-up round judges a merge-in by what the merge decided
@@ -127,8 +129,14 @@ When that range holds a merge of the default branch, the round SHALL judge the m
 - **WHEN** the last judged round is 3 and the selection is the integrate merge and the person's amend of the change directory
 - **THEN** `mf-converge` judges it as round 4, with no halt at the cap
 
+#### Scenario: A rescue's amend at round 3 has its own count
+- **WHEN** the last judged round is 3, Step 9 halted `amend needed`, and the selection is the rescue's amend of the change
+  directory, carrying its `Rescue:` trailer
+- **THEN** `mf-converge` judges it in one Step 7 round as round 4, with no halt at the cap and no round by rule
+
 #### Scenario: A late commit at the cap halts
-- **WHEN** the last judged round is 3 and the selection holds a commit that is neither a merge nor the person's amend
+- **WHEN** the last judged round is 3 and the selection holds a commit that is neither a merge nor the person's or the
+  rescue's amend
 - **THEN** `mf-converge` halts, naming the revert and the re-converge from round 1
 
 ### Requirement: Anchored harms block, and drift has its own tier
@@ -137,7 +145,8 @@ When that range holds a merge of the default branch, the round SHALL judge the m
 personal data or secrets, silent wrong output — and SHALL grade an anchored finding `blocking` in review and at least
 `high` in security, save a route in a class the threat model's *Out of scope* accepts by name, which is carded and does
 not block, anchors included. Review SHALL grade `blocking | drift | nit`, where `drift` is docs, comments, README or CHANGELOG
-text the code contradicts; `drift` SHALL NOT block. A spec scenario the code contradicts SHALL stay `blocking`.
+text the code contradicts; `drift` SHALL NOT block, save an amend card, on which converge halts at Step 9. A spec scenario the
+code contradicts SHALL stay `blocking`.
 
 #### Scenario: Converge and the method page name the anchors and the drift tier
 - **WHEN** review or security finds data loss or an irreversible delete, spend, exposure of personal data or
@@ -146,14 +155,12 @@ text the code contradicts; `drift` SHALL NOT block. A spec scenario the code con
 
 #### Scenario: Prose the code contradicts
 - **WHEN** review finds docs, comments, README or CHANGELOG text the code contradicts
-- **THEN** it grades the finding `drift`, which does not block
+- **THEN** it grades the finding `drift`, which does not block, save an amend card, on which converge halts at Step 9
 - **AND** a spec scenario the code contradicts stays `blocking`
 
 #### Scenario: A route in the accepted class
 - **WHEN** security finds a route in a class the threat model's *Out of scope* accepts by name, with an anchored harm
 - **THEN** it cards the route, and the card does not block
-- **AND WHEN** the route is in no accepted class
-- **THEN** the anchor blocks as before
 
 ### Requirement: A repeated finding escalates
 
@@ -2204,7 +2211,7 @@ run, which deletes it at its start and takes every open version.
 Every converge `halt` line SHALL end `· head <sha>`, the `HEAD` it halted at. A converge halt other than the debt lock's, or an older backlog lock's,
 SHALL be void when its head is both findings files' `head:` and `HEAD` is past it, a descendant that is not it: `conduct.py`'s
 stage SHALL be `converge`, and its converge check SHALL not read the old halt. A halt in a catch-up run whose findings files are
-both still clean, a Step 1.6 `verify: halt`, and a fix pass's `amend needed` halt SHALL also be void when `HEAD` is past its head and every commit since is the person's `docs(<id>): amend the
+both still clean, a Step 1.6 `verify: halt`, and a fix pass's or Step 9's `amend needed` halt SHALL also be void when `HEAD` is past its head and every commit since is the person's `docs(<id>): amend the
 change directory`, one parent each, touching only `openspec/changes/<id>/`. A **halt before round 1** — a halt other than a
 `verify: halt` in a run with no `start` line, not marked `· grant` — SHALL be void when `HEAD` is past its head, by any commit, and SHALL be re-run when
 `HEAD` is its head: `conduct.py`'s stage SHALL be `converge` in both, and it SHALL start no rescue for it. A run SHALL re-run a
@@ -2212,7 +2219,9 @@ version once at the same head: one that halts before round 1 again SHALL stay ou
 still halted. Any other halt naming no head, one past the judged head,
 and one whose head is no ancestor of `HEAD` SHALL stand. `skills/mf-converge/SKILL.md`, finding its newest run's top line a halt
 before round 1, SHALL open a plain new run, with no mark, as a fresh invocation does; finding a void
-catch-up halt with both files clean, it SHALL run the catch-up round again; finding any other void halt, it SHALL open a run marked `· amended`, and
+catch-up halt, or a void `amend needed` halt, with both files clean, it SHALL run the catch-up round again, opening no new round 1,
+and SHALL judge an amend there carrying a `Rescue:` trailer in one Step 7 round over its diff, passing only a trailer-less amend by rule;
+finding any other void halt, it SHALL open a run marked `· amended`, and
 converge from round 1 over the whole change, the findings files restarting at `round: 1`. A run marked `· grant` that resumes
 SHALL stay a granted round.
 
@@ -2247,6 +2256,12 @@ SHALL stay a granted round.
   change directory`
 - **THEN** its stage is `converge`, and the next run's catch-up round counts the merge and the amend as its own
 
+#### Scenario: The person's amend answers a drift halt
+- **WHEN** Step 9 halts `amend needed` with both findings files clean, and the person commits `docs(<id>): amend the change
+  directory`
+- **THEN** its stage is `converge`, and the next run is a catch-up round that passes the person's trailer-less amend by rule,
+  with no new round 1
+
 #### Scenario: A granted round resumes
 - **WHEN** a granted round dies after its `fix` line, and a re-run resumes it
 - **THEN** it verifies and ends with no pickup
@@ -2261,9 +2276,10 @@ run no hook and fetch no missing object.
 It SHALL exit 2, rebuilding nothing, for a commit without two parents or whose second parent the default branch does not hold.
 `skills/mf-converge/SKILL.md`'s catch-up round SHALL first run *Catch-up scope*'s ancestry and parent checks, halting when one
 fails, then run `replay` for each merge in its selection; when every merge replays and the selection holds nothing else but the
-person's amends, which Step 1's gate and `gate_check.py` judge, it SHALL write both findings files `head: HEAD` and `verdict: clean`
-with a `## By rule` section naming each merge's paths and each amend, log `round N · by rule — clean, <paths>`, dispatch no worker,
-and count the round within the merges-and-amends count. Any other selection SHALL take the catch-up round as before.
+person's amends, none carrying a `Rescue:` trailer, which Step 1's gate and `gate_check.py` judge, it SHALL write both findings
+files `head: HEAD` and `verdict: clean` with a `## By rule` section naming each merge's paths and each amend, log
+`round N · by rule — clean, <paths>`, dispatch no worker, and count the round within the merges-and-amends count. Any other
+selection, one holding the rescue's amend among them, SHALL take the catch-up round as before.
 
 #### Scenario: A changelog the rule settled
 - **WHEN** the integrate merge conflicted in `CHANGELOG.md` alone, settled by `integrate.py changelog`
@@ -2277,6 +2293,10 @@ and count the round within the merges-and-amends count. Any other selection SHAL
 #### Scenario: A merge and the person's amend
 - **WHEN** the selection is a merge that replays and the person's amend of the change directory, and Step 1 passes
 - **THEN** the catch-up writes both findings files clean with `## By rule`, naming the merge and the amend, and dispatches no worker
+
+#### Scenario: A merge and the rescue's amend
+- **WHEN** the selection is a merge that replays and the rescue's amend of the change directory, carrying its `Rescue:` trailer
+- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
 
 #### Scenario: A merge someone judged
 - **WHEN** the merge holds a hunk the integrator resolved as a union, a person's resolution, a test edited, or a requirement
@@ -2427,12 +2447,13 @@ the `[rescue]` table's executor and model, the `[build]` table's when there is n
 `.minions/changes/<id>/build.halt` on every halt — the sub-task, the stop condition, one line of evidence. `skills/mf-rescue/SKILL.md` SHALL
 fix a build halt on a `Verify:` that cannot pass, a reader a deletion missed, a task two readings would build differently, or an
 `Verify:` that is not one plain command — a `$(…)`, a shell variable, a loop or a `cd` — and a converge `amend needed` halt with the
-amend its `wontfix` cards name, with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
+amend its cards name — each `wontfix` card's, and each `open` `drift` card's **Fix** — with one `docs(<id>): amend the change directory` commit touching only `openspec/changes/<id>/tasks.md` and `design.md`,
 never `design.md`'s decisions table without the version's switch, carrying a `Rescue:` trailer; every other halt it SHALL diagnose in `.minions/changes/<id>/rescue.md`.
 An `amend needed` halt naming a security card of `critical` or `high` severity SHALL get a diagnosis alone, whatever the
 switch. The rescue SHALL be offered its amend whether the version halted in this run or before it, at the run's start.
 `conduct.py` SHALL halt the version when the commit touches any other path, and otherwise clear its halt and go on in the same run, an
-`amend needed` halt to a converge run marked `· amended`. A version whose
+`amend needed` halt to a converge run marked `· amended`, or to its catch-up round when both findings files are still clean, where one
+Step 7 round judges the rescue's amend. A version whose
 rescue at a converge or integrate halt leaves its stage on disk no halt SHALL stay halted for the run, a rejoin request taking it
 back none, the halt naming that stage and a moved `HEAD`: whatever answers the halt on disk while the rescue runs, or before
 the run reads its outcome, SHALL count as the rescue's answer and wait for a re-run — save the person's
@@ -2460,6 +2481,12 @@ descriptor opened without following a link.
 - **THEN** the rescue commits that amend, and the version converges again in the same run, in a run marked `· amended`
 - **AND WHEN** the card is a security card of `high` severity
 - **THEN** the rescue diagnoses, and the version stays halted
+
+#### Scenario: A rescue at a drift halt
+- **WHEN** converge's Step 9 halts `amend needed` on an `open` `drift` card whose **Fix** names a `design.md` amend, both findings
+  files clean, and the version's models file says `decide = "recommended"`
+- **THEN** the rescue commits that amend with its `Rescue:` trailer, and the version goes on in the same run through a catch-up
+  round whose one Step 7 round reads the amend, with no new round 1, and releases
 
 #### Scenario: An amend lands during a rescue
 - **WHEN** the person commits `docs(<id>): amend the change directory` while the rescue of its `amend needed` halt runs
@@ -2587,13 +2614,27 @@ count as cut-only.
 ### Requirement: The converge fixer leaves the plan to the person
 
 `skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md` or `design.md`. A card whose fix needs either SHALL be
-set `wontfix`, naming the amend the person commits, and the round SHALL halt `amend needed — <card ids>`; the person's amend answers
-that halt. Step 7's verify round SHALL
-run `gate_check.py` as Step 1.6 does, after the gate.
+set `wontfix`, naming the amend the person commits by the file's path: an **amend card**, as is any card whose **Fix** names the
+change's `tasks.md` or `design.md` by path. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
+pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds, and SHALL NOT turn it `accepted`. At Step 9,
+before the debt lock, every non-blocking amend card left `wontfix`, or `open` and `drift`, whose **Still true?** check still shows
+the defect, SHALL halt the run `amend needed — <card ids>`, writing nothing to the debt, save one *Converge keeps deferred work
+in one repository debt file* lets go on. The person's amend answers either halt.
+Step 7's verify round SHALL run `gate_check.py` as Step 1.6 does, after the gate.
 
 #### Scenario: A fix that needs a `Verify:` changed
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
 - **THEN** the fixer edits neither file, sets the card `wontfix` naming the amend, and the round halts `amend needed`
+
+#### Scenario: Drift that needs the design amended
+- **WHEN** the pickup round's fixer sets a `drift` card `wontfix`, naming an amend of the change's `design.md`
+- **THEN** the verify pass keeps it `wontfix`, and Step 9 halts `amend needed — <its id>`, writing no card to the debt
+- **AND WHEN** a `drift` card found after the pickup names the same amend in its **Fix**
+- **THEN** Step 9 halts on it too
+
+#### Scenario: An amend card the check shows gone
+- **WHEN** an amend card's **Still true?** check shows the defect gone at Step 9
+- **THEN** it is moot, and halts nothing
 
 ### Requirement: A verify halt is diagnosed by the run
 
@@ -2659,7 +2700,10 @@ zero. The cut's `diff-lines` and `diff-files` SHALL be the collector's station v
 ### Requirement: Converge keeps deferred work in one repository debt file
 
 `skills/mf-converge/SKILL.md` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
-shows the defect, to one file, `.minions/debt.md`, under a heading for its change. After both verdicts are
+shows the defect, to one file, `.minions/debt.md`, under a heading for its change — save an amend card that halts, as *The
+converge fixer leaves the plan to the person* says; an amend card whose id an answered `amend needed` halt logged
+since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
+other card. After both verdicts are
 clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
 sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
 round. It SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
@@ -2677,6 +2721,14 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 - **AND** it names each moot card, whose check shows the defect gone, in its report
 - **AND** it deletes an older card only when a verified repeat of it fixed the defect and its **Still true?**
   check shows the defect gone
+
+#### Scenario: An amend card after its amend
+- **WHEN** Step 9 finds an amend card whose **Still true?** check still shows the defect, and an answered `amend needed` halt
+  logged since the newest `round 1 · start` line named its id, or its qualified id already stands in the debt
+- **THEN** converge writes it to the debt unless its id is there already, and halts nothing
+- **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt logged since the newest
+  `round 1 · start` line named and the debt does not hold
+- **THEN** it halts `amend needed — <its id>`
 
 ### Requirement: The release does not read the debt
 
