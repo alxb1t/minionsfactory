@@ -119,7 +119,9 @@ Converge runs MF's method. A closed lid sleeps the Mac whatever the run holds, u
 `.minions/runs/<stamp>.md`; and the command to follow it, `tail -f .minions/runs/<stamp>.md`. A halt is reported
 in full. An `integrating` halt is the person's, save a note the version's supervisor settled under the switch, which
 `mf-integrate` commits in the run, `<change-id> · supervised integrating · <tree>` in `report`: they settle the note,
-then `/mf-integrate <change-id>` commits the merge;
+then `/mf-integrate <change-id>` commits the merge, every staged path with it — after a refused settle, first undo what
+its halt names: `git restore --staged <path>` and the file removed for a path the merge does not hold,
+`git checkout -m -- <path>` for a conflicted one;
 until then a run halts on it again. A red gate holds the committed merge: once the person's fix lands, the run
 integrates again. A halt naming a changed git config is the person's: read that file, and repoint
 `origin` if a worker moved it, before a re-run. A halt naming a secret in the push range — `the push range holds a
