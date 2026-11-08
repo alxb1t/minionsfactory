@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — Config isolation
-- [ ] 2 — JSON events
+- [x] 2 — JSON events
 - [ ] 3 — The swap window
 - [ ] 4 — The probe and the record
 
@@ -21,18 +21,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — JSON events
 
-- [ ] 2.1 Add `test_a_codex_log_reads_as_json`, then the Codex branches of `denials`, `usage_limit` and `mcp_started` in
+- [x] 2.1 Add `test_a_codex_log_reads_as_json`, then the Codex branches of `denials`, `usage_limit` and `mcp_started` in
   `skills/mf-ship/scripts/conduct.py`, and `mcp_started`'s docstring, per [D3](design.md#d3) and [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "codex_log_reads_as_json or usage_limit_is_named or probe_halts_on_a_write_out or carries_the_allowlist"` reports `4 passed`; `grep -n "as Codex's, passes" skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 2.2 Extend `test_a_station_runs_on_its_executor` to read the Codex converge log's spawn line, then write it in `Run.spawn`,
+- [x] 2.2 Extend `test_a_station_runs_on_its_executor` to read the Codex converge log's spawn line, then write it in `Run.spawn`,
   per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k station_runs_on_its_executor` reports `1 passed`; `grep -n '"mf.spawn"' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.3 Add `skills/mf-review-metrics/prices.toml`, its `[models]` table empty under the comment, per [D6](design.md#d6).
+- [x] 2.3 Add `skills/mf-review-metrics/prices.toml`, its `[models]` table empty under the comment, per [D6](design.md#d6).
   Verify: `grep -n '^\[models\]$' skills/mf-review-metrics/prices.toml` prints a line.
-- [ ] 2.4 Extend `test_run_metrics_read_cost_and_review_yield` with a priced Codex converge log and one whose model has no row,
+- [x] 2.4 Extend `test_run_metrics_read_cost_and_review_yield` with a priced Codex converge log and one whose model has no row,
   then `PRICES`, `_spent` and `Version.spent` in `scripts/metrics/run.py` and the `prices` path of `_reader`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k cost_and_review_yield` reports `1 passed`; `grep -n '^PRICES = ' scripts/metrics/run.py` prints a line.
-- [ ] 2.5 Extend `test_run_logs_give_cost_turns_and_tokens_per_station` with a priced Codex cell and a gap, then `PRICES`,
+- [x] 2.5 Extend `test_run_logs_give_cost_turns_and_tokens_per_station` with a priced Codex cell and a gap, then `PRICES`,
   `_results` and `_spent` in `skills/mf-review-metrics/scripts/review_metrics.py`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k cost_turns_and_tokens_per_station` reports `1 passed`; `grep -n '^PRICES = ' skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
 

@@ -3922,6 +3922,13 @@ def test_a_station_runs_on_its_executor(
     # A worker on Codex is given no model: the Codex converge names none.
     converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
     assert converged and " and conformance=" not in converged[0]
+    # A Codex log opens with its spawn line; a Claude log carries none.
+    logs = minions / "changes" / "0001-todo" / "logs"
+    [converge] = logs.glob("*-converge.log")
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": None, "effort": None}
+    assert json.loads(converge.read_text().splitlines()[0]) == spawn
+    [build] = logs.glob("*-build.log")
+    assert "mf.spawn" not in build.read_text()
 
     other = tmp_path / "other"
     other.mkdir()
@@ -7756,6 +7763,56 @@ def test_a_usage_limit_is_named(
         )
         for line in _log(root)
     )
+
+
+def test_a_codex_log_reads_as_json(tmp_path: Path) -> None:
+    conduct = _conduct()
+    log = tmp_path / "codex.log"
+
+    def events(*lines: object) -> Path:
+        started = {"type": "thread.started", "thread_id": "t"}
+        log.write_text("".join(json.dumps(e) + "\n" for e in (started, *lines)))
+        return log
+
+    def command(code: int, output: str) -> object:
+        item = {
+            "type": "command_execution",
+            "command": "rm -rf ~/x",
+            "aggregated_output": output,
+            "exit_code": code,
+            "status": "failed",
+        }
+        return {"type": "item.completed", "item": item}
+
+    refused = "rm: ~/x: Operation not permitted"
+    assert conduct["denials"](events(command(1, refused))) == ["Bash(rm -rf ~/x)"]
+    # Twin: a failed command the sandbox did not refuse, and a refusal text that
+    # exited 0, are no denials.
+    assert conduct["denials"](events(command(1, "rm: ~/x: No such file"))) == []
+    assert conduct["denials"](events(command(0, refused))) == []
+
+    limit = "You've hit your usage limit. Try again at 5:50 PM."
+    failed = {"type": "turn.failed", "error": {"message": limit}}
+    assert conduct["usage_limit"](events(failed)) == (
+        " · stopped by a usage limit · resets 5:50 PM"
+    )
+    error = {"type": "error", "message": "Usage limit reached; try again in 3 hours"}
+    assert conduct["usage_limit"](events(error)) == (
+        " · stopped by a usage limit · resets 3 hours"
+    )
+    bare = {"type": "turn.failed", "error": {"message": "You hit your usage limit"}}
+    assert conduct["usage_limit"](events(bare)) == " · stopped by a usage limit"
+    other = {"type": "turn.failed", "error": {"message": "stream disconnected"}}
+    assert conduct["usage_limit"](events(other)) == ""
+
+    call = {"type": "mcp_tool_call", "server": "pencil", "tool": "draw"}
+    mcp = [{"type": kind, "item": call} for kind in ("item.started", "item.completed")]
+    assert conduct["mcp_started"]("codex", events(*mcp)) == (
+        "codex started an MCP server: pencil"
+    )
+    usage = {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}
+    turn = {"type": "turn.completed", "usage": usage}
+    assert conduct["mcp_started"]("codex", events(command(1, refused), turn)) is None
 
 
 def test_run_refuses_without_worktrees_declared(

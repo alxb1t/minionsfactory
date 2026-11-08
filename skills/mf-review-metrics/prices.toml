@@ -1,0 +1,4 @@
+# US dollars per million tokens, by the model a Codex log's spawn line names.
+# A row: "<model>" = { input = <usd>, cached_input = <usd>, output = <usd> }
+# A model with no row is a cost gap naming it. Why: 0096-codex-ready design C1, D6.
+[models]

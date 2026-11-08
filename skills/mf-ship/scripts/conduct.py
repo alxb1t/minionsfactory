@@ -170,6 +170,8 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
+# The macOS sandbox's refusal, in a Codex command's output.
+CODEX_DENIAL = "Operation not permitted"
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -2871,17 +2873,46 @@ def _call(block: dict[str, object]) -> str:
     return f"{block.get('name')}({argument})"
 
 
+def _item(event: object, *kinds: str) -> dict[str, object]:
+    """Return a Codex event's item when the event is one of `kinds`, else {}."""
+    if not isinstance(event, dict) or event.get("type") not in kinds:
+        return {}
+    item = event.get("item")
+    return item if isinstance(item, dict) else {}
+
+
+def _codex_denied(item: dict[str, object]) -> str | None:
+    """Return a Codex command the sandbox refused as `Bash(<command>)`, else None.
+
+    Why: 0096-codex-ready design D3.
+    """
+    code = item.get("exit_code")
+    if (
+        item.get("type") == "command_execution"
+        and isinstance(code, int)
+        and code != 0
+        and CODEX_DENIAL in str(item.get("aggregated_output"))
+    ):
+        return f"Bash({item.get('command')})"
+    return None
+
+
 def denials(log: Path) -> list[str]:
-    """Return each tool use a worker's stream-json log shows denied."""
+    """Return each tool use a worker's stream-json or Codex JSON log shows denied."""
     uses: dict[str, str] = {}
     found: list[str] = []
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"tool_use"' not in line and '"is_error"' not in line:
+            if not any(
+                key in line for key in ('"tool_use"', '"is_error"', CODEX_DENIAL)
+            ):
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
+                continue
+            if denied := _codex_denied(_item(event, "item.completed")):
+                found.append(denied)
                 continue
             message = event.get("message") if isinstance(event, dict) else None
             content = message.get("content") if isinstance(message, dict) else None
@@ -2898,22 +2929,43 @@ def denials(log: Path) -> list[str]:
     return found
 
 
+def _codex_limit(event: dict[str, object]) -> str | None:
+    """Return a Codex failed turn's or error's message naming a usage limit, else None.
+
+    Why: 0096-codex-ready design D4.
+    """
+    error = event.get("error")
+    message = {
+        "turn.failed": error.get("message") if isinstance(error, dict) else None,
+        "error": event.get("message"),
+    }.get(str(event.get("type")))
+    if isinstance(message, str) and "usage limit" in message.lower():
+        return message
+    return None
+
+
 def usage_limit(log: Path) -> str:
     """Return ` · stopped by a usage limit · resets <time>`, or "" for any other exit.
 
-    e.g. a `result` event with `api_error_status: 429`, its text naming `resets 5:50pm`
+    e.g. a `result` event with `api_error_status: 429`, its text naming `resets 5:50pm`;
+    a Codex `turn.failed` whose message says `Try again at 5:50 PM.` → `resets 5:50 PM`
     """
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"api_error_status"' not in line:
+            if '"api_error_status"' not in line and "usage limit" not in line.lower():
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
                 continue
+            if not isinstance(event, dict):
+                continue
+            if message := _codex_limit(event):
+                resets = re.search(r"try again (?:at|in) ([^.]+)", message, re.I)
+                named = f" · resets {resets[1].strip()}" if resets else ""
+                return f" · stopped by a usage limit{named}"
             if (
-                isinstance(event, dict)
-                and event.get("type") == "result"
+                event.get("type") == "result"
                 and event.get("is_error")
                 and event.get("api_error_status") == 429
             ):
@@ -2927,16 +2979,21 @@ def mcp_started(executor: str, log: Path) -> str | None:
     """Return why a worker's start fails the probe, or None when no MCP server started.
 
     e.g. an `init` event's `"mcp_servers": [{"name": "runpod"}]` → "claude started an
-    MCP server: runpod". A log with no `init` event, as Codex's, passes. Why: D51.
+    MCP server: runpod"; a Codex `mcp_tool_call` item names its `server`.
+    Why: D51; 0096-codex-ready design D3.
     """
     names: list[str] = []
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"mcp_servers"' not in line:
+            if '"mcp_servers"' not in line and '"mcp_tool_call"' not in line:
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
+                continue
+            item = _item(event, "item.started", "item.completed")
+            if item.get("type") == "mcp_tool_call":
+                names.append(str(item.get("server")))
                 continue
             if not isinstance(event, dict) or event.get("subtype") != "init":
                 continue
@@ -2944,7 +3001,8 @@ def mcp_started(executor: str, log: Path) -> str | None:
             for server in servers if isinstance(servers, list) else [servers]:
                 name = server.get("name") if isinstance(server, dict) else server
                 names.append(str(name))
-    return f"{executor} started an MCP server: {', '.join(names)}" if names else None
+    shown = ", ".join(dict.fromkeys(names))
+    return f"{executor} started an MCP server: {shown}" if names else None
 
 
 def _executor_missing(executor: str) -> bool:
@@ -3360,6 +3418,16 @@ class Run:
             out, sink = _free_log(self.primary / ".minions", parts, name)
         with self.guard:
             self.outs[who, station] = out
+        if executor == "codex":
+            # A Codex log names no model; a reader prices its tokens by this line.
+            # Why: 0096-codex-ready design D5.
+            line = {
+                "type": "mf.spawn",
+                "executor": executor,
+                "model": model,
+                "effort": effort,
+            }
+            os.write(sink, f"{json.dumps(line)}\n".encode())
         started = time.monotonic()
         code, killed = work(command, cwd, sink, self.runs / "active")
         seconds = round(time.monotonic() - started)

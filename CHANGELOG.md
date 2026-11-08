@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Codex worker starts with `--ignore-user-config` and `--json`, so the operator's Codex config — its MCP servers,
   plugins and model — sets nothing; `tests/fake_codex.py`, a fake `codex` on `PATH`, proves it (change
   `0096-codex-ready`, phase 1).
+- A Codex worker's JSON log reads as a Claude log does: its denials, usage limit and MCP calls, and a spawn line naming
+  its model; the run and review metrics price its tokens by the new, empty `skills/mf-review-metrics/prices.toml`, a
+  model with no row a cost gap (change `0096-codex-ready`, phase 2).
 
 ## [0.78.0] - 2026-11-08
 
