@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — Plan reviews
+- [x] 1 — Plan reviews
 - [ ] 2 — Helpers and notes
 - [ ] 3 — The pickup check
 - [ ] 4 — The bundle
@@ -12,10 +12,10 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — Plan reviews
 
-- [ ] 1.1 **HALT CHECK** The base stands, `0100-worker-diet` merged: this `Verify:` alone; the
+- [x] 1.1 **HALT CHECK** The base stands, `0100-worker-diet` merged: this `Verify:` alone; the
   [Context](design.md#context)'s line numbers are `ed7298f`'s.
   Verify: `test -d openspec/changes/archive/0100-worker-diet` exits 0; `grep -n '^### D70 · A worker starts lean$' docs/decisions.md` prints a line; `grep -n -e '^## Step 8.5 — Plan review$' -e '^\*\*Helpers\.\*\* Where the host starts fresh workers' skills/mf-cut-change/SKILL.md` prints a line for each.
-- [ ] 1.2 Edit `## Step 8.5 — Plan review` of `skills/mf-cut-change/SKILL.md`: the packet, the budget, the review tree,
+- [x] 1.2 Edit `## Step 8.5 — Plan review` of `skills/mf-cut-change/SKILL.md`: the packet, the budget, the review tree,
   the table's second row and the sentence on each review, per [D1](design.md#d1), each new phrase on one line.
   Verify: `grep -n -e 'the \*\*review packet\*\*' -e 'budget reached' -e 'git write-tree' -e 'judging the diff since the first' -e 'only at a path or .path:line.' skills/mf-cut-change/SKILL.md` prints a line for each.
 

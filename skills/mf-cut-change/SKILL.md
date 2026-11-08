@@ -210,18 +210,27 @@ This self-check is a declared exception to *no station verifies its own work*. T
 ## Step 8.5 — Plan review
 
 A fresh read-only worker reads the plan before the commit: the host's subagent, on the session's model. Give
-it the change directory and `HEAD`'s sha, and one question: can each task be built as written, each `Verify:` pass
-after it, and each the search script did not run — a test, a command — fail before it, save a `**HALT CHECK**`,
-which should hold? A search's "before" is the script's, so the reviewer reads only its "after". It answers with
-doubts, each with its `path:line`.
+it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md` and one
+question: can each task be built as written, each `Verify:` pass after it, and each the search script did not run — a
+test, a command — fail before it, save a `**HALT CHECK**`, which should hold? It starts from the packet, opening
+another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the
+reviewer reads only its "after". It answers with doubts, each with its `path:line`.
+
+**The budget.** The prompt gives the reviewer 40 turns, which it counts as its tool calls: at the 40th it stops and
+returns its doubts so far, its first line `budget reached`. Take each as a doubt still standing after the second review.
 
 | review | runs | reviewer |
 |---|---|---|
 | **first** | always, after the self-check | a fresh worker |
-| **second** | only when a fix after the first — yours, the person's or the switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task | a fresh worker, never a message to the first |
+| **second** | only when a fix after the first — yours, the person's or the switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task | a fresh worker, never a message to the first, judging the diff since the first |
 
-Each review is a new worker given the change directory, `HEAD`'s sha and the question: a reviewer resumed by a message
-reads its own doubts as settled. A simple fix is not reviewed again.
+**The review tree.** Before the first review, run `git add openspec/changes/<change-id>/`, then `git write-tree`; the
+sha it prints is the review tree. Before a second, run the same `git add`; the second reviewer gets its packet and the
+review tree, runs `git diff --cached <review tree> -- openspec/changes/<change-id>/`, and judges that diff and the
+tasks it touches alone.
+
+Each review is a new worker given its packet: a reviewer resumed by a message reads its own doubts as settled. A simple
+fix is not reviewed again.
 
 | the doubt | do |
 |---|---|
