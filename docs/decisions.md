@@ -680,8 +680,9 @@ version's base, `conduct.py` merges that head into the version with no agent, wr
 `.minions/changes/<id>/stacked-on`, and the version builds. Built, it waits as `stacked`; once the dependency releases, the
 run merges the default branch in, removes `stacked-on`, and converge runs round 1. While `stacked-on` stands, the build's gate
 check and metrics, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
-change directory past that head that changes a decision resets the version to its cut commit; it stacks again on the
-dependency's next build.**
+change directory past that head that changes a decision resets the version to its cut commit, until the merge back, even
+once the dependency released; it stacks again on the dependency's next build, or, the dependency released, builds again on
+the default branch.**
 
 - **Why:** a dependent waited through its dependency's converge, about 45 minutes, which rarely changes the code it builds on.
 - **Accepts:** a dependent built on code its dependency's converge has not judged — it never converges or releases before

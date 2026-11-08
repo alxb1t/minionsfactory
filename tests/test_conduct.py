@@ -1136,6 +1136,7 @@ def test_a_stacked_dependent_resets_and_merges_back(
     _commit(first, noted, amend)
     assert not run.reset_stack(version)
     assert not run.reset_stack(conduct["Version"]("0002-marks", None))
+    assert not run.reset_stack(conduct["Version"]("0003-more", more))
     assert stacked_on.is_file()
     replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: patch\n---\n"}
     _commit(first, replanned, amend)
@@ -1205,6 +1206,34 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert (marks / "CHANGELOG.md").read_text() == (
         "# Changelog\n\n## [Unreleased]\n\n- x1\n\n## [0.1.0]\n\n- d1\n"
     )
+
+    # A re-plan its dependency released past it still resets it, before the merge back.
+    redo = _version(root, "0005-redo", "- [x] 1 — Redo\n")
+    _commit(redo, {"redo.txt": "x\n"}, "build: redo")
+    head = _git(redo, "rev-parse", "HEAD")
+    _done(root, "0005-redo", head)
+    race = _version(root, "0006-race", "- [ ] 1 — Race\n", after="0005-redo")
+    landed = "docs(0006-race): land the change directory"
+    _git(race, "commit", "-q", "--amend", "-m", landed)
+    race_cut = _git(race, "rev-parse", "HEAD")
+    racing = conduct["Version"]("0006-race", race)
+    assert run.ready(racing, {})
+    race_on = root / ".minions" / "changes" / "0006-race" / "stacked-on"
+    assert race_on.read_text() == f"{head}\n"
+    race_left = _git(race, "rev-parse", "HEAD")
+    redone = {"openspec/changes/0005-redo/proposal.md": "---\nbump: patch\n---\n"}
+    _commit(redo, redone, "docs(0005-redo): amend the change directory")
+    _git(redo, "mv", "openspec/changes/0005-redo", "openspec/changes/archive/0005-redo")
+    _commit(redo, {}, "chore(release): v0.2.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0005-redo'", "0005-redo")
+    assert run.ready(racing, {})
+    said = f"0005-redo re-planned past {head[:7]}: {race_left[:7]} → {race_cut[:7]}"
+    assert any(line.endswith(f" · 0006-race · reset — {said}") for line in _log(root))
+    assert not race_on.exists()
+    assert _git(race, "log", "-1", "--format=%s") == (
+        "chore(integrate): merge main into 0006-race"
+    )
+    assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
 def test_a_merge_in_renumbers_a_planned_decision(

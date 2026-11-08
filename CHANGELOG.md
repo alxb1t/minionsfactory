@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0099-stacked-builds`, phase 4).
 - `after-wait-minutes` closes a wait only with a later event of its own run, so the time between a stopped run and the
   next no longer counts as a dependency wait (change `0099-stacked-builds`, converge fix S2).
+- The reset holds past the dependency's release: a decision-changing amend the dependency made before releasing
+  resets the stacked dependent before the merge back, so it builds again on the default branch rather than on a
+  superseded decision (change `0099-stacked-builds`, phase 5).
 
 ## [0.81.0] - 2026-11-08
 

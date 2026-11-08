@@ -4555,8 +4555,9 @@ class Run:
 
         A version stacks on a dependency's built head while that dependency has not
         released, and builds on, waiting on no thread, once stacked. Once each
-        dependency released, the default branch is merged in and `stacked-on` goes.
-        Why: 0099-stacked-builds design D1, D3.
+        dependency released, a re-plan past the stacked-on head resets it, then the
+        default branch is merged in and `stacked-on` goes.
+        Why: 0099-stacked-builds design D1, D3, D6.
         """
         change, default = version.change, default_branch(self.primary)
         after, tree = _dependencies(self.primary, change), version.tree
@@ -4577,6 +4578,8 @@ class Run:
         if self.stopped(change):
             return False
         if not left:
+            if stacked:
+                self.reset_stack(version)
             if tree and not all(_shipped(tree, "HEAD", name) for name in after):
                 self.merge_in(tree, change, default)
             if tree and all(_shipped(tree, "HEAD", name) for name in after):
@@ -4761,8 +4764,9 @@ class Run:
         """Reset a stacked version whose dependency re-planned past it; True if so.
 
         A dependency whose branch left that head was itself reset, so a chain resets
-        with it. The version goes back to its cut commit, `stacked-on` removed.
-        Why: 0099-stacked-builds design D6.
+        with it. Released, the dependency is the one `after:` id whose kept branch
+        holds that head. The version goes back to its cut commit, `stacked-on`
+        removed. Why: 0099-stacked-builds design D6.
         """
         change, tree = version.change, version.tree
         if tree is None:
@@ -4770,15 +4774,25 @@ class Run:
         default = default_branch(self.primary)
         after = _dependencies(self.primary, change)
         unreleased = [n for n in after if not _shipped(self.primary, default, n)]
-        if len(unreleased) != 1:
+        if len(unreleased) > 1:
             return False
         if (head := _stacked_on(self.primary, change, tree, unreleased)) is None:
             return False
-        dependency = unreleased[0]
-        if not _replanned(self.primary, dependency, head) and _ancestor(
-            self.primary, head, f"refs/heads/{dependency}"
-        ):
-            return False
+        if unreleased:
+            dependency = unreleased[0]
+            if not _replanned(self.primary, dependency, head) and _ancestor(
+                self.primary, head, f"refs/heads/{dependency}"
+            ):
+                return False
+        else:
+            holders = [
+                name
+                for name in after
+                if _ancestor(self.primary, head, f"refs/heads/{name}")
+            ]
+            if len(holders) != 1 or not _replanned(self.primary, holders[0], head):
+                return False
+            dependency = holders[0]
         if (cut := _cut_commit(tree, change)) is None:
             raise Stop(1, f"conduct: halt — {change}: no cut commit to reset to")
         if changed := _config_changed(self.primary, self.git_state):

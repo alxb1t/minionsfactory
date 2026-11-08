@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The base
 - [x] 3 — The reset and the merge back
 - [x] 4 — The record
-- [ ] 5 — The reset past a release
+- [x] 5 — The reset past a release
 
 ## 1 — The stack
 
@@ -113,11 +113,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The reset past a release
 
-- [ ] 5.1 Extend `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py` with the `0005-redo` and
+- [x] 5.1 Extend `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py` with the `0005-redo` and
   `0006-race` step, as the design's `## Tests` row says.
   Verify: `grep -n '0006-race' tests/test_conduct.py` prints a line.
-- [ ] 5.2 Give `Run.reset_stack` its released read, and add its read in `ready` before the merge back, in
+- [x] 5.2 Give `Run.reset_stack` its released read, and add its read in `ready` before the merge back, in
   `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k resets_and_merges_back` reports `1 passed`.
-- [ ] 5.3 Edit D70's reset sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+- [x] 5.3 Edit D70's reset sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'once the dependency released; it stacks again on the dependency' docs/decisions.md` prints a line.
