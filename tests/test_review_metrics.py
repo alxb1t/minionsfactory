@@ -609,12 +609,13 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     prices = tmp_path / "prices.toml"
     prices.write_text(
         '[models]\n"gpt-5.5" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+        '"default" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
     )
     monkeypatch.setattr(review_metrics, "PRICES", prices)
     usage = {"input_tokens": 1_000_000, "cached_input_tokens": 400_000}
     turn = {"type": "turn.completed", "usage": usage | {"output_tokens": 100_000}}
 
-    def spawn(model: str) -> object:
+    def spawn(model: str | None) -> object:
         return {"type": "mf.spawn", "executor": "codex", "model": model, "effort": None}
 
     # A Codex log's turns are priced at its spawn line's model; a later spawn line
@@ -699,6 +700,14 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     _run_log(timed_out, "B.md", "11:00:00 · 0052-z · spawn — converge · model m")
     _, rows = review_metrics.cost_table([_record(timed_out, "0052-z")])
     assert rows[0][2] == "$0.25 · 1 turns · 4 tokens · 1 s · 1 of 2"
+
+    # A spawn line naming no model is a dollar gap, though a `default` row exists.
+    nameless = tmp_path / "nameless"
+    _findings(nameless, "0054-v_review.md", _front())
+    _worker_log(nameless, "0054-v", "A-converge.log", spawn(None), turn)
+    record = _record(nameless, "0054-v")
+    assert record["cost_converge"] is None
+    assert record["tokens_converge"] == 1_100_000
 
     # A field one read log lacks is the station's gap, never the other logs' sum.
     mixed = tmp_path / "mixed"

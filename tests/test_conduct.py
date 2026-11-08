@@ -8332,7 +8332,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
     assert exclude in codex
     assert codex[codex.index(exclude) - 1] == "-c"
-    # No `/tmp` root: a forged worktree entry there names no folder a worker made.
+    # No `/tmp` root; a Claude worker's temp folder can still hold a forged entry's
+    # folder, which Known gaps names.
     slash_tmp = "sandbox_workspace_write.exclude_slash_tmp=true"
     assert codex[codex.index(slash_tmp) - 1] == "-c"
     assert "sandbox_workspace_write.network_access=false" in codex

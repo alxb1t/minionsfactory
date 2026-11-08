@@ -2878,8 +2878,8 @@ def argv(
         # Codex makes `TMPDIR` a root, links resolved; a worker can link
         # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
         *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
-        # A forged worktree entry under `/tmp` names no folder a worker could make.
-        # Why: 0096-codex-ready design D7.
+        # No `/tmp` root; a Claude worker's own temp folder can still hold a forged
+        # entry's folder, which Known gaps names. Why: 0096-codex-ready design D7.
         *("-c", "sandbox_workspace_write.exclude_slash_tmp=true"),
         *("-c", "sandbox_workspace_write.network_access=false"),
         # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.

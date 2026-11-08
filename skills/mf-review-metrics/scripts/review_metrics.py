@@ -615,7 +615,7 @@ def _codex_spent(events: list[dict[str, Any]]) -> Record:
 
     spawn = events[0] if events[0].get("type") == "mf.spawn" else {}
     models = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"]
-    row = models.get(spawn.get("model") or "default") if spawn else None
+    row = models.get(model) if (model := spawn.get("model")) else None
     cost = None
     if isinstance(row, dict):
         cached = total("cached_input_tokens")

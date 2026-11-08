@@ -752,8 +752,10 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
 
     # A Codex converge log: its turns' tokens, priced at its spawn line's model.
     prices = tmp_path / "prices.toml"
+    # A `default` row prices no log: a spawn line naming no model stays a gap.
     prices.write_text(
         '[models]\n"gpt-5.5" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+        '"default" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
     )
     priced = _reader(tmp_path, env, prices)
     usage = {"input_tokens": 1_000_000, "cached_input_tokens": 400_000}

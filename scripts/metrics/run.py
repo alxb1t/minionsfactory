@@ -200,10 +200,10 @@ def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
         spawn = None
     if not isinstance(spawn, dict) or spawn.get("type") != "mf.spawn":
         return Gap(f"no spawn line in {name}")
-    model = spawn.get("model") or "default"
+    model = spawn.get("model")
     row = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"].get(model)
-    if not isinstance(row, dict):
-        return Gap(f"no price for model {model}")
+    if not model or not isinstance(row, dict):
+        return Gap(f"no price for model {model or 'default'}")
     dollars = 0.0
     for turn in turns:
         usage = turn.get("usage")
