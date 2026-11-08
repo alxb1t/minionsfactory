@@ -1,6 +1,6 @@
 [project]
 name = "minions-factory"
-version = "0.81.0"
+version = "0.83.0"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -34,7 +34,7 @@ error-on-warning = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--strict-markers"]
+addopts = ["--strict-markers", "--tb=short"]
 markers = ["slow: over 5 s; `make check` leaves it to the gate"]
 
 # Per file, not `ignore`, so a command-line `--select` keeps them.

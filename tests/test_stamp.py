@@ -57,6 +57,16 @@ def test_a_stamp_writes_the_clock_time_under_the_latest_run(
     assert re.fullmatch(r"\d\d:\d\d:\d\d · round 1 · done — clean", line)
     assert log.read_text() == f"{_TITLE}\n{run_2}\n{line}\n{event}\n\n{_RUN_1}"
 
+    # Several events in one call: each printed, the last given on top.
+    # Why: 0100-worker-diet design D9.
+    log.write_text(f"{_TITLE}\n{_RUN_1}")
+    roles = ("conformance", "adversarial")
+    assert stamp.main([str(log), *(f"round 1 · verdicts — {r}" for r in roles)]) == 0
+    first, second = (f"10:02:03 · round 1 · verdicts — {r}" for r in roles)
+    assert capsys.readouterr().out == f"{first}\n{second}\n"
+    head, rest = _RUN_1.split("\n", 1)
+    assert log.read_text() == f"{_TITLE}\n{head}\n{second}\n{first}\n{rest}"
+
 
 def test_a_log_out_of_shape_is_not_stamped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
@@ -68,12 +78,13 @@ def test_a_log_out_of_shape_is_not_stamped(
     )
     assert not missing.exists()
 
-    usage = "give one event, or --run with an optional --mark\n"
+    usage = "give events, or --run with an optional --mark\n"
     log = tmp_path / "status_log.md"
     for text, argv, said in (
         (_TITLE, ["round 1 · start — base a"], "no ## Run heading\n"),
         (_RUN_1, ["--run", "2"], "no # title\n"),
         (_TITLE + _RUN_1, ["round 1 · x", "--run", "2"], usage),
+        (_TITLE + _RUN_1, ["round 1 · x", "round 1 · y", "--run", "2"], usage),
         (_TITLE + _RUN_1, [], usage),
         (_TITLE + _RUN_1, ["round 1 · x", "--mark", "catch-up"], usage),
     ):

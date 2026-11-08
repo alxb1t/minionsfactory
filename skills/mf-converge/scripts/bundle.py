@@ -5,16 +5,21 @@
 """Write a converge worker's bundle of the decisions and requirements a change cites.
 
     bundle.py <change-id> <bundle.md>
+    bundle.py --decisions <file>…
 
 Run from the repository root. The bundle holds each repo decision the change cites,
-in full, an index of every decision, and each living requirement the delta modifies
-or removes. Prints `bundle: <n> decisions cited · <m> requirements` and exits 0, or
-`bundle: cannot bundle — <why>` and exits 2, writing nothing; a bundle path that is
-a link is refused. Why: 0094-lighter-converge design D5.
+in full, an index of every decision, and each requirement its delta modifies or
+removes, as a diff from the living spec. Prints `bundle: <n> decisions cited · <m>
+requirements` and exits 0, or `bundle: cannot bundle — <why>` and exits 2, writing
+nothing; a bundle path that is a link is refused. `--decisions` prints the decisions
+the files cite and the index, for the cut and the build, and writes nothing. Why:
+0094-lighter-converge design D5; 0100-worker-diet design D7;
+0101-cut-converge-diet design D4.
 """
 
 import argparse
 import contextlib
+import difflib
 import os
 import re
 import sys
@@ -30,8 +35,8 @@ TRIM = " .,;:"
 SECTIONS = ("## MODIFIED Requirements", "## REMOVED Requirements")
 REPLACES = (
     "In place of `docs/decisions.md` and the living specs: the decisions the change"
-    " cites, in full, an index of all, and the living requirements its delta modifies"
-    " or removes."
+    " cites, in full, an index of all, and each requirement its delta modifies or"
+    " removes, as a diff from the living spec."
 )
 
 
@@ -104,38 +109,75 @@ def _requirement(spec: str | None, title: str) -> str | None:
     return "\n".join(block).strip() if block is not None else None
 
 
-def bundle(change: str) -> tuple[str, int, int]:
-    """Return the bundle's text, its cited decisions and its listed requirements."""
-    folder = Path("openspec/changes") / change
-    deltas = sorted((folder / "specs").glob("**/spec.md"))
-    names = ("proposal.md", "design.md", "tasks.md")
-    plan = [_read(folder / name) for name in names] + [_read(d) for d in deltas]
-    decisions = _read(DECISIONS) if DECISIONS.exists() else None
-    blocks = _blocks(decisions or "")
+def diffed(living: str | None, block: str, title: str) -> str:
+    """Return a requirement's diff from the living spec to its delta block.
+
+    `living` is the living spec's text, None when it has none; `block` is the delta's
+    block for the title, "" for a removed one. A title the living spec lacks is named.
+    The title heads the diff, and a requirement the delta leaves as it stood reads
+    `unchanged`. e.g. a removed "A" → its title, then a fenced `diff` of `-` lines
+    """
+    old = _requirement(living, title)
+    if old is None:
+        return f"- `{title}` — not in the living spec"
+    lines = difflib.unified_diff(
+        old.splitlines(),
+        block.splitlines(),
+        fromfile="living",
+        tofile="delta",
+        lineterm="",
+    )
+    shown = "\n".join(lines)
+    return f"### Requirement: {title}\n\n" + (
+        f"```diff\n{shown}\n```" if shown else "unchanged"
+    )
+
+
+def _section(heading: str, parts: list[str]) -> str:
+    """Return a bundle section: its heading and parts, or `None.` when it has none."""
+    return f"\n## {heading}\n\n{'\n\n'.join(parts) or 'None.'}\n"
+
+
+def decisions_text(plan: list[str], decisions: str | None) -> tuple[str, int]:
+    """Return the cited decisions, in full, and the index; and how many are cited.
+
+    `decisions` is the decisions file's text, None when the repo has none.
+    """
     ids = cited(plan, decisions or "")
+    blocks = _blocks(decisions or "")
     if decisions is None:
         index = "No docs/decisions.md."
     elif headings := TITLED.findall(decisions):
         index = "\n".join(f"- D{n} · {title}" for n, title in headings)
     else:
         index = decisions.strip()
+    text = _section("Decisions the change cites", [blocks[n] for n in ids])
+    text += _section("Every decision", [index] if index else [])
+    return text, len(ids)
+
+
+def _decisions() -> str | None:
+    """Return the repo's decisions file's text, None when it has none."""
+    return _read(DECISIONS) if DECISIONS.exists() else None
+
+
+def bundle(change: str) -> tuple[str, int, int]:
+    """Return the bundle's text, its cited decisions and its listed requirements."""
+    folder = Path("openspec/changes") / change
+    deltas = sorted((folder / "specs").glob("**/spec.md"))
+    names = ("proposal.md", "design.md", "tasks.md")
+    plan = [_read(folder / name) for name in names] + [_read(d) for d in deltas]
+    cites, count = decisions_text(plan, _decisions())
     required = []
     for delta, text in zip(deltas, plan[len(names) :], strict=True):
         living = Path("openspec/specs") / delta.parent.relative_to(folder / "specs")
         spec = _read(living / "spec.md") if (living / "spec.md").exists() else None
-        for title in _requirements(text, SECTIONS):
-            missing = f"- `{title}` — not in the living spec"
-            required.append(_requirement(spec, title) or missing)
-    sections = (
-        ("Decisions the change cites", [blocks[n] for n in ids]),
-        ("Every decision", [index] if index else []),
-        ("Requirements the delta modifies or removes", required),
-    )
-    body = "".join(
-        f"\n## {heading}\n\n{'\n\n'.join(parts) or 'None.'}\n"
-        for heading, parts in sections
-    )
-    return f"# {change} — bundle\n\n{REPLACES}\n{body}", len(ids), len(required)
+        modified, removed = (_requirements(text, (name,)) for name in SECTIONS)
+        required += [diffed(spec, _requirement(text, t) or "", t) for t in modified]
+        required += [diffed(spec, "", t) for t in removed]
+    heading = "Requirements the delta modifies or removes, as diffs"
+    body = cites + _section(heading, required)
+    return f"# {change} — bundle\n\n{REPLACES}\n{body}", count, len(required)
 
 
 def write(path: Path, text: str) -> None:
@@ -161,14 +203,25 @@ def write(path: Path, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Write the change's bundle; return the exit code."""
+    """Write a change's bundle, or print a plan's decisions; return the exit code."""
     parser = argparse.ArgumentParser(
-        description="Write the decisions and requirements a change cites."
+        description="Write the decisions and requirements a change cites.",
+        usage=(
+            "bundle.py <change-id> <bundle.md>\n       bundle.py --decisions <file>…"
+        ),
     )
-    parser.add_argument("change", help="the change id")
-    parser.add_argument("bundle", type=Path, help="the bundle to write")
+    parser.add_argument("change", nargs="?", help="the change id")
+    parser.add_argument("bundle", nargs="?", type=Path, help="the bundle to write")
+    parser.add_argument("--decisions", nargs="+", type=Path, help="the files to read")
     args = parser.parse_args(argv)
+    positional = (args.change, args.bundle)
+    if positional.count(None) != (2 if args.decisions else 0):
+        parser.error("give <change-id> <bundle.md>, or --decisions <file>… alone")
     try:
+        if args.decisions:
+            plan = [_read(path) for path in args.decisions]
+            print(decisions_text(plan, _decisions())[0].strip())
+            return 0
         text, decisions, requirements = bundle(args.change)
         write(args.bundle, text)
     except Stop as stop:

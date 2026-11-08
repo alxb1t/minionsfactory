@@ -1,6 +1,7 @@
-"""Converge's debt match: the debt cards on the diff's files go into the bundle.
+"""Converge's debt match: the debt cards on the diff's files go to their own file.
 
-Each file written under `tmp_path`. Why: 0095-converge-roles design D8.
+Each file written under `tmp_path`. Why: 0095-converge-roles design D8;
+0101-cut-converge-diet design D4.
 """
 
 import importlib.util
@@ -25,7 +26,7 @@ def _load(path: Path) -> ModuleType:
 
 debt_match = _load(_SCRIPT)
 
-_SECTION = "## Debt cards on the diff's files"
+_HEADING = "# Debt cards on the diff's files"
 
 
 def _card(card: str, affects: str) -> str:
@@ -48,97 +49,97 @@ _PATCH = (
 
 
 def _run(
-    capsys: pytest.CaptureFixture[str], debt: Path, patch: Path, bundle: Path
+    capsys: pytest.CaptureFixture[str], debt: Path, patch: Path, cards: Path
 ) -> tuple[int, str]:
-    code = debt_match.main([str(debt), str(patch), str(bundle)])
+    code = debt_match.main([str(debt), str(patch), str(cards)])
     return code, capsys.readouterr().out
 
 
 def test_debt_match_bundles_the_cards_on_the_diffs_files(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    debt, patch, bundle = (
+    debt, patch, cards = (
         tmp_path / "debt.md",
         tmp_path / "diff.patch",
-        tmp_path / "b.md",
+        tmp_path / "debt-cards.md",
     )
     debt.write_text(_DEBT)
     patch.write_text(_PATCH)
-    bundle.write_text("# 0003-c — bundle\n\n## Every decision\n\n- D1 · x\n")
 
-    assert _run(capsys, debt, patch, bundle) == (
+    assert _run(capsys, debt, patch, cards) == (
         0,
         "debt: 2 cards on the diff's files\n",
     )
-    text = bundle.read_text()
-    assert text.startswith("# 0003-c — bundle\n\n## Every decision\n\n- D1 · x\n")
-    section = text.split(f"{_SECTION}\n\n")[1]
-    assert section == f"{_A}{_X}"
+    text = cards.read_text()
+    assert text == f"{_HEADING}\n\n{_A}{_X}"
     assert "0001·R2" not in text
 
-    # A second run, as the conductor runs it, replaces the section, leaving one.
+    # A second run, as the conductor runs it, writes the same.
     done = subprocess.run(
-        [sys.executable, str(_SCRIPT), str(debt), str(patch), str(bundle)],
+        [sys.executable, str(_SCRIPT), str(debt), str(patch), str(cards)],
         capture_output=True,
         text=True,
     )
     assert (done.returncode, done.stdout) == (0, "debt: 2 cards on the diff's files\n")
-    assert bundle.read_text() == text
+    assert cards.read_text() == text
 
-    # A section held above another keeps the one below.
-    bundle.write_text(f"# t\n\n{_SECTION}\n\nstale\n\n## After\n\nkept\n")
-    assert _run(capsys, debt, patch, bundle)[0] == 0
-    assert bundle.read_text() == f"# t\n\n## After\n\nkept\n\n{_SECTION}\n\n{_A}{_X}"
+    # A stale file is replaced whole.
+    cards.write_text("# t\n\nstale\n\n## After\n\nkept\n")
+    assert _run(capsys, debt, patch, cards)[0] == 0
+    assert cards.read_text() == text
 
     # No debt file matches none.
     debt.unlink()
-    assert _run(capsys, debt, patch, bundle) == (
+    assert _run(capsys, debt, patch, cards) == (
         0,
         "debt: 0 cards on the diff's files\n",
     )
-    assert bundle.read_text().endswith(f"{_SECTION}\n\nNone.\n")
+    assert cards.read_text() == f"{_HEADING}\n\nNone.\n"
 
 
 def test_debt_match_refuses_what_it_cannot_read(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    debt, patch, bundle = (
+    debt, patch, cards = (
         tmp_path / "debt.md",
         tmp_path / "diff.patch",
-        tmp_path / "b.md",
+        tmp_path / "debt-cards.md",
     )
     debt.write_text(_DEBT)
     patch.write_text(_PATCH)
 
     target = tmp_path / "elsewhere.md"
     target.write_text("theirs\n")
-    bundle.symlink_to(target)
-    assert _run(capsys, debt, patch, bundle) == (
+    cards.symlink_to(target)
+    assert _run(capsys, debt, patch, cards) == (
         2,
-        f"debt: cannot match — {bundle} is a link\n",
+        f"debt: cannot match — {cards} is a link\n",
     )
     assert target.read_text() == "theirs\n"
-    bundle.unlink()
+    cards.unlink()
 
-    assert _run(capsys, debt, patch, bundle) == (
-        2,
-        f"debt: cannot match — {bundle}: No such file or directory\n",
+    # A missing cards file is written.
+    assert _run(capsys, debt, patch, cards) == (
+        0,
+        "debt: 2 cards on the diff's files\n",
     )
-    bundle.write_text("# t\n")
+    assert cards.read_text() == f"{_HEADING}\n\n{_A}{_X}"
+    cards.write_text("# t\n")
     patch.unlink()
-    assert _run(capsys, debt, patch, bundle) == (
+    assert _run(capsys, debt, patch, cards) == (
         2,
         f"debt: cannot match — {patch}: No such file or directory\n",
     )
-    assert bundle.read_text() == "# t\n"
+    assert cards.read_text() == "# t\n"
     # A debt file that cannot be read is no missing one.
     patch.write_text(_PATCH)
     debt.write_bytes(b"\xff")
-    code, said = _run(capsys, debt, patch, bundle)
+    code, said = _run(capsys, debt, patch, cards)
     assert code == 2 and said.startswith(f"debt: cannot match — {debt}: ")
-    # A staged file that cannot be written leaves the bundle as it stood.
+    assert cards.read_text() == "# t\n"
+    # A staged file that cannot be written leaves the cards file as it stood.
     debt.write_text(_DEBT)
-    (tmp_path / "b.md.tmp").mkdir()
-    code, said = _run(capsys, debt, patch, bundle)
-    assert code == 2 and said.startswith(f"debt: cannot match — {bundle}: ")
-    assert bundle.read_text() == "# t\n"
+    (tmp_path / "debt-cards.md.tmp").mkdir()
+    code, said = _run(capsys, debt, patch, cards)
+    assert code == 2 and said.startswith(f"debt: cannot match — {cards}: ")
+    assert cards.read_text() == "# t\n"
