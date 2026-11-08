@@ -309,7 +309,7 @@ cut ─▶ waiting ──(dependency built)──▶ stack merge ─▶ build �
 
 ### D8
 
-D72 is added to `docs/decisions.md` after D47, and `, D72` after `D67` in the map's Repo conventions list:
+D72 is added to `docs/decisions.md` after D47, and `, D72` after `D70` in the map's Repo conventions list:
 
 ```markdown
 ### D72 · A dependent builds on its dependency's built head
