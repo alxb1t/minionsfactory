@@ -2,15 +2,15 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Append to a converge bundle the debt cards on the diff's files.
+"""Write the debt cards on the diff's files to their own file.
 
-    debt_match.py <debt.md> <diff.patch> <bundle.md>
+    debt_match.py <debt.md> <diff.patch> <debt-cards.md>
 
 Run from the repository root. A card matches when a backticked span of its
 `What it affects` line, a `:<line>` or `:<from>-<to>` suffix dropped, is a path the
 patch changes. Prints `debt: <n> cards on the diff's files` and exits 0, or
-`debt: cannot match — <why>` and exits 2, writing nothing; a bundle path that is a
-link is refused. Why: 0095-converge-roles design D8.
+`debt: cannot match — <why>` and exits 2, writing nothing; a cards path that is a
+link is refused. Why: 0095-converge-roles design D8; 0101-cut-converge-diet design D4.
 """
 
 import argparse
@@ -20,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 
-SECTION = "## Debt cards on the diff's files"
+HEADING = "# Debt cards on the diff's files"
 DIFF = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
 TITLE = re.compile(r"^- \*\*\S+ — ")
 AFFECTS = re.compile(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", re.MULTILINE)
@@ -74,25 +74,17 @@ def matched(card: str, changed: set[str]) -> bool:
     return any(LINES.sub("", span) in changed for span in spans)
 
 
-def section(bundle: str, found: list[str]) -> str:
-    """Return the bundle with its debt section dropped, then appended afresh."""
-    kept: list[str] = []
-    inside = False
-    for line in bundle.splitlines():
-        if line.startswith("## "):
-            inside = line.strip() == SECTION
-        if not inside:
-            kept.append(line)
-    body = "".join(found) or "None.\n"
-    return "\n".join(kept).rstrip() + f"\n\n{SECTION}\n\n{body}"
+def page(found: list[str]) -> str:
+    """Return the cards file: its heading, a blank line, then the cards or `None.`."""
+    return f"{HEADING}\n\n{''.join(found) or 'None.\n'}"
 
 
 def write(path: Path, text: str) -> None:
     """Replace `path` with `text` through a staged file; a link is refused.
 
     As `bundle.py`'s `write`: the staged `.tmp` is created anew with `O_NOFOLLOW`,
-    then renamed over the bundle; a failure removes it and leaves the bundle as it
-    stood.
+    then renamed over the cards file; a failure removes it and leaves the cards file
+    as it stood.
     """
     if path.is_symlink():
         raise Stop(f"{path} is a link")
@@ -110,20 +102,19 @@ def write(path: Path, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Append the matched debt cards to the bundle; return the exit code."""
+    """Write the matched debt cards to their own file; return the exit code."""
     parser = argparse.ArgumentParser(
-        description="Append to a converge bundle the debt cards on the diff's files."
+        description="Write the debt cards on the diff's files to their own file."
     )
     parser.add_argument("debt", type=Path, help="the debt file")
     parser.add_argument("patch", type=Path, help="the frozen diff patch")
-    parser.add_argument("bundle", type=Path, help="the bundle to append to")
+    parser.add_argument("cards", type=Path, help="the cards file to write")
     args = parser.parse_args(argv)
     try:
-        bundle = _read(args.bundle)
         changed = paths(_read(args.patch))
         debt = _read(args.debt) if os.path.lexists(args.debt) else ""
         found = [card for card in cards(debt) if matched(card, changed)]
-        write(args.bundle, section(bundle, found))
+        write(args.cards, page(found))
     except Stop as stop:
         print(f"debt: cannot match — {stop}")
         return 2

@@ -298,9 +298,9 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
    `<base>..HEAD`. It sits under the gitignored `.minions/` and is never committed.
 4. **Write the bundle** —
    `uv run --script <this package>/scripts/bundle.py <change-id> .minions/changes/<change-id>/bundle.md`: the
-   decisions the change cites, an index of all, and the living requirements its delta modifies or removes. Exit 2,
-   or `uv` missing → **halt**, naming what it printed. Then append the debt cards on the diff's files —
-   `uv run --script <this package>/scripts/debt_match.py .minions/debt.md .minions/changes/<change-id>/diff.patch .minions/changes/<change-id>/bundle.md`,
+   decisions the change cites, an index of all, and each requirement its delta modifies or removes, as a diff. Exit 2,
+   or `uv` missing → **halt**, naming what it printed. Then write the debt cards on the diff's files —
+   `uv run --script <this package>/scripts/debt_match.py .minions/debt.md .minions/changes/<change-id>/diff.patch .minions/changes/<change-id>/debt-cards.md`,
    else an old `.minions/backlog.md` in place of the debt; exit 2, or `uv` missing → **halt**, naming what it printed.
 5. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.

@@ -88,8 +88,11 @@ def test_a_bundle_holds_what_the_change_cites(
         "Every decision\n\n- D1 · One feature is one change\n- D2 · Two rules hold\n"
         "- D48 · A known home\n"
     )
-    assert "A's text.\n\n#### Scenario: a\n- a" in required
-    assert "B's text." in required and "C's text." not in required
+    assert required.startswith("Requirements the delta modifies or removes, as diffs\n")
+    assert "```diff\n--- living\n+++ delta\n" in required
+    assert "-A's text.\n" in required and "+New A.\n" in required
+    assert "-### Requirement: B\n-\n-B's text.\n" in required
+    assert "C's text." not in required
 
     # A decisions file with no heading goes in whole.
     decisions.write_text("# Decisions\n\nNone yet.\n")

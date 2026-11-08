@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Once no blocker is open, converge checks a pickup's fix with one verify worker over the pickup's own diff, which is no
   round; the fixer corrects the `design.md` prose a `drift` card names, never a decision (change
   `0101-cut-converge-diet`, phase 3).
+- The bundle holds each requirement its delta modifies or removes as a diff from the living spec; `debt_match.py` writes
+  the debt cards on the diff's files to `debt-cards.md`, which adversarial reads in place of the bundle; each checker
+  reads `diff.patch` once, in slices (change `0101-cut-converge-diet`, phase 4).
 
 ## [0.82.0] - 2026-11-08
 

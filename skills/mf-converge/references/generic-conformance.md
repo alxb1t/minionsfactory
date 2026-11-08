@@ -22,13 +22,14 @@ the Summary names it.
 | input | what it is for |
 |---|---|
 | `<base>..<head>` | the judged range |
-| `diff.patch` | the frozen patch: every hunk you judge, read once; `git diff` or `git show` only for a file's context the patch does not hold |
+| `diff.patch` | the frozen patch: every hunk you judge, read once — top to bottom, in slices of at most 2000 lines, never a slice again, a hunk you need again found with `grep -n` on the patch; `git diff` or `git show` only for a file's context the patch does not hold |
 | `refactor(<change-id>): simplify` | the simplify commit's body, when the range holds one: its notes for review |
 | `proposal.md` | the change's scope |
 | `design.md` | the decisions the change settled, and its `## Tests` table |
 | `tasks.md` | each task as written, and its `Verify:` |
 | `specs/` | the spec delta, unless `.openspec.yaml` declares `skip_specs: true` |
-| `bundle.md` | the decisions the change cites, in full, an index of all, the living requirements the delta modifies or removes, and the debt cards on the diff's files, in place of `docs/decisions.md`, the living specs and the debt |
+| `bundle.md` | the decisions the change cites, in full, an index of all, and each requirement the delta modifies or removes as a diff from the living spec, in place of `docs/decisions.md` and the living specs |
+| `debt-cards.md` | the debt cards on the diff's files, in place of the debt, for the contract's repeat rule |
 | `AGENTS.md` | the target's shared context; a subdirectory's only when the diff touches that subtree |
 | `CODING_STANDARDS.md` | a root standards file |
 | `CODE_STANDARDS.md` | a root standards file |
@@ -38,7 +39,7 @@ the Summary names it.
 
 ## Inspect: one section each, in this order
 
-1. **Spec.** Against the delta and the bundle's living requirements: a requirement missing or partial; scope the spec
+1. **Spec.** Against the delta and the bundle's requirement diffs: a requirement missing or partial; scope the spec
    does not ask for; a requirement that looks implemented but is wrong. Quote the requirement line.
 2. **Plan.** Each task built as written, its files and its `Verify:`; each `design.md` decision held. A task built
    another way, or a decision the code breaks, is a card citing the task's or decision's id.
@@ -50,8 +51,8 @@ the Summary names it.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed error.
    Always a card, never left to the fixer's judgement.
 
-Then run the contract's stale-claim, test-cost and coverage-trace passes, and check repeats against the bundle's debt
-cards.
+Then run the contract's stale-claim, test-cost and coverage-trace passes, and
+check repeats against `debt-cards.md`.
 
 A section whose source document is missing, or reads `Not written yet:`, is **`inconclusive`**: say which document,
 check what can be checked without it, and go on. `inconclusive` never blocks and never reads as a pass.

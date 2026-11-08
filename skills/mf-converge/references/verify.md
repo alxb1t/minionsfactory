@@ -10,7 +10,7 @@ below, where you need them.
 | input | what it is for |
 |---|---|
 | `<role>.open.md` | your open cards: each card whose **Status** reads `open`, `fixed` or `wontfix`, verbatim |
-| `diff.patch` | the fix diff, the re-frozen `<previous head>..<new head>`, read once |
+| `diff.patch` | the fix diff, the re-frozen `<previous head>..<new head>`, read once — top to bottom, in slices of at most 2000 lines, never a slice again, a hunk you need again found with `grep -n` on the patch |
 | `.minions/changes/<change-id>/<role>.md` | your findings file: read it only where you edit it |
 | the design's `## Tests` section | conformance only: the deletions and merges the plan names |
 

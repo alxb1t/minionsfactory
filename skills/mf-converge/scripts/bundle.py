@@ -8,16 +8,18 @@
     bundle.py --decisions <file>…
 
 Run from the repository root. The bundle holds each repo decision the change cites,
-in full, an index of every decision, and each living requirement the delta modifies
-or removes. Prints `bundle: <n> decisions cited · <m> requirements` and exits 0, or
-`bundle: cannot bundle — <why>` and exits 2, writing nothing; a bundle path that is
-a link is refused. `--decisions` prints the decisions the files cite and the index,
-for the cut and the build, and writes nothing. Why: 0094-lighter-converge design D5;
-0100-worker-diet design D7.
+in full, an index of every decision, and each requirement its delta modifies or
+removes, as a diff from the living spec. Prints `bundle: <n> decisions cited · <m>
+requirements` and exits 0, or `bundle: cannot bundle — <why>` and exits 2, writing
+nothing; a bundle path that is a link is refused. `--decisions` prints the decisions
+the files cite and the index, for the cut and the build, and writes nothing. Why:
+0094-lighter-converge design D5; 0100-worker-diet design D7;
+0101-cut-converge-diet design D4.
 """
 
 import argparse
 import contextlib
+import difflib
 import os
 import re
 import sys
@@ -33,8 +35,8 @@ TRIM = " .,;:"
 SECTIONS = ("## MODIFIED Requirements", "## REMOVED Requirements")
 REPLACES = (
     "In place of `docs/decisions.md` and the living specs: the decisions the change"
-    " cites, in full, an index of all, and the living requirements its delta modifies"
-    " or removes."
+    " cites, in full, an index of all, and each requirement its delta modifies or"
+    " removes, as a diff from the living spec."
 )
 
 
@@ -107,6 +109,26 @@ def _requirement(spec: str | None, title: str) -> str | None:
     return "\n".join(block).strip() if block is not None else None
 
 
+def diffed(living: str | None, block: str, title: str) -> str:
+    """Return a requirement's diff from the living spec to its delta block.
+
+    `living` is the living spec's text, None when it has none; `block` is the delta's
+    block for the title, "" for a removed one. A title the living spec lacks is named.
+    e.g. a removed "A" → a fenced `diff` block of `-` lines
+    """
+    old = _requirement(living, title)
+    if old is None:
+        return f"- `{title}` — not in the living spec"
+    lines = difflib.unified_diff(
+        old.splitlines(),
+        block.splitlines(),
+        fromfile="living",
+        tofile="delta",
+        lineterm="",
+    )
+    return "```diff\n" + "\n".join(lines) + "\n```"
+
+
 def _section(heading: str, parts: list[str]) -> str:
     """Return a bundle section: its heading and parts, or `None.` when it has none."""
     return f"\n## {heading}\n\n{'\n\n'.join(parts) or 'None.'}\n"
@@ -146,10 +168,11 @@ def bundle(change: str) -> tuple[str, int, int]:
     for delta, text in zip(deltas, plan[len(names) :], strict=True):
         living = Path("openspec/specs") / delta.parent.relative_to(folder / "specs")
         spec = _read(living / "spec.md") if (living / "spec.md").exists() else None
-        for title in _requirements(text, SECTIONS):
-            missing = f"- `{title}` — not in the living spec"
-            required.append(_requirement(spec, title) or missing)
-    body = cites + _section("Requirements the delta modifies or removes", required)
+        modified, removed = (_requirements(text, (name,)) for name in SECTIONS)
+        required += [diffed(spec, _requirement(text, t) or "", t) for t in modified]
+        required += [diffed(spec, "", t) for t in removed]
+    heading = "Requirements the delta modifies or removes, as diffs"
+    body = cites + _section(heading, required)
     return f"# {change} — bundle\n\n{REPLACES}\n{body}", count, len(required)
 
 

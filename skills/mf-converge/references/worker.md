@@ -5,10 +5,10 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 
 ## Conformance and adversarial
 
-**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in the bundle's
-`## Debt cards on the diff's files` holds. The station names `repeat of <id>` in its **Related** field and grades it
-up one level: adversarial one step, a conformance `nit` or `drift` to `blocking`. The station judges the match; the
-conductor judges nothing. No worker reads `.minions/debt.md`.
+**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in `debt-cards.md` holds. The
+station names `repeat of <id>` in its **Related** field and grades it up one level: adversarial one step, a conformance
+`nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing. No worker reads
+`.minions/debt.md`.
 
 **Conformance runs these passes after its sections**, and its Summary says each ran:
 
@@ -19,7 +19,8 @@ conductor judges nothing. No worker reads `.minions/debt.md`.
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
-adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set.
+adversarial with the source around them.
+In an **amend round**, conformance judges its whole range with the full plan in its reading set.
 In it, each checker re-judges every card its file holds `fixed` or `wontfix`, since its range holds converge's own
 unverified fix as well as the amend; an `open` card stays `open`. A `fixed` card goes `verified`, or `open` with a
 one-line reason, and one whose **Fix** size includes `a test` goes `open` when its **Status** note holds no red run

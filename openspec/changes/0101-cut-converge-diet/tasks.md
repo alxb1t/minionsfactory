@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — Plan reviews
 - [x] 2 — Helpers and notes
 - [x] 3 — The pickup check
-- [ ] 4 — The bundle
+- [x] 4 — The bundle
 - [ ] 5 — The release and the record
 
 ## 1 — Plan reviews
@@ -40,17 +40,17 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The bundle
 
-- [ ] 4.1 Edit `test_a_bundle_holds_what_the_change_cites` in `tests/test_bundle.py`, its verbatim-block asserts replaced by
+- [x] 4.1 Edit `test_a_bundle_holds_what_the_change_cites` in `tests/test_bundle.py`, its verbatim-block asserts replaced by
   the diff's; then `diffed`, `bundle`, the section heading, `REPLACES` and the docstring in
   `skills/mf-converge/scripts/bundle.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_bundle.py` reports `3 passed`; `grep -n -e '^def diffed(' -e 'difflib.unified_diff' -e 'Requirements the delta modifies or removes, as diffs' skills/mf-converge/scripts/bundle.py` prints a line for each.
-- [ ] 4.2 Edit `test_debt_match_bundles_the_cards_on_the_diffs_files` and `test_debt_match_refuses_what_it_cannot_read` in
+- [x] 4.2 Edit `test_debt_match_bundles_the_cards_on_the_diffs_files` and `test_debt_match_refuses_what_it_cannot_read` in
   `tests/test_debt_match.py`, then `skills/mf-converge/scripts/debt_match.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_debt_match.py` reports `2 passed`; `grep -n -e '^HEADING = "# Debt cards on the diff.s files"$' -e '^def page(' skills/mf-converge/scripts/debt_match.py` prints a line for each; `grep -n '^def section(' skills/mf-converge/scripts/debt_match.py` prints nothing.
-- [ ] 4.3 Edit `test_the_packets_hold_what_each_role_reads` in `tests/test_skills.py`, then the packet tables of
+- [x] 4.3 Edit `test_the_packets_hold_what_each_role_reads` in `tests/test_skills.py`, then the packet tables of
   `generic-conformance.md` and `generic-adversarial.md` and the `diff.patch` row of `verify.md`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_skills.py` reports `21 passed`; `grep -n 'never a slice again' skills/mf-converge/references/generic-conformance.md skills/mf-converge/references/generic-adversarial.md skills/mf-converge/references/verify.md` prints a line for each file.
-- [ ] 4.4 Edit *Spec* and the repeats line of `generic-conformance.md`, the repeat rule and *Scoping* of `worker.md`
+- [x] 4.4 Edit *Spec* and the repeats line of `generic-conformance.md`, the repeat rule and *Scoping* of `worker.md`
   (`0095·R3`), and Step 2 item 4 of `skills/mf-converge/SKILL.md`, per [D4](design.md#d4), each new phrase on one line.
   Verify: `grep -n 'debt-cards.md' skills/mf-converge/SKILL.md skills/mf-converge/references/worker.md` prints a line for each file; `grep -n -e 'the bundle.s requirement diffs' -e 'check repeats against .debt-cards.md.' skills/mf-converge/references/generic-conformance.md` prints a line for each; `grep -n 'An \*\*amend round\*\* judges its whole range with the full plan' skills/mf-converge/references/worker.md` prints nothing; `grep -n 'In an \*\*amend round\*\*, conformance judges its whole range' skills/mf-converge/references/worker.md` prints a line.
 
