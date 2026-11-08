@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-11-09
+
+Gate: local 2m8s · CI not read under mf-ship · 0.84.0: local 2m13s · CI not read under mf-ship
+
+- Under `mf-ship`, the build spawns `mf-build` once per unticked phase, `phase=<N>`, then once for the close,
+  `phase=close`. A phase spawn passes only on its phase ticked at `HEAD` on a clean tree, so no phase runs twice
+  without an amend (change `0102-build-per-phase`, phase 1).
+- Phases hand over through `.minions/changes/<id>/build-notes.md`: `mf-build` reads it and appends a section a phase,
+  the conductor keeps 40 lines of each append, through a descriptor that follows no link, and a stacked reset removes
+  it (change `0102-build-per-phase`, phase 2).
+- The cut rates each phase ` · moderate` or ` · hard`; a moderate phase builds on `[build.moderate]` when the models
+  file names it, on `[build]`'s executor, and `brief_check.py` takes an optional, hostless `build-moderate` part
+  (change `0102-build-per-phase`, phase 3).
+- D73 records the build's worker per phase; D65, D64, D57 and D13 follow it, the threat model names `build-notes.md`,
+  and `mf-ship`'s flow shows a worker a phase (change `0102-build-per-phase`, phase 4).
+
 ## [0.84.0] - 2026-11-08
 
 Gate: local 2m13s · CI not read under mf-ship · 0.83.0: local 2m10s · CI not read under mf-ship

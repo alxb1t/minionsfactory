@@ -24,6 +24,7 @@ Why: 0040-mf-ship design D2.
 
 import argparse
 import contextlib
+import errno
 import fcntl
 import hashlib
 import itertools
@@ -86,7 +87,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset"),
+    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -100,6 +101,10 @@ STUCK = (*HALTS, "waiting")
 # A stacked version's file: the built head it builds on, its build's base.
 # Why: 0099-stacked-builds design D2, D5.
 STACKED_ON = "stacked-on"
+# What a phase hands the next, and the lines of each phase's append the run keeps.
+# Why: 0102-build-per-phase design D3.
+NOTES_FILE = "build-notes.md"
+NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
@@ -108,10 +113,13 @@ OLD_WORKERS = {
     "converge.conformance": "converge.review",
     "converge.adversarial": "converge.security",
 }
-# The rescue, the supervisor and converge's workers are no stage: each is planned with
-# the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
-# 0094-lighter-converge design D1.
-PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS)
+# A phase the cut rates moderate builds on this table.
+# Why: 0102-build-per-phase design D5.
+MODERATE = "build.moderate"
+# The rescue, the supervisor, converge's workers and the moderate build are no stage:
+# each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
+# design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
@@ -221,8 +229,9 @@ TOKENS = (
 # Read-only by host: `upload.pypi.org` takes a package, and it is not here.
 NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
+# A build spawn builds one phase, or closes. Why: 0102-build-per-phase design D1, D2.
 PROMPTS = {
-    "build": "Run the mf-build skill for change {change}.",
+    "build": "Run the mf-build skill for change {change} with phase={phase}.",
     "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
@@ -604,6 +613,15 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
     return None
 
 
+def _rating(title: str) -> str:
+    """Return a `## Progress` title's rating: `moderate`, else `hard`.
+
+    e.g. "Two · moderate" → "moderate"; "Three" → "hard"
+    Why: 0102-build-per-phase design D5.
+    """
+    return "moderate" if title.endswith(" · moderate") else "hard"
+
+
 def _change_dir(primary: Path, change: str) -> Path:
     """Return the change's folder in the run directory.
 
@@ -661,6 +679,41 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
             os.unlink(name, dir_fd=fd)
     finally:
         os.close(fd)
+
+
+def _open_notes(primary: Path, change: str, flags: int) -> int | None:
+    """Return a descriptor on the change's `build-notes.md`; None with no file.
+
+    It follows no link: a link, a file it cannot open, or one that is not a regular
+    file of one name, a hard link, a folder or a pipe, halts the version.
+    Why: 0102-build-per-phase design D3.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    name = f".minions/changes/{change}/{NOTES_FILE}"
+    try:
+        file = os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        linked = error.errno == errno.ELOOP
+        why = "is a link" if linked else f"cannot be opened — {error.strerror}"
+        raise Stop(1, f"conduct: halt — {name} {why}") from None
+    finally:
+        os.close(fd)
+    found = os.fstat(file)
+    if not stat.S_ISREG(found.st_mode) or found.st_nlink != 1:
+        os.close(file)
+        raise Stop(1, f"conduct: halt — {name} is not a regular file of one name")
+    return file
+
+
+def _note_lines(primary: Path, change: str) -> int:
+    """Return the lines of the change's `build-notes.md`; 0 with no file."""
+    file = _open_notes(primary, change, os.O_RDONLY)
+    if file is None:
+        return 0
+    with os.fdopen(file, "rb") as notes:
+        return len(notes.read().splitlines())
 
 
 def _cutter_halt(primary: Path, change: str) -> str | None:
@@ -1408,6 +1461,26 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     if not _closed(primary / ".minions", tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
     return None
+
+
+def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
+    """Return why a phase spawn's check fails, or None: phase ticked, tree clean.
+
+    The phase's line must stand, and it and every line before it must be ticked.
+    Why: 0102-build-per-phase design D2.
+    """
+    change = version.change
+    boxes = _progress(tree, change)
+    if all(number != phase for _, number, _ in boxes):
+        return f"phase {phase} gone from ## Progress"
+    for mark, number, _ in boxes:
+        if mark != "x":
+            held = _build_halt(primary / ".minions", tree, change)
+            named = f" · {held[0]}: {held[1]}" if held else ""
+            return f"phase {number} unticked{named}"
+        if number == phase:
+            break
+    return "the tree is not clean" if _dirty(tree) else None
 
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
@@ -2258,12 +2331,20 @@ def check(
     version: Version,
     first_read: bool = False,
     offline: bool = False,
+    *,
+    phase: str | None = None,
 ) -> str | None:
-    """Return why a station's check on disk fails, or None when it passes."""
+    """Return why a station's check on disk fails, or None when it passes.
+
+    A build `phase` number checks that phase's spawn alone; `close` or none, the
+    whole build. Why: 0102-build-per-phase design D2.
+    """
     if stage == "release":
         return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
+    if stage == "build" and phase is not None and phase != "close":
+        return _check_phase(primary, version, version.tree, phase)
     if stage == "build":
         return _check_build(primary, version, version.tree)
     if stage == "converge":
@@ -2388,10 +2469,11 @@ def _models(
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
-    A table no executor can run halts the version.
+    `MODERATE` names no executor and runs on the build's, Codex-checked. A table no
+    executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
     design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
-    0100-worker-diet design D8.
+    0100-worker-diet design D8; 0102-build-per-phase design D5.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2401,8 +2483,8 @@ def _models(
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
     own = "executor" in table
-    if station in WORKERS:
-        if own and station == FIXER:
+    if station in (*WORKERS, MODERATE):
+        if own and station in (FIXER, MODERATE):
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2411,6 +2493,9 @@ def _models(
                     f"conduct: halt — {file}: {station} {value!r}"
                     " is not a model or effort",
                 )
+    if station == MODERATE:
+        executor = _models(runs, change, "build", run)[0]
+    if station in WORKERS:
         converge = _models(runs, change, "converge", run)[0]
         executor = executor if own else converge
     model = model if isinstance(model, str) else None
@@ -4380,6 +4465,25 @@ class Run:
             )
         return models
 
+    def trim_notes(self, change: str, phase: str, before: int) -> None:
+        """Keep `build-notes.md`'s first `before` lines and `NOTES` past them.
+
+        It reads and rewrites the file through one descriptor that follows no link,
+        and logs a cut. Why: 0102-build-per-phase design D3.
+        """
+        file = _open_notes(self.primary, change, os.O_RDWR)
+        if file is None:
+            return
+        with os.fdopen(file, "r+b") as notes:
+            lines = notes.read().splitlines(keepends=True)
+            added = len(lines) - before
+            if added > NOTES:
+                notes.seek(0)
+                notes.truncate()
+                notes.write(b"".join(lines[: before + NOTES]))
+                said = f"phase {phase}: kept {NOTES} of {added} lines"
+                self.log.event(change, "notes", said)
+
     def _would_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:
         """Return whether `halt` at `stage` is a cap the run grants, and the blockers.
 
@@ -4446,23 +4550,28 @@ class Run:
         taken settle goes on to integrate, whose merge must hold the settled tree.
         It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
         it, or `waiting` after a reset; else None. Each stage read past the build wakes
-        the waiting versions.
+        the waiting versions. The build spawns a worker per unticked phase, each
+        checked alone, its `build-notes.md` append trimmed, then one for the close.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, its delta's *A supervisor answers what the
-        rescue leaves*; 0099-stacked-builds design D3.
+        rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
+        D1, D2, D3.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
         try:
-            auto = False
+            auto = close = False
             while not self.stopped(version.change):
                 if self.reset_stack(version):
                     return "waiting"
                 if auto:
                     stage, why = "converge", "granted automatically"
+                elif close:
+                    stage, why = "build", "closing steps left"
                 else:
                     stage, why = self.stage(version)
+                close = False
                 if stage not in ("build", "human", "waiting"):
                     self.notify_built()
                 if stage == "stacked":
@@ -4533,13 +4642,33 @@ class Run:
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)
                             return
+                phase, rating = None, "hard"
+                if stage == "build":
+                    unticked = _unticked(cwd, change)
+                    phase = unticked[0] if unticked else "close"
+                    rating = _rating(unticked[1]) if unticked else rating
+                numbered = phase not in (None, "close")
+                # A link at the notes halts here, before the spawn.
+                notes = _note_lines(self.primary, change) if numbered else 0
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
                     grant=clause,
                     settled=settled,
+                    phase=phase,
                 )
                 models = self.planned_models(version.change, stage)
+                # A moderate phase builds on `[build.moderate]` when it names one,
+                # its missing model or effort `[build]`'s.
+                # Why: 0102-build-per-phase design D5.
+                if numbered and rating == "moderate":
+                    moderate = self.planned_models(change, MODERATE)
+                    if moderate[1] or moderate[2]:
+                        models = (
+                            moderate[0],
+                            moderate[1] or models[1],
+                            moderate[2] or models[2],
+                        )
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
@@ -4549,16 +4678,23 @@ class Run:
                 denied = self.spawn(
                     version.change, stage, cwd, prompt, models, mailbox=mailbox
                 )
+                # A phase that failed after its notes still has them cut.
+                if numbered:
+                    self.trim_notes(change, str(phase), notes)
                 if denied is None:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 try:
-                    reason = check(self.primary, stage, version, True, self.offline)
+                    reason = check(
+                        self.primary, stage, version, True, self.offline, phase=phase
+                    )
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
-                    reason = check(self.primary, stage, version, True, True)
+                    reason = check(
+                        self.primary, stage, version, True, True, phase=phase
+                    )
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
@@ -4582,6 +4718,10 @@ class Run:
                     ):
                         continue
                     return
+                # A phase built last, an amend's after converge began, still closes.
+                # Why: 0102-build-per-phase design D1.
+                close = numbered and _unticked(cwd, change) is None
+                close = close and not _closed(minions, cwd, change)
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
@@ -4917,7 +5057,8 @@ class Run:
         A dependency whose branch left that head was itself reset, so a chain resets
         with it. Released, the dependency is the one `after:` id whose kept branch
         holds that head. The version goes back to its cut commit, `stacked-on`
-        removed. Why: 0099-stacked-builds design D6.
+        and `build-notes.md` removed. Why: 0099-stacked-builds design D6;
+        0102-build-per-phase design D3.
         """
         change, tree = version.change, version.tree
         if tree is None:
@@ -4949,6 +5090,14 @@ class Run:
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
         _refuse_config_commands(tree)
+        # The notes go first: a folder there halts the version before the branch moves.
+        try:
+            _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
+        except OSError as error:
+            name = f".minions/changes/{change}/{NOTES_FILE}"
+            raise Stop(
+                1, f"conduct: halt — {name} cannot be removed — {error.strerror}"
+            ) from None
         left = _git(tree, "rev-parse", "HEAD").strip()
         _git(tree, "reset", "-q", "--hard", cut)
         _unstack(self.primary, change)
