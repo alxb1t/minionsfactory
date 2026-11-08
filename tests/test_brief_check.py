@@ -112,6 +112,18 @@ def test_a_hard_brief_is_ready_for_the_cut(
     assert hosts != _READY
     assert brief_check.main([str(_write(tmp_path, hosts))]) == 0
     assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # A head naming the versions it builds beside.
+    beside = _READY.replace(
+        "after: none ·", "after: none · beside: [0097-cross-model, 0096-codex-ready] ·"
+    )
+    assert beside != _READY
+    assert brief_check.main([str(_write(tmp_path, beside))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # A line as long as a checked heading, with no ASCII letter, reads as none.
+    other = _READY.replace("its cut.**\n", "its cut.**\nРезультат\n")
+    assert other != _READY
+    assert brief_check.main([str(_write(tmp_path, other))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
 def test_a_brief_out_of_shape_halts(
@@ -222,6 +234,25 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut line 9: outside the item grammar:"
         " `· after: a;touch-q`",
         "brief: halt — ## For the cut: item 5 — more than one after:",
+    ]
+    # A beside entry that is no slug, and a head with a second beside:.
+    besides = _READY + "".join(
+        f"{n}. **ok** · minor · after: none · {links}\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+        for n, links in ((2, "beside: a;touch-q"), (3, "beside: none · beside: x"))
+    )
+    assert brief_check.main([str(_write(tmp_path, besides))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: item 2 — not a beside id: `a;touch-q`",
+        "brief: halt — ## For the cut: item 3 — more than one beside:",
+    ]
+    # A models line, an Acceptance line and its continuation before any head.
+    first, *nested = _READY.splitlines()[-4:]
+    headless = _READY.replace(first + "\n", "")
+    assert brief_check.main([str(_write(tmp_path, headless))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — ## For the cut line {n}: outside the item grammar: `{line}`"
+        for n, line in enumerate(nested, 1)
     ]
     # A vertical tab breaks no Markdown line: the text past it stays in the head.
     tabbed = _READY + (
@@ -429,6 +460,25 @@ def test_a_brief_out_of_shape_halts(
         " ` ## For the cut`",
         "brief: halt — ## For the cut line 7: outside the item grammar:"
         " `##\tFor the cut`",
+    ]
+    # S3: an HTML heading, and one with a Cyrillic `о` for its `o`; 0098·S1: an HTML
+    # heading holding inline markup or a character reference.
+    html = _READY + (
+        "\n## Notes\n<h2>For the cut</h2>\n## Fоr the cut\n"
+        "<h2><em>For the cut</em></h2>\n<h2>For the c&#117;t</h2>\n"
+        "<h3><b>Decisions</b></h3>\n<h2>Depen&shy;dencies</h2>\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, html))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — line {n} reads as `{heading}` but is not written so"
+        for n, heading in (
+            (23, "## For the cut"),
+            (24, "## For the cut"),
+            (25, "## For the cut"),
+            (26, "## For the cut"),
+            (27, "## Decisions"),
+            (28, "## Dependencies"),
+        )
     ]
     # The heading written so, a second time.
     again = _READY + "\n## For the cut\n"
