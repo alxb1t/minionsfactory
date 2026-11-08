@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The review metrics read per role, executor and model, a mailbox checker's log as a cost cell, escapes and the shadow
   overlap, and open the page on the headline numbers; the run metrics count a checker's log in converge's cost and its
   role's tokens; a verify log line names its card (change `0097-cross-model`, phase 4).
+- D68 records cross-model converge and its shadow round; D11, D40, D41, D47, D49, D50 and D64, the threat model and the
+  principles name the checker mailbox (change `0097-cross-model`, phase 5).
 
 ## [0.79.0] - 2026-11-08
 

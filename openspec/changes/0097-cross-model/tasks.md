@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The checker mailbox
 - [x] 3 — Shadow round 1
 - [x] 4 — The metrics
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The models line and the plan
 
@@ -78,11 +78,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The record
 
-- [ ] 5.1 Add D68 after D66 in `docs/decisions.md`, and `D68` to the map's line of *The check loop and the release*, per
+- [x] 5.1 Add D68 after D66 in `docs/decisions.md`, and `D68` to the map's line of *The check loop and the release*, per
   [D13](design.md#d13).
   Verify: `grep -n "^### D68 · Converge's checkers may run on another host, and a shadow round measures it$" docs/decisions.md` prints a line; `grep -n 'D64, D66, D68' docs/decisions.md` prints a line.
-- [ ] 5.2 Amend D11, D40, D41, D47, D49, D50 and D64 in `docs/decisions.md`, per [D13](design.md#d13), each new phrase on one line.
+- [x] 5.2 Amend D11, D40, D41, D47, D49, D50 and D64 in `docs/decisions.md`, per [D13](design.md#d13), each new phrase on one line.
   Verify: `grep -n 'on Codex every worker runs on the conductor' docs/decisions.md` prints nothing; `grep -n -e 'a checker its executor too' -e "starts on the conductor's request" -e 'each host the brief names as its' -e "absent meaning converge's" -e 'and a converge worker its checker mailbox' -e 'a shadow file drives nothing' -e 'per role, executor and model, four headline numbers' -e "every worker on the conductor's host" docs/decisions.md` prints a line for each.
-- [ ] 5.3 Edit *Entry points* and *Trust boundaries* in `THREAT_MODEL.md`, and the queue item in `docs/principles.md`, per
+- [x] 5.3 Edit *Entry points* and *Trust boundaries* in `THREAT_MODEL.md`, and the queue item in `docs/principles.md`, per
   [D13](design.md#d13), each new phrase on one line.
   Verify: `grep -n -e 'Checker requests, in the home' -e 'as it reads a subagent' -e "a converge worker's also in its checker mailbox" THREAT_MODEL.md` prints a line for each; `grep -n 'checker mailbox, which that worker writes' docs/principles.md` prints a line.

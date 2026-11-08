@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64, D66
+     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67
 ```
@@ -205,7 +205,8 @@ What happens between the last phase and the tag.
 **Every station runs MF's own method on every executor: `mf-simplify` in the build, the conformance and adversarial
 references in converge. The build reports the executor from runtime evidence; model, provider and editor names select
 nothing. Workers follow the host, or the models file's `executor`; converge's take their model and effort from its worker
-tables ([D64](#d64--converge-spends-where-judgment-is)).**
+tables ([D64](#d64--converge-spends-where-judgment-is)),
+a checker its executor too ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it)).**
 
 - **Why:** one method on Claude, Codex or any capable host keeps every run comparable, and the metrics name the host.
 - **Accepts:** no native command is used; the person runs them by hand to compare.
@@ -294,7 +295,9 @@ receiving explicit task inputs, without the producer's transcript. The conductor
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
 freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
 Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
-workers, as its plan reviewer is, answering in the cut's thread and writing no file.**
+workers, as its plan reviewer is, answering in the cut's thread and writing no file. A checker on another host than its
+conductor's is a fresh agent process `conduct.py`
+starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it)).**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
@@ -312,8 +315,8 @@ adversarial card awaiting its checker, takes its adversarial head by recomputati
 
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
-- **Accepts:** on Codex every worker runs on the conductor's model; a decision the change does not cite is read by its index
-  line alone; the build keeps one model a change.
+- **Accepts:** on Codex every worker on the conductor's host runs on the conductor's model; a decision the change does not
+  cite is read by its index line alone; the build keeps one model a change.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
   it · an adversarial verify skipped by the conductor's judgment.
 
@@ -334,6 +337,21 @@ worker reads `.minions/debt.md`. A verify round after a fix reads its open cards
 - **Rejected:** four checkers — two earn their cost · a checker judging the deterministic checks — the gate, `gate_check.py`,
   the `Verify:` lines and coverage stay scripts · the old names: "security" read as security only.
 
+### D68 · Converge's checkers may run on another host, and a shadow round measures it
+
+**A conformance or adversarial table may name its executor, and the models line its host. A checker on another host than
+converge's runs through the checker mailbox, in the home folder's queue: the conductor writes the request, `conduct.py` spawns
+the checker on the plan's model and effort, and the conductor reads its findings from disk. The fixer stays on converge's host.
+Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze, into shadow files that drive
+nothing, and `overlap.py` counts what each side alone caught. The review metrics read per role and executor.**
+
+- **Why:** a sandboxed Claude conductor cannot start Codex, and the person wanted Codex's review with Claude's fix, and the
+  numbers first.
+- **Accepts:** a mailbox the converge worker writes, bounded to `CHECKER_SPAWNS` a spawn · checkers served one at a time ·
+  a shadow pair's spend each round 1 it is on.
+- **Rejected:** `.minions/` as the mailbox — every worker writes it · a checker's model from its request · a fixer on another
+  host · a shadow on every round.
+
 ### D49 · One review method, one depth
 
 **Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
@@ -342,8 +360,9 @@ change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
   fraction of the cost.
-- **Rejected:** native review in production · `high` as the default · a third findings file · nested fan-out · a
-  high tier: 5 of 5 at both depths, 89 workers and 55.6 M tokens against 2 and 4.2 M.
+- **Rejected:** native review in production · `high` as the default · a third findings file
+  — a shadow file drives nothing ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it))
+  · nested fan-out · a high tier: 5 of 5 at both depths, 89 workers and 55.6 M tokens against 2 and 4.2 M.
 
 ### D43 · Project health is measured per change, from the repo's own catalogue
 
@@ -364,8 +383,9 @@ station says so.**
 
 **`mf-review-metrics` reads the findings files, status logs and run logs of the repos the operator's config names,
 and the operator's Codex sessions, leniently — every unreadable field a gap — and writes one self-contained page and
-its data, `review-metrics.json`, beside it: tables per repo and per model, charts over changes through `mf-build`'s
-chart, and a record per round and role. Numbers only; it writes into no repo and is no station of the line.**
+its data, `review-metrics.json`, beside it: tables
+per repo and per role, executor and model, four headline numbers,
+charts over changes through `mf-build`'s chart, and a record per round and role. Numbers only; it writes into no repo and is no station of the line.**
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
@@ -537,7 +557,8 @@ Conformance judges each new test's cost and traces each removed one's proofs.**
 **The cutter honors a target menu in `AGENTS.md` and the actual session menu. With no menu it describes the
 required capability; it suggests effort only when the host exposes that setting. The cut shows the suggestion and
 writes it to `.minions/changes/<change-id>/models.toml`, converge's worker tables on
-[D64](#d64--converge-spends-where-judgment-is)'s tiers among it, never into the change, for `mf-ship`; model selection
+[D64](#d64--converge-spends-where-judgment-is)'s tiers among it, each host the brief names as its `executor`, never into
+the change, for `mf-ship`; model selection
 and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut
 writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
 
@@ -617,10 +638,12 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
-- **Executors:** the models file names a station's executor, absent meaning the run's.
+- **Executors:** the models file names a station's executor, absent meaning the run's, and a checker's,
+  absent meaning converge's.
   One probe runs per executor, Codex's with a checker on a fixture, at the start or before a joining version's first worker
   on it, and a
-  worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
+  worker reaches the primary and the open worktrees alone,
+  and a converge worker its checker mailbox. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
 - **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;
   a push `origin` refuses halts. Past `RETRIES` at the start, the run builds, converges and releases locally, judged against

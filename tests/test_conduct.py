@@ -3930,7 +3930,9 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     assert (run.shadowed, run.executors()) == (set(), ["claude"])
 
 
-def test_a_checker_request_is_bounded(tmp_path: Path) -> None:
+def test_a_checker_request_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     conduct = _conduct()
     serve, opened = conduct["serve_requests"], conduct["_open_mailbox"]
     mailbox = tmp_path / "queue" / "checkers" / "0001-todo"
@@ -3998,6 +4000,31 @@ def test_a_checker_request_is_bounded(tmp_path: Path) -> None:
     mailbox.unlink()
     mailbox.write_text("x\n")
     assert opened(mailbox) == f"the checker mailbox {mailbox} is a link"
+    under = mailbox / "0002-next"
+    assert opened(under) == f"the checker mailbox {under} is a link"
+
+    # A converge's `between` runs each poll; `TIMEOUT` still bounds it, and a
+    # `between` that raises kills the worker's group first.
+    work = conduct["work"]
+    monkeypatch.setitem(work.__globals__, "MAILBOX_POLL", 0.05)
+    monkeypatch.setitem(work.__globals__, "TIMEOUT", 0.3)
+    sleeper = [sys.executable, "-c", "import time; time.sleep(30)"]
+    polled: list[int] = []
+    out = tmp_path / "work.log"
+    assert work(sleeper, tmp_path, out, None, lambda: polled.append(1)) == (-9, True)
+    assert polled
+    monkeypatch.setitem(work.__globals__, "TIMEOUT", 30)
+    claim = tmp_path / "claim"
+    claim.mkdir()
+
+    def failed() -> None:
+        raise conduct["Stop"](1, "conduct: halt — a root moved")
+
+    started = time.monotonic()
+    with pytest.raises(conduct["Stop"]):
+        work(sleeper, tmp_path, out, claim, failed)
+    assert time.monotonic() - started < 10
+    assert list(claim.iterdir()) == []
 
 
 def test_the_checker_command_sends_and_waits(
@@ -4047,6 +4074,10 @@ def test_the_checker_command_sends_and_waits(
     waiting = "checker: waiting — run conduct.py checker 0001-todo conformance --wait\n"
     assert said(root, "0001-todo", "conformance", False) == (3, waiting)
     assert (mailbox / "conformance.request").read_text() == text
+    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
+    # It polls each `MAILBOX_POLL` until `CHECKER_WAIT` passes.
+    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0.05)
+    monkeypatch.setitem(checker.__globals__, "MAILBOX_POLL", 0.01)
     assert said(root, "0001-todo", "conformance", True) == (3, waiting)
 
     # `--wait` sends nothing and prints the answer, exiting with its code.
@@ -4138,6 +4169,25 @@ def test_a_codex_checker_runs_through_the_mailbox(
         for line in _log(root)
     )
     assert list(mailbox.iterdir()) == []
+
+    # A mailbox a worker swapped for a link halts its version before converge starts.
+    _version(root, "0002-more", "- [ ] 1 — More\n")
+    more = root / ".minions" / "changes" / "0002-more"
+    more.mkdir(parents=True)
+    (more / "models.toml").write_text((folder / "models.toml").read_text())
+    linked = conduct["_mailbox"](root, "0002-more")
+    linked.symlink_to(tmp_path)
+    calls.unlink()
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "build 0002-more" in _calls(calls)
+    assert not any(call.startswith("converge 0002-more") for call in _calls(calls))
+    assert any(
+        line.endswith(f" · 0002-more · halt — the checker mailbox {linked} is a link")
+        for line in _log(root)
+    )
 
 
 @pytest.mark.slow

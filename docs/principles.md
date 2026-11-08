@@ -151,7 +151,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it, the
   default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, and the
-  queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests;
+  queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests, and a converge worker's
+  checker mailbox, which that worker writes;
 - `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,
   `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too, and the `mf-*` links on
   `~/.claude/skills` and `~/.agents/skills`, which a run's end moves — named in no target repo
