@@ -891,14 +891,22 @@ def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
     turn = {"type": "turn.completed", "usage": usage}
     bare = {"type": "turn.completed"}
     _worker_log(repo, "0001-x", "A-converge-conformance.log", spawn, turn, bare)
-    opened = _said(None, "x1", opus, input_tokens=4, cache_read_input_tokens=10)
-    totals = {"input_tokens": 9, "cache_read_input_tokens": 90, "output_tokens": 3000}
+    opened = _said(None, "x1", sonnet, input_tokens=4, cache_read_input_tokens=10)
+    # Its cache write splits as the CLI writes it: the 5-minute 100 at
+    # `cache_write`, the 1-hour 200 at `cache_write_1h`.
+    totals = {
+        "input_tokens": 9,
+        "cache_creation_input_tokens": 300,
+        "cache_read_input_tokens": 90,
+        "output_tokens": 3000,
+        "cache_creation": written,
+    }
     _worker_log(
         repo,
         "0001-x",
         "A-converge-adversarial.log",
         opened,
-        _said(None, "x2", opus, input_tokens=5, output_tokens=2),
+        _said(None, "x2", sonnet, input_tokens=5, output_tokens=2),
         {"type": "result", "total_cost_usd": 0.1, "usage": totals},
     )
     _worker_log(repo, "0001-x", "A-converge-shadow-adversarial.log", opened)
@@ -920,11 +928,13 @@ def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
         (None, None, None, sonnet, None, 1, "subagent"),
         ("conformance", 1, 2, sonnet, None, 3, "subagent"),
         ("conformance", None, None, "gpt-6.1-sol", 1100, 1000, "mailbox"),
-        ("adversarial", None, None, opus, 3099, 14, "mailbox"),
-        ("shadow-adversarial", None, None, opus, None, 14, "mailbox"),
+        ("adversarial", None, None, sonnet, 3399, 14, "mailbox"),
+        ("shadow-adversarial", None, None, sonnet, None, 14, "mailbox"),
     ]
     dollars = [worker["dollars"] for worker in data["workers"]]
-    expected = [None, None, None, None, None, 0.0024, 0.075090, None]
+    # The Claude checker's 0.046629: 9 x 3.0, 90 x 0.3, 3000 x 15.0, and its
+    # cache write 100 x 3.75 and 200 x 6.0, a million each.
+    expected = [None, None, None, None, None, 0.0024, 0.046629, None]
     assert dollars == [pytest.approx(d) if d else d for d in expected]
     assert {w["repo"] for w in data["workers"]} == {"repo"}
     assert {w["change"] for w in data["workers"]} == {"0001-x"}
