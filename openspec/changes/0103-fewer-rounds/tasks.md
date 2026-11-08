@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The round-1 pickup and the mechanism repeat
 - [x] 2 — The fix note
-- [ ] 3 — The plan check
+- [x] 3 — The plan check
 - [ ] 4 — The corpus
 - [ ] 5 — CommonMark readers
 - [ ] 6 — The plan review's model
@@ -42,19 +42,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The plan check
 
-- [ ] 3.1 Add `tests/test_plan_check.py` with `test_a_plan_check_finds_what_the_plan_left` and
+- [x] 3.1 Add `tests/test_plan_check.py` with `test_a_plan_check_finds_what_the_plan_left` and
   `test_what_the_plan_check_cannot_read_exits_2`, their steps for checks 1 to 4 of [D4](design.md#d4), per the design's
   `## Tests` rows; the corpus steps come in 4.4.
   Verify: `grep -n "def test_what_the_plan_check_cannot_read_exits_2" tests/test_plan_check.py` prints a line.
-- [ ] 3.2 Write `skills/mf-converge/scripts/plan_check.py` with checks 1 to 4, per [D4](design.md#d4), its docstring citing
+- [x] 3.2 Write `skills/mf-converge/scripts/plan_check.py` with checks 1 to 4, per [D4](design.md#d4), its docstring citing
   `0103-fewer-rounds design D4`.
   Verify: `uv run pytest -q tests/test_plan_check.py` reports `2 passed`.
-- [ ] 3.3 In `skills/mf-build/SKILL.md`, open Step 3.6 with [D4](design.md#d4)'s plan-check paragraph.
+- [x] 3.3 In `skills/mf-build/SKILL.md`, open Step 3.6 with [D4](design.md#d4)'s plan-check paragraph.
   Verify: `grep -n "stop: plan check" skills/mf-build/SKILL.md` prints a line.
-- [ ] 3.4 In `skills/mf-converge/SKILL.md`, add [D4](design.md#d4)'s fixer bullet to Step 6 and its plan-check paragraph to
+- [x] 3.4 In `skills/mf-converge/SKILL.md`, add [D4](design.md#d4)'s fixer bullet to Step 6 and its plan-check paragraph to
   Step 7, after `gate_check.py`.
   Verify: `grep -n "counting no round" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.5 In `skills/mf-rescue/SKILL.md`, add [D4](design.md#d4)'s plan-check row to Step 2's table and its trailer clause.
+- [x] 3.5 In `skills/mf-rescue/SKILL.md`, add [D4](design.md#d4)'s plan-check row to Step 2's table and its trailer clause.
   Verify: `grep -n "Rescue: plan check" skills/mf-rescue/SKILL.md` prints a line.
 
 ## 4 — The corpus

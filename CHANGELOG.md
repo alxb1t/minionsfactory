@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The converge fixer may append `Fix note (<date>, <card id>): <line>` to a `### D<n>` entry in `design.md`; `conduct.py`
   reads an appended note as no decision change, and converge's close-out names each note (change `0103-fewer-rounds`,
   phase 2).
+- `plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the
+  base's tests gone. The build runs it before `build.done`, the converge fixer after each fix and Step 7 after the gate,
+  halting `amend needed — plan check` on a line only the plan can clear, which `mf-rescue` amends (change
+  `0103-fewer-rounds`, phase 3).
 
 ## [0.85.0] - 2026-11-09
 

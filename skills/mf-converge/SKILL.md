@@ -365,6 +365,10 @@ again at its commit. The fixer:
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`);
 - **never weakens the gate** — no new blanket suppression, no loosened config — and **never deletes or merges a
   test**: consolidation is planned at the cut (`T5`). Conformance checks for exactly this;
+- runs `uv run --script <this package>/scripts/plan_check.py --change <change-id> --base <base>` after its gate and
+  before its commit; each line it prints is a blocking card of this pass: fix it, or set it `wontfix` naming the amend, as
+  for a card. A line it cannot clear without editing `tasks.md` or `design.md` it leaves, listing it in its report under
+  `plan check left:`, as it names an amend card's amend;
 - sets each addressed card's [**Status**](references/worker.md#the-card) to `fixed`, with a one-line note;
 - **proves red before green**: for a card whose **Fix** size includes `a test`, it pastes the new or extended
   test's failing run from before the fix into the **Status** note — for an extended test, the existing test with
@@ -407,6 +411,12 @@ record drifts.
 ## Step 7 — Verify, and the cap
 
 Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log.
+
+Then run `plan_check.py` as the fixer does. Exit 1 → back to Step 6 with its lines as the cards to clear, dispatching no
+verify worker and counting no round; but when a line it prints is one the last fixer listed under `plan check left:`, or
+one Step 7 already sent back → **halt** `amend needed — plan check: <subjects>`; exit 2, or `uv` missing → **halt**,
+naming it. `<subjects>` is each such line's subject alone — its sub-task id, its `path:line` or its test name — joined by
+`, `, never the command it quotes, so the rescue may amend, as at any `amend needed`.
 
 **The adversarial head by rule:** after a Step 6 commit, run
 `uv run --script <this package>/scripts/surfaces.py .minions/changes/<change-id>/adversarial.md <previous head> <new head>`,

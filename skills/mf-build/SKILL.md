@@ -263,6 +263,10 @@ before converge.
 
 ## Step 3.6 — Mark the closing steps done
 
+Before writing `build.done`, run `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base
+<default-branch>`, resolved as in Step 1. Exit 1 → **halt**, `stop: plan check`, copying what it prints, and write no
+`build.done`; exit 2, or `uv` missing → **halt**, naming it.
+
 After Step 3.5, `mf-build` writes `.minions/changes/<change-id>/build.done`, the run directory's, two lines:
 
 ```
