@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — Plan reviews
-- [ ] 2 — Helpers and notes
+- [x] 2 — Helpers and notes
 - [ ] 3 — The pickup check
 - [ ] 4 — The bundle
 - [ ] 5 — The release and the record
@@ -21,7 +21,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — Helpers and notes
 
-- [ ] 2.1 Edit *Helpers* and *The source is evidence*, and add *The notes*, in Step 2 of `skills/mf-cut-change/SKILL.md`,
+- [x] 2.1 Edit *Helpers* and *The source is evidence*, and add *The notes*, in Step 2 of `skills/mf-cut-change/SKILL.md`,
   per [D2](design.md#d2), each new phrase on one line.
   Verify: `grep -n -e 'on Sonnet 5.5 · medium where the host offers it' -e '^\*\*The notes\.\*\*' -e 'a helper.s answer or the notes' skills/mf-cut-change/SKILL.md` prints a line for each.
 

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a budget
   of 40 turns, and a second review judges only the change directory's diff since the first (change
   `0101-cut-converge-diet`, phase 1).
+- The cut's helpers run on Sonnet 5.5 · medium where the host offers it, and the cut writes their answers and the facts
+  it read to `cut-notes.md`, which it reads in place of the files again (change `0101-cut-converge-diet`, phase 2).
 
 ## [0.82.0] - 2026-11-08
 
