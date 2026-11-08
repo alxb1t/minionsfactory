@@ -24,9 +24,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   start does not run, and each run's probe proves a write out refused, per executor. It holds Bash and what Bash starts; the permission rules hold `Read`, `Edit` and
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
   `.mcp.json` start nothing, and no MCP server starts, the operator's own included: the probe fails when its `init` event
-  lists one. A Codex worker still starts the operator's `mcp_servers`.
+  lists one. A Codex worker starts with `--ignore-user-config`: the operator's Codex config starts nothing.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
+  The conductor parses a Codex worker's JSON log, which the worker writes: a forged event misstates a denial, a limit, a
+  cost or the checker probe's usage and MCP checks, never a stage's check on disk.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
   scratch repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps
   `origin`'s URLs in the home folder before its first worker: while `origin` differs from them, no remote call of
@@ -154,15 +156,15 @@ run, is on it.
 
 ## Known gaps
 
-Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0050·S7`, `0034·R9`. D47 accepts `Ship tools:`.
+Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
-- A Codex worker starts the operator's `mcp_servers`, its network off, so it reaches their tools until a change sets them
-  empty.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
 - A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
-- `0050·R11`: a concurrent worker that swaps `<primary>/.git` for a link between `argv`'s check and a Codex worker's start puts
-  another repository's `.git` in that worker's writable roots.
+- A worker that swaps a writable root for a link after the check that precedes a Codex spawn, and back, widens
+  that worker's roots: whether Codex resolves a root once or per command is unproven (`0050·S7`, `0050·R11`). A Claude
+  worker can still make, in its own temp folder, the folder a forged worktree entry names, so that folder becomes a
+  Codex root it can swap in the same window.
 - The config race, what is left, `0050·R5` among it: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
   still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.

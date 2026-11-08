@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -46,6 +47,8 @@ USAGE = (
     "cache_read_input_tokens",
     "cache_creation_input_tokens",
 )
+# A Codex `turn.completed`'s tokens: its cached input is a part of its input.
+CODEX_USAGE = ("input_tokens", "output_tokens")
 ROLE = re.compile(r"\b(conformance|adversarial)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
@@ -59,6 +62,8 @@ OLD_LAYOUT = (
     *("release/{}.held", "gate-check/{}"),
 )
 OLD_LOG = re.compile(r"[a-z][a-z-]*?(-\d+)?\.log")
+# A Codex log's prices, read when one is priced. Why: 0096-codex-ready design D6.
+PRICES = Path(__file__).resolve().parents[2] / "skills/mf-review-metrics/prices.toml"
 
 Number = int | float
 
@@ -182,13 +187,47 @@ def _summed(usage: object, keys: tuple[str, ...]) -> int:
     return sum(v for v in values if isinstance(v, int) and not isinstance(v, bool))
 
 
-def _spent(path: Path, name: str) -> tuple[float, int]:
-    """Return a worker log's dollars and tokens: its last result event's totals.
+def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
+    """Return a Codex log's turns priced at its spawn line's model, or the Gap why not.
 
-    Why: `total_cost_usd` and `modelUsage` are cumulative, per 0076-context-cost D1.
+    Why: 0096-codex-ready design D6.
     """
-    events = _json(path, '"result"') if path.is_file() else iter(())
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        first = lines.readline()
+    try:
+        spawn = json.loads(first)
+    except json.JSONDecodeError:
+        spawn = None
+    if not isinstance(spawn, dict) or spawn.get("type") != "mf.spawn":
+        return Gap(f"no spawn line in {name}")
+    model = spawn.get("model")
+    row = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"].get(model)
+    if not model or not isinstance(row, dict):
+        return Gap(f"no price for model {model or 'default'}")
+    dollars = 0.0
+    for turn in turns:
+        usage = turn.get("usage")
+        cached = _summed(usage, ("cached_input_tokens",))
+        fresh = _summed(usage, ("input_tokens",)) - cached
+        output = _summed(usage, ("output_tokens",))
+        dollars += fresh * row["input"] + cached * row["cached_input"]
+        dollars += output * row["output"]
+    return dollars / 1_000_000
+
+
+def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
+    """Return a worker log's dollars, or the Gap naming why none, and its tokens.
+
+    A Claude log's are its last result event's totals: `total_cost_usd` and
+    `modelUsage` are cumulative, per 0076-context-cost D1. A Codex log's are its
+    `turn.completed` events', priced by `_priced`.
+    """
+    events = list(_json(path, '"type"')) if path.is_file() else []
     results = [e for e in events if e.get("type") == "result"]
+    turns = [e for e in events if e.get("type") == "turn.completed"]
+    if not results and turns:
+        tokens = sum(_summed(t.get("usage"), CODEX_USAGE) for t in turns)
+        return _priced(path, name, turns), tokens
     last = results[-1] if results else {}
     cost, models = last.get("total_cost_usd"), last.get("modelUsage")
     if not isinstance(cost, int | float) or not isinstance(models, dict):
@@ -416,11 +455,18 @@ class Version:
         log = f"{spawn.stamp}-{spawn.station}{n}.log"
         return self.folder / "logs" / log, f"{self.change}/logs/{log}"
 
-    def spent(self, stages: tuple[str, ...]) -> tuple[float, int]:
-        """Return the stages' dollars and tokens, each spawn's log read; none is 0."""
+    def spent(self, stages: tuple[str, ...], dollars: bool = True) -> tuple[float, int]:
+        """Return the stages' dollars and tokens, each spawn's log read; none is 0.
+
+        A log priced to no dollars is a gap only when `dollars` are asked for.
+        """
         logs = [self.log(spawn) for stage in stages for spawn in self.stage(stage)]
         spent = [_spent(*log) for log in logs]
-        return sum(cost for cost, _ in spent), sum(tokens for _, tokens in spent)
+        costs = [cost for cost, _ in spent]
+        if dollars and (gaps := [cost for cost in costs if isinstance(cost, Gap)]):
+            raise gaps[0]
+        paid = sum(cost for cost in costs if not isinstance(cost, Gap))
+        return paid, sum(tokens for _, tokens in spent)
 
     def lines(self) -> int:
         """Return the lines the change adds and removes, `metrics/` left out."""
@@ -555,8 +601,11 @@ METRICS: dict[str, Callable[[Version], Number]] = {
         f"cost-usd-{stage}": lambda v, s=stage: round(v.spent((s,))[0], 2)
         for stage in STAGES
     },
-    "tokens": lambda v: v.spent(SPENT)[1],
-    **{f"tokens-{stage}": lambda v, s=stage: v.spent((s,))[1] for stage in STAGES},
+    "tokens": lambda v: v.spent(SPENT, dollars=False)[1],
+    **{
+        f"tokens-{stage}": lambda v, s=stage: v.spent((s,), dollars=False)[1]
+        for stage in STAGES
+    },
     "cost-per-changed-line": Version.per_line,
     **{f"{role}-confirmed": lambda v, r=role: v.confirmed(r) for role in ROLES},
     **{f"{role}-refuted": lambda v, r=role: v.refuted(r) for role in ROLES},

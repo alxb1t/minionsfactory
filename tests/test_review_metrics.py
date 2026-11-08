@@ -602,8 +602,28 @@ def test_codex_sessions_fill_the_rounds(
     ]
 
 
-def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None:
+def test_run_logs_give_cost_turns_and_tokens_per_station(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _findings(tmp_path, "0050-x_review.md", _front())
+    prices = tmp_path / "prices.toml"
+    prices.write_text(
+        '[models]\n"gpt-5.5" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+        '"default" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+    )
+    monkeypatch.setattr(review_metrics, "PRICES", prices)
+    usage = {"input_tokens": 1_000_000, "cached_input_tokens": 400_000}
+    turn = {"type": "turn.completed", "usage": usage | {"output_tokens": 100_000}}
+
+    def spawn(model: str | None) -> object:
+        return {"type": "mf.spawn", "executor": "codex", "model": model, "effort": None}
+
+    # A Codex log's turns are priced at its spawn line's model; a later spawn line
+    # names nothing, and a model with no row is a dollar gap, its tokens read.
+    _worker_log(tmp_path, "0050-x", "A-integrate.log", spawn("gpt-5.5"), turn, turn)
+    _worker_log(tmp_path, "0050-x", "A-rescue.log", turn, spawn("gpt-5.5"), turn)
+    _worker_log(tmp_path, "0050-x", "B-rescue.log", spawn("o9"), turn)
+    _worker_log(tmp_path, "0050-x", "C-rescue.log", spawn("gpt-5.5"))
     first = _result(0.5, 10, 60000, m={"inputTokens": 10, "outputTokens": 20})
     last = _result(
         1.25,
@@ -645,15 +665,27 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     assert (record["cost_converge"], record["turns_converge"]) == (2.0, 17)
     assert (record["tokens_converge"], record["seconds_converge"]) == (380, 93)
     assert (record["logs_converge"], record["spawns_converge"]) == (3, 4)
-    for station in ("build", "release", "integrate", "rescue"):
+    for station in ("build", "release"):
         assert record[f"cost_{station}"] is None
         assert record[f"tokens_{station}"] is None
-    assert (record["logs_build"], record["logs_integrate"]) == (1, 0)
+    assert (record["logs_build"], record["logs_integrate"]) == (1, 1)
+    assert record["cost_integrate"] == 2 * 2.4
+    assert (record["turns_integrate"], record["seconds_integrate"]) == (None, None)
+    assert record["cost_rescue"] is None
+    assert record["tokens_rescue"] == 3 * 1_100_000
+    assert (record["logs_rescue"], record["read_rescue"]) == (3, 2)
 
     headers, rows = review_metrics.cost_table([record])
     assert headers == ["change", *review_metrics.STATIONS]
     assert rows == [
-        ["0050-x", "—", "$2.00 · 17 turns · 380 tokens · 93 s · 3 of 4", "—", "—", "—"]
+        [
+            "0050-x",
+            "—",
+            "$2.00 · 17 turns · 380 tokens · 93 s · 3 of 4",
+            "$4.80 · 2200000 tokens",
+            "—",
+            "— · 3300000 tokens",
+        ]
     ]
 
     bare = tmp_path / "bare"
@@ -668,6 +700,26 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(tmp_path: Path) -> None
     _run_log(timed_out, "B.md", "11:00:00 · 0052-z · spawn — converge · model m")
     _, rows = review_metrics.cost_table([_record(timed_out, "0052-z")])
     assert rows[0][2] == "$0.25 · 1 turns · 4 tokens · 1 s · 1 of 2"
+
+    # A spawn line naming no model is a dollar gap, though a `default` row exists.
+    nameless = tmp_path / "nameless"
+    _findings(nameless, "0054-v_review.md", _front())
+    _worker_log(nameless, "0054-v", "A-converge.log", spawn(None), turn)
+    record = _record(nameless, "0054-v")
+    assert record["cost_converge"] is None
+    assert record["tokens_converge"] == 1_100_000
+
+    # A field one read log lacks is the station's gap, never the other logs' sum.
+    mixed = tmp_path / "mixed"
+    _findings(mixed, "0053-w_review.md", _front())
+    _worker_log(mixed, "0053-w", "A-converge.log", one)
+    _worker_log(mixed, "0053-w", "B-converge.log", spawn("o9"), turn)
+    record = _record(mixed, "0053-w")
+    assert (record["cost_converge"], record["turns_converge"]) == (None, None)
+    assert record["seconds_converge"] is None
+    assert record["read_converge"] == 2
+    _, rows = review_metrics.cost_table([record])
+    assert rows[0][2] == "— · 1100004 tokens"
 
 
 def test_the_page_draws_charts_and_lists_gaps(

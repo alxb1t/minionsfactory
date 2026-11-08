@@ -170,6 +170,8 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
+# The macOS sandbox's refusal, in a Codex command's output.
+CODEX_DENIAL = "Operation not permitted"
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -219,6 +221,20 @@ SHELL_RULES = (
 PROBE = (
     "In this directory, write the word ok to probe.txt, commit it with the"
     " message probe, then run make gate."
+)
+# A Codex probe's second worker. Why: 0096-codex-ready design D8.
+CHECKER_PROBE = (
+    "You are converge's conformance checker for change 0001-probe in this directory."
+    " Load the mf-converge skill's references/generic-conformance.md and"
+    " references/worker.md. Judge the range {base}..{head}, its patch"
+    " .minions/changes/0001-probe/diff.patch and openspec/changes/0001-probe/, and"
+    " write .minions/changes/0001-probe/conformance.md to the worker reference's"
+    " findings file contract. Edit nothing else."
+)
+# The findings file contract's frontmatter keys, as the worker reference lists them.
+FINDINGS_KEYS = (
+    *("type", "plan", "project", "branch", "head", "reviewed", "round"),
+    *("open_blocking", "verdict", "mode", "workers", "model", "packet"),
 )
 SCRATCH_IDENTITY = (
     *("-c", "user.name=mf-ship", "-c", "user.email=mf-ship@example.invalid"),
@@ -2012,6 +2028,84 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     return "make gate left no .gated"
 
 
+def checker_fixture(scratch: Path) -> tuple[str, str]:
+    """Build the checker probe's repo in `scratch`; return its base and head shas.
+
+    Its change asks `total` to round to cents, and its head does not: the seeded
+    defect. Why: 0096-codex-ready design D8.
+    """
+    change = "openspec/changes/0001-probe"
+    total = "def total(prices: list[float]) -> float:\n"
+    base = {
+        ".gitignore": ".minions/\n",
+        "AGENTS.md": "# Probe fixture\n",
+        "total.py": f"{total}    return sum(prices)\n",
+    }
+    head = {
+        f"{change}/proposal.md": "---\nbump: patch\n---\n\n# Probe\n\n"
+        "`total` rounds its sum to cents.\n",
+        f"{change}/design.md": "# Probe — design\n\n## Decisions\n\n"
+        "| id | decision |\n|---|---|\n| D1 | `total` rounds its sum to cents |\n\n"
+        "## Dependencies\n\nNone.\n",
+        f"{change}/tasks.md": "## Progress\n\n- [x] 1 — Round\n\n## 1 — Round\n\n"
+        "- [x] 1.1 Round `total`'s sum to cents in `total.py`.\n",
+        f"{change}/specs/probe/spec.md": "## ADDED Requirements\n\n"
+        "### Requirement: The total rounds to cents\n\n"
+        "`total` SHALL round its sum to cents.\n\n#### Scenario: Two prices\n"
+        "- **WHEN** `total([0.1, 0.2])` runs\n- **THEN** it returns `0.3`\n",
+        "total.py": f'{total}    """Return the sum of `prices`."""\n'
+        "    return sum(prices)\n",
+    }
+    _git(scratch, "init", "-q", "-b", "main")
+    shas = []
+    for files, message in ((base, "base"), (head, "docs(0001-probe): the change")):
+        for name, text in files.items():
+            (scratch / name).parent.mkdir(parents=True, exist_ok=True)
+            (scratch / name).write_text(text)
+        _git(scratch, "add", *files)
+        _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", message)
+        shas.append(_git(scratch, "rev-parse", "HEAD").strip())
+    packet = scratch / ".minions" / "changes" / "0001-probe" / "diff.patch"
+    packet.parent.mkdir(parents=True)
+    packet.write_text(_git(scratch, "diff", *shas))
+    return shas[0], shas[1]
+
+
+def check_checker(scratch: Path, log: Path) -> str | None:
+    """Return why the checker probe fails, or None; its verdict is never judged.
+
+    Why: 0096-codex-ready design D9.
+    """
+    findings = scratch / ".minions" / "changes" / "0001-probe" / "conformance.md"
+    try:
+        regular = stat.S_ISREG(os.lstat(findings).st_mode)
+    except OSError:
+        regular = False
+    if not regular:
+        return "the checker wrote no conformance.md"
+    text = findings.read_text(errors="replace")
+    if missing := [key for key in FINDINGS_KEYS if _frontmatter(text, key) is None]:
+        return f"conformance.md lacks {missing[0]}"
+    for key, held in (("type", "conformance"), ("plan", "0001-probe")):
+        if (value := _frontmatter(text, key)) != held:
+            return f"conformance.md's {key} is {value}"
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"turn.completed"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "turn.completed"
+                and isinstance(event.get("usage"), dict)
+            ):
+                return None
+    return "codex's log holds no usage event"
+
+
 def check(
     primary: Path,
     stage: str,
@@ -2561,8 +2655,9 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
 def reach(primary: Path) -> list[Path]:
     """Return what a worker may edit: the primary and each linked worktree.
 
-    A path inside another stays covered and unlisted, so no listed path can be
-    swapped for a symlink by a worker. Why: 0050-codex-review design D5.
+    A path inside another stays covered and unlisted. A listed path a worker swaps
+    for a link halts the next Codex spawn. Why: 0050-codex-review design D5;
+    0096-codex-ready design D7.
     """
     root = primary.resolve()
     if _common_dir(root) is None:
@@ -2682,6 +2777,25 @@ def _run_dir(primary: Path) -> Path:
     return minions
 
 
+def _unswapped(paths: list[Path]) -> None:
+    """Stop with 1 at the first path that is a link, no folder or not its resolved path.
+
+    A worker can swap a writable root between `reach` and a Codex spawn.
+    Why: 0096-codex-ready design D7.
+    """
+    for path in paths:
+        try:
+            folder = stat.S_ISDIR(os.lstat(path).st_mode)
+        except OSError:
+            folder = False
+        if not folder or path.resolve() != path:
+            raise Stop(
+                1,
+                f"conduct: halt — the writable root {path} is a link or moved:"
+                " a worker swapped it",
+            )
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -2695,7 +2809,8 @@ def argv(
     """Return the worker's command line, the shell rules appended to the prompt.
 
     `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
-    `.git` no longer resolves to the common directory in `repo`. A run passes its
+    `.git` no longer resolves to the common directory in `repo`, or when a writable
+    root or `cwd` is a link `_unswapped` names. A run passes its
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
     or a `.minions` that is a link, stops with 1. Why: 0082-cut-station design D5.
@@ -2742,8 +2857,9 @@ def argv(
     if common and _common_dir(primary) != common:
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     # Codex roots are folders: a cutter's holds its brief's.
-    folders = [*trees, *(path.parent for path in edits)]
-    roots = [*([str(common)] if common else []), *(str(tree) for tree in folders)]
+    folders = [*([common] if common else []), *trees, *(path.parent for path in edits)]
+    _unswapped([*folders, cwd])
+    roots = [str(folder) for folder in folders]
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
@@ -2754,11 +2870,17 @@ def argv(
         *(("-m", model) if model else ()),
         *(("-c", f"model_reasoning_effort={effort}") if effort else ()),
         *("-s", "workspace-write"),
+        # The operator's Codex config sets nothing, and the log is one event a line.
+        # Why: 0096-codex-ready design D1.
+        *("--ignore-user-config", "--json"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         # Codex makes `TMPDIR` a root, links resolved; a worker can link
         # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
         *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
+        # No `/tmp` root; a Claude worker's own temp folder can still hold a forged
+        # entry's folder, which Known gaps names. Why: 0096-codex-ready design D7.
+        *("-c", "sandbox_workspace_write.exclude_slash_tmp=true"),
         *("-c", "sandbox_workspace_write.network_access=false"),
         # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
         # Why: 0053-sandbox-patch design D6.
@@ -2868,17 +2990,46 @@ def _call(block: dict[str, object]) -> str:
     return f"{block.get('name')}({argument})"
 
 
+def _item(event: object, *kinds: str) -> dict[str, object]:
+    """Return a Codex event's item when the event is one of `kinds`, else {}."""
+    if not isinstance(event, dict) or event.get("type") not in kinds:
+        return {}
+    item = event.get("item")
+    return item if isinstance(item, dict) else {}
+
+
+def _codex_denied(item: dict[str, object]) -> str | None:
+    """Return a Codex command the sandbox refused as `Bash(<command>)`, else None.
+
+    Why: 0096-codex-ready design D3.
+    """
+    code = item.get("exit_code")
+    if (
+        item.get("type") == "command_execution"
+        and isinstance(code, int)
+        and code != 0
+        and CODEX_DENIAL in str(item.get("aggregated_output"))
+    ):
+        return f"Bash({item.get('command')})"
+    return None
+
+
 def denials(log: Path) -> list[str]:
-    """Return each tool use a worker's stream-json log shows denied."""
+    """Return each tool use a worker's stream-json or Codex JSON log shows denied."""
     uses: dict[str, str] = {}
     found: list[str] = []
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"tool_use"' not in line and '"is_error"' not in line:
+            if not any(
+                key in line for key in ('"tool_use"', '"is_error"', CODEX_DENIAL)
+            ):
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
+                continue
+            if denied := _codex_denied(_item(event, "item.completed")):
+                found.append(denied)
                 continue
             message = event.get("message") if isinstance(event, dict) else None
             content = message.get("content") if isinstance(message, dict) else None
@@ -2895,19 +3046,39 @@ def denials(log: Path) -> list[str]:
     return found
 
 
+def _codex_limit(event: dict[str, object]) -> str | None:
+    """Return a Codex failed turn's or error's message naming a usage limit, else None.
+
+    Why: 0096-codex-ready design D4.
+    """
+    error = event.get("error")
+    message = {
+        "turn.failed": error.get("message") if isinstance(error, dict) else None,
+        "error": event.get("message"),
+    }.get(str(event.get("type")))
+    if isinstance(message, str) and "usage limit" in message.lower():
+        return message
+    return None
+
+
 def usage_limit(log: Path) -> str:
     """Return ` · stopped by a usage limit · resets <time>`, or "" for any other exit.
 
-    e.g. a `result` event with `api_error_status: 429`, its text naming `resets 5:50pm`
+    e.g. a `result` event with `api_error_status: 429`, its text naming `resets 5:50pm`;
+    a Codex `turn.failed` whose message says `Try again at 5:50 PM.` → `resets 5:50 PM`
     """
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"api_error_status"' not in line:
+            if '"api_error_status"' not in line and "usage limit" not in line.lower():
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
                 continue
+            if isinstance(event, dict) and (message := _codex_limit(event)):
+                resets = re.search(r"try again (?:at|in) ([^.]+)", message, re.I)
+                named = f" · resets {resets[1].strip()}" if resets else ""
+                return f" · stopped by a usage limit{named}"
             if (
                 isinstance(event, dict)
                 and event.get("type") == "result"
@@ -2924,16 +3095,21 @@ def mcp_started(executor: str, log: Path) -> str | None:
     """Return why a worker's start fails the probe, or None when no MCP server started.
 
     e.g. an `init` event's `"mcp_servers": [{"name": "runpod"}]` → "claude started an
-    MCP server: runpod". A log with no `init` event, as Codex's, passes. Why: D51.
+    MCP server: runpod"; a Codex `mcp_tool_call` item names its `server`.
+    Why: D51; 0096-codex-ready design D3.
     """
     names: list[str] = []
     with log.open(errors="replace") as lines:
         for line in lines:
-            if '"mcp_servers"' not in line:
+            if '"mcp_servers"' not in line and '"mcp_tool_call"' not in line:
                 continue
             try:
                 event = json.loads(line)
             except ValueError:
+                continue
+            item = _item(event, "item.started", "item.completed")
+            if item.get("type") == "mcp_tool_call":
+                names.append(str(item.get("server")))
                 continue
             if not isinstance(event, dict) or event.get("subtype") != "init":
                 continue
@@ -2941,7 +3117,8 @@ def mcp_started(executor: str, log: Path) -> str | None:
             for server in servers if isinstance(servers, list) else [servers]:
                 name = server.get("name") if isinstance(server, dict) else server
                 names.append(str(name))
-    return f"{executor} started an MCP server: {', '.join(names)}" if names else None
+    shown = ", ".join(dict.fromkeys(names))
+    return f"{executor} started an MCP server: {shown}" if names else None
 
 
 def _executor_missing(executor: str) -> bool:
@@ -3357,6 +3534,16 @@ class Run:
             out, sink = _free_log(self.primary / ".minions", parts, name)
         with self.guard:
             self.outs[who, station] = out
+        if executor == "codex":
+            # A Codex log names no model; a reader prices its tokens by this line.
+            # Why: 0096-codex-ready design D5.
+            line = {
+                "type": "mf.spawn",
+                "executor": executor,
+                "model": model,
+                "effort": effort,
+            }
+            os.write(sink, f"{json.dumps(line)}\n".encode())
         started = time.monotonic()
         code, killed = work(command, cwd, sink, self.runs / "active")
         seconds = round(time.monotonic() - started)
@@ -3375,10 +3562,18 @@ class Run:
         return denied
 
     def judge(
-        self, who: str, stage: str, reason: str | None, denied: list[str]
+        self,
+        who: str,
+        stage: str,
+        reason: str | None,
+        denied: list[str],
+        shown: str = "",
     ) -> bool:
-        """Log a station's check; a failure halts, naming the denials before it."""
-        result = "pass" if reason is None else f"fail — {reason}"
+        """Log a station's check, `shown` after a pass; a failure halts.
+
+        A failure names the denials before it.
+        """
+        result = f"pass{shown}" if reason is None else f"fail — {reason}"
         self.log.event(who, "check", f"{stage} · {result}")
         if reason is None:
             return True
@@ -4443,8 +4638,9 @@ class Run:
     def probe(self, executor: str, who: str = "run") -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
-        Its log's `init` event lists no MCP server. A failure halts `who`; a pass adds
-        `executor` to `probed`. Why: 0063-rejoin design D3; D51.
+        Its log names no MCP server, and a Codex probe then passes `probe_checker`. A
+        failure halts `who`; a pass adds `executor` to `probed`.
+        Why: 0063-rejoin design D3; D51; 0096-codex-ready design D9.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
@@ -4483,10 +4679,39 @@ class Run:
                 check_probe(scratch, mark) or mcp_started(executor, out),
                 denied,
             ):
-                self.probed.add(executor)
+                if executor != "codex" or self.probe_checker(executor, who):
+                    self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
+
+    def probe_checker(self, executor: str, who: str) -> bool:
+        """Prove a checker writes a findings file to the contract; else halt `who`.
+
+        Its verdict is logged, never judged. Why: 0096-codex-ready design D9.
+        """
+        scratch = Path(tempfile.mkdtemp(prefix="mf-ship-checker-")).resolve()
+        station = "probe" if executor == self.executor else f"probe-{executor}"
+        checker = f"{station}-checker"
+        try:
+            base, head = checker_fixture(scratch)
+            prompt = CHECKER_PROBE.format(base=base, head=head)
+            models = (executor, None, None)
+            denied = self.spawn(who, checker, scratch, prompt, models, _repo(scratch))
+            with self.guard:
+                out = self.outs[who, checker]
+            reason = check_checker(scratch, out) or mcp_started(executor, out)
+            findings = scratch / ".minions" / "changes" / "0001-probe"
+            verdict = None
+            if reason is None:
+                text = (findings / "conformance.md").read_text(errors="replace")
+                verdict = _frontmatter(text, "verdict")
+            shown = f" · verdict {verdict}"
+            return denied is not None and self.judge(
+                who, checker, reason, denied, shown
+            )
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
 
     def push_left(self, tries: tuple[int, ...]) -> bool:
         """Push what a release merged and left; return False when that halted the run.
