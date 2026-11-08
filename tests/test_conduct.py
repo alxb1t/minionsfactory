@@ -190,18 +190,21 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
 def fake_codex(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> Callable[..., Path]:
-    """Put a fake `codex` on `PATH`; return a setter of its modes and the worker's.
+    """Put a fake `codex` and `claude` on `PATH`; return a setter of their modes.
 
-    Why: 0096-codex-ready design D2.
+    Why: 0096-codex-ready design D2; 0097-cross-model design D7.
     """
     folder = tmp_path / "bin"
     folder.mkdir()
-    codex = folder / "codex"
-    script = Path(__file__).with_name("fake_codex.py")
-    codex.write_text(f'#!/bin/sh\nexec "{sys.executable}" -S "{script}" "$@"\n')
-    codex.chmod(0o755)
+    for host in ("codex", "claude"):
+        script = Path(__file__).with_name(f"fake_{host}.py")
+        (folder / host).write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" -S "{script}" "$@"\n'
+        )
+        (folder / host).chmod(0o755)
     monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
     monkeypatch.setenv("FAKE_CODEX_ARGV", str(tmp_path / "codex-argv.jsonl"))
+    monkeypatch.setenv("FAKE_CLAUDE_ARGV", str(tmp_path / "claude-argv.jsonl"))
 
     def modes(mode: str, codex_mode: str = "") -> Path:
         calls = fake(mode)
@@ -3925,6 +3928,216 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     run.read_plan([version])
     assert not conduct["_shadows"](minions, "0001-todo")
     assert (run.shadowed, run.executors()) == (set(), ["claude"])
+
+
+def test_a_checker_request_is_bounded(tmp_path: Path) -> None:
+    conduct = _conduct()
+    serve, opened = conduct["serve_requests"], conduct["_open_mailbox"]
+    mailbox = tmp_path / "queue" / "checkers" / "0001-todo"
+    assert opened(mailbox) is None
+    assert mailbox.stat().st_mode & 0o777 == 0o700
+    # A converge spawn starts on an empty mailbox.
+    (mailbox / "conformance.answer").write_text("exit 0\n")
+    assert opened(mailbox) is None
+    assert list(mailbox.iterdir()) == []
+
+    spawned: list[tuple[str, str]] = []
+
+    def spawn(role: str, prompt: str) -> str:
+        spawned.append((role, prompt))
+        return "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+
+    secret = tmp_path / "secret"
+    secret.write_text("key\n")
+    (mailbox / "conformance.request").write_text("Judge it.\n")
+    (mailbox / "adversarial.request").symlink_to(secret)
+    long = "x" * (conduct["REQUEST_BYTES"] + 1)
+    (mailbox / "shadow-conformance.request").write_text(long)
+    (mailbox / "shadow-adversarial.request").mkdir()
+    (mailbox / "fix.request").write_text("Fix it.\n")
+    assert serve(mailbox, 0, spawn) == 1
+    assert spawned == [("conformance", "Judge it.\n")]
+    assert (mailbox / "conformance.answer").read_text() == (
+        "exit 0 · executor codex · model gpt-6.1-sol · effort high\n"
+    )
+    for role in ("adversarial", "shadow-conformance", "shadow-adversarial"):
+        assert (mailbox / f"{role}.answer").read_text() == (
+            f"exit 1 · refused: {role}.request is a link, no file or too long\n"
+        )
+    assert secret.read_text() == "key\n"
+    # A request is taken once; an entry named for no role is left.
+    assert [path.name for path in mailbox.iterdir() if "request" in path.name] == [
+        "fix.request"
+    ]
+    # Past `CHECKER_SPAWNS` served, no checker starts.
+    (mailbox / "conformance.request").write_text("Again.\n")
+    assert serve(mailbox, 8, spawn) == 8
+    assert (mailbox / "conformance.answer").read_text() == (
+        "exit 1 · refused: more than 8 checker requests\n"
+    )
+    assert spawned == [("conformance", "Judge it.\n")]
+    assert serve(tmp_path / "gone", 3, spawn) == 3
+
+    answer = conduct["_answer"]
+    assert answer(0, False, ("codex", "gpt-6.1-sol", "high"), "") == (
+        "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+    )
+    limit = " · stopped by a usage limit · resets 5:50 PM"
+    assert answer(-9, True, ("claude", None, None), limit) == (
+        f"exit -9 · executor claude · model default · effort default · timed out{limit}"
+    )
+
+    # A mailbox a worker swapped for a link halts its version, and empties nothing.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "kept.txt").write_text("x\n")
+    shutil.rmtree(mailbox)
+    mailbox.symlink_to(elsewhere)
+    assert opened(mailbox) == f"the checker mailbox {mailbox} is a link"
+    assert (elsewhere / "kept.txt").is_file()
+    mailbox.unlink()
+    mailbox.write_text("x\n")
+    assert opened(mailbox) == f"the checker mailbox {mailbox} is a link"
+
+
+def test_the_checker_command_sends_and_waits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    checker = conduct["checker"]
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    def said(cwd: Path, change: str, role: str, wait: bool) -> tuple[int, str]:
+        code = checker(cwd, change, role, wait)
+        return code, capsys.readouterr().out
+
+    unknown = "checker: cannot run — not a change id and a checker role\n"
+    assert said(root, "0001-todo;id", "conformance", False) == (2, unknown)
+    assert said(root, "0001-todo", "fix", False) == (2, unknown)
+    none = "checker: cannot run — this converge has no mailbox\n"
+    assert said(root, "0001-todo", "conformance", False) == (2, none)
+    mailbox = conduct["_mailbox"](root, "0001-todo")
+    assert mailbox.parent.parent == conduct["_queue"](root)
+    mailbox.parent.mkdir(parents=True)
+    mailbox.symlink_to(tmp_path)
+    assert said(root, "0001-todo", "conformance", False) == (2, none)
+    mailbox.unlink()
+    assert conduct["_open_mailbox"](mailbox) is None
+
+    # The prompt is a regular file in the change's folder, at most `REQUEST_BYTES`.
+    prompt = root / ".minions" / "changes" / "0001-todo" / "conformance.prompt.md"
+    bad = f"checker: cannot run — {prompt} is a link, no file or too long\n"
+    assert said(root, "0001-todo", "conformance", False) == (2, bad)
+    prompt.parent.mkdir(parents=True)
+    prompt.symlink_to(root / "AGENTS.md")
+    assert said(root, "0001-todo", "conformance", False) == (2, bad)
+    prompt.unlink()
+    prompt.write_text("x" * (conduct["REQUEST_BYTES"] + 1))
+    assert said(root, "0001-todo", "conformance", False) == (2, bad)
+    assert list(mailbox.iterdir()) == []
+
+    # Sent, then waited on past `CHECKER_WAIT`: exit 3 names the `--wait` re-run.
+    text = "You are converge's conformance checker for change 0001-todo.\n"
+    prompt.write_text(text)
+    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0)
+    waiting = "checker: waiting — run conduct.py checker 0001-todo conformance --wait\n"
+    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
+    assert (mailbox / "conformance.request").read_text() == text
+    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
+
+    # `--wait` sends nothing and prints the answer, exiting with its code.
+    (mailbox / "conformance.request").unlink()
+    answer = "exit 0 · executor codex · model gpt-6.1-sol · effort high\n"
+    (mailbox / "conformance.answer").write_text(answer)
+    code = _main(
+        conduct,
+        root,
+        "checker",
+        "0001-todo",
+        "conformance",
+        "--wait",
+        monkeypatch=monkeypatch,
+    )
+    assert (code, capsys.readouterr().out) == (0, answer)
+    assert list(mailbox.iterdir()) == []
+    (mailbox / "conformance.answer").write_text("exit 1 · refused: x\n")
+    assert said(root, "0001-todo", "conformance", True) == (1, "exit 1 · refused: x\n")
+    (mailbox / "conformance.answer").write_text("garbled\n")
+    assert said(root, "0001-todo", "conformance", True) == (1, "garbled\n")
+
+
+@pytest.mark.slow
+def test_a_codex_checker_runs_through_the_mailbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake_codex("")
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text(
+        '[converge.conformance]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        'effort = "high"\n'
+    )
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "probe",
+        "checker",
+        "build 0001-todo",
+        "converge 0001-todo and conformance=mailbox",
+        "checker 0001-todo conformance",
+        "release 0001-todo",
+    ]
+    # Codex runs the checker on its table's model and effort, in the worktree.
+    *_, args = _codex_argvs(tmp_path)
+    assert args[args.index("-m") + 1] == "gpt-6.1-sol"
+    assert "model_reasoning_effort=high" in args
+    assert args[args.index("-C") + 1] == str(tree)
+    assert args[-1].startswith(
+        "You are converge's conformance checker for change 0001-todo.\n"
+    )
+    # The Claude converge may write its mailbox, through no added directory.
+    mailbox = conduct["_mailbox"](root, "0001-todo")
+    claude = tmp_path / "claude-argv.jsonl"
+    [converge] = [
+        json.loads(line)
+        for line in claude.read_text().splitlines()
+        if "Run the mf-converge skill" in line
+    ]
+    settings = json.loads(converge[converge.index("--settings") + 1])
+    assert str(mailbox) in settings["sandbox"]["filesystem"]["allowWrite"]
+    assert str(mailbox) not in converge
+    # The findings name their checker's executor, and the checker logs as a station.
+    assert "\nexecutor: codex\n" in (folder / "conformance.md").read_text()
+    spawned = [
+        line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
+    ]
+    assert (
+        "converge-conformance · model gpt-6.1-sol · effort high · executor codex"
+        in spawned
+    )
+    [log] = (folder / "logs").glob("*-converge-conformance.log")
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
+    assert json.loads(log.read_text().splitlines()[0]) == spawn | {"effort": "high"}
+    assert any(
+        " · 0001-todo · finish — converge-conformance · exit 0 · " in line
+        for line in _log(root)
+    )
+    assert list(mailbox.iterdir()) == []
 
 
 def test_a_station_runs_on_its_executor(

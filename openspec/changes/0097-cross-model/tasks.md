@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The models line and the plan
-- [ ] 2 — The checker mailbox
+- [x] 2 — The checker mailbox
 - [ ] 3 — Shadow round 1
 - [ ] 4 — The metrics
 - [ ] 5 — The record
@@ -27,21 +27,21 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The checker mailbox
 
-- [ ] 2.1 Add `tests/fake_claude.py`, `bin/claude` and `FAKE_CLAUDE_ARGV` to the `fake_codex` fixture of `tests/test_conduct.py`,
+- [x] 2.1 Add `tests/fake_claude.py`, `bin/claude` and `FAKE_CLAUDE_ARGV` to the `fake_codex` fixture of `tests/test_conduct.py`,
   and `FAKE_HOST` to `tests/fake_codex.py`, per [D7](design.md#d7).
   Verify: `grep -n 'FAKE_CLAUDE_ARGV' tests/fake_claude.py tests/test_conduct.py` prints a line for each file; `grep -n 'FAKE_HOST' tests/fake_codex.py` prints a line.
-- [ ] 2.2 Teach `tests/fake_worker.py` the `checker` station for any change, the `shadow-blocks` mode and the fake converge's
+- [x] 2.2 Teach `tests/fake_worker.py` the `checker` station for any change, the `shadow-blocks` mode and the fake converge's
   mailbox and shadow clauses, per [D7](design.md#d7).
   Verify: `grep -n -e 'shadow-blocks' -e 'prompt.md' -e 'FAKE_HOST' tests/fake_worker.py` prints a line for each.
-- [ ] 2.3 Add `test_a_checker_request_is_bounded` to `tests/test_conduct.py`, then the constants of [D4](design.md#d4),
+- [x] 2.3 Add `test_a_checker_request_is_bounded` to `tests/test_conduct.py`, then the constants of [D4](design.md#d4),
   `serve_requests`, `_answer`, `_open_mailbox` and `work`'s `between` in `skills/mf-ship/scripts/conduct.py`, per
   [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k checker_request_is_bounded` reports `1 passed`; `grep -n -e '^def serve_requests' -e '^def _answer(' -e '^def _open_mailbox' -e '^CHECKER_SPAWNS = 8$' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.4 Add `test_a_codex_checker_runs_through_the_mailbox` and `test_the_checker_command_sends_and_waits` to
+- [x] 2.4 Add `test_a_codex_checker_runs_through_the_mailbox` and `test_the_checker_command_sends_and_waits` to
   `tests/test_conduct.py`, then the rest of `skills/mf-ship/scripts/conduct.py` that [D4](design.md#d4)–[D6](design.md#d6) and
   [D8](design.md#d8) list for a checker on another host: `checker`, `_mailbox`, `Run.checker` and `argv`'s `mailbox` among it.
   Verify: `uv run pytest -q tests/test_conduct.py -k "runs_through_the_mailbox or checker_command_sends or carries_the_allowlist or codex_probe_runs_a_checker or station_runs_on_its_executor"` reports `5 passed`; `grep -n -e 'add_parser("checker"' -e '^def _mailbox' -e 'def checker(' -e '^CHECKER_WAIT = 100$' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.5 Edit `skills/mf-converge/SKILL.md`, `skills/mf-converge/references/worker.md` and `skills/mf-ship/SKILL.md` as
+- [x] 2.5 Edit `skills/mf-converge/SKILL.md`, `skills/mf-converge/references/worker.md` and `skills/mf-ship/SKILL.md` as
   [D8](design.md#d8) lists; add `("mf-converge", "../mf-ship/scripts/conduct.py")` to `_METRICS_SCRIPTS` and the expected lists
   of `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`.
   Verify: `grep -n 'conduct.py checker' skills/mf-converge/SKILL.md` prints a line; `grep -n '^executor: ' skills/mf-converge/references/worker.md` prints a line; `grep -n 'checker mailbox' skills/mf-ship/SKILL.md` prints a line; `uv run pytest -q tests/test_skills.py -k metrics_script` reports `2 passed`.

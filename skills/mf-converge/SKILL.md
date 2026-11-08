@@ -87,7 +87,7 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor you run on; the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
+| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — for a mailbox role, the executor, model and effort its answer names; else the executor you run on, and the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -126,6 +126,13 @@ worker's model; `mf-ship` passes them from the models file, and a person may pas
 worker's call — on Claude Code the Agent tool's `model` is the family the name holds, `claude-opus-5-5` → `opus`, and
 its `effort` the effort; `default` passes none. A role given none, and every worker on a host whose call takes no model,
 Codex among them, runs on your model. Never read the models file yourself: a worker can write it.
+
+**A mailbox role:** `<role>=mailbox` names a checker on another host than yours. Send it by writing its whole dispatch
+prompt to `.minions/changes/<change-id>/<role>.prompt.md`, then running
+`uv run --script <this package>/../mf-ship/scripts/conduct.py checker <change-id> <role>` in the foreground. Exit 3 →
+run it again with `--wait`, never without: a re-run without it sends a second request. Go on until it exits 0 or 1. Its
+answer, `exit <n> · executor <x> · model <m> · effort <e>`, names the role's executor, model and effort; exit 1 is a
+worker that failed. Every other role is dispatched as above.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
@@ -327,7 +334,8 @@ The fix pass is a station **inside** `mf-converge`, not a separate skill and not
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
 Dispatch a **fresh worker**, in the foreground, on `adversarial=`'s model when any card it is
-sent is blocking, else on `fix=`'s, to clear every **open blocking** finding across both files — in the pickup round,
+sent is blocking and adversarial is no mailbox role, else on `fix=`'s — a model of another host cannot run here — to
+clear every **open blocking** finding across both files — in the pickup round,
 exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at dispatch and
 again at its commit. The fixer:
 

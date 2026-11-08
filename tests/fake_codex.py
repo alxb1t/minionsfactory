@@ -1,7 +1,8 @@
 """The fake `codex` the `fake_codex` fixture puts on `PATH`: a worker's `--json` events.
 
-It records its argv, acts on the prompt as `fake_worker.py` does, and prints the
-events `FAKE_CODEX_MODE` names. Why: 0096-codex-ready design D2.
+It records its argv, acts on the prompt as `fake_worker.py` does, `FAKE_HOST` naming
+it, and prints the events `FAKE_CODEX_MODE` names. Why: 0096-codex-ready design D2;
+0097-cross-model design D7.
 """
 
 import json
@@ -41,6 +42,7 @@ def _codex(args: list[str]) -> int:
         os.chdir(args[args.index("-C") + 1])
     mode = os.environ.get("FAKE_CODEX_MODE", "")
     _print({"type": "thread.started", "thread_id": "fake"})
+    os.environ["FAKE_HOST"] = "codex"
     runpy.run_path(str(_WORKER))["_fake"](args[-1])
     if item := _ITEMS.get(mode):
         _print({"type": "item.completed", "item": item})

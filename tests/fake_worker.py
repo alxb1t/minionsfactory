@@ -41,11 +41,16 @@ def _folder(root: Path, change: str) -> Path:
 
 
 def _findings(
-    root: Path, change: str, head: str, verdict: str = "clean", round: int = 1
+    root: Path,
+    change: str,
+    head: str,
+    verdict: str = "clean",
+    round: int = 1,
+    roles: tuple[str, ...] = ("conformance", "adversarial"),
 ) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    for role in ("conformance", "adversarial"):
+    for role in roles:
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: {round}\n---\n"
         (folder / f"{role}.md").write_text(text)
     log = folder / "status_log.md"
@@ -377,35 +382,90 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
 
 
 _USAGE = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
+_CHECKER = re.compile(r"converge's (\S+) checker for change (\S+?)[ .]")
 
 
-def _checker(here: Path, modes: set[str]) -> None:
-    """Write the probe checker's findings file with every key, and a usage event.
-
-    `checker-silent` writes nothing. Why: 0096-codex-ready design D9.
-    """
-    if "checker-silent" in modes:
-        return
-    folder = _folder(here, "0001-probe")
-    folder.mkdir(parents=True, exist_ok=True)
+def _front(here: Path, role: str, change: str, verdict: str, blocking: int) -> str:
+    """Return a findings file's frontmatter with every key, the host `FAKE_HOST`."""
     keys = {
-        "type": "conformance",
-        "plan": "0001-probe",
-        "project": "probe",
-        "branch": "main",
+        "type": role.removeprefix("shadow-"),
+        "plan": change,
+        "project": "fake",
+        "branch": _git(here, "branch", "--show-current"),
         "head": _git(here, "rev-parse", "HEAD"),
         "reviewed": "2026-11-08",
         "round": "1",
-        "open_blocking": "1",
-        "verdict": "changes-requested",
+        "open_blocking": str(blocking),
+        "verdict": verdict,
         "mode": "parallel",
         "workers": "1",
         "model": "fake",
+        "executor": os.environ.get("FAKE_HOST", "claude"),
         "packet": "diff.patch",
     }
-    front = "".join(f"{key}: {value}\n" for key, value in keys.items())
-    (folder / "conformance.md").write_text(f"---\n{front}---\n")
+    return (
+        "---\n" + "".join(f"{key}: {value}\n" for key, value in keys.items()) + "---\n"
+    )
+
+
+def _checker(here: Path, role: str, change: str, modes: set[str]) -> None:
+    """Write a checker's findings file with every key, and a usage event.
+
+    The probe's, for `0001-probe`, requests changes; `checker-silent` writes none. A
+    shadow's blocks under `shadow-blocks`. Why: 0096-codex-ready design D9;
+    0097-cross-model design D7.
+    """
+    if change == "0001-probe":
+        if "checker-silent" in modes:
+            return
+        root, verdict, blocking, card = here, "changes-requested", 1, ""
+    else:
+        common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        root, verdict, blocking, card = Path(common).parent, "clean", 0, ""
+        if role.startswith("shadow-") and "shadow-blocks" in modes:
+            adversarial = role.endswith("adversarial")
+            name, grade = ("S1", "high") if adversarial else ("R1", "blocking")
+            verdict, blocking = "changes-requested", 1
+            card = (
+                f"\n- **{name} — a finding**\n"
+                f"  - **Priority:** {grade} · {role[7:]} · stability — why.\n"
+                "  - **What it affects:** `total.py:12`\n"
+                "  - **Fix:** a fix · size: one line.\n"
+                "  - **Status:** open\n"
+            )
+    folder = _folder(root, change)
+    folder.mkdir(parents=True, exist_ok=True)
+    front = _front(here, role, change, verdict, blocking)
+    (folder / f"{role}.md").write_text(front + card)
     print(json.dumps({"type": "turn.completed", "usage": _USAGE}), flush=True)
+
+
+def _mailed(here: Path, primary: Path, change: str, roles: list[str]) -> None:
+    """Send each role through `conduct.py checker`, as converge's conductor does.
+
+    A failed send ends the fake converge with 1, save a shadow's.
+    Why: 0097-cross-model design D7.
+    """
+    conduct = Path(__file__).resolve().parent.parent / "skills" / "mf-ship" / "scripts"
+    for role in roles:
+        prompt = f"You are converge's {role} checker for change {change}.\n"
+        _folder(primary, change).mkdir(parents=True, exist_ok=True)
+        (_folder(primary, change) / f"{role}.prompt.md").write_text(prompt)
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-S",
+                str(conduct / "conduct.py"),
+                "checker",
+                change,
+                role,
+            ],
+            cwd=here,
+            capture_output=True,
+            text=True,
+        )
+        if done.returncode != 0 and not role.startswith("shadow-"):
+            sys.exit(1)
 
 
 def _fake(prompt: str) -> None:
@@ -414,17 +474,20 @@ def _fake(prompt: str) -> None:
     here = Path.cwd()
     found = re.search(r"Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
-    if "conformance checker for change 0001-probe" in prompt:
-        station = "checker"
+    role = None
+    if checked := _CHECKER.search(prompt):
+        station, role, change = "checker", checked[1], checked[2]
     # Every key=value clause but the one every release prompt carries.
     clauses = "".join(re.findall(r" (?:with|and) (?!merge=yes\b)\w+=\w+", prompt))
     if station == "supervise" and (brief := re.search(r" and brief=(\S+)\.\s", prompt)):
         clauses += f" and brief={Path(brief[1]).name}"
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
+        if station == "checker":
+            called = "checker" if change == "0001-probe" else f"checker {change} {role}"
         calls.write(f"{called}{clauses}\n")
     if station == "checker":
-        _checker(here, modes)
+        _checker(here, str(role), str(change), modes)
         return
     if station == "build" and "deny" in modes:
         use = {
@@ -617,7 +680,13 @@ def _fake(prompt: str) -> None:
             )
             log.write_text(held.replace("## Run", run + "## Run", 1))
         else:
-            _findings(primary, str(change), head)
+            mailed = re.findall(r" and (\w+)=mailbox\b", prompt)
+            _mailed(here, primary, str(change), mailed)
+            roles = ("conformance", "adversarial")
+            alone = tuple(role for role in roles if role not in mailed)
+            _findings(primary, str(change), head, roles=alone)
+            if " and shadow=yes" in prompt:
+                _mailed(here, primary, str(change), [f"shadow-{r}" for r in roles])
         if "dies-converge" in modes:
             log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
             sys.exit(1)

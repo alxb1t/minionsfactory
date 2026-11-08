@@ -59,6 +59,13 @@ DEBT_LOCK = ".minions/debt.lock"
 OLD_DEBT = ".minions/backlog.md"
 OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
+# The checker mailbox: its roles, poll and bounds; the spawns are three rounds of two
+# checkers and a shadow pair. Why: 0097-cross-model design D4.
+CHECKERS = ("conformance", "adversarial", "shadow-conformance", "shadow-adversarial")
+MAILBOX_POLL = 2
+CHECKER_WAIT = 100
+REQUEST_BYTES = 65536
+CHECKER_SPAWNS = 8
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
@@ -235,7 +242,7 @@ CHECKER_PROBE = (
 # The findings file contract's frontmatter keys, as the worker reference lists them.
 FINDINGS_KEYS = (
     *("type", "plan", "project", "branch", "head", "reviewed", "round"),
-    *("open_blocking", "verdict", "mode", "workers", "model", "packet"),
+    *("open_blocking", "verdict", "mode", "workers", "model", "executor", "packet"),
 )
 SCRATCH_IDENTITY = (
     *("-c", "user.name=mf-ship", "-c", "user.email=mf-ship@example.invalid"),
@@ -2664,6 +2671,127 @@ def _entries(folder: Path, empty: bool) -> list[str]:
         os.close(fd)
 
 
+def _open_mailbox(mailbox: Path) -> str | None:
+    """Make a version's checker mailbox, mode 0o700, and empty it; else say why not.
+
+    A mailbox that is a link or no folder is emptied through nothing.
+    Why: 0097-cross-model design D5.
+    """
+    with contextlib.suppress(OSError):
+        mailbox.parent.mkdir(parents=True, exist_ok=True)
+        mailbox.mkdir(mode=0o700)
+    try:
+        folder = stat.S_ISDIR(os.lstat(mailbox).st_mode)
+    except OSError:
+        folder = False
+    if not folder:
+        return f"the checker mailbox {mailbox} is a link"
+    _entries(mailbox, empty=True)
+    return None
+
+
+def _bounded(path: Path | str, fd: int | None = None) -> str | None:
+    """Return a regular file's text, read following no link, at most `REQUEST_BYTES`.
+
+    A relative `path` is read in the folder `fd` holds. None when it is a link, no
+    file or unreadable. Why: 0097-cross-model design D4.
+    """
+    text = None
+    with contextlib.suppress(OSError):
+        file = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+        try:
+            if stat.S_ISREG(os.fstat(file).st_mode):
+                with os.fdopen(file, "rb", closefd=False) as handle:
+                    data = handle.read(REQUEST_BYTES + 1)
+                if len(data) <= REQUEST_BYTES:
+                    text = data.decode(errors="replace")
+        finally:
+            os.close(file)
+    return text
+
+
+def _take_request(fd: int, name: str) -> str | None:
+    """Return a request's text, as `_bounded` reads it through `fd`, and remove it."""
+    text = _bounded(name, fd)
+    with contextlib.suppress(OSError):
+        os.unlink(name, dir_fd=fd)
+    with contextlib.suppress(OSError):
+        os.rmdir(name, dir_fd=fd)
+    return text
+
+
+def _place(fd: int, name: str, text: str) -> None:
+    """Write `name` whole through `fd`: made as `.<name>`, then renamed over the old.
+
+    Each is made `O_EXCL`, following no link; a failure raises `OSError`.
+    """
+    part = f".{name}"
+    for old in (name, part):
+        with contextlib.suppress(OSError):
+            os.unlink(old, dir_fd=fd)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
+    with os.fdopen(os.open(part, flags, 0o600, dir_fd=fd), "w") as handle:
+        handle.write(text)
+    os.rename(part, name, src_dir_fd=fd, dst_dir_fd=fd)
+
+
+def _reply(fd: int, role: str, answer: str) -> None:
+    """Write `<role>.answer` through `fd`; a mailbox that refuses it gets none."""
+    with contextlib.suppress(OSError):
+        _place(fd, f"{role}.answer", f"{answer}\n")
+
+
+def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str]) -> int:
+    """Answer each checker request in `mailbox`; return the count `spawn` served.
+
+    `served` counts this converge spawn's checkers so far: past `CHECKER_SPAWNS`, or
+    for a request that is a link, no file or too long, no checker starts. An entry
+    named for no role is left. Why: 0097-cross-model design D5.
+    """
+    names = _entries(mailbox, empty=False)
+    try:
+        fd = os.open(mailbox, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return served
+    try:
+        for role in CHECKERS:
+            if f"{role}.request" not in names:
+                continue
+            prompt = _take_request(fd, f"{role}.request")
+            if prompt is None:
+                answer = (
+                    f"exit 1 · refused: {role}.request is a link, no file or too long"
+                )
+            elif served >= CHECKER_SPAWNS:
+                answer = (
+                    f"exit 1 · refused: more than {CHECKER_SPAWNS} checker requests"
+                )
+            else:
+                served += 1
+                answer = spawn(role, prompt)
+            _reply(fd, role, answer)
+    finally:
+        os.close(fd)
+    return served
+
+
+def _answer(
+    code: int, killed: bool, models: tuple[str, str | None, str | None], limit: str
+) -> str:
+    """Return a checker's answer: its exit, executor, model, effort and why it ended.
+
+    e.g. 0, False, ("codex", "m", None), "" →
+    "exit 0 · executor codex · model m · effort default"
+    Why: 0097-cross-model design D5.
+    """
+    executor, model, effort = models
+    timed = " · timed out" if killed else ""
+    return (
+        f"exit {code} · executor {executor} · model {model or 'default'}"
+        f" · effort {effort or 'default'}{timed}{limit}"
+    )
+
+
 def _granted(runs: Path, change: str, take: bool) -> bool:
     """Return whether `runs/grants` holds `change`'s grant, deleting it when `take`.
 
@@ -2839,6 +2967,7 @@ def argv(
     repo: Repo,
     lines: ShipLines | None = None,
     brief: Path | None = None,
+    mailbox: Path | None = None,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
@@ -2847,7 +2976,9 @@ def argv(
     root or `cwd` is a link `_unswapped` names. A run passes its
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
-    or a `.minions` that is a link, stops with 1. Why: 0082-cut-station design D5.
+    or a `.minions` that is a link, stops with 1. A converge's `mailbox` is one more
+    write, through its sandbox alone. Why: 0082-cut-station design D5;
+    0097-cross-model design D6.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
@@ -2858,6 +2989,7 @@ def argv(
         raise Stop(1, f"conduct: halt — {why}")
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
+    mailboxes = [] if mailbox is None else [mailbox]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     # A worker's `mktemp` lands inside its sandbox. Why: 0084-ship-fixes-2 design D6.
     tmp = primary / ".minions" / "tmp"
@@ -2876,7 +3008,7 @@ def argv(
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *(
                 "--settings",
-                worker_settings(primary, [*trees, *edits], common, network),
+                worker_settings(primary, [*trees, *edits, *mailboxes], common, network),
             ),
             # A worker can write the project's settings and `.mcp.json`, and each
             # runs at a start, outside the sandbox.
@@ -2891,7 +3023,12 @@ def argv(
     if common and _common_dir(primary) != common:
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     # Codex roots are folders: a cutter's holds its brief's.
-    folders = [*([common] if common else []), *trees, *(path.parent for path in edits)]
+    folders = [
+        *([common] if common else []),
+        *trees,
+        *(path.parent for path in edits),
+        *mailboxes,
+    ]
     _unswapped([*folders, cwd])
     roots = [str(folder) for folder in folders]
     # Why: 0050-codex-review design D4.
@@ -2961,12 +3098,17 @@ def _free_log(root: Path, parts: tuple[str, ...], name: str) -> tuple[Path, int]
 
 
 def work(
-    command: list[str], cwd: Path, out: Path | int, claim: Path | None
+    command: list[str],
+    cwd: Path,
+    out: Path | int,
+    claim: Path | None,
+    between: Callable[[], None] | None = None,
 ) -> tuple[int, bool]:
     """Run one worker in its own process group, output to `out`, held in `claim`.
 
-    `out` is a path, or a descriptor it closes. Return its exit code and whether
-    `TIMEOUT` killed it.
+    `out` is a path, or a descriptor it closes. With `between`, it is called each
+    `MAILBOX_POLL` seconds while the worker runs. Return its exit code and whether
+    `TIMEOUT` killed it. Why: 0097-cross-model design D5.
     """
     if isinstance(out, Path):
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -2983,9 +3125,23 @@ def work(
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = claim / str(worker.pid) if claim else None
+        deadline = time.monotonic() + TIMEOUT
         try:
             if group:
                 group.write_text(_ps(worker.pid, "lstart="))
+            while between is not None:
+                try:
+                    return worker.wait(timeout=MAILBOX_POLL), False
+                except subprocess.TimeoutExpired:
+                    if time.monotonic() >= deadline:
+                        raise
+                try:
+                    between()
+                except BaseException:
+                    # A worker its claim no longer names would outlive the run.
+                    os.killpg(worker.pid, signal.SIGKILL)
+                    worker.wait()
+                    raise
             return worker.wait(timeout=TIMEOUT), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -3544,15 +3700,76 @@ class Run:
         models: tuple[str, str | None, str | None],
         repo: Repo | None = None,
         brief: Path | None = None,
+        mailbox: Path | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout or a failed exit halted `who`. A
-        cutter's `brief` goes to `argv`.
+        cutter's `brief` goes to `argv`, and so does a converge's `mailbox`, which is
+        served while it runs. Why: 0097-cross-model design D5.
+        """
+        between = None if mailbox is None else self.server(who, cwd, mailbox)
+        code, killed, out, denied = self.worker(
+            who, station, cwd, prompt, models, repo, brief, mailbox, between
+        )
+        if killed:
+            self.halt(
+                who, f"{station} timed out after {TIMEOUT}s; its group was killed"
+            )
+            return None
+        if code != 0:
+            self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
+            return None
+        return denied
+
+    def server(self, who: str, cwd: Path, mailbox: Path) -> Callable[[], None]:
+        """Return what serves a converge spawn's checker mailbox between its polls.
+
+        Why: 0097-cross-model design D5.
+        """
+        served = 0
+
+        def serve() -> None:
+            nonlocal served
+            served = serve_requests(
+                mailbox, served, lambda role, text: self.checker(who, role, cwd, text)
+            )
+
+        return serve
+
+    def checker(self, change: str, role: str, cwd: Path, prompt: str) -> str:
+        """Run one checker the mailbox asked for; return its answer, halting nothing.
+
+        Its models are the plan's, never the request's.
+        Why: 0097-cross-model design D5.
+        """
+        models = self.plan[change, f"converge.{role}"]
+        code, killed, out, _ = self.worker(
+            change, f"converge-{role}", cwd, prompt, models
+        )
+        return _answer(code, killed, models, usage_limit(out))
+
+    def worker(
+        self,
+        who: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        repo: Repo | None = None,
+        brief: Path | None = None,
+        mailbox: Path | None = None,
+        between: Callable[[], None] | None = None,
+    ) -> tuple[int, bool, Path, list[str]]:
+        """Run one worker and log it and its denials; halt nothing.
+
+        Return its exit, whether `TIMEOUT` killed it, its log and its denials.
         """
         executor, model, effort = models
         held = (repo or self.repo, self.lines)
-        if brief is not None:
+        if mailbox is not None:
+            command = argv(executor, prompt, cwd, model, effort, *held, mailbox=mailbox)
+        elif brief is not None:
             command = argv(executor, prompt, cwd, model, effort, *held, brief=brief)
         else:
             command = argv(executor, prompt, cwd, model, effort, *held)
@@ -3580,21 +3797,17 @@ class Run:
             }
             os.write(sink, f"{json.dumps(line)}\n".encode())
         started = time.monotonic()
-        code, killed = work(command, cwd, sink, self.runs / "active")
+        claim = self.runs / "active"
+        if between is not None:
+            code, killed = work(command, cwd, sink, claim, between)
+        else:
+            code, killed = work(command, cwd, sink, claim)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         denied = denials(out)
         for call in denied:
             self.log.event(who, "denied", f"{station} · {call}")
-        if killed:
-            self.halt(
-                who, f"{station} timed out after {TIMEOUT}s; its group was killed"
-            )
-            return None
-        if code != 0:
-            self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
-            return None
-        return denied
+        return code, killed, out, denied
 
     def judge(
         self,
@@ -4009,17 +4222,21 @@ class Run:
                 with self.guard:
                     staged = self.settled.pop(version.change, None)
                 settled = "" if staged is None else " with settled=supervisor"
-                workers = ""
+                workers, mailbox = "", None
                 if stage == "converge":
                     converge = self.planned_models(version.change, stage)[0]
+                    planned = [self.planned_models(change, name) for name in WORKERS]
                     workers = "".join(
-                        _worker_clause(
-                            name, self.planned_models(version.change, name), converge
-                        )
-                        for name in WORKERS
+                        _worker_clause(name, models, converge)
+                        for name, models in zip(WORKERS, planned, strict=True)
                     )
                     if version.change in self.shadowed:
                         workers += " and shadow=yes"
+                    if any(models[0] != converge for models in planned):
+                        mailbox = _mailbox(self.primary, change)
+                        if refused := _open_mailbox(mailbox):
+                            self.halt(change, refused)
+                            return
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
@@ -4031,7 +4248,9 @@ class Run:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
                     self.log.event(version.change, "ledger", f"{version.change} {head}")
-                denied = self.spawn(version.change, stage, cwd, prompt, models)
+                denied = self.spawn(
+                    version.change, stage, cwd, prompt, models, mailbox=mailbox
+                )
                 if denied is None:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
@@ -5286,9 +5505,20 @@ def _log_stop(runs: Path) -> Path | None:
 def _queue(primary: Path) -> Path:
     """Return the repo's queue in the home folder, where no worker writes.
 
-    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
+    Save each converge worker's own checker mailbox, `_mailbox`.
+    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2;
+    0097-cross-model design D4.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+def _mailbox(primary: Path, change: str) -> Path:
+    """Return a version's checker mailbox: only its converge worker may write it.
+
+    e.g. `~/.mf-ship-origin/<digest>.queue/checkers/0001-todo`.
+    Why: 0097-cross-model design D4.
+    """
+    return _queue(primary) / "checkers" / change
 
 
 def _brief_of(primary: Path, change: str) -> str | None:
@@ -5832,6 +6062,47 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
     return 1 if killed else code
 
 
+def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
+    """Send a checker's prompt through the version's mailbox; print its answer.
+
+    Converge's sandboxed conductor runs it; `wait` sends nothing. Return the answer's
+    exit, 1 with none, 2 when nothing can be sent, 3 past `CHECKER_WAIT`.
+    Why: 0097-cross-model design D4.
+    """
+    if not CHANGE_ID.fullmatch(change) or role not in CHECKERS:
+        print("checker: cannot run — not a change id and a checker role")
+        return 2
+    primary = primary_of(cwd)
+    try:
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        fd = os.open(_mailbox(primary, change), flags)
+    except OSError:
+        print("checker: cannot run — this converge has no mailbox")
+        return 2
+    try:
+        if not wait:
+            prompt = _change_dir(primary, change) / f"{role}.prompt.md"
+            if (text := _bounded(prompt)) is None:
+                print(f"checker: cannot run — {prompt} is a link, no file or too long")
+                return 2
+            _place(fd, f"{role}.request", text)
+        deadline = time.monotonic() + CHECKER_WAIT
+        while (answer := _bounded(f"{role}.answer", fd)) is None:
+            if time.monotonic() >= deadline:
+                print(
+                    f"checker: waiting — run conduct.py checker {change} {role} --wait"
+                )
+                return 3
+            time.sleep(MAILBOX_POLL)
+        with contextlib.suppress(OSError):
+            os.unlink(f"{role}.answer", dir_fd=fd)
+    finally:
+        os.close(fd)
+    print(answer, end="")
+    found = re.match(r"exit (\d+)", answer)
+    return int(found[1]) if found else 1
+
+
 def status(cwd: Path) -> str:
     """Return the claim and unpushed lines, then `<change-id> · <stage>` per version."""
     primary = primary_of(cwd)
@@ -6047,6 +6318,10 @@ def main(argv_: list[str] | None = None) -> int:
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
+    sending = commands.add_parser("checker", help="send a checker on another host")
+    sending.add_argument("change_id", metavar="change-id")
+    sending.add_argument("role")
+    sending.add_argument("--wait", action="store_true")
     commands.add_parser("report", help="the last run's close-out lines")
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
@@ -6089,6 +6364,8 @@ def main(argv_: list[str] | None = None) -> int:
             print(rejoin(cwd, args.change_id, args.yes))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
+        elif args.command == "checker":
+            return checker(cwd, args.change_id, args.role, args.wait)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
