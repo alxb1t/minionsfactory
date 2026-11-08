@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-11-08
+
+Gate: local 2m20s · CI not read under mf-ship · 0.79.0: local 1m54s · CI not read under mf-ship
+
 - A brief's models line may name a host, `codex/gpt-6.1-sol`, and add `conformance`, `adversarial` and `fix` parts and a
   last `shadow`; a conformance or adversarial table may name its `executor`, and the run probes it and each shadow's host
   (change `0097-cross-model`, phase 1).

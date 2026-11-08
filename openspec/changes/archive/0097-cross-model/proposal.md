@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.80
 after: [0096-codex-ready]
 ---
 
