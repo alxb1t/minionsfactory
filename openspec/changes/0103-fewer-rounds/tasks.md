@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The round-1 pickup and the mechanism repeat
+- [x] 1 — The round-1 pickup and the mechanism repeat
 - [ ] 2 — The fix note
 - [ ] 3 — The plan check
 - [ ] 4 — The corpus
@@ -15,16 +15,16 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The round-1 pickup and the mechanism repeat
 
-- [ ] 1.1 **HALT CHECK** Confirm Step 8's pickup check is still no round in `skills/mf-converge/SKILL.md`, as
+- [x] 1.1 **HALT CHECK** Confirm Step 8's pickup check is still no round in `skills/mf-converge/SKILL.md`, as
   [D1](design.md#d1) needs; missing, the plan is wrong.
   Verify: `grep -n "the pickup check is no round" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.2 In `skills/mf-converge/SKILL.md`, make [D1](design.md#d1)'s Step 6, round-1 pickup, Step 8, due-rule, resume-row,
+- [x] 1.2 In `skills/mf-converge/SKILL.md`, make [D1](design.md#d1)'s Step 6, round-1 pickup, Step 8, due-rule, resume-row,
   events-row and diagram edits.
   Verify: `grep -n "with the fix" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.3 In `skills/mf-converge/SKILL.md`, append [D1](design.md#d1)'s *Nothing committed* sentence to Step 6's paragraph on
+- [x] 1.3 In `skills/mf-converge/SKILL.md`, append [D1](design.md#d1)'s *Nothing committed* sentence to Step 6's paragraph on
   a fixer that committed nothing.
   Verify: `grep -n "checked — nothing" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 1.4 In `skills/mf-converge/references/worker.md`, make [D2](design.md#d2)'s edits to *A repeat escalates*, the
+- [x] 1.4 In `skills/mf-converge/references/worker.md`, make [D2](design.md#d2)'s edits to *A repeat escalates*, the
   **Priority** row and the **Related** row.
   Verify: `grep -n "mechanism repeat" skills/mf-converge/references/worker.md` prints a line.
 

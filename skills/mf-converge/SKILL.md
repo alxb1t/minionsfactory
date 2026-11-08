@@ -18,7 +18,7 @@ you judge nothing. Missing root `AGENTS.md` → **halt**, naming it.
 ```
   catch-up? ─▶ 1 preconditions ─▶ 2 freeze ─▶ 3 dispatch ─▶ 5 read verdicts
                                                                 │
-                       ┌───────────── not clean ────────────────┤ both clean
+                       ┌──── not clean · round 1: + pickup ─────┤ both clean
                        ▼                                        ▼
   5 ◀── 7 verify ◀── 6 fix ◀── a blocker left ──────────── 8 pickup: 6 fix, one check
         cap three                                               │ none picked, or clean
@@ -92,7 +92,7 @@ The events, and no others:
 | `shadow` | [Shadow round 1](#shadow-round-1) | `overlap.py`'s line, or the shadow that exited 1, or `overlap.py`'s exit 2 |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
-| `pickup` | Step 8 | the picked ids, or `none`; after the pickup check's read, `checked`, then each file's `verdict` and `open_blocking`, and the worker's `executor`, `model`, `effort` and `tokens` |
+| `pickup` | Step 8, and Step 6's round-1 pickup | the picked ids, or `none`, `· with the fix` for a round-1 pickup; after the pickup check's read, `checked`, then each file's `verdict` and `open_blocking`, and the worker's `executor`, `model`, `effort` and `tokens` |
 | `catch-up` | `## Catch-up round` | the judged head and `HEAD` |
 | `by rule` | `### By rule`, Step 7 | `clean`, then each merge's paths as `replay` printed them, or `no surface` |
 | `debt` | Step 9 | the cards written, moot and cleared, by id |
@@ -189,8 +189,8 @@ their verdicts; no grant is needed. Files missing, or naming two heads → a pla
 
 A run marked `· grant` that resumes stays a granted round: its verify round clean → Step 9, never Step 8.
 
-**A pickup check is due** when this run's latest `pickup` line names ids and no `checked` line follows it: while one is
-due, every way to Step 7 — the table's, a verify round's, Step 6's — goes to Step 8 item 5.
+**A pickup check is due** when this run's latest `pickup` line names ids, does not end `with the fix`, and no `checked` line
+follows it: while one is due, every way to Step 7 — the table's, a verify round's, Step 6's — goes to Step 8 item 5.
 
 | latest event | go on at |
 |---|---|
@@ -201,7 +201,7 @@ due, every way to Step 7 — the table's, a verify round's, Step 6's — goes to
 | `shadow` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
-| `pickup` | `none` → Step 9; `checked` → Step 8 item 6; else Step 8 item 4, the same ids |
+| `pickup` | `none` → Step 9; `checked` → Step 8 item 6; `with the fix` → Step 6, the blocking cards and those ids; else Step 8 item 4, the same ids |
 | `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
 | `by rule` | a catch-up run → Step 9; else Step 7's conformance dispatch |
@@ -357,7 +357,7 @@ build∥fix seam prevents nothing — both produce, both commit, neither judges.
 Dispatch a **fresh worker**, in the foreground, on `adversarial=`'s model when any card it is
 sent is blocking and adversarial is no mailbox role, else on `fix=`'s — a model of another host cannot run here —
 always at the fixer's effort: `fix=`'s, `medium` when it names `default` or there is no `fix=`. It clears
-every **open blocking** finding across both files — in a pickup,
+every **open blocking** finding across both files, and in a round-1 pickup the cards Step 8 would pick — in a pickup,
 exactly the cards Step 8 names — to a **green gate**; wait for it. Write `fix` to the status log at dispatch and
 again at its commit. The fixer:
 
@@ -383,9 +383,15 @@ again at its commit. The fixer:
   `Co-Authored-By:` and `Change: <change-id>` **contiguous**: a blank line between them silently breaks the
   trailer block.
 
+**The round-1 pickup.** In round 1 of a run that is no catch-up run, with a blocking card open, pick by Step 8 items 2 and 3
+before you dispatch: print the ids and write `pickup` with `<ids> · with the fix`. Send them with the blocking cards.
+Round 2's verify round judges them all, and Step 8 finds pickup ran.
+
 **The fixer committed nothing** — every finding it took is `wontfix` → say so, write `fix` with
 `nothing committed`, and skip the re-freeze. The verify pass re-judges each `wontfix` justification against the
-unchanged head and the previous freeze's patch, and Step 5 compares against that freeze's numbers.
+unchanged head and the previous freeze's patch, and Step 5 compares against that freeze's numbers. In a pickup Step 8
+sent, run no pickup check: write `pickup` with `checked — nothing committed`, and go to Step 8 item 6. A round-1 pickup's
+pass is no such pickup: it goes on as above.
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
 head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
@@ -442,7 +448,7 @@ Fix this run's small cards and its drift while their context is fresh. **A small
 whose **Fix** size is `one line`, `a test`, or `one line and a test`. The pick is mechanical — the size and the
 tier are on the card — and no human confirms it.
 
-1. **Once, while a round remains.** Pickup already ran, this is a catch-up round, or the last judged round is at
+1. **Once, while a round remains.** Pickup already ran, a round-1 pickup's included, this is a catch-up round, or the last judged round is at
    the cap → Step 9.
 2. **Pick every `open` small card, and every `open` `drift` card whatever its size,** in either findings file.
    Match the size literally: a non-`drift` card sized outside [the closed set](references/worker.md#the-card) is not picked. None
@@ -452,7 +458,7 @@ tier are on the card — and no human confirms it.
 5. **The pickup check** — re-run the gate and `gate_check.py`, and write `verify`, as Step 7 does; run
    `open_cards.py` for both files, and `surfaces.py` over the re-freeze's range, halting on its exit 2 as Step 7 says;
    its exit 0 writes nothing by rule here, for the check sets both heads; a fixer that committed nothing runs no
-   `surfaces.py`, as in Step 7, and counts as exit 1. The check **needs** adversarial when a picked card is
+   check, as Step 6 says. The check **needs** adversarial when a picked card is
    adversarial's or `surfaces.py` exits 1, else conformance. A role it needs is a mailbox role → write `pickup` with
    `checked — round <N+1>` and verify in a normal Step 7 round instead, counted. Else dispatch one fresh worker, its description `verify round <N> · pickup`, `<N>`
    the last judged round, on the needed role's model at effort `medium`. Give it [verify](references/verify.md), both
