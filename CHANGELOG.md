@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model with no row a cost gap (change `0096-codex-ready`, phase 2).
 - A writable root or working directory a worker swapped for a link halts the next Codex spawn, and no Codex worker has
   `/tmp` as a root (change `0096-codex-ready`, phase 3).
+- A run's Codex probe, past its scratch edit, runs one conformance checker on a fixture and passes on a findings file to
+  the contract and a usage event, its verdict logged, never judged; D67 records it, and D47, D51 and the threat model
+  follow (change `0096-codex-ready`, phase 4).
 
 ## [0.78.0] - 2026-11-08
 

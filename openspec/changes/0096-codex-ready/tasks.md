@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — Config isolation
 - [x] 2 — JSON events
 - [x] 3 — The swap window
-- [ ] 4 — The probe and the record
+- [x] 4 — The probe and the record
 
 ## 1 — Config isolation
 
@@ -47,18 +47,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The probe and the record
 
-- [ ] 4.1 Add `CHECKER_PROBE`, `FINDINGS_KEYS` and `checker_fixture` to `skills/mf-ship/scripts/conduct.py`, per [D8](design.md#d8).
+- [x] 4.1 Add `CHECKER_PROBE`, `FINDINGS_KEYS` and `checker_fixture` to `skills/mf-ship/scripts/conduct.py`, per [D8](design.md#d8).
   Verify: `grep -n -e '^CHECKER_PROBE = ' -e '^FINDINGS_KEYS = ' -e '^def checker_fixture' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 4.2 Teach `tests/fake_worker.py` the checker prompt and the `checker-silent` mode, per [D9](design.md#d9).
+- [x] 4.2 Teach `tests/fake_worker.py` the checker prompt and the `checker-silent` mode, per [D9](design.md#d9).
   Verify: `grep -n 'checker-silent' tests/fake_worker.py` prints a line.
-- [ ] 4.3 Add `test_the_codex_probe_runs_a_checker` over `fake_codex`, and edit the call lists the design's [Tests](design.md#tests)
+- [x] 4.3 Add `test_the_codex_probe_runs_a_checker` over `fake_codex`, and edit the call lists the design's [Tests](design.md#tests)
   names, then `check_checker`, `probe_checker` and `Run.probe`'s Codex path, per [D9](design.md#d9).
   Verify: `uv run pytest -q tests/test_conduct.py -k "codex_probe_runs_a_checker or probed_mid_run or station_runs_on_its_executor or probe_halts_on_a_write_out"` reports `4 passed`.
-- [ ] 4.4 Add D67 after D51 in `docs/decisions.md`, and `D67` to the map's *Repo conventions* line, per [D10](design.md#d10).
+- [x] 4.4 Add D67 after D51 in `docs/decisions.md`, and `D67` to the map's *Repo conventions* line, per [D10](design.md#d10).
   Verify: `grep -n "^### D67 · A Codex worker starts on MF's settings, logs JSON and is proved by a checker$" docs/decisions.md` prints a line; `grep -n 'D60, D61, D67' docs/decisions.md` prints a line.
-- [ ] 4.5 Amend D51 and D47 in `docs/decisions.md`, per [D10](design.md#d10), each new phrase on one line.
+- [x] 4.5 Amend D51 and D47 in `docs/decisions.md`, per [D10](design.md#d10), each new phrase on one line.
   Verify: `grep -n 'until a change sets them empty' docs/decisions.md` prints nothing; `grep -n -e 'loads no user config' -e 'with a checker on a fixture' docs/decisions.md` prints a line for each.
-- [ ] 4.6 Edit *Trust boundaries* and *Known gaps* in `THREAT_MODEL.md`, per [D10](design.md#d10), each new phrase on one line.
+- [x] 4.6 Edit *Trust boundaries* and *Known gaps* in `THREAT_MODEL.md`, per [D10](design.md#d10), each new phrase on one line.
   Verify: `grep -n -e 'still starts the operator' -e 'until a change sets them' THREAT_MODEL.md` prints nothing; `grep -n -e 'ignore-user-config' -e 'never a stage' -e 'once or per command' THREAT_MODEL.md` prints a line for each.
-- [ ] 4.7 Add the checker to the probe sentence of `skills/mf-ship/SKILL.md`, per [D10](design.md#d10).
+- [x] 4.7 Add the checker to the probe sentence of `skills/mf-ship/SKILL.md`, per [D10](design.md#d10).
   Verify: `grep -n 'one checker on a fixture' skills/mf-ship/SKILL.md` prints a line.
