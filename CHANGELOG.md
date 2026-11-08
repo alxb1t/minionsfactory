@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-08
+
+Gate: local 2m10s · CI not read under mf-ship · 0.82.0: local 2m22s · CI not read under mf-ship
+
 - A plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a budget
   of 40 turns, and a second review judges only the change directory's diff since the first (change
   `0101-cut-converge-diet`, phase 1).

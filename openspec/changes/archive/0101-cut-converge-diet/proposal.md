@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.83
 after: [0100-worker-diet]
 debt: [0095·R3, 0095·S5]
 ---
