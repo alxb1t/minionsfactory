@@ -2250,6 +2250,17 @@ def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
     table.unlink()
     assert models(minions, "0001-todo", "supervise", "codex") == ("codex", None, None)
 
+    # Converge's conductor on Claude takes Sonnet high when its table names neither;
+    # a table naming one keeps it, the other none. Why: 0100-worker-diet design D8.
+    conductor = ("claude", "claude-sonnet-5-5", "high")
+    assert models(minions, "0001-todo", "converge", "claude") == conductor
+    assert models(minions, "0001-todo", "converge", "codex") == ("codex", None, None)
+    table.write_text('[converge]\nmodel = "claude-opus-5-5"\n')
+    opus = ("claude", "claude-opus-5-5", None)
+    assert models(minions, "0001-todo", "converge", "claude") == opus
+    table.write_text('[converge]\neffort = "max"\n')
+    assert models(minions, "0001-todo", "converge", "claude") == ("claude", None, "max")
+
 
 def _switched(root: Path, change: str) -> None:
     """Write `change`'s models file holding the switch alone."""
@@ -4294,7 +4305,7 @@ def test_a_station_runs_on_its_executor(
     prompts: list[str] = []
     argv = conduct["argv"]
 
-    def spy(executor: str, prompt: str, *rest: object) -> list[str]:
+    def spy(executor: str, prompt: str, *rest: object, **_: object) -> list[str]:
         found = re.search(r"Run the mf-(\w+) skill", prompt)
         started.append((found[1] if found else "probe", executor))
         prompts.append(prompt)
@@ -6705,7 +6716,7 @@ def test_the_plan_is_read_once(
     started: list[tuple[object, ...]] = []
     argv = conduct["argv"]
 
-    def spy(*args: object) -> list[str]:
+    def spy(*args: object, **_: object) -> list[str]:
         started.append(args)
         return argv(*args)
 
@@ -8296,7 +8307,10 @@ def test_a_claude_worker_starts_in_the_sandbox(
                 ],
             },
             "network": {"allowedDomains": [*conduct["NETWORK"], "ghcr.io"]},
-        }
+        },
+        "enabledPlugins": {},
+        "outputStyle": "default",
+        "autoMemoryEnabled": False,
     }
     # A plain-text store is a credential, and a registry that takes writes is a way out.
     assert "~/.git-credentials" in conduct["SECRETS"]
@@ -8311,6 +8325,8 @@ def test_a_claude_worker_starts_in_the_sandbox(
     # No MCP server starts, the operator's own included.
     assert command.index("--strict-mcp-config") < command.index("--allowedTools")
     assert "--mcp-config" not in command
+    lean = command.index("--exclude-dynamic-system-prompt-sections")
+    assert lean < command.index("--allowedTools")
 
     # The conductor's uv environment is not the worker's `.venv`, and its scratch
     # folder stands inside the sandbox.
@@ -8343,6 +8359,155 @@ def test_a_claude_worker_starts_in_the_sandbox(
             settings()
         assert stop.value.code == 1
         assert value in str(stop.value)
+
+
+def test_every_station_starts_lean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake_codex("")
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    operator = Path.home() / ".claude" / "settings.json"
+    operator.parent.mkdir()
+    plugins = {"notes@market": True, "idle@market": False}
+    operator.write_text(json.dumps({"enabledPlugins": plugins}))
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    # Each station's tools alone, the operator's plugins, style and memory off.
+    argvs = (tmp_path / "claude-argv.jsonl").read_text().splitlines()
+    tools: dict[str, str] = {}
+    for args in map(json.loads, argvs):
+        named = re.search(r"Run the mf-(\w+) skill", args[args.index("-p") + 1])
+        tools[named[1] if named else "probe"] = args[args.index("--tools") + 1]
+        assert "--exclude-dynamic-system-prompt-sections" in args
+        sent = json.loads(args[args.index("--settings") + 1])
+        assert sent["enabledPlugins"] == {"notes@market": False, "idle@market": False}
+        assert (sent["outputStyle"], sent["autoMemoryEnabled"]) == ("default", False)
+    worker = "Bash,Read,Edit,Write,Glob,Grep,Skill"
+    assert tools == {
+        "probe": "Bash,Read",
+        "build": worker,
+        "converge": f"{worker},Agent",
+        "release": worker,
+    }
+    assert conduct["tools_for"]("converge-adversarial") == conduct["WORKER_TOOLS"]
+    assert conduct["tools_for"]("probe-codex-checker") == ("Bash", "Read")
+
+    # The run recorded its primary in the home folder, once.
+    # Why: 0100-worker-diet design D12.
+    repos = Path.home() / conduct["KEPT_ORIGINS"] / "repos"
+    assert repos.read_text() == f"{root}\n"
+    assert repos.stat().st_mode & 0o777 == 0o600
+    conduct["_record_repo"](root)
+    assert repos.read_text() == f"{root}\n"
+
+    # The cut and converge wait past 5 minutes; no station, the host's default.
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    hour, minutes = "ENABLE_PROMPT_CACHING_1H=1", "FORCE_PROMPT_CACHING_5M=1"
+    for station, ttl in (
+        ("cut", hour),
+        ("converge", hour),
+        ("build", minutes),
+        ("converge-adversarial", minutes),
+    ):
+        command = argv("claude", "Do it.", root, None, None, repo, station=station)
+        assert command[command.index("claude") - 1] == ttl
+    bare = argv("claude", "Do it.", root, None, None, repo)
+    assert not any("PROMPT_CACHING" in arg for arg in bare)
+    assert "--tools" not in bare
+    assert "--exclude-dynamic-system-prompt-sections" in bare
+
+    # A plugin is turned off by name; a settings file it cannot read names none.
+    config = tmp_path / "claude-config"
+    config.mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    plugins_off = conduct["_plugins_off"]
+    assert plugins_off() == {}
+    for text in ("{cut", '{"enabledPlugins": ["a@m"]}', "[]"):
+        (config / "settings.json").write_text(text)
+        assert plugins_off() == {}
+    (config / "settings.json").write_text('{"enabledPlugins": {"a@m": true}}')
+    assert plugins_off() == {"a@m": False}
+
+
+def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    # A released version's worktree is kept; a queued cut's stands before its cut.
+    _version(root, "0002-done", "- [x] 1 — Done\n")
+    _git(root, "merge", "-q", "--no-ff", "-m", "release", "0002-done")
+    queued = root.parent / "0003-queued"
+    _git(root, "worktree", "add", "-q", "-b", "0003-queued", str(queued))
+
+    assert conduct["reach"](root) == [root, tree]
+
+    entry = conduct["_queue"](root) / "cuts" / "0003-queued"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("{}")
+    assert conduct["reach"](root) == [root, tree, queued.resolve()]
+
+
+def test_a_worker_asking_for_a_missing_tool_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("missing-tool")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — build asked for a tool its station lacks: Agent"
+        )
+        for line in _log(root)
+    )
+    # A cut line is skipped; a result whose use the log lacks is named by its text.
+    result = {"type": "tool_result", "tool_use_id": "t9", "is_error": True}
+    result["content"] = "No such tool available: Task"
+    log = tmp_path / "missing.log"
+    cut = '{"message": "No such tool available\n'
+    log.write_text(cut + json.dumps({"message": {"content": [result]}}))
+    assert conduct["lacked"](log) == ["No such tool available: Task"]
+
+
+def test_the_probe_reports_its_first_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("first-turn")
+    root = _primary(tmp_path)
+    # A run's claim folder, which `ship` makes.
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    conductor = conduct["Run"](root, "claude")
+
+    conductor.probe("claude")
+
+    assert "claude" in conductor.probed
+    shown = " · run · check — probe · pass · first turn 19003 tokens\n"
+    assert shown in conductor.log.path.read_text()
+    # A Codex log's first turn is its first `turn.completed` input; none, no number.
+    log = tmp_path / "codex.log"
+    turns = [{"type": "turn.completed", "usage": {"input_tokens": n}} for n in (12, 9)]
+    log.write_text('{"usage": cut\n' + "".join(f"{json.dumps(t)}\n" for t in turns))
+    assert conduct["first_turn"](log) == 12
+    log.write_text(json.dumps({"type": "assistant", "usage": {}, "message": {}}))
+    assert conduct["first_turn"](log) is None
 
 
 def test_a_probe_halts_on_a_write_out(

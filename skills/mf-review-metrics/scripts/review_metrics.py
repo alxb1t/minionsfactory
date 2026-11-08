@@ -11,7 +11,7 @@ The repos' findings, status logs and run logs are read, none written.
 The data is `review-metrics.json`, beside the page.
 Exit 0 written · 2 cannot run · any other a crash.
 Why: 0045-review-metrics design D1…D4 and D7; 0077-run-metrics design D5;
-0097-cross-model design D12.
+0097-cross-model design D12; 0100-worker-diet design D12.
 """
 
 import argparse
@@ -53,7 +53,10 @@ CHECKERS = (
     "converge-shadow-conformance",
     "converge-shadow-adversarial",
 )
-STATIONS = ("build", "converge", "integrate", "release", "rescue", *CHECKERS)
+STATIONS = (
+    *("build", "converge", "integrate", "release", "rescue", "cut", "supervise"),
+    *CHECKERS,
+)
 ROLES = ("conformance", "adversarial")
 # Each role's blocking grades, its old name and its cards' id letter.
 CHECKED = {
@@ -86,6 +89,13 @@ TOKENS = (
 PRICES = Path(__file__).resolve().parents[1] / "prices.toml"
 # The events a worker log's cost is read from; a spawn line, from its first line alone.
 SPENT = ("result", "turn.completed")
+# A turn's context: what it read before it wrote. Why: 0100-worker-diet design C2.
+CONTEXT = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+# A converge subagent's role and round, from the description converge gives it.
+# Why: 0100-worker-diet design C6, D12.
+WORKER = re.compile(r"\b(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)
+# The events a worker's tokens are read from.
+WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.spawn"')
 DAY_SECONDS = 86400
 CHARTS = {
     "rounds": "rounds",
@@ -132,6 +142,24 @@ def config_path() -> Path:
     return Path(home) / "minionsfactory" / "review-metrics.toml"
 
 
+def recorded() -> Path:
+    """Return the list of repos a run started in, which `conduct.py run` keeps.
+
+    Why: 0100-worker-diet design C1, D12.
+    """
+    return Path.home() / ".mf-ship-origin" / "repos"
+
+
+def _recorded_repos() -> list[Path]:
+    """Return each repo the record names that holds `.minions/`, resolved."""
+    try:
+        lines = recorded().read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    found = (Path(line.strip()).resolve() for line in lines if line.strip())
+    return [repo for repo in found if (repo / ".minions").is_dir()]
+
+
 def _read_config(path: Path) -> dict[str, Any]:
     """Return the config at `path`, empty when there is no file."""
     if not path.is_file():
@@ -155,6 +183,8 @@ def settings(
     """Return the repos and the page's path; flags win over the config.
 
     The config's relative paths are against its directory, a flag's against the cwd.
+    With no `--repo`, every repo a run started in follows the config's, each once.
+    Why: 0100-worker-diet design D12.
     """
     path = config or config_path()
     data = _read_config(path)
@@ -166,7 +196,10 @@ def settings(
     def inside(text: str) -> Path:
         return (path.parent / Path(text).expanduser()).resolve()
 
-    chosen = [r.resolve() for r in repos] or [inside(r) for r in named]
+    if repos:
+        chosen = [r.resolve() for r in repos]
+    else:
+        chosen = list(dict.fromkeys([*(inside(r) for r in named), *_recorded_repos()]))
     if not chosen:
         raise CannotRun(f"no repo named: looked for {path}")
     if out is None and page is None:
@@ -631,13 +664,16 @@ def _status_log(path: Path) -> Record:
 def _results(path: Path) -> list[dict[str, Any]]:
     """Return a worker log's `result` events, or a Codex log's spawn line and turns.
 
-    A line that is not JSON is none, and a log with neither result nor turn none.
-    Why: 0096-codex-ready design D6.
+    And its first `assistant` event holding a usage object. A line that is not JSON
+    is none, and a log with neither result nor turn none.
+    Why: 0096-codex-ready design D6; 0100-worker-diet design D12.
     """
-    events = []
+    events: list[dict[str, Any]] = []
+    first = False
     with path.open(encoding="utf-8", errors="replace") as lines:
         for n, line in enumerate(lines):
-            if not any(f'"{kind}"' in line for kind in (*SPENT, "mf.spawn")):
+            kinds = (*SPENT, "mf.spawn", *(() if first else ("assistant",)))
+            if not any(f'"{kind}"' in line for kind in kinds):
                 continue
             try:
                 event = json.loads(line)
@@ -646,7 +682,30 @@ def _results(path: Path) -> list[dict[str, Any]]:
             kind = event.get("type") if isinstance(event, dict) else None
             if kind in SPENT or (n == 0 and kind == "mf.spawn"):
                 events.append(event)
+            elif kind == "assistant" and isinstance(
+                _dig(event, "message", "usage"), dict
+            ):
+                first = True
+                events.append(event)
     return events if any(event["type"] in SPENT for event in events) else []
+
+
+def first_turn(events: list[dict[str, Any]]) -> int | None:
+    """Return a log's first-turn context: what its first turn read.
+
+    The first `assistant` event's input, cache-read and cache-write tokens, else a
+    Codex log's first `turn.completed` input tokens, else None.
+    e.g. a first usage of 3 input, 15000 cache-read and 4000 cache-write → 19003
+    """
+    for event in events:
+        usage = _dig(event, "message", "usage")
+        if event.get("type") == "assistant" and isinstance(usage, dict):
+            return int(sum(_number(usage.get(kind)) or 0 for kind in CONTEXT))
+    for event in events:
+        usage = event.get("usage")
+        if event.get("type") == "turn.completed" and isinstance(usage, dict):
+            return int(_number(usage.get("input_tokens")) or 0)
+    return None
 
 
 def _number(value: object) -> Number | None:
@@ -656,6 +715,11 @@ def _number(value: object) -> Number | None:
         if isinstance(value, int | float) and not isinstance(value, bool)
         else None
     )
+
+
+def _prices() -> dict[str, Any]:
+    """Return `prices.toml`'s rows by model."""
+    return tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"]
 
 
 def _codex_spent(events: list[dict[str, Any]]) -> Record:
@@ -675,8 +739,7 @@ def _codex_spent(events: list[dict[str, Any]]) -> Record:
         return sum(_number(usage.get(key)) or 0 for usage in usages)
 
     spawn = events[0] if events[0].get("type") == "mf.spawn" else {}
-    models = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"]
-    row = models.get(model) if (model := spawn.get("model")) else None
+    row = _prices().get(model) if (model := spawn.get("model")) else None
     cost = None
     if isinstance(row, dict):
         cached = total("cached_input_tokens")
@@ -688,14 +751,16 @@ def _codex_spent(events: list[dict[str, Any]]) -> Record:
 
 
 def _spent(events: list[dict[str, Any]]) -> Record:
-    """Return one log's cost, turns, tokens and seconds, each a gap with no event.
+    """Return one log's cost, turns, tokens, seconds and first turn; no event, gaps.
 
     Why: `total_cost_usd` and `modelUsage` are cumulative, the rest per segment.
     """
     if not events:
-        return dict.fromkeys(("cost", "turns", "tokens", "seconds"))
+        return dict.fromkeys(("cost", "turns", "tokens", "seconds", "first"))
+    first = first_turn(events)
+    events = [event for event in events if event.get("type") != "assistant"]
     if not any(event.get("type") == "result" for event in events):
-        return _codex_spent(events)
+        return _codex_spent(events) | {"first": first}
     usage = events[-1].get("modelUsage")
     models = usage.values() if isinstance(usage, dict) else ()
     tokens = [
@@ -710,6 +775,7 @@ def _spent(events: list[dict[str, Any]]) -> Record:
         "turns": _held(_number(event.get("num_turns")) for event in events),
         "tokens": _held(tokens),
         "seconds": None if ms is None else round(ms / 1000),
+        "first": first,
     }
 
 
@@ -732,8 +798,9 @@ def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts; a field one read log lacks is the station's gap.
-    Why: 0076-context-cost design D1; 0096-codex-ready design D6.
+    Each spawn's log counts; a field one read log lacks is the station's gap. Its
+    first-turn context is its first read log's. Why: 0076-context-cost design D1;
+    0096-codex-ready design D6; 0100-worker-diet design D12.
     """
     runs = repo / RUNS
     spawn = re.compile(
@@ -753,10 +820,230 @@ def _cost_logs(repo: Path, change: str) -> Record:
         spent = [_spent(events) for events in found if events]
         for key in ("cost", "turns", "tokens", "seconds"):
             record[f"{key}_{station}"] = _total(row[key] for row in spent)
+        record[f"first_{station}"] = spent[0]["first"] if spent else None
         record[f"logs_{station}"] = len(logs)
         record[f"read_{station}"] = sum(map(bool, found))
         record[f"spawns_{station}"] = spawns[station]
     return record
+
+
+def _usage(usage: object) -> dict[str, int] | None:
+    """Return a Claude usage object's tokens by `prices.toml` key; no object, None.
+
+    e.g. 300 cache-write tokens, 200 of them for an hour → `cache_write` 100 and
+    `cache_write_1h` 200
+    """
+    if not isinstance(usage, dict):
+        return None
+
+    def count(*keys: str) -> int:
+        return int(_number(_dig(usage, *keys)) or 0)
+
+    hour = count("cache_creation", "ephemeral_1h_input_tokens")
+    return {
+        "input": count("input_tokens"),
+        "cached_input": count("cache_read_input_tokens"),
+        "cache_write": count("cache_creation_input_tokens") - hour,
+        "cache_write_1h": hour,
+        "output": count("output_tokens"),
+    }
+
+
+def _codex_usage(usage: object) -> dict[str, int] | None:
+    """Return a Codex turn's tokens by `prices.toml` key, its cached input apart."""
+    if not isinstance(usage, dict):
+        return None
+    cached = int(_number(usage.get("cached_input_tokens")) or 0)
+    return {
+        "input": int(_number(usage.get("input_tokens")) or 0) - cached,
+        "cached_input": cached,
+        "output": int(_number(usage.get("output_tokens")) or 0),
+    }
+
+
+def _opened(worker: Record, model: object, usage: dict[str, int] | None) -> None:
+    """Set a worker's model and first-turn context from its first turn holding each."""
+    if worker["first"] is None and usage is not None:
+        read = ("input", "cached_input", "cache_write", "cache_write_1h")
+        worker["first"] = sum(usage.get(kind, 0) for kind in read)
+    if worker["model"] is None and isinstance(model, str):
+        worker["model"] = model
+
+
+def _moment(text: object) -> datetime | None:
+    """Return an event's ISO `timestamp` with its zone, else None.
+
+    e.g. "2026-11-05T10:01:00.000Z" → 10:01 UTC; "10:01" or None → None
+    """
+    try:
+        moment = datetime.fromisoformat(str(text))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else None
+
+
+def _new_worker(role: str | None, round_: int | None) -> Record:
+    """Return a worker that has spent nothing yet."""
+    return {
+        "role": role,
+        "round": round_,
+        "model": None,
+        "usage": Counter(),
+        "first": None,
+        "start": None,
+    }
+
+
+def _log_workers(path: Path, mailbox: str | None) -> list[Record]:
+    """Return a converge log's subagents, or a `mailbox` checker's log as one worker.
+
+    A subagent is what a `task_started` event names, its role and round from its
+    description. A worker's `assistant` events give its model, first-turn context
+    and start alone: the CLI writes each with the usage its message's stream opened
+    with, the output a placeholder. Its tokens are a log's totals: a Claude
+    mailbox log's last `result`, a Codex one's turns; a subagent's, which no event
+    holds — its Agent result's are its last turn's — are a gap.
+    """
+    own = _new_worker(mailbox, None)
+    tasks: dict[str, Record] = {}
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        for n, line in enumerate(lines):
+            event = _object(line) if any(kind in line for kind in WORKED) else {}
+            kind, message = event.get("type"), event.get("message")
+            parent = event.get("parent_tool_use_id")
+            if event.get("subtype") == "task_started":
+                named = WORKER.search(str(event.get("description")))
+                role, round_ = (
+                    (named[1].lower(), int(named[2])) if named else (None, None)
+                )
+                tasks[str(event.get("tool_use_id"))] = _new_worker(role, round_)
+            elif kind == "assistant" and isinstance(message, dict):
+                worker = own if mailbox and parent is None else tasks.get(str(parent))
+                if worker is not None:
+                    worker["start"] = worker["start"] or _moment(event.get("timestamp"))
+                    _opened(worker, message.get("model"), _usage(message.get("usage")))
+            elif kind == "turn.completed" and mailbox:
+                usage = _codex_usage(event.get("usage"))
+                _opened(own, None, usage)
+                own["usage"].update(usage or {})
+            elif kind == "result" and mailbox:
+                own["usage"] = Counter(_usage(event.get("usage")))
+            elif kind == "mf.spawn" and n == 0 and mailbox:
+                spawned = event.get("model")
+                own["model"] = spawned if isinstance(spawned, str) else None
+    return [own] if mailbox else list(tasks.values())
+
+
+def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
+    """Return a worker's dollars: each kind of its tokens at its row's price a million.
+
+    No row, or a row lacking the price a held kind needs, is a gap.
+    e.g. ({"input": 1.0}, {"input": 2, "output": 0}) → 0.000002
+    """
+    if not isinstance(row, dict):
+        return None
+    priced = [(n, _number(row.get(kind))) for kind, n in usage.items() if n]
+    if any(price is None for _, price in priced):
+        return None
+    return sum(n * (price or 0) for n, price in priced) / 1_000_000
+
+
+def _converge_workers(repo: Path, change: str) -> list[Record]:
+    """Return a record per converge subagent and per mailbox checker's log, priced.
+
+    Each holds its repo, change, role, round, run, model, tokens, first-turn
+    context, dollars and source, `subagent` or `mailbox`; a gap is None. Its run is
+    the status log's run whose window of its round holds its first event.
+    Why: 0100-worker-diet design D12.
+    """
+    status = _file(repo, change, "status_log.md")
+    windows = {
+        (record["run"], record["round"], record["window"])
+        for record in (_round_records(status) if status.is_file() else [])
+        if record["window"]
+    }
+
+    def run(worker: Record) -> int | None:
+        start = worker["start"]
+        runs = {
+            n
+            for n, round_, (opened, closed) in windows
+            if round_ == worker["round"] and start and opened <= start <= closed
+        }
+        return runs.pop() if len(runs) == 1 else None
+
+    found = [
+        (worker, "subagent")
+        for log in _station_logs(repo, change, "converge")
+        for worker in _log_workers(log, None)
+    ]
+    found += [
+        (worker, "mailbox")
+        for station in CHECKERS
+        for log in _station_logs(repo, change, station)
+        for worker in _log_workers(log, station.removeprefix("converge-"))
+    ]
+    prices = _prices()
+    return [
+        {
+            "repo": repo.name,
+            "change": change,
+            "role": worker["role"],
+            "round": worker["round"],
+            "run": run(worker),
+            "model": worker["model"],
+            "tokens": sum(worker["usage"].values()) if worker["usage"] else None,
+            "first": worker["first"],
+            "dollars": (
+                _priced_worker(prices.get(worker["model"]), worker["usage"])
+                if worker["usage"]
+                else None
+            ),
+            "source": source,
+        }
+        for worker, source in found
+    ]
+
+
+def _priced_rounds(rows: list[Record], workers: list[Record]) -> list[Record]:
+    """Return each run, round and role's record with its workers' dollars summed.
+
+    An amend run restarts at round 1, so a worker joins its own run's record alone.
+    None when no worker, or any one, holds dollars. Why: 0100-worker-diet design D12.
+    """
+    key = ("repo", "change", "run", "round", "role")
+
+    def dollars(row: Record) -> Number | None:
+        held = [
+            w["dollars"]
+            for w in workers
+            if w["run"] is not None and all(w[k] == row[k] for k in key)
+        ]
+        return _total(held)
+
+    return [row | {"dollars": dollars(row)} for row in rows]
+
+
+def _stations(record: Record) -> list[Record]:
+    """Return a change's record per station it holds a log of, from `_cost_logs`.
+
+    Why: 0100-worker-diet design D12.
+    """
+    return [
+        {
+            "repo": record["repo"],
+            "change": record["change"],
+            "station": station,
+            "dollars": record[f"cost_{station}"],
+            **{
+                key: record[f"{key}_{station}"]
+                for key in ("turns", "tokens", "seconds")
+            },
+            "first": record[f"first_{station}"],
+        }
+        for station in STATIONS
+        if record[f"logs_{station}"]
+    ]
 
 
 def _integer(text: str | None) -> int | None:
@@ -873,11 +1160,12 @@ def _round_one(log: Path, role: str) -> str | None:
     return oldest["executor"] if oldest else None
 
 
-def _role(found: Record, role: str, log: Path) -> Record:
+def _role(found: Record, role: str, log: Path, status: Record) -> Record:
     """Return a role's record: its file's counts, executor and model.
 
-    Its executor is the file's `executor:`, else its round 1 `verdicts` line's.
-    Why: 0097-cross-model design D12.
+    Its executor is the file's `executor:`, else its round 1 `verdicts` line's; its
+    change's duration and tokens are the change's `status`. Why: 0097-cross-model
+    design D12; 0100-worker-diet design D12.
     """
     front = found["front"]
     included, skipped = _packet(front.get("packet"))
@@ -888,6 +1176,8 @@ def _role(found: Record, role: str, log: Path) -> Record:
         "model": front.get("model") or None,
         "rounds": _integer(front.get("round")),
         "workers": _workers(front),
+        "duration": status["duration"],
+        "tokens": status["tokens"],
         "packet_included": included,
         "packet_skipped": skipped,
         **{key: found[key] for key in counted},
@@ -939,13 +1229,14 @@ def read_change(repo: Path, change: str) -> Record:
     0097-cross-model design D12.
     """
     log = _file(repo, change, "status_log.md")
+    status = _status_log(log)
     files: list[Record] = []
     roles: list[Record] = []
     for role, (blocking, old, _) in CHECKED.items():
         path = _checker(repo, change, role, old)
         if found := _findings_file(path, blocking):
             files.append(found)
-            roles.append(_role(found, path.stem, log))
+            roles.append(_role(found, path.stem, log, status))
     fronts = [found["front"] for found in files]
     included, skipped = _packet(_first(fronts, "packet"))
     record: Record = {
@@ -960,7 +1251,7 @@ def read_change(repo: Path, change: str) -> Record:
         "rounds": _integer(_first(fronts, "round")),
         "severity": _merged(files, "severity"),
         "categories": _merged(files, "categories"),
-        **_status_log(log),
+        **status,
         **_cost_logs(repo, change),
         "roles": roles,
         "shadow": _shadows(repo, change),
@@ -1211,8 +1502,9 @@ def _severity_table(records: list[Record]) -> Table:
 def _cost_cell(record: Record, station: str) -> str:
     """Return a station's spend; e.g. "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3".
 
-    `<read> of <spawns>` ends it when the run logs name more spawns than logs read,
-    a log with neither result nor `turn.completed` event unread.
+    `first <n>`, its first-turn context, follows the seconds; `<read> of <spawns>`
+    ends it when the run logs name more spawns than logs read, a log with neither
+    result nor `turn.completed` event unread.
     """
     cost, turns, tokens, seconds = (
         record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
@@ -1225,6 +1517,8 @@ def _cost_cell(record: Record, station: str) -> str:
             if value is not None
         ),
     ]
+    if (first := record[f"first_{station}"]) is not None:
+        parts.append(f"first {first}")
     read, spawns = record[f"read_{station}"], record[f"spawns_{station}"]
     if spawns > read:
         parts.append(f"{read} of {spawns}")
@@ -1245,7 +1539,7 @@ def cost_table(records: list[Record]) -> Table:
 def model_table(records: list[Record]) -> Table:
     """Return a row per role, executor and model of the changes' roles, `unknown` a gap.
 
-    Why: 0097-cross-model design D12.
+    Why: 0097-cross-model design D12; 0100-worker-diet design D12 (`0097·R4`).
     """
     groups: dict[tuple[str, ...], list[Record]] = {}
     for record in records:
@@ -1270,6 +1564,8 @@ def model_table(records: list[Record]) -> Table:
         "findings per change",
         "blocking per change",
         "median workers",
+        "median duration (s)",
+        "median tokens",
         *(field.replace("_", " ") for field in summed),
         "top categories",
     ]
@@ -1281,6 +1577,8 @@ def model_table(records: list[Record]) -> Table:
             _counted(statistics.fmean, group, "findings"),
             _counted(statistics.fmean, group, "blocking"),
             _counted(statistics.median, group, "workers"),
+            _counted(statistics.median, group, "duration"),
+            _counted(statistics.median, group, "tokens"),
             *(_summed(group, field) for field in summed),
             _top(group),
         ]
@@ -1428,10 +1726,20 @@ def main(argv: list[str] | None = None) -> int:
         chart, style = load_chart()
         read = [(repo.name, read_repo(repo)) for repo in repos]
         _write(out, render_page(read, chart, style))
+        workers = [
+            worker
+            for repo in repos
+            for change in sorted(_changes(repo))
+            for worker in _converge_workers(repo, change)
+        ]
+        rounds = [row for repo in repos for row in round_data(repo)]
+        records = _every_record(read)
         data = {
             "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "records": [row for repo in repos for row in round_data(repo)],
-            **cross_model(_every_record(read)),
+            "records": _priced_rounds(rounds, workers),
+            "workers": workers,
+            "stations": [row for record in records for row in _stations(record)],
+            **cross_model(records),
         }
         _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")
     except CannotRun as exc:
