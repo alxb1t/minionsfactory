@@ -28,6 +28,14 @@ from typing import Any
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
 STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
+# The checkers converge's mailbox starts: no stage of their own, so no minutes.
+# Why: 0097-cross-model design D11.
+CHECKERS = (
+    "converge-conformance",
+    "converge-adversarial",
+    "converge-shadow-conformance",
+    "converge-shadow-adversarial",
+)
 HALT = re.compile(r"(\w+) (?:check fail|worker exit|timed out)\b")
 # why: a clock set back an hour is no midnight
 MIDNIGHT = timedelta(hours=12)
@@ -268,12 +276,12 @@ class Version:
 
     @cached_property
     def spawns(self) -> list[Spawn]:
-        """Return the version's station spawns, each closed by its finish line."""
+        """Return the version's station and checker spawns, each closed by a finish."""
         spawns: list[Spawn] = []
         counts: Counter[tuple[str, str]] = Counter()
         for event in self.events:
             station = event.detail.split(" · ", 1)[0]
-            if event.who != self.change or station not in STATIONS:
+            if event.who != self.change or station not in (*STATIONS, *CHECKERS):
                 continue
             if event.name == "spawn":
                 counts[event.stamp, station] += 1
@@ -455,12 +463,33 @@ class Version:
         log = f"{spawn.stamp}-{spawn.station}{n}.log"
         return self.folder / "logs" / log, f"{self.change}/logs/{log}"
 
+    def checkers(self, stage: str) -> list[Spawn]:
+        """Return the checker spawns that started while one of a stage's spawns ran.
+
+        Why: 0097-cross-model design D11.
+        """
+        held = self.stage(stage)
+        return [
+            spawn
+            for spawn in self.spawns
+            if spawn.station in CHECKERS
+            and any(
+                run.start <= spawn.start and (run.end is None or spawn.start <= run.end)
+                for run in held
+            )
+        ]
+
     def spent(self, stages: tuple[str, ...], dollars: bool = True) -> tuple[float, int]:
         """Return the stages' dollars and tokens, each spawn's log read; none is 0.
 
-        A log priced to no dollars is a gap only when `dollars` are asked for.
+        A checker the mailbox started counts in the stage that held it. A log priced
+        to no dollars is a gap only when `dollars` are asked for.
         """
-        logs = [self.log(spawn) for stage in stages for spawn in self.stage(stage)]
+        logs = [
+            self.log(spawn)
+            for stage in stages
+            for spawn in (*self.stage(stage), *self.checkers(stage))
+        ]
         spent = [_spent(*log) for log in logs]
         costs = [cost for cost, _ in spent]
         if dollars and (gaps := [cost for cost in costs if isinstance(cost, Gap)]):
@@ -485,12 +514,19 @@ class Version:
         return round(self.spent(SPENT)[0] / lines, 4)
 
     def role_tokens(self, role: str) -> int:
-        """Return a role's subagent tokens, all turns, over the converge logs.
+        """Return a role's tokens: its subagents' over the converge logs, its checkers'.
 
         A subagent's `assistant` events carry its Task's `tool_use_id`, which the
-        log's `task_started` event names. Why: 0077-run-metrics design D4.
+        log's `task_started` event names; a `converge-<role>` log is read as any log.
+        Why: 0077-run-metrics design D4; 0097-cross-model design D11.
         """
         total, seen = 0, set()
+        checked = [s for s in self.spawns if s.station == f"converge-{role}"]
+        for spawn in checked:
+            path, name = self.log(spawn)
+            if not path.is_file():
+                raise Gap(f"no {name}")
+            total += _spent(path, name)[1]
         for spawn in (s for s in self.spawns if s.station == "converge"):
             path, name = self.log(spawn)
             if not path.is_file():
@@ -509,7 +545,7 @@ class Version:
                 ):
                     seen.add(message.get("id"))
                     total += _summed(message.get("usage"), USAGE)
-        if not seen:
+        if not seen and not checked:
             raise Gap(f"no {role} subagent event in a converge log")
         return total
 

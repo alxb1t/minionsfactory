@@ -101,6 +101,17 @@ def test_a_hard_brief_is_ready_for_the_cut(
     )
     assert brief_check.main([str(_write(tmp_path, packages))]) == 0
     assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # A models line naming hosts, the checker and fixer parts, and a last shadow.
+    hosts = _READY.replace(
+        "build opus high · converge opus high · release opus high · cut opus high",
+        "build claude-opus-5-5 high · converge claude-opus-5-5 high · release"
+        " claude-sonnet-5-5 medium · cut claude-opus-5-5 high · conformance"
+        " codex/gpt-6.1-sol high · adversarial codex/gpt-6.1-sol high · fix"
+        " claude-opus-5-5 high · shadow",
+    )
+    assert hosts != _READY
+    assert brief_check.main([str(_write(tmp_path, hosts))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
 def test_a_brief_out_of_shape_halts(
@@ -161,8 +172,36 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 2 — not a model or effort: `high;touch`",
         "brief: halt — ## For the cut: item 3 — no after:",
         "brief: halt — ## For the cut: item 3 — the models line is not"
-        " build · converge · release · cut, each <model> <effort>",
+        " build · converge · release · cut, then any of conformance · adversarial"
+        " · fix, each <model> <effort>, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
+    ]
+    # A host it does not know, a host on fix or cut, shadow before fix, a second
+    # shadow, and a checker part out of order.
+    stations = "build a b · converge a b · release a b"
+    hosted = _READY + "".join(
+        f"{n}. **ok** · minor · after: none\n   - models: {line}\n"
+        for n, line in (
+            (2, f"{stations} · cut a b · conformance gemini/x b"),
+            (3, f"{stations} · cut a b · fix codex/x b"),
+            (4, f"{stations} · cut claude/a b"),
+            (5, f"{stations} · cut a b · shadow · fix a b"),
+            (6, f"{stations} · cut a b · shadow · shadow"),
+            (7, f"{stations} · cut a b · adversarial a b · conformance a b"),
+            (8, f"{stations} · cut a b · fix a b · fix a b"),
+        )
+    )
+    assert brief_check.main([str(_write(tmp_path, hosted))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: item 2 — not a host: `gemini`",
+        "brief: halt — ## For the cut: item 3 — fix takes no host: `codex/x`",
+        "brief: halt — ## For the cut: item 4 — cut takes no host: `claude/a`",
+        *(
+            f"brief: halt — ## For the cut: item {n} — the models line is not"
+            " build · converge · release · cut, then any of conformance ·"
+            " adversarial · fix, each <model> <effort>, then shadow"
+            for n in (5, 6, 7, 8)
+        ),
     ]
     # An item that opens no number and a lazy line are outside the grammar, and a
     # head with a second after: halts.

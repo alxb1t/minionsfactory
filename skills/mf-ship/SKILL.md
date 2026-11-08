@@ -112,7 +112,8 @@ Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each sta
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
 out refused; a Codex probe then runs one checker on a fixture. `conduct.py` holds the push, and scans each push range for
 secrets first.
-Converge runs MF's method. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
+Converge runs MF's method; a checker on another host than converge's runs through the checker mailbox `conduct.py`
+serves. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop
 

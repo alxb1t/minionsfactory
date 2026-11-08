@@ -87,7 +87,8 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — the executor you run on; the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
+| `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — for a mailbox role, the executor, model and effort its answer names; else the executor you run on, and the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
+| `shadow` | [Shadow round 1](#shadow-round-1) | `overlap.py`'s line, or the shadow that exited 1, or `overlap.py`'s exit 2 |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -127,6 +128,13 @@ worker's call — on Claude Code the Agent tool's `model` is the family the name
 its `effort` the effort; `default` passes none. A role given none, and every worker on a host whose call takes no model,
 Codex among them, runs on your model. Never read the models file yourself: a worker can write it.
 
+**A mailbox role:** `<role>=mailbox` names a checker on another host than yours. Send it by writing its whole dispatch
+prompt to `.minions/changes/<change-id>/<role>.prompt.md`, then running
+`uv run --script <this package>/../mf-ship/scripts/conduct.py checker <change-id> <role>` in the foreground. Exit 3 →
+run it again with `--wait`, never without: a re-run without it sends a second request. Go on until it exits 0 or 1. Its
+answer, `exit <n> · executor <x> · model <m> · effort <e>`, names the role's executor, model and effort; exit 1 is a
+worker that failed. Every other role is dispatched as above.
+
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host
 can start workers, wait for them, and read their named outputs on shared disk; it cannot → halt naming the
@@ -135,6 +143,20 @@ allowed. Every checker of a round finishes before any fixer starts.
 
 Dispatch in the foreground, and wait: never end your turn with a worker running. A host can end its background work
 with your turn.
+
+## Shadow round 1
+
+`shadow=yes` measures the other host's checkers on the same freeze; a shadow file drives nothing.
+
+- **When:** round 1 of a run marked neither `catch-up` nor `amend`, once its `verdicts` lines are written and before
+  Step 5 decides. A resumed run sends no shadow.
+- **What:** send `shadow-conformance` and `shadow-adversarial` through the mailbox, as *The workers* sends a mailbox
+  role, each with its role's packet and reference and the findings path `.minions/changes/<change-id>/shadow-<role>.md`.
+- **Then:** after both, run `uv run --script <this package>/scripts/overlap.py .minions/changes/<change-id>` and write
+  its line as the round's `shadow` event. A shadow that exited 1, or an `overlap.py` exit 2, is written as the `shadow`
+  event instead, and halts nothing.
+
+Step 5 reads no shadow file, and no fixer, pickup, debt card or `done` counts one.
 
 ## A granted round
 
@@ -172,6 +194,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `freeze` | a verify round → Step 7; else Step 3 |
 | `fan-out` | the same, for each role whose findings file has not judged this round's freeze |
 | `verdicts` | Step 5 |
+| `shadow` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
@@ -327,7 +350,8 @@ The fix pass is a station **inside** `mf-converge`, not a separate skill and not
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
 Dispatch a **fresh worker**, in the foreground, on `adversarial=`'s model when any card it is
-sent is blocking, else on `fix=`'s, to clear every **open blocking** finding across both files — in the pickup round,
+sent is blocking and adversarial is no mailbox role, else on `fix=`'s — a model of another host cannot run here — to
+clear every **open blocking** finding across both files — in the pickup round,
 exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at dispatch and
 again at its commit. The fixer:
 

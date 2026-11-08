@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-11-08
+
+Gate: local 2m20s · CI not read under mf-ship · 0.79.0: local 1m54s · CI not read under mf-ship
+
+- A brief's models line may name a host, `codex/gpt-6.1-sol`, and add `conformance`, `adversarial` and `fix` parts and a
+  last `shadow`; a conformance or adversarial table may name its `executor`, and the run probes it and each shadow's host
+  (change `0097-cross-model`, phase 1).
+- A converge checker on another host than converge's runs through its version's checker mailbox in the home queue:
+  the conductor sends it with `conduct.py checker`, and `conduct.py` spawns it on the plan's model, at most
+  `CHECKER_SPAWNS` a converge spawn; a findings file names its `executor:` (change `0097-cross-model`, phase 2).
+- Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze into shadow files that
+  drive nothing, and `overlap.py` counts what each side alone caught (change `0097-cross-model`, phase 3).
+- The review metrics read per role, executor and model, a mailbox checker's log as a cost cell, escapes and the shadow
+  overlap, and open the page on the headline numbers; the run metrics count a checker's log in converge's cost and its
+  role's tokens; a verify log line names its card (change `0097-cross-model`, phase 4).
+- D68 records cross-model converge and its shadow round; D11, D40, D41, D47, D49, D50 and D64, the threat model and the
+  principles name the checker mailbox (change `0097-cross-model`, phase 5).
+
 ## [0.79.0] - 2026-11-08
 
 Gate: local 1m54s · CI not read under mf-ship · 0.78.0: local 1m51s · CI not read under mf-ship

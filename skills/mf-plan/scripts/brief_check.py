@@ -10,12 +10,13 @@ Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prin
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
 slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape. Each `## For the cut` line is a blank, a head `<n>. ` at column 0, a
+to their shape; a models line may add checker and fixer parts, a host on a model, and
+a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. ` at column 0, a
 `- models: ` or `- **Acceptance:** ` line under it, an Acceptance's continuation, or
 the cut's `Cut` line. `## Dependencies` is `None.` or a table of item · package ·
 constraint · why. A checked line is printable, and each checked heading is written
 one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2 design D5;
-0091-cut-halts design D2.
+0091-cut-halts design D2; 0097-cross-model design D1.
 """
 
 import argparse
@@ -44,9 +45,14 @@ CHECKED = ("## Decisions", "## For the cut")
 HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
 STATIONS = ("build", "converge", "release", "cut")
+CHECKS = ("conformance", "adversarial", "fix")
+HOSTS = ("claude", "codex")
+HOSTLESS = ("cut", "fix")
+SHADOW = ["shadow"]
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"
 MODELS = (
-    "the models line is not build · converge · release · cut, each <model> <effort>"
+    "the models line is not build · converge · release · cut, then any of"
+    " conformance · adversarial · fix, each <model> <effort>, then shadow"
 )
 NEITHER = (
     "## Dependencies is neither None. nor a table of item · package · constraint · why"
@@ -162,18 +168,32 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
 def models(number: str, text: str) -> list[str]:
     """Return a halt for each word of an item's `models:` line out of shape.
 
+    A model may open `<host>/`, save on `cut` and `fix`.
     e.g. "1", " build a b · converge a b · release a b · cut a b;c" →
     ["item 1 — not a model or effort: `b;c`"]
     """
     parts = [part.split() for part in text.split(" · ")]
-    if [part[0] if len(part) == 3 else None for part in parts] != list(STATIONS):
+    if parts[-1:] == [SHADOW]:
+        parts.pop()
+    names = [part[0] if len(part) == 3 else None for part in parts]
+    checks = names[len(STATIONS) :]
+    if names[: len(STATIONS)] != list(STATIONS) or checks != [
+        check for check in CHECKS if check in checks
+    ]:
         return [f"item {number} — {MODELS}"]
-    return [
-        f"item {number} — not a model or effort: `{word}`"
-        for part in parts
-        for word in part[1:]
-        if not TOKEN.fullmatch(word)
-    ]
+    found: list[str] = []
+    for name, model, effort in parts:
+        host, slash, word = model.rpartition("/")
+        if slash and name in HOSTLESS:
+            found.append(f"item {number} — {name} takes no host: `{model}`")
+        elif slash and host not in HOSTS:
+            found.append(f"item {number} — not a host: `{host}`")
+        found += [
+            f"item {number} — not a model or effort: `{token}`"
+            for token in (word, effort)
+            if not TOKEN.fullmatch(token)
+        ]
+    return found
 
 
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:

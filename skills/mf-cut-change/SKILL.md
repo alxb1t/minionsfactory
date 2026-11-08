@@ -362,9 +362,10 @@ After the commit, suggest in chat a model for the build, the check loop and the 
 `AGENTS.md` when it declares one, and honor the models the session actually offers; with no target menu, the
 session's menu; with no menu, describe the capability needed — never invent model names.
 
-When the brief's `## For the cut` item for this change names models, write exactly those: the person chose them at the
-plan's close. The brief names no worker table: write `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`
-from the Converge bullet. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
+When the brief's `## For the cut` item for this change names models, write exactly those, each host as its table's
+`executor`: the person chose them at the plan's close. Write `[converge.conformance]`, `[converge.adversarial]` or
+`[converge.fix]` from the Converge bullet when the brief's line lacks its part. A last `shadow` is `shadow = true` under
+`[converge]`. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
@@ -402,7 +403,8 @@ model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
-# executor = "codex"  # optional, per table; absent, the run's. A cross-host pairing is usually the person's edit
+# executor = "codex"  # optional, per table, from the brief's host; absent, the run's, and converge's for a checker
+# shadow = true  # from the brief's shadow
 [converge.conformance]
 model = "<offered model>"
 effort = "<effort>"
