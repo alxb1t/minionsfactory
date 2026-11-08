@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The limit data
+- [x] 1 — The limit data
 - [ ] 2 — The probe
 - [ ] 3 — The mailbox fallback
 - [ ] 4 — The record
@@ -14,9 +14,9 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The limit data
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `grep -n -e '^def usage_limit(log: Path) -> str:' -e '^def _codex_limit(' -e '^CHECKER_WAIT = 100$' -e '^def _shadow(' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n '"thread_id": "fake"' tests/fake_codex.py` prints a line.
-- [ ] 1.2 Add the autouse fixture `_no_codex_sessions` and `test_the_codex_limit_data_is_read_from_its_rollout` to
+- [x] 1.2 Add the autouse fixture `_no_codex_sessions` and `test_the_codex_limit_data_is_read_from_its_rollout` to
   `tests/test_conduct.py`, then the constants, `Window`, `_codex_home`, `_thread_id`, `_rollout`, `_windows`, `_next_clock`,
   `_reset_at` and `_headroom` in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k codex_limit_data_is_read` reports `1 passed`; `grep -n -e '^LIMIT_WAIT = 900$' -e '^HEADROOM = 90$' -e '^def _thread_id(' -e '^def _reset_at(' -e '^def _headroom(' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'def _no_codex_sessions' tests/test_conduct.py` prints a line.

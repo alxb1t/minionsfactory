@@ -28,6 +28,7 @@ import fcntl
 import hashlib
 import itertools
 import json
+import math
 import os
 import re
 import runpy
@@ -66,6 +67,11 @@ MAILBOX_POLL = 2
 CHECKER_WAIT = 100
 REQUEST_BYTES = 65536
 CHECKER_SPAWNS = 8
+# A Codex limit: the longest wait for a reset, the primary window's share that counts
+# as a limit, and the answer's note. Why: 0104-codex-limits design D1.
+LIMIT_WAIT = 900
+HEADROOM = 90
+FALLBACK = "fallback: codex usage limit"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
@@ -3404,6 +3410,138 @@ def usage_limit(log: Path) -> str:
                 named = f" · resets {resets[1]}" if resets else ""
                 return f" · stopped by a usage limit{named}"
     return ""
+
+
+class Window(NamedTuple):
+    """A Codex rate-limit window: the share used and the epoch second it resets."""
+
+    used: float
+    resets: float
+
+
+def _codex_home() -> Path:
+    """Return Codex's home folder: `CODEX_HOME`, else `~/.codex`."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
+def _thread_id(log: Path) -> str | None:
+    """Return the first `thread.started` event's `thread_id`, or None if not a token.
+
+    The log is worker-written: the pattern keeps a glob out of `_rollout`.
+    e.g. `{"type": "thread.started", "thread_id": "019a-b"}` → `019a-b`
+    """
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"thread.started"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "thread.started":
+                thread = event.get("thread_id")
+                if isinstance(thread, str) and re.fullmatch(r"[0-9A-Za-z-]+", thread):
+                    return thread
+                return None
+    return None
+
+
+def _rollout(thread: str | None) -> Path | None:
+    """Return the Codex rollout file `thread` names, or the newest one for None.
+
+    e.g. `rollout-2026-11-08T10-00-00-<thread>.jsonl` under `sessions/YYYY/MM/DD/`
+    """
+    pattern = (
+        "*/*/*/rollout-*.jsonl" if thread is None else f"*/*/*/rollout-*-{thread}.jsonl"
+    )
+    files = [
+        path
+        for path in (_codex_home() / "sessions").glob(pattern)
+        if path.is_file() and not path.is_symlink()
+    ]
+    return max(files, key=os.path.getmtime, default=None)
+
+
+def _number(value: object) -> float | None:
+    """Return `value` as a float when it is a number, else None; a bool is no number."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _windows(rollout: Path | None) -> dict[str, Window]:
+    """Return the `primary` and `secondary` windows of a rollout's last `token_count`.
+
+    A window whose `used_percent` or `resets_at` is no number is left out; a missing or
+    unreadable rollout gives `{}`.
+    """
+    if rollout is None:
+        return {}
+    limits: dict[str, object] = {}
+    try:
+        with rollout.open(errors="replace") as lines:
+            for line in lines:
+                if '"token_count"' not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                payload = event.get("payload") if isinstance(event, dict) else None
+                if isinstance(payload, dict) and payload.get("type") == "token_count":
+                    rates = payload.get("rate_limits")
+                    limits = rates if isinstance(rates, dict) else limits
+    except OSError:
+        return {}
+    windows: dict[str, Window] = {}
+    for name in ("primary", "secondary"):
+        rate = limits.get(name)
+        if not isinstance(rate, dict):
+            continue
+        used, resets = _number(rate.get("used_percent")), _number(rate.get("resets_at"))
+        if used is not None and resets is not None:
+            windows[name] = Window(used, resets)
+    return windows
+
+
+def _next_clock(text: str, now: float) -> float | None:
+    """Return the epoch of the next local time `text` names after `now`, or None.
+
+    e.g. `5:50 PM` at 10:00 → today 17:50; at 18:00 → tomorrow 17:50
+    """
+    try:
+        clock = time.strptime(text.strip(), "%I:%M %p")
+    except ValueError:
+        return None
+    today = time.localtime(now)
+    day = (*today[:3], clock.tm_hour, clock.tm_min, 0, 0, 0, -1)
+    ahead = time.mktime(day)
+    if ahead > now:
+        return ahead
+    return time.mktime((*today[:2], today.tm_mday + 1, *day[3:]))
+
+
+def _reset_at(log: Path, now: float) -> float:
+    """Return the epoch second a Codex limit lifts: the rollout, the text, else never.
+
+    The rollout is the one the log's `thread_id` names; its latest window at 100%, else
+    its most used, gives the reset. The log's `try again at` time is the fallback.
+    """
+    windows = _windows(_rollout(_thread_id(log)))
+    if windows:
+        full = [window.resets for window in windows.values() if window.used >= 100]
+        return max(full) if full else max(windows.values(), key=lambda w: w.used).resets
+    named = re.search(r"resets (.+)$", usage_limit(log))
+    clock = _next_clock(named[1], now) if named else None
+    return math.inf if clock is None else clock
+
+
+def _headroom(now: float) -> float | None:
+    """Return the reset of a primary window at `HEADROOM` or more, else None."""
+    primary = _windows(_rollout(None)).get("primary")
+    if primary and primary.used >= HEADROOM and primary.resets > now:
+        return primary.resets
+    return None
 
 
 def mcp_started(executor: str, log: Path) -> str | None:

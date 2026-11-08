@@ -137,6 +137,12 @@ def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return registry
 
 
+@pytest.fixture(autouse=True)
+def _no_codex_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read Codex sessions from an empty folder, never the operator's."""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+
+
 def _register(pid: int, comm: str, lstart: str) -> None:
     """Have the fake `ps` answer `comm` and `lstart` for `pid`."""
     registry = Path(os.environ["FAKE_PS_REGISTRY"])
@@ -8254,6 +8260,136 @@ def test_a_codex_log_reads_as_json(tmp_path: Path) -> None:
     usage = {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}
     turn = {"type": "turn.completed", "usage": usage}
     assert conduct["mcp_started"]("codex", events(command(1, refused), turn)) is None
+
+
+def test_the_codex_limit_data_is_read_from_its_rollout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    window, thread_id, rollout_of = (
+        conduct["Window"],
+        conduct["_thread_id"],
+        conduct["_rollout"],
+    )
+    home = tmp_path / "codex-home"
+    sessions = home / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    clock = [time.time() + 1000]
+
+    def rollout(thread: str, *events: object) -> Path:
+        path = sessions / f"rollout-2026-11-08T10-00-00-{thread}.jsonl"
+        path.write_text("".join(json.dumps(e) + "\n" for e in events))
+        clock[0] += 10
+        os.utime(path, (clock[0], clock[0]))
+        return path
+
+    def limits(**windows: tuple[object, object] | None) -> dict[str, object]:
+        rates = {
+            name: {"used_percent": used, "window_minutes": 300, "resets_at": resets}
+            for name, pair in windows.items()
+            if pair
+            for used, resets in [pair]
+        }
+        payload = {"type": "token_count", "rate_limits": rates}
+        return {"type": "event_msg", "payload": payload}
+
+    def log_of(thread: object, *lines: object) -> Path:
+        started = {"type": "thread.started", "thread_id": thread}
+        log = tmp_path / "codex.log"
+        log.write_text("".join(json.dumps(e) + "\n" for e in (started, *lines)))
+        return log
+
+    # The home: CODEX_HOME, else ~/.codex.
+    assert conduct["_codex_home"]() == home
+    monkeypatch.delenv("CODEX_HOME")
+    monkeypatch.setenv("HOME", str(tmp_path / "operator"))
+    assert conduct["_codex_home"]() == tmp_path / "operator" / ".codex"
+    monkeypatch.setenv("CODEX_HOME", str(home))
+
+    # The thread: the first `thread.started`'s id, when it is a plain token.
+    log = tmp_path / "thread.log"
+    two = [{"type": "thread.started", "thread_id": t} for t in ("abc-123", "other")]
+    log.write_text(
+        "not json thread.started\n" + "".join(json.dumps(e) + "\n" for e in two)
+    )
+    assert thread_id(log) == "abc-123"
+    assert thread_id(log_of("../x*")) is None
+    assert thread_id(log_of(5)) is None
+    log.write_text(json.dumps({"type": "turn.completed"}) + "\n")
+    assert thread_id(log) is None
+
+    # The rollout: the one the thread names, else the newest; no link, no file, none.
+    first = rollout("a", limits(primary=(10, 1)))
+    second = rollout("b", limits(primary=(20, 2)))
+    assert rollout_of("a") == first
+    assert rollout_of(None) == second
+    assert rollout_of("c") is None
+    (sessions / "rollout-2026-11-08T10-00-00-s.jsonl").symlink_to(first)
+    assert rollout_of("s") is None
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "empty"))
+    assert rollout_of(None) is None
+    monkeypatch.setenv("CODEX_HOME", str(home))
+
+    # The windows: the last `token_count` with an object `rate_limits`, a window
+    # whose numbers are no numbers left out.
+    path = rollout(
+        "w",
+        limits(primary=(10, 100)),
+        {"type": "event_msg", "payload": {"type": "agent_message"}},
+        limits(primary=(20, 200), secondary=(50, 300)),
+        {"type": "event_msg", "payload": {"type": "token_count", "rate_limits": None}},
+    )
+    with path.open("a") as lines:
+        lines.write('{"payload": {"type": "token_count"\n')
+    windows = conduct["_windows"]
+    assert windows(path) == {"primary": window(20, 200), "secondary": window(50, 300)}
+    skewed = rollout("x", limits(primary=("20", 200), secondary=(True, 300)))
+    assert windows(skewed) == {}
+    mixed = rollout("y", limits(primary=("20", 200), secondary=(50, 300)))
+    assert windows(mixed) == {"secondary": window(50, 300)}
+    assert windows(None) == {}
+    assert windows(tmp_path / "missing") == {}
+
+    # The next clock time after now, today or tomorrow; text that is no time, none.
+    next_clock = conduct["_next_clock"]
+    ten = time.mktime((2026, 11, 8, 10, 0, 0, 0, 0, -1))
+    six = time.mktime((2026, 11, 8, 18, 0, 0, 0, 0, -1))
+    today = time.mktime((2026, 11, 8, 17, 50, 0, 0, 0, -1))
+    tomorrow = time.mktime((2026, 11, 9, 17, 50, 0, 0, 0, -1))
+    assert next_clock("5:50 PM", ten) == today
+    assert next_clock("5:50 pm", six) == tomorrow
+    assert next_clock("3 hours", ten) is None
+
+    # The reset: the latest window at 100%, else the most used, else the text, never.
+    reset_at = conduct["_reset_at"]
+    rollout("t1", limits(primary=(100, 500), secondary=(60, 900)))
+    assert reset_at(log_of("t1"), ten) == 500
+    rollout("t2", limits(primary=(100, 500), secondary=(100, 900)))
+    assert reset_at(log_of("t2"), ten) == 900
+    rollout("t3", limits(primary=(40, 500), secondary=(70, 900)))
+    assert reset_at(log_of("t3"), ten) == 900
+    failed = {
+        "type": "turn.failed",
+        "error": {"message": "usage limit. Try again at 5:50 PM."},
+    }
+    assert reset_at(log_of("t4", failed), ten) == today
+    unnamed = {
+        "type": "turn.failed",
+        "error": {"message": "usage limit. Try again in 3 hours"},
+    }
+    assert reset_at(log_of("t4", unnamed), ten) == float("inf")
+    assert reset_at(log_of("t4"), ten) == float("inf")
+
+    # The headroom: the newest rollout's primary window at 90% or more, still ahead.
+    headroom = conduct["_headroom"]
+    assert headroom(ten) is None
+    rollout("h1", limits(primary=(92, ten + 600)))
+    assert headroom(ten) == ten + 600
+    assert headroom(ten + 700) is None
+    rollout("h2", limits(primary=(89, ten + 600), secondary=(95, ten + 600)))
+    assert headroom(ten) is None
+    rollout("h3", limits(secondary=(95, ten + 600)))
+    assert headroom(ten) is None
 
 
 def test_run_refuses_without_worktrees_declared(
