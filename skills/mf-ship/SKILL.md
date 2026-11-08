@@ -16,6 +16,7 @@ naming it.
 preconditions ─▶ status ─▶ every open version at a halt stage or waiting, no cut queued? ─ yes ─▶ halt, no worker
                     │ no
                   probe worker ─▶ check probe
+                    a usage limit: codex limited until <time>; only a version with a station on Codex halts
                     │
   each queued cut: wait for its after: ─▶ branch and worktree ─▶ cut ─▶ check cut, else cut-halted
                     │  a cut that passes is a version
@@ -110,10 +111,11 @@ its line: no run started, even with `.minions/runs/active` there. Exit 0 → con
 
 Say once: every worker runs in an OS sandbox, Claude Code's or Codex's, each station on the executor its models file
 names, with no permission prompt. A Claude worker whose sandbox cannot start does not run, and the probe proves a write
-out refused; a Codex probe then runs one checker on a fixture. `conduct.py` holds the push, and scans each push range for
+out refused; a Codex probe then runs one checker on a fixture, and a usage limit at it halts only the versions
+with a station on Codex. `conduct.py` holds the push, and scans each push range for
 secrets first.
 Converge runs MF's method; a checker on another host than converge's runs through the checker mailbox `conduct.py`
-serves. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
+serves; while Codex is limited, a Codex checker runs on Claude. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop
 

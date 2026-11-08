@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72
 ```
 
 ## The shape
@@ -358,7 +358,10 @@ the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A v
 
 **A conformance or adversarial table may name its executor, and the models line its host. A checker on another host than
 converge's runs through the checker mailbox, in the home folder's queue: the conductor writes the request, `conduct.py` spawns
-the checker on the plan's model and effort, and the conductor reads its findings from disk. The fixer stays on converge's host.
+the checker on the plan's model and effort,
+within converge's remaining time, or on Claude while Codex is limited
+([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request,
+and the conductor reads its findings from disk. The fixer stays on converge's host.
 Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze, into shadow files that drive
 nothing, and `overlap.py` counts what each side alone caught. The review metrics read per role and executor.**
 
@@ -652,7 +655,9 @@ its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `int
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
-`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor. A run takes
+`after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor;
+a probe a usage limit stopped, only the versions with a station on its executor
+([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)). A run takes
 each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, and its close,
 under the queue lock, starts the next run on a request or a cut it never read. A live run takes a rejoin request, in the
 home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state,
@@ -707,7 +712,8 @@ hostile repo needs a container.**
 - **Offline base:** beside the kept URLs stands `<digest>.pushed`, the default-branch sha a run last saw on `origin`,
   written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
   no worker writes.
-- **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
+- **Accepts:** a Codex worker can read `~`, with its network off · a Codex worker writes each linked worktree's folder
+  under the common directory, as a Claude worker does · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker · a Claude worker starts no MCP server, the operator's own included ·
   a Codex worker loads no user config ([D67](#d67--a-codex-worker-starts-on-mfs-settings-logs-json-and-is-proved-by-a-checker))
   · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin`.
@@ -717,8 +723,10 @@ hostile repo needs a container.**
 ### D67 · A Codex worker starts on MF's settings, logs JSON and is proved by a checker
 
 **A Codex worker starts with `--ignore-user-config` and `--json`: the operator's Codex config sets nothing, and its log reads
-as a Claude log does — denials, usage limit, tokens, and dollars priced by `skills/mf-review-metrics/prices.toml`. A writable
-root that is a link halts the next Codex spawn, and no Codex worker has `/tmp`. A run's Codex probe, past its scratch edit,
+as a Claude log does — denials, usage limit, tokens, and dollars priced by `skills/mf-review-metrics/prices.toml`,
+which holds the fitted Claude rows and no Codex row. A writable
+root that is a link halts the next Codex spawn, and no Codex worker has `/tmp`. A run's Codex probe
+writes a linked worktree's index and, past its scratch edit,
 runs one conformance checker on a fixture, passing on a findings file to the contract and a log with a usage event.**
 
 - **Why:** no station had run on Codex; a worker loaded the operator's MCP servers and plugins, and its plain log read as
@@ -741,6 +749,23 @@ converge conductor reads no mandatory context.**
   its index line alone.
 - **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.
 
+### D72 · A Codex usage limit falls back, and halts only what runs on Codex
+
+**A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>`, and only a version or cut with a
+station on Codex halts, alone, with no rescue. A mailbox checker on Codex that is limited — a limit recorded, or a primary
+window at 90% or more by Codex's rollout file — runs on Claude on converge's model and effort until the reset, save a reset at
+most 15 minutes away inside converge's time, which it waits for; its answer names `fallback: codex usage limit`. The reset
+comes from the rollout the log's `thread_id` names, else the `try again at` text. Each Codex spawn records its share of the
+5-hour and weekly windows, never dollars.**
+
+- **Why:** one operator session at 99% of a Plus window stopped run 20261108-200117 whole, a Claude-only version included;
+  a wait in the mailbox blocks its thread and costs conductor turns; Codex here is plan quota.
+- **Accepts:** the headroom read counts any Codex use, the operator's too · a limited shadow on Codex answers exit 1 and
+  drives nothing · a Codex station still halts its version · a forged `thread_id` reads another rollout, misstating a reset
+  or a share.
+- **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
+  falls back inside the mailbox.
+
 ### D53 · A rescue amends the plan, never the code or a decision
 
 **On a build check halt, a converge `amend needed` halt, a converge cap the run does not grant ([D56](#d56--the-cap-policy)) or an integrate halt,
@@ -758,7 +783,7 @@ sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks it
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
 `## Decisions` section: a card whose fix needs any other plan edit halts `amend needed`. A
-timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
+timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the

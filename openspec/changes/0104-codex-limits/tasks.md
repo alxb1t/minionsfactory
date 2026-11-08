@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 3 — The mailbox fallback
 - [x] 4 — The record
 - [x] 5 — The linked worktree
-- [ ] 6 — The request id and the record of decisions
+- [x] 6 — The request id and the record of decisions
 - [ ] 7 — The real Codex check **HUMAN**
 
 ## 1 — The limit data
@@ -86,18 +86,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 6 — The request id and the record of decisions
 
-- [ ] 6.1 Rewrite `test_the_checker_command_sends_and_waits` as D7's *The CLI's test* says, and give
+- [x] 6.1 Rewrite `test_the_checker_command_sends_and_waits` as D7's *The CLI's test* says, and give
   `test_a_checker_request_is_bounded`'s requests their id, in `tests/test_conduct.py`; then `REQUEST_ID`, `checker`,
   `serve_requests`, `Run.server` and `Run.checker`'s `request`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k "checker_command_sends or checker_request_is_bounded or runs_through_the_mailbox or shadow_round_drives_no_fix or mailbox_checker_is_stamped"` reports `5 passed`; `grep -n -e '^REQUEST_ID = ' -e 'names no request' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 6.2 Add D72 after D70's block in `docs/decisions.md`, and `D72` after `D70` on the map's *Repo conventions* line, per
+- [x] 6.2 Add D72 after D70's block in `docs/decisions.md`, and `D72` after `D70` on the map's *Repo conventions* line, per
   [D8](design.md#d8).
   Verify: `grep -n '^### D72 · A Codex usage limit falls back, and halts only what runs on Codex$' docs/decisions.md` prints a line; `grep -n 'D67, D70, D72' docs/decisions.md` prints a line.
-- [ ] 6.3 Amend D47, D51, D53, D67 and D68 in `docs/decisions.md`, per [D8](design.md#d8), each new phrase on one line.
+- [x] 6.3 Amend D47, D51, D53, D67 and D68 in `docs/decisions.md`, per [D8](design.md#d8), each new phrase on one line.
   Verify: `grep -n -e 'a probe a usage limit stopped, only the versions with a station on its executor' -e "a Codex worker writes each linked worktree's folder" -e 'a converge halt naming one, a' -e "writes a linked worktree's index" -e 'which holds the fitted Claude rows' -e "within converge's remaining time, or on Claude while Codex is limited" docs/decisions.md` prints a line for each.
-- [ ] 6.4 Edit *Trust boundaries* and *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8), each new phrase on one line.
+- [x] 6.4 Edit *Trust boundaries* and *Entry points* in `THREAT_MODEL.md`, per [D8](design.md#d8), each new phrase on one line.
   Verify: `grep -n -e 'a forged .thread_id. reads another Codex rollout' -e 'and appends a Codex log' -e "each checker within converge's remaining time" -e "a Codex worker's also in each linked" THREAT_MODEL.md` prints a line for each.
-- [ ] 6.5 Edit the diagram and the say-once paragraph of `skills/mf-ship/SKILL.md`, per [D8](design.md#d8).
+- [x] 6.5 Edit the diagram and the say-once paragraph of `skills/mf-ship/SKILL.md`, per [D8](design.md#d8).
   Verify: `grep -n -e 'codex limited until <time>' -e 'a usage limit at it halts only the versions' -e 'a Codex checker runs on Claude' skills/mf-ship/SKILL.md` prints a line for each.
 
 ## 7 — The real Codex check

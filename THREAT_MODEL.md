@@ -16,7 +16,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   comments, commit messages.
 - **Unattended workers run in an OS sandbox**
   ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in
-  the repo and its open worktrees, a converge worker's also in its checker mailbox, a cutter's in its worktree, the run directory and the brief its queue entry names
+  the repo and its open worktrees, a Codex worker's also in each linked
+  worktree's folder under the common directory, a converge worker's also in its checker mailbox, a cutter's in its worktree, the run directory and the brief its queue entry names
   ([D58](docs/decisions.md#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter's in the brief's whole
   folder, Codex roots being folders, so `cut` and the station refuse a Codex brief whose folder holds anything else, and
   the station refuses a brief or a `.minions` that is a link — network on a short list and no
@@ -30,9 +31,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
   The conductor parses a Codex worker's JSON log, which the worker writes: a forged event misstates a denial, a limit, a
-  cost or the checker probe's usage and MCP checks, never a stage's check on disk. Within converge, a checker the mailbox
+  cost or the checker probe's usage and MCP checks, never a stage's check on disk; a forged `thread_id` reads another Codex rollout,
+  misstating a reset or a quota share, which bounds a wait to `LIMIT_WAIT`. Within converge, a checker the mailbox
   starts on another host writes its findings file, which the conductor reads as evidence,
-  as it reads a subagent's.
+  as it reads a subagent's. `conduct.py` stamps a mailbox findings file's `model:` and `tokens:`
+  and appends a Codex log's `mf.quota` line, following no link.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
   scratch repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps
   `origin`'s URLs in the home folder before its first worker: while `origin` differs from them, no remote call of
@@ -81,7 +84,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   it, so no other worker forges one. A request names one of four roles by its file name and holds a checker's prompt;
   `conduct.py` reads it through one descriptor, following no link, at most `REQUEST_BYTES`, takes the executor, model and
   effort from the plan it read once, never from the request, and serves at most `CHECKER_SPAWNS` a converge spawn, so a
-  forged request spends at most that.
+  forged request spends at most that, each checker within converge's remaining time, its answer naming its request;
+  a request holding a NUL byte still halts the run (`0097·S4`) (`0097·S6`).
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes and holds
   the packages its cut may add, stands in the home folder, where no worker writes, so no worker names that brief or

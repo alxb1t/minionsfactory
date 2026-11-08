@@ -3999,22 +3999,25 @@ def test_a_checker_request_is_bounded(
     assert opened(mailbox) is None
     assert list(mailbox.iterdir()) == []
 
-    spawned: list[tuple[str, str]] = []
+    spawned: list[tuple[str, str, str]] = []
 
-    def spawn(role: str, prompt: str) -> str:
-        spawned.append((role, prompt))
+    def spawn(role: str, prompt: str, request: str) -> str:
+        spawned.append((role, prompt, request))
         return "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+
+    ident = "0123456789abcdef"
+    other = "fedcba9876543210"
 
     secret = tmp_path / "secret"
     secret.write_text("key\n")
-    (mailbox / "conformance.request").write_text("Judge it.\n")
+    (mailbox / "conformance.request").write_text(f"request {ident}\nJudge it.\n")
     (mailbox / "adversarial.request").symlink_to(secret)
     long = "x" * (conduct["REQUEST_BYTES"] + 1)
     (mailbox / "shadow-conformance.request").write_text(long)
     (mailbox / "shadow-adversarial.request").mkdir()
     (mailbox / "fix.request").write_text("Fix it.\n")
     assert serve(mailbox, 0, spawn) == 1
-    assert spawned == [("conformance", "Judge it.\n")]
+    assert spawned == [("conformance", "Judge it.\n", ident)]
     assert (mailbox / "conformance.answer").read_text() == (
         "exit 0 · executor codex · model gpt-6.1-sol · effort high\n"
     )
@@ -4027,13 +4030,21 @@ def test_a_checker_request_is_bounded(
     assert [path.name for path in mailbox.iterdir() if "request" in path.name] == [
         "fix.request"
     ]
-    # Past `CHECKER_SPAWNS` served, no checker starts.
-    (mailbox / "conformance.request").write_text("Again.\n")
+    # Past `CHECKER_SPAWNS` served, no checker starts; the refusal names its request.
+    (mailbox / "conformance.request").write_text(f"request {other}\nAgain.\n")
     assert serve(mailbox, 8, spawn) == 8
     assert (mailbox / "conformance.answer").read_text() == (
-        "exit 1 · refused: more than 8 checker requests\n"
+        f"exit 1 · refused: more than 8 checker requests · request {other}\n"
     )
-    assert spawned == [("conformance", "Judge it.\n")]
+    assert spawned == [("conformance", "Judge it.\n", ident)]
+    # A request with no id line, a short one and an upper-case one name no request.
+    for bad in ("Judge it.\n", "request abc\nx\n", f"request {ident.upper()}\nx\n", ""):
+        (mailbox / "conformance.request").write_text(bad)
+        assert serve(mailbox, 0, spawn) == 0
+        assert (mailbox / "conformance.answer").read_text() == (
+            "exit 1 · refused: conformance.request names no request\n"
+        )
+    assert spawned == [("conformance", "Judge it.\n", ident)]
     assert serve(tmp_path / "gone", 3, spawn) == 3
 
     answer = conduct["_answer"]
@@ -4043,6 +4054,11 @@ def test_a_checker_request_is_bounded(
     limit = " · stopped by a usage limit · resets 5:50 PM"
     assert answer(-9, True, ("claude", None, None), limit) == (
         f"exit -9 · executor claude · model default · effort default · timed out{limit}"
+    )
+    # The fallback, the tokens and the request come last, in that order.
+    assert answer(0, False, ("claude", "m", "e"), "", True, 7, ident) == (
+        "exit 0 · executor claude · model m · effort e"
+        f" · fallback: codex usage limit · tokens 7 · request {ident}"
     )
 
     # A mailbox a worker swapped for a link halts its version, and empties nothing.
@@ -4112,11 +4128,14 @@ def test_a_checker_request_is_bounded(
     box = tmp_path / "box"
     assert opened(box) is None
     serving = run.server("0001-todo", tree, box, time.monotonic() - 1)
-    (box / "conformance.request").write_text(ask)
+    (box / "conformance.request").write_text(f"request {ident}\n{ask}")
     serving()
     assert (box / "conformance.answer").read_text() == (
-        "exit 1 · refused: converge's time is spent\n"
+        f"exit 1 · refused: converge's time is spent · request {ident}\n"
     )
+    # A checker answers naming the request it was sent.
+    answered = run.checker("0001-todo", "conformance", tree, ask, 0, ident)
+    assert answered == f"exit 1 · refused: converge's time is spent · request {ident}"
 
 
 def test_a_limited_checker_falls_back_to_claude(
@@ -4301,10 +4320,11 @@ def test_a_mailbox_checker_is_stamped_and_counted(
         )
         run.read_plan([conduct["Version"]("0001-todo", tree)])
 
-    def opened(used: float, resets: float) -> None:
+    def opened(used: float, resets: float, weekly: bool = True) -> None:
         rates = {
             name: {"used_percent": share, "window_minutes": 300, "resets_at": resets}
             for name, share in (("primary", used), ("secondary", used / 10))
+            if weekly or name == "primary"
         }
         payload = {"type": "token_count", "rate_limits": rates}
         rollout.write_text(json.dumps({"type": "event_msg", "payload": payload}) + "\n")
@@ -4340,6 +4360,10 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     monkeypatch.delenv("FAKE_CODEX_ROLLOUT")
     check()
     assert quota() == []
+    # A window the rollout lacks is left out of the line.
+    opened(10, 4_000_000_000, weekly=False)
+    check()
+    assert quota() == [{"type": "mf.quota", "five_hour": 0.0}]
     # A Claude checker is stamped with the model the plan names, `default` for none.
     models("claude")
     assert check() == (
@@ -4377,6 +4401,10 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     findings.unlink()
     stamp(folder, "conformance.md", "m", 5)
     assert not findings.exists()
+    findings.mkdir()
+    stamp(folder, "conformance.md", "m", 5)
+    assert findings.is_dir() and not list(findings.iterdir())
+    findings.rmdir()
     target = tmp_path / "target.md"
     target.write_text(front)
     findings.symlink_to(target)
@@ -4398,7 +4426,8 @@ def test_a_mailbox_checker_is_stamped_and_counted(
         {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}},
         {"type": "turn.completed", "usage": {"input_tokens": 20, "output_tokens": 1}},
     ]
-    log.write_text('{"usage": cut\n' + "".join(json.dumps(t) + "\n" for t in turns))
+    listed = '["turn.completed"]\n{"usage": cut\n'
+    log.write_text(listed + "".join(json.dumps(t) + "\n" for t in turns))
     assert tokens_of(log) == 36
     usage = {"inputTokens": 1, "outputTokens": 2, "cacheReadInputTokens": 3}
     results = [
@@ -4455,23 +4484,48 @@ def test_the_checker_command_sends_and_waits(
     prompt.write_text("x" * (conduct["REQUEST_BYTES"] + 1))
     assert said(root, "0001-todo", "conformance", False) == (2, bad)
     assert list(mailbox.iterdir()) == []
+    # The id line counts against the bound: the prompt fits by its length less.
+    fits = conduct["REQUEST_BYTES"] - len("request 0123456789abcdef\n")
+    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0)
+    prompt.write_text("x" * (fits + 1))
+    assert said(root, "0001-todo", "conformance", False) == (2, bad)
+    assert list(mailbox.iterdir()) == []
+    prompt.write_text("x" * fits)
+    assert said(root, "0001-todo", "conformance", False)[0] == 3
+    for name in ("request", "sent"):
+        (mailbox / f"conformance.{name}").unlink()
 
-    # Sent, then waited on past `CHECKER_WAIT`: exit 3 names the `--wait` re-run.
+    # Sent with an id, then waited on past `CHECKER_WAIT`: exit 3 names the re-run.
     text = "You are converge's conformance checker for change 0001-todo.\n"
     prompt.write_text(text)
-    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0)
     waiting = "checker: waiting — run conduct.py checker 0001-todo conformance --wait\n"
+
+    def sent() -> str:
+        return (mailbox / "conformance.sent").read_text()
+
     assert said(root, "0001-todo", "conformance", False) == (3, waiting)
-    assert (mailbox / "conformance.request").read_text() == text
+    assert re.fullmatch(r"[0-9a-f]{16}", sent())
+    assert (mailbox / "conformance.request").read_text() == f"request {sent()}\n{text}"
+    first = sent()
     assert said(root, "0001-todo", "conformance", True) == (3, waiting)
     # It polls each `MAILBOX_POLL` until `CHECKER_WAIT` passes.
     monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0.05)
     monkeypatch.setitem(checker.__globals__, "MAILBOX_POLL", 0.01)
     assert said(root, "0001-todo", "conformance", True) == (3, waiting)
+    # An answer left by an earlier request is removed as a request is sent, and each
+    # request has an id of its own.
+    (mailbox / "conformance.answer").write_text("exit 0 · request 0000000000000000\n")
+    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
+    assert not (mailbox / "conformance.answer").exists()
+    assert sent() != first
 
-    # `--wait` sends nothing and prints the answer, exiting with its code.
+    # `--wait` sends nothing and prints the answer naming its request, exiting with
+    # its code; the answer and `<role>.sent` go, so the mailbox ends empty.
     (mailbox / "conformance.request").unlink()
-    answer = "exit 0 · executor codex · model gpt-6.1-sol · effort high\n"
+    answer = (
+        "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+        f" · request {sent()}\n"
+    )
     (mailbox / "conformance.answer").write_text(answer)
     code = _main(
         conduct,
@@ -4484,10 +4538,22 @@ def test_the_checker_command_sends_and_waits(
     )
     assert (code, capsys.readouterr().out) == (0, answer)
     assert list(mailbox.iterdir()) == []
-    (mailbox / "conformance.answer").write_text("exit 1 · refused: x\n")
-    assert said(root, "0001-todo", "conformance", True) == (1, "exit 1 · refused: x\n")
-    (mailbox / "conformance.answer").write_text("garbled\n")
-    assert said(root, "0001-todo", "conformance", True) == (1, "garbled\n")
+    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
+    refused = f"exit 1 · refused: x · request {sent()}\n"
+    (mailbox / "conformance.answer").write_text(refused)
+    assert said(root, "0001-todo", "conformance", True) == (1, refused)
+    assert list(mailbox.iterdir()) == [mailbox / "conformance.request"]
+    # A leftover answer naming another id, one naming none and a garbled one are each
+    # removed and waited past; with no request sent, none is taken.
+    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
+    for leftover in ("exit 0 · request 0000000000000000\n", "exit 0\n", "garbled\n"):
+        (mailbox / "conformance.answer").write_text(leftover)
+        assert said(root, "0001-todo", "conformance", True) == (3, waiting)
+        assert not (mailbox / "conformance.answer").exists()
+    (mailbox / "conformance.sent").unlink()
+    (mailbox / "conformance.answer").write_text(refused)
+    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
+    assert (mailbox / "conformance.answer").read_text() == refused
 
 
 @pytest.mark.slow
@@ -8727,6 +8793,9 @@ def test_a_codex_log_reads_as_json(tmp_path: Path) -> None:
     assert conduct["usage_limit"](events(bare)) == " · stopped by a usage limit"
     other = {"type": "turn.failed", "error": {"message": "stream disconnected"}}
     assert conduct["usage_limit"](events(other)) == ""
+    # A line that names a limit and is no JSON is passed over.
+    log.write_text("usage limit, cut {\n" + json.dumps(failed) + "\n")
+    assert conduct["usage_limit"](log) == " · stopped by a usage limit · resets 5:50 PM"
 
     call = {"type": "mcp_tool_call", "server": "pencil", "tool": "draw"}
     mcp = [{"type": kind, "item": call} for kind in ("item.started", "item.completed")]
@@ -8785,9 +8854,8 @@ def test_the_codex_limit_data_is_read_from_its_rollout(
     # The thread: the first `thread.started`'s id, when it is a plain token.
     log = tmp_path / "thread.log"
     two = [{"type": "thread.started", "thread_id": t} for t in ("abc-123", "other")]
-    log.write_text(
-        "not json thread.started\n" + "".join(json.dumps(e) + "\n" for e in two)
-    )
+    garbled = '{"type": "thread.started", cut\n'
+    log.write_text(garbled + "".join(json.dumps(e) + "\n" for e in two))
     assert thread_id(log) == "abc-123"
     assert thread_id(log_of("../x*")) is None
     assert thread_id(log_of(5)) is None

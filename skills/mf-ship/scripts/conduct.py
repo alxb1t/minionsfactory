@@ -32,6 +32,7 @@ import math
 import os
 import re
 import runpy
+import secrets
 import shlex
 import shutil
 import signal
@@ -66,6 +67,9 @@ CHECKERS = ("conformance", "adversarial", "shadow-conformance", "shadow-adversar
 MAILBOX_POLL = 2
 CHECKER_WAIT = 100
 REQUEST_BYTES = 65536
+# A request's id line, `request <16 hex digits>`, and the last ` · request <id>` of
+# an answer. Why: 0104-codex-limits design D7.
+REQUEST_ID = re.compile(r"request ([0-9a-f]{16})")
 CHECKER_SPAWNS = 8
 # A Codex limit: the longest wait for a reset, the primary window's share that counts
 # as a limit, and the answer's note. Why: 0104-codex-limits design D1.
@@ -2797,12 +2801,16 @@ def _reply(fd: int, role: str, answer: str) -> None:
         _place(fd, f"{role}.answer", f"{answer}\n")
 
 
-def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str]) -> int:
+def serve_requests(
+    mailbox: Path, served: int, spawn: Callable[[str, str, str], str]
+) -> int:
     """Answer each checker request in `mailbox`; return the count `spawn` served.
 
     `served` counts this converge spawn's checkers so far: past `CHECKER_SPAWNS`, or
-    for a request that is a link, no file or too long, no checker starts. An entry
-    named for no role is left. Why: 0097-cross-model design D5.
+    for a request that is a link, no file or too long, or names no request, no checker
+    starts. A request's first line is `request <id>`; `spawn` gets its role, the rest
+    and the id, and a refusal that read the id names it. An entry named for no role is
+    left. Why: 0097-cross-model design D5; 0104-codex-limits design D7.
     """
     names = _entries(mailbox, empty=False)
     try:
@@ -2814,17 +2822,20 @@ def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str])
             if f"{role}.request" not in names:
                 continue
             prompt = _take_request(fd, f"{role}.request")
+            first, _, rest = (prompt or "").partition("\n")
+            found = REQUEST_ID.fullmatch(first)
             if prompt is None:
                 answer = (
                     f"exit 1 · refused: {role}.request is a link, no file or too long"
                 )
+            elif found is None:
+                answer = f"exit 1 · refused: {role}.request names no request"
             elif served >= CHECKER_SPAWNS:
-                answer = (
-                    f"exit 1 · refused: more than {CHECKER_SPAWNS} checker requests"
-                )
+                many = f"more than {CHECKER_SPAWNS} checker requests"
+                answer = _answer_refused(many, found[1])
             else:
                 served += 1
-                answer = spawn(role, prompt)
+                answer = spawn(role, rest, found[1])
             _reply(fd, role, answer)
     finally:
         os.close(fd)
@@ -2838,22 +2849,34 @@ def _answer(
     limit: str,
     fallback: bool = False,
     tokens: int | None = None,
+    request: str = "",
 ) -> str:
     """Return a checker's answer: its exit, executor, model, effort and why it ended.
 
     e.g. 0, False, ("codex", "m", None), "" →
     "exit 0 · executor codex · model m · effort default"
-    A `fallback` and `tokens` name it last, in that order.
-    Why: 0097-cross-model design D5; 0104-codex-limits design D3, D5.
+    A `fallback`, `tokens` and `request` name it last, in that order.
+    Why: 0097-cross-model design D5; 0104-codex-limits design D3, D5, D7.
     """
     executor, model, effort = models
     timed = " · timed out" if killed else ""
     named = f" · {FALLBACK}" if fallback else ""
     counted = "" if tokens is None else f" · tokens {tokens}"
+    asked = f" · request {request}" if request else ""
     return (
         f"exit {code} · executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'}{timed}{limit}{named}{counted}"
+        f" · effort {effort or 'default'}{timed}{limit}{named}{counted}{asked}"
     )
+
+
+def _answer_refused(why: str, request: str) -> str:
+    """Return a checker's refusal, naming the `request` it refuses when it has one.
+
+    e.g. "converge's time is spent", "0123456789abcdef" →
+    "exit 1 · refused: converge's time is spent · request 0123456789abcdef"
+    """
+    asked = f" · request {request}" if request else ""
+    return f"exit 1 · refused: {why}{asked}"
 
 
 def _granted(runs: Path, change: str, take: bool) -> bool:
@@ -4284,22 +4307,31 @@ class Run:
             served = serve_requests(
                 mailbox,
                 served,
-                lambda role, text: self.checker(who, role, cwd, text, deadline),
+                lambda role, text, request: self.checker(
+                    who, role, cwd, text, deadline, request
+                ),
             )
 
         return serve
 
     def checker(
-        self, change: str, role: str, cwd: Path, prompt: str, deadline: float
+        self,
+        change: str,
+        role: str,
+        cwd: Path,
+        prompt: str,
+        deadline: float,
+        request: str = "",
     ) -> str:
         """Run one checker the mailbox asked for; return its answer, halting nothing.
 
         Its models are the plan's, never the request's; a shadow's, `_shadow`'s of
-        them. Past `deadline` it starts nothing; else it gets what is left of it.
-        Why: 0097-cross-model design D5, D9; 0104-codex-limits design D3.
+        them. Past `deadline` it starts nothing; else it gets what is left of it. The
+        answer names the `request` it answers. Why: 0097-cross-model design D5, D9;
+        0104-codex-limits design D3, D7.
         """
         if time.monotonic() >= deadline:
-            return "exit 1 · refused: converge's time is spent"
+            return _answer_refused("converge's time is spent", request)
         checked = role.removeprefix("shadow-")
         shadow = checked != role
         converge = self.plan[change, "converge"]
@@ -4312,7 +4344,8 @@ class Run:
                 codex_runs == 2 or not self.codex_ready(change, deadline)
             ):
                 if shadow:
-                    return _answer(1, False, models, " · stopped by a usage limit")
+                    stopped = " · stopped by a usage limit"
+                    return _answer(1, False, models, stopped, request=request)
                 models, fallback = _shadow(converge, models), True
             code, killed, out, _ = self.worker(
                 change,
@@ -4328,7 +4361,7 @@ class Run:
                     folder = _change_dir(self.primary, change)
                     _stamp(folder, f"{role}.md", models[1], tokens)
                 limit = usage_limit(out)
-                return _answer(code, killed, models, limit, fallback, tokens)
+                return _answer(code, killed, models, limit, fallback, tokens, request)
             codex_runs += 1
 
     def codex_ready(self, change: str, deadline: float) -> bool:
@@ -6733,9 +6766,11 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
     """Send a checker's prompt through the version's mailbox; print its answer.
 
-    Converge's sandboxed conductor runs it; `wait` sends nothing. Return the answer's
-    exit, 1 with none, 2 when nothing can be sent, 3 past `CHECKER_WAIT`.
-    Why: 0097-cross-model design D4.
+    Converge's sandboxed conductor runs it; `wait` sends nothing. A send removes the
+    old answer, then places the request with an id line and the id as `<role>.sent`;
+    an answer naming no id, or another, is removed and waited past. Return the
+    answer's exit, 1 with none, 2 when nothing can be sent, 3 past `CHECKER_WAIT`.
+    Why: 0097-cross-model design D4; 0104-codex-limits design D7.
     """
     if not CHANGE_ID.fullmatch(change) or role not in CHECKERS:
         print("checker: cannot run — not a change id and a checker role")
@@ -6750,20 +6785,35 @@ def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
     try:
         if not wait:
             prompt = _change_dir(primary, change) / f"{role}.prompt.md"
-            if (text := _bounded(prompt)) is None:
+            request = secrets.token_hex(8)
+            line = f"request {request}\n"
+            text = _bounded(prompt)
+            if text is None or len(f"{line}{text}".encode()) > REQUEST_BYTES:
                 print(f"checker: cannot run — {prompt} is a link, no file or too long")
                 return 2
-            _place(fd, f"{role}.request", text)
+            with contextlib.suppress(OSError):
+                os.unlink(f"{role}.answer", dir_fd=fd)
+            _place(fd, f"{role}.request", f"{line}{text}")
+            _place(fd, f"{role}.sent", request)
         deadline = time.monotonic() + CHECKER_WAIT
-        while (answer := _bounded(f"{role}.answer", fd)) is None:
+        while True:
+            sent = _bounded(f"{role}.sent", fd)
+            answer = _bounded(f"{role}.answer", fd)
+            if sent is not None and answer is not None:
+                named = re.search(rf" · {REQUEST_ID.pattern}\s*$", answer)
+                if named and named[1] == sent.strip():
+                    break
+                with contextlib.suppress(OSError):
+                    os.unlink(f"{role}.answer", dir_fd=fd)
             if time.monotonic() >= deadline:
                 print(
                     f"checker: waiting — run conduct.py checker {change} {role} --wait"
                 )
                 return 3
             time.sleep(MAILBOX_POLL)
-        with contextlib.suppress(OSError):
-            os.unlink(f"{role}.answer", dir_fd=fd)
+        for name in ("answer", "sent"):
+            with contextlib.suppress(OSError):
+                os.unlink(f"{role}.{name}", dir_fd=fd)
     finally:
         os.close(fd)
     print(answer, end="")
