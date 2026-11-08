@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so a fenced heading holds no section and a table row GFM renders is read; a lone carriage return halts the brief, and
   the cut reads the branch as `refs/heads/<id>`. A fuzz corpus compares both readers with the rendered page (change
   `0103-fewer-rounds`, phase 5; closes `0091·R4`, `0091·S4`, `0091·S5`).
+- `mf-cut-change` runs its plan reviews on Opus 5.5 · high by name, whatever the cut's model; `mf-plan`'s default cut model
+  becomes Sonnet 5.5 · high (change `0103-fewer-rounds`, phase 6).
 
 ## [0.85.0] - 2026-11-09
 

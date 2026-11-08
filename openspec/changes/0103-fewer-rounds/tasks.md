@@ -10,7 +10,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 3 — The plan check
 - [x] 4 — The corpus
 - [x] 5 — CommonMark readers
-- [ ] 6 — The plan review's model
+- [x] 6 — The plan review's model
 - [ ] 7 — The record
 
 ## 1 — The round-1 pickup and the mechanism repeat
@@ -110,10 +110,10 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 6 — The plan review's model
 
-- [ ] 6.1 In `skills/mf-cut-change/SKILL.md`, edit Step 8.5's first sentence per [D7](design.md#d7), keeping the review
+- [x] 6.1 In `skills/mf-cut-change/SKILL.md`, edit Step 8.5's first sentence per [D7](design.md#d7), keeping the review
   table's reviewer cells.
   Verify: `grep -n "model: opus" skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 6.2 In `skills/mf-plan/SKILL.md`, edit the cut station's default per [D7](design.md#d7).
+- [x] 6.2 In `skills/mf-plan/SKILL.md`, edit the cut station's default per [D7](design.md#d7).
   Verify: `grep -n "own is Sonnet 5.5" skills/mf-plan/SKILL.md` prints a line.
 
 ## 7 — The record

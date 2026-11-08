@@ -222,8 +222,9 @@ This self-check is a declared exception to *no station verifies its own work*. T
 
 ## Step 8.5 — Plan review
 
-A fresh read-only worker reads the plan before the commit: the host's subagent, on the session's model. Give
-it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md` and one
+A fresh read-only worker reads the plan before the commit: the host's subagent, on Opus 5.5 · high where the host offers
+it, whatever the session's model — on Claude Code the Agent tool's `model: opus` and `effort: high` — else the session's
+model. Give it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md` and one
 question: can each task be built as written, each `Verify:` pass after it, and each the search script did not run — a
 test, a command — fail before it, save a `**HALT CHECK**`, which should hold? It starts from the packet, opening
 another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the

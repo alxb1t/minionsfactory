@@ -195,8 +195,9 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
 `## For the cut` is filled when the frontier is empty: one item per change, in cut order. The models come from the
 session's menu, by `mf-cut-change`'s *Suggesting models* table —
-Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's own
-is the strongest tier · high by default. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
+Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's
+own is Sonnet 5.5 · high by default, where the session offers it, else the strongest tier · high: the plan holds the
+judgment, and the cut's plan reviews run on Opus 5.5 · high whatever the cut runs on. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
 proposed fix. The cut station writes `models.toml` from the `models:` line. `beside:` is optional: the versions this one only
 shares files with, which nothing waits on (D69).
 
