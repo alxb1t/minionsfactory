@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CHECKER_SPAWNS` a converge spawn; a findings file names its `executor:` (change `0097-cross-model`, phase 2).
 - Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze into shadow files that
   drive nothing, and `overlap.py` counts what each side alone caught (change `0097-cross-model`, phase 3).
+- The review metrics read per role, executor and model, a mailbox checker's log as a cost cell, escapes and the shadow
+  overlap, and open the page on the headline numbers; the run metrics count a checker's log in converge's cost and its
+  role's tokens; a verify log line names its card (change `0097-cross-model`, phase 4).
 
 ## [0.79.0] - 2026-11-08
 

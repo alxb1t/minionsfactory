@@ -10,7 +10,8 @@ The repos' findings, status logs and run logs are read, none written.
 
 The data is `review-metrics.json`, beside the page.
 Exit 0 written · 2 cannot run · any other a crash.
-Why: 0045-review-metrics design D1…D4 and D7; 0077-run-metrics design D5.
+Why: 0045-review-metrics design D1…D4 and D7; 0077-run-metrics design D5;
+0097-cross-model design D12.
 """
 
 import argparse
@@ -20,6 +21,7 @@ import importlib.util
 import json
 import os
 import re
+import runpy
 import statistics
 import subprocess
 import sys
@@ -44,8 +46,20 @@ FILES = (
     "status_log.md",
 )
 OLD_FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
-STATIONS = ("build", "converge", "integrate", "release", "rescue")
+# The checkers converge's mailbox starts are stations of their own here: a cost cell.
+CHECKERS = (
+    "converge-conformance",
+    "converge-adversarial",
+    "converge-shadow-conformance",
+    "converge-shadow-adversarial",
+)
+STATIONS = ("build", "converge", "integrate", "release", "rescue", *CHECKERS)
 ROLES = ("conformance", "adversarial")
+# Each role's blocking grades, its old name and its cards' id letter.
+CHECKED = {
+    "conformance": (("blocking",), "review", "R"),
+    "adversarial": (("critical", "high"), "security", "S"),
+}
 # The checkers' names before 0095-converge-roles, read as written.
 OLD_ROLES = ("review", "security")
 # The old era's forms a `verdicts` line names both roles' tokens in, and each one's
@@ -95,7 +109,7 @@ CATEGORIES = (
     "maintainability",
 )
 TOP_CATEGORIES = 3
-IDENTITY = 2  # the model table's leading columns: model, engine
+IDENTITY = 3  # the role table's leading columns: role, executor, model
 VERDICT_FIELDS = ("confirmed", "plausible", "plausible_verified", "refuted")
 RESOLUTION_FIELDS = ("verified", "reopened")
 GAP = "—"
@@ -176,6 +190,11 @@ _PRINTABLE = re.compile(r"[\w.\-:/ ]{1,64}")
 _EVENT = re.compile(
     r"^(\d\d):(\d\d):(\d\d) · (?:round \S+ · )?([\w-]+) — (.*)$", re.MULTILINE
 )
+_TITLE = re.compile(r"- \*\*(\w+)")
+# `run.py`'s escape: a card repeating an earlier change's card.
+REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
+# A `## Resolution log` line in verify's form. Why: 0097-cross-model design C5.
+_LOGGED = re.compile(r"^- \d{4}-\d\d-\d\d · (\w+) (\w+) → (\w+)", re.MULTILINE)
 
 
 def _word(text: str) -> str:
@@ -269,10 +288,44 @@ def _resolutions(body: str) -> Record:
     }
 
 
+def _first_verifies(body: str) -> Record:
+    """Return the cards whose first verify after `fixed` read `verified`, or `open`.
+
+    Each a gap when the log holds no line in verify's form.
+    e.g. "- 2026-11-08 · R1 fixed → open", then "… R1 fixed → verified" → 0, 1
+    Why: 0097-cross-model design D12.
+    """
+    lines = _LOGGED.findall(_section(body, "Resolution log") or "")
+    if not lines:
+        return dict.fromkeys(("first_verified", "first_reopened"))
+    first: dict[str, str] = {}
+    for card, before, after in lines:
+        if before == "fixed" and after in ("verified", "open"):
+            first.setdefault(card, after)
+    outcomes = list(first.values())
+    return {
+        "first_verified": outcomes.count("verified"),
+        "first_reopened": outcomes.count("open"),
+    }
+
+
+def _confirmed_blockers(cards: list[str], blocking: tuple[str, ...]) -> int | None:
+    """Return the cards both `Verdict: confirmed` and blocking; None with no verdict."""
+    judged = [card for card in cards if _VERDICT.search(card)]
+    if not judged:
+        return None
+    return sum(
+        _word(_VERDICT.findall(card)[0]) == "confirmed"
+        and _priority(_PRIORITY.findall(card)[0])[0] in blocking
+        for card in judged
+    )
+
+
 def _findings_file(path: Path, blocking: tuple[str, ...]) -> Record | None:
     """Return what a findings file holds, or None when there is no file.
 
-    `blocking` names the grades that block on this file's scale.
+    `blocking` names the grades that block on this file's scale. Its `repeats` are
+    each card's id and the earlier card it repeats.
     """
     if not path.is_file():
         return None
@@ -285,6 +338,14 @@ def _findings_file(path: Path, blocking: tuple[str, ...]) -> Record | None:
         **_graded(front, body, cards, blocking),
         **_verdicts(body, cards),
         **_resolutions(body),
+        **_first_verifies(body),
+        "confirmed_blockers": _confirmed_blockers(cards, blocking),
+        "repeats": [
+            (title[1], number, earlier)
+            for card in cards
+            if (title := _TITLE.match(card))
+            for number, earlier in REPEAT.findall(card)
+        ],
         "inconclusive": (
             sum(
                 "inconclusive" in line and not _DENIED.search(line.lower())
@@ -799,20 +860,92 @@ def _changes(repo: Path) -> set[str]:
     return moved | {found[1] for name in names if (found := OLD_FILES.fullmatch(name))}
 
 
+def _round_one(log: Path, role: str) -> str | None:
+    """Return the executor a role's round 1 `verdicts` line names, its oldest run's."""
+    if not log.is_file():
+        return None
+    named = [
+        record
+        for record in _round_records(log)
+        if (record["round"], record["role"]) == (1, role) and record["executor"]
+    ]
+    oldest = min(named, key=lambda record: record["run"] or 0, default=None)
+    return oldest["executor"] if oldest else None
+
+
+def _role(found: Record, role: str, log: Path) -> Record:
+    """Return a role's record: its file's counts, executor and model.
+
+    Its executor is the file's `executor:`, else its round 1 `verdicts` line's.
+    Why: 0097-cross-model design D12.
+    """
+    front = found["front"]
+    included, skipped = _packet(front.get("packet"))
+    counted = ("findings", "blocking", *VERDICT_FIELDS, "inconclusive")
+    return {
+        "role": role,
+        "executor": front.get("executor") or _round_one(log, role),
+        "model": front.get("model") or None,
+        "rounds": _integer(front.get("round")),
+        "workers": _workers(front),
+        "packet_included": included,
+        "packet_skipped": skipped,
+        **{key: found[key] for key in counted},
+        "confirmed_blockers": found["confirmed_blockers"],
+        "first_verified": found["first_verified"],
+        "first_reopened": found["first_reopened"],
+        "categories": found["categories"],
+    }
+
+
+@functools.cache
+def _overlap() -> dict[str, Any]:
+    """Return `overlap.py`'s namespace, loaded from converge's package."""
+    path = Path(__file__).resolve().parent / "../../mf-converge/scripts/overlap.py"
+    return runpy.run_path(str(path))
+
+
+def _shadows(repo: Path, change: str) -> list[Record]:
+    """Return `overlap.py`'s counts and each side's executor, per role with a shadow.
+
+    Why: 0097-cross-model design D12.
+    """
+    found: list[Record] = []
+    for role, (_, old, _) in CHECKED.items():
+        shade = _file(repo, change, f"shadow-{role}.md")
+        primary = _checker(repo, change, role, old)
+        if not shade.is_file() or not primary.is_file():
+            continue
+        tools = _overlap()
+        held, cast = (
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in (primary, shade)
+        )
+        first = [card for card in tools["cards"](held) if tools["first_round"](card)]
+        counts = tools["overlap"](first, tools["cards"](cast), tools["ROLES"][role])
+        executors = {
+            "primary_executor": tools["executor"](held),
+            "shadow_executor": tools["executor"](cast),
+        }
+        found.append({"role": role, **counts, **executors})
+    return found
+
+
 def read_change(repo: Path, change: str) -> Record:
     """Return a change's record, each field parsed on its own, None when unreadable.
 
-    A checker's file is read by its name, else by its old one.
-    Why: 0095-converge-roles design D4.
+    A checker's file is read by its name, else by its old one; each is a role
+    record, named as its file is. Why: 0095-converge-roles design D4;
+    0097-cross-model design D12.
     """
-    files = [
-        found
-        for role, old, blocking in (
-            ("conformance", "review", ("blocking",)),
-            ("adversarial", "security", ("critical", "high")),
-        )
-        if (found := _findings_file(_checker(repo, change, role, old), blocking))
-    ]
+    log = _file(repo, change, "status_log.md")
+    files: list[Record] = []
+    roles: list[Record] = []
+    for role, (blocking, old, _) in CHECKED.items():
+        path = _checker(repo, change, role, old)
+        if found := _findings_file(path, blocking):
+            files.append(found)
+            roles.append(_role(found, path.stem, log))
     fronts = [found["front"] for found in files]
     included, skipped = _packet(_first(fronts, "packet"))
     record: Record = {
@@ -827,8 +960,11 @@ def read_change(repo: Path, change: str) -> Record:
         "rounds": _integer(_first(fronts, "round")),
         "severity": _merged(files, "severity"),
         "categories": _merged(files, "categories"),
-        **_status_log(_file(repo, change, "status_log.md")),
+        **_status_log(log),
         **_cost_logs(repo, change),
+        "roles": roles,
+        "shadow": _shadows(repo, change),
+        "repeats": [repeat for found in files for repeat in found["repeats"]],
     }
     for key in ("findings", "blocking", "inconclusive"):
         record[key] = _total(found[key] for found in files)
@@ -877,6 +1013,129 @@ def round_data(repo: Path) -> list[Record]:
             del filled["window"]
             rows.append({"repo": repo.name, "change": change, **filled})
     return rows
+
+
+def _ordinal(change: str) -> int:
+    """Return a change id's number; e.g. "0010-a" → 10, a name with none → 0."""
+    return int(re.sub(r"\D.*", "", change) or 0)
+
+
+def escapes(records: list[Record]) -> list[Record]:
+    """Return each card repeating an earlier change's card, traced to that change.
+
+    The earlier change's file is the repeated card's role's, `R` conformance and `S`
+    adversarial; its executor is a gap when that change was not read.
+    Why: 0097-cross-model design C5, D12.
+    """
+    numbered = {(r["repo"], _ordinal(r["change"])): r for r in records}
+    found: list[Record] = []
+    for record in records:
+        own = _ordinal(record["change"])
+        for card, number, earlier in record["repeats"]:
+            if int(number) >= own:
+                continue
+            role = "adversarial" if earlier.startswith("S") else "conformance"
+            names = (role, CHECKED[role][1])
+            source = numbered.get((record["repo"], int(number)))
+            held = source["roles"] if source else []
+            executor = next((r["executor"] for r in held if r["role"] in names), None)
+            found.append(
+                {
+                    "repo": record["repo"],
+                    "change": record["change"],
+                    "card": card,
+                    "earlier": f"{number}·{earlier}",
+                    "role": role,
+                    "executor": executor,
+                }
+            )
+    return found
+
+
+def _converge_cost(record: Record) -> Number | None:
+    """Return a change's converge and checker dollars; a gap where one lacks them.
+
+    A checker with no log and no spawn costs nothing.
+    """
+    checkers = (
+        record[f"cost_{station}"]
+        if record[f"logs_{station}"] or record[f"spawns_{station}"]
+        else 0
+        for station in CHECKERS
+    )
+    return _total([record["cost_converge"], *checkers])
+
+
+def _shares(counted: dict[str, list[Number]]) -> dict[str, float] | None:
+    """Return each key's first figure over its second, to 4 places; None with none."""
+    shares = {
+        key: round(part / whole, 4)
+        for key, (part, whole) in sorted(counted.items())
+        if whole
+    }
+    return shares or None
+
+
+def headline(
+    changes: list[Record], shadow: list[Record], escaped: list[Record]
+) -> Record:
+    """Return the four headline numbers, each per executor where it has one.
+
+    A number with no data is None. Why: 0097-cross-model design D12.
+    """
+    distinct = sum(
+        row["shared_blockers"] + row["primary_blockers"] + row["shadow_blockers"]
+        for row in shadow
+    )
+    alone: dict[str, list[Number]] = {}
+    for row in shadow:
+        for side in ("primary", "shadow"):
+            held = alone.setdefault(row[f"{side}_executor"], [0, distinct])
+            held[0] += row[f"{side}_blockers"]
+    read = [change for change in changes if change["roles"]]
+    spent: dict[str, list[Number]] = {}
+    verifies: dict[str, list[Number]] = {}
+    for change in read:
+        executors = {role["executor"] for role in change["roles"]}
+        cost = _converge_cost(change)
+        if None not in executors and cost is not None:
+            pairing = executors.pop() if len(executors) == 1 else "mixed"
+            held = spent.setdefault(pairing, [0, 0])
+            held[0] += cost
+            held[1] += sum(r["confirmed_blockers"] or 0 for r in change["roles"])
+        for role in change["roles"]:
+            if role["first_verified"] is not None:
+                held = verifies.setdefault(role["executor"] or "unknown", [0, 0])
+                held[0] += role["first_verified"]
+                held[1] += role["first_verified"] + role["first_reopened"]
+    return {
+        "unique_blocker_share": _shares(alone),
+        "escapes_per_version": round(len(escaped) / len(read), 4) if read else None,
+        "dollars_per_confirmed_blocker": _shares(spent),
+        "first_verify_pass_rate": _shares(verifies),
+    }
+
+
+def cross_model(records: list[Record]) -> Record:
+    """Return the roles, shadow overlaps, escapes and headline of the changes read.
+
+    Why: 0097-cross-model design D12.
+    """
+
+    def tagged(key: str) -> list[Record]:
+        return [
+            {"repo": record["repo"], "change": record["change"], **row}
+            for record in records
+            for row in record[key]
+        ]
+
+    shadow, escaped = tagged("shadow"), escapes(records)
+    return {
+        "roles": tagged("roles"),
+        "shadow": shadow,
+        "escapes": escaped,
+        "headline": headline(records, shadow, escaped),
+    }
 
 
 def load_chart() -> tuple[Chart, str]:
@@ -984,15 +1243,28 @@ def cost_table(records: list[Record]) -> Table:
 
 
 def model_table(records: list[Record]) -> Table:
-    """Return a row per model and engine, `unknown` for a gap."""
+    """Return a row per role, executor and model of the changes' roles, `unknown` a gap.
+
+    Why: 0097-cross-model design D12.
+    """
     groups: dict[tuple[str, ...], list[Record]] = {}
     for record in records:
-        key = tuple(record[f] or "unknown" for f in ("model", "engine"))
-        groups.setdefault(key, []).append(record)
-    summed = (*VERDICT_FIELDS, "inconclusive", "packet_included", "packet_skipped")
+        for role in record["roles"]:
+            key = tuple(role[f] or "unknown" for f in ("role", "executor", "model"))
+            groups.setdefault(key, []).append(role)
+    summed = (
+        *VERDICT_FIELDS,
+        "inconclusive",
+        "packet_included",
+        "packet_skipped",
+        "confirmed_blockers",
+        "first_verified",
+        "first_reopened",
+    )
     headers = [
+        "role",
+        "executor",
         "model",
-        "engine",
         "changes",
         "median rounds",
         "findings per change",
@@ -1000,8 +1272,6 @@ def model_table(records: list[Record]) -> Table:
         "median workers",
         *(field.replace("_", " ") for field in summed),
         "top categories",
-        "median duration (s)",
-        "median tokens",
     ]
     rows = [
         [
@@ -1013,12 +1283,25 @@ def model_table(records: list[Record]) -> Table:
             _counted(statistics.median, group, "workers"),
             *(_summed(group, field) for field in summed),
             _top(group),
-            _counted(statistics.median, group, "duration"),
-            _counted(statistics.median, group, "tokens"),
         ]
         for key, group in sorted(groups.items())
     ]
     return headers, rows
+
+
+def headline_table(numbers: Record) -> Table:
+    """Return a row per headline number and executor, `—` for no data.
+
+    e.g. {"escapes_per_version": 0.5} → [["escapes per version", "—", "0.50"]]
+    """
+    rows: list[list[str]] = []
+    for key, value in numbers.items():
+        name = key.replace("_", " ")
+        if isinstance(value, dict):
+            rows += [[name, who, f"{figure:.2f}"] for who, figure in value.items()]
+        else:
+            rows.append([name, GAP, GAP if value is None else f"{value:.2f}"])
+    return ["number", "executor", "value"], rows
 
 
 def lacked(records: list[Record]) -> str:
@@ -1074,7 +1357,10 @@ def _every_record(read: list[tuple[str, list[Record]]]) -> list[Record]:
 
 
 def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) -> str:
-    """Return the page, laid out per 0045-review-metrics design D7."""
+    """Return the page, laid out per 0045-review-metrics design D7, headline first.
+
+    Why: 0097-cross-model design D12.
+    """
     records = _every_record(read)
     lines = [
         "<!doctype html>",
@@ -1082,10 +1368,12 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
         f"<title>Review metrics</title><style>{style}</style></head><body>",
         "<h1>Review metrics</h1>",
         f"<p>repos read {len(read)} · changes read {len(records)}</p>",
+        "<h2>headline</h2>",
+        _html_table(headline_table(cross_model(records)["headline"])),
     ]
     for name, held in read:
         lines += _repo_section(name, held, chart)
-    lines += ["<h2>model</h2>", _html_table(model_table(records))]
+    lines += ["<h2>role, executor and model</h2>", _html_table(model_table(records))]
     lines += ["<h2>lacked</h2>", "<ul>"]
     lines += [f"<li>{_E(name)}: {_E(lacked(held))}</li>" for name, held in read]
     lines += ["</ul>", "</body></html>"]
@@ -1143,6 +1431,7 @@ def main(argv: list[str] | None = None) -> int:
         data = {
             "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
             "records": [row for repo in repos for row in round_data(repo)],
+            **cross_model(_every_record(read)),
         }
         _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")
     except CannotRun as exc:

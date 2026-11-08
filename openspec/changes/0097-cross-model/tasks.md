@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The models line and the plan
 - [x] 2 — The checker mailbox
 - [x] 3 — Shadow round 1
-- [ ] 4 — The metrics
+- [x] 4 — The metrics
 - [ ] 5 — The record
 
 ## 1 — The models line and the plan
@@ -61,18 +61,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The metrics
 
-- [ ] 4.1 Extend `test_run_metrics_read_cost_and_review_yield` in `tests/test_metric_scripts.py` with a priced Codex
+- [x] 4.1 Extend `test_run_metrics_read_cost_and_review_yield` in `tests/test_metric_scripts.py` with a priced Codex
   `converge-conformance` log, then `CHECKERS`, `Version.spawns`, `spent` and `role_tokens` in `scripts/metrics/run.py`, per
   [D11](design.md#d11).
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k cost_and_review_yield` reports `1 passed`; `grep -n '^CHECKERS = ' scripts/metrics/run.py` prints a line.
-- [ ] 4.2 Name the `## Resolution log` line's form in `skills/mf-converge/references/verify.md`, per
+- [x] 4.2 Name the `## Resolution log` line's form in `skills/mf-converge/references/verify.md`, per
   [C5](design.md#goals--non-goals).
   Verify: `grep -n -F '<id> <from> → <to>' skills/mf-converge/references/verify.md` prints a line.
-- [ ] 4.3 Add `test_the_cross_model_numbers` and edit the tests the design's [Tests](design.md#tests) names in
+- [x] 4.3 Add `test_the_cross_model_numbers` and edit the tests the design's [Tests](design.md#tests) names in
   `tests/test_review_metrics.py`, then the parts of `skills/mf-review-metrics/scripts/review_metrics.py` [D12](design.md#d12)
   lists, `headline` among them.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "cross_model_numbers or page_draws_charts or codex_sessions_fill or cost_turns_and_tokens"` reports `4 passed`; `grep -n '^def headline' skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
-- [ ] 4.4 Name the headline numbers in *Run* and the role table in *Report* of `skills/mf-review-metrics/SKILL.md`, per
+- [x] 4.4 Name the headline numbers in *Run* and the role table in *Report* of `skills/mf-review-metrics/SKILL.md`, per
   [D12](design.md#d12).
   Verify: `grep -n -e 'headline' -e 'role, executor' skills/mf-review-metrics/SKILL.md` prints a line for each.
 

@@ -34,7 +34,8 @@ sections named below, where you need them.
   [the passes table](worker.md#conformance-and-adversarial) and [the rules for tests](worker.md#rules-for-tests), so a
   fix's new test is judged like the build's.
 - **Rewrite the frontmatter's** `head`, `round`, `reviewed`, `open_blocking` and `verdict`; append each transition to
-  `## Resolution log` as a dated line; update the Summary's counts.
+  `## Resolution log` as one line naming its card, `- <YYYY-MM-DD> · <id> <from> → <to>`:
+  `- 2026-11-08 · R1 fixed → verified`. Update the Summary's counts.
 
 Edit only your open cards' **Status** lines, the frontmatter, the Summary and the `## Resolution log`, and add a card
 for a regression: nothing else in your findings file, and no other file. Accept no fixer's or conductor's word that a

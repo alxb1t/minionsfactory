@@ -51,7 +51,7 @@ def _card(number: int, priority: str, *fields: str) -> str:
 
 def _findings(root: Path, name: str, text: str) -> None:
     roles = "conformance|adversarial|review|security"
-    found = re.fullmatch(rf"(.+?)_({roles}|status_log)\.md", name)
+    found = re.fullmatch(rf"(.+?)_((?:shadow-)?(?:{roles})|status_log)\.md", name)
     assert found, name
     folder = root / ".minions" / "changes" / found[1]
     folder.mkdir(parents=True, exist_ok=True)
@@ -646,6 +646,9 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     _worker_log(tmp_path, "0050-x", "A-converge-x.log", last)
     _worker_log(tmp_path, "0050-x", "A-build.log", {"type": "assistant"})
     _worker_log(tmp_path, "0050-xy", "A-rescue.log", last)
+    # A checker the mailbox started is a cost cell of its own, none of converge's.
+    conformance = "A-converge-conformance.log"
+    _worker_log(tmp_path, "0050-x", conformance, spawn("gpt-5.5"), turn)
     _run_log(
         tmp_path,
         "A.md",
@@ -654,6 +657,7 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
         "10:06:00 · 0050-x · spawn — converge · model default · effort high",
         "10:07:00 · 0050-xy · spawn — converge · model default",
         "10:08:00 · 0050-x · spawn — converge-x · model default",
+        "10:08:30 · 0050-x · spawn — converge-conformance · model gpt-5.5",
         "10:09:00 · 0050-x · spawn — converge · model default",
     )
     one = _result(0.25, 1, 1000, m=dict.fromkeys(review_metrics.TOKENS, 1))
@@ -685,6 +689,10 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
             "$4.80 · 2200000 tokens",
             "—",
             "— · 3300000 tokens",
+            "$2.40 · 1100000 tokens",
+            "—",
+            "—",
+            "—",
         ]
     ]
 
@@ -773,15 +781,174 @@ def test_the_page_draws_charts_and_lists_gaps(
     assert "&lt;b&gt;m&lt;/b&gt;" in page
     assert "<b>m" not in page
     assert "<script" not in page
-    assert "<h2>model</h2>" in page
+    assert "<h2>role, executor and model</h2>" in page
 
     printed = capsys.readouterr().out.splitlines()
     assert printed[:2] == [str(out.resolve()), "repos: 2 · changes: 3"]
-    assert printed[2].startswith("| model | engine | changes |")
-    assert "| unknown | generic | 1 | 2 (n=1) |" in "\n".join(printed)
+    assert printed[2].startswith("| role | executor | model | changes |")
+    row = "| review | unknown | unknown | 1 | 2 (n=1) | 1 (n=1) | 1 (n=1) | 4 (n=1) |"
+    assert row in "\n".join(printed)
     assert "<b>m" not in "\n".join(printed)
     assert printed[-1].startswith(
         "lacked: capped 2 · confirmed 2 · cost_build 3 · cost_converge 2 · "
+    )
+
+
+def _blocker(card: str, affects: str, *fields: str) -> str:
+    role = "adversarial" if card.startswith("S") else "conformance"
+    grade = "high" if role == "adversarial" else "blocking"
+    lines = [
+        f"- **{card} — A defect**",
+        f"  - **What it affects:** `{affects}`",
+        f"  - **Priority:** {grade} · {role} · stability — why.",
+        *(f"  - {field}" for field in fields),
+    ]
+    return "\n".join(lines) + "\n\n"
+
+
+def test_the_cross_model_numbers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    prices = tmp_path / "prices.toml"
+    prices.write_text(
+        '[models]\n"gpt-6.1-sol" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+    )
+    monkeypatch.setattr(review_metrics, "PRICES", prices)
+    # Conformance on Codex, a Claude shadow: both catch R1, the shadow alone R2.
+    fixed = _blocker(
+        "R1",
+        "total.py:12",
+        "**Verdict:** confirmed.",
+        "**Round:** 1",
+        "**Status:** verified — held.",
+    )
+    log = "\n## Resolution log\n\n- 2026-11-08 · R1 fixed → verified\n"
+    _findings(
+        repo,
+        "0010-a_conformance.md",
+        _front("clean", executor="codex", model="gpt-6.1-sol") + fixed + log,
+    )
+    _findings(repo, "0010-a_adversarial.md", _front(executor="codex"))
+    shadow = _blocker("R1", "total.py:14") + _blocker("R2", "README.md")
+    _findings(
+        repo,
+        "0010-a_shadow-conformance.md",
+        _front("changes-requested", executor="claude") + shadow,
+    )
+    _findings(repo, "0010-a_shadow-adversarial.md", _front(executor="claude"))
+    usage = {"input_tokens": 1_000_000, "cached_input_tokens": 400_000}
+    turn = {"type": "turn.completed", "usage": usage | {"output_tokens": 100_000}}
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
+    _worker_log(repo, "0010-a", "A-converge.log", _result(0.6, 2, 1000, m={}))
+    _worker_log(repo, "0010-a", "A-converge-conformance.log", spawn, turn)
+    _run_log(
+        repo,
+        "A.md",
+        "10:00:00 · 0010-a · spawn — converge · model m",
+        "10:01:00 · 0010-a · spawn — converge-conformance · model gpt-6.1-sol",
+    )
+    # A later change repeats the first's card, and its own; one more has no converge
+    # log.
+    repeat = _card(1, "nit · conformance · stability — why", "**Related:** repeat of")
+    repeat = repeat.replace("repeat of", "repeat of `0010·R1`, and repeat of 0011·R9")
+    _findings(repo, "0011-b_conformance.md", _front(executor="claude") + repeat)
+    status = "## Run 1 — 2026-11-08 10:00\n"
+    status += "10:01:00 · round 1 · verdicts — adversarial clean · open_blocking 0"
+    status += " · executor claude · model m · effort high · tokens 9\n"
+    _findings(repo, "0011-b_adversarial.md", _front())
+    _findings(repo, "0011-b_status_log.md", status)
+    _worker_log(repo, "0011-b", "A-converge.log", _result(0.5, 1, 1000, m={}))
+    _findings(repo, "0012-c_conformance.md", _front(executor="claude"))
+    out = tmp_path / "site" / "page.html"
+
+    assert review_metrics.main(["--repo", str(repo), "--out", str(out)]) == 0
+
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    roles = {(r["change"], r["role"]): r for r in data["roles"]}
+    assert {key: r["executor"] for key, r in roles.items()} == {
+        ("0010-a", "conformance"): "codex",
+        ("0010-a", "adversarial"): "codex",
+        # A file naming none takes its round 1 `verdicts` line's executor.
+        ("0011-b", "conformance"): "claude",
+        ("0011-b", "adversarial"): "claude",
+        ("0012-c", "conformance"): "claude",
+    }
+    first = roles["0010-a", "conformance"]
+    assert (first["model"], first["confirmed_blockers"]) == ("gpt-6.1-sol", 1)
+    assert (first["first_verified"], first["first_reopened"]) == (1, 0)
+    assert roles["0011-b", "conformance"]["first_verified"] is None
+    assert data["shadow"] == [
+        {
+            "repo": "repo",
+            "change": "0010-a",
+            "role": "conformance",
+            "shared": 1,
+            "primary_alone": 0,
+            "shadow_alone": 1,
+            "shared_blockers": 1,
+            "primary_blockers": 0,
+            "shadow_blockers": 1,
+            "primary_executor": "codex",
+            "shadow_executor": "claude",
+        },
+        {
+            "repo": "repo",
+            "change": "0010-a",
+            "role": "adversarial",
+            "shared": 0,
+            "primary_alone": 0,
+            "shadow_alone": 0,
+            "shared_blockers": 0,
+            "primary_blockers": 0,
+            "shadow_blockers": 0,
+            "primary_executor": "codex",
+            "shadow_executor": "claude",
+        },
+    ]
+    assert data["escapes"] == [
+        {
+            "repo": "repo",
+            "change": "0011-b",
+            "card": "R1",
+            "earlier": "0010·R1",
+            "role": "conformance",
+            "executor": "codex",
+        }
+    ]
+    # The Codex pairing's converge and checker dollars over its one confirmed blocker.
+    assert data["headline"] == {
+        "unique_blocker_share": {"claude": 0.5, "codex": 0.0},
+        "escapes_per_version": round(1 / 3, 4),
+        "dollars_per_confirmed_blocker": {"codex": 3.0},
+        "first_verify_pass_rate": {"codex": 1.0},
+    }
+    page = out.read_text(encoding="utf-8")
+    assert "<h2>headline</h2>" in page
+    for row in (
+        ["unique blocker share", "claude", "0.50"],
+        ["escapes per version", "—", "0.33"],
+        ["dollars per confirmed blocker", "codex", "3.00"],
+        ["first verify pass rate", "codex", "1.00"],
+    ):
+        assert "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>" in page
+    assert "<th>role</th><th>executor</th><th>model</th>" in page
+    capsys.readouterr()
+
+    # With no shadow, cost or first verify, each number is null.
+    bare = tmp_path / "bare"
+    _findings(bare, "0001-x_conformance.md", _front())
+    out = tmp_path / "bare-site" / "page.html"
+    assert review_metrics.main(["--repo", str(bare), "--out", str(out)]) == 0
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    assert data["headline"] == {
+        "unique_blocker_share": None,
+        "escapes_per_version": 0.0,
+        "dollars_per_confirmed_blocker": None,
+        "first_verify_pass_rate": None,
+    }
+    assert "<tr><td>unique blocker share</td><td>—</td><td>—</td></tr>" in (
+        out.read_text(encoding="utf-8")
     )
 
 

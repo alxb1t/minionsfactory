@@ -778,6 +778,57 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert priced("cost-usd-converge") == f"gap: no spawn line in {converge_2}"
     assert priced("tokens-converge") == 500 + 2 * 1_100_000
 
+    # A checker the mailbox started counts in the stage whose converge holds its
+    # start, in its role's tokens, and in no stage's minutes.
+    codex("gpt-5.5")
+    _worker_log(tmp_path, "0001-x/logs/20261102-090000-converge-2.log", 0.2, 2)
+    checked = _RUN_A.replace(
+        "00:10:30 · 0001-x · finish — converge",
+        "23:40:00 · 0001-x · spawn — converge-conformance · model gpt-5.5"
+        " · executor codex\n"
+        "23:50:00 · 0001-x · finish — converge-conformance · exit 0 · 600s\n"
+        "00:10:30 · 0001-x · finish — converge",
+    )
+    late = _RUN_B.replace(
+        "09:05:10 · 0001-x · finish — converge",
+        "09:01:00 · 0001-x · spawn — converge-adversarial · model m\n"
+        "09:02:00 · 0001-x · finish — converge-adversarial · exit 0 · 60s\n"
+        "09:05:10 · 0001-x · finish — converge",
+    )
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-5.5"}
+    log = "\n".join([json.dumps(spawn | {"effort": "high"}), json.dumps(turn)])
+    _write(
+        tmp_path,
+        {
+            ".minions/runs/20261101-230000.md": checked,
+            ".minions/runs/20261102-090000.md": late,
+            ".minions/changes/0001-x/logs/20261101-230000-converge-conformance.log": (
+                log + "\n"
+            ),
+        },
+    )
+    _worker_log(
+        tmp_path, "0001-x/logs/20261102-090000-converge-adversarial.log", 0.7, 7
+    )
+    assert priced("cost-usd-converge") == round(2.0 + 3 * 2.4, 2)
+    assert priced("tokens-converge") == 500 + 3 * 1_100_000
+    assert priced("cost-usd-catch-up") == 1.0
+    assert priced("tokens-catch-up") == 10
+    assert (priced("converge-minutes"), priced("catch-up-minutes")) == (50.0, 6.0)
+    # Conformance's subagent turns and its Codex checker's tokens, over 2 cards.
+    assert priced("conformance-tokens-per-confirmed") == round((115 + 1_100_000) / 2)
+    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("adversarial") == 37
+    # Twin: a role with neither a subagent event nor a checker log stays a gap.
+    (tmp_path / ".minions/changes/0001-x/logs/20261101-230000-converge.log").unlink()
+    _worker_log(tmp_path, "0001-x/logs/20261101-230000-converge.log", 2.0, 500)
+    assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("conformance") == (
+        1_100_000
+    )
+    checker = "0001-x/logs/20261101-230000-converge-conformance.log"
+    (tmp_path / ".minions/changes" / checker).unlink()
+    with pytest.raises(run.Gap, match=f"no {checker}"):
+        run.Version(tmp_path, "0001-x", "a", "b").role_tokens("conformance")
+
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:
     primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
