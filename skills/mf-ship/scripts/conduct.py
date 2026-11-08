@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["markdown-it-py>=3,<4"]
 # ///
 """Take every cut version to the default branch, one agent process per station.
 
@@ -26,7 +26,9 @@ import argparse
 import contextlib
 import errno
 import fcntl
+import functools
 import hashlib
+import html
 import itertools
 import json
 import os
@@ -45,7 +47,11 @@ import tomllib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+if TYPE_CHECKING:
+    from markdown_it import MarkdownIt
+    from markdown_it.token import Token
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -77,6 +83,7 @@ CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
+INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
@@ -549,14 +556,17 @@ def _worktrees(primary: Path) -> dict[str, Path]:
 
 def _tag_of(primary: Path, change: str) -> str | None:
     """Return the tag the branch's tip names, or None before a release."""
-    found = RELEASE.fullmatch(_subject(primary, change))
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    found = RELEASE.fullmatch(_subject(primary, f"refs/heads/{change}"))
     return found[1] if found else None
 
 
 def _holds(primary: Path, change: str) -> bool:
     """Return whether a branch holds its change, active or just released."""
     folder = f"openspec/changes/{change}"
-    active = _show(primary, change, f"{folder}/proposal.md") is not None
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    branch = f"refs/heads/{change}"
+    active = _show(primary, branch, f"{folder}/proposal.md") is not None
     return active or _tag_of(primary, change) is not None
 
 
@@ -753,7 +763,9 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     """
     if (halt := _cutter_halt(primary, change)) is not None:
         return halt
-    if _subject(primary, change) != f"docs({change}): land the change directory":
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    tip = _subject(primary, f"refs/heads/{change}")
+    if tip != f"docs({change}): land the change directory":
         return f"{change}: no cut commit at the branch's tip"
     if not _holds(primary, change):
         return f"{change}: the branch holds no openspec/changes/{change}/"
@@ -771,7 +783,9 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
     `_headed` refuses is out of shape, never no section.
     Why: 0091-cut-halts design D4.
     """
-    design = _show(primary, change, f"openspec/changes/{change}/design.md") or ""
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    branch = f"refs/heads/{change}"
+    design = _show(primary, branch, f"openspec/changes/{change}/design.md") or ""
     rows = _rows(design, DEPENDENCIES)
     if (
         not _headed(design, DEPENDENCIES)
@@ -6272,79 +6286,151 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     return found
 
 
-def _fence(mark: str, line: str) -> str:
-    """Return the fence open after `line`, given `mark`, the one open before it.
+@functools.cache
+def _markdown() -> "MarkdownIt":
+    """Return the CommonMark parser, GFM tables on, imported on its first call.
 
-    "" is none. A fence opens on a line of three or more backticks or tildes, up to
-    three spaces in, and closes only on a line of its own character, as long or longer.
-    e.g. "", "~~~ md" → "~~~"; "~~~", "```" → "~~~"; "```", "````" → ""
-    Why: 0091-cut-halts design D3.
+    The import waits: `pin.py` and the escape drill load this script with no package
+    installed. Why: 0103-fewer-rounds design D6.
     """
-    if not mark:
-        opened = re.match(r" {0,3}(`{3,}|~{3,})", line)
-        return opened[1] if opened else ""
-    closed = re.fullmatch(rf" {{0,3}}{re.escape(mark[0])}{{{len(mark)},}} *", line)
-    return "" if closed else mark
+    from markdown_it import MarkdownIt
+
+    return MarkdownIt("commonmark").enable("table")
+
+
+def _read(text: str) -> tuple[list[str], list["Token"]]:
+    r"""Return a document's source lines and its tokens.
+
+    Lines split at `\r\n`, `\r` or `\n`, as CommonMark's do, so a token's `map` indexes
+    them. Why: 0103-fewer-rounds design D6.
+    """
+    return re.split(r"\r\n|\r|\n", text), _markdown().parse(text)
+
+
+def _span(token: "Token") -> range:
+    """Return the source lines a block token spans, none for a token with no map."""
+    start, end = token.map or (0, 0)
+    return range(start, end)
+
+
+def _fold(line: str) -> str:
+    """Return the letters and digits a line renders as, tags dropped, case-folded.
+
+    e.g. "<h2>D&#101;pendencies</h2>" → "dependencies"
+    """
+    text = html.unescape(re.sub(r"<[^>]*>", "", line))
+    return "".join(char for char in text if char.isalnum()).casefold()
 
 
 def _headed(text: str, heading: str) -> bool:
-    r"""Return whether `heading` stands at most once outside a fence, in no other form.
+    r"""Return whether `heading` stands at most once, as an ATX `h2` written so.
 
-    A line in another form keeps `heading`'s letters and digits, case-folded: a
-    trailing space or colon, a leading space, a CRLF end, a setext title. A fence left
-    open fails too.
+    Another form keeps `heading`'s letters and digits, case-folded: a trailing space or
+    colon, a leading space, a setext title, an HTML or inline `<h1>`…`<h6>` line. A
+    line inside a fence or an indented code block is none, and a fence left open fails
+    the document: what follows it is code, so a heading there is not found.
     e.g. "## D\nNone.\n## D\n", "## D" → False
-    Why: 0091-cut-halts design D4.
+    Why: 0103-fewer-rounds design D6.
     """
-
-    def fold(line: str) -> str:
-        return "".join(char for char in line if char.isalnum()).casefold()
-
-    fence = ""
-    seen = False
-    for line in text.split("\n"):
-        if not fence and fold(line) == fold(heading):
-            if line != heading or seen:
+    lines, tokens = _read(text)
+    code: set[int] = set()
+    checked: set[int] = set()
+    exact: set[int] = set()
+    for token in tokens:
+        span = _span(token)
+        if token.type in ("fence", "code_block"):
+            code.update(span)
+            # A closed fence spans its content and its two marker lines.
+            if token.type == "fence" and len(span) != token.content.count("\n") + 2:
                 return False
-            seen = True
-        fence = _fence(fence, line)
-    return not fence
+        elif token.type == "html_block":
+            checked.update(span)
+        elif token.type == "heading_open":
+            checked.add(span.start)
+            if token.tag == "h2" and token.markup == "##":
+                if lines[span.start] == heading:
+                    exact.add(span.start)
+    checked.update(n for n, line in enumerate(lines) if INLINE_HEADING.search(line))
+    other = [n for n in checked - code - exact if _fold(lines[n]) == _fold(heading)]
+    return len(exact) <= 1 and not other
+
+
+def _cells(line: str) -> int:
+    r"""Return how many cells a table row's source line holds, GFM's way.
+
+    A pipe splits unless a backslash comes right before it, and an outer pipe adds no
+    empty cell. The parser drops a cell past the header's, so a row is counted from
+    its source. Why: 0103-fewer-rounds design D6.
+    e.g. "| a | b \| c |" → 2
+    """
+    parts = re.split(r"(?<!\\)\|", line.strip())
+    return len(parts) - (parts[0] == "") - (len(parts) > 1 and parts[-1] == "")
+
+
+def _boundary(token: "Token") -> bool:
+    """Return whether a token ends a section: an `h1` or `h2`, or HTML opening one."""
+    if token.type == "heading_open":
+        return token.tag in ("h1", "h2")
+    return token.type == "html_block" and token.content.lstrip().lower().startswith(
+        ("<h1", "<h2")
+    )
 
 
 def _rows(text: str, heading: str) -> list[list[str]] | None:
     r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
 
-    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence,
-    as `_fence` reads one, is never the heading, so a quoted example is not read.
-    Blank lines are skipped. No such heading, or a section
-    reading `None.` alone, is []. A section with no other line, one holding a line
-    that is no `|`-bounded row, with no delimiter row second, or with a row whose cell
-    count differs from the header's, is None. The section runs from the first line
-    equal to `heading` to the next line opening `#`.
+    The section is the top-level blocks from the ATX `h2` written `heading` to the next
+    `h1` or `h2`, ATX or setext, or HTML of one; a fence or code block holds none. No
+    such heading, or one paragraph `None.`, is []. Exactly one table is its rows, as
+    GFM renders them, a row with a cell past the header's excepted; anything else, an
+    empty section too, is None.
     e.g. "## D\n| a | b |\n|---|---|\n| `x` | y |\n" → [["a", "b"], ["x", "y"]]
-    Why: 0091-cut-halts design D3.
+    Why: 0103-fewer-rounds design D6.
     """
-    lines: list[str] | None = None
-    fence = ""
-    for line in text.split("\n"):
-        if lines is not None:
-            if line.startswith("#"):
-                break
-            if line.strip():
-                lines.append(line.strip())
-        elif not fence and line == heading:
-            lines = []
-        else:
-            fence = _fence(fence, line)
-    if lines is None or lines == ["None."]:
+    lines, tokens = _read(text)
+    start = next(
+        (
+            i
+            for i, token in enumerate(tokens)
+            if token.type == "heading_open"
+            and token.level == 0
+            and token.tag == "h2"
+            and token.markup == "##"
+            and lines[_span(token).start] == heading
+        ),
+        None,
+    )
+    if start is None:
         return []
-    if not lines or not all(len(row) > 1 and row[0] == row[-1] == "|" for row in lines):
+    blocks: list[int] = []
+    for i, token in enumerate(tokens[start + 3 :], start + 3):
+        if token.level or token.nesting < 0:
+            continue
+        if _boundary(token):
+            break
+        blocks.append(i)
+    if len(blocks) != 1:
         return None
-    table = [[cell.strip(" `") for cell in row[1:-1].split("|")] for row in lines]
-    ruled = len(table) > 1 and all(re.fullmatch(r":?-+:?", cell) for cell in table[1])
-    if not ruled or any(len(row) != len(table[0]) for row in table):
+    first = tokens[blocks[0]]
+    if first.type == "paragraph_open":
+        return [] if tokens[blocks[0] + 1].content == "None." else None
+    if first.type != "table_open":
         return None
-    return [table[0], *table[2:]]
+    rows: list[list[str]] = []
+    starts: list[int] = []
+    for token in tokens[blocks[0] :]:
+        if token.type == "table_close":
+            break
+        if token.type == "tr_open":
+            rows.append([])
+            starts.append(_span(token).start)
+        elif token.type == "inline":
+            rows[-1].append(token.content.strip(" `"))
+    wide = any(
+        len(row) != len(rows[0]) or _cells(lines[at]) > len(rows[0])
+        for row, at in zip(rows, starts, strict=True)
+    )
+    return None if wide else rows
 
 
 def _approved(text: str, slug: str) -> list[list[str]] | None:

@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The fix note
 - [x] 3 — The plan check
 - [x] 4 — The corpus
-- [ ] 5 — CommonMark readers
+- [x] 5 — CommonMark readers
 - [ ] 6 — The plan review's model
 - [ ] 7 — The record
 
@@ -87,24 +87,24 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — CommonMark readers
 
-- [ ] 5.1 Run `uv add --dev "markdown-it-py>=3,<4"`, as [D6](design.md#d6) and the design's `## Dependencies` approve.
+- [x] 5.1 Run `uv add --dev "markdown-it-py>=3,<4"`, as [D6](design.md#d6) and the design's `## Dependencies` approve.
   Verify: `grep -n "markdown-it-py>=3,<4" pyproject.toml` prints a line.
-- [ ] 5.2 Add the steps of the design's `## Tests` rows to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in
+- [x] 5.2 Add the steps of the design's `## Tests` rows to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in
   `tests/test_conduct.py` and to `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`.
   Verify: `grep -n "carriage return not before a newline" tests/test_brief_check.py` prints a line.
-- [ ] 5.3 Add `tests/test_markdown_corpus.py` with `test_the_markdown_readers_agree_with_the_rendered_page`, per
+- [x] 5.3 Add `tests/test_markdown_corpus.py` with `test_the_markdown_readers_agree_with_the_rendered_page`, per
   [D6](design.md#d6).
   Verify: `grep -n "def test_the_markdown_readers_agree_with_the_rendered_page" tests/test_markdown_corpus.py` prints a line.
-- [ ] 5.4 In `skills/mf-ship/scripts/conduct.py`, set the header's dependency, add `_markdown`, rewrite `_headed` and `_rows`,
+- [x] 5.4 In `skills/mf-ship/scripts/conduct.py`, set the header's dependency, add `_markdown`, rewrite `_headed` and `_rows`,
   delete `_fence`, and read `refs/heads/<id>` in `_unapproved`, `_check_cut`, `_holds` and `_tag_of`, per [D6](design.md#d6),
   each new why line citing `0103-fewer-rounds design D6`.
   Verify: `uv run pytest -q tests/test_conduct.py -k cut_halt_is_shown` reports `1 passed`.
-- [ ] 5.5 In `skills/mf-plan/scripts/brief_check.py`, set the header's dependency, add `MARKDOWN`, rewrite `headed` and
+- [x] 5.5 In `skills/mf-plan/scripts/brief_check.py`, set the header's dependency, add `MARKDOWN`, rewrite `headed` and
   `headings`, and halt on a lone carriage return, per [D6](design.md#d6), the docstring citing `0103-fewer-rounds design D6`.
   Verify: `uv run pytest -q tests/test_brief_check.py tests/test_markdown_corpus.py` exits 0.
-- [ ] 5.6 Confirm no reader of the deleted fence helper is left.
+- [x] 5.6 Confirm no reader of the deleted fence helper is left.
   Verify: `git grep -n -w _fence -- skills tests/test_conduct.py tests/test_brief_check.py` prints nothing.
-- [ ] 5.7 Confirm loading `conduct.py` with no package installed still works, as `pin.py` and the escape drill load it
+- [x] 5.7 Confirm loading `conduct.py` with no package installed still works, as `pin.py` and the escape drill load it
   ([F8](design.md#context)); a guard, per the design's `## Tests`.
   Verify: `uv run --no-project --isolated python -I -c "import runpy, sys; runpy.run_path(sys.argv[1])" skills/mf-ship/scripts/conduct.py` exits 0.
 

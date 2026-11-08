@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["markdown-it-py>=3,<4"]
 # ///
 """Check a hard brief has the shape the cut station needs, before its cut is queued.
 
@@ -15,9 +15,11 @@ model, and a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. 
 column 0, a `- models: ` or `- **Acceptance:** ` line under it, an Acceptance's
 continuation, or the cut's `Cut` line. `## Dependencies` is `None.` or a table of
 item · package · constraint · why. A checked line is printable, and each checked
-heading is written one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2
+heading is written one way, once. Sections and headings are read as CommonMark reads
+them, so a fence holds none; a carriage return not before a newline halts its line.
+Why: 0083-plan-queues design D1; 0088-paydown-2
 design D5; 0091-cut-halts design D2; 0097-cross-model design D1;
-0098-beside design D1, D2; 0098-beside security S1.
+0098-beside design D1, D2; 0098-beside security S1; 0103-fewer-rounds design D6.
 """
 
 import argparse
@@ -27,6 +29,8 @@ import runpy
 import sys
 from pathlib import Path
 from typing import Any
+
+from markdown_it import MarkdownIt
 
 VERIFY_CHECK = (
     Path(__file__).resolve().parents[2]
@@ -44,6 +48,11 @@ CUT = re.compile(r"Cut \d{4}-\d{2}-\d{2} as \d+-[a-z0-9-]+ at [0-9a-f]{7,40}\.")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 TAG = re.compile(r"<[^>]*>")
+LONE = re.compile(r"\r(?!\n)")
+INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
+# The parser the brief is read with: CommonMark, and GFM's tables.
+# Why: 0103-fewer-rounds design D6.
+MARKDOWN = MarkdownIt("commonmark").enable("table")
 CHECKED = ("## Decisions", "## For the cut")
 HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
@@ -74,20 +83,39 @@ def depth(brief: str) -> str | None:
     return LIGHT if "light" in parts else "the title names no depth"
 
 
-def headed(brief: str) -> list[tuple[str, list[str]]]:
-    """Return each `## ` heading's key and the lines under it, in order.
+def parsed(brief: str) -> tuple[list[str], list[Any]]:
+    """Return the brief's lines and its CommonMark tokens.
 
-    Lines break at a newline alone, as Markdown's do once the file is read; a vertical
-    tab or another `str.splitlines` separator stays inside its line. A heading keys
-    by its line as written.
+    A carriage return not before a newline reads as a space, so a token's `map` indexes
+    the lines split at a newline alone. A vertical tab or another `str.splitlines`
+    separator stays inside its line. Why: 0103-fewer-rounds design D6.
     """
-    found: list[tuple[str, list[str]]] = []
-    for line in brief.split("\n"):
-        if line.startswith("## "):
-            found.append((line, []))
-        elif found:
-            found[-1][1].append(line)
-    return found
+    text = LONE.sub(" ", brief)
+    return text.split("\n"), MARKDOWN.parse(text)
+
+
+def headed(brief: str) -> list[tuple[str, list[str]]]:
+    """Return each section's key and the lines under it, in order.
+
+    A section opens on a heading token of level one or two, ATX or setext, or an HTML
+    block opening `<h1` or `<h2`, a fence or code block holding none; it keys by its
+    line as written and holds the lines to the next such line.
+    Why: 0103-fewer-rounds design D6.
+    """
+    lines, tokens = parsed(brief)
+    starts = sorted(
+        {
+            token.map[0]
+            for token in tokens
+            if (token.type == "heading_open" and token.tag in ("h1", "h2"))
+            or (
+                token.type == "html_block"
+                and token.content.lstrip().lower().startswith(("<h1", "<h2"))
+            )
+        }
+    )
+    ends = [*starts[1:], len(lines)]
+    return [(lines[a], lines[a + 1 : b]) for a, b in zip(starts, ends, strict=True)]
 
 
 def sections(brief: str) -> dict[str, list[str]]:
@@ -359,23 +387,58 @@ def alike(line: str, heading: str) -> bool:
 def headings(brief: str) -> list[str]:
     """Return a halt per line reading as a checked heading not written so, or twice.
 
-    A line reads as one when `alike` holds for their folds. Lines count from 1 in the
-    brief. Why: 0098-beside design D1, D2.
+    The lines checked are those of a heading token, an HTML block, and a paragraph
+    whose inline HTML opens `<h1>`…`<h6>`; a fence holds none. A line reads as a
+    heading when `alike` holds for their folds, unless it is an ATX `h2` written so,
+    which counts. Lines count from 1 in the brief.
+    Why: 0098-beside design D1, D2; 0103-fewer-rounds design D6.
     e.g. " ## For the cut" → ["line 1 reads as `## For the cut` but is not written so"]
     """
+    lines, tokens = parsed(brief)
+    checked: set[int] = set()
+    atx: set[int] = set()
+    block = (0, 0)
+    for token in tokens:
+        if token.type == "heading_open":
+            checked.update(range(*token.map))
+            if token.tag == "h2" and token.markup == "##":
+                atx.add(token.map[0])
+        elif token.type == "html_block":
+            checked.update(range(*token.map))
+        elif token.map:
+            block = token.map
+        if token.type == "inline" and any(
+            child.type == "html_inline" and INLINE_HEADING.match(child.content)
+            for child in token.children or []
+        ):
+            checked.update(range(*(token.map or block)))
     found: list[str] = []
     seen: set[str] = set()
-    for number, line in enumerate(brief.split("\n"), 1):
+    for number in sorted(checked):
         for heading in HEADINGS:
-            if line == heading and heading in seen:
-                found.append(f"line {number}: a second `{heading}`")
-            elif line != heading and alike(fold(line), fold(heading)):
-                found.append(
-                    f"line {number} reads as `{heading}` but is not written so"
-                )
-            if line == heading:
+            if number in atx and lines[number] == heading:
+                if heading in seen:
+                    found.append(f"line {number + 1}: a second `{heading}`")
                 seen.add(heading)
+            elif alike(fold(lines[number]), fold(heading)):
+                found.append(
+                    f"line {number + 1} reads as `{heading}` but is not written so"
+                )
     return found
+
+
+def carriage(brief: str) -> list[str]:
+    r"""Return a halt per line holding a carriage return not before a newline.
+
+    Lines count from 1, split at a newline alone. Why: 0103-fewer-rounds design D6.
+    e.g. "a\rb\n" → ["line 1: a carriage return not before a newline"]
+    """
+    numbers = sorted(
+        {brief.count("\n", 0, lone.start()) + 1 for lone in LONE.finditer(brief)}
+    )
+    return [
+        f"line {number}: a carriage return not before a newline" for number in numbers
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -386,10 +449,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("brief", type=Path, help="the brief to check")
     path = parser.parse_args(argv).brief
     try:
-        brief = path.read_text()
+        with path.open(newline="") as handle:
+            raw = handle.read()
     except OSError as error:
         print(f"brief: cannot check — {path}: {error.strerror}")
         return 2
+    brief = re.sub(r"\r\n?", lambda end: "\n" if end[0] == "\r\n" else " ", raw)
     for script in (VERIFY_CHECK, CONDUCT):
         if not script.is_file():
             print(f"brief: cannot check — no {script.name} beside this skill")
@@ -405,6 +470,7 @@ def main(argv: list[str] | None = None) -> int:
         found.append("no At <sha>, <YYYY-MM-DD>. line")
     if not any(line.strip() for line in parts.get("## For the cut", [])):
         found.append("## For the cut is empty")
+    found += carriage(raw)
     found += headings(brief)
     if "## Dependencies" not in parts:
         found.append("no ## Dependencies section")

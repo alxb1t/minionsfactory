@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `make corpus` runs `scripts/corpus.py` over `scripts/corpus.toml`'s cases, the repo's readers of run data over the run
   directory, outside `make gate`. The cut marks a sub-task that adds such a reader `**CORPUS**`, the build runs
   `make corpus` after it, and the plan check finds its case (change `0103-fewer-rounds`, phase 4).
+- `brief_check.py` and the cut station's `## Dependencies` check read Markdown with `markdown-it-py` as CommonMark does,
+  so a fenced heading holds no section and a table row GFM renders is read; a lone carriage return halts the brief, and
+  the cut reads the branch as `refs/heads/<id>`. A fuzz corpus compares both readers with the rendered page (change
+  `0103-fewer-rounds`, phase 5; closes `0091·R4`, `0091·S4`, `0091·S5`).
 
 ## [0.85.0] - 2026-11-09
 
