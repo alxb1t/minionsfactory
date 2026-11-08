@@ -4135,10 +4135,10 @@ def test_a_limited_checker_falls_back_to_claude(
     sessions.mkdir(parents=True)
     claude_argvs = tmp_path / "claude-argv.jsonl"
     ask = "You are converge's conformance checker for change 0001-todo.\n"
-    coded = "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+    coded = "exit 0 · executor codex · model gpt-6.1-sol · effort high · tokens 2200"
     fell = (
         "exit 0 · executor claude · model claude-sonnet-5-5 · effort medium"
-        " · fallback: codex usage limit"
+        " · fallback: codex usage limit · tokens 1100"
     )
     stopped = (
         "exit 1 · executor codex · model default · effort default"
@@ -4271,6 +4271,149 @@ def test_a_limited_checker_falls_back_to_claude(
     fake_codex("unsandboxed", "")
     assert check() == fell
     assert [who for who, _ in run.halts] == ["0001-todo"]
+
+
+def test_a_mailbox_checker_is_stamped_and_counted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    rollout = sessions / "rollout-2026-11-08T10-00-00-fake.jsonl"
+    monkeypatch.setenv("FAKE_CODEX_ROLLOUT", str(rollout))
+    monkeypatch.setenv("FAKE_CODEX_USED", "25")
+    fake_codex("", "")
+    ask = "You are converge's conformance checker for change 0001-todo.\n"
+    findings = folder / "conformance.md"
+
+    def models(executor: str) -> None:
+        extra = (
+            'model = "gpt-6.1-sol"\neffort = "high"\n' if executor == "codex" else ""
+        )
+        (folder / "models.toml").write_text(
+            '[converge]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
+            f'[converge.conformance]\nexecutor = "{executor}"\n{extra}'
+        )
+        run.read_plan([conduct["Version"]("0001-todo", tree)])
+
+    def opened(used: float, resets: float) -> None:
+        rates = {
+            name: {"used_percent": share, "window_minutes": 300, "resets_at": resets}
+            for name, share in (("primary", used), ("secondary", used / 10))
+        }
+        payload = {"type": "token_count", "rate_limits": rates}
+        rollout.write_text(json.dumps({"type": "event_msg", "payload": payload}) + "\n")
+
+    def check(ahead: float = 600) -> str:
+        return run.checker(
+            "0001-todo", "conformance", tree, ask, time.monotonic() + ahead
+        )
+
+    def quota() -> list[dict[str, object]]:
+        logs = (folder / "logs").glob("*-converge-conformance*.log")
+        log = max(logs, key=lambda path: path.stat().st_mtime)
+        events = [json.loads(line) for line in log.read_text().splitlines()]
+        return [event for event in events if event["type"] == "mf.quota"]
+
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    models("codex")
+
+    # The answer names the log's tokens, the findings the plan's model and those tokens,
+    # and the log ends with the shares the windows moved, one reset or two.
+    opened(10, 4_000_000_000)
+    assert check() == (
+        "exit 0 · executor codex · model gpt-6.1-sol · effort high · tokens 2200"
+    )
+    assert "\nmodel: gpt-6.1-sol\ntokens: 2200\n" in findings.read_text()
+    assert quota() == [{"type": "mf.quota", "five_hour": 15.0, "weekly": 4.0}]
+    opened(10, 1)
+    check()
+    assert quota() == [{"type": "mf.quota", "five_hour": 25.0, "weekly": 5.0}]
+    # No rollout for its thread, no quota line.
+    rollout.unlink()
+    monkeypatch.delenv("FAKE_CODEX_ROLLOUT")
+    check()
+    assert quota() == []
+    # A Claude checker is stamped with the model the plan names, `default` for none.
+    models("claude")
+    assert check() == (
+        "exit 0 · executor claude · model default · effort default · tokens 1100"
+    )
+    assert "\nmodel: default\ntokens: 1100\n" in findings.read_text()
+    # A run that fails stamps nothing: the old file stands.
+    models("codex")
+    fake_codex("checker-sleep", "")
+    stale = findings.read_text()
+    assert " · timed out" in check(ahead=1.5)
+    assert findings.read_text() == stale
+
+    # `_stamp` replaces the model and tokens lines, leaves the body, and follows no
+    # link: a link, a file with no frontmatter and a missing file are left as they are.
+    stamp = conduct["_stamp"]
+    front = "---\ntype: conformance\nmodel: x\ntokens: 7\nround: 1\n---\n\nmodel: y\n"
+    findings.write_text(front)
+    stamp(folder, "conformance.md", "m", 5)
+    assert findings.read_text() == (
+        "---\ntype: conformance\nmodel: m\ntokens: 5\nround: 1\n---\n\nmodel: y\n"
+    )
+    stamp(folder, "conformance.md", None, None)
+    assert findings.read_text() == (
+        "---\ntype: conformance\nmodel: default\nround: 1\n---\n\nmodel: y\n"
+    )
+    findings.write_text("---\ntype: conformance\n---\nbody\n")
+    stamp(folder, "conformance.md", "m", 5)
+    assert findings.read_text() == (
+        "---\ntype: conformance\nmodel: m\ntokens: 5\n---\nbody\n"
+    )
+    findings.write_text("no frontmatter\n")
+    stamp(folder, "conformance.md", "m", 5)
+    assert findings.read_text() == "no frontmatter\n"
+    findings.unlink()
+    stamp(folder, "conformance.md", "m", 5)
+    assert not findings.exists()
+    target = tmp_path / "target.md"
+    target.write_text(front)
+    findings.symlink_to(target)
+    stamp(folder, "conformance.md", "m", 5)
+    assert target.read_text() == front
+    findings.unlink()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "conformance.md").write_text(front)
+    linked = tmp_path / "linked"
+    linked.symlink_to(elsewhere)
+    stamp(linked, "conformance.md", "m", 5)
+    assert (elsewhere / "conformance.md").read_text() == front
+
+    # `tokens_of`: a Codex log's turns summed, else a Claude log's last result.
+    tokens_of = conduct["tokens_of"]
+    log = tmp_path / "worker.log"
+    turns = [
+        {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}},
+        {"type": "turn.completed", "usage": {"input_tokens": 20, "output_tokens": 1}},
+    ]
+    log.write_text('{"usage": cut\n' + "".join(json.dumps(t) + "\n" for t in turns))
+    assert tokens_of(log) == 36
+    usage = {"inputTokens": 1, "outputTokens": 2, "cacheReadInputTokens": 3}
+    results = [
+        {"type": "result", "modelUsage": {"a": {"inputTokens": 9}}},
+        {
+            "type": "result",
+            "modelUsage": {"a": usage, "b": {"cacheCreationInputTokens": 4}},
+        },
+    ]
+    log.write_text(
+        '{"modelUsage": cut\n' + "".join(json.dumps(r) + "\n" for r in results)
+    )
+    assert tokens_of(log) == 10
+    log.write_text(json.dumps({"type": "assistant"}) + "\n")
+    assert tokens_of(log) is None
 
 
 def test_the_checker_command_sends_and_waits(

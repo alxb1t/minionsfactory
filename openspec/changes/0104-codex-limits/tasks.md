@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The limit data
 - [x] 2 — The probe
 - [x] 3 — The mailbox fallback
-- [ ] 4 — The record
+- [x] 4 — The record
 - [ ] 5 — The linked worktree
 - [ ] 6 — The request id and the record of decisions
 - [ ] 7 — The real Codex check **HUMAN**
@@ -53,18 +53,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The record
 
-- [ ] 4.1 Add `test_a_mailbox_checker_is_stamped_and_counted` to `tests/test_conduct.py`, and `FAKE_CODEX_ROLLOUT` and
+- [x] 4.1 Add `test_a_mailbox_checker_is_stamped_and_counted` to `tests/test_conduct.py`, and `FAKE_CODEX_ROLLOUT` and
   `FAKE_CODEX_USED` to `tests/fake_codex.py`, then `tokens_of`, `_stamp`, `_answer`'s `tokens` and the quota line of
   `Run.worker` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k "mailbox_checker_is_stamped or limited_checker_falls_back or checker_request_is_bounded"` reports `3 passed`; `grep -n -e '^def tokens_of(' -e '^def _stamp(' -e '"mf.quota"' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'FAKE_CODEX_ROLLOUT' tests/fake_codex.py` prints a line.
-- [ ] 4.2 Edit the frontmatter block of `skills/mf-converge/references/worker.md` and the comment above `FINDINGS_KEYS` in
+- [x] 4.2 Edit the frontmatter block of `skills/mf-converge/references/worker.md` and the comment above `FINDINGS_KEYS` in
   `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Verify: `grep -n '^tokens: <int' skills/mf-converge/references/worker.md` prints a line; `grep -n 'save .tokens., which .conduct.py. stamps' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.3 Extend `test_run_metrics_read_cost_and_review_yield` in `tests/test_metric_scripts.py`, then `_spent`,
+- [x] 4.3 Extend `test_run_metrics_read_cost_and_review_yield` in `tests/test_metric_scripts.py`, then `_spent`,
   `Version.quota` and `METRICS` in `scripts/metrics/run.py`, and the `codex-window-5h` and `codex-window-week` tables in
   `metrics/catalogue.toml`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_metric_scripts.py` exits 0; `grep -n 'def quota(' scripts/metrics/run.py` prints a line; `grep -n -e '^id = "codex-window-5h"$' -e '^id = "codex-window-week"$' metrics/catalogue.toml` prints a line for each.
-- [ ] 4.4 Add `test_the_claude_rows_price_a_worker` to `tests/test_review_metrics.py`, then the rows and the `Why:` of
+- [x] 4.4 Add `test_the_claude_rows_price_a_worker` to `tests/test_review_metrics.py`, then the rows and the `Why:` of
   `skills/mf-review-metrics/prices.toml`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k claude_rows_price` reports `1 passed`; `grep -n -e '^"claude-opus-5-5" = ' -e '^"claude-sonnet-5-5" = ' skills/mf-review-metrics/prices.toml` prints a line for each.
 

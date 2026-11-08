@@ -48,7 +48,8 @@ open_blocking: <int>
 verdict: clean | changes-requested
 mode: parallel | sequential | by-rule
 workers: <int, the workers this role used; 0 by rule>
-model: <the model, as the host reports it, or unknown>
+model: <the model, as the host reports it, or unknown; a mailbox checker's, `conduct.py` stamps>
+tokens: <int; a mailbox checker's alone, which conduct.py stamps from its log>
 executor: <claude | codex, the host you run on, from runtime evidence>
 packet: <the documents included; then `skipped:` and those skipped>
 ---

@@ -258,7 +258,8 @@ CHECKER_PROBE = (
     " write .minions/changes/0001-probe/conformance.md to the worker reference's"
     " findings file contract. Edit nothing else."
 )
-# The findings file contract's frontmatter keys, as the worker reference lists them.
+# The findings file contract's frontmatter keys, as the worker reference lists them,
+# save `tokens`, which `conduct.py` stamps. Why: 0104-codex-limits design D5.
 FINDINGS_KEYS = (
     *("type", "plan", "project", "branch", "head", "reviewed", "round"),
     *("open_blocking", "verdict", "mode", "workers", "model", "executor", "packet"),
@@ -2804,20 +2805,22 @@ def _answer(
     models: tuple[str, str | None, str | None],
     limit: str,
     fallback: bool = False,
+    tokens: int | None = None,
 ) -> str:
     """Return a checker's answer: its exit, executor, model, effort and why it ended.
 
     e.g. 0, False, ("codex", "m", None), "" →
     "exit 0 · executor codex · model m · effort default"
-    A `fallback` names it last. Why: 0097-cross-model design D5; 0104-codex-limits
-    design D3.
+    A `fallback` and `tokens` name it last, in that order.
+    Why: 0097-cross-model design D5; 0104-codex-limits design D3, D5.
     """
     executor, model, effort = models
     timed = " · timed out" if killed else ""
     named = f" · {FALLBACK}" if fallback else ""
+    counted = "" if tokens is None else f" · tokens {tokens}"
     return (
         f"exit {code} · executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'}{timed}{limit}{named}"
+        f" · effort {effort or 'default'}{timed}{limit}{named}{counted}"
     )
 
 
@@ -3553,6 +3556,119 @@ def _headroom(now: float) -> float | None:
     return None
 
 
+def tokens_of(log: Path) -> int | None:
+    """Return a worker log's tokens, or None when it holds no usage.
+
+    A Codex log's `turn.completed` input and output tokens summed; else a Claude log's
+    last `result` event's `modelUsage`, as `scripts/metrics/run.py` sums it.
+    Why: 0104-codex-limits design D5.
+    """
+    codex: int | None = None
+    claude: int | None = None
+    kinds = ("inputTokens", "outputTokens", "cacheReadInputTokens")
+    kinds += ("cacheCreationInputTokens",)
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"turn.completed"' not in line and '"modelUsage"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            usage = event.get("usage")
+            if event.get("type") == "turn.completed" and isinstance(usage, dict):
+                turn = _count(usage.get("input_tokens")) + _count(
+                    usage.get("output_tokens")
+                )
+                codex = (codex or 0) + turn
+            models = event.get("modelUsage")
+            if event.get("type") == "result" and isinstance(models, dict):
+                claude = sum(
+                    _count(model.get(kind))
+                    for model in models.values()
+                    if isinstance(model, dict)
+                    for kind in kinds
+                )
+    return codex if codex is not None else claude
+
+
+def _stamped(text: str, model: str | None, tokens: int | None) -> str | None:
+    """Return a findings file with its frontmatter's `model:` and `tokens:` set.
+
+    None when it has no frontmatter. e.g. `model: x` → `model: m`, then `tokens: 5`
+    """
+    found = re.match(r"---\n(.*?\n)---\n", text, re.DOTALL)
+    if found is None:
+        return None
+    kept = [
+        line
+        for line in found[1].splitlines(keepends=True)
+        if not line.startswith("tokens:")
+    ]
+    stamp = [f"model: {model or 'default'}\n"]
+    stamp += [] if tokens is None else [f"tokens: {tokens}\n"]
+    at = next((i for i, line in enumerate(kept) if line.startswith("model:")), None)
+    if at is None:
+        kept += stamp
+    else:
+        kept[at : at + 1] = stamp
+    return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
+
+
+def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
+    """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
+
+    A file that is no regular file, or has no frontmatter, is left as it is.
+    Why: 0104-codex-limits design D5.
+    """
+    try:
+        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return
+    try:
+        with contextlib.suppress(OSError):
+            file = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+            try:
+                if not stat.S_ISREG(os.fstat(file).st_mode):
+                    return
+                with os.fdopen(file, "rb", closefd=False) as handle:
+                    text = handle.read().decode(errors="replace")
+            finally:
+                os.close(file)
+            if (stamped := _stamped(text, model, tokens)) is not None:
+                _place(fd, name, stamped)
+    finally:
+        os.close(fd)
+
+
+def _quota(log: Path, before: dict[str, Window]) -> None:
+    """Append a Codex log's `mf.quota` line: the shares its windows moved.
+
+    The rollout is the one the log's thread names. A share is the rise in `used`
+    when `before` names the same reset, else `used` itself, never below 0.
+    Why: 0104-codex-limits design D5.
+    """
+    thread = _thread_id(log)
+    after = {} if thread is None else _windows(_rollout(thread))
+    if not after:
+        return
+    shares: dict[str, float] = {}
+    for name, key in (("primary", "five_hour"), ("secondary", "weekly")):
+        if (end := after.get(name)) is None:
+            continue
+        start = before.get(name)
+        used = (
+            end.used - start.used if start and start.resets == end.resets else end.used
+        )
+        shares[key] = round(max(used, 0.0), 1)
+    with contextlib.suppress(OSError):
+        fd = os.open(log, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        with os.fdopen(fd, "w") as handle:
+            handle.write(json.dumps({"type": "mf.quota", **shares}) + "\n")
+
+
 def _until(reset: float) -> str:
     """Return a limit's reset as local `%Y-%m-%d %H:%M`, or what `inf` says.
 
@@ -4152,7 +4268,12 @@ class Run:
                 timeout=deadline - time.monotonic(),
             )
             if models[0] != "codex" or not usage_limit(out):
-                return _answer(code, killed, models, usage_limit(out), fallback)
+                tokens = tokens_of(out)
+                if code == 0:
+                    folder = _change_dir(self.primary, change)
+                    _stamp(folder, f"{role}.md", models[1], tokens)
+                limit = usage_limit(out)
+                return _answer(code, killed, models, limit, fallback, tokens)
             codex_runs += 1
 
     def codex_ready(self, change: str, deadline: float) -> bool:
@@ -4223,6 +4344,7 @@ class Run:
                 "effort": effort,
             }
             os.write(sink, f"{json.dumps(line)}\n".encode())
+        before = _windows(_rollout(None)) if executor == "codex" else {}
         started = time.monotonic()
         claim = self.runs / "active"
         if timeout is not None:
@@ -4233,8 +4355,10 @@ class Run:
             code, killed = work(command, cwd, sink, claim)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
-        if executor == "codex" and code != 0 and usage_limit(out):
-            self.limit("codex", out)
+        if executor == "codex":
+            _quota(out, before)
+            if code != 0 and usage_limit(out):
+                self.limit("codex", out)
         denied = denials(out)
         for call in denied:
             self.log.event(who, "denied", f"{station} · {call}")

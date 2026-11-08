@@ -546,6 +546,24 @@ script = "scripts/metrics/run.py"
 args = ["tokens-integrate"]
 
 [[metric]]
+id = "codex-window-5h"
+title = "Codex 5-hour window used"
+group = "run"
+unit = "%"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["codex-window-5h"]
+
+[[metric]]
+id = "codex-window-week"
+title = "Codex weekly window used"
+group = "run"
+unit = "%"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["codex-window-week"]
+
+[[metric]]
 id = "cost-per-changed-line"
 title = "Cost per changed line"
 group = "run"

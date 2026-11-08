@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Codex checker that is limited runs on Claude on converge's model and effort until the reset, waiting for one at most
   15 minutes away inside converge's time; a served checker gets only what is left of converge's time, and a converge
   halt naming a usage limit gets no rescue and no supervisor (change `0104-codex-limits`, phase 3).
+- A mailbox checker's answer names its tokens and `fallback: codex usage limit`; `conduct.py` stamps its findings file's
+  `model:` and `tokens:`, and each Codex spawn's log ends with its share of the 5-hour and weekly windows, which the run
+  metrics sum as `codex-window-5h` and `codex-window-week`; `prices.toml` gains the Claude rows (change
+  `0104-codex-limits`, phase 4).
 
 ## [0.83.0] - 2026-11-08
 

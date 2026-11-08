@@ -801,6 +801,26 @@ def _answered(tool: str, **last: int) -> object:
     }
 
 
+def test_the_claude_rows_price_a_worker() -> None:
+    rows = review_metrics._prices()
+    # A million tokens of each kind, as a Claude message's usage names them.
+    usage = review_metrics._usage(
+        {
+            "input_tokens": 1_000_000,
+            "cache_read_input_tokens": 1_000_000,
+            "cache_creation_input_tokens": 2_000_000,
+            "cache_creation": {"ephemeral_1h_input_tokens": 1_000_000},
+            "output_tokens": 1_000_000,
+        }
+    )
+    assert usage is not None
+    priced = review_metrics._priced_worker
+    assert priced(rows["claude-opus-5-5"], usage) == pytest.approx(37.2)
+    assert priced(rows["claude-sonnet-5-5"], usage) == pytest.approx(18.6)
+    # Twin: a model with no row, a Codex one, is a gap.
+    assert priced(rows.get("gpt-6.1-sol"), usage) is None
+
+
 def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
     # A round's record sums its own run's workers alone, never another run's of
     # the same round number; a worker placed in no run joins no record.

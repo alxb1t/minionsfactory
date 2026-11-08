@@ -195,18 +195,26 @@ def _summed(usage: object, keys: tuple[str, ...]) -> int:
     return sum(v for v in values if isinstance(v, int) and not isinstance(v, bool))
 
 
-def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
-    """Return a Codex log's turns priced at its spawn line's model, or the Gap why not.
-
-    Why: 0096-codex-ready design D6.
-    """
+def _spawn_line(path: Path) -> dict[str, Any] | None:
+    """Return a worker log's first line when it is an `mf.spawn` object, else None."""
     with path.open(encoding="utf-8", errors="replace") as lines:
         first = lines.readline()
     try:
         spawn = json.loads(first)
     except json.JSONDecodeError:
-        spawn = None
-    if not isinstance(spawn, dict) or spawn.get("type") != "mf.spawn":
+        return None
+    return (
+        spawn if isinstance(spawn, dict) and spawn.get("type") == "mf.spawn" else None
+    )
+
+
+def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
+    """Return a Codex log's turns priced at its spawn line's model, or the Gap why not.
+
+    Why: 0096-codex-ready design D6.
+    """
+    spawn = _spawn_line(path)
+    if spawn is None:
         return Gap(f"no spawn line in {name}")
     model = spawn.get("model")
     row = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"].get(model)
@@ -228,7 +236,8 @@ def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
 
     A Claude log's are its last result event's totals: `total_cost_usd` and
     `modelUsage` are cumulative, per 0076-context-cost D1. A Codex log's are its
-    `turn.completed` events', priced by `_priced`.
+    `turn.completed` events', priced by `_priced`; one stopped before its first turn
+    spent none. Why: 0104-codex-limits design D5.
     """
     events = list(_json(path, '"type"')) if path.is_file() else []
     results = [e for e in events if e.get("type") == "result"]
@@ -236,6 +245,8 @@ def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
     if not results and turns:
         tokens = sum(_summed(t.get("usage"), CODEX_USAGE) for t in turns)
         return _priced(path, name, turns), tokens
+    if not results and path.is_file() and _spawn_line(path) is not None:
+        return 0.0, 0
     last = results[-1] if results else {}
     cost, models = last.get("total_cost_usd"), last.get("modelUsage")
     if not isinstance(cost, int | float) or not isinstance(models, dict):
@@ -497,6 +508,31 @@ class Version:
         paid = sum(cost for cost in costs if not isinstance(cost, Gap))
         return paid, sum(tokens for _, tokens in spent)
 
+    def quota(self, window: str) -> float:
+        """Return a window's share the version's Codex spawns used, from their logs.
+
+        Each spawn of `SPENT`'s stages and its checkers whose first line is an
+        `mf.spawn` has its `mf.quota` line's `window` summed to a tenth; a log with no
+        such line is passed over, and none holding one is a gap.
+        Why: 0104-codex-limits design D5.
+        """
+        logs = [
+            self.log(spawn)[0]
+            for stage in SPENT
+            for spawn in (*self.stage(stage), *self.checkers(stage))
+        ]
+        shares: list[float] = []
+        for path in logs:
+            if not path.is_file() or _spawn_line(path) is None:
+                continue
+            held = [e for e in _json(path, '"mf.quota"') if e.get("type") == "mf.quota"]
+            share = held[-1].get(window) if held else None
+            if isinstance(share, int | float) and not isinstance(share, bool):
+                shares.append(share)
+        if not shares:
+            raise Gap("no mf.quota line in a Codex log")
+        return round(sum(shares), 1)
+
     def lines(self) -> int:
         """Return the lines the change adds and removes, `metrics/` left out."""
         excluded = (".", ":(exclude)metrics")
@@ -642,6 +678,8 @@ METRICS: dict[str, Callable[[Version], Number]] = {
         f"tokens-{stage}": lambda v, s=stage: v.spent((s,), dollars=False)[1]
         for stage in STAGES
     },
+    "codex-window-5h": lambda v: v.quota("five_hour"),
+    "codex-window-week": lambda v: v.quota("weekly"),
     "cost-per-changed-line": Version.per_line,
     **{f"{role}-confirmed": lambda v, r=role: v.confirmed(r) for role in ROLES},
     **{f"{role}-refuted": lambda v, r=role: v.refuted(r) for role in ROLES},
