@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The spawn
 - [x] 2 — The context
-- [ ] 3 — Tool output
+- [x] 3 — Tool output
 - [ ] 4 — The metrics
 - [ ] 5 — The record
 
@@ -53,10 +53,10 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — Tool output
 
-- [ ] 3.1 Add `test_a_gate_runs_without_the_venv_and_quiet_when_green` to `tests/test_gate_run.py`, then
+- [x] 3.1 Add `test_a_gate_runs_without_the_venv_and_quiet_when_green` to `tests/test_gate_run.py`, then
   `skills/mf-converge/scripts/gate_run.py`, per [D10](design.md#d10).
   Verify: `uv run pytest -q tests/test_gate_run.py` reports `8 passed`; `grep -n -e '"VIRTUAL_ENV"' -e 'stdout=subprocess.PIPE' skills/mf-converge/scripts/gate_run.py` prints a line for each.
-- [ ] 3.2 Set `addopts` in `pyproject.toml` and the pytest cell of `skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl`,
+- [x] 3.2 Set `addopts` in `pyproject.toml` and the pytest cell of `skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl`,
   per [D11](design.md#d11).
   Verify: `grep -n -e '--tb=short' pyproject.toml skills/mf-bootstrap/templates/CODING_STANDARDS.md.tmpl` prints a line for each file.
 

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   principles and the threat model when a task names them; the converge conductor reads no mandatory context and runs on
   Sonnet 5.5 · high by default, its fixer and verify workers at `medium`; one `stamp.py` call writes several events
   (change `0100-worker-diet`, phase 2).
+- `gate_run.py` runs the gate without `VIRTUAL_ENV` and prints its summary line alone when green, make's output first
+  when red; pytest prints short tracebacks (change `0100-worker-diet`, phase 3).
 
 ## [0.80.0] - 2026-11-08
 
