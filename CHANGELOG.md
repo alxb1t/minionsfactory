@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-11-08
+
+Gate: local 1m54s · CI not read under mf-ship · 0.78.0: local 1m51s · CI not read under mf-ship
+
+- A Codex worker starts with `--ignore-user-config` and `--json`, so the operator's Codex config — its MCP servers,
+  plugins and model — sets nothing; `tests/fake_codex.py`, a fake `codex` on `PATH`, proves it (change
+  `0096-codex-ready`, phase 1).
+- A Codex worker's JSON log reads as a Claude log does: its denials, usage limit and MCP calls, and a spawn line naming
+  its model; the run and review metrics price its tokens by the new, empty `skills/mf-review-metrics/prices.toml`, a
+  model with no row, or none named, a cost gap, and a station's dollars, turns or seconds a gap when one of its logs lacks them (change
+  `0096-codex-ready`, phase 2).
+- A writable root or working directory a worker swapped for a link halts the next Codex spawn, and no Codex worker has
+  `/tmp` as a root (change `0096-codex-ready`, phase 3).
+- A run's Codex probe, past its scratch edit, runs one conformance checker on a fixture and passes on a findings file to
+  the contract and a usage event, its verdict logged, never judged; D67 records it, and D47, D51 and the threat model
+  follow (change `0096-codex-ready`, phase 4).
+
 ## [0.78.0] - 2026-11-08
 
 Gate: local 1m51s · CI not read under mf-ship · 0.77.0: local 1m54s · CI not read under mf-ship

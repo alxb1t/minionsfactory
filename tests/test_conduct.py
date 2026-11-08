@@ -186,6 +186,39 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
     return modes
 
 
+@pytest.fixture
+def fake_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> Callable[..., Path]:
+    """Put a fake `codex` on `PATH`; return a setter of its modes and the worker's.
+
+    Why: 0096-codex-ready design D2.
+    """
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    codex = folder / "codex"
+    script = Path(__file__).with_name("fake_codex.py")
+    codex.write_text(f'#!/bin/sh\nexec "{sys.executable}" -S "{script}" "$@"\n')
+    codex.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_CODEX_ARGV", str(tmp_path / "codex-argv.jsonl"))
+
+    def modes(mode: str, codex_mode: str = "") -> Path:
+        calls = fake(mode)
+        monkeypatch.delenv("MF_SHIP_AGENT")
+        monkeypatch.setenv("FAKE_CODEX_MODE", codex_mode)
+        return calls
+
+    return modes
+
+
+def _codex_argvs(tmp_path: Path) -> list[list[str]]:
+    """Return each argv the fake `codex` was started with, in order."""
+    argvs = tmp_path / "codex-argv.jsonl"
+    lines = argvs.read_text().splitlines() if argvs.is_file() else []
+    return [json.loads(line) for line in lines]
+
+
 def _calls(path: Path) -> list[str]:
     return path.read_text().splitlines() if path.is_file() else []
 
@@ -2857,6 +2890,7 @@ def test_a_new_executor_is_probed_mid_run(
             )
         else:
             assert made.count("probe") == 2
+            assert made.count("checker") == 1
             assert "release 0002-marks" in made
             assert any(
                 line.endswith(" · run · rejoin — 0002-marks: build") for line in lines
@@ -2865,6 +2899,13 @@ def test_a_new_executor_is_probed_mid_run(
             assert any(line.endswith(probe) for line in lines[:taken])
             assert any(
                 line.endswith(" · 0002-marks · check — probe-codex · pass")
+                for line in lines[:taken]
+            )
+            assert any(
+                line.endswith(
+                    " · 0002-marks · check — probe-codex-checker · pass"
+                    " · verdict changes-requested"
+                )
                 for line in lines[:taken]
             )
             assert any(
@@ -3867,13 +3908,14 @@ def test_a_station_runs_on_its_executor(
         == 0
     )
 
-    assert _calls(calls)[:2] == ["probe", "probe"]
+    assert _calls(calls)[:3] == ["probe", "probe", "checker"]
     spawned = [
         line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
     ]
-    assert spawned[:2] == [
+    assert spawned[:3] == [
         "probe · model default",
         "probe-codex · model default · executor codex",
+        "probe-codex-checker · model default · executor codex",
     ]
     assert "build · model default" in spawned
     assert "converge · model default · executor codex" in spawned
@@ -3882,6 +3924,7 @@ def test_a_station_runs_on_its_executor(
     assert started == [
         ("probe", "claude"),
         ("probe", "codex"),
+        ("probe", "codex"),
         ("build", "claude"),
         ("converge", "codex"),
         ("release", "claude"),
@@ -3889,6 +3932,13 @@ def test_a_station_runs_on_its_executor(
     # A worker on Codex is given no model: the Codex converge names none.
     converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
     assert converged and " and conformance=" not in converged[0]
+    # A Codex log opens with its spawn line; a Claude log carries none.
+    logs = minions / "changes" / "0001-todo" / "logs"
+    [converge] = logs.glob("*-converge.log")
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": None, "effort": None}
+    assert json.loads(converge.read_text().splitlines()[0]) == spawn
+    [build] = logs.glob("*-build.log")
+    assert "mf.spawn" not in build.read_text()
 
     other = tmp_path / "other"
     other.mkdir()
@@ -7725,6 +7775,58 @@ def test_a_usage_limit_is_named(
     )
 
 
+def test_a_codex_log_reads_as_json(tmp_path: Path) -> None:
+    conduct = _conduct()
+    log = tmp_path / "codex.log"
+
+    def events(*lines: object) -> Path:
+        started = {"type": "thread.started", "thread_id": "t"}
+        log.write_text("".join(json.dumps(e) + "\n" for e in (started, *lines)))
+        return log
+
+    def command(code: int, output: str) -> object:
+        item = {
+            "type": "command_execution",
+            "command": "rm -rf ~/x",
+            "aggregated_output": output,
+            "exit_code": code,
+            "status": "failed",
+        }
+        return {"type": "item.completed", "item": item}
+
+    refused = "rm: ~/x: Operation not permitted"
+    assert conduct["denials"](events(command(1, refused))) == ["Bash(rm -rf ~/x)"]
+    # Twin: a failed command the sandbox did not refuse, and a refusal text that
+    # exited 0, are no denials.
+    assert conduct["denials"](events(command(1, "rm: ~/x: No such file"))) == []
+    assert conduct["denials"](events(command(0, refused))) == []
+    log.write_text(f'{{"item": "{refused}", cut\n')
+    assert conduct["denials"](log) == []
+
+    limit = "You've hit your usage limit. Try again at 5:50 PM."
+    failed = {"type": "turn.failed", "error": {"message": limit}}
+    assert conduct["usage_limit"](events(failed)) == (
+        " · stopped by a usage limit · resets 5:50 PM"
+    )
+    error = {"type": "error", "message": "Usage limit reached; try again in 3 hours"}
+    assert conduct["usage_limit"](events(error)) == (
+        " · stopped by a usage limit · resets 3 hours"
+    )
+    bare = {"type": "turn.failed", "error": {"message": "You hit your usage limit"}}
+    assert conduct["usage_limit"](events(bare)) == " · stopped by a usage limit"
+    other = {"type": "turn.failed", "error": {"message": "stream disconnected"}}
+    assert conduct["usage_limit"](events(other)) == ""
+
+    call = {"type": "mcp_tool_call", "server": "pencil", "tool": "draw"}
+    mcp = [{"type": kind, "item": call} for kind in ("item.started", "item.completed")]
+    assert conduct["mcp_started"]("codex", events(*mcp)) == (
+        "codex started an MCP server: pencil"
+    )
+    usage = {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1}
+    turn = {"type": "turn.completed", "usage": usage}
+    assert conduct["mcp_started"]("codex", events(command(1, refused), turn)) is None
+
+
 def test_run_refuses_without_worktrees_declared(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7915,6 +8017,171 @@ def test_a_probe_halts_on_a_write_out(
     assert not list(marks.glob("probe-*"))
 
 
+def test_the_codex_probe_runs_a_checker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(conduct["main"].__globals__, "_unlinked", lambda _: None)
+    root = _primary(tmp_path)
+    # A run's claim folder, which `ship` makes.
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+
+    def probe(mode: str, codex_mode: str = "") -> tuple[Any, list[str], str]:
+        calls = fake_codex(mode, codex_mode)
+        calls.unlink(missing_ok=True)
+        conductor = conduct["Run"](root, "claude")
+        conductor.probe("codex")
+        return conductor, _calls(calls), conductor.log.path.read_text()
+
+    conductor, calls, log = probe("")
+    assert "codex" in conductor.probed
+    assert calls == ["probe", "checker"]
+    assert (
+        " · run · spawn — probe-codex-checker · model default · executor codex\n" in log
+    )
+    assert (
+        " · run · check — probe-codex-checker · pass · verdict changes-requested\n"
+        in log
+    )
+    scratches = [Path(args[args.index("-C") + 1]) for args in _codex_argvs(tmp_path)]
+    assert len(scratches) == 2 and not any(path.exists() for path in scratches)
+    assert all("--ignore-user-config" in args for args in _codex_argvs(tmp_path))
+
+    conductor, calls, _ = probe("checker-silent")
+    assert "codex" not in conductor.probed
+    assert calls == ["probe", "checker"]
+    assert [reason for _, reason in conductor.halts] == [
+        "probe-codex-checker check fail — the checker wrote no conformance.md"
+    ]
+
+    conductor, calls, _ = probe("", "mcp")
+    assert "codex" not in conductor.probed
+    assert calls == ["probe"]
+    assert [reason for _, reason in conductor.halts] == [
+        "probe-codex check fail — codex started an MCP server: pencil"
+    ]
+
+    # Each contract breach is named; the verdict is shown, never judged.
+    scratch = tmp_path / "checked"
+    scratch.mkdir()
+    base, head = conduct["checker_fixture"](scratch)
+    assert _git(scratch, "rev-parse", "HEAD~1", "HEAD").split() == [base, head]
+    packet = scratch / ".minions" / "changes" / "0001-probe" / "diff.patch"
+    assert '+    """Return the sum of `prices`."""' in packet.read_text()
+    assert _git(scratch, "status", "--porcelain") == ""
+    findings = packet.with_name("conformance.md")
+    usage = tmp_path / "usage.log"
+    usage.write_text(json.dumps({"type": "turn.completed", "usage": {}}) + "\n")
+    keys = {key: "x" for key in conduct["FINDINGS_KEYS"]}
+    keys |= {"type": "conformance", "plan": "0001-probe", "verdict": "clean"}
+    for changed, named in (
+        ({"model": None}, "conformance.md lacks model"),
+        ({"type": "adversarial"}, "conformance.md's type is adversarial"),
+        ({"plan": "0002-other"}, "conformance.md's plan is 0002-other"),
+        ({}, None),
+    ):
+        held = {k: v for k, v in (keys | changed).items() if v is not None}
+        front = "".join(f"{key}: {value}\n" for key, value in held.items())
+        findings.write_text(f"---\n{front}---\n")
+        assert conduct["check_checker"](scratch, usage) == named
+    plain = tmp_path / "plain.log"
+    plain.write_text('{"type": "turn.completed", cut\n{"type": "turn.completed"}\n')
+    assert conduct["check_checker"](scratch, plain) == (
+        "codex's log holds no usage event"
+    )
+    findings.unlink()
+    findings.symlink_to(usage)
+    assert conduct["check_checker"](scratch, usage) == (
+        "the checker wrote no conformance.md"
+    )
+
+
+def test_a_codex_worker_starts_on_mf_settings_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake_codex: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    calls = fake_codex("")
+    config = Path(os.environ["HOME"], ".codex", "config.toml")
+    config.parent.mkdir()
+    config.write_text(
+        'model = "o3"\n[mcp_servers.pencil]\ncommand = "pencil"\n'
+        "[plugins.notes]\nenabled = true\n"
+    )
+    prompt = "Run the mf-build skill for change 0001-todo."
+    code = _main(
+        conduct, tree, "agent", "--executor", "codex", prompt, monkeypatch=monkeypatch
+    )
+    assert code == 0
+    [args] = _codex_argvs(tmp_path)
+    assert args[:5] == [
+        "exec",
+        "-s",
+        "workspace-write",
+        "--ignore-user-config",
+        "--json",
+    ]
+    assert "-m" not in args
+    assert not any(arg.startswith("model_reasoning_effort") for arg in args)
+    assert _calls(calls) == ["build 0001-todo"]
+    assert (
+        "- [x] 1 — Todo" in (tree / "openspec/changes/0001-todo/tasks.md").read_text()
+    )
+    said = capsys.readouterr().out.strip()
+    assert said.startswith("agent: exit 0 · ")
+    events = Path(said.split(" · ")[-1]).read_text().splitlines()
+    assert json.loads(events[0])["type"] == "thread.started"
+    assert json.loads(events[-1])["type"] == "turn.completed"
+
+
+def test_a_swapped_root_halts_a_codex_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+
+    def halted(path: Path, *brief: Path) -> None:
+        with pytest.raises(conduct["Stop"]) as stop:
+            argv("codex", "Do it.", tree, None, None, repo, None, *brief)
+        assert stop.value.code == 1
+        assert str(stop.value) == (
+            f"conduct: halt — the writable root {path} is a link or moved:"
+            " a worker swapped it"
+        )
+
+    # The worktree the spawn runs in, moved aside, then a link to a sibling there.
+    assert argv("codex", "Do it.", tree, None, None, repo)
+    aside = tmp_path / "aside"
+    tree.rename(aside)
+    halted(tree)
+    tree.symlink_to(sibling)
+    halted(tree)
+    tree.unlink()
+    aside.rename(tree)
+
+    # A cutter's brief folder, swapped for a link to a sibling holding a brief.
+    brief = tmp_path / "vault" / "brief.md"
+    brief.parent.mkdir()
+    brief.write_text("# brief\n")
+    assert argv("codex", "Cut.", tree, None, None, repo, None, brief)
+    brief.parent.rename(tmp_path / "vault-aside")
+    brief.parent.symlink_to(sibling)
+    (sibling / "brief.md").write_text("# brief\n")
+    halted(brief.parent, brief)
+    # Twin: a Claude cutter's brief is a file it edits, never a root; it starts.
+    assert argv("claude", "Cut.", tree, None, None, repo, None, brief)
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8002,6 +8269,11 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     worker_log = tmp_path / "read.log"
     worker_log.write_text(json.dumps({"message": {"content": blocks}}) + "\n")
     assert conduct["denials"](worker_log) == ["Read(~/.ssh/key)"]
+    # A tool result's text may come as a list of text blocks.
+    listed = {**result, "content": [{"type": "text", "text": said}, "x"]}
+    content = {"message": {"content": [blocks[0], listed]}}
+    worker_log.write_text(json.dumps(content) + "\n")
+    assert conduct["denials"](worker_log) == ["Read(~/.ssh/key)"]
 
     def refused(command: str) -> bool:
         # Claude Code reads a trailing `:*` as ` *`, which also matches the bare prefix.
@@ -8052,6 +8324,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     codex = codex[len(hooks_off) + 5 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
+    assert codex[5:7] == ["--ignore-user-config", "--json"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # `TMPDIR` is no writable root of its own: a worker can link `.minions/tmp`
@@ -8059,6 +8332,10 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
     assert exclude in codex
     assert codex[codex.index(exclude) - 1] == "-c"
+    # No `/tmp` root; a Claude worker's temp folder can still hold a forged entry's
+    # folder, which Known gaps names.
+    slash_tmp = "sandbox_workspace_write.exclude_slash_tmp=true"
+    assert codex[codex.index(slash_tmp) - 1] == "-c"
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
     # Twin: the drill's trusted plant, the same table trusted, loads the plant.

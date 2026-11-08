@@ -376,12 +376,46 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
         (folder / "models.toml").write_text(f"{switch}[build]\n[converge]\n[release]\n")
 
 
+_USAGE = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
+
+
+def _checker(here: Path, modes: set[str]) -> None:
+    """Write the probe checker's findings file with every key, and a usage event.
+
+    `checker-silent` writes nothing. Why: 0096-codex-ready design D9.
+    """
+    if "checker-silent" in modes:
+        return
+    folder = _folder(here, "0001-probe")
+    folder.mkdir(parents=True, exist_ok=True)
+    keys = {
+        "type": "conformance",
+        "plan": "0001-probe",
+        "project": "probe",
+        "branch": "main",
+        "head": _git(here, "rev-parse", "HEAD"),
+        "reviewed": "2026-11-08",
+        "round": "1",
+        "open_blocking": "1",
+        "verdict": "changes-requested",
+        "mode": "parallel",
+        "workers": "1",
+        "model": "fake",
+        "packet": "diff.patch",
+    }
+    front = "".join(f"{key}: {value}\n" for key, value in keys.items())
+    (folder / "conformance.md").write_text(f"---\n{front}---\n")
+    print(json.dumps({"type": "turn.completed", "usage": _USAGE}), flush=True)
+
+
 def _fake(prompt: str) -> None:
     """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
     modes = set(os.environ["FAKE_MODE"].split(","))
     here = Path.cwd()
     found = re.search(r"Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
+    if "conformance checker for change 0001-probe" in prompt:
+        station = "checker"
     # Every key=value clause but the one every release prompt carries.
     clauses = "".join(re.findall(r" (?:with|and) (?!merge=yes\b)\w+=\w+", prompt))
     if station == "supervise" and (brief := re.search(r" and brief=(\S+)\.\s", prompt)):
@@ -389,6 +423,9 @@ def _fake(prompt: str) -> None:
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
         calls.write(f"{called}{clauses}\n")
+    if station == "checker":
+        _checker(here, modes)
+        return
     if station == "build" and "deny" in modes:
         use = {
             "type": "tool_use",

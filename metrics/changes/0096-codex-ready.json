@@ -1,0 +1,220 @@
+{
+  "change": "0096-codex-ready",
+  "version": "0.79",
+  "base": "754ba66",
+  "analyzed": "a2d0e91",
+  "measured_on": "local",
+  "collected_at": "2026-11-08T13:10:13+02:00",
+  "mf_version": "v0.78.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 23084
+    },
+    "converge-conformance-reading-set": {
+      "value": 5075
+    },
+    "converge-adversarial-reading-set": {
+      "value": 7203
+    },
+    "shared-context": {
+      "value": 12203
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 272
+    },
+    "gate-seconds": {
+      "value": 114
+    },
+    "largest-module-lines": {
+      "value": 8631
+    },
+    "modules-over-1000-lines": {
+      "value": 3
+    },
+    "complex-functions": {
+      "value": 21
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.32
+    },
+    "python-lines": {
+      "value": 29710
+    },
+    "dependencies": {
+      "value": 0
+    },
+    "dev-dependencies": {
+      "value": 7
+    },
+    "test-seconds": {
+      "value": 112.27
+    },
+    "slowest-test-seconds": {
+      "value": 46.25
+    },
+    "test-seconds-summed": {
+      "value": 997.23
+    },
+    "slow-tests": {
+      "value": 74
+    },
+    "total-coverage": {
+      "value": 97.82
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 98
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 36
+    },
+    "diff-lines": {
+      "value": 1605
+    },
+    "diff-files": {
+      "value": 18
+    },
+    "lead-minutes": {
+      "value": 61.1
+    },
+    "build-minutes": {
+      "value": 29.7
+    },
+    "converge-minutes": {
+      "value": 31.0
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 1
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 5
+    },
+    "fix-commits": {
+      "value": 2
+    },
+    "cost-usd": {
+      "value": 18.76
+    },
+    "cost-usd-build": {
+      "value": 9.29
+    },
+    "cost-usd-converge": {
+      "value": 9.47
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 45189178
+    },
+    "tokens-build": {
+      "value": 24930848
+    },
+    "tokens-converge": {
+      "value": 20258330
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "cost-per-changed-line": {
+      "value": 0.0117
+    },
+    "conformance-confirmed": {
+      "value": 1
+    },
+    "adversarial-confirmed": {
+      "value": 2
+    },
+    "conformance-refuted": {
+      "value": 6
+    },
+    "adversarial-refuted": {
+      "value": 9
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 3536401
+    },
+    "adversarial-tokens-per-confirmed": {
+      "value": 3228838
+    },
+    "escapes": {
+      "value": 0
+    },
+    "debt-added": {
+      "value": 1
+    },
+    "debt-paid": {
+      "value": 1
+    }
+  }
+}

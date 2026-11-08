@@ -468,9 +468,16 @@ def _run_fixture(root: Path) -> dict[str, str]:
     }
 
 
-def _reader(root: Path, env: dict[str, str]) -> Callable[..., object]:
-    """Return a reader of one metric of a change: its number, or `gap: <why>`."""
+def _reader(
+    root: Path, env: dict[str, str], prices: Path | None = None
+) -> Callable[..., object]:
+    """Return a reader of one metric of a change: its number, or `gap: <why>`.
+
+    Its Codex logs are priced by `prices`, when given.
+    """
     run = _load("run")
+    if prices is not None:
+        vars(run)["PRICES"] = prices
 
     def read(metric: str, change: str = "0001-x", **named: str) -> object:
         given = env | {"MF_METRICS_CHANGE": change} | named
@@ -742,6 +749,34 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     )
     (tmp_path / ".minions/debt.md").unlink()
     assert read("debt-added") == "gap: no .minions/debt.md"
+
+    # A Codex converge log: its turns' tokens, priced at its spawn line's model.
+    prices = tmp_path / "prices.toml"
+    # A `default` row prices no log: a spawn line naming no model stays a gap.
+    prices.write_text(
+        '[models]\n"gpt-5.5" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+        '"default" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+    )
+    priced = _reader(tmp_path, env, prices)
+    usage = {"input_tokens": 1_000_000, "cached_input_tokens": 400_000}
+    turn = {"type": "turn.completed", "usage": usage | {"output_tokens": 100_000}}
+
+    def codex(model: str | None, first: str | None = None) -> None:
+        spawn = {"type": "mf.spawn", "executor": "codex", "model": model}
+        lines = [first or json.dumps(spawn | {"effort": None})]
+        lines += [json.dumps(turn), json.dumps(turn)]
+        _write(tmp_path, {f".minions/changes/{converge_2}": "\n".join(lines) + "\n"})
+
+    codex("gpt-5.5")
+    assert priced("cost-usd-converge") == 2.0 + 2 * 2.4
+    assert priced("tokens-converge") == 500 + 2 * 1_100_000
+    for model, named in (("o9", "o9"), (None, "default")):
+        codex(model)
+        assert priced("cost-usd-converge") == f"gap: no price for model {named}"
+        assert priced("tokens-converge") == 500 + 2 * 1_100_000
+    codex("gpt-5.5", first="not json")
+    assert priced("cost-usd-converge") == f"gap: no spawn line in {converge_2}"
+    assert priced("tokens-converge") == 500 + 2 * 1_100_000
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:

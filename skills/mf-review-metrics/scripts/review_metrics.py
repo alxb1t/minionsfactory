@@ -68,6 +68,10 @@ TOKENS = (
     "cacheReadInputTokens",
     "cacheCreationInputTokens",
 )
+# A Codex log's prices, read when one is priced. Why: 0096-codex-ready design D6.
+PRICES = Path(__file__).resolve().parents[1] / "prices.toml"
+# The events a worker log's cost is read from; a spawn line, from its first line alone.
+SPENT = ("result", "turn.completed")
 DAY_SECONDS = 86400
 CHARTS = {
     "rounds": "rounds",
@@ -564,19 +568,24 @@ def _status_log(path: Path) -> Record:
 
 
 def _results(path: Path) -> list[dict[str, Any]]:
-    """Return a worker log's `result` events; a line that is not JSON is none."""
+    """Return a worker log's `result` events, or a Codex log's spawn line and turns.
+
+    A line that is not JSON is none, and a log with neither result nor turn none.
+    Why: 0096-codex-ready design D6.
+    """
     events = []
     with path.open(encoding="utf-8", errors="replace") as lines:
-        for line in lines:
-            if '"result"' not in line:
+        for n, line in enumerate(lines):
+            if not any(f'"{kind}"' in line for kind in (*SPENT, "mf.spawn")):
                 continue
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if isinstance(event, dict) and event.get("type") == "result":
+            kind = event.get("type") if isinstance(event, dict) else None
+            if kind in SPENT or (n == 0 and kind == "mf.spawn"):
                 events.append(event)
-    return events
+    return events if any(event["type"] in SPENT for event in events) else []
 
 
 def _number(value: object) -> Number | None:
@@ -588,6 +597,35 @@ def _number(value: object) -> Number | None:
     )
 
 
+def _codex_spent(events: list[dict[str, Any]]) -> Record:
+    """Return a Codex log's priced cost and tokens; its turns and seconds are gaps.
+
+    The cost is a gap with no spawn line or no price for its model.
+    Why: 0096-codex-ready design D6.
+    """
+    usages = [
+        usage
+        for event in events
+        if event.get("type") == "turn.completed"
+        and isinstance(usage := event.get("usage"), dict)
+    ]
+
+    def total(key: str) -> Number:
+        return sum(_number(usage.get(key)) or 0 for usage in usages)
+
+    spawn = events[0] if events[0].get("type") == "mf.spawn" else {}
+    models = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"]
+    row = models.get(model) if (model := spawn.get("model")) else None
+    cost = None
+    if isinstance(row, dict):
+        cached = total("cached_input_tokens")
+        fresh = total("input_tokens") - cached
+        paid = fresh * row["input"] + cached * row["cached_input"]
+        cost = (paid + total("output_tokens") * row["output"]) / 1_000_000
+    tokens = total("input_tokens") + total("output_tokens")
+    return {"cost": cost, "turns": None, "tokens": tokens, "seconds": None}
+
+
 def _spent(events: list[dict[str, Any]]) -> Record:
     """Return one log's cost, turns, tokens and seconds, each a gap with no event.
 
@@ -595,6 +633,8 @@ def _spent(events: list[dict[str, Any]]) -> Record:
     """
     if not events:
         return dict.fromkeys(("cost", "turns", "tokens", "seconds"))
+    if not any(event.get("type") == "result" for event in events):
+        return _codex_spent(events)
     usage = events[-1].get("modelUsage")
     models = usage.values() if isinstance(usage, dict) else ()
     tokens = [
@@ -631,7 +671,8 @@ def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts. Why: 0076-context-cost design D1.
+    Each spawn's log counts; a field one read log lacks is the station's gap.
+    Why: 0076-context-cost design D1; 0096-codex-ready design D6.
     """
     runs = repo / RUNS
     spawn = re.compile(
@@ -648,9 +689,9 @@ def _cost_logs(repo: Path, change: str) -> Record:
     for station in STATIONS:
         logs = _station_logs(repo, change, station)
         found = [_results(path) for path in logs]
-        spent = [_spent(events) for events in found]
+        spent = [_spent(events) for events in found if events]
         for key in ("cost", "turns", "tokens", "seconds"):
-            record[f"{key}_{station}"] = _held(row[key] for row in spent)
+            record[f"{key}_{station}"] = _total(row[key] for row in spent)
         record[f"logs_{station}"] = len(logs)
         record[f"read_{station}"] = sum(map(bool, found))
         record[f"spawns_{station}"] = spawns[station]
@@ -912,7 +953,7 @@ def _cost_cell(record: Record, station: str) -> str:
     """Return a station's spend; e.g. "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3".
 
     `<read> of <spawns>` ends it when the run logs name more spawns than logs read,
-    a log with no result event unread.
+    a log with neither result nor `turn.completed` event unread.
     """
     cost, turns, tokens, seconds = (
         record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")

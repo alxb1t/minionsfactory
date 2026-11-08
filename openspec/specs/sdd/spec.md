@@ -1255,7 +1255,10 @@ first station it SHALL run a probe worker that must edit, commit and run `make g
 gate's recipe SHALL try a write to a file `conduct.py` made outside the worker's reach, and SHALL pass only when that write is
 refused; `conduct.py` SHALL halt the run when the file changed, and SHALL remove it. The recipe SHALL also pass only
 when the shell's `uname -m` is the host's native architecture, so a worker whose shell runs translated halts the run, naming
-its executor.
+its executor. A Codex probe that passes SHALL then run one conformance checker over a fixture change in a second scratch
+repo, and SHALL pass only when the checker leaves `.minions/changes/0001-probe/conformance.md`, a file and no link, whose
+frontmatter holds every key of the findings file contract, `type: conformance` and `plan: 0001-probe`, and when its log holds
+a usage event; the checker's verdict SHALL be logged and never judged.
 It SHALL log every worker's start, end and check to `.minions/runs/<stamp>.md`, and `conduct.py log --verify` SHALL
 fail on a worker with no end, a run that ends on neither `halt` nor `done`, or an unknown event.
 
@@ -1278,6 +1281,12 @@ fail on a worker with no end, a run that ends on neither `halt` nor `done`, or a
 #### Scenario: A worker's shell runs translated
 - **WHEN** the probe worker's shell reports `x86_64` on an `arm64` host
 - **THEN** the run halts, naming the executor and both architectures, and no version starts a worker
+
+#### Scenario: A Codex checker probe writes no findings file
+- **WHEN** a Codex probe passes its scratch edit, and its checker exits 0 leaving no `conformance.md`
+- **THEN** the probe fails, naming the missing file, and no station runs on Codex
+- **AND WHEN** the checker leaves a findings file with every contract key and `verdict: clean` over the fixture's defect
+- **THEN** the probe passes, and its check line names the verdict
 
 ### Requirement: A finding carries its evidence and verdict
 
@@ -1365,7 +1374,10 @@ its file or line carries. The page
 SHALL hold a table per repo and per model, a cost table per repo — each change's stations with their dollars, turns, tokens and
 seconds — charts over changes drawn by `mf-build`'s `chart()`, and the list of fields each repo lacked. A log's dollars and tokens
 SHALL be its last result event's cumulative `total_cost_usd` and `modelUsage`, its turns and seconds the sum over its result events;
-a station with no log and a log with no result event SHALL be a gap, and a station the run log shows spawned more times than
+a Codex JSON log's tokens SHALL be the sum over its `turn.completed` events of their input and output tokens, its dollars those
+tokens priced by `skills/mf-review-metrics/prices.toml` under the model its spawn line names, a gap with no such row, and its
+turns and seconds gaps;
+a station with no log and a log with neither result nor `turn.completed` event SHALL be a gap, and a station the run log shows spawned more times than
 the logs read SHALL be marked `<read> of <spawns>`. The status log's tokens SHALL be read per role, in every form a `verdicts` line
 holds; a line naming both roles SHALL be recorded under the role `both`, credited to neither. A Codex worker's tokens SHALL be read from its session — the
 last `token_count` event's totals, its model and effort from `turn_context` — matched to its round by its parent's `cwd` — the change's worktree, or the primary
@@ -1396,6 +1408,13 @@ beside the page: one record per round and role, with its executor, model, effort
   converge spawns
 - **THEN** the converge cell holds the last cumulative dollars and the summed turns, marked as one log of two, and the build cell
   is a gap
+
+#### Scenario: Cost from a Codex log
+- **WHEN** a station's log is a Codex JSON log with two `turn.completed` events, and its spawn line names a model the price
+  table holds
+- **THEN** its cell holds the priced dollars and the summed tokens, its turns and seconds gaps
+- **AND WHEN** the spawn line names a model the table lacks
+- **THEN** its dollars are a gap and its tokens are read
 
 #### Scenario: Tokens per role
 - **WHEN** a status log holds `tokens review 45426, security 41346`, `tokens 128126 + 115356`, `tokens 115k (review 63k, security
@@ -1738,7 +1757,8 @@ runs on the run's executor. Integrate SHALL use the `[release]` table. `conduct.
 worker starts, on an `executor` it does not know and on a `codex` station with a `claude-*` model. It SHALL run one probe
 worker per distinct executor named across the open versions and the run's own; a failed probe at the start SHALL stop the
 run, and one for a joining version SHALL halt only the versions on its executor.
-A station on Codex SHALL report no denial, and converge's tokens SHALL read `unavailable`.
+A station on Codex SHALL report each denial, its usage limit with the reset time, its tokens and its priced cost from its JSON
+event log, as a station on Claude does from its own; converge's per-role tokens SHALL read `unavailable` on Codex.
 
 #### Scenario: Converge on Codex beside a build on Claude
 - **WHEN** a version's models file names `executor = "codex"` under `[converge]`
@@ -1749,6 +1769,14 @@ A station on Codex SHALL report no denial, and converge's tokens SHALL read `una
 - **WHEN** a table names `executor = "codex"` and `model = "claude-opus-5-5"`
 - **THEN** that version halts naming the table, and no worker starts for it
 
+#### Scenario: A Codex worker is refused a command
+- **WHEN** a Codex worker's command fails with the sandbox's `Operation not permitted`
+- **THEN** the run log holds a `denied` line naming the command, and the report lists it
+
+#### Scenario: A Codex worker meets its usage limit
+- **WHEN** a Codex worker exits 1 after a failed turn whose error names its usage limit and a time to try again
+- **THEN** its version halts with `stopped by a usage limit · resets <time>`
+
 ### Requirement: A worker's reach stops at the repository
 
 A Codex worker's writable roots and a Claude worker's `Edit` and `--add-dir` SHALL be the primary and each open worktree,
@@ -1756,8 +1784,10 @@ from `git worktree list`, and never the directory holding them. A listed worktre
 an entry under the common directory SHALL be no worktree. `conduct.py` SHALL take the primary and its common directory once,
 before the first worker, and SHALL never take a worker's reach from git's answer in a worktree. It SHALL refuse a run in a
 checkout whose `.git` names another repository, and SHALL halt a Codex worker when the primary's `.git` no longer resolves to
-that common directory. `conduct.py` SHALL load `integrate.py` once, before the
-first worker, and SHALL halt a version's merge when the local git config or `info/attributes` changed since then.
+that common directory. Directly before each Codex worker starts, `conduct.py` SHALL halt its version when any writable root
+or its working directory is a link or no longer resolves to itself, naming the path. `conduct.py` SHALL load `integrate.py`
+once, before the first worker, and SHALL halt a version's merge when the local git config or `info/attributes` changed since
+then.
 
 #### Scenario: A sibling project
 - **WHEN** a worker runs in a repository whose parent holds other projects
@@ -1774,6 +1804,11 @@ first worker, and SHALL halt a version's merge when the local git config or `inf
 #### Scenario: A worker plants git config
 - **WHEN** a worker changes the common directory's config during a run
 - **THEN** the conductor merges nothing for a dependent, and that version halts, naming the change
+
+#### Scenario: A worker swaps a writable root for a link
+- **WHEN** a worker moves a listed worktree aside and puts a link to a sibling project in its place, and the next station of
+  a version runs on Codex
+- **THEN** that version halts naming the link, and no Codex worker starts with the sibling among its writable roots
 
 ### Requirement: A person can stop a run
 
@@ -1876,10 +1911,13 @@ MCP server, naming it. Its network SHALL reach only `pypi.org`, `files.pythonhos
 domains `AGENTS.md`'s `Ship network:` line names, and its sandbox SHALL never have `allowLocalBinding`: it binds no
 loopback port, in any repo. A Codex worker SHALL run with its network off, and SHALL
 start with its working directory and every tree it reaches marked untrusted, whatever the operator's Codex config says, so a
-project's `.codex/` config, hooks and rules, which a worker can write, start nothing. Both SHALL keep `uv`'s cache in the run
-directory, and both SHALL start with `TMPDIR` naming `.minions/tmp/`, which a run empties at its start, halting when `.minions`
-is a link; a Claude worker's sandboxed command may take Claude Code's own `TMPDIR` instead, inside its sandbox, and a Codex
-worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL inherit the conductor's `VIRTUAL_ENV`.
+project's `.codex/` config, hooks and rules, which a worker can write, start nothing. A Codex worker SHALL start with
+`--ignore-user-config`, so the operator's Codex config — its MCP servers, plugins, profiles and model — starts nothing and
+sets nothing, and with `--json`, so its log is one event a line; the run's probe SHALL fail when a Codex worker's log holds an
+MCP tool call, naming its server. A Codex worker SHALL never have `/tmp` as a writable root. Both SHALL keep `uv`'s cache in
+the run directory, and both SHALL start with `TMPDIR` naming `.minions/tmp/`, which a run empties at its start, halting when
+`.minions` is a link; a Claude worker's sandboxed command may take Claude Code's own `TMPDIR` instead, inside its sandbox, and a
+Codex worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL inherit the conductor's `VIRTUAL_ENV`.
 
 #### Scenario: A script tries to leave
 - **WHEN** a worker or its subagent runs a script that writes outside its reach, reads `~/.ssh`, reads a credential variable and
@@ -1899,6 +1937,12 @@ worker SHALL never take `TMPDIR` as a writable root of its own. Neither SHALL in
 - **THEN** a Claude worker's command line holds `--strict-mcp-config` and no `--mcp-config`
 - **AND WHEN** a Claude probe worker's `init` event lists an MCP server all the same
 - **THEN** the probe fails, naming the server, and the run halts
+
+#### Scenario: The operator has a Codex config
+- **WHEN** the operator's `~/.codex/config.toml` names a model, an MCP server and a plugin
+- **THEN** a Codex worker's command line holds `--ignore-user-config` and `--json`
+- **AND WHEN** a Codex probe worker's log holds an MCP tool call all the same
+- **THEN** the probe fails, naming the server, and no station runs on Codex
 
 #### Scenario: A worker plants a Codex project config
 - **WHEN** a worker leaves an `[mcp_servers]` entry in `.codex/config.toml`, in a tree the operator's Codex config trusts
@@ -2715,7 +2759,10 @@ cost per changed line; per role — conformance and adversarial, each metric id 
 cards and the tokens per confirmed card; the escapes — cards whose
 `repeat of` names an earlier change, save the cards the change pays; and the cards it carried to the debt and paid. A metric whose
 data a run did not leave — no run log, a log a spawn overwrote, the release's own stage — SHALL exit non-zero, a gap, never a
-zero. The cut's `diff-lines` and `diff-files` SHALL be the collector's station values.
+zero. A Codex station's tokens SHALL be the sum over its log's `turn.completed` events of their input and output tokens, and
+its dollars those tokens priced by `skills/mf-review-metrics/prices.toml` under the model its log's spawn line names; a model
+with no row there, or no model named, SHALL make the cost metrics a gap naming it, and SHALL leave the token metrics read. The
+cut's `diff-lines` and `diff-files` SHALL be the collector's station values.
 
 #### Scenario: A version with its run
 - **WHEN** a version's run log, status log, findings and station logs are on disk at its release's collect
@@ -2729,6 +2776,12 @@ zero. The cut's `diff-lines` and `diff-files` SHALL be the collector's station v
 #### Scenario: A version released by hand
 - **WHEN** a version has no run log
 - **THEN** every minute, cost and halt metric is a gap, and the commit and card metrics are read
+
+#### Scenario: A converge on Codex
+- **WHEN** a version's converge log is a Codex JSON log whose spawn line names a model the price table holds
+- **THEN** `cost-usd-converge` holds its priced dollars and `tokens-converge` its summed tokens
+- **AND WHEN** the price table holds no row for that model
+- **THEN** `cost-usd-converge` is a gap naming the model, and `tokens-converge` is read
 
 ### Requirement: A station keeps a log per spawn
 

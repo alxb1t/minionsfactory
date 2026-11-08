@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64, D66
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67
 ```
 
 ## The shape
@@ -617,8 +617,9 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 
 - **Why:** once versions are planned and cut, what follows is the line's; the pilot ran it by hand in a dozen
   commands.
-- **Executors:** the models file names a station's executor, absent meaning the run's. One probe runs per executor, at the
-  start or before a joining version's first worker on it, and a
+- **Executors:** the models file names a station's executor, absent meaning the run's.
+  One probe runs per executor, Codex's with a checker on a fixture, at the start or before a joining version's first worker
+  on it, and a
   worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
 - **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;
@@ -636,8 +637,8 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
 the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter to
 the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
-reach no unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out refused.
-`conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
+reach no unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
+refused, and on Codex one checker. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a
 hostile repo needs a container.**
 
@@ -648,11 +649,24 @@ hostile repo needs a container.**
   written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
   no worker writes.
 - **Accepts:** a Codex worker can read `~`, with its network off · a repo's `.claude/` settings, skills and `.mcp.json` reach no
-  worker · a Claude worker starts no MCP server, the operator's own included · a Codex worker starts the operator's
-  `mcp_servers`, until a change sets them empty · a domain `Ship network:` lists · a release forged on a head before that
-  head lands on `origin`.
+  worker · a Claude worker starts no MCP server, the operator's own included ·
+  a Codex worker loads no user config ([D67](#d67--a-codex-worker-starts-on-mfs-settings-logs-json-and-is-proved-by-a-checker))
+  · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin`.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service.
+
+### D67 · A Codex worker starts on MF's settings, logs JSON and is proved by a checker
+
+**A Codex worker starts with `--ignore-user-config` and `--json`: the operator's Codex config sets nothing, and its log reads
+as a Claude log does — denials, usage limit, tokens, and dollars priced by `skills/mf-review-metrics/prices.toml`. A writable
+root that is a link halts the next Codex spawn, and no Codex worker has `/tmp`. A run's Codex probe, past its scratch edit,
+runs one conformance checker on a fixture, passing on a findings file to the contract and a log with a usage event.**
+
+- **Why:** no station had run on Codex; a worker loaded the operator's MCP servers and plugins, and its plain log read as
+  nothing.
+- **Accepts:** a priced cost only for a model the table holds · the checker's verdict unjudged · a swap after the check, while
+  Codex starts.
+- **Rejected:** an MF-written Codex profile · judging the checker's verdict · list prices written by the cut.
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
