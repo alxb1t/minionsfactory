@@ -92,6 +92,31 @@ def test_a_red_run_records_nothing(tmp_path: Path) -> None:
     assert not _record(root).exists()
 
 
+def test_a_gate_runs_without_the_venv_and_quiet_when_green(tmp_path: Path) -> None:
+    root, log = tmp_path / "repo", tmp_path / "runs.log"
+    seen = tmp_path / "venv.txt"
+    _repo(root, log, recipe=f"echo venv=$(VIRTUAL_ENV) > {seen}")
+    env = {**os.environ, "MODE": "a", "VIRTUAL_ENV": str(tmp_path / "conductor-venv")}
+
+    def gate() -> subprocess.CompletedProcess[str]:
+        argv = [sys.executable, str(_SCRIPT)]
+        return subprocess.run(argv, cwd=root, env=env, capture_output=True, text=True)
+
+    green = gate()
+    assert green.returncode == 0, green.stdout
+    [line] = green.stdout.splitlines()
+    assert line.startswith("gate: green — ")
+    assert seen.read_text() == "venv=\n"
+
+    # A red gate prints make's output, then its summary last.
+    (root / "Makefile").write_text("gate:\n\techo boom\n\tfalse\n")
+    red = gate()
+    assert red.returncode == 2, red.stdout
+    lines = red.stdout.splitlines()
+    assert "boom" in lines
+    assert lines[-1].startswith("gate: red — exit 2 · ")
+
+
 def test_reuse_is_refused_on_a_dirty_tree(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)

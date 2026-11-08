@@ -88,11 +88,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   Verify: `grep -n '"after-wait-minutes": Version.after_waits' scripts/metrics/run.py` prints a line.
 - [x] 4.2 Add the `after-wait-minutes` metric after `wait-minutes` in `metrics/catalogue.toml`, as [D7](design.md#d7) quotes it.
   Verify: `grep -n 'id = "after-wait-minutes"' metrics/catalogue.toml` prints a line.
-- [x] 4.3 Add D70 after D47 in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
-  Verify: `grep -n '^### D70 · A dependent builds on its dependency.s built head$' docs/decisions.md` prints a line.
-- [x] 4.4 Add `, D70` after `D67` in the Repo conventions list of the map at the top of `docs/decisions.md`, per
+- [x] 4.3 Add D72 after D47 in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+  Verify: `grep -n '^### D72 · A dependent builds on its dependency.s built head$' docs/decisions.md` prints a line.
+- [x] 4.4 Add `, D72` after `D67` in the Repo conventions list of the map at the top of `docs/decisions.md`, per
   [D8](design.md#d8).
-  Verify: `grep -n 'D60, D61, D67, D70' docs/decisions.md` prints a line.
+  Verify: `grep -n 'D60, D61, D67, D72' docs/decisions.md` prints a line.
 - [x] 4.5 Add D44's sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'A stacked dependent takes its dependency.s built head by a' docs/decisions.md` prints a line.
 - [x] 4.6 Make D45's edits in `docs/decisions.md`, as [D8](design.md#d8) quotes them.
@@ -119,5 +119,5 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 5.2 Give `Run.reset_stack` its released read, and add its read in `ready` before the merge back, in
   `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k resets_and_merges_back` reports `1 passed`.
-- [x] 5.3 Edit D70's reset sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+- [x] 5.3 Edit D72's reset sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'once the dependency released; it stacks again on the dependency' docs/decisions.md` prints a line.

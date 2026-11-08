@@ -62,7 +62,8 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
     reading_set = _load("reading_set")
 
     assert reading_set.words(tmp_path, "shared") == 9
-    assert reading_set.words(tmp_path, "converge") == 16
+    # The converge conductor reads no decision, principle or threat model.
+    assert reading_set.words(tmp_path, "converge") == 9
     # A decisions file with no `### D` heading counts whole in conformance's index.
     assert reading_set.words(tmp_path, "conformance") == 10
     # Adversarial reads the threat model, and no decision.
@@ -71,7 +72,7 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
     # Conformance reads the decisions' index, its `### D` lines, not the whole file.
     _write(tmp_path, {"docs/decisions.md": "### D1 · six\nbody words"})
     assert reading_set.words(tmp_path, "shared") == 14
-    assert reading_set.words(tmp_path, "converge") == 21
+    assert reading_set.words(tmp_path, "converge") == 9
     assert reading_set.words(tmp_path, "conformance") == 13
     assert reading_set.words(tmp_path, "adversarial") == 8
 

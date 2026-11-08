@@ -11,7 +11,9 @@ unstaged edit and no untracked file is settled; its key is `git write-tree`, so 
 staged merge and its commit share one.
 A settled tree whose `.minions/gate/<tree>` holds the same `make -n gate` hash is
 reused; else `make gate` runs. `--fresh` runs it whatever stands. Exit 0 green,
-else `make`'s code; a red run records nothing. Why: 0064-lighter-catch-up design D1.
+else `make`'s code; a red run records nothing. `make` and its dry run see no
+`VIRTUAL_ENV`, and a green run prints its summary line alone; a red one, make's
+output first. Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
 """
 
 import argparse
@@ -33,12 +35,19 @@ class Stop(Exception):
         self.code = code
 
 
-def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+def _run(
+    argv: list[str], env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Return a command's result, its output captured; a missing tool stops the run."""
     try:
-        return subprocess.run(argv, capture_output=True, text=True)
+        return subprocess.run(argv, capture_output=True, text=True, env=env)
     except FileNotFoundError:
         raise Stop(2, f"gate: cannot run — {argv[0]} is missing") from None
+
+
+def _make_env() -> dict[str, str]:
+    """Return this environment without `VIRTUAL_ENV`, which `uv run --script` sets."""
+    return {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
 
 
 def _git(*args: str) -> str:
@@ -68,7 +77,7 @@ def settled_tree() -> str | None:
 
 def dry_run() -> str:
     """Return the sha256 of `make -n gate`'s output; a failure stops with its code."""
-    done = _run(["make", "-n", "gate"])
+    done = _run(["make", "-n", "gate"], _make_env())
     if done.returncode != 0:
         sys.stderr.write(done.stderr)
         raise Stop(done.returncode, "gate: cannot run — `make -n gate` failed")
@@ -121,9 +130,18 @@ def gate(fresh: bool) -> int:
             print(f"gate: reused — {tree} · {seconds}s · {date}")
             return 0
     start = time.monotonic()
-    code = subprocess.run(["make", "gate"]).returncode
+    done = subprocess.run(
+        ["make", "gate"],
+        env=_make_env(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    code = done.returncode
     seconds = round(time.monotonic() - start)
     if code != 0:
+        sys.stdout.write(done.stdout)
         print(f"gate: red — exit {code} · {seconds}s")
         return code
     # The gate may write the worktree; record only the tree it started and ended on.

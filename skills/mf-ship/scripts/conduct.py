@@ -121,6 +121,7 @@ SUPERVISES = 2
 SETTLES = ("openspec/", "docs/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
+CONDUCTOR = ("claude-sonnet-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("conformance", "adversarial")
 # Each old-layout path of a change, by its name in the change's folder.
@@ -162,6 +163,18 @@ CAFFEINATE = "caffeinate"
 LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
+# The tools a Claude worker starts with, by `--tools`; any other station takes
+# `WORKER_TOOLS`. Why: 0100-worker-diet design D1.
+STATION_TOOLS = {
+    "cut": ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"),
+    "converge": ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"),
+    "probe": ("Bash", "Read"),
+}
+WORKER_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill")
+# Only these stations wait past 5 minutes. Why: 0100-worker-diet design D3.
+CACHE_HOUR = ("cut", "converge")
+# A Claude worker's error for a tool its station lacks. Why: 0100-worker-diet design D5.
+MISSING = "No such tool available"
 COMMANDS = (
     *("git", "uv", "make", "python3", "openspec", "gh", "grep", "sed", "awk"),
     *("head", "tail", "cat", "ls", "wc", "echo", "mkdir", "rmdir", "date", "test"),
@@ -2370,13 +2383,15 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` with no table of
+    the supervisor's on Claude, `SUPERVISOR`, and converge's on Claude, `CONDUCTOR`,
+    when its table names neither. A worker of `WORKERS` with no table of
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
     A table no executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
-    design D1; 0095-converge-roles design D2; 0097-cross-model design D3.
+    design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
+    0100-worker-diet design D8.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2401,6 +2416,8 @@ def _models(
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
+    if station == "converge" and executor == "claude" and model is effort is None:
+        model, effort = CONDUCTOR
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
     codex = executor == "codex" and (station not in WORKERS or own)
@@ -2940,18 +2957,20 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
 
 
 def reach(primary: Path) -> list[Path]:
-    """Return what a worker may edit: the primary and each linked worktree.
+    """Return what a worker may edit: the primary and each open worktree.
 
-    A path inside another stays covered and unlisted. A listed path a worker swaps
-    for a link halts the next Codex spawn. Why: 0050-codex-review design D5;
-    0096-codex-ready design D7.
+    An open worktree is an open version's or a queued cut's. A path inside another
+    stays covered and unlisted. A listed path a worker swaps for a link halts the
+    next Codex spawn. Why: 0050-codex-review design D5; 0096-codex-ready design D7;
+    0100-worker-diet design D4.
     """
     root = primary.resolve()
     if _common_dir(root) is None:
         return [root]
+    live = {version.change for version in open_versions(root)} | set(_cuts(root))
     trees = [root]
-    for path in sorted(_worktrees(root).values()):
-        if not any(path.is_relative_to(tree) for tree in trees):
+    for branch, path in sorted(_worktrees(root).items(), key=lambda item: item[1]):
+        if branch in live and not any(path.is_relative_to(tree) for tree in trees):
             trees.append(path)
     return trees
 
@@ -3007,10 +3026,12 @@ def worker_settings(
     common: Path | None,
     network: list[str],
 ) -> str:
-    """Return the Claude worker's sandbox settings, as JSON.
+    """Return the Claude worker's settings, as JSON: its sandbox, the operator's off.
 
-    A sandbox that cannot start ends the worker. Why: 0052-security-hardening design
-    D1, 0053-sandbox-patch design D1 and 0056-loopback-removal design D1.
+    A sandbox that cannot start ends the worker. The operator's plugins, output style
+    and auto-memory start nothing. Why: 0052-security-hardening design D1,
+    0053-sandbox-patch design D1, 0056-loopback-removal design D1 and
+    0100-worker-diet design D2.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
@@ -3023,7 +3044,40 @@ def worker_settings(
         },
         "network": {"allowedDomains": [*NETWORK, *network]},
     }
-    return json.dumps({"sandbox": sandbox})
+    return json.dumps(
+        {
+            "sandbox": sandbox,
+            "enabledPlugins": _plugins_off(),
+            "outputStyle": "default",
+            "autoMemoryEnabled": False,
+        }
+    )
+
+
+def _plugins_off() -> dict[str, bool]:
+    """Return each plugin the operator's Claude settings name, mapped to False.
+
+    User settings merge under `--settings`, so a plugin is off only by name; a file
+    it cannot read names none. Why: 0100-worker-diet design D2.
+    """
+    folder = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+    try:
+        settings = json.loads((Path(folder) / "settings.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    plugins = settings.get("enabledPlugins") if isinstance(settings, dict) else None
+    return dict.fromkeys(plugins, False) if isinstance(plugins, dict) else {}
+
+
+def tools_for(station: str) -> tuple[str, ...]:
+    """Return the tools a Claude worker of `station` starts with.
+
+    e.g. "probe-codex" → ("Bash", "Read"); "converge-adversarial" → `WORKER_TOOLS`.
+    Why: 0100-worker-diet design D1, C5.
+    """
+    if station.startswith("probe"):
+        return STATION_TOOLS["probe"]
+    return STATION_TOOLS.get(station, WORKER_TOOLS)
 
 
 def _brief_refused(brief: Path, executor: str, remedy: str) -> str | None:
@@ -3093,6 +3147,8 @@ def argv(
     lines: ShipLines | None = None,
     brief: Path | None = None,
     mailbox: Path | None = None,
+    *,
+    station: str | None = None,
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
@@ -3102,8 +3158,9 @@ def argv(
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
     or a `.minions` that is a link, stops with 1. A converge's `mailbox` is one more
-    write, through its sandbox alone. Why: 0082-cut-station design D5;
-    0097-cross-model design D6.
+    write, through its sandbox alone. A Claude worker of a `station` starts with its
+    tools and cache lifetime; with none, the host's. Why: 0082-cut-station design D5;
+    0097-cross-model design D6; 0100-worker-diet design D1–D4.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
@@ -3124,8 +3181,11 @@ def argv(
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         allowed += [f"Edit(/{path})" for path in edits]
+        hour = "ENABLE_PROMPT_CACHING_1H=1"
+        ttl = hour if station in CACHE_HOUR else "FORCE_PROMPT_CACHING_5M=1"
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
+            *((ttl,) if station else ()),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
@@ -3142,6 +3202,8 @@ def argv(
             # No MCP server starts, the operator's own included.
             # Why: 0076-context-cost design D2.
             *("--strict-mcp-config",),
+            *("--exclude-dynamic-system-prompt-sections",),
+            *(("--tools", ",".join(tools_for(station))) if station else ()),
             *("--allowedTools", *allowed, "--disallowedTools", *denied),
         ]
     # Why: 0050-codex-review design D5.
@@ -3346,11 +3408,7 @@ def denials(log: Path) -> list[str]:
             if denied := _codex_denied(_item(event, "item.completed")):
                 found.append(denied)
                 continue
-            message = event.get("message") if isinstance(event, dict) else None
-            content = message.get("content") if isinstance(message, dict) else None
-            for block in content if isinstance(content, list) else []:
-                if not isinstance(block, dict):
-                    continue
+            for block in _blocks(event):
                 if block.get("type") == "tool_use":
                     uses[str(block.get("id"))] = _call(block)
                 elif block.get("type") == "tool_result" and block.get("is_error"):
@@ -3359,6 +3417,73 @@ def denials(log: Path) -> list[str]:
                         use = uses.get(str(block.get("tool_use_id")))
                         found.append(use or text.strip())
     return found
+
+
+def _blocks(event: object) -> list[dict[str, object]]:
+    """Return a Claude event's message content blocks; any other event's, none."""
+    message = event.get("message") if isinstance(event, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    listed = content if isinstance(content, list) else []
+    return [block for block in listed if isinstance(block, dict)]
+
+
+def lacked(log: Path) -> list[str]:
+    """Return each tool a worker's log asked for and its station lacks.
+
+    A result whose use the log lacks is named by its text. Why: 0100-worker-diet
+    design D5.
+    """
+    names: dict[str, str] = {}
+    found: list[str] = []
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"tool_use"' not in line and MISSING not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            for block in _blocks(event):
+                if block.get("type") == "tool_use":
+                    names[str(block.get("id"))] = str(block.get("name"))
+                elif block.get("type") == "tool_result" and block.get("is_error"):
+                    text = _text(block.get("content"))
+                    if MISSING in text:
+                        name = names.get(str(block.get("tool_use_id")))
+                        found.append(name or text.strip())
+    return found
+
+
+def first_turn(log: Path) -> int | None:
+    """Return the context a worker's first turn read: its input and cache tokens.
+
+    e.g. a first `assistant` usage of 3 input, 15000 cache-read and 4000 cache-write
+    tokens → 19003. A Codex log gives its first `turn.completed` input tokens; else
+    None. Why: 0100-worker-diet design D6.
+    """
+    kinds = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+    codex = None
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            try:
+                event = json.loads(line) if '"usage"' in line else None
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            message = event.get("message")
+            usage = message.get("usage") if isinstance(message, dict) else None
+            if event.get("type") == "assistant" and isinstance(usage, dict):
+                return sum(_count(usage.get(kind)) for kind in kinds)
+            usage = event.get("usage")
+            if isinstance(usage, dict) and event.get("type") == "turn.completed":
+                codex = _count(usage.get("input_tokens")) if codex is None else codex
+    return codex
+
+
+def _count(value: object) -> int:
+    """Return a usage count, 0 when it is no whole number."""
+    return value if isinstance(value, int) else 0
 
 
 def _codex_limit(event: dict[str, object]) -> str | None:
@@ -3580,6 +3705,25 @@ def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
     except OSError:
         return None
     return mark
+
+
+def _record_repo(primary: Path) -> None:
+    """Add the primary to the home folder's list of repos a run started in, once.
+
+    The review metrics read it; no worker writes there. A home folder that refuses
+    it records nothing. Why: 0100-worker-diet design C1, D12.
+    """
+    path = Path.home() / KEPT_ORIGINS / "repos"
+    line = str(primary.resolve())
+    try:
+        path.parent.mkdir(mode=0o700, exist_ok=True)
+        if path.is_file() and line in path.read_text(errors="replace").splitlines():
+            return
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
+        with os.fdopen(os.open(path, flags, 0o600), "a") as file:
+            file.write(f"{line}\n")
+    except OSError:
+        return
 
 
 def _unmark(pin: dict[str, Any], mark: Path | None) -> None:
@@ -3835,9 +3979,10 @@ class Run:
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Return the denials, or None when a timeout or a failed exit halted `who`. A
-        cutter's `brief` goes to `argv`, and so does a converge's `mailbox`, which is
-        served while it runs. Why: 0097-cross-model design D5.
+        Return the denials, or None when a timeout, a tool its station lacks or a
+        failed exit halted `who`. A cutter's `brief` goes to `argv`, and so does a
+        converge's `mailbox`, which is served while it runs.
+        Why: 0097-cross-model design D5; 0100-worker-diet design D5.
         """
         between = None if mailbox is None else self.server(who, cwd, mailbox)
         code, killed, out, denied = self.worker(
@@ -3847,6 +3992,11 @@ class Run:
             self.halt(
                 who, f"{station} timed out after {TIMEOUT}s; its group was killed"
             )
+            return None
+        # Why: 0100-worker-diet design D5.
+        if missing := lacked(out):
+            named = ", ".join(missing)
+            self.halt(who, f"{station} asked for a tool its station lacks: {named}")
             return None
         if code != 0:
             self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
@@ -3901,12 +4051,13 @@ class Run:
         """
         executor, model, effort = models
         held = (repo or self.repo, self.lines)
+        given = (executor, prompt, cwd, model, effort, *held)
         if mailbox is not None:
-            command = argv(executor, prompt, cwd, model, effort, *held, mailbox=mailbox)
+            command = argv(*given, mailbox=mailbox, station=station)
         elif brief is not None:
-            command = argv(executor, prompt, cwd, model, effort, *held, brief=brief)
+            command = argv(*given, brief=brief, station=station)
         else:
-            command = argv(executor, prompt, cwd, model, effort, *held)
+            command = argv(*given, station=station)
         other = f" · executor {executor}" if executor != self.executor else ""
         shown = f" · effort {effort}" if effort else ""
         self.log.event(
@@ -5265,8 +5416,9 @@ class Run:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
         Its log names no MCP server, and a Codex probe then passes `probe_checker`. A
-        failure halts `who`; a pass adds `executor` to `probed`.
-        Why: 0063-rejoin design D3; D51; 0096-codex-ready design D9.
+        failure halts `who`; a pass adds `executor` to `probed`, its check line naming
+        the first turn's context. Why: 0063-rejoin design D3; D51; 0096-codex-ready
+        design D9; 0100-worker-diet design D6.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
@@ -5299,11 +5451,15 @@ class Run:
             denied = self.spawn(who, station, scratch, PROBE, models, repo)
             with self.guard:
                 out = self.outs[who, station]
+            # Why: 0100-worker-diet design D6.
+            turn = first_turn(out)
+            shown = "" if turn is None else f" · first turn {turn} tokens"
             if denied is not None and self.judge(
                 who,
                 station,
                 check_probe(scratch, mark) or mcp_started(executor, out),
                 denied,
+                shown,
             ):
                 if executor != "codex" or self.probe_checker(executor, who):
                     self.probed.add(executor)
@@ -5722,6 +5878,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         (active / "start").write_text(started)
         (active / "pid").write_text(str(os.getpid()))
+        _record_repo(primary)
         conductor = Run(primary, executor)
         try:
             code = conductor.ship()

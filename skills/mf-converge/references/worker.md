@@ -5,10 +5,10 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 
 ## Conformance and adversarial
 
-**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in the bundle's
-`## Debt cards on the diff's files` holds. The station names `repeat of <id>` in its **Related** field and grades it
-up one level: adversarial one step, a conformance `nit` or `drift` to `blocking`. The station judges the match; the
-conductor judges nothing. No worker reads `.minions/debt.md`.
+**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in `debt-cards.md` holds. The
+station names `repeat of <id>` in its **Related** field and grades it up one level: adversarial one step, a conformance
+`nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing. No worker reads
+`.minions/debt.md`.
 
 **Conformance runs these passes after its sections**, and its Summary says each ran:
 
@@ -19,7 +19,8 @@ conductor judges nothing. No worker reads `.minions/debt.md`.
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
-adversarial with the source around them. An **amend round** judges its whole range with the full plan in its reading set.
+adversarial with the source around them.
+In an **amend round**, conformance judges its whole range with the full plan in its reading set.
 In it, each checker re-judges every card its file holds `fixed` or `wontfix`, since its range holds converge's own
 unverified fix as well as the amend; an `open` card stays `open`. A `fixed` card goes `verified`, or `open` with a
 one-line reason, and one whose **Fix** size includes `a test` goes `open` when its **Status** note holds no red run
@@ -42,7 +43,7 @@ project: <repository name>
 branch: <branch name>
 head: <the commit this round judged>
 reviewed: <YYYY-MM-DD>
-round: <int, bumped by each verify pass>
+round: <int, bumped by each verify round, never by a pickup check>
 open_blocking: <int>
 verdict: clean | changes-requested
 mode: parallel | sequential | by-rule
@@ -77,7 +78,7 @@ anchors included.
 **Status is `open → fixed → verified`, and only the checker converges.**
 
 ```
-  open ──fix pass──▶ fixed ───────────────────┬─▶ verify pass, the same checker:
+  open ──fix pass──▶ fixed ───────────────────┬─▶ verify pass, the checker or a pickup check:
     │                                         │     fixed → verified · wontfix → accepted
     └──fix pass──▶ wontfix + justification ───┘     an amend card's wontfix stays, till an amend settles it
                                                     either → open again, with a one-line reason
@@ -160,8 +161,10 @@ field — never a heading, since the debt's headings are its changes. This refer
 and name things rather than count them: "the conformance and adversarial files", not "the two files".
 
 **An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
-`design.md` by its path, `openspec/changes/<change-id>/design.md`. The fixer never edits those files, and converge
-halts on such a card.
+`design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose
+outside its `## Decisions` section, which the fixer corrects.
+The fixer never edits `tasks.md`, nor that section, a row of its table, a decision's D-id or a `## ` heading, and
+converge halts on such a card.
 
 ```
 - **S1 — The upload reads a file of any size into memory**

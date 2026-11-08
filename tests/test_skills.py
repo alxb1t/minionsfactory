@@ -442,6 +442,7 @@ def test_the_packets_hold_what_each_role_reads() -> None:
         "tasks.md",
         "specs/",
         "bundle.md",
+        "debt-cards.md",
         "AGENTS.md",
         "CODING_STANDARDS.md",
         "CODE_STANDARDS.md",
@@ -450,7 +451,8 @@ def test_the_packets_hold_what_each_role_reads() -> None:
         "docs/adr/*.md",
     ]
     adversarial = _packet(references / "generic-adversarial.md")
-    assert "THREAT_MODEL.md" in adversarial and "bundle.md" in adversarial
+    assert "THREAT_MODEL.md" in adversarial and "debt-cards.md" in adversarial
+    assert "bundle.md" not in adversarial
 
 
 def test_resource_scan_reports_missing_empty_and_escaping_targets(
@@ -497,7 +499,7 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
 # 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7;
 # 0094-lighter-converge design D5, D8; 0095-converge-roles design D8, D10;
-# 0097-cross-model design D8.
+# 0097-cross-model design D8; 0100-worker-diet design D7.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
@@ -521,6 +523,12 @@ _METRICS_SCRIPTS = [
     ("mf-converge", "scripts/open_cards.py"),
     ("mf-converge", "../mf-ship/scripts/conduct.py"),
     ("mf-converge", "scripts/overlap.py"),
+    ("mf-build", "../mf-converge/scripts/bundle.py"),
+    ("mf-cut-change", "../mf-converge/scripts/bundle.py"),
+]
+_BUNDLE_UNNAMED = [
+    "skills/mf-build/SKILL.md: ../mf-converge/scripts/bundle.py: not named",
+    "skills/mf-cut-change/SKILL.md: ../mf-converge/scripts/bundle.py: not named",
 ]
 
 
@@ -580,6 +588,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
+        *_BUNDLE_UNNAMED,
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -606,6 +615,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
+        *_BUNDLE_UNNAMED,
     ]
 
 

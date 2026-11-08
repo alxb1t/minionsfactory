@@ -88,8 +88,11 @@ def test_a_bundle_holds_what_the_change_cites(
         "Every decision\n\n- D1 · One feature is one change\n- D2 · Two rules hold\n"
         "- D48 · A known home\n"
     )
-    assert "A's text.\n\n#### Scenario: a\n- a" in required
-    assert "B's text." in required and "C's text." not in required
+    assert required.startswith("Requirements the delta modifies or removes, as diffs\n")
+    assert "```diff\n--- living\n+++ delta\n" in required
+    assert "-A's text.\n" in required and "+New A.\n" in required
+    assert "-### Requirement: B\n-\n-B's text.\n" in required
+    assert "C's text." not in required
 
     # A decisions file with no heading goes in whole.
     decisions.write_text("# Decisions\n\nNone yet.\n")
@@ -105,12 +108,68 @@ def test_a_bundle_holds_what_the_change_cites(
     assert _run(capsys, out)[0] == 0
     assert "- `Z` — not in the living spec" in out.read_text()
 
+    # A long requirement, changed past its first lines, keeps its title above the diff;
+    # one the delta leaves as it stood says so.
+    body = "".join(f"Line {n}.\n\n" for n in range(1, 9))
+    living = tmp_path / "openspec" / "specs" / "sdd" / "spec.md"
+    living.write_text(f"## Requirements\n\n### Requirement: Long\n\n{body}Last.\n")
+    same = "### Requirement: Same\n\nSame.\n"
+    living.write_text(living.read_text() + "\n" + same)
+    delta = (
+        f"## MODIFIED Requirements\n\n### Requirement: Long\n\n{body}Changed.\n\n{same}"
+    )
+    _change(tmp_path, design, delta)
+    assert _run(capsys, out)[0] == 0
+    required = out.read_text().split("\n## ")[-1]
+    assert "### Requirement: Long\n\n```diff\n" in required
+    assert "-Last.\n" in required and "+Changed.\n" in required
+    assert "### Requirement: Same\n\nunchanged\n" in required
+
     # A change citing nothing, with no delta, writes `None.` under each empty section.
     shutil.rmtree(tmp_path / "openspec" / "changes" / "0001-a" / "specs")
     decisions.write_text("")
     _change(tmp_path, "No citation.\n")
     assert _run(capsys, out) == (0, "bundle: 0 decisions cited · 0 requirements\n")
     assert out.read_text().count("\n\nNone.\n") == 3
+
+
+def test_decisions_print_what_the_files_cite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    (repo / "docs" / "decisions.md").write_text(_DECISIONS)
+    brief = repo / "brief.md"
+    brief.write_text("Per D2 · Two rules.\n")
+    tasks = repo / "tasks.md"
+    tasks.write_text("Per [D48](docs/decisions.md#d48--x).\n")
+
+    assert bundle.main(["--decisions", str(brief), str(tasks)]) == 0
+
+    assert capsys.readouterr().out == (
+        "## Decisions the change cites\n\n"
+        "### D2 · Two rules hold\n\nD2's body.\n\n"
+        "### D48 · A known home\n\nD48's body.\n\n"
+        "## Every decision\n\n- D1 · One feature is one change\n"
+        "- D2 · Two rules hold\n- D48 · A known home\n"
+    )
+    assert sorted(path.name for path in repo.iterdir()) == [
+        "brief.md",
+        "docs",
+        "tasks.md",
+    ]
+
+    gone = repo / "gone.md"
+    assert bundle.main(["--decisions", str(gone)]) == 2
+    said = f"bundle: cannot bundle — {gone}: No such file or directory\n"
+    assert capsys.readouterr().out == said
+
+    # The positional form takes both or neither, and neither beside `--decisions`.
+    for args in (["0001-a"], ["0001-a", "b.md", "--decisions", str(brief)], []):
+        with pytest.raises(SystemExit) as raised:
+            bundle.main(args)
+        assert raised.value.code == 2
 
 
 def test_a_bundle_that_cannot_be_written_is_refused(

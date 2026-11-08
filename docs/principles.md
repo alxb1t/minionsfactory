@@ -12,6 +12,7 @@ another way is a [decision](decisions.md).
 - **Conductor** — whoever dispatches stations and reads their results from disk: a person, `mf-converge` for
   the check loop, or `mf-ship`'s script for a whole run.
 - **Checker** — a station that judges and edits nothing but its own findings file: conformance, adversarial.
+  A pickup check is one checker for both files.
 - **Findings file** — a checker's one output, `.minions/changes/<change-id>/<role>.md`, its verdict in the
   frontmatter.
 - **Round** — one pass of the checkers over a frozen diff. A fix opens the next.
@@ -51,8 +52,8 @@ start, read-only except for their own findings file.**
 
 ### `fixed` is a claim; only the checker writes `verified`
 
-**The fixer marks a finding `fixed` and touches nothing else. The same station, on its verify pass, promotes it to
-`verified` or reopens it.**
+**The fixer marks a finding `fixed` and touches nothing else. The same station on its verify pass,
+or a pickup check, promotes it to `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
 - **Held by:** `mf-converge` Steps 6 and 7; its verify reference reopens a test fix with no red run.
@@ -77,8 +78,8 @@ checker: `surfaces.py` recomputes it.**
 
 ### Every edit opens a round
 
-**A fix is followed by a fresh verify pass, counted. At the cap the loop stops: what is left goes to the debt or
-halts.**
+**A fix is followed by a fresh verify pass, counted — a pickup's by one pass outside the cap. At the cap the loop stops:
+what is left goes to the debt or halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
 - **A merge or an amend:** a catch-up over merges and amends, and an answered halt, counts its own rounds: one judge
@@ -144,12 +145,14 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - `mf-release`'s read-only remote CI lookup for its `Gate:` line;
 - the bundled metrics script's read-only git reads of its own package — `git ls-files` and `git describe` — or of
   the `VERSION` at its release's root ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
-- the review-metrics station's read-only reads of the `.minions/changes/` of repos the operator names — in a repo no
+- the review-metrics station's read-only reads of the `.minions/changes/` of repos the operator names
+  or a run started in — in a repo no
   run has moved, its `.minions/findings/` and `.minions/runs/` — and of the operator's Codex sessions, and its page and `review-metrics.json` written to the path the operator
   gives — neither the repos nor the path named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
-  ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it, the
+  ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it,
+  the list of repos a run started in, `repos`, the
   default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, and the
   queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests, and a converge worker's
   checker mailbox, which that worker writes;

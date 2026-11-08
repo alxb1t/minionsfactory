@@ -14,7 +14,9 @@ root, through `skills/mf-converge/scripts/gate_run.py`, which records a green ru
 dry run's hash, the date and the seconds — and on a later call reuses it when the worktree is clean, its tree is that tree,
 and `make -n gate` prints the same lines. A red run SHALL record nothing, and no record SHALL be written through a linked
 `.minions/gate` or staged record, and `mf-release`'s gate after its fold SHALL run
-fresh. Each SHALL print the output of `make -n gate` before its first gate run in a session. Each SHALL halt,
+fresh. `gate_run.py` SHALL run `make gate` and its dry run with no `VIRTUAL_ENV` in their environment. On a green run it
+SHALL print its summary line alone, holding make's output back; on a red run it SHALL print make's output, then its summary
+line. Each SHALL print the output of `make -n gate` before its first gate run in a session. Each SHALL halt,
 naming the root `Makefile`, when that file is missing, has no `gate` target, or has a `gate` target that runs
 no command. No shipped skill SHALL name `.minions/minions.toml`.
 
@@ -35,6 +37,14 @@ no command. No shipped skill SHALL name `.minions/minions.toml`.
 - **THEN** it runs `make gate`
 - **AND WHEN** `mf-release` gates the tree it folded
 - **THEN** it runs `make gate`, whatever stands recorded
+
+#### Scenario: A gate run from a uv environment
+- **WHEN** `gate_run.py` runs with `VIRTUAL_ENV` set, and the gate's recipe echoes `VIRTUAL_ENV`
+- **THEN** the recipe sees none
+- **AND WHEN** the gate is green
+- **THEN** `gate_run.py` prints one line, `gate: green — …`
+- **AND WHEN** the gate is red
+- **THEN** it prints make's output, then `gate: red — …`
 
 ### Requirement: The cut and the build share one input contract
 
@@ -170,12 +180,12 @@ halts at Step 9. A spec scenario the code contradicts SHALL stay `blocking`. Adv
 
 ### Requirement: A repeated finding escalates
 
-Each station SHALL read the debt cards its bundle holds, `bundle.md`'s `## Debt cards on the diff's files`. A finding that
+Each station SHALL read the debt cards on the diff's files, `.minions/changes/<change-id>/debt-cards.md`. A finding that
 repeats a debt card SHALL name that card's id in its **Related** field as `repeat of <id>`, and SHALL go up one level:
 adversarial by one step, a conformance `nit` or `drift` to `blocking`.
 
 #### Scenario: Converge names the repeat rule
-- **WHEN** a station's finding describes a defect a debt card in its bundle already holds
+- **WHEN** a station's finding describes a defect a card in `debt-cards.md` already holds
 - **THEN** its **Related** field names `repeat of <id>`
 - **AND** it goes up one level: adversarial by one step, a conformance `nit` or `drift` to `blocking`
 
@@ -199,7 +209,9 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 
 `skills/mf-converge/SKILL.md` SHALL have the conductor write `.minions/changes/<change-id>/status_log.md`: one line
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, each line and run heading written by
-`skills/mf-converge/scripts/stamp.py`, which takes the clock's time. Each run SHALL open
+`skills/mf-converge/scripts/stamp.py`, which takes the clock's time. One `stamp.py` call MAY write several events, each its
+own line, inserted so the last given is on top; the conductor SHALL write in one call the events it has with no command
+between them. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
 `start`, `freeze`, `fan-out`, `verdicts`, `shadow`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
@@ -214,6 +226,10 @@ on and the model and effort its worker was given, `default` where none, and `tok
 - **THEN** it inserts one line for that event under the latest `## Run N` heading, written by
   `skills/mf-converge/scripts/stamp.py`, which takes the clock's time
 - **AND** the newest run and the newest line are on top, and no earlier line changes
+
+#### Scenario: Several events in one call
+- **WHEN** `stamp.py` is given the events `round 1 · verdicts — conformance …` and `round 1 · verdicts — adversarial …`
+- **THEN** the log holds both lines under the latest heading, adversarial's on top, each with the clock's time
 
 #### Scenario: A round's verdicts
 - **WHEN** a round's conformance and adversarial files are read, each written by its worker
@@ -580,13 +596,16 @@ Bootstrap SHALL write that file from its template and retain the existing collis
 link `CODING_STANDARDS.md` and `CONTRIBUTING.md` as mandatory context, and `docs/decisions.md` and `THREAT_MODEL.md`
 as context for designing, building and reviewing; bootstrap SHALL halt when a `CODING_STANDARDS.md`,
 `CODE_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md`, `ARCHITECTURE.md` or `docs/decisions.md` already exists.
-Cut, build, converge and release SHALL explicitly read it and the mandatory context it identifies before work.
+Cut, build and release SHALL explicitly read it and the mandatory context it identifies before work; the converge conductor
+SHALL read it and the change, and no other mandatory context.
 Build, and converge for its conformance worker, SHALL also read a root `CODING_STANDARDS.md`,
 `CODE_STANDARDS.md` or `CONTRIBUTING.md` that `AGENTS.md` does not name. A contradiction between those files SHALL
 go to the person: conformance cards it as drift, and the build halts on one that decides its phase's code. No filename
 SHALL take precedence over another.
-Cut and build SHALL read the architecture decisions and the threat model — the documents `AGENTS.md` names, else
-`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. Converge SHALL hand its conformance
+Cut and build SHALL read, of `docs/decisions.md`, the index `skills/mf-converge/scripts/bundle.py --decisions` prints and,
+in full, each decision their source cites — the cut's brief, the build's change directory — and each other decision the
+index shows their work touches; and other architecture documents — `ARCHITECTURE.md`, `docs/adr/*.md` — whole. They SHALL
+read the principles and the threat model when a task of their work names the file. Converge SHALL hand its conformance
 worker, in place of `docs/decisions.md`, the decisions the change cites, in full, and an index of all, as its bundle holds them,
 and other architecture documents — `ARCHITECTURE.md`, `docs/adr/*.md` — whole; it SHALL hand its adversarial worker the threat
 model. The build SHALL halt on a phase that contradicts a decision in force, unless a task of the change amends that decision.
@@ -619,6 +638,11 @@ host-specific import syntax.
 - **WHEN** converge dispatches its conformance worker in a repo whose `docs/decisions.md` has `### D` headings
 - **THEN** the worker reads the decisions the change cites, in full, and the index from `bundle.md`, and not the whole file
 - **AND** the adversarial worker reads `THREAT_MODEL.md`, and no decision
+
+#### Scenario: The build's decisions
+- **WHEN** `bundle.py --decisions` is given a change's proposal, design and tasks, which link D2 of a `docs/decisions.md`
+  holding D1 and D2
+- **THEN** it prints D2 in full and an index naming D1 and D2, and writes no file
 
 #### Scenario: A phase contradicts a decision in force
 - **WHEN** a phase's tasks would break a decision in the repo's `docs/decisions.md`, and no task amends it
@@ -1371,8 +1395,9 @@ write no findings file and hold no verdict.
 ### Requirement: The review-metrics station charts past findings, read-only
 
 `skills/mf-review-metrics/scripts/review_metrics.py` SHALL read the repos named in
-`$XDG_CONFIG_HOME/minionsfactory/review-metrics.toml`, else `~/.config/minionsfactory/review-metrics.toml`, or in
-`--config` and `--repo`, and SHALL halt naming the config path when neither names a repo. It SHALL read each repo's
+`$XDG_CONFIG_HOME/minionsfactory/review-metrics.toml`, else `~/.config/minionsfactory/review-metrics.toml`, and each repo
+`conduct.py run` recorded in `~/.mf-ship-origin/repos` that still holds `.minions/`, once each; or those `--config` and
+`--repo` name, a `--repo` reading no record; and SHALL halt naming the config path when none names a repo. It SHALL read each repo's
 `.minions/changes/<change-id>/` files and its worker logs, `.minions/changes/<change>/logs/<stamp>-<station>.log` and
 `<stamp>-<station>-<n>.log` — in a repo no run has moved, the old `.minions/findings/` and `.minions/runs/<stamp>/<change>_<station>.log`
 and `-<n>.log` alike — and the operator's Codex sessions,
@@ -1381,15 +1406,23 @@ parse each field it can, record a field it cannot as a gap —
 never a zero — and write one self-contained HTML page, with no script, to the config's `out` or `--out`. It SHALL read a change's
 `conformance.md`, else its `review.md`, and its `adversarial.md`, else its `security.md`, and SHALL record each role by the name
 its file or line carries, with its file's `executor:` and `model:`. The page
-SHALL hold a table per repo and per role, executor and model, a cost table per repo — each change's stations, the mailbox's
-checkers among them, with their dollars, turns, tokens and seconds — charts over changes drawn by `mf-build`'s `chart()`, and the
+SHALL hold a table per repo and per role, executor and model, with each group's median duration and median tokens, a cost
+table per repo — each change's stations, the cut, the supervisor and the mailbox's checkers among them, with their dollars,
+turns, tokens, seconds and first-turn context — charts over changes drawn by `mf-build`'s `chart()`, and the
 list of fields each repo lacked. A log's dollars and tokens
 SHALL be its last result event's cumulative `total_cost_usd` and `modelUsage`, its turns and seconds the sum over its result events;
 a Codex JSON log's tokens SHALL be the sum over its `turn.completed` events of their input and output tokens, its dollars those
 tokens priced by `skills/mf-review-metrics/prices.toml` under the model its spawn line names, a gap with no such row, and its
-turns and seconds gaps;
+turns and seconds gaps; a log's **first-turn context** SHALL be its first assistant event's input, cache-read and cache-write
+tokens, or a Codex log's first `turn.completed` input tokens;
 a station with no log and a log with neither result nor `turn.completed` event SHALL be a gap, and a station the run log shows spawned more times than
-the logs read SHALL be marked `<read> of <spawns>`. The status log's tokens SHALL be read per role, in every form a `verdicts` line
+the logs read SHALL be marked `<read> of <spawns>`. A **worker** SHALL be each subagent a converge log's `task_started` event
+names, with its role and round read from the event's description, `<role> round <N>`, a gap where it names none, its model
+and first-turn context from its assistant events, and its tokens a gap, as no event holds a subagent's final output count;
+and each mailbox checker's log, its tokens its last `result` event's `usage`, or its `turn.completed` events', else a gap. A
+worker's run SHALL be the status log's run whose window of its round holds its first event, else a gap. A worker's dollars SHALL be its tokens priced by `prices.toml` under its model — input, cache read at `cached_input`, the
+5-minute cache write at `cache_write`, the 1-hour at `cache_write_1h`, output — a gap with no row or no price a token needs.
+The status log's tokens SHALL be read per role, in every form a `verdicts` line
 holds; a line naming both roles SHALL be recorded under the role `both`, credited to neither. A Codex worker's tokens SHALL be read from its session — the
 last `token_count` event's totals, its model and effort from `turn_context` — matched to its round by its parent's `cwd` — the change's worktree, or the primary
 when no other version's round overlaps — and the round's freeze-to-verdicts window, the guardian sessions left out, and never
@@ -1397,17 +1430,26 @@ into a round its line names `executor claude`. A role's executor SHALL be its fi
 `verdicts` line names. An **escape** SHALL be a card whose `repeat of` names an earlier change's card, traced to that change's
 round 1 by the card's role and that role's executor. The shadow overlap SHALL be `overlap.py`'s count over each change's
 round 1 and shadow files. It SHALL write `review-metrics.json`
-beside the page: `records`, one per round and role, with its executor, model, effort, tokens and source; `roles`, one per change
+beside the page: `records`, one per round and role, with its executor, model, effort, tokens, dollars — the workers' of its run, round and role
+summed, a gap when none or any is — and source; `workers`, one per worker; `stations`, one per change and station, with its dollars, turns,
+tokens, seconds and first-turn context; `roles`, one per change
 and role; `shadow`, one per change and role with a shadow file; `escapes`; and `headline`; a gap as `null`. The page and
 `headline` SHALL show four numbers: each executor's share of the shadow rounds' distinct blockers that it alone caught; escapes
 per version; dollars of converge per confirmed blocker, by the checkers' executor; and, per executor of the checker that raised
 it, the share of cards whose first verify after `fixed` read `verified`. It SHALL read no tier, and SHALL count a file's
 `inconclusive` sections only when the file holds `## Refuted`, the review method's mark. It SHALL give numbers, never a
-recommendation.
+recommendation. `conduct.py run` SHALL add its primary's path to `~/.mf-ship-origin/repos` at its start, when the file does not
+hold it, and no worker SHALL write that file.
 
 #### Scenario: No config
-- **WHEN** the script runs with no config file and no `--repo`
+- **WHEN** the script runs with no config file, no `--repo` and no `~/.mf-ship-origin/repos`
 - **THEN** it exits 2, naming the config path it looked for, and writes nothing
+
+#### Scenario: Every repo a run started in
+- **WHEN** the config names one repo and `~/.mf-ship-origin/repos` names it and another that holds `.minions/`
+- **THEN** both repos are read, the first once
+- **AND WHEN** `--repo` names a third
+- **THEN** the third alone is read
 
 #### Scenario: A repo of each layout
 - **WHEN** one repo holds `.minions/changes/<id>/` and another the old `.minions/findings/` and `runs/<stamp>/` logs
@@ -1427,6 +1469,17 @@ recommendation.
   converge spawns
 - **THEN** the converge cell holds the last cumulative dollars and the summed turns, marked as one log of two, and the build cell
   is a gap
+
+#### Scenario: The cut and the supervisor
+- **WHEN** a change's logs hold a `cut` log and a `supervise` log, each with a result event
+- **THEN** the cost table and `stations` hold a cut and a supervise entry with their dollars and first-turn context
+
+#### Scenario: Cost per worker, round and role
+- **WHEN** a converge log holds a subagent `conformance round 1` and one `adversarial round 1`, each message's assistant events
+  repeating the usage its stream opened with and a placeholder output count, and an amend run's log one `conformance round 1`
+- **THEN** `workers` holds a record for each, with its role, round, run and first-turn context, its tokens and dollars a gap
+- **AND** a Claude mailbox checker's tokens are its last `result` event's `usage`, its dollars those tokens priced
+- **AND** each run's round 1 conformance record sums its own run's workers' dollars alone
 
 #### Scenario: Cost from a Codex log
 - **WHEN** a station's log is a Codex JSON log with two `turn.completed` events, and its spawn line names a model the price
@@ -1455,7 +1508,8 @@ recommendation.
 
 #### Scenario: A page from findings
 - **WHEN** the script runs over repos with findings
-- **THEN** the page holds a section per repo, a table per role, executor and model, and charts, and no repo has changed
+- **THEN** the page holds a section per repo, a table per role, executor and model with its median duration and median
+  tokens, and charts, and no repo has changed
 
 ### Requirement: A cut reserves its id against every open version branch
 
@@ -1813,7 +1867,9 @@ checker the mailbox started, whose own log holds them.
 ### Requirement: A worker's reach stops at the repository
 
 A Codex worker's writable roots and a Claude worker's `Edit` and `--add-dir` SHALL be the primary and each open worktree,
-from `git worktree list`, and never the directory holding them. A listed worktree whose `.git` file does not point back to
+from `git worktree list`, and never the directory holding them. An open worktree SHALL be the worktree of an open version —
+a branch named by a change id, the default branch lacks, holding its change — or of a cut queued in the home folder's
+queue; any other listed worktree SHALL be no reach. A listed worktree whose `.git` file does not point back to
 an entry under the common directory SHALL be no worktree. `conduct.py` SHALL take the primary and its common directory once,
 before the first worker, and SHALL never take a worker's reach from git's answer in a worktree. It SHALL refuse a run in a
 checkout whose `.git` names another repository, and SHALL halt a Codex worker when the primary's `.git` no longer resolves to
@@ -1825,6 +1881,12 @@ then.
 #### Scenario: A sibling project
 - **WHEN** a worker runs in a repository whose parent holds other projects
 - **THEN** no writable root and no `--add-dir` names that parent
+
+#### Scenario: A released version's worktree
+- **WHEN** a version's branch is merged into the default branch and its worktree is kept
+- **THEN** no writable root and no `--add-dir` of a later worker names that worktree
+- **AND WHEN** a cut is queued and its worktree made
+- **THEN** a later worker's `--add-dir` names it
 
 #### Scenario: A worker forges a worktree entry
 - **WHEN** a worker adds an entry under the common directory's `worktrees/` naming a directory outside the repository
@@ -2470,20 +2532,28 @@ it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting 
 
 ### Requirement: A fresh worker reviews the plan before the cut commits
 
-After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand the change directory and `HEAD` to a fresh read-only worker,
-asked whether each task can be built as written, each `Verify:` pass after it, and each the search script did not run fail before
-it, save a `**HALT CHECK**`, which should hold. The cut SHALL fix a
+After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand a fresh read-only worker the **review packet**: the change
+directory, `HEAD`, the cut's notes file and one question — whether each task can be built as written, each `Verify:` pass
+after it, and each the search script did not run fail before it, save a `**HALT CHECK**`, which should hold. The reviewer
+SHALL start from the packet, opening another file only at a `path:line` the change or the notes cite. Its prompt SHALL give
+it a budget of 40 turns; a review that reaches it SHALL return its doubts so far under a first line `budget reached`, and the
+cut SHALL take each of them as a doubt still standing after the second review. The cut SHALL fix a
 simple doubt itself — a check that cannot pass or breaks `I19`, a reader a deletion missed, a task two readings would build
 differently — re-running the search script; a doubt that changes a settled decision, or one still standing after a second
 review, SHALL go to the person. A second review SHALL run only when a fix after the first — the cut's, the person's or the
 switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `decided by the cutter` row included, or adds or
-removes a task; a simple fix SHALL NOT be reviewed again. Every plan review SHALL be a new worker given the change directory,
-`HEAD` and the question; a message to an earlier reviewer SHALL NOT be a review. An unattended cut SHALL instead take such a doubt's recommended option when the brief says
+removes a task; a simple fix SHALL NOT be reviewed again. Before the first review, the cut SHALL stage the change directory
+and record its tree; a second review SHALL be given the packet and the change directory's diff since that tree, and SHALL
+judge that diff, and each task that cites a decision or a path the diff changes. Every plan review SHALL be a new worker given its packet; a message to an
+earlier reviewer SHALL NOT be a review. An unattended cut SHALL instead take such a doubt's recommended option when the brief says
 `decide: recommended`, adding a `decided by the cutter` row to the brief, and else SHALL halt in `cut.halt`, committing
 nothing. Before writing, the cut SHALL re-check each fact of the brief whose cited path changed in `<sha>..HEAD`,
 `<sha>` the brief's `At` line, and each fact citing no path, letting a fact on an unmoved path stand, and re-check every fact of a
-brief with no `At` line, or one whose `<sha>` `git rev-parse --verify` does not resolve to a commit; where the host starts fresh workers, up to four read-only helpers SHALL do that reading in parallel, one per
-area of moved facts and one per design question, a helper not back in five minutes having its facts read by the cut. Before
+brief with no `At` line, or one whose `<sha>` `git rev-parse --verify` does not resolve to a commit; where the host starts fresh
+workers, up to four read-only helpers SHALL do that reading in parallel, each on Sonnet 5.5 at `medium` effort where the host
+offers it, one per area of moved facts and one per design question, a helper not back in five minutes having its facts read by
+the cut. No helper SHALL write a file: the cut SHALL write each helper's answer, and each fact it reads for the design, to
+`.minions/changes/<change-id>/cut-notes.md`, and SHALL read that file in place of a file a helper already read. Before
 writing, the cut SHALL also `git grep` every symbol, key or file the change deletes or renames and name each reader in a task, and
 SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to a target's own test rule over `T1`–`T6`.
 
@@ -2505,6 +2575,11 @@ SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to
 - **WHEN** a brief's fact cites a path that changed since its `At` line
 - **THEN** the cut, or its helper, re-checks that fact at `HEAD` before writing
 
+#### Scenario: The helpers' answers
+- **WHEN** a helper answers a fact `moved to skills/x/SKILL.md:40`
+- **THEN** the cut writes that answer to `cut-notes.md`, and the helper writes no file
+- **AND** the review packet names `cut-notes.md`
+
 #### Scenario: A simple fix
 - **WHEN** the first review's only doubts are a check that cannot pass and a task two readings would build differently,
   and the cut's fixes change no decision and add or remove no task
@@ -2512,8 +2587,14 @@ SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to
 
 #### Scenario: A fix that adds a task
 - **WHEN** the cut's fix after the first review adds a task, or changes a `design.md` decision
-- **THEN** a second review runs, by a new worker given the change directory, `HEAD` and the question
+- **THEN** a second review runs, by a new worker given the packet and the change directory's diff since the first review
 - **AND** no message goes to the first reviewer
+
+#### Scenario: A review reaches its budget
+- **WHEN** a plan review reaches its 40th turn with one doubt found
+- **THEN** it returns that doubt under a first line `budget reached`
+- **AND** the cut takes the doubt as one still standing after the second review: the person's, or under the switch the
+  recommended option
 
 ### Requirement: The build refuses an edited Verify:
 
@@ -2720,24 +2801,31 @@ count as cut-only.
 
 ### Requirement: The converge fixer leaves the plan to the person
 
-`skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md` or `design.md`. A card whose fix needs either SHALL be
-set `wontfix`, naming the amend the person commits by the file's path: an **amend card**, as is any card whose **Fix** names the
-change's `tasks.md` or `design.md` by path. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
+`skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md`, nor its `design.md` save the prose a `drift` card
+names outside the `## Decisions` section, which it SHALL correct; it SHALL NOT edit that section, a row of its table, a decision's
+D-id or a `## ` heading. A card whose fix needs any of those SHALL be set `wontfix`, naming the amend the person commits by the
+file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md` by path, save a `drift`
+card's naming that prose. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
 pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds, and SHALL NOT turn it `accepted`; in an amend
 round, it SHALL turn an amend card the amend settled, its **Still true?** check showing the defect gone, `verified`, its note
 naming the amend. At Step 9,
 before the debt lock, every non-blocking amend card left `wontfix`, or `open` and `drift`, whose **Still true?** check still shows
 the defect, SHALL halt the run `amend needed — <card ids>`, writing nothing to the debt, save one *Converge keeps deferred work
 in one repository debt file* lets go on. The person's amend answers either halt.
-Step 7's verify round SHALL run `gate_check.py` as Step 1.6 does, after the gate.
+Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1.6 does, after the gate.
 
 #### Scenario: A fix that needs a `Verify:` changed
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
 - **THEN** the fixer edits neither file, sets the card `wontfix` naming the amend, and the round halts `amend needed`
 
+#### Scenario: Drift in the design's prose
+- **WHEN** the pickup picks a `drift` card whose **Fix** names a line of the change's `design.md` outside its `## Decisions`
+  section
+- **THEN** the fixer corrects that line and sets the card `fixed`; it is no amend card, and Step 9 halts on nothing for it
+
 #### Scenario: Drift that needs the design amended
-- **WHEN** the pickup round's fixer sets a `drift` card `wontfix`, naming an amend of the change's `design.md`
-- **THEN** the verify pass keeps it `wontfix`, and Step 9 halts `amend needed — <its id>`, writing no card to the debt
+- **WHEN** the pickup's fixer sets a `drift` card `wontfix`, naming an amend of a decision in the change's `design.md`
+- **THEN** the pickup check keeps it `wontfix`, and Step 9 halts `amend needed — <its id>`, writing no card to the debt
 - **AND WHEN** a `drift` card found after the pickup names the same amend in its **Fix**
 - **THEN** Step 9 halts on it too
 
@@ -2841,14 +2929,27 @@ converge fixer leaves the plan to the person* says; an amend card whose id an an
 since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
 other card. After both verdicts are
 clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
-sized `one line`, `a test` or `one line and a test`, and every `drift` card, fix them, and verify them in a normal
-round. It SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. One fresh worker, the **pickup
+check**, SHALL verify that fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
+adversarial's model when a picked card is adversarial's or `skills/mf-converge/scripts/surfaces.py` exits 1 over the fix's
+range — the fix touching a `## Surfaces` path of `THREAT_MODEL.md`, or an adversarial card not `verified` or `accepted` — else
+on conformance's. When the role whose model it needs is a mailbox role, converge SHALL instead verify the fix in a normal round,
+counted. The pickup check SHALL be no round: it SHALL set both findings files' `head:` and leave their
+`round:` as it stands, and a blocking card it leaves open SHALL go to a fix and a verify round counted against the cap. It
+SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
 it was fixed and the card's **Still true?** check shows the defect gone.
 
 #### Scenario: Converge names the one debt file and the pickup sizes
 - **WHEN** both verdicts are clean, a round remains under the cap, pickup has not run in this run, the run is not a
   catch-up round, and open non-blocking cards are sized `one line`, `a test` or `one line and a test`, or are `drift`
-- **THEN** converge fixes exactly those cards and verifies them in a normal round
+- **THEN** converge fixes exactly those cards and checks the fix by one pickup check
+
+#### Scenario: A pickup check
+- **WHEN** round 2 reads both files clean, and pickup picks a conformance `drift` card and an adversarial `medium` card
+- **THEN** one fresh worker, on adversarial's model at `medium` effort, judges both cards against the pickup's diff
+- **AND** both files' `head:` is `HEAD`, their `round:` stays 2, and no round 3 runs
+- **AND WHEN** the pickup check leaves a blocking card open
+- **THEN** converge sends it to a fix, and verifies in round 3
 
 #### Scenario: Converge writes the debt
 - **WHEN** the loop ends clean with non-blocking cards still not `verified`
@@ -3404,7 +3505,8 @@ catch-up round again. A run marked `· grant` that resumes SHALL stay a granted 
 
 `.minions/changes/<change-id>/models.toml` MAY hold `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`,
 each with a `model` and an `effort`, and the conformance and adversarial tables an `executor`; `[converge]` stays the
-conductor's, and MAY say `shadow = true`. `conduct.py` SHALL read them once with the run's plan. A checker table with no
+conductor's, and MAY say `shadow = true`. `conduct.py` SHALL read them once with the run's plan. A `[converge]` naming no
+model or effort SHALL run its conductor on Claude as `claude-sonnet-5-5` at `high`. A checker table with no
 `executor` SHALL run on converge's. It SHALL halt a version, before its worker starts, on a fixer table that names an
 `executor`, an `executor` it does not know, a checker table naming `executor = "codex"` with a `claude-*` model, or a `model` or
 `effort` holding anything
@@ -3413,18 +3515,25 @@ It SHALL pass in the converge prompt, before any grant clause, for conformance, 
 `and <role>=mailbox` for a checker whose executor differs from converge's, else `and <role>=<model>/<effort>` for a table that
 names a model or an effort, `default` for the one absent, with converge on Claude; then `and shadow=yes` under `shadow = true`. Converge SHALL put each model on its worker's call,
 send each `mailbox` role through `conduct.py checker`, and SHALL NOT read the models file itself. A fixer sent any blocking card
-SHALL run on adversarial's model and effort when adversarial runs on converge's host, and otherwise on the fixer's. A role given
+SHALL run on adversarial's model when adversarial runs on converge's host, and otherwise on the fixer's; the fixer SHALL run at
+the fixer's effort, `medium` when `fix=` names none. A verify worker SHALL run on its role's model at `medium`. A role given
 none, or a host whose worker call takes no model, SHALL run its worker on the conductor's model. The cut SHALL write the worker
 tables from the brief's `conformance`, `adversarial` and `fix` parts, each host as `executor`, and else conformance on the mid
-tier · high, adversarial on the strongest tier · high, the fixer on the mid tier · high; `[converge]` on the mid tier · medium
-unless the brief names converge's model; and `shadow = true` when the brief's line ends `shadow`, each mapped to the offered
-models.
+tier · high, adversarial on the strongest tier · high, the fixer on the mid tier · medium; `[converge]` on Sonnet 5.5 · high,
+where the session offers it, unless the brief names converge's model; and `shadow = true` when the brief's line ends `shadow`,
+each mapped to the offered models.
 
 #### Scenario: The converge prompt names each worker's model
 - **WHEN** a version's models file holds `[converge.adversarial]` with `model = "claude-opus-5-5"` and `effort = "high"`, and
   `[converge.fix]` with `model = "claude-sonnet-5-5"` and `effort = "high"`, and its converge runs on Claude
 - **THEN** its converge prompt reads `Run the mf-converge skill for change <change-id> and adversarial=claude-opus-5-5/high and
   fix=claude-sonnet-5-5/high.`
+
+#### Scenario: The conductor's default
+- **WHEN** a version's `[converge]` names no model and no effort, and converge runs on Claude
+- **THEN** its converge worker starts with `--model claude-sonnet-5-5` and `--effort high`
+- **AND WHEN** `[converge]` names `model = "claude-opus-5-5"`
+- **THEN** it starts on `claude-opus-5-5`
 
 #### Scenario: Converge on Codex
 - **WHEN** a version's `[converge]` names `executor = "codex"` and its models file holds a worker table naming no executor
@@ -3444,7 +3553,7 @@ models.
 
 #### Scenario: The fixer by grade
 - **WHEN** converge dispatches a fixer sent a blocking card, adversarial running on converge's host
-- **THEN** the fixer runs on adversarial's model and effort
+- **THEN** the fixer runs on adversarial's model, at the fixer's effort
 - **AND WHEN** it dispatches a fixer sent only non-blocking cards
 - **THEN** the fixer runs on the fixer's model and effort
 
@@ -3453,10 +3562,11 @@ models.
 At each freeze, converge SHALL run `skills/mf-converge/scripts/bundle.py`, which writes
 `.minions/changes/<change-id>/bundle.md`: each repo decision the change's proposal, design, tasks or spec delta cites — by a
 `decisions.md#d<n>` link, or by `D<n> · ` and that decision's title — in full; an index, each `### D` heading of
-`docs/decisions.md`; and each living requirement the delta modifies or removes, in full. A decisions file with no `### D`
+`docs/decisions.md`; and each requirement the delta modifies or removes as a unified diff from its living text to the delta's,
+a removed requirement's diff removing every line. A decisions file with no `### D`
 heading SHALL go into the bundle whole. A design's own decision ids SHALL cite no repo decision. Conformance SHALL read the
 bundle in place of the decisions file and the living spec, opening a decision the index names only to trace its architecture
-section; adversarial SHALL read the bundle's debt cards alone. `bundle.py` SHALL refuse to write through a link, and SHALL exit
+section; adversarial SHALL read no bundle. `bundle.py` SHALL refuse to write through a link, and SHALL exit
 2, writing nothing, on a file it cannot read.
 
 #### Scenario: A change cites a decision
@@ -3466,7 +3576,9 @@ section; adversarial SHALL read the bundle's debt cards alone. `bundle.py` SHALL
 
 #### Scenario: A delta modifies a requirement
 - **WHEN** a change's delta modifies a living requirement
-- **THEN** `bundle.md` holds that requirement as the living spec states it, in full
+- **THEN** `bundle.md` holds that requirement as a diff: each living line the delta drops marked `-`, each line it adds `+`
+- **AND WHEN** the delta removes a requirement
+- **THEN** its diff marks every living line `-`
 
 #### Scenario: A decisions file with no headings
 - **WHEN** a target's `docs/decisions.md` holds no `### D` heading
@@ -3481,11 +3593,12 @@ ids `R<n>`. **Adversarial** SHALL try to break the change — races, edge cases,
 its card ids `S<n>`. Each SHALL load its reference, `skills/mf-converge/references/generic-conformance.md` or
 `skills/mf-converge/references/generic-adversarial.md`, whose `## The packet` table SHALL name what the conductor gives it:
 conformance the range, `diff.patch`, the simplify commit's body, the change's `proposal.md`, `design.md`, `tasks.md` and spec
-delta, its `bundle.md`, root `AGENTS.md` and the root standards files; adversarial the range, `diff.patch`, the source and tests
-around the diff's hunks, `THREAT_MODEL.md`, root `AGENTS.md` and the bundle's debt cards. Conformance SHALL read no code beyond
-the diff's hunks, save its stale-claim search. Each SHALL read `diff.patch` once, and run `git diff` or `git show` only for a
-file's context the patch does not hold. A **security card** SHALL be an adversarial card whose Priority's category is
-`security`.
+delta, its `bundle.md` and `debt-cards.md`, root `AGENTS.md` and the root standards files; adversarial the range,
+`diff.patch`, the source and tests around the diff's hunks, `THREAT_MODEL.md`, root `AGENTS.md` and `debt-cards.md`.
+Conformance SHALL read no code beyond the diff's hunks, save its stale-claim search. Each SHALL read `diff.patch` once, top to
+bottom in slices, never a slice again, finding a hunk it needs again with `grep -n` on the patch, and run `git diff` or
+`git show` only for a file's context the patch does not hold. A **security card** SHALL be an adversarial card whose
+Priority's category is `security`.
 
 #### Scenario: A converge round
 - **WHEN** converge dispatches a round's checkers
@@ -3493,8 +3606,9 @@ file's context the patch does not hold. A **security card** SHALL be an adversar
 
 #### Scenario: The packets
 - **WHEN** the packet tables of the conformance and adversarial references are read
-- **THEN** conformance's names the change's artifacts, `bundle.md` and `diff.patch`, and no source beyond the diff's hunks
-- **AND** adversarial's names `THREAT_MODEL.md`
+- **THEN** conformance's names the change's artifacts, `bundle.md`, `debt-cards.md` and `diff.patch`, and no source beyond
+  the diff's hunks
+- **AND** adversarial's names `THREAT_MODEL.md` and `debt-cards.md`, and no `bundle.md`
 
 #### Scenario: A security card
 - **WHEN** an adversarial card's Priority reads `high · adversarial · security`
@@ -3532,23 +3646,24 @@ as `[converge.conformance]` and `[converge.adversarial]` when the new table is a
 
 ### Requirement: Converge bundles the debt cards on the diff's files
 
-At each freeze, after `bundle.py`, converge SHALL run `skills/mf-converge/scripts/debt_match.py`, which appends to `bundle.md` a
-`## Debt cards on the diff's files` section: each card of `.minions/debt.md`, in full, whose **What it affects** field names in
-backticks a path the frozen patch changes, a `:<line>` suffix dropped; `None.` when no card matches, or no debt file stands. No
-worker SHALL read `.minions/debt.md`; the repeat rule SHALL match the bundled cards. `debt_match.py` SHALL refuse to write
-through a link, and SHALL exit 2, writing nothing, when the bundle or the patch cannot be read.
+At each freeze, after `bundle.py`, converge SHALL run `skills/mf-converge/scripts/debt_match.py`, which writes
+`.minions/changes/<change-id>/debt-cards.md` whole: a `# Debt cards on the diff's files` title, then each card of
+`.minions/debt.md`, in full, whose **What it affects** field names in backticks a path the frozen patch changes, a `:<line>`
+suffix dropped; `None.` when no card matches, or no debt file stands. No worker SHALL read `.minions/debt.md`; the repeat
+rule SHALL match the cards `debt-cards.md` holds. `debt_match.py` SHALL refuse to write through a link, and SHALL exit 2,
+writing nothing, when the debt file or the patch cannot be read.
 
 #### Scenario: A card on a file the diff touches
 - **WHEN** the debt holds a card whose **What it affects** names `` `src/a.py:12` `` and another naming `` `src/b.py` ``, and the
   patch changes `src/a.py` alone
-- **THEN** the bundle holds the first card in full and not the second
+- **THEN** `debt-cards.md` holds the first card in full and not the second
 
 #### Scenario: No debt file
 - **WHEN** no `.minions/debt.md` stands
-- **THEN** the bundle's debt section reads `None.`
+- **THEN** `debt-cards.md` reads `None.` under its title
 
 #### Scenario: A bundle that is a link
-- **WHEN** `bundle.md` is a link
+- **WHEN** `debt-cards.md`, the debt cards beside the bundle, is a link
 - **THEN** `debt_match.py` exits 2 naming it, and the link's target is unchanged
 
 ### Requirement: A verify worker reads its open cards and the fix diff
@@ -3711,3 +3826,49 @@ supervisor.
 #### Scenario: A queued cut beside another
 - **WHEN** a run cuts a cut `conduct.py cut` queued with `beside=<id>`
 - **THEN** the cutter's prompt carries `beside=<id>`, and the committed `proposal.md` reads `beside: [<id>]`
+
+### Requirement: A Claude worker starts with its station's tools and nothing of the operator's
+
+`conduct.py` SHALL start each Claude station worker with `--tools` naming its station's tools: the cut and converge
+`Bash`, `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Skill` and `Agent`; the probe `Bash` and `Read`; every other station,
+a mailbox checker among them, `Bash`, `Read`, `Edit`, `Write`, `Glob`, `Grep` and `Skill`. Its `--settings` SHALL turn off
+each plugin the operator's user settings enable, the operator's output style and auto-memory, and it SHALL start with
+`--exclude-dynamic-system-prompt-sections`. The cut and converge SHALL start with the 1-hour prompt cache asked for, and
+every other station with the 5-minute one forced. A worker whose log shows a call to a tool its station lacks SHALL halt its
+version, naming the tool, whatever its exit. The run's probe SHALL name in its check line the context of its worker's first
+turn: the input, cache-read and cache-write tokens of its first assistant event, or a Codex log's first turn's input tokens.
+
+#### Scenario: Each station's command line
+- **WHEN** a run on the fake hosts spawns a version's cut, build, converge and release on Claude
+- **THEN** each command line holds `--tools` with its station's tools, `--settings` with the plugins, the output style and
+  auto-memory off, and `--exclude-dynamic-system-prompt-sections`
+- **AND** the cut's and converge's environment asks for the 1-hour cache, and the build's and the release's force the
+  5-minute one
+
+#### Scenario: The operator has a plugin and an output style
+- **WHEN** the operator's user settings enable a plugin and name an output style
+- **THEN** a Claude worker's `--settings` sets that plugin off and the default output style
+
+#### Scenario: A worker calls a tool its station lacks
+- **WHEN** a build worker's log holds a tool result `No such tool available: Agent`
+- **THEN** the version halts, naming `Agent`
+
+#### Scenario: The probe reports its first turn
+- **WHEN** a Claude probe worker's first assistant event holds 3 input, 15000 cache-read and 4000 cache-write tokens
+- **THEN** the probe's check line names a first turn of 19003 tokens
+
+### Requirement: The release reads the findings files' frontmatter and card lines
+
+`skills/mf-release/SKILL.md` SHALL read, of each findings file, its frontmatter, to the closing `---`, and, by one `grep`,
+its cards' title, **Priority** and **Status** lines and each line naming `inconclusive`; it SHALL read no other part of the
+file. Its preconditions on the findings files — each file's `verdict`, every blocking card `verified`, and `head:` at
+`HEAD` — SHALL be judged from those lines alone, and its report's `inconclusive` sections named from them.
+
+#### Scenario: A clean converge
+- **WHEN** both findings files say `verdict: clean` with `head:` at `HEAD`, and each blocking card's Status reads `verified`
+- **THEN** the release passes those preconditions, having read each file's frontmatter and the `grep`'s lines alone
+
+#### Scenario: A blocking card not verified
+- **WHEN** the adversarial file says `verdict: clean`, and a card whose Priority reads `high · adversarial · stability` has
+  the Status `fixed`
+- **THEN** the release halts, naming that card

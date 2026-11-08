@@ -10,9 +10,13 @@ description: Build the active in-repo change phase by phase — one phase at a t
 > `mf-release` finalizes.
 
 Before work, read root `AGENTS.md` — the gate, the conventions and seams, the guardrails — the mandatory context it
-names, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name, and the architecture
-decisions and threat model: the ones it names, else `docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and
-`THREAT_MODEL.md` when present. They are what is *true* of the repository, not a script. The change itself is
+names, and a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name. Of the decisions,
+run `uv run --script <this package>/../mf-converge/scripts/bundle.py --decisions openspec/changes/<change-id>/proposal.md
+openspec/changes/<change-id>/design.md openspec/changes/<change-id>/tasks.md` and read what it prints — the decisions
+the change cites, in full, and an index — and in full any other decision whose index line a phase touches;
+`ARCHITECTURE.md` and `docs/adr/*.md` whole, when present. Read the principles and the threat model —
+`docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when a task names the file. They are
+what is *true* of the repository, not a script. The change itself is
 authoritative. Missing root `AGENTS.md` → **halt**, naming it. A contradiction between those files that decides a
 phase's code → **halt**, naming both. A phase that would break a decision in force, and no task of the change amends
 it → **halt**, naming the decision and the task.

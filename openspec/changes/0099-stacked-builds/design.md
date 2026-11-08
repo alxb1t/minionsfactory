@@ -48,7 +48,7 @@ D69 and a `links` argument to `cut()`; nothing here reads `beside:`.
 - **F8. Decisions and debt.** D44 (`docs/decisions.md:582-592`) and D45 (`:594-611`) reject rebasing a judged branch; D47
   (`:613-656`); D57 (`:804-819`) lists a change folder's files; D63 (`:393-407`) says "The checkers keep the full plan"
   (`:399`, `0095·R6`). `0050·R5`: `merge_in` compares the config once, above the merge. `THREAT_MODEL.md:166` and `:175` name
-  `0050·R5`. D69 is `0098-beside`'s; this change takes D70.
+  `0050·R5`. D69 is `0098-beside`'s; this change takes D72.
 
 E1's "one catch-up round over what changed between the built head and the release" is E8's round 1: the dependent has no
 round before it, and round 1's range starts at the default branch, which holds the dependency's release.
@@ -60,7 +60,7 @@ round before it, and round 1's range starts at the default branch, which holds t
 releases, and its converge runs round 1 after the merge of the default branch; `stacked-on` holds the built head's sha, the
 build's gate check, simplify and diff coverage take it as their base, and the merge back deletes it; `I17` passes on a
 stacked-on head; integrate's Ready and release precondition 10 still refuse an unreleased dependency; a decision-changing
-amend in the dependency resets the dependent and deletes `stacked-on`; `after-wait-minutes`; `grep -n "### D70"
+amend in the dependency resets the dependent and deletes `stacked-on`; `after-wait-minutes`; `grep -n "### D72"
 docs/decisions.md` and `grep -n -i "stacked" THREAT_MODEL.md` print a line; `make gate` green.
 
 **Non-Goals:** stacking on two dependencies; stopping a running build at a re-plan; any reader of `beside:`.
@@ -76,7 +76,7 @@ docs/decisions.md` and `grep -n -i "stacked" THREAT_MODEL.md` print a line; `mak
 | [D5](#d5) | `stacked-on` is the base of the build's gate check and metrics, `mf-simplify`'s range and the gate's diff coverage; `I17` takes it | E9, E10 | `DIFF_BASE` passed by each station — `gate_run.py` takes no argument |
 | [D6](#d6) | A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit, read between stations and before the merge back, the dependency released or not | E3, E11 | killing a running build · a reset on any amend · keeping a dependent built on a decision its dependency's release superseded |
 | [D7](#d7) | `after-wait-minutes` from the run log's `wait` events | E13 | the time from the cut — it counts the build |
-| [D8](#d8) | The record: D70; D44, D45, D47, D57 and D63 edited; the threat model; `mf-ship`'s flow | E12; `0095·R6` | — |
+| [D8](#d8) | The record: D72; D44, D45, D47, D57 and D63 edited; the threat model; `mf-ship`'s flow | E12; `0095·R6` | — |
 
 ### D1
 
@@ -309,10 +309,10 @@ cut ─▶ waiting ──(dependency built)──▶ stack merge ─▶ build �
 
 ### D8
 
-D70 is added to `docs/decisions.md` after D47, and `, D70` after `D67` in the map's Repo conventions list:
+D72 is added to `docs/decisions.md` after D47, and `, D72` after `D67` in the map's Repo conventions list:
 
 ```markdown
-### D70 · A dependent builds on its dependency's built head
+### D72 · A dependent builds on its dependency's built head
 
 **Once a version's one unreleased `after:` dependency passes its build check, with no halt, and its built head holds the
 version's base, `conduct.py` merges that head into the version with no agent, writes its sha to
@@ -332,19 +332,19 @@ the default branch.**
 ```
 
 - **D44** — after "Ids are reserved … under its lock (D58)." add: "A stacked dependent takes its dependency's built head by a
-  merge ([D70](#d70--a-dependent-builds-on-its-dependencys-built-head))."
+  merge ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head))."
 - **D45** — "`conduct.py` alone merges it into a cut-only branch — a dependent's, or one the default branch passed before its
   first worker — and into a started one whose base the default branch passed changing its gate." → "… changing its gate, save
   a stacked one; it also merges a dependency's built head into its stacked dependent
-  ([D70](#d70--a-dependent-builds-on-its-dependencys-built-head))." And "It settles a conflict in `CHANGELOG.md` or
+  ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head))." And "It settles a conflict in `CHANGELOG.md` or
   `docs/decisions.md` by `integrate.py`'s rules" → "It settles a conflict in `CHANGELOG.md` or `docs/decisions.md`, and a
   stacked branch's `CHANGELOG.md` on any merge, by `integrate.py`'s rules".
 - **D47** — "builds and converges every open version in parallel," → "builds and converges every open version in parallel, a
-  dependent building on its dependency's built head ([D70](#d70--a-dependent-builds-on-its-dependencys-built-head)),".
+  dependent building on its dependency's built head ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)),".
 - **D57** — "`build.{done,halt,closing,discarded.patch}`," → "`build.{done,halt,closing,discarded.patch}`, `stacked-on`,".
 - **D63** (`0095·R6`) — "The checkers keep the full plan" → "Conformance keeps the full plan".
 - **`THREAT_MODEL.md`** — a *Trust boundaries* bullet after the mixed-run one: "**A stacked build runs on code no converge has
-  judged** ([D70](docs/decisions.md#d70--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its
+  judged** ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its
   dependency's built head, and never converges or releases before that dependency's converge and release. A worker can write
   `stacked-on`, which narrows the build's gate check and diff coverage: the gate reads it through `git rev-parse` alone, and the
   conductor removes it before converge and the release, which judge against the default branch." `0050·R5` leaves the
@@ -369,7 +369,7 @@ has no browser layer, so no end-to-end run is added.
 
 | test | gains |
 |---|---|
-| `test_after_waits_for_its_dependency` (`T:838`) | under the new fake mode `hold-converge-0001-todo`, released by `_when_logged` on `" · 0002-marks · wait — stacked on 0001-todo"`; inside the hold, `conduct["status"](root)` prints `0002-marks · stacked`, `stacked-on` holds `0001-todo`'s `build.done` head, and `release 0001-todo` is not called; after the run, `build 0001-todo` < `build 0002-marks` < `release 0001-todo` < `converge 0002-marks` in the calls, `build 0002-marks` called once, `0002-marks`'s log holds `chore(stack): merge 0001-todo at <sha7> into 0002-marks` and `chore(integrate): merge main into 0002-marks`, neither in the hook's file, `stacked-on` is gone, and the run log holds `0002-marks · stacked — on 0001-todo at <sha7>` ([D1](#d1)–[D3](#d3)); its `release`-before-`build` assertion goes, the behaviour it held retired by D70 |
+| `test_after_waits_for_its_dependency` (`T:838`) | under the new fake mode `hold-converge-0001-todo`, released by `_when_logged` on `" · 0002-marks · wait — stacked on 0001-todo"`; inside the hold, `conduct["status"](root)` prints `0002-marks · stacked`, `stacked-on` holds `0001-todo`'s `build.done` head, and `release 0001-todo` is not called; after the run, `build 0001-todo` < `build 0002-marks` < `release 0001-todo` < `converge 0002-marks` in the calls, `build 0002-marks` called once, `0002-marks`'s log holds `chore(stack): merge 0001-todo at <sha7> into 0002-marks` and `chore(integrate): merge main into 0002-marks`, neither in the hook's file, `stacked-on` is gone, and the run log holds `0002-marks · stacked — on 0001-todo at <sha7>` ([D1](#d1)–[D3](#d3)); its `release`-before-`build` assertion goes, the behaviour it held retired by D72 |
 | `test_a_merge_in_refuses_a_planted_hook` (`T:981`) | after `hook.probe.event` and `hook.probe.command` are unset and `held_run.git_state` read again, a step whose `held_run.delta` writes a key into `.git/config` and returns: `merge_in` raises `the local git config changed during the run: .git/config differs`, the merge stays open, and no `chore(integrate)` commit lands (`0050·R5`, [D2](#d2)) |
 | `test_a_stacked_dependent_resets_and_merges_back` (new, `T`) | on a scratch repo with a `Run`, `ready` called with no threads: `0001-todo` built, its `CHANGELOG.md` `[Unreleased]` holding `- d1`; `0002-marks` cut as `docs(0002-marks): land the change directory` stacks — `stacked-on`, the `chore(stack)` subject; `0003-more`, naming both, and `0004-late`, cut after a `main` commit the built head lacks, are blocked ([D1](#d1)); a `tasks.md`-only amend of `0001-todo` leaves `reset_stack` False; one touching `proposal.md` makes it True, `HEAD` the cut commit, `stacked-on` gone, the `reset` event logged, and `_built_head` None ([D6](#d6)); a new `build.done` at `0001-todo`'s tip restacks it; `0002-marks` adds `- x1`; `0001-todo` released with `- d1` under `## [0.1.0]`, `ready` merges `main`, `stacked-on` is gone, and `CHANGELOG.md`'s `[Unreleased]` holds `- x1` alone ([D4](#d4)); then a second pair, `0005-redo` built and `0006-race`, after it and cut as `docs(0006-race): land the change directory`, stacks; an amend of `0005-redo` past the stacked-on head touching its `proposal.md`, then its release merged into `main`: `ready` resets `0006-race` before the merge back — the `reset` event names the head it left, `stacked-on` is gone — and merges `main` into its cut commit, the merge's first parent that cut commit ([D6](#d6)) |
 | `test_delta_reports_a_requirement_main_changed` (`tests/test_integrate.py:539`) | the version also holds `openspec/changes/0004-a/proposal.md`, a stacked dependency's change, and `main`'s release commit adds `openspec/changes/archive/0004-a/proposal.md`: the output stays `delta: changed on the default branch: sdd: First` ([D2](#d2)) |

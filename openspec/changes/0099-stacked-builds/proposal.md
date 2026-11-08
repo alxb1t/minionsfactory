@@ -34,7 +34,7 @@ built head, and still be judged only against the released dependency.
 - **The metric** — `after-wait-minutes`, the time a dependent waits on its `after:` ids, from the run log's new `wait` events.
 - **The debt** — `merge_in` compares the git config again right before its commit (`0050·R5`); D63 says conformance alone
   keeps the full plan (`0095·R6`).
-- **The record** — D70; D44, D45, D47 and D57 amended; the threat model names the stacked build; `mf-ship`'s flow.
+- **The record** — D72; D44, D45, D47 and D57 amended; the threat model names the stacked build; `mf-ship`'s flow.
 
 ## Capabilities
 

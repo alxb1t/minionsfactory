@@ -102,6 +102,32 @@ def test_no_config_exits_2_naming_the_path(
     assert sorted(tmp_path.rglob("*")) == before
 
 
+def test_every_repo_a_run_started_in(tmp_path: Path) -> None:
+    config, named, started, bare, third = (
+        tmp_path / name for name in ("config.toml", "named", "started", "bare", "third")
+    )
+    for repo in (named, started, third):
+        (repo / ".minions").mkdir(parents=True)
+    bare.mkdir()
+    config.write_text('repos = ["named"]\nout = "page.html"\n', encoding="utf-8")
+    record = review_metrics.recorded()
+    record.parent.mkdir()
+    # A repo the config names is read once; one with no `.minions/`, not at all.
+    record.write_text(f"{named}\n{started}\n{bare}\n\n{started}\n", encoding="utf-8")
+
+    repos, _ = review_metrics.settings(config, [], None)
+    assert repos == [named.resolve(), started.resolve()]
+
+    # `--repo` reads no record.
+    repos, _ = review_metrics.settings(config, [third], None)
+    assert repos == [third.resolve()]
+
+    # A record alone names the repos.
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    repos, _ = review_metrics.settings(config, [], None)
+    assert repos == [named.resolve(), started.resolve()]
+
+
 def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     bullets = "- **severity:** blocking\n- **severity:** `nit`\n- **severity:** nit\n"
     _findings(
@@ -533,6 +559,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 80,
             "sessions": 1,
             "source": "codex-session",
+            "dollars": None,
         },
         {
             "repo": "repo",
@@ -546,6 +573,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 900,
             "sessions": None,
             "source": "status-log",
+            "dollars": None,
         },
         {
             "repo": "repo",
@@ -559,6 +587,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 60,
             "sessions": 1,
             "source": "codex-session",
+            "dollars": None,
         },
         {
             "repo": "repo",
@@ -572,6 +601,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 500,
             "sessions": 1,
             "source": "codex-session",
+            "dollars": None,
         },
         {
             "repo": "repo",
@@ -585,6 +615,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": 300,
             "sessions": 2,
             "source": "codex-session",
+            "dollars": None,
         },
         {
             "repo": "repo",
@@ -598,6 +629,7 @@ def test_codex_sessions_fill_the_rounds(
             "tokens": None,
             "sessions": None,
             "source": "status-log",
+            "dollars": None,
         },
     ]
 
@@ -664,8 +696,22 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     _worker_log(tmp_path, "0050-x", "B-converge.log", one)
     _worker_log(tmp_path, "0050-x", "B-release.log", "codex: a text log")
     _run_log(tmp_path, "B.md", "11:00:00 · 0050-x · spawn — converge · model m")
+    # The cut and the supervisor are stations; a log's first turn ends its cell.
+    # Why: 0100-worker-diet design D12.
+    context = {
+        "input_tokens": 3,
+        "cache_read_input_tokens": 15000,
+        "cache_creation_input_tokens": 4000,
+    }
+    opening = {"type": "assistant", "message": {"usage": context}}
+    later = {"type": "assistant", "message": {"usage": {"input_tokens": 9}}}
+    _worker_log(tmp_path, "0050-x", "A-cut.log", opening, later, one)
+    _worker_log(tmp_path, "0050-x", "A-supervise.log", one)
 
     record = _record(tmp_path, "0050-x")
+    assert (record["first_cut"], record["first_supervise"]) == (19003, None)
+    assert record["first_integrate"] == 1_000_000
+    assert review_metrics._spent([])["first"] is None
     assert (record["cost_converge"], record["turns_converge"]) == (2.0, 17)
     assert (record["tokens_converge"], record["seconds_converge"]) == (380, 93)
     assert (record["logs_converge"], record["spawns_converge"]) == (3, 4)
@@ -686,10 +732,12 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
             "0050-x",
             "—",
             "$2.00 · 17 turns · 380 tokens · 93 s · 3 of 4",
-            "$4.80 · 2200000 tokens",
+            "$4.80 · 2200000 tokens · first 1000000",
             "—",
-            "— · 3300000 tokens",
-            "$2.40 · 1100000 tokens",
+            "— · 3300000 tokens · first 1000000",
+            "$0.25 · 1 turns · 4 tokens · 1 s · first 19003",
+            "$0.25 · 1 turns · 4 tokens · 1 s",
+            "$2.40 · 1100000 tokens · first 1000000",
             "—",
             "—",
             "—",
@@ -728,6 +776,189 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     assert record["read_converge"] == 2
     _, rows = review_metrics.cost_table([record])
     assert rows[0][2] == "— · 1100004 tokens"
+
+
+def _said(
+    parent: str | None, message: str, model: str, at: str | None = None, **usage: object
+) -> object:
+    # The CLI's stream-json: one event per content block, each with the usage the
+    # message's stream opened with, `stop_reason` null and `output_tokens` a
+    # placeholder; no event carries the message's final count.
+    held = {"id": message, "model": model, "stop_reason": None, "usage": usage}
+    said = {"type": "assistant", "parent_tool_use_id": parent, "message": held}
+    return said | ({"timestamp": at} if at else {})
+
+
+def _answered(tool: str, **last: int) -> object:
+    # The Agent tool's result: `totalTokens` and `usage` are its last turn's alone.
+    done = {"status": "completed", "totalTokens": sum(last.values()), "usage": last}
+    content = [{"type": "tool_result", "tool_use_id": tool, "content": "done"}]
+    return {
+        "type": "user",
+        "parent_tool_use_id": None,
+        "message": {"role": "user", "content": content},
+        "tool_use_result": done,
+    }
+
+
+def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
+    # A round's record sums its own run's workers alone, never another run's of
+    # the same round number; a worker placed in no run joins no record.
+    row = {"repo": "repo", "change": "0001-x", "round": 1, "role": "conformance"}
+    rows = [row | {"run": 1}, row | {"run": 2}, row | {"run": None}]
+    spent = [row | {"run": run, "dollars": 2.0} for run in (1, 2, None)]
+    priced = review_metrics._priced_rounds(rows, spent)
+    assert [r["dollars"] for r in priced] == [2.0, 2.0, None]
+
+    repo = tmp_path / "repo"
+    claude = "executor claude · model m · effort high · tokens 9"
+    fanned = "fan-out — conformance and adversarial dispatched · 2 workers"
+    # An amend run restarts at round 1.
+    log = (
+        "# 0001-x — converge status\n\n## Run 2 — 2026-11-05 12:00\n"
+        f"12:10:00 · round 1 · verdicts — conformance clean · {claude}\n"
+        f"12:00:30 · round 1 · {fanned}\n"
+        "12:00:10 · round 1 · freeze — a..b · 1 commit · 1 file\n\n"
+        "## Run 1 — 2026-11-05 10:00\n"
+        f"10:10:00 · round 1 · verdicts — adversarial clean · {claude}\n"
+        f"10:10:00 · round 1 · verdicts — conformance clean · {claude}\n"
+        f"10:00:30 · round 1 · {fanned}\n"
+        "10:00:10 · round 1 · freeze — a..b · 1 commit · 1 file\n"
+    )
+    _findings(repo, "0001-x_status_log.md", log)
+    prices = repo / ".minions" / "prices.toml"
+    prices.write_text(
+        "[models]\n"
+        '"claude-sonnet-5-5" = { input = 3.0, cached_input = 0.3, cache_write = 3.75,'
+        " cache_write_1h = 6.0, output = 15.0 }\n"
+        '"claude-opus-5-5" = { input = 5.0, cached_input = 0.5, output = 25.0 }\n'
+        '"gpt-6.1-sol" = { input = 2.0, cached_input = 0.5, output = 10.0 }\n'
+    )
+
+    def task(tool: str, description: str) -> object:
+        return {
+            "type": "system",
+            "subtype": "task_started",
+            "tool_use_id": tool,
+            "description": description,
+        }
+
+    sonnet, opus = "claude-sonnet-5-5", "claude-opus-5-5"
+    written = {"ephemeral_5m_input_tokens": 100, "ephemeral_1h_input_tokens": 200}
+    reading = {
+        "input_tokens": 10,
+        "cache_read_input_tokens": 1000,
+        "cache_creation_input_tokens": 300,
+        "cache_creation": written,
+        "output_tokens": 8,
+    }
+    at = "2026-11-05T10:01:00.000Z"
+    _worker_log(
+        repo,
+        "0001-x",
+        "A-converge.log",
+        _said(None, "c0", sonnet, input_tokens=2, cache_read_input_tokens=20000),
+        task("t1", "conformance round 1"),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m2", sonnet, at, input_tokens=5, output_tokens=5),
+        _answered("t1", input_tokens=5, output_tokens=30_000),
+        task("t2", "Adversarial round 1: break it"),
+        _said("t2", "a1", opus, "2026-11-05T10:02:00Z", input_tokens=1_000_000),
+        task("t3", "fix round 1"),
+        _said("t3", "f1", "claude-haiku-5-5", "2026-11-05T10:12:00Z", input_tokens=7),
+        task("t4", "Explore the parser"),
+        {"type": "assistant", "parent_tool_use_id": "t4", "message": {"id": "e0"}},
+        _said("t4", "e1", sonnet, at, input_tokens=1),
+        _said("t9", "n1", sonnet, input_tokens=1),
+        '{"type": "assistant", cut',
+        _result(1.5, 9, 60000, m={"inputTokens": 2}),
+    )
+    # The amend run's conformance worker, at round 1 again.
+    again = "2026-11-05T12:01:00Z"
+    _worker_log(
+        repo,
+        "0001-x",
+        "B-converge.log",
+        task("t5", "conformance round 1"),
+        _said("t5", "m5", sonnet, again, input_tokens=3, output_tokens=2),
+    )
+    # A mailbox checker's log is a worker of its own, its round a gap; a Claude
+    # one's tokens are its `result`'s totals, and with no `result`, a gap.
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
+    usage = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
+    turn = {"type": "turn.completed", "usage": usage}
+    bare = {"type": "turn.completed"}
+    _worker_log(repo, "0001-x", "A-converge-conformance.log", spawn, turn, bare)
+    opened = _said(None, "x1", sonnet, input_tokens=4, cache_read_input_tokens=10)
+    # Its cache write splits as the CLI writes it: the 5-minute 100 at
+    # `cache_write`, the 1-hour 200 at `cache_write_1h`.
+    totals = {
+        "input_tokens": 9,
+        "cache_creation_input_tokens": 300,
+        "cache_read_input_tokens": 90,
+        "output_tokens": 3000,
+        "cache_creation": written,
+    }
+    _worker_log(
+        repo,
+        "0001-x",
+        "A-converge-adversarial.log",
+        opened,
+        _said(None, "x2", sonnet, input_tokens=5, output_tokens=2),
+        {"type": "result", "total_cost_usd": 0.1, "usage": totals},
+    )
+    _worker_log(repo, "0001-x", "A-converge-shadow-adversarial.log", opened)
+    out = tmp_path / "site" / "page.html"
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(review_metrics, "PRICES", prices)
+        patch.setenv("TZ", "UTC")
+        assert review_metrics.main(["--repo", str(repo), "--out", str(out)]) == 0
+
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    keys = ("role", "round", "run", "model", "tokens", "first", "source")
+    shown = [tuple(w[k] for k in keys) for w in data["workers"]]
+    # A subagent's tokens are a gap: its events hold no final output count, and
+    # its Agent result only its last turn's.
+    assert shown == [
+        ("conformance", 1, 1, sonnet, None, 1310, "subagent"),
+        ("adversarial", 1, 1, opus, None, 1_000_000, "subagent"),
+        ("fix", 1, None, "claude-haiku-5-5", None, 7, "subagent"),
+        (None, None, None, sonnet, None, 1, "subagent"),
+        ("conformance", 1, 2, sonnet, None, 3, "subagent"),
+        ("conformance", None, None, "gpt-6.1-sol", 1100, 1000, "mailbox"),
+        ("adversarial", None, None, sonnet, 3399, 14, "mailbox"),
+        ("shadow-adversarial", None, None, sonnet, None, 14, "mailbox"),
+    ]
+    dollars = [worker["dollars"] for worker in data["workers"]]
+    # The Claude checker's 0.046629: 9 x 3.0, 90 x 0.3, 3000 x 15.0, and its
+    # cache write 100 x 3.75 and 200 x 6.0, a million each.
+    expected = [None, None, None, None, None, 0.0024, 0.046629, None]
+    assert dollars == [pytest.approx(d) if d else d for d in expected]
+    assert {w["repo"] for w in data["workers"]} == {"repo"}
+    assert {w["change"] for w in data["workers"]} == {"0001-x"}
+    # Each round and role's record holds its workers' dollars: here a gap each.
+    held = [(r["run"], r["role"], r["dollars"]) for r in data["records"]]
+    assert held == [
+        (2, "conformance", None),
+        (1, "adversarial", None),
+        (1, "conformance", None),
+    ]
+    assert {s["station"]: s["first"] for s in data["stations"]} == {
+        "converge": 20002,
+        "converge-conformance": 1000,
+        "converge-adversarial": 14,
+        "converge-shadow-adversarial": None,
+    }
+    [converge] = (s for s in data["stations"] if s["station"] == "converge")
+    assert (converge["dollars"], converge["turns"], converge["seconds"]) == (1.5, 9, 60)
+
+    # No row, or a row lacking a price a held kind needs, is a gap; none held, none.
+    row = {"input": 1.0}
+    assert review_metrics._priced_worker(None, {"input": 1}) is None
+    assert review_metrics._priced_worker(row, {"input": 1, "output": 2}) is None
+    assert review_metrics._priced_worker(row, {"input": 2, "output": 0}) == 2e-6
 
 
 def test_the_page_draws_charts_and_lists_gaps(
@@ -787,7 +1018,12 @@ def test_the_page_draws_charts_and_lists_gaps(
     assert printed[:2] == [str(out.resolve()), "repos: 2 · changes: 3"]
     assert printed[2].startswith("| role | executor | model | changes |")
     row = "| review | unknown | unknown | 1 | 2 (n=1) | 1 (n=1) | 1 (n=1) | 4 (n=1) |"
+    # Each role's change's median duration and tokens follow its workers.
+    # Why: 0100-worker-diet design D12 (`0097·R4`).
+    row += " 120 (n=1) | 1234567 (n=1) |"
     assert row in "\n".join(printed)
+    assert "| median workers | median duration (s) | median tokens |" in printed[2]
+    assert "<th>median duration (s)</th><th>median tokens</th>" in page
     assert "<b>m" not in "\n".join(printed)
     assert printed[-1].startswith(
         "lacked: capped 2 · confirmed 2 · cost_build 3 · cost_converge 2 · "
