@@ -100,7 +100,8 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 - **The review tree** — a paragraph after the review table: "**The review tree.** Before the first review, run
   `git add openspec/changes/<change-id>/`, then `git write-tree`; the sha it prints is the review tree. Before a second,
   run the same `git add`; the second reviewer gets its packet and the review tree, runs
-  `git diff --cached <review tree> -- openspec/changes/<change-id>/`, and judges that diff and the tasks it touches alone."
+  `git diff --cached <review tree> -- openspec/changes/<change-id>/`, and judges that diff, and each
+  task that cites a decision or a path the diff changes."
 - **The table** — the second row's reviewer cell "a fresh worker, never a message to the first" gains ", judging the diff
   since the first". Each row's last cell still starts `a fresh worker`, and the second's runs cell `only when`.
 - **"Each review is a new worker given the change directory, `HEAD`'s sha and the question"** becomes "Each review is a new

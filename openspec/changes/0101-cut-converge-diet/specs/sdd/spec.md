@@ -32,7 +32,7 @@ review, SHALL go to the person. A second review SHALL run only when a fix after 
 switch's — changes a `design.md` decision or a brief's `## Decisions` row, a `decided by the cutter` row included, or adds or
 removes a task; a simple fix SHALL NOT be reviewed again. Before the first review, the cut SHALL stage the change directory
 and record its tree; a second review SHALL be given the packet and the change directory's diff since that tree, and SHALL
-judge that diff and the tasks it touches alone. Every plan review SHALL be a new worker given its packet; a message to an
+judge that diff, and each task that cites a decision or a path the diff changes. Every plan review SHALL be a new worker given its packet; a message to an
 earlier reviewer SHALL NOT be a review. An unattended cut SHALL instead take such a doubt's recommended option when the brief says
 `decide: recommended`, adding a `decided by the cutter` row to the brief, and else SHALL halt in `cut.halt`, committing
 nothing. Before writing, the cut SHALL re-check each fact of the brief whose cited path changed in `<sha>..HEAD`,
