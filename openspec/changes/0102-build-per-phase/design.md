@@ -102,9 +102,11 @@ stage build ─┬─ phase N unticked ──▶ spawn "… for change <id> with
 - **The check** — `check()` gains a keyword `phase: str | None = None`; for the build with a phase number it returns
   `_check_phase(primary, version, tree, phase)`, else `_check_build` as today. `advance` passes the spawned phase to each
   `check` call it makes.
-- **`_check_phase`** — the `## Progress` entry numbered `phase` unticked at `HEAD` → `phase <N> unticked`, with
-  `_build_halt`'s ` · <sub-task>: <stop>` as `_check_build` names it; else a dirty tree → `the tree is not clean`; else
-  None.
+- **`_check_phase`** — no `## Progress` entry numbered `phase` at `HEAD` → `phase <N> gone from ## Progress`; the first
+  entry unticked at `HEAD`, up to and including `phase`'s own → `phase <M> unticked`, `<M>` its number, with
+  `_build_halt`'s ` · <sub-task>: <stop>` as `_check_build` names it, so a phase that unticks an earlier one fails; a dirty
+  tree → `the tree is not clean`. It returns None only when the phase's line stands, it and every line before it are
+  ticked, and the tree is clean.
 - **The guard** — a phase spawn passes only by ticking its own phase, so each pass of the loop either advances a phase or
   halts. A phase is spawned again only after a taken amend, which `RESCUES` and `SUPERVISES` bound. The close keeps its
   scenario: exiting with no `build.done` naming `HEAD` halts, and no second close starts.
@@ -183,8 +185,8 @@ tree, so none runs twice without an amend between. Phases hand over through `.mi
 which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` or `hard`; a moderate one runs on
 `[build.moderate]` when the models file names it.**
 
-- **Why:** one session carried every phase's reads to its end, 547k of context at 0097's last phase; a fresh worker per
-  phase simulated −$4.3 on 0097 and +$0.2 on 0096.
+- **Why:** one session carried every phase's reads to its end, most at the last phase; a fresh worker per phase
+  simulated cheaper on the largest build and level on the smaller, per the change's design Evidence table.
 - **Accepts:** each phase re-reads its base · a note the conductor cuts at 40 lines.
 - **Rejected:** a per-phase worker only on big changes — one behaviour is simpler · a tracked notes file — D6 keeps the
   record to four artifacts · a host per phase.
@@ -197,9 +199,10 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 - **D57** — the file list gains `build-notes.md` after `build.{done,halt,closing,discarded.patch}`.
 - **D13** — "The build closes with a simplify pass" → "The build closes with a simplify pass, its own worker under
   `mf-ship`,".
-- **`THREAT_MODEL.md`** — the *Entry points* bullet on findings files, status logs and worker output gains:
-  "`build-notes.md`, which the next phase reads as evidence and the conductor trims through a descriptor that follows no
-  link."
+- **`THREAT_MODEL.md`** — the *Entry points* bullet on findings files, status logs and worker output gains: "Among them
+  `build-notes.md`, which any worker of the run can write, the next phase reads as evidence, and the conductor counts and
+  trims through a descriptor that follows no link and refuses a file that is not a regular file of one name: a hard link, a
+  folder or a pipe halts the version."
 - **`skills/mf-ship/SKILL.md`'s flow** — 0099 rewrites its line 22 to read "build, stacked on it": that → "build, stacked on
   it, a worker a phase, then its close".
 - **The spec** — [the delta](specs/sdd/spec.md); the release folds it.
