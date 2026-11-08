@@ -112,6 +112,16 @@ def test_a_hard_brief_is_ready_for_the_cut(
     assert hosts != _READY
     assert brief_check.main([str(_write(tmp_path, hosts))]) == 0
     assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # The moderate phases' model, first of the optional parts.
+    # Why: 0102-build-per-phase design D6.
+    moderate = _READY.replace(
+        "cut opus high",
+        "cut opus high · build-moderate claude-sonnet-5-5 high · conformance"
+        " claude-opus-5-5 high",
+    )
+    assert moderate != _READY
+    assert brief_check.main([str(_write(tmp_path, moderate))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
     # A head naming the versions it builds beside.
     beside = _READY.replace(
         "after: none ·", "after: none · beside: [0097-cross-model, 0096-codex-ready] ·"
@@ -184,12 +194,12 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 2 — not a model or effort: `high;touch`",
         "brief: halt — ## For the cut: item 3 — no after:",
         "brief: halt — ## For the cut: item 3 — the models line is not"
-        " build · converge · release · cut, then any of conformance · adversarial"
-        " · fix, each <model> <effort>, then shadow",
+        " build · converge · release · cut, then any of build-moderate · conformance"
+        " · adversarial · fix, each <model> <effort>, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
-    # A host it does not know, a host on fix or cut, shadow before fix, a second
-    # shadow, and a checker part out of order.
+    # A host it does not know, a host on fix, cut or build-moderate, shadow before
+    # fix, a second shadow, and a checker or build-moderate part out of order.
     stations = "build a b · converge a b · release a b"
     hosted = _READY + "".join(
         f"{n}. **ok** · minor · after: none\n   - models: {line}\n"
@@ -201,6 +211,8 @@ def test_a_brief_out_of_shape_halts(
             (6, f"{stations} · cut a b · shadow · shadow"),
             (7, f"{stations} · cut a b · adversarial a b · conformance a b"),
             (8, f"{stations} · cut a b · fix a b · fix a b"),
+            (9, f"{stations} · cut a b · conformance a b · build-moderate a b"),
+            (10, f"{stations} · cut a b · build-moderate claude/claude-sonnet-5-5 b"),
         )
     )
     assert brief_check.main([str(_write(tmp_path, hosted))]) == 1
@@ -210,10 +222,12 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 4 — cut takes no host: `claude/a`",
         *(
             f"brief: halt — ## For the cut: item {n} — the models line is not"
-            " build · converge · release · cut, then any of conformance ·"
-            " adversarial · fix, each <model> <effort>, then shadow"
-            for n in (5, 6, 7, 8)
+            " build · converge · release · cut, then any of build-moderate ·"
+            " conformance · adversarial · fix, each <model> <effort>, then shadow"
+            for n in (5, 6, 7, 8, 9)
         ),
+        "brief: halt — ## For the cut: item 10 — build-moderate takes no host:"
+        " `claude/claude-sonnet-5-5`",
     ]
     # An item that opens no number and a lazy line are outside the grammar, and a
     # head with a second after: halts.

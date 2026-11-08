@@ -178,6 +178,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
   leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
+- Each `## Progress` line but a `**HUMAN` one ends ` · moderate` or ` · hard`: `hard` when the phase matches
+  [*Suggesting models*](#suggesting-models)' strongest-tier row, else `moderate`. `mf-ship` builds a `moderate` phase
+  on `[build.moderate]` when the models file names it.
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
   `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
   unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
@@ -302,7 +305,7 @@ after the brief's `## For the cut` list. The last line: `Next: the run builds it
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
 | **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | Steps 7 and 8 |
-| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
+| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
@@ -387,7 +390,9 @@ session's menu; with no menu, describe the capability needed — never invent mo
 When the brief's `## For the cut` item for this change names models, write exactly those, each host as its table's
 `executor`: the person chose them at the plan's close. Write `[converge.conformance]`, `[converge.adversarial]` or
 `[converge.fix]` from the Converge bullet when the brief's line lacks its part. A last `shadow` is `shadow = true` under
-`[converge]`. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
+`[converge]`. A `build-moderate` part is `[build.moderate]`, its `model` and `effort` and no `executor`: the phases
+rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
+`decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
@@ -402,7 +407,7 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
-a change, never one per phase.
+a change for `[build]`.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
@@ -423,6 +428,9 @@ Suggested models
 [build]
 model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
+# [build.moderate]  # optional, from the brief's build-moderate: the phases rated moderate
+# model = "<offered model>"
+# effort = "<effort>"
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
 # executor = "codex"  # optional, per table, from the brief's host; absent, the run's, and converge's for a checker

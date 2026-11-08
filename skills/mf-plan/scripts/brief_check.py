@@ -49,13 +49,16 @@ HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
 STATIONS = ("build", "converge", "release", "cut")
 CHECKS = ("conformance", "adversarial", "fix")
+# The optional parts, in order. Why: 0102-build-per-phase design D6.
+PARTS = ("build-moderate", *CHECKS)
 HOSTS = ("claude", "codex")
-HOSTLESS = ("cut", "fix")
+HOSTLESS = ("cut", "fix", "build-moderate")
 SHADOW = ["shadow"]
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"
 MODELS = (
     "the models line is not build · converge · release · cut, then any of"
-    " conformance · adversarial · fix, each <model> <effort>, then shadow"
+    " build-moderate · conformance · adversarial · fix, each <model> <effort>,"
+    " then shadow"
 )
 NEITHER = (
     "## Dependencies is neither None. nor a table of item · package · constraint · why"
@@ -188,7 +191,8 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
 def models(number: str, text: str) -> list[str]:
     """Return a halt for each word of an item's `models:` line out of shape.
 
-    A model may open `<host>/`, save on `cut` and `fix`.
+    The stations, then an ordered subset of `PARTS`. A model may open `<host>/`,
+    save on `HOSTLESS`.
     e.g. "1", " build a b · converge a b · release a b · cut a b;c" →
     ["item 1 — not a model or effort: `b;c`"]
     """
@@ -196,9 +200,9 @@ def models(number: str, text: str) -> list[str]:
     if parts[-1:] == [SHADOW]:
         parts.pop()
     names = [part[0] if len(part) == 3 else None for part in parts]
-    checks = names[len(STATIONS) :]
-    if names[: len(STATIONS)] != list(STATIONS) or checks != [
-        check for check in CHECKS if check in checks
+    optional = names[len(STATIONS) :]
+    if names[: len(STATIONS)] != list(STATIONS) or optional != [
+        part for part in PARTS if part in optional
     ]:
         return [f"item {number} — {MODELS}"]
     found: list[str] = []
