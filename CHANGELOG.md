@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `model:` and `tokens:`, and each Codex spawn's log ends with its share of the 5-hour and weekly windows, which the run
   metrics sum as `codex-window-5h` and `codex-window-week`; `prices.toml` gains the Claude rows (change
   `0104-codex-limits`, phase 4).
+- Each linked worktree's gitdir is a Codex writable root, the config guard reads each linked worktree's `config.worktree`,
+  and the Codex probe writes a linked worktree's index with `git write-tree`; a skipped test runs Codex's own sandbox
+  when `MF_REAL_CODEX=1` (change `0104-codex-limits`, phase 5).
 
 ## [0.83.0] - 2026-11-08
 

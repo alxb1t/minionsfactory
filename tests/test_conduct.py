@@ -7311,6 +7311,43 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
     assert str(held.value).endswith("move it to the global config or remove it")
 
 
+def test_a_program_key_in_a_worktree_config_halts(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    config = root / ".git" / "worktrees" / "0001-todo" / "config.worktree"
+    held = conduct["_config_held"]
+    assert held(root) == [] and held(tree) == []
+    # Git reads the file only under `extensions.worktreeConfig`; the guard reads it
+    # either way, from the primary and from the tree.
+    config.write_text("[core]\n\tsshCommand = planted\n[user]\n\tname = kept\n")
+    assert "core.sshcommand" not in _git(root, "config", "--list", "--name-only")
+    assert held(root) == ["core.sshcommand"] and held(tree) == ["core.sshcommand"]
+    with pytest.raises(conduct["Stop"], match="core.sshcommand") as stop:
+        conduct["_refuse_config_commands"](root)
+    assert str(stop.value).endswith("move it to the global config or remove it")
+    # Twin: plain keys alone, an empty file and no file hold none.
+    config.write_text("[user]\n\tname = kept\n")
+    assert held(root) == []
+    config.write_text("")
+    assert held(root) == []
+    config.unlink()
+    assert held(root) == []
+    # A link at the file is read through nothing, and a folder in its place holds none.
+    target = tmp_path / "planted.config"
+    target.write_text("[core]\n\tsshCommand = planted\n")
+    config.symlink_to(target)
+    assert held(root) == []
+    config.unlink()
+    config.mkdir()
+    assert held(root) == []
+    config.rmdir()
+    # Outside a repository there is no common directory and no worktree file.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    assert held(outside) == []
+
+
 def test_no_hook_runs_in_a_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9204,6 +9241,19 @@ def test_the_codex_probe_runs_a_checker(
     scratches = [Path(args[args.index("-C") + 1]) for args in _codex_argvs(tmp_path)]
     assert len(scratches) == 2 and not any(path.exists() for path in scratches)
     assert all("--ignore-user-config" in args for args in _codex_argvs(tmp_path))
+    # The probe's linked tree is a root of its own, its gitdir inside the scratch's.
+    key = "sandbox_workspace_write.writable_roots="
+    first = next(arg for arg in _codex_argvs(tmp_path)[0] if arg.startswith(key))
+    roots = json.loads(first.removeprefix(key))
+    assert any(root.endswith("/.git/worktrees/tree") for root in roots)
+
+    conductor, calls, _ = probe("tree-silent")
+    assert "codex" not in conductor.probed
+    assert calls == ["probe"]
+    assert [reason for _, reason in conductor.halts] == [
+        "probe-codex check fail — the worker could not write a linked worktree's"
+        " index: git write-tree"
+    ]
 
     conductor, calls, _ = probe("checker-silent")
     assert "codex" not in conductor.probed
@@ -9218,6 +9268,25 @@ def test_the_codex_probe_runs_a_checker(
     assert [reason for _, reason in conductor.halts] == [
         "probe-codex check fail — codex started an MCP server: pencil"
     ]
+
+    # The tree check reads `tree.txt` through no link and compares it to the index.
+    repo = tmp_path / "tree-repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(repo, {"x.txt": "x\n"}, "base")
+    linked = repo / "tree"
+    _git(repo, "worktree", "add", "-q", "--detach", str(linked))
+    said = "the worker could not write a linked worktree's index: git write-tree"
+    assert conduct["check_tree"](linked) == said
+    written = _git(linked, "write-tree")
+    (linked / "tree.txt").write_text(written)
+    assert conduct["check_tree"](linked) is None
+    (linked / "tree.txt").write_text("not a tree\n")
+    assert conduct["check_tree"](linked) == said
+    (linked / "tree.txt").unlink()
+    (tmp_path / "elsewhere.txt").write_text(written)
+    (linked / "tree.txt").symlink_to(tmp_path / "elsewhere.txt")
+    assert conduct["check_tree"](linked) == said
 
     # Each contract breach is named; the verdict is shown, never judged.
     scratch = tmp_path / "checked"
@@ -9462,6 +9531,37 @@ def test_a_swapped_root_halts_a_codex_spawn(
     assert argv("claude", "Cut.", tree, None, None, repo, None, brief)
 
 
+@pytest.mark.slow
+@pytest.mark.skipif(
+    os.environ.get("MF_REAL_CODEX") != "1" or shutil.which("codex") is None,
+    reason="set MF_REAL_CODEX=1 with codex on PATH: it starts Codex's own sandbox",
+)
+def test_a_linked_tree_writes_under_the_codex_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    command = conduct["argv"](
+        "codex", "Do it.", tree, None, None, (root, root / ".git")
+    )
+    prefix = "sandbox_workspace_write."
+    pairs = [
+        pair
+        for flag, pair in zip(command, command[1:], strict=False)
+        if flag == "-c" and pair.startswith(prefix)
+    ]
+    sandbox = ["codex", "sandbox", "-c", 'sandbox_mode="workspace-write"']
+    for pair in pairs:
+        sandbox += ["-c", pair]
+    sandbox += ["-C", str(tree), "--", "git", "write-tree"]
+
+    done = subprocess.run(sandbox, capture_output=True, text=True)
+
+    assert done.returncode == 0, done.stderr
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -9505,6 +9605,25 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert conduct["find_version"](root, "0002-forged").tree is None
     assert conduct["find_version"](root, "0001-todo").tree == tree
     shutil.rmtree(forged)
+    # A Codex worker writes each linked worktree's gitdir: a folder under `worktrees/`,
+    # no link and no file, sorted; none where `worktrees/` is absent or a link.
+    worktrees = root / ".git" / "worktrees"
+    gitdirs = conduct["_gitdirs"]
+    folders = [
+        worktrees / name for name in ("0001-todo", "0002-forged", "0003-foreign")
+    ]
+    (worktrees / "zz-link").symlink_to(tmp_path)
+    (worktrees / "zz-file").write_text("x\n")
+    assert gitdirs(root / ".git") == folders
+    (worktrees / "zz-link").unlink()
+    (worktrees / "zz-file").unlink()
+    assert gitdirs(tmp_path) == []
+    worktrees.rename(root / ".git" / "aside")
+    worktrees.symlink_to(root / ".git" / "aside")
+    assert gitdirs(root / ".git") == []
+    worktrees.unlink()
+    (root / ".git" / "aside").rename(worktrees)
+    gitdir_roots = [str(path) for path in folders]
     pointer = tree / ".git"
     absolute = pointer.read_text()
     pointer.write_text("gitdir: ../main/.git/worktrees/0001-todo\n")
@@ -9599,7 +9718,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     ):
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
-    roots = json.dumps([str(root / ".git"), str(root), str(tree)])
+    roots = json.dumps([str(root / ".git"), *gitdir_roots, str(root), str(tree)])
     assert codex[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
     codex = codex[len(hooks_off) + 5 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
@@ -9646,7 +9765,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     writes = [str(tree), str(minions), str(brief), str(root / ".git")]
     assert settings["sandbox"]["filesystem"]["allowWrite"] == writes
     codex = argv("codex", "Cut.", tree, None, None, repo, brief=brief)
-    roots = json.dumps([str(root / ".git"), str(tree), str(minions), str(brief.parent)])
+    roots = json.dumps(
+        [str(root / ".git"), *gitdir_roots, str(tree), str(minions), str(brief.parent)]
+    )
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # A Codex cutter's root is the brief's folder: it holds the brief alone, and the
     # queued brief stays where it is.
@@ -9707,7 +9828,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         return json.loads(found.removeprefix(key))
 
     pointer.write_text(f"gitdir: {neighbour}/.git\n")
-    assert next_roots() == [str(root / ".git"), str(root)]
+    assert next_roots() == [str(root / ".git"), *gitdir_roots, str(root)]
     pointer.write_text(absolute)
     inner = root / ".minions" / "inner"
     inner.mkdir()
@@ -9754,7 +9875,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     commondir = root / ".git" / "worktrees" / "0001-todo" / "commondir"
     kept = commondir.read_text()
     commondir.write_text(f"{neighbour}/.git\n")
-    assert next_roots() == [str(root / ".git"), str(root), str(tree)]
+    assert next_roots() == [str(root / ".git"), *gitdir_roots, str(root), str(tree)]
     commondir.write_text(kept)
     # A worker that swaps a fresh log for a link before the spawn writes it gains
     # nothing: the conductor writes the file it made, never the link's target.

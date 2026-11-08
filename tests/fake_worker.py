@@ -573,6 +573,13 @@ def _fake(prompt: str) -> None:
             for mark in Path(os.environ["HOME"], ".mf-ship-origin").glob("probe-*"):
                 mark.chmod(0o400)
         _commit(here, {"probe.txt": "ok\n"}, "probe")
+        # A Codex probe's linked tree: `tree-silent` leaves its index unwritten.
+        if "git write-tree in tree/" in prompt and "tree-silent" not in modes:
+            tree = here / "tree"
+            made = subprocess.run(
+                ["git", "write-tree"], cwd=tree, capture_output=True, text=True
+            )
+            (tree / "tree.txt").write_text(made.stdout)
         translated = "translated" in modes
         with tempfile.TemporaryDirectory(prefix="fake-uname-") as folder:
             env = dict(os.environ)

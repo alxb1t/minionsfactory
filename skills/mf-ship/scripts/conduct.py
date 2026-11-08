@@ -249,6 +249,11 @@ PROBE = (
     "In this directory, write the word ok to probe.txt, commit it with the"
     " message probe, then run make gate."
 )
+# A Codex probe's linked worktree: its index must be writable. Why: 0104-codex-limits
+# design D6.
+TREE_PROBE = (
+    "Then run git write-tree in tree/ and write what it prints to tree/tree.txt."
+)
 # A Codex probe's second worker. Why: 0096-codex-ready design D8.
 CHECKER_PROBE = (
     "You are converge's conformance checker for change 0001-probe in this directory."
@@ -1359,13 +1364,27 @@ def _check_release(
 
 
 def _config_held(cwd: Path) -> list[str]:
-    """Return the keys in the repo's own git config that `CONFIG_PLAIN` lacks."""
+    """Return the keys in the repo's own git config that `CONFIG_PLAIN` lacks.
+
+    Each linked worktree's `config.worktree` is read as a file, which git itself reads
+    only under `extensions.worktreeConfig`. Why: 0104-codex-limits design D6.
+    """
     listed = _git(cwd, "config", "--list", "--show-scope", "--name-only")
-    return [
+    held = [
         name
         for scope, _, name in (line.partition("\t") for line in listed.splitlines())
         if scope in ("local", "worktree") and not CONFIG_PLAIN.fullmatch(name)
     ]
+    common = _common_dir(cwd)
+    for folder in _gitdirs(common) if common else []:
+        file = folder / "config.worktree"
+        with contextlib.suppress(OSError):
+            if stat.S_ISREG(os.lstat(file).st_mode):
+                names = _git(
+                    cwd, "config", "--file", str(file), "--list", "--name-only"
+                )
+                held += [n for n in names.splitlines() if not CONFIG_PLAIN.fullmatch(n)]
+    return held
 
 
 def _lfs_wrote(cwd: Path, name: str) -> bool:
@@ -2054,6 +2073,19 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     if (scratch / ".gated").is_file():
         return None
     return "make gate left no .gated"
+
+
+def check_tree(tree: Path) -> str | None:
+    """Return why the probe's linked tree fails, or None when its index was written.
+
+    `tree.txt`, read through no link, must hold what `git write-tree` prints there.
+    Why: 0104-codex-limits design D6.
+    """
+    named = _bounded(tree / "tree.txt")
+    made = _maybe(tree, "write-tree")
+    if named is not None and made is not None and named.strip() == made.strip():
+        return None
+    return "the worker could not write a linked worktree's index: git write-tree"
 
 
 def checker_fixture(scratch: Path) -> tuple[str, str]:
@@ -3027,6 +3059,29 @@ def _unswapped(paths: list[Path]) -> None:
             )
 
 
+def _gitdirs(common: Path) -> list[Path]:
+    """Return each linked worktree's gitdir under `common`, sorted: folders, no link.
+
+    Codex's sandbox leaves a gitdir a `.git` pointer names read-only, even inside a
+    writable root, so each is a root of its own. A `worktrees/` that is a link, or
+    absent, holds none. Why: 0104-codex-limits design D6.
+    e.g. `<common>/worktrees/0001-todo` → [that]
+    """
+    folder = common / "worktrees"
+    try:
+        if not stat.S_ISDIR(os.lstat(folder).st_mode):
+            return []
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return []
+    found: list[Path] = []
+    for name in names:
+        with contextlib.suppress(OSError):
+            if stat.S_ISDIR(os.lstat(folder / name).st_mode):
+                found.append(folder / name)
+    return found
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -3101,7 +3156,7 @@ def argv(
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     # Codex roots are folders: a cutter's holds its brief's.
     folders = [
-        *([common] if common else []),
+        *([common, *_gitdirs(common)] if common else []),
         *trees,
         *(path.parent for path in edits),
         *mailboxes,
@@ -5528,25 +5583,33 @@ class Run:
                 return
             _git(scratch, "init", "-q", "-b", "main")
             (scratch / "Makefile").write_text(probe_gate(mark, _native()))
-            (scratch / ".gitignore").write_text(".gated\n.arch\n")
+            codex = executor == "codex"
+            ignored = ".gated\n.arch\n" + ("tree/\n" if codex else "")
+            (scratch / ".gitignore").write_text(ignored)
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
+            if codex:
+                _git(scratch, "worktree", "add", "-q", "--detach", "tree")
             models = (executor, None, None)
             repo = _repo(scratch)
-            denied = self.spawn(who, station, scratch, PROBE, models, repo, limits=True)
+            prompt = f"{PROBE} {TREE_PROBE}" if codex else PROBE
+            denied = self.spawn(
+                who, station, scratch, prompt, models, repo, limits=True
+            )
             with self.guard:
                 out = self.outs[who, station]
             # Why: 0100-worker-diet design D6.
             turn = first_turn(out)
             shown = "" if turn is None else f" · first turn {turn} tokens"
+            tree = check_tree(scratch / "tree") if codex else None
             if denied is not None and self.judge(
                 who,
                 station,
-                check_probe(scratch, mark) or mcp_started(executor, out),
+                check_probe(scratch, mark) or tree or mcp_started(executor, out),
                 denied,
                 shown,
             ):
-                if executor != "codex" or self.probe_checker(executor, who):
+                if not codex or self.probe_checker(executor, who):
                     self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)

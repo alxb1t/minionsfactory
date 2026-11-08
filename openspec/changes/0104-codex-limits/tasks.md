@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The probe
 - [x] 3 — The mailbox fallback
 - [x] 4 — The record
-- [ ] 5 — The linked worktree
+- [x] 5 — The linked worktree
 - [ ] 6 — The request id and the record of decisions
 - [ ] 7 — The real Codex check **HUMAN**
 
@@ -70,17 +70,17 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The linked worktree
 
-- [ ] 5.1 Extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named` in `tests/test_conduct.py` with a linked
+- [x] 5.1 Extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named` in `tests/test_conduct.py` with a linked
   tree's folder under `worktrees/`, then `_gitdirs` and `argv`'s Codex roots, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k "carries_the_allowlist or swapped_root_halts"` reports `2 passed`; `grep -n '^def _gitdirs(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 5.2 Add `test_a_program_key_in_a_worktree_config_halts` to `tests/test_conduct.py`, then `_config_held`, per
+- [x] 5.2 Add `test_a_program_key_in_a_worktree_config_halts` to `tests/test_conduct.py`, then `_config_held`, per
   [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k "worktree_config_halts or no_hook_runs_in_a_worker or mixed_key_list"` reports `3 passed`; `grep -n 'config.worktree' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 5.3 Extend `test_the_codex_probe_runs_a_checker` with `tree-silent`, and teach `tests/fake_worker.py` the tree step and
+- [x] 5.3 Extend `test_the_codex_probe_runs_a_checker` with `tree-silent`, and teach `tests/fake_worker.py` the tree step and
   `tree-silent`, then `TREE_PROBE`, `check_tree` and `probe`'s linked tree in `skills/mf-ship/scripts/conduct.py`, per
   [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k "codex_probe_runs_a_checker or usage_limit_at_the_probe or limit_at_the_probe_halts_its_stations"` reports `3 passed`; `grep -n -e '^TREE_PROBE = ' -e '^def check_tree(' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'tree-silent' tests/fake_worker.py` prints a line.
-- [ ] 5.4 Add `test_a_linked_tree_writes_under_the_codex_sandbox` to `tests/test_conduct.py`, marked `slow` and skipped
+- [x] 5.4 Add `test_a_linked_tree_writes_under_the_codex_sandbox` to `tests/test_conduct.py`, marked `slow` and skipped
   unless `MF_REAL_CODEX=1` and `codex` is on `PATH`, per [D6](design.md#d6) and [C14](design.md#goals--non-goals).
   Verify: `uv run pytest -q tests/test_conduct.py -k linked_tree_writes_under` reports `1 skipped`.
 
