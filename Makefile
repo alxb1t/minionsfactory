@@ -1,6 +1,8 @@
 .PHONY: fix gate check install-skills uninstall-skills
 
-DIFF_BASE ?= main
+# A stacked build's base is its dependency's built head: 0099-stacked-builds design D5.
+STACKED_ON = $(shell git rev-parse --verify --quiet "$$(grep -sxE '[0-9a-f]{40}' "$$(git rev-parse --path-format=absolute --git-common-dir)/../.minions/changes/$$(git branch --show-current)/stacked-on")^{commit}")
+DIFF_BASE ?= $(or $(STACKED_ON),main)
 
 fix:
 	uv run ruff format .

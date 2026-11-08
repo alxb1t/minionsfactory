@@ -537,7 +537,8 @@ def _fake(prompt: str) -> None:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
         time.sleep(2)
-    if station == "build" and f"hold-{change}" in modes:
+    holds = {"build": f"hold-{change}", "converge": f"hold-converge-{change}"}
+    if holds.get(station) in modes:
         hold, deadline = Path(os.environ["FAKE_HOLD"]), time.monotonic() + 60
         while not hold.exists() and time.monotonic() < deadline:
             time.sleep(0.05)

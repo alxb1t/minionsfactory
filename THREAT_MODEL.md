@@ -33,6 +33,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   cost or the checker probe's usage and MCP checks, never a stage's check on disk. Within converge, a checker the mailbox
   starts on another host writes its findings file, which the conductor reads as evidence,
   as it reads a subagent's.
+- **A stacked build runs on code no converge has judged**
+  ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its dependency's
+  built head, and never converges or releases before that dependency's converge and release. A worker can write
+  `stacked-on`, which narrows the build's gate check and diff coverage: the gate reads it through `git rev-parse` alone, and
+  the conductor removes it before converge and the release, which judge against the default branch.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
   scratch repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps
   `origin`'s URLs in the home folder before its first worker: while `origin` differs from them, no remote call of
@@ -170,7 +175,7 @@ picked card is adversarial's.
 
 ## Known gaps
 
-Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0034·R9`. D47 accepts `Ship tools:`.
+Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
@@ -179,8 +184,9 @@ Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0034·R9`. 
   that worker's roots: whether Codex resolves a root once or per command is unproven (`0050·S7`, `0050·R11`). A Claude
   worker can still make, in its own temp folder, the folder a forged worktree entry names, so that folder becomes a
   Codex root it can swap in the same window.
-- The config race, what is left, `0050·R5` among it: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
-  still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
+- The config race, what is left: a run's remote calls are out of the race, and `merge_in`
+  compares the config again right before its commit; its local `status`, `merge` and `commit` still read the repo's config
+  after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.
 - A cutter is given `.minions` by name, and the primary, its parent, is every other worker's: the station refuses a link
   there as it builds the cutter's command, so a worker that swaps one in between that check and the cutter's sandbox

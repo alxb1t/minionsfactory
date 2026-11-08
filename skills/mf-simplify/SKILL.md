@@ -30,7 +30,8 @@ current branch differs → **halt**, naming both.
 Each holds, or **halt** naming it: the tree is clean; every `## Progress` box is ticked; `make gate` is green.
 Before that first gate, run `make -n gate` and paste its output. It exits non-zero, or prints no command — only
 `is up to date` or `Nothing to be done` → **halt**, naming the root `Makefile`: an empty recipe exits 0.
-The **range** is `<merge-base with the default branch>..HEAD` — the default branch as `git symbolic-ref --short
+The **range** is `<base>..HEAD`, `<base>` the sha `.minions/changes/<change-id>/stacked-on` names while it stands,
+else the merge-base with the default branch — the default branch as `git symbolic-ref --short
 refs/remotes/origin/HEAD` names it after `origin/`, or `main`.
 
 ## The oracles
