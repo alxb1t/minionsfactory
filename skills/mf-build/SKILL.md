@@ -63,7 +63,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | yes — `tasks.md` is tracked, and the branch is not the default |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | — |
 | **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | — |
-| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
+| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |

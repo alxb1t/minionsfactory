@@ -1905,6 +1905,11 @@ def test_a_build_runs_a_worker_per_phase(
     root = _primary(tmp_path)
     progress = "- [ ] 1 — One · moderate\n- [ ] 2 — Two · hard\n- [ ] 3 — Three\n"
     _version(root, "0001-todo", progress)
+    opus = '[build]\nmodel = "claude-opus-5-5"\n'
+    sonnet = '[build.moderate]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text(opus + sonnet)
 
     def run(at: Path, code: int) -> list[str]:
         assert (
@@ -1922,8 +1927,19 @@ def test_a_build_runs_a_worker_per_phase(
         "converge 0001-todo",
         "release 0001-todo",
     ]
+
+    # The moderate phase builds on `[build.moderate]`; the hard, the unrated and the
+    # close on `[build]`'s model.
+    def spawned(lines: list[str]) -> list[str]:
+        return [
+            line.split(" · spawn — build · ")[1]
+            for line in lines
+            if " · spawn — build · " in line
+        ]
+
+    on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
+    assert spawned(lines) == [on[0], on[1], on[1], on[1]]
     # Each phase appends 50 lines; the conductor keeps 40 of each.
-    folder = root / ".minions" / "changes" / "0001-todo"
     notes = (folder / "build-notes.md").read_text().splitlines()
     sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
     assert sections == [0, 40, 80]
@@ -1931,6 +1947,17 @@ def test_a_build_runs_a_worker_per_phase(
     assert [notes[i] for i in sections] == ["## 1 — One", "## 2 — Two", "## 3 — Three"]
     kept = " · 0001-todo · notes — phase 1: kept 40 of 50 lines"
     assert any(line.endswith(kept) for line in lines)
+
+    # With no `[build.moderate]`, every phase builds on `[build]`'s model.
+    (tmp_path / "plain").mkdir()
+    plain = _primary(tmp_path / "plain")
+    _version(plain, "0001-todo", progress)
+    models = plain / ".minions" / "changes" / "0001-todo" / "models.toml"
+    models.parent.mkdir(parents=True)
+    models.write_text(opus)
+    calls.unlink()
+    fake()
+    assert spawned(run(plain, 0)) == [on[1]] * 4
 
     # A link at the notes halts the version before a phase spawn, writing nothing.
     (tmp_path / "linked").mkdir()
@@ -2576,6 +2603,17 @@ def test_rescue_skip_runs_none(
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", "m", None)
     table.write_text('[build]\nmodel = "m"\n[rescue]\n')
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", None, None)
+    # A moderate phase's table runs on the build's executor, naming none of its own.
+    # Why: 0102-build-per-phase design D5.
+    table.write_text('[build]\nexecutor = "codex"\n[build.moderate]\nmodel = "m"\n')
+    moderate = models(minions, "0001-todo", "build.moderate", "claude")
+    assert moderate == ("codex", "m", None)
+    table.write_text('[build.moderate]\nexecutor = "codex"\n')
+    with pytest.raises(conduct["Stop"], match="build.moderate names an executor"):
+        models(minions, "0001-todo", "build.moderate", "claude")
+    table.write_text('[build.moderate]\nmodel = "a;b"\n')
+    with pytest.raises(conduct["Stop"], match="'a;b' is not a model or effort"):
+        models(minions, "0001-todo", "build.moderate", "claude")
     # A table TOML cannot read halts, naming the file in the change's folder.
     table.write_text("[build\n")
     with pytest.raises(

@@ -189,7 +189,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
   ## For the cut
   <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · beside: <ids, or the slug of an earlier item> · debt: [<ids>] or none · decide: recommended
-     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
+     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
 
@@ -200,9 +200,10 @@ is the strongest tier · high by default. `decide: recommended` stands when the 
 proposed fix. The cut station writes `models.toml` from the `models:` line. `beside:` is optional: the versions this one only
 shares files with, which nothing waits on (D69).
 
-The `conformance`, `adversarial`, `fix` and `shadow` parts are optional. A host prefix, `claude/` or `codex/`, names a
-part's executor: `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker;
-`cut` and `fix` take none. `shadow` turns on the shadow round 1, the person's choice at each close.
+The `build-moderate`, `conformance`, `adversarial`, `fix` and `shadow` parts are optional. `build-moderate` builds the
+phases the cut rates `moderate`. A host prefix, `claude/` or `codex/`, names a part's executor:
+`converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker; `cut`, `fix` and
+`build-moderate` take none. `shadow` turns on the shadow round 1, the person's choice at each close.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its
 `## For the cut` slug, the exact package, its version constraint, and why. `conduct.py cut` copies the item's rows into

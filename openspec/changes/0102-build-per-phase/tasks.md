@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — A build worker per phase
 - [x] 2 — The phase handoff
-- [ ] 3 — The moderate model
+- [x] 3 — The moderate model
 - [ ] 4 — The record
 
 ## 1 — A build worker per phase
@@ -48,25 +48,25 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The moderate model
 
-- [ ] 3.1 Add the `_models` steps to `test_rescue_skip_runs_none`, and the moderate step and the second root to
+- [x] 3.1 Add the `_models` steps to `test_rescue_skip_runs_none`, and the moderate step and the second root to
   `test_a_build_runs_a_worker_per_phase`, in `tests/test_conduct.py`, per the design's `## Tests` rows.
   Verify: `grep -n "build.moderate names an executor" tests/test_conduct.py` prints a line.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py`, add `MODERATE` to `PLANNED`, `_rating`, `_models`' `MODERATE` branch and
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py`, add `MODERATE` to `PLANNED`, `_rating`, `_models`' `MODERATE` branch and
   `advance`'s pick, per [D5](design.md#d5), the why lines citing `0102-build-per-phase design D5`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "worker_per_phase or rescue_skip"` reports `2 passed`.
-- [ ] 3.3 Add the `build-moderate` steps to `test_a_hard_brief_is_ready_for_the_cut` and `test_a_brief_out_of_shape_halts`
+- [x] 3.3 Add the `build-moderate` steps to `test_a_hard_brief_is_ready_for_the_cut` and `test_a_brief_out_of_shape_halts`
   in `tests/test_brief_check.py`, and reword the latter's pinned `MODELS` text, per the design's `## Tests` rows.
   Verify: `grep -n "build-moderate" tests/test_brief_check.py` prints a line.
-- [ ] 3.4 In `skills/mf-plan/scripts/brief_check.py`, add `PARTS`, take it in `models()`, add `build-moderate` to
+- [x] 3.4 In `skills/mf-plan/scripts/brief_check.py`, add `PARTS`, take it in `models()`, add `build-moderate` to
   `HOSTLESS` and reword `MODELS`, per [D6](design.md#d6).
   Verify: `grep -n "^PARTS = " skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 3.5 In `skills/mf-cut-change/SKILL.md`, add Step 6's rating bullet per [D5](design.md#d5), and edit *Suggesting
+- [x] 3.5 In `skills/mf-cut-change/SKILL.md`, add Step 6's rating bullet per [D5](design.md#d5), and edit *Suggesting
   models* per [D6](design.md#d6), keeping its row whose build cell opens `Sonnet 5.5 · high`.
   Verify: `grep -n "build.moderate" skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.6 Edit the `I4` row of `skills/mf-cut-change/SKILL.md`'s and `skills/mf-build/SKILL.md`'s input contract, per
+- [x] 3.6 Edit the `I4` row of `skills/mf-cut-change/SKILL.md`'s and `skills/mf-build/SKILL.md`'s input contract, per
   [D5](design.md#d5).
   Verify: `grep -l "no part of the title" skills/mf-cut-change/SKILL.md skills/mf-build/SKILL.md` prints both paths.
-- [ ] 3.7 In `skills/mf-plan/SKILL.md`, add the `build-moderate` part to the template's models line and to the parts
+- [x] 3.7 In `skills/mf-plan/SKILL.md`, add the `build-moderate` part to the template's models line and to the parts
   paragraph, per [D6](design.md#d6).
   Verify: `grep -n "build-moderate" skills/mf-plan/SKILL.md` prints a line.
 

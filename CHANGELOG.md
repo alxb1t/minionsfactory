@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phases hand over through `.minions/changes/<id>/build-notes.md`: `mf-build` reads it and appends a section a phase,
   the conductor keeps 40 lines of each append, through a descriptor that follows no link, and a stacked reset removes
   it (change `0102-build-per-phase`, phase 2).
+- The cut rates each phase ` · moderate` or ` · hard`; a moderate phase builds on `[build.moderate]` when the models
+  file names it, on `[build]`'s executor, and `brief_check.py` takes an optional, hostless `build-moderate` part
+  (change `0102-build-per-phase`, phase 3).
 
 ## [0.84.0] - 2026-11-08
 

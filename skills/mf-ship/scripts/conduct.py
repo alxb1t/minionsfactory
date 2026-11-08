@@ -113,10 +113,13 @@ OLD_WORKERS = {
     "converge.conformance": "converge.review",
     "converge.adversarial": "converge.security",
 }
-# The rescue, the supervisor and converge's workers are no stage: each is planned with
-# the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
-# 0094-lighter-converge design D1.
-PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS)
+# A phase the cut rates moderate builds on this table.
+# Why: 0102-build-per-phase design D5.
+MODERATE = "build.moderate"
+# The rescue, the supervisor, converge's workers and the moderate build are no stage:
+# each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
+# design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
@@ -608,6 +611,15 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
         if mark != "x":
             return number, title
     return None
+
+
+def _rating(title: str) -> str:
+    """Return a `## Progress` title's rating: `moderate`, else `hard`.
+
+    e.g. "Two · moderate" → "moderate"; "Three" → "hard"
+    Why: 0102-build-per-phase design D5.
+    """
+    return "moderate" if title.endswith(" · moderate") else "hard"
 
 
 def _change_dir(primary: Path, change: str) -> Path:
@@ -2446,10 +2458,11 @@ def _models(
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
-    A table no executor can run halts the version.
+    `MODERATE` names no executor and runs on the build's, Codex-checked. A table no
+    executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
     design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
-    0100-worker-diet design D8.
+    0100-worker-diet design D8; 0102-build-per-phase design D5.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2459,8 +2472,8 @@ def _models(
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
     own = "executor" in table
-    if station in WORKERS:
-        if own and station == FIXER:
+    if station in (*WORKERS, MODERATE):
+        if own and station in (FIXER, MODERATE):
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2469,6 +2482,9 @@ def _models(
                     f"conduct: halt — {file}: {station} {value!r}"
                     " is not a model or effort",
                 )
+    if station == MODERATE:
+        executor = _models(runs, change, "build", run)[0]
+    if station in WORKERS:
         converge = _models(runs, change, "converge", run)[0]
         executor = executor if own else converge
     model = model if isinstance(model, str) else None
@@ -4615,10 +4631,11 @@ class Run:
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)
                             return
-                phase = None
+                phase, rating = None, "hard"
                 if stage == "build":
                     unticked = _unticked(cwd, change)
                     phase = unticked[0] if unticked else "close"
+                    rating = _rating(unticked[1]) if unticked else rating
                 numbered = phase not in (None, "close")
                 # A link at the notes halts here, before the spawn.
                 notes = _note_lines(self.primary, change) if numbered else 0
@@ -4630,6 +4647,11 @@ class Run:
                     phase=phase,
                 )
                 models = self.planned_models(version.change, stage)
+                # A moderate phase builds on `[build.moderate]` when it names one.
+                # Why: 0102-build-per-phase design D5.
+                if numbered and rating == "moderate":
+                    moderate = self.planned_models(change, MODERATE)
+                    models = moderate if moderate[1] or moderate[2] else models
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
