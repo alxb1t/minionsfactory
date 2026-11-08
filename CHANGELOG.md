@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - While `stacked-on` stands, the gate's diff coverage, the build's gate check and metrics, and `mf-simplify`'s range take
   its sha as their base, and `I17` passes on that head holding the dependency's change (change `0099-stacked-builds`,
   phase 2).
+- A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit; the
+  merge back runs `integrate.py`'s `changelog` rule, which keeps only the entries past a stacked base's, so the
+  dependency's are not carried twice (change `0099-stacked-builds`, phase 3).
 
 ## [0.81.0] - 2026-11-08
 

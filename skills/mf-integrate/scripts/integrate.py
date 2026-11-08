@@ -361,12 +361,16 @@ def _split_changelog(text: str) -> tuple[str, str, str]:
 
 
 def changelog(tree: Path) -> str:
-    """Keep the branch's `[Unreleased]` entries above the default branch's releases."""
+    """Keep the branch's `[Unreleased]` entries above the default branch's releases.
+
+    A base holding entries is a stacked branch's: its entries lead the branch's, and
+    only the lines past them are kept. Why: 0099-stacked-builds design D4.
+    """
     base = _merge_base(tree)
     sides = [_show(tree, rev, "CHANGELOG.md") for rev in (base, "HEAD", "MERGE_HEAD")]
     if None in sides:
         raise Stop(2, "integrate: cannot run — a side has no CHANGELOG.md")
-    base_head, _, base_rest = _split_changelog(sides[0] or "")
+    base_head, base_entries, base_rest = _split_changelog(sides[0] or "")
     our_head, entries, our_rest = _split_changelog(sides[1] or "")
     their_head, their_entries, their_rest = _split_changelog(sides[2] or "")
     if (our_head, our_rest) != (base_head, base_rest):
@@ -374,11 +378,32 @@ def changelog(tree: Path) -> str:
     if their_entries.strip():
         raise Stop(1, "changelog: halt — the default branch holds [Unreleased] entries")
     kept = entries.strip("\n")
+    stacked = base_entries.strip("\n").splitlines() if base_entries.strip() else []
+    if stacked:
+        lines = kept.splitlines()
+        if lines[: len(stacked)] != stacked:
+            raise Stop(
+                1,
+                "changelog: halt — the branch's [Unreleased] entries do not hold"
+                " the base's",
+            )
+        kept = "\n".join(lines[len(stacked) :]).strip("\n")
     body = f"\n{kept}\n" if kept else ""
     _write(
         tree, "CHANGELOG.md", f"{their_head}{body}\n{their_rest}".rstrip("\n") + "\n"
     )
     return "changelog: the branch's [Unreleased] entries kept above the releases"
+
+
+def unreleased(tree: Path) -> bool:
+    """Return whether the open merge's base holds `## [Unreleased]` entries.
+
+    Such a base is a stacked branch's. Why: 0099-stacked-builds design D4.
+    """
+    text = _show(tree, _merge_base(tree), "CHANGELOG.md")
+    if text is None or not UNRELEASED.search(text):
+        return False
+    return bool(_split_changelog(text)[1].strip())
 
 
 def _renumber(text: str, ids: dict[int, int]) -> str:
@@ -703,8 +728,8 @@ def replay(cwd: Path, merge: str) -> str:
     """Return the paths the rules settled when they rebuild `merge`'s tree exactly.
 
     The merge is redone from its parents in a scratch worktree under the run
-    directory: `changelog` settles a conflicted CHANGELOG.md, and `decisions` runs on
-    every merge. A requirement
+    directory: `changelog` settles a conflicted CHANGELOG.md, or any whose base holds
+    `[Unreleased]` entries, and `decisions` runs on every merge. A requirement
     `delta` names, a path left unmerged, or another tree, stops with exit 1; a
     commit without two parents, or whose second parent the default branch does not
     hold, with exit 2.
@@ -735,7 +760,7 @@ def replay(cwd: Path, merge: str) -> str:
             raise Stop(2, f"integrate: cannot run — git merge failed: {merged.stderr}")
         unmerged = _unmerged(scratch)
         settled = []
-        if "CHANGELOG.md" in unmerged:
+        if "CHANGELOG.md" in unmerged or unreleased(scratch):
             changelog(scratch)
             settled.append("CHANGELOG.md")
         said = decisions(scratch)

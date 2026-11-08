@@ -86,7 +86,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise", "wait", "stacked"),
+    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -904,6 +904,20 @@ def _merged_back(tree: Path, done: str, default: str) -> bool:
         and parents[0] == named.strip()
         and _ancestor(tree, parents[1], default)
     )
+
+
+def _cut_commit(tree: Path, change: str) -> str | None:
+    """Return the newest first-parent commit that lands the change directory, or None.
+
+    Why: 0099-stacked-builds design D6.
+    """
+    landed = f"docs({change}): land the change directory"
+    log = _git(tree, "log", "--first-parent", "--format=%H %s", "HEAD")
+    for line in log.splitlines():
+        sha, _, subject = line.partition(" ")
+        if subject == landed:
+            return sha
+    return None
 
 
 def _unstack(primary: Path, change: str) -> None:
@@ -3638,6 +3652,7 @@ class Run:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
         integrate = runpy.run_path(str(INTEGRATE))
         self.delta = integrate["delta"]
+        self.unreleased = integrate["unreleased"]
         self.rules = {
             "CHANGELOG.md": integrate["changelog"],
             DECISIONS: integrate["decisions"],
@@ -4278,8 +4293,9 @@ class Run:
         halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
         taken amend, at a halt met on entry or after a check, goes on. A supervisor's
         taken settle goes on to integrate, whose merge must hold the settled tree.
-        It returns the stage of `stop_at` it stopped at, or `stacked` whenever it reads
-        it; else None. Each stage read past the build wakes the waiting versions.
+        It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
+        it, or `waiting` after a reset; else None. Each stage read past the build wakes
+        the waiting versions.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, security S2; 0099-stacked-builds design D3.
@@ -4289,6 +4305,8 @@ class Run:
         try:
             auto = False
             while not self.stopped(version.change):
+                if self.reset_stack(version):
+                    return "waiting"
                 if auto:
                     stage, why = "converge", "granted automatically"
                 else:
@@ -4627,10 +4645,12 @@ class Run:
     def settle(self, tree: Path, change: str, default: str) -> None:
         """Settle a merge by `integrate.py`'s rules; else abort it, stop.
 
-        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md`, the
+        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md` and on any merge
+        whose base holds `[Unreleased]` entries, a stacked branch's; the
         `docs/decisions.md` rule on every merge: a planned id moves on a clean one.
         A clean merge whose rule halts names `merge --no-commit`, not `merge`.
-        Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3.
+        Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3;
+        0099-stacked-builds design D4.
         """
         at, branch = shlex.quote(str(tree)), shlex.quote(default)
         run = f"git -C {at} merge {branch}, then re-run"
@@ -4641,7 +4661,8 @@ class Run:
         first = _conflicts(tree)
         stopped = ""
         for path, rule in self.rules.items():
-            if (path in first or path == DECISIONS) and not stopped:
+            stacked = path == "CHANGELOG.md" and self.unreleased(tree)
+            if (path in first or path == DECISIONS or stacked) and not stopped:
                 try:
                     rule(tree)
                 except Exception as error:
@@ -4715,7 +4736,8 @@ class Run:
     def landed(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Wait while a stacked version's dependency lives; True to be ready again.
 
-        Its dependency ended unreleased blocks it. Why: 0099-stacked-builds design D3.
+        A reset while it waits makes it ready again; its dependency ended unreleased
+        blocks it. Why: 0099-stacked-builds design D3, D6.
         """
         change, default = version.change, default_branch(self.primary)
         after = _dependencies(self.primary, change)
@@ -4726,11 +4748,48 @@ class Run:
         self.log.event(change, "wait", f"stacked on {dependency}")
         with self.built:
             while self.live(dependency, threads):
+                if self.reset_stack(version):
+                    return True
                 self.built.wait(REJOIN_POLL)
         if _shipped(self.primary, default, dependency):
             return True
         self.block(change, dependency)
         return False
+
+    def reset_stack(self, version: Version) -> bool:
+        """Reset a stacked version whose dependency re-planned past it; True if so.
+
+        A dependency whose branch left that head was itself reset, so a chain resets
+        with it. The version goes back to its cut commit, `stacked-on` removed.
+        Why: 0099-stacked-builds design D6.
+        """
+        change, tree = version.change, version.tree
+        if tree is None:
+            return False
+        default = default_branch(self.primary)
+        after = _dependencies(self.primary, change)
+        unreleased = [n for n in after if not _shipped(self.primary, default, n)]
+        if len(unreleased) != 1:
+            return False
+        if (head := _stacked_on(self.primary, change, tree, unreleased)) is None:
+            return False
+        dependency = unreleased[0]
+        if not _replanned(self.primary, dependency, head) and _ancestor(
+            self.primary, head, f"refs/heads/{dependency}"
+        ):
+            return False
+        if (cut := _cut_commit(tree, change)) is None:
+            raise Stop(1, f"conduct: halt — {change}: no cut commit to reset to")
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(tree)
+        left = _git(tree, "rev-parse", "HEAD").strip()
+        _git(tree, "reset", "-q", "--hard", cut)
+        _unstack(self.primary, change)
+        moved = f"{left[:7]} → {cut[:7]}"
+        said = f"{dependency} re-planned past {head[:7]}: {moved}"
+        self.log.event(change, "reset", said)
+        return True
 
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block.

@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The stack
 - [x] 2 — The base
-- [ ] 3 — The reset and the merge back
+- [x] 3 — The reset and the merge back
 - [ ] 4 — The record
 
 ## 1 — The stack
@@ -64,18 +64,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The reset and the merge back
 
-- [ ] 3.1 Add `test_a_stacked_dependent_resets_and_merges_back` to `tests/test_conduct.py`, as the design's `## Tests` row
+- [x] 3.1 Add `test_a_stacked_dependent_resets_and_merges_back` to `tests/test_conduct.py`, as the design's `## Tests` row
   says.
   Verify: `grep -n '^def test_a_stacked_dependent_resets_and_merges_back' tests/test_conduct.py` prints a line.
-- [ ] 3.2 Add `_cut_commit`, `Run.reset_stack`, its reads in `advance` and `landed`, and the `reset` event to
+- [x] 3.2 Add `_cut_commit`, `Run.reset_stack`, its reads in `advance` and `landed`, and the `reset` event to
   `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6).
   Verify: `grep -n '    def reset_stack(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.3 Extend `test_changelog_keeps_the_branch_entries_above_the_released_sections` and
+- [x] 3.3 Extend `test_changelog_keeps_the_branch_entries_above_the_released_sections` and
   `test_replay_reproduces_a_rule_settled_merge` in `tests/test_integrate.py`, as the design's `## Tests` rows say, then
   `changelog`'s base entries, `unreleased` and `replay`'s condition in `skills/mf-integrate/scripts/integrate.py`, per
   [D4](design.md#d4).
   Verify: `grep -n '^def unreleased' skills/mf-integrate/scripts/integrate.py` prints a line.
-- [ ] 3.4 Add `self.unreleased` to `Run` and its read in `settle` in `skills/mf-ship/scripts/conduct.py`, and `unreleased` to
+- [x] 3.4 Add `self.unreleased` to `Run` and its read in `settle` in `skills/mf-ship/scripts/conduct.py`, and `unreleased` to
   the `crash.py` of `test_a_crashed_integrate_script_halts_and_a_rerun_merges` in `tests/test_conduct.py`, per
   [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k resets_and_merges_back` reports `1 passed`.
