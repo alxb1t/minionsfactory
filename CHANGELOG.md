@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-08
+
+Gate: local 2m10s · CI not read under mf-ship · 0.82.0: local 2m22s · CI not read under mf-ship
+
+- A plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a budget
+  of 40 turns, and a second review judges only the change directory's diff since the first (change
+  `0101-cut-converge-diet`, phase 1).
+- The cut's helpers run on Sonnet 5.5 · medium where the host offers it, and the cut writes their answers and the facts
+  it read to `cut-notes.md`, which it reads in place of the files again (change `0101-cut-converge-diet`, phase 2).
+- Once no blocker is open, converge checks a pickup's fix with one verify worker over the pickup's own diff, which is no
+  round; the fixer corrects the `design.md` prose a `drift` card names, never a decision (change
+  `0101-cut-converge-diet`, phase 3).
+- The bundle holds each requirement its delta modifies or removes as a diff from the living spec; `debt_match.py` writes
+  the debt cards on the diff's files to `debt-cards.md`, which adversarial reads in place of the bundle; each checker
+  reads `diff.patch` once, in slices (change `0101-cut-converge-diet`, phase 4).
+- The release reads each findings file's frontmatter and card lines alone; D71 records the cut and converge diet, D16,
+  D40, D53, D57, D64 and D66, the principles and the threat model's surfaces follow it (change
+  `0101-cut-converge-diet`, phase 5).
+
 ## [0.82.0] - 2026-11-08
 
 Gate: local 2m22s · CI not read under mf-ship · 0.81.0: local 2m29s · CI not read under mf-ship

@@ -442,6 +442,7 @@ def test_the_packets_hold_what_each_role_reads() -> None:
         "tasks.md",
         "specs/",
         "bundle.md",
+        "debt-cards.md",
         "AGENTS.md",
         "CODING_STANDARDS.md",
         "CODE_STANDARDS.md",
@@ -450,7 +451,8 @@ def test_the_packets_hold_what_each_role_reads() -> None:
         "docs/adr/*.md",
     ]
     adversarial = _packet(references / "generic-adversarial.md")
-    assert "THREAT_MODEL.md" in adversarial and "bundle.md" in adversarial
+    assert "THREAT_MODEL.md" in adversarial and "debt-cards.md" in adversarial
+    assert "bundle.md" not in adversarial
 
 
 def test_resource_scan_reports_missing_empty_and_escaping_targets(

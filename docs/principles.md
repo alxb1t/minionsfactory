@@ -12,6 +12,7 @@ another way is a [decision](decisions.md).
 - **Conductor** — whoever dispatches stations and reads their results from disk: a person, `mf-converge` for
   the check loop, or `mf-ship`'s script for a whole run.
 - **Checker** — a station that judges and edits nothing but its own findings file: conformance, adversarial.
+  A pickup check is one checker for both files.
 - **Findings file** — a checker's one output, `.minions/changes/<change-id>/<role>.md`, its verdict in the
   frontmatter.
 - **Round** — one pass of the checkers over a frozen diff. A fix opens the next.
@@ -51,8 +52,8 @@ start, read-only except for their own findings file.**
 
 ### `fixed` is a claim; only the checker writes `verified`
 
-**The fixer marks a finding `fixed` and touches nothing else. The same station, on its verify pass, promotes it to
-`verified` or reopens it.**
+**The fixer marks a finding `fixed` and touches nothing else. The same station on its verify pass,
+or a pickup check, promotes it to `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
 - **Held by:** `mf-converge` Steps 6 and 7; its verify reference reopens a test fix with no red run.
@@ -77,8 +78,8 @@ checker: `surfaces.py` recomputes it.**
 
 ### Every edit opens a round
 
-**A fix is followed by a fresh verify pass, counted. At the cap the loop stops: what is left goes to the debt or
-halts.**
+**A fix is followed by a fresh verify pass, counted — a pickup's by one pass outside the cap. At the cap the loop stops:
+what is left goes to the debt or halts.**
 
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
 - **A merge or an amend:** a catch-up over merges and amends, and an answered halt, counts its own rounds: one judge

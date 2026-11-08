@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70
 ```
@@ -275,7 +275,8 @@ be clean.**
 
 ### D16 · Deferred work is a card in the repo's debt file
 
-**Once the loop is clean, converge fixes this run's small cards and its drift in one more round. Everything else,
+**Once the loop is clean, converge fixes this run's small cards and its drift,
+checked by one verify pass that is no round ([D71](#d71--the-cut-and-converge-read-what-changed)). Everything else,
 save an amend card ([D15](#d15--anchored-harms-block-drift-never-does)), becomes a card — why, when, what,
 priority, fix and size, trigger, still true? — in the gitignored `.minions/debt.md`: one file per repository, in
 the primary's `.minions/`, shared by every worktree and written under `.minions/debt.lock`. A card is a finding of
@@ -309,7 +310,8 @@ receiving explicit task inputs, without the producer's transcript. The conductor
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
 freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
 Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
-workers, as its plan reviewer is, answering in the cut's thread and writing no file. A checker on another host than its
+workers, as its plan reviewer is, answering in the cut's thread and writing no file:
+the cut writes their answers to its notes. A checker on another host than its
 conductor's is a fresh agent process `conduct.py`
 starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it)).**
 
@@ -324,8 +326,8 @@ its adversarial worker on the strongest tier · high, and its fixer on the mid t
 adversarial running on converge's host, when a card it is sent blocks: the models file's `[converge]`,
 `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
 converge prompt. Verify runs at medium. Conformance reads `bundle.md` — the
-decisions the change cites, in full, an index of all, and the living requirements the delta modifies or removes — in
-place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of `THREAT_MODEL.md`, with no
+decisions the change cites, in full, an index of all, and each requirement the delta modifies or removes,
+as a diff from the living spec — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of `THREAT_MODEL.md`, with no
 adversarial card awaiting its checker, takes its adversarial head by recomputation.**
 
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
@@ -341,8 +343,8 @@ adversarial card awaiting its checker, takes its adversarial head by recomputati
 cites, from the change's artifacts, its bundle and the diff, reading no code beyond the diff's hunks; it grades `blocking` ·
 `drift` · `nit`, on the mid tier. Adversarial tries to break the change — races, edge cases, exploits, security — from the diff,
 the source and tests around it and the threat model; it grades `critical` · `high` · `medium` · `low`, `high` a bug that would
-block, on the strongest tier. Each reads `diff.patch` once. `debt_match.py` bundles the debt cards on the diff's files, and no
-worker reads `.minions/debt.md`. A verify round after a fix reads its open cards, the fix diff and `references/verify.md`.**
+block, on the strongest tier. Each reads `diff.patch` once. `debt_match.py` writes the debt cards on
+the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A verify round after a fix reads its open cards, the fix diff and `references/verify.md`.**
 
 - **Why:** of 0072–0089's blockers, spec conformance as text caught 29% and adversarial correctness 60%; review and security
   found 11 issues twice; the debt was 11.4% of a round-1 review's reads, cited by no blocker; a verify spent 40–50% re-reading
@@ -367,10 +369,28 @@ nothing, and `overlap.py` counts what each side alone caught. The review metrics
 - **Rejected:** `.minions/` as the mailbox — every worker writes it · a checker's model from its request · a fixer on another
   host · a shadow on every round.
 
+### D71 · The cut and converge read what changed
+
+**The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
+budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
+Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Once no blocker is open, a pickup's fix is checked
+by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
+the diff's files have their own file, and the release reads the findings files' frontmatter and card lines alone.**
+
+- **Why:** 0097's plan reviews re-read everything, and its helpers, on the strongest model, re-read what another worker of
+  the cut had read; 0096's last round verified only pickups; the bundles repeated the delta; the release read both findings
+  files whole for their verdicts.
+- **Accepts:** a budget the reviewer counts itself, and a review that reaches it leaves the rest unread, its doubts the
+  person's or the switch's · a pickup check on conformance's model moves adversarial's head when `surfaces.py` exits 0 and
+  no adversarial card was picked, as the head by rule does · a pickup whose check needs a mailbox role verifies in a
+  counted round.
+- **Rejected:** plan reviews on Sonnet — both of 0097's caught real defects · a commit between the reviews · the pickup
+  verified in a full round · the release reading the frontmatter alone — a `fixed` blocker would pass.
+
 ### D49 · One review method, one depth
 
 **Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
-living requirements in a bundle of what the change cites. The conformance and adversarial files are the same for every
+the requirements its delta changes, as diffs, in a bundle of what the change cites. The conformance and adversarial files are the same for every
 change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a
@@ -736,12 +756,15 @@ taking the version back; a person's grant is refused while that rescue runs, and
 ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
-command the run takes back. The converge fixer edits no plan: a card whose fix needs one halts `amend needed`. A
+command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
+`## Decisions` section: a card whose fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
   amend and every claim it changes ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
+  The fixer corrects a design's prose: 0098 and 0100 each paid a round and a rescue for a drift line in it the fixer
+  could not touch.
 - **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
@@ -834,7 +857,8 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 ### D57 · One folder per change in `.minions/`
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
-`status_log.md`, `diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
+`status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
+`integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
