@@ -194,3 +194,39 @@ def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     assert missing.returncode == 2, missing.stdout
     assert missing.stdout.startswith("gate: cannot run — "), missing.stdout
     assert _runs(log) == 2
+
+
+def test_diff_coverage_takes_the_stacked_base(tmp_path: Path) -> None:
+    # Why: 0099-stacked-builds design D5.
+    primary, worktree = tmp_path / "primary", tmp_path / "0002-marks"
+    primary.mkdir()
+    _git(primary, "init", "-q", "-b", "main")
+    (primary / "Makefile").write_text((_REPO / "Makefile").read_text())
+    _git(primary, "add", "Makefile")
+    _git(primary, "commit", "-q", "-m", "base")
+    _git(primary, "worktree", "add", "-q", "-b", "0002-marks", str(worktree))
+    stacked_on = primary / ".minions" / "changes" / "0002-marks" / "stacked-on"
+    stacked_on.parent.mkdir(parents=True)
+    # CI's `make gate DIFF_BASE=origin/main` would pass these in.
+    dropped = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "DIFF_BASE")
+    env = {key: value for key, value in os.environ.items() if key not in dropped}
+
+    def compared() -> list[str]:
+        dry = subprocess.run(
+            ["make", "-n", "gate"],
+            cwd=worktree,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        return [word for word in dry.split() if word.startswith("--compare-branch=")]
+
+    assert compared() == ["--compare-branch=main"]
+    sha = _git(primary, "rev-parse", "HEAD")
+    stacked_on.write_text(f"{sha}\n")
+    assert compared() == [f"--compare-branch={sha}"]
+    made = tmp_path / "made"
+    stacked_on.write_text(f'x"; touch {made}; "\n')
+    assert compared() == ["--compare-branch=main"]
+    assert not made.exists()

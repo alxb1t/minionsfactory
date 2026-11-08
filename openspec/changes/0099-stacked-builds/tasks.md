@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The stack
-- [ ] 2 — The base
+- [x] 2 — The base
 - [ ] 3 — The reset and the merge back
 - [ ] 4 — The record
 
@@ -44,7 +44,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The base
 
-- [ ] 2.1 Add `test_diff_coverage_takes_the_stacked_base` to `tests/test_gate_run.py`, as the design's `## Tests` row says, then
+- [x] 2.1 Add `test_diff_coverage_takes_the_stacked_base` to `tests/test_gate_run.py`, as the design's `## Tests` row says, then
   make this `gate` edit to `Makefile`, per [D5](design.md#d5):
   ```diff
   - DIFF_BASE ?= main
@@ -53,13 +53,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   + DIFF_BASE ?= $(or $(STACKED_ON),main)
   ```
   Verify: `uv run pytest -q tests/test_gate_run.py -k stacked_base` reports `1 passed`.
-- [ ] 2.2 Edit Step 3.5's `<base>` in `skills/mf-build/SKILL.md`, as [D5](design.md#d5) quotes it.
+- [x] 2.2 Edit Step 3.5's `<base>` in `skills/mf-build/SKILL.md`, as [D5](design.md#d5) quotes it.
   Verify: `grep -n 'names while it stands — a stacked build' skills/mf-build/SKILL.md` prints a line.
-- [ ] 2.3 Edit the `I17` row and Step 1's `I17` bullet in `skills/mf-build/SKILL.md`, as [D5](design.md#d5) quotes them.
+- [x] 2.3 Edit the `I17` row and Step 1's `I17` bullet in `skills/mf-build/SKILL.md`, as [D5](design.md#d5) quotes them.
   Verify: `grep -n 'or its change in the head .stacked-on. names' skills/mf-build/SKILL.md` prints a line.
-- [ ] 2.4 Edit the `I17` row in `skills/mf-cut-change/SKILL.md`, as [D5](design.md#d5) quotes it.
+- [x] 2.4 Edit the `I17` row in `skills/mf-cut-change/SKILL.md`, as [D5](design.md#d5) quotes it.
   Verify: `grep -n 'or its change in the head .stacked-on. names' skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 2.5 Edit the range in Step 1 of `skills/mf-simplify/SKILL.md`, as [D5](design.md#d5) quotes it.
+- [x] 2.5 Edit the range in Step 1 of `skills/mf-simplify/SKILL.md`, as [D5](design.md#d5) quotes it.
   Verify: `grep -n 'is .<base>..HEAD., .<base>. the sha' skills/mf-simplify/SKILL.md` prints a line.
 
 ## 3 — The reset and the merge back

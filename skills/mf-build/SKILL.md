@@ -63,7 +63,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | — (stop-condition 5) |
-| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | yes — the archive folder |
+| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build, or its change in the head `stacked-on` names | yes — the archive folder, or the stacked-on head |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — (Step 2 checks the staged tree) |
 | **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | — |
 
@@ -95,6 +95,8 @@ never halts.
 - **`I14`** — every `## Progress` line containing `**HUMAN` has a `## N — Title` section with at least one
   `Verify:`.
 - **`I17`** — for each id in `proposal.md`'s `after:`, `git cat-file -e HEAD:openspec/changes/archive/<id>` exits 0.
+  Or, while `.minions/changes/<change-id>/stacked-on` stands, `git merge-base --is-ancestor <its sha> HEAD` exits 0
+  and `git cat-file -e <its sha>:openspec/changes/<id>/tasks.md` exits 0.
 
 Then read:
 
@@ -225,7 +227,8 @@ directory's absolute `metrics/<change-id>.json` path:
 
 1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
    --out "<draft>" --executor "<the executor you reported>"
-   --model "<your model, or unidentified>"`, where `<base>` is `git merge-base <default-branch> HEAD`.
+   --model "<your model, or unidentified>"`, where `<base>` is the sha `.minions/changes/<change-id>/stacked-on`,
+   the run directory's, names while it stands — a stacked build's — else `git merge-base <default-branch> HEAD`.
 2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data "<draft>"`
    writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
 

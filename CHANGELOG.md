@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `chore(stack)`, writes `stacked-on`, builds the dependent, and holds it as `stacked` until the release is merged back;
   `delta` skips a change the merge archived, and `merge_in` checks the git config again before its commit (`0050·R5`)
   (change `0099-stacked-builds`, phase 1).
+- While `stacked-on` stands, the gate's diff coverage, the build's gate check and metrics, and `mf-simplify`'s range take
+  its sha as their base, and `I17` passes on that head holding the dependency's change (change `0099-stacked-builds`,
+  phase 2).
 
 ## [0.81.0] - 2026-11-08
 
