@@ -4,18 +4,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — Config isolation
+- [x] 1 — Config isolation
 - [ ] 2 — JSON events
 - [ ] 3 — The swap window
 - [ ] 4 — The probe and the record
 
 ## 1 — Config isolation
 
-- [ ] 1.1 **HALT CHECK** `argv`'s Codex branch and its argv test stand as the design's [Context](design.md#context) reads them.
+- [x] 1.1 **HALT CHECK** `argv`'s Codex branch and its argv test stand as the design's [Context](design.md#context) reads them.
   Verify: `grep -n -F -e '"workspace-write"' -e 'exclude_tmpdir_env_var=true' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n '^def test_a_worker_carries_the_allowlist_and_a_denial_is_named' tests/test_conduct.py` prints a line.
-- [ ] 1.2 Add `tests/fake_codex.py` and the `fake_codex` fixture of `tests/test_conduct.py`, per [D2](design.md#d2).
+- [x] 1.2 Add `tests/fake_codex.py` and the `fake_codex` fixture of `tests/test_conduct.py`, per [D2](design.md#d2).
   Verify: `grep -n 'FAKE_CODEX_ARGV' tests/fake_codex.py tests/test_conduct.py` prints a line for each file.
-- [ ] 1.3 Add `test_a_codex_worker_starts_on_mf_settings_alone` and extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named`
+- [x] 1.3 Add `test_a_codex_worker_starts_on_mf_settings_alone` and extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named`
   for `--ignore-user-config` and `--json`, then add them to `argv` in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "starts_on_mf_settings_alone or carries_the_allowlist"` reports `2 passed`; `grep -n -F '"--ignore-user-config", "--json"' skills/mf-ship/scripts/conduct.py` prints a line.
 

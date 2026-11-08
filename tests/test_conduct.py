@@ -186,6 +186,39 @@ def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]
     return modes
 
 
+@pytest.fixture
+def fake_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> Callable[..., Path]:
+    """Put a fake `codex` on `PATH`; return a setter of its modes and the worker's.
+
+    Why: 0096-codex-ready design D2.
+    """
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    codex = folder / "codex"
+    script = Path(__file__).with_name("fake_codex.py")
+    codex.write_text(f'#!/bin/sh\nexec "{sys.executable}" -S "{script}" "$@"\n')
+    codex.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_CODEX_ARGV", str(tmp_path / "codex-argv.jsonl"))
+
+    def modes(mode: str, codex_mode: str = "") -> Path:
+        calls = fake(mode)
+        monkeypatch.delenv("MF_SHIP_AGENT")
+        monkeypatch.setenv("FAKE_CODEX_MODE", codex_mode)
+        return calls
+
+    return modes
+
+
+def _codex_argvs(tmp_path: Path) -> list[list[str]]:
+    """Return each argv the fake `codex` was started with, in order."""
+    argvs = tmp_path / "codex-argv.jsonl"
+    lines = argvs.read_text().splitlines() if argvs.is_file() else []
+    return [json.loads(line) for line in lines]
+
+
 def _calls(path: Path) -> list[str]:
     return path.read_text().splitlines() if path.is_file() else []
 
@@ -7915,6 +7948,48 @@ def test_a_probe_halts_on_a_write_out(
     assert not list(marks.glob("probe-*"))
 
 
+def test_a_codex_worker_starts_on_mf_settings_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake_codex: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    calls = fake_codex("")
+    config = Path(os.environ["HOME"], ".codex", "config.toml")
+    config.parent.mkdir()
+    config.write_text(
+        'model = "o3"\n[mcp_servers.pencil]\ncommand = "pencil"\n'
+        "[plugins.notes]\nenabled = true\n"
+    )
+    prompt = "Run the mf-build skill for change 0001-todo."
+    code = _main(
+        conduct, tree, "agent", "--executor", "codex", prompt, monkeypatch=monkeypatch
+    )
+    assert code == 0
+    [args] = _codex_argvs(tmp_path)
+    assert args[:5] == [
+        "exec",
+        "-s",
+        "workspace-write",
+        "--ignore-user-config",
+        "--json",
+    ]
+    assert "-m" not in args
+    assert not any(arg.startswith("model_reasoning_effort") for arg in args)
+    assert _calls(calls) == ["build 0001-todo"]
+    assert (
+        "- [x] 1 — Todo" in (tree / "openspec/changes/0001-todo/tasks.md").read_text()
+    )
+    said = capsys.readouterr().out.strip()
+    assert said.startswith("agent: exit 0 · ")
+    events = Path(said.split(" · ")[-1]).read_text().splitlines()
+    assert json.loads(events[0])["type"] == "thread.started"
+    assert json.loads(events[-1])["type"] == "turn.completed"
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8052,6 +8127,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     codex = codex[len(hooks_off) + 5 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
+    assert codex[5:7] == ["--ignore-user-config", "--json"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # `TMPDIR` is no writable root of its own: a worker can link `.minions/tmp`

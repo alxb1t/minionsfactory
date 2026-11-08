@@ -2754,6 +2754,9 @@ def argv(
         *(("-m", model) if model else ()),
         *(("-c", f"model_reasoning_effort={effort}") if effort else ()),
         *("-s", "workspace-write"),
+        # The operator's Codex config sets nothing, and the log is one event a line.
+        # Why: 0096-codex-ready design D1.
+        *("--ignore-user-config", "--json"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
         # Codex makes `TMPDIR` a root, links resolved; a worker can link

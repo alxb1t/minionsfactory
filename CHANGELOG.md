@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A Codex worker starts with `--ignore-user-config` and `--json`, so the operator's Codex config — its MCP servers,
+  plugins and model — sets nothing; `tests/fake_codex.py`, a fake `codex` on `PATH`, proves it (change
+  `0096-codex-ready`, phase 1).
+
 ## [0.78.0] - 2026-11-08
 
 Gate: local 1m51s · CI not read under mf-ship · 0.77.0: local 1m54s · CI not read under mf-ship
