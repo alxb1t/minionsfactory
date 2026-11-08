@@ -17,10 +17,11 @@ continuation, or the cut's `Cut` line. `## Dependencies` is `None.` or a table o
 item · package · constraint · why. A checked line is printable, and each checked
 heading is written one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2
 design D5; 0091-cut-halts design D2; 0097-cross-model design D1;
-0098-beside design D1, D2.
+0098-beside design D1, D2; 0098-beside security S1.
 """
 
 import argparse
+import html
 import re
 import runpy
 import sys
@@ -42,7 +43,7 @@ ACCEPTANCE = "- **Acceptance:** "
 CUT = re.compile(r"Cut \d{4}-\d{2}-\d{2} as \d+-[a-z0-9-]+ at [0-9a-f]{7,40}\.")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
-HEADING_TAG = re.compile(r"</?h[1-6][^>]*>", re.IGNORECASE)
+TAG = re.compile(r"<[^>]*>")
 CHECKED = ("## Decisions", "## For the cut")
 HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
@@ -324,12 +325,13 @@ def printable(heading: str, lines: list[str]) -> list[str]:
 
 
 def fold(text: str) -> str:
-    r"""Return the letters and digits of `text` past its HTML heading tags, case-folded.
+    r"""Return the letters and digits `text` renders as, case-folded.
 
-    Why: 0098-beside design D1, D2.
-    e.g. "<h2>For the Cut</h2>" → "forthecut"
+    Its HTML tags, heading and inline, drop, then its character references read as
+    the characters they name. Why: 0098-beside design D1, D2; 0098-beside security S1.
+    e.g. "<h2><em>For the C&#117;t</em></h2>" → "forthecut"
     """
-    text = HEADING_TAG.sub("", text)
+    text = html.unescape(TAG.sub("", text))
     return "".join(char for char in text if char.isalnum()).casefold()
 
 

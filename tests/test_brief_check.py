@@ -461,12 +461,24 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut line 7: outside the item grammar:"
         " `##\tFor the cut`",
     ]
-    # S3: an HTML heading, and one with a Cyrillic `о` for its `o`.
-    html = _READY + "\n## Notes\n<h2>For the cut</h2>\n## Fоr the cut\n"
+    # S3: an HTML heading, and one with a Cyrillic `о` for its `o`; 0098·S1: an HTML
+    # heading holding inline markup or a character reference.
+    html = _READY + (
+        "\n## Notes\n<h2>For the cut</h2>\n## Fоr the cut\n"
+        "<h2><em>For the cut</em></h2>\n<h2>For the c&#117;t</h2>\n"
+        "<h3><b>Decisions</b></h3>\n<h2>Depen&shy;dencies</h2>\n"
+    )
     assert brief_check.main([str(_write(tmp_path, html))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        f"brief: halt — line {n} reads as `## For the cut` but is not written so"
-        for n in (23, 24)
+        f"brief: halt — line {n} reads as `{heading}` but is not written so"
+        for n, heading in (
+            (23, "## For the cut"),
+            (24, "## For the cut"),
+            (25, "## For the cut"),
+            (26, "## For the cut"),
+            (27, "## Decisions"),
+            (28, "## Dependencies"),
+        )
     ]
     # The heading written so, a second time.
     again = _READY + "\n## For the cut\n"
