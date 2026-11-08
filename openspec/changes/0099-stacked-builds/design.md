@@ -120,7 +120,11 @@ gone, not alive, or in `self.ended`. A new method:
 
 ```python
 def until(
-    self, version: Version, dependency: str, threads: dict[str, threading.Thread], stack: bool
+    self,
+    version: Version,
+    dependency: str,
+    threads: dict[str, threading.Thread],
+    stack: bool,
 ) -> None:
     """Wait while the dependency's thread lives; with `stack`, until `stackable` names a head.
 

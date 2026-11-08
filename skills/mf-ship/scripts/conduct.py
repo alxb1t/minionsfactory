@@ -86,7 +86,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise"),
+    *("rescue", "move", "cut", "supervise", "wait", "stacked"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -97,6 +97,9 @@ RERUN = "re-run: halted before round 1 at this head"
 RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
+# A stacked version's file: the built head it builds on, its build's base.
+# Why: 0099-stacked-builds design D2, D5.
+STACKED_ON = "stacked-on"
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
@@ -790,24 +793,123 @@ def _granted_run(runs: Path, change: str) -> bool:
     return _run_marked(runs, change, "grant")
 
 
-def _closed(runs: Path, tree: Path, change: str) -> bool:
-    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`.
+def _done_head(primary: Path, change: str) -> str | None:
+    """Return the word `build.done`'s `head:` names, or None.
 
-    A missing or unreadable file is not closed, nor is one that is no regular file.
+    A missing or unreadable file names none, nor does one that is no regular file.
     Why: 0055-build-resume design D2.
     """
-    done = _change_dir(runs.parent, change) / "build.done"
+    done = _change_dir(primary, change) / "build.done"
     if not done.is_file():
-        return False
+        return None
     try:
         text = done.read_text()
     except (OSError, UnicodeDecodeError):
-        return False
+        return None
     found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
-    if found is None:
+    return found[1] if found else None
+
+
+def _closed(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`."""
+    if (done := _done_head(runs.parent, change)) is None:
         return False
-    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{done}^{{commit}}")
     return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
+
+
+def _built_head(primary: Path, change: str) -> str | None:
+    """Return the full sha `build.done` names while that build stands, else None.
+
+    It stands when that commit is the branch's tip or its ancestor, every
+    `## Progress` box is ticked at it, and no amend of the change directory past it
+    changes a decision. Why: 0099-stacked-builds design D1, D6.
+    """
+    done = _done_head(primary, change)
+    named = done and _maybe(
+        primary, "rev-parse", "-q", "--verify", f"{done}^{{commit}}"
+    )
+    if not named:
+        return None
+    head = named.strip()
+    if not _ancestor(primary, head, f"refs/heads/{change}"):
+        return None
+    tasks = _show(primary, head, f"openspec/changes/{change}/tasks.md") or ""
+    boxes = PROGRESS.findall(tasks)
+    if not boxes or any(mark != "x" for mark, _, _ in boxes):
+        return None
+    return None if _replanned(primary, change, head) else head
+
+
+def _replanned(primary: Path, change: str, since: str) -> bool:
+    """Return whether an amend of the change directory past `since` changes a decision.
+
+    The amends read are on the change's branch: one touching `proposal.md`, or one
+    changing `design.md`'s `_decisions`, changes a decision.
+    Why: 0099-stacked-builds design D6.
+    """
+    folder = f"openspec/changes/{change}"
+    subject = f"docs({change}): amend the change directory"
+    listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only")
+    span = f"{since}..refs/heads/{change}"
+    for sha in _git(primary, "rev-list", "--no-merges", span).split():
+        if _subject(primary, sha) != subject:
+            continue
+        if f"{folder}/proposal.md" in _git(primary, *listed, sha).split():
+            return True
+        design = f"{folder}/design.md"
+        was, now = (_decisions(_show(primary, rev, design)) for rev in (f"{sha}^", sha))
+        if was != now:
+            return True
+    return False
+
+
+def _stacked_on(
+    primary: Path, change: str, tree: Path, unreleased: list[str]
+) -> str | None:
+    """Return the full sha `stacked-on` names while it stands, else None.
+
+    It stands when its first word is 40 hex digits naming a commit, an ancestor of the
+    tree's `HEAD`, that holds each `unreleased` id's `tasks.md`. A file it cannot read
+    stands for none. Why: 0099-stacked-builds design D3.
+    """
+    file = _change_dir(primary, change) / STACKED_ON
+    try:
+        words = file.read_text().split() if file.is_file() else []
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not words or not re.fullmatch(r"[0-9a-f]{40}", words[0]):
+        return None
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{words[0]}^{{commit}}")
+    if not named or not _ancestor(tree, named.strip(), "HEAD"):
+        return None
+    sha = named.strip()
+    held = (f"{sha}:openspec/changes/{name}/tasks.md" for name in unreleased)
+    if any(_maybe(tree, "cat-file", "-e", path) is None for path in held):
+        return None
+    return sha
+
+
+def _merged_back(tree: Path, done: str, default: str) -> bool:
+    """Return whether `HEAD` merges the default branch into the head `build.done` names.
+
+    Such a merge has two parents, the first that head, the second on the default
+    branch. Why: 0099-stacked-builds design D3.
+    """
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{done}^{{commit}}")
+    parents = _git(tree, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    return (
+        named is not None
+        and len(parents) == 2
+        and parents[0] == named.strip()
+        and _ancestor(tree, parents[1], default)
+    )
+
+
+def _unstack(primary: Path, change: str) -> None:
+    """Remove the change's `stacked-on` when one stands, through no link."""
+    if os.path.lexists(_change_dir(primary, change) / STACKED_ON):
+        _remove_in(primary / ".minions", "changes", change, name=STACKED_ON)
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
@@ -1224,12 +1326,10 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     default = default_branch(primary)
     if tag is not None:
         return _release_tip(primary, tree, version.change, tag)
-    missing = [
-        name
-        for name in _dependencies(primary, change)
-        if not _shipped(primary, default, name)
-    ]
-    if missing:
+    after = _dependencies(primary, change)
+    missing = [name for name in after if not _shipped(primary, default, name)]
+    stacked = _stacked_on(primary, change, tree, missing)
+    if missing and stacked is None:
         return "waiting", f"after {' '.join(missing)}"
     if unticked := _unticked(tree, change):
         number, title = unticked
@@ -1237,8 +1337,19 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
     end = _run_end(runs, change)
-    if end is None and not _closed(runs, tree, change):
+    done = _done_head(primary, change)
+    if (
+        end is None
+        and not _closed(runs, tree, change)
+        and not (done and _merged_back(tree, done, default))
+    ):
         return "build", "closing steps left"
+    lacking = [name for name in after if not _shipped(tree, "HEAD", name)]
+    if stacked is not None and lacking:
+        return (
+            "stacked",
+            f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
+        )
     if halt := _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
@@ -3574,6 +3685,11 @@ class Run:
         self.guard = threading.Lock()
         self.merging = threading.Lock()
         self.probing = threading.Lock()
+        # Notified when a version's thread reads its stage past the build, and when
+        # it ends. Why: 0099-stacked-builds design D1.
+        self.built = threading.Condition()
+        # The changes whose `take` has returned.
+        self.ended: set[str] = set()
 
     def halt(self, who: str, reason: str) -> None:
         """Record and log a halt; its version starts only its rescue and supervisor.
@@ -4153,7 +4269,7 @@ class Run:
             return "integrate", SETTLED
         return stage, why
 
-    def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
+    def advance(self, version: Version, stop_at: tuple[str, ...]) -> str | None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
         A cap the run grants gets its round, spawned and checked as a person's
@@ -4162,9 +4278,11 @@ class Run:
         halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
         taken amend, at a halt met on entry or after a check, goes on. A supervisor's
         taken settle goes on to integrate, whose merge must hold the settled tree.
+        It returns the stage of `stop_at` it stopped at, or `stacked` whenever it reads
+        it; else None. Each stage read past the build wakes the waiting versions.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
-        0090-supervisor-merge design D4, security S2.
+        0090-supervisor-merge design D4, security S2; 0099-stacked-builds design D3.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -4175,6 +4293,10 @@ class Run:
                     stage, why = "converge", "granted automatically"
                 else:
                     stage, why = self.stage(version)
+                if stage not in ("build", "human", "waiting"):
+                    self.notify_built()
+                if stage == "stacked":
+                    return stage
                 if stage in STUCK:
                     auto, refused = self.auto_grant(version, stage, why)
                     if auto:
@@ -4194,7 +4316,7 @@ class Run:
                             continue
                     return
                 if stage in stop_at:
-                    return
+                    return stage
                 if (stage, why) == ("converge", RERUN):
                     with self.guard:
                         self.reruns.add(version.change)
@@ -4252,6 +4374,8 @@ class Run:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
                     self.log.event(version.change, "ledger", f"{version.change} {head}")
+                if stage in ("converge", "release"):
+                    _unstack(self.primary, change)
                 denied = self.spawn(
                     version.change, stage, cwd, prompt, models, mailbox=mailbox
                 )
@@ -4354,31 +4478,111 @@ class Run:
         paths = ", ".join(ignored.splitlines()) or "none"
         self.log.event(change, "removed", f"{tree}: ignored {paths}")
 
+    def notify_built(self) -> None:
+        """Wake each version waiting on another's build or end."""
+        with self.built:
+            self.built.notify_all()
+
+    def live(self, change: str, threads: dict[str, threading.Thread]) -> bool:
+        """Return whether `change`'s thread runs: in `threads`, alive, not ended.
+
+        Read under `self.built`. Why: 0099-stacked-builds design D1.
+        """
+        thread = threads.get(change)
+        return thread is not None and thread.is_alive() and change not in self.ended
+
+    def stackable(self, version: Version, unreleased: list[str]) -> str | None:
+        """Return the built head a version may stack on, else None.
+
+        Its one unreleased dependency is lower, has no halt, and has a built head
+        that holds the version's base. Why: 0099-stacked-builds design D1.
+        """
+        if len(unreleased) != 1:
+            return None
+        dependency = unreleased[0]
+        if _change_number(dependency) >= version.number or self.stopped(dependency):
+            return None
+        if (head := _built_head(self.primary, dependency)) is None:
+            return None
+        default = default_branch(self.primary)
+        base = _git(self.primary, "merge-base", default, version.change).strip()
+        return head if _ancestor(self.primary, base, head) else None
+
+    def until(
+        self,
+        version: Version,
+        dependency: str,
+        threads: dict[str, threading.Thread],
+        stack: bool,
+    ) -> None:
+        """Wait while the dependency's thread lives; with `stack`, until it may stack.
+
+        With `stack`, it returns once `stackable` names a head. It waits on
+        `self.built`, at most `REJOIN_POLL` a time, and logs `wait — after <id>` once.
+        Why: 0099-stacked-builds design D1.
+        """
+        logged = False
+        with self.built:
+            while self.live(dependency, threads):
+                if stack and self.stackable(version, [dependency]):
+                    return
+                if not logged:
+                    self.log.event(version.change, "wait", f"after {dependency}")
+                    logged = True
+                self.built.wait(REJOIN_POLL)
+
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
-        """Wait for the version's dependencies, then bring the default branch in."""
+        """Wait for the version's dependencies, then bring the default branch in.
+
+        A version stacks on a dependency's built head while that dependency has not
+        released, and builds on, waiting on no thread, once stacked. Once each
+        dependency released, the default branch is merged in and `stacked-on` goes.
+        Why: 0099-stacked-builds design D1, D3.
+        """
         change, default = version.change, default_branch(self.primary)
-        after = _dependencies(self.primary, change)
-        for dependency in after:
-            if dependency in threads and _change_number(dependency) < version.number:
-                threads[dependency].join()
+        after, tree = _dependencies(self.primary, change), version.tree
+
+        def unreleased() -> list[str]:
+            return [name for name in after if not _shipped(self.primary, default, name)]
+
+        left = unreleased()
+        stacked = tree and _stacked_on(self.primary, change, tree, left)
+        if not stacked:
+            for dependency in after:
+                if (
+                    dependency in threads
+                    and _change_number(dependency) < version.number
+                ):
+                    self.until(version, dependency, threads, left == [dependency])
+            left = unreleased()
         if self.stopped(change):
             return False
-        for dependency in after:
-            if not _shipped(self.primary, default, dependency):
-                self.block(change, dependency)
-                return False
-        tree = version.tree
-        if tree and not all(_shipped(tree, "HEAD", name) for name in after):
-            self.merge_in(tree, change, default)
-        return True
+        if not left:
+            if tree and not all(_shipped(tree, "HEAD", name) for name in after):
+                self.merge_in(tree, change, default)
+            if tree and all(_shipped(tree, "HEAD", name) for name in after):
+                _unstack(self.primary, change)
+            return True
+        if stacked:
+            return True
+        if tree and (head := self.stackable(version, left)):
+            self.stack(tree, change, left[0], head)
+            return True
+        self.block(change, left[0])
+        return False
 
-    def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a branch, once the delta check passes.
+    def merge_in(
+        self, tree: Path, change: str, ref: str, stacked: str | None = None
+    ) -> None:
+        """Merge `ref` into a branch, once the delta check passes.
 
         Each merge it opens, conflicted or clean, goes to `settle`; one already open
         does not. A requirement both sides changed leaves the merge open with its
-        note, which `stage_of` reads as an `integrating` halt.
-        Why: 0086-ship-fixes-3 design D3.
+        note, which `stage_of` reads as an `integrating` halt. With `stacked`, the
+        dependency whose built head `ref` is, it runs no delta check and commits
+        `chore(stack)`. It checks the config again right before its commit (`0050·R5`):
+        a change leaves the merge open. Why: 0086-ship-fixes-3 design D3;
+        0099-stacked-builds design D2.
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
@@ -4387,10 +4591,10 @@ class Run:
         if opened and note.is_file():
             return
         _refuse_config_commands(tree)
-        merge = ("merge", "-q", "--no-ff", "--no-commit", default)
+        merge = ("merge", "-q", "--no-ff", "--no-commit", ref)
         if not opened and (_maybe(tree, *merge) is None or _merge_open(tree)):
-            self.settle(tree, change, default)
-        if moved := _delta(self.delta, tree):
+            self.settle(tree, change, ref)
+        if stacked is None and (moved := _delta(self.delta, tree)):
             text = _note(tree, change, moved)
             # A link at the change's folder raises: the version halts, nothing written.
             try:
@@ -4401,8 +4605,24 @@ class Run:
                     1, f"conduct: halt — cannot write {name} — {error.strerror}"
                 ) from None
             return
-        message = f"chore(integrate): merge {default} into {change}"
+        message = f"chore(integrate): merge {ref} into {change}"
+        if stacked is not None:
+            message = f"chore(stack): merge {stacked} at {ref[:7]} into {change}"
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(tree)
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
+
+    def stack(self, tree: Path, change: str, dependency: str, head: str) -> None:
+        """Mark a version stacked, then merge its dependency's built head in.
+
+        A merge that halts leaves a file naming no ancestor of `HEAD`, which
+        `_stacked_on` reads as none. Why: 0099-stacked-builds design D2.
+        """
+        _write_in_change(self.primary, change, STACKED_ON, f"{head}\n")
+        if not _ancestor(tree, head, "HEAD"):
+            self.merge_in(tree, change, head, dependency)
+        self.log.event(change, "stacked", f"on {dependency} at {head[:7]}")
 
     def settle(self, tree: Path, change: str, default: str) -> None:
         """Settle a merge by `integrate.py`'s rules; else abort it, stop.
@@ -4461,6 +4681,10 @@ class Run:
         )
         if tree is None or _ancestor(self.primary, default, change):
             return
+        # A gate merge would give the merge back two merge-bases.
+        # Why: 0099-stacked-builds design D3.
+        if _stacked_on(self.primary, change, tree, []) is not None:
+            return
         base = _git(self.primary, "merge-base", default, change).strip()
         span = f"{base}..{change}"
         held = _git(self.primary, "rev-list", "--count", "--no-merges", span).strip()
@@ -4488,24 +4712,59 @@ class Run:
         if _git(self.primary, *diff).split():
             self.merge_in(tree, change, default)
 
+    def landed(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
+        """Wait while a stacked version's dependency lives; True to be ready again.
+
+        Its dependency ended unreleased blocks it. Why: 0099-stacked-builds design D3.
+        """
+        change, default = version.change, default_branch(self.primary)
+        after = _dependencies(self.primary, change)
+        left = [name for name in after if not _shipped(self.primary, default, name)]
+        if not left:
+            return True
+        dependency = left[0]
+        self.log.event(change, "wait", f"stacked on {dependency}")
+        with self.built:
+            while self.live(dependency, threads):
+                self.built.wait(REJOIN_POLL)
+        if _shipped(self.primary, default, dependency):
+            return True
+        self.block(change, dependency)
+        return False
+
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
-        """Take one version to its release, a halt or a block."""
+        """Take one version to its release, a halt or a block.
+
+        A stacked version waits for its dependency's release, then is ready again.
+        Its end wakes the versions waiting on it.
+        Why: 0099-stacked-builds design D1, D3.
+        """
+        with self.built:
+            self.ended.discard(version.change)
         try:
             for station in PLANNED:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
             self.catch_up(version)
-            if not self.ready(version, threads):
-                return
-            self.advance(version, ("integrate", "release"))
-            if not self.stopped(version.change):
+            reached: str | None = "waiting"
+            while reached in ("waiting", "stacked"):
+                if reached == "stacked" and not self.landed(version, threads):
+                    return
+                if not self.ready(version, threads):
+                    return
+                reached = self.advance(version, ("integrate", "release"))
+            if reached is not None and not self.stopped(version.change):
                 with self.merging:
                     self.advance(version, ())
         except Stop as stop:
             self.halt(version.change, str(stop))
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
+        finally:
+            with self.built:
+                self.ended.add(version.change)
+                self.built.notify_all()
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.

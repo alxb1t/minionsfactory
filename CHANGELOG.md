@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A dependent stacks on its one unreleased dependency's built head once that build passes: `conduct.py` merges it in as
+  `chore(stack)`, writes `stacked-on`, builds the dependent, and holds it as `stacked` until the release is merged back;
+  `delta` skips a change the merge archived, and `merge_in` checks the git config again before its commit (`0050·R5`)
+  (change `0099-stacked-builds`, phase 1).
+
 ## [0.81.0] - 2026-11-08
 
 Gate: local 2m29s · CI not read under mf-ship · 0.80.0: local 2m20s · CI not read under mf-ship

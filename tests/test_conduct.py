@@ -860,7 +860,9 @@ def test_after_waits_for_its_dependency(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake()
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("hold-converge-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
@@ -874,19 +876,52 @@ def test_after_waits_for_its_dependency(
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert "0002-marks · waiting" in capsys.readouterr().out.splitlines()
 
+    # The dependent builds on the built head while its dependency converges.
+    # Why: 0099-stacked-builds design D1, D3.
+    marks = root / ".minions" / "changes" / "0002-marks"
+    built = root / ".minions" / "changes" / "0001-todo" / "build.done"
+    held: list[str] = []
+
+    def stacked() -> None:
+        assert "0002-marks · stacked" in conduct["status"](root).splitlines()
+        held.append(built.read_text().split()[1])
+        assert (marks / "stacked-on").read_text() == f"{held[0]}\n"
+        assert "release 0001-todo" not in _calls(calls)
+
+    said = (" · 0002-marks · wait — stacked on 0001-todo",)
+    join = _when_logged(root, said, stacked, hold)
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
+    join()
 
     seen = _calls(calls)
-    assert seen.index("release 0001-todo") < seen.index("build 0002-marks")
-    assert "chore(integrate): merge main into 0002-marks" in _git(
-        root, "log", "--format=%s", "0002-marks"
+    order = [
+        seen.index(call)
+        for call in (
+            "build 0001-todo",
+            "build 0002-marks",
+            "release 0001-todo",
+            "converge 0002-marks",
+        )
+    ]
+    assert order == sorted(order)
+    assert seen.count("build 0002-marks") == 1
+    subjects = _git(root, "log", "--format=%s", "0002-marks").splitlines()
+    merges = (
+        f"chore(stack): merge 0001-todo at {held[0][:7]} into 0002-marks",
+        "chore(integrate): merge main into 0002-marks",
+    )
+    assert all(merge in subjects for merge in merges)
+    assert not (marks / "stacked-on").exists()
+    assert any(
+        line.endswith(f" · 0002-marks · stacked — on 0001-todo at {held[0][:7]}")
+        for line in _log(root)
     )
     planted = fired.read_text().splitlines()
     assert "build" in planted
-    assert "chore(integrate): merge main into 0002-marks" not in planted
+    assert not set(merges) & set(planted)
     assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
 
@@ -903,6 +938,8 @@ def test_a_dependents_delta_halts_as_integrating(
     first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(second, {"main.txt": "x\n"}, "main moves")
     tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -969,7 +1006,10 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     calls = fake()
     module = conduct["main"].__globals__
     crashed = _primary(tmp_path)
-    _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    first = _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    _commit(first, {"todo.txt": "x\n"}, "build: a first part")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(crashed, {"main.txt": "x\n"}, "main moves")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
     crash.write_text(
@@ -1013,6 +1053,22 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+    # A key planted while the merge is open halts it before its commit: 0050·R5.
+    _git(hooked, "config", "--unset", "hook.probe.event")
+    _git(hooked, "config", "--unset", "hook.probe.command")
+    held_run.git_state = conduct["_git_state"](hooked)
+
+    def planted(tree: Path) -> str:
+        _git(hooked, "config", "mf.race", "x")
+        return "delta: the default branch changed no requirement the delta edits"
+
+    held_run.delta = planted
+    changed = "the local git config changed during the run: .git/config differs"
+    with pytest.raises(conduct["Stop"], match=re.escape(changed)):
+        held_run.merge_in(waiting, "0002-marks", "main")
+    assert _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
 
 
 def test_a_merge_in_renumbers_a_planned_decision(
@@ -2492,6 +2548,8 @@ def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
     first = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(root, {"main.txt": "x\n"}, "main moves")
     tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -4474,15 +4532,21 @@ def test_a_changed_git_config_halts_a_merge_in(
             _git(root, "push", "-q", "origin", "main")
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
-        calls = fake(mode)
+        hold = scratch / "hold"
+        monkeypatch.setenv("FAKE_HOLD", str(hold))
+        calls = fake(mode, "hold-converge-0001-todo")
+        # The release plants its key after the dependent's build.
+        said_stacked = (" · 0002-marks · wait — stacked on 0001-todo",)
+        join = _when_logged(root, said_stacked, lambda: None, hold)
 
         assert (
             _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
             == 1
         )
+        join()
 
         assert "release 0001-todo" in _calls(calls)
-        assert "build 0002-marks" not in _calls(calls)
+        assert "converge 0002-marks" not in _calls(calls)
         assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
@@ -6554,11 +6618,16 @@ def test_a_run_goes_on_while_origin_is_down(
     # A release made offline passes as released locally; its dependent merges it.
     held = _git(away, "rev-parse", "main")
     lines = run(0)
-    assert _calls(calls) == [
-        "probe",
-        *(f"{station} 0001-todo" for station in ("build", "converge", "release")),
-        *(f"{station} 0002-marks" for station in ("build", "converge", "release")),
-    ]
+    seen = _calls(calls)
+    assert seen[0] == "probe"
+    assert set(seen[1:]) == {
+        f"{station} {change}"
+        for station in ("build", "converge", "release")
+        for change in ("0001-todo", "0002-marks")
+    }
+    assert len(seen) == 7
+    assert seen.index("build 0001-todo") < seen.index("build 0002-marks")
+    assert seen.index("release 0001-todo") < seen.index("converge 0002-marks")
     for change in ("0001-todo", "0002-marks"):
         assert f"{change} · check — release · pass" in lines
         assert not (root.parent / change).exists()

@@ -655,11 +655,17 @@ def delta(tree: Path) -> str:
     """Return the check that the default branch changed no requirement the delta edits.
 
     Stops with exit 1, naming each MODIFIED or REMOVED title it changed since the base,
-    save a MODIFIED one whose delta only inserts into the default branch's block.
+    save a MODIFIED one whose delta only inserts into the default branch's block. A
+    change `MERGE_HEAD` archived is no active one: a stacked branch's dependency.
+    Why: 0099-stacked-builds design D2.
     """
     base = _merge_base(tree)
     listing = _git(tree, "ls-tree", "--name-only", "HEAD:openspec/changes").split()
-    changes = [name for name in listing if CHANGE_ID.fullmatch(name)]
+    changes = [
+        name
+        for name in listing
+        if CHANGE_ID.fullmatch(name) and not _shipped(tree, "MERGE_HEAD", name)
+    ]
     if len(changes) != 1:
         raise Stop(2, "integrate: cannot run — HEAD holds no single active change")
     specs = f"openspec/changes/{changes[0]}/specs"

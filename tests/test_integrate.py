@@ -543,8 +543,18 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
         "## MODIFIED Requirements\n\n### Requirement: First\n\nThe branch's.\n\n"
         "### Requirement: Second\n\nThe branch's.\n"
     )
-    _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": delta}, "phase")
-    _commit(root, {"openspec/specs/sdd/spec.md": _spec("Main's.")}, "release")
+    # A stacked branch holds its dependency's change until the release archives it.
+    # Why: 0099-stacked-builds design D2.
+    stacked = {
+        "openspec/changes/0005-b/specs/sdd/spec.md": delta,
+        "openspec/changes/0004-a/proposal.md": "# a\n",
+    }
+    _commit(tree, stacked, "phase")
+    released = {
+        "openspec/specs/sdd/spec.md": _spec("Main's."),
+        "openspec/changes/archive/0004-a/proposal.md": "# a\n",
+    }
+    _commit(root, released, "release")
     _git(tree, "merge", "-q", "--no-commit", "main")
 
     result = _run(root, "delta", str(tree))
