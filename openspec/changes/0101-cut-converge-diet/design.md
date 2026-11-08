@@ -43,13 +43,19 @@ $31.96, 0097-cross-model $55.44); each count the command named.
   round. `0095·S5`: `THREAT_MODEL.md`'s `## Surfaces` (`:89-130`) lacks `references/verify.md`.
 - **F9. The tests.** `grep -c "^def test_"` prints `2` for `tests/test_bundle.py` (`3` once `0100-worker-diet` adds
   `test_decisions_print_what_the_files_cite`), `2` for `tests/test_debt_match.py` and `21` for `tests/test_skills.py`.
+- **F10. The fixer's bound.** `V:369-371`: the fixer never edits the change's `tasks.md` or `design.md`; a card whose fix
+  needs one is `wontfix`, an amend card (`skills/mf-converge/references/worker.md:162-164`), and halts `amend needed`. D53
+  (`docs/decisions.md:709`) says the same. 0098 (`c5bb4ce`) and 0100 (`b29a016`) each paid a round and a rescue for a
+  `design.md` drift line. `conduct.py`'s `_decisions` (`skills/mf-ship/scripts/conduct.py:2477-2489`) reads a design's
+  `## ` headings and its `## Decisions` section as its decisions, for a rescue's decided amend.
 
 ## Goals / Non-Goals
 
 **Goals:** the acceptance of the brief's item 2 — a plan review's prompt carries the packet and the 40-turn budget, a review
 reaching it returns `budget reached`, a second review judges only the change since the first; the helpers on Sonnet ·
 medium and the cut's notes file; a pickup checked by one verify pass at medium on its own diff, no round 3; requirement
-diffs and the debt cards' own file; `diff.patch` read once; the release reading frontmatter and card lines; a green gate.
+diffs and the debt cards' own file; `diff.patch` read once; the release reading frontmatter and card lines; the fixer
+correcting the `design.md` prose a `drift` card names; a green gate.
 
 **Non-Goals:** the savings themselves, judged in the ledger; a scripted spec fold; one build worker per phase; `0095·R6`.
 
@@ -78,6 +84,7 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 | [D4](#d4) | Requirement diffs, `debt-cards.md`, the patch in slices | T11, C11, C12 | the debt cards kept in the bundle |
 | [D5](#d5) | The release reads frontmatter and card lines | T12, C10 | the frontmatter alone — a `fixed` blocker would pass |
 | [D6](#d6) | D71; D16, D40, D57, D64, D66 and a principle amended; the surfaces | — | — |
+| [D7](#d7) | The fixer corrects the `design.md` prose a `drift` card names, never a decision | T24 | the fixer kept off `design.md` — 0098 and 0100 each paid a round and a rescue (F10) |
 
 ### D1
 
@@ -248,6 +255,29 @@ the diff's files have their own file, and the release reads the findings files' 
   "is on it.", "A pickup's fix is checked by one worker, on adversarial's model when `surfaces.py` exits 1 over it or a
   picked card is adversarial's."
 
+### D7
+
+A decision is what `conduct.py`'s `_decisions` reads for a rescue's decided amend (F10): `design.md`'s `## Decisions`
+section — its table's rows and each decision by its D-id — and its `## ` headings. The rest of `design.md` is prose, which
+the fixer corrects when a `drift` card names it; a decision stays an amend, the person's or a rescue's. The settling reason
+is the brief's T24: 0098 and 0100 each paid a round and a rescue for a `design.md` drift line the fixer could not touch.
+
+- **`V` Step 6** — the fixer's bullet "**never edits the change's `tasks.md` or `design.md`**: a card whose fix needs one is
+  `wontfix`, naming the amend the person commits by its path." becomes "**never edits the change's `tasks.md`, nor
+  `design.md` save the prose a `drift` card names** outside its `## Decisions` section — never that section, a row of its
+  table, a decision's D-id or a `## ` heading: a card whose fix needs one of those is `wontfix`, naming the amend the person
+  commits by its path." The rest of the bullet stays.
+- **`worker.md`'s *An amend card*** — "names the change's `tasks.md` or `design.md` by its path,
+  `openspec/changes/<change-id>/design.md`. The fixer never edits those files, and converge halts on such a card." becomes
+  "names the change's `tasks.md` or `design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's
+  naming `design.md` prose outside its `## Decisions` section, which the fixer corrects. The fixer never edits `tasks.md`,
+  nor that section, a row of its table, a decision's D-id or a `## ` heading, and converge halts on such a card."
+- **D53** in `docs/decisions.md` — "The converge fixer edits no plan: a card whose fix needs one halts `amend needed`."
+  becomes "The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its `## Decisions`
+  section: a card whose fix needs any other plan edit halts `amend needed`."; its *Why* ends, after the D63 link's
+  sentence, "The fixer corrects a design's prose: 0098 and 0100 each paid a round and a rescue for a drift line in it the
+  fixer could not touch."
+
 ## Tests
 
 The tests the change edits, all at the unit layer of `pytest`; no end-to-end test, so no engine runs (`T1`). Skill text is
@@ -284,6 +314,8 @@ None.
   was picked and `surfaces.py` exits 0, the case adversarial's head by rule already takes.
 - **[A diff hides a requirement's unchanged context a checker needs]** → three lines of context, and the delta holds the
   new requirement whole.
+- **[A fixer's prose fix changes what a decision means]** → it edits nothing in `## Decisions`, and the verify pass judges
+  the fix diff against the design as any other.
 - **[A forged card line passes the release's `grep`]** → the checker writes the file, as before; *Out of scope* already
   accepts a worker steering through what it writes.
 

@@ -34,6 +34,9 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [ ] 3.2 Edit the diagram, the `pickup` row of the events table, *Resuming a run*, Steps 6, 7 and 8 and *Never* of
   `skills/mf-converge/SKILL.md`, per [D3](design.md#d3), each new phrase on one line.
   Verify: `grep -n -e 'the pickup round counts' -e 'in the pickup round' skills/mf-converge/SKILL.md` prints nothing; `grep -n -e 'the pickup check is no round' -e 'verify round <N> · pickup' -e 'A pickup check is due' -e '8 pickup: 6 fix, one check' -e 'Step 8 item 6' -e 'writing no .verdicts. line' -e 'A role it needs is a mailbox role' -e 'every way to Step 7' -e 'and a pickup check, own their files' skills/mf-converge/SKILL.md` prints a line for each.
+- [ ] 3.3 Edit the fixer's `tasks.md` and `design.md` bullet in Step 6 of `skills/mf-converge/SKILL.md`, and *An amend card*
+  in `skills/mf-converge/references/worker.md`, per [D7](design.md#d7), each new phrase on one line.
+  Verify: `grep -n 'never edits the change.s .tasks.md. or .design.md.' skills/mf-converge/SKILL.md` prints nothing; `grep -n 'save the prose a .drift. card names' skills/mf-converge/SKILL.md` prints a line; `grep -n -e 'which the fixer corrects' -e 'The fixer never edits .tasks.md., nor that section' skills/mf-converge/references/worker.md` prints a line for each.
 
 ## 4 — The bundle
 
@@ -63,3 +66,6 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [ ] 5.4 Edit *Checker*, *`fixed` is a claim* and *Every edit opens a round* in `docs/principles.md`, and `## Surfaces` in
   `THREAT_MODEL.md` (`0095·S5`), per [D6](design.md#d6), each new phrase on one line.
   Verify: `grep -n -e 'a pickup.s by one pass outside the cap' -e 'A pickup check is one checker for both files' -e 'or a pickup check, promotes it' docs/principles.md` prints a line for each; `grep -n -e 'references/verify.md. — how a checker promotes' -e 'A pickup.s fix is checked by one worker' THREAT_MODEL.md` prints a line for each.
+- [ ] 5.5 Amend D53 in `docs/decisions.md`, its fixer sentence and its *Why*, per [D7](design.md#d7), each new phrase on
+  one line.
+  Verify: `grep -n 'The converge fixer edits no plan: a card whose fix needs one' docs/decisions.md` prints nothing; `grep -n -e 'The converge fixer edits no plan, save the .design.md. prose' -e 'The fixer corrects a design.s prose' docs/decisions.md` prints a line for each.

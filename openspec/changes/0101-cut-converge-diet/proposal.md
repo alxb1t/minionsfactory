@@ -17,8 +17,9 @@ requirements.
 The cut cost $20.95 on 0097: its Opus plan reviews, of 66 and 72 turns, re-read everything, the second as much as the
 first, and 75–77% of the cut's reads repeated files another worker of the cut had read. Converge's round 3 on 0096 only
 verified non-blocking pickups, for $1.6–1.9; the bundle repeats the spec delta in 26–79k chars; checkers paged
-`diff.patch` 11 times; and the release read 48k chars for two verdicts ([measured](design.md#context)). This version is the
-token diet's second, after worker diet, `0100-worker-diet`.
+`diff.patch` 11 times; the release read 48k chars for two verdicts; and 0098 and 0100 each paid a round and a rescue for a
+`design.md` drift line the fixer could not touch ([measured](design.md#context)). This version is the token diet's second,
+after worker diet, `0100-worker-diet`.
 
 ## What Changes
 
@@ -33,10 +34,12 @@ token diet's second, after worker diet, `0100-worker-diet`.
   in their own file, `debt-cards.md`, which adversarial reads in place of the bundle; each checker reads `diff.patch` once,
   in slices, never a slice again.
 - **The release** — reads each findings file's frontmatter and, by one `grep`, its cards' title, Priority and Status lines.
+- **The fixer** — corrects the `design.md` prose a `drift` card names, never a decision: the `## Decisions` section, its
+  rows and D-ids, stays an amend.
 - **Debt** — `worker.md`'s amend-round sentence names conformance alone (`0095·R3`); `references/verify.md` joins
   `THREAT_MODEL.md`'s `## Surfaces` (`0095·S5`).
-- **The record** — D71; D16, D40, D57, D64 and D66 amended; the principles *Every edit opens a round* and *`fixed` is a
-  claim*, and the *Checker* term.
+- **The record** — D71; D16, D40, D53, D57, D64 and D66 amended; the principles *Every edit opens a round* and *`fixed` is
+  a claim*, and the *Checker* term.
 
 ## Capabilities
 
@@ -52,7 +55,7 @@ None.
   - *Converge keeps deferred work in one repository debt file* — MODIFIED: a pickup is checked by one verify pass, no
     round.
   - *The converge fixer leaves the plan to the person* — MODIFIED: the pickup check keeps an amend card's `wontfix` and
-    runs `gate_check.py`.
+    runs `gate_check.py`; the fixer corrects the `design.md` prose a `drift` card names, never a decision.
   - *Converge hands each worker a bundle of what the change cites* — MODIFIED: requirements as old→new diffs; adversarial
     reads `debt-cards.md`.
   - *Converge bundles the debt cards on the diff's files* — MODIFIED: `debt_match.py` writes `debt-cards.md` whole.

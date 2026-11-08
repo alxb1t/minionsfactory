@@ -132,9 +132,11 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 
 ### Requirement: The converge fixer leaves the plan to the person
 
-`skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md` or `design.md`. A card whose fix needs either SHALL be
-set `wontfix`, naming the amend the person commits by the file's path: an **amend card**, as is any card whose **Fix** names the
-change's `tasks.md` or `design.md` by path. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
+`skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md`, nor its `design.md` save the prose a `drift` card
+names outside the `## Decisions` section, which it SHALL correct; it SHALL NOT edit that section, a row of its table, a decision's
+D-id or a `## ` heading. A card whose fix needs any of those SHALL be set `wontfix`, naming the amend the person commits by the
+file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md` by path, save a `drift`
+card's naming that prose. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
 pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds, and SHALL NOT turn it `accepted`; in an amend
 round, it SHALL turn an amend card the amend settled, its **Still true?** check showing the defect gone, `verified`, its note
 naming the amend. At Step 9,
@@ -147,8 +149,13 @@ Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
 - **THEN** the fixer edits neither file, sets the card `wontfix` naming the amend, and the round halts `amend needed`
 
+#### Scenario: Drift in the design's prose
+- **WHEN** the pickup picks a `drift` card whose **Fix** names a line of the change's `design.md` outside its `## Decisions`
+  section
+- **THEN** the fixer corrects that line and sets the card `fixed`; it is no amend card, and Step 9 halts on nothing for it
+
 #### Scenario: Drift that needs the design amended
-- **WHEN** the pickup's fixer sets a `drift` card `wontfix`, naming an amend of the change's `design.md`
+- **WHEN** the pickup's fixer sets a `drift` card `wontfix`, naming an amend of a decision in the change's `design.md`
 - **THEN** the pickup check keeps it `wontfix`, and Step 9 halts `amend needed — <its id>`, writing no card to the debt
 - **AND WHEN** a `drift` card found after the pickup names the same amend in its **Fix**
 - **THEN** Step 9 halts on it too
