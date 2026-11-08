@@ -77,7 +77,7 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 | C3 | the fixer runs at its own table's effort, `medium` when it names none, also when a blocking card puts it on adversarial's model; verify runs on its role's model at `medium` | T9 sets both at medium; the model rule for blockers stays D64's |
 | C4 | "when a phase touches them" is when a task names `docs/principles.md` or `THREAT_MODEL.md`; the cut reads them when its brief's phases do | a reading rule the worker can check without judgment |
 | C5 | a mailbox checker gets the build's tools; `conduct.py agent`, which names no station, keeps the host's tools and cache default | T17 lists no checker, and a checker writes its findings file; the escape drill's agent starts a subagent |
-| C6 | a converge subagent's round is read from its Agent description, which converge writes `<role> round <N>`; a worker's dollars are priced by `prices.toml` rows, the operator's (D67), which gain `cache_write` and `cache_write_1h` for a Claude model | a stream-json event names no round; D67 rejects list prices the cut writes |
+| C6 | a converge subagent's round is read from its Agent description, which converge writes `<role> round <N>`; a worker's dollars are priced by `prices.toml` rows, the operator's (D67), which gain `cache_write` and `cache_write_1h` for a Claude model; a subagent's tokens and dollars are a gap | a stream-json event names no round; D67 rejects list prices the cut writes; no event holds a subagent's final output count |
 
 ## Decisions
 
@@ -221,18 +221,23 @@ last line, so `mf-release` reads its seconds as before.
   events — the first `assistant` event holding a `usage` object, else `None` — so `_results` also keeps that event;
   `_cost_logs` records `first_<station>`, the first log's. `cost_table`'s cell gains ` · first <n>` when it is not `None`,
   and no suffix otherwise.
-- **Workers** — `_converge_workers(repo, change)` reads each converge log — `_workers` (`:767`) already names a findings
-  file's worker count: a `task_started` event's `tool_use_id` and description,
-  `WORKER = re.compile(r"\b(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)`; then each `assistant` event of
-  that `parent_tool_use_id`, once by `message.id`: its model, the four `USAGE` kinds, the 5-minute and 1-hour split of
-  `cache_creation`, and the first one's context. Each mailbox checker's log is a worker too, its role from its station, its
-  round a gap. A worker record holds `repo`, `change`, `role`, `round`, `model`, `tokens`, `first`, `dollars` and `source`
-  (`subagent` or `mailbox`).
+- **Workers** — `_converge_workers(repo, change)` reads each converge log through `_log_workers` — `_workers` (`:767`)
+  already names a findings file's worker count: a `task_started` event's `tool_use_id` and description,
+  `WORKER = re.compile(r"\b(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)`; then the `assistant` events of
+  that `parent_tool_use_id`: its model, its start and the first one's context. The CLI writes each with the usage its
+  message's stream opened with and a placeholder output count, and no event holds a subagent's totals, so a subagent's
+  tokens are a gap. Each mailbox checker's log is a worker too, its role from its station, its round a gap, its tokens its
+  last `result` event's `usage` — the four `USAGE` kinds, the 5-minute and 1-hour split of `cache_creation` — or its
+  `turn.completed` events' summed. A worker record holds `repo`, `change`, `role`, `round`, `run`, `model`, `tokens`,
+  `first`, `dollars` and `source` (`subagent` or `mailbox`); its `run` is the status log's run whose window of its round
+  holds its first event, else `None`.
 - **Dollars** — `_priced_worker(row, usage)`: input × `input`, cache read × `cached_input`, 5-minute write × `cache_write`,
-  1-hour write × `cache_write_1h`, output × `output`, over a million; no row, or a key a non-zero kind needs, → `None`.
-  `prices.toml`'s comment names the Claude keys.
-- **The data** — each `records` entry gains `dollars`: its round and role's workers summed, `None` when none or any is
-  `None`. `review-metrics.json` gains `workers` and `stations`, one per change and station from `_cost_logs`.
+  1-hour write × `cache_write_1h`, output × `output`, over a million; no row, or a key a non-zero kind needs, → `None`; a
+  worker with no tokens, every subagent among them, → `None`. `prices.toml`'s comment names the Claude keys.
+- **The data** — `_priced_rounds` gives each `records` entry `dollars`: the workers' of its own run, round and role summed
+  — an amend run restarts at round 1 — `None` when none or any is `None`. A subagent's dollars and a mailbox checker's
+  round being gaps, a run's records hold `None` until an event holds a subagent's totals; Risks accepts it.
+  `review-metrics.json` gains `workers` and `stations`, one per change and station from `_cost_logs`.
 - **Repos** — `recorded()` returns `Path.home() / ".mf-ship-origin" / "repos"`, read at call time, as the tests' home is
   set after import; `settings` adds each line of it that names a folder holding `.minions/`, resolved, after the config's,
   each once; `--repo` reads no record. `conduct.py`'s `run` calls
@@ -326,6 +331,9 @@ None.
 - **[The conductor on Sonnet misreads a verdict]** → T9 reverts it on a halt traced to it; the models file can name Opus per
   version.
 - **[A worker's dollars need a price row]** → a gap, never a zero, until the operator fills `prices.toml` (D67).
+- **[No event holds a subagent's totals]** → its tokens and dollars are gaps, never a sum of the placeholder counts its
+  assistant events carry, so a round and role's dollars are a gap too; a mailbox checker's dollars are priced, and the
+  stations' cost holds converge whole.
 
 ## Verdict
 

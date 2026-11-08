@@ -34,9 +34,10 @@ diets follow it.
   One `stamp.py` call writes several events.
 - **Tool output** — pytest prints short tracebacks; `gate_run.py` runs the gate without `VIRTUAL_ENV`, and a green gate
   prints its summary line alone.
-- **The metrics** — `review-metrics.json` carries each converge worker's tokens, dollars and first-turn context, each
-  round and role's dollars, each station's cost with the cut and the supervisor among them; the page reads every repo a
-  run started in; the role table gets back its median duration and tokens (`0097·R4`).
+- **The metrics** — `review-metrics.json` carries each converge worker's role, round, run and first-turn context, a
+  mailbox checker's tokens and dollars — a subagent's a gap, as no event holds its totals — each round and role's dollars
+  from its own run's workers, each station's cost with the cut and the supervisor among them; the page reads every repo
+  a run started in; the role table gets back its median duration and tokens (`0097·R4`).
 - **The record** — D69; D48, D50 and D64 amended (`0097·R2`); the threat model and the principles; the README line
   (`0097·R3`).
 
@@ -55,7 +56,8 @@ None.
   - *The stations use AGENTS.md as target context* — MODIFIED: build and cut read the decisions they cite and an index;
     the principles and the threat model when a task names them; the converge conductor reads no mandatory context.
   - *The review-metrics station charts past findings, read-only* — MODIFIED: the cut and supervise stations, workers,
-    dollars per round and role, first-turn context, the run's repo list, the role table's medians.
+    dollars per run, round and role where its workers hold them, first-turn context, the run's repo list, the role
+    table's medians.
   - *A worker's reach stops at the repository* — MODIFIED: an open worktree is an open version's or a queued cut's.
   - *Converge's workers take their models from the models file* — MODIFIED: the conductor's default is Sonnet 5.5 ·
     high; the fixer and verify workers run at `medium`.

@@ -67,7 +67,8 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   `skills/mf-review-metrics/scripts/review_metrics.py`, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k run_logs_give_cost` reports `1 passed`; `grep -n '^def first_turn(' skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
 - [x] 4.2 Add `test_workers_are_priced_per_round_and_role` and edit `test_codex_sessions_fill_the_rounds` in
-  `tests/test_review_metrics.py`, then `WORKER`, `_converge_workers`, `_priced_worker`, the records' `dollars` and the data's
+  `tests/test_review_metrics.py`, then `WORKER`, `_log_workers`, `_converge_workers` — a subagent's tokens and dollars a
+  gap, a mailbox checker's priced — `_priced_worker`, the records' `dollars` from their own run's workers and the data's
   `workers` and `stations` in `review_metrics.py`, and `prices.toml`'s comment, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "workers_are_priced or codex_sessions_fill"` reports `2 passed`; `grep -n -e '^WORKER = ' -e '^def _converge_workers(' -e '^def _priced_worker(' skills/mf-review-metrics/scripts/review_metrics.py` prints a line for each; `grep -n 'cache_write_1h' skills/mf-review-metrics/prices.toml` prints a line.
 - [x] 4.3 Add `test_every_repo_a_run_started_in` to `tests/test_review_metrics.py` and a step to `test_every_station_starts_lean`
