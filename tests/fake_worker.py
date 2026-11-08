@@ -187,6 +187,8 @@ def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) 
         beside.write_text("x\n")
         notes.unlink(missing_ok=True)
         notes.symlink_to(beside)
+    if f"dies-phase-{phase}" in modes:
+        sys.exit(1)
 
 
 def _by_rule(tree: Path, folder: Path) -> list[str] | None:

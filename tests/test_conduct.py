@@ -1160,6 +1160,12 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert _git(marks, "rev-parse", "HEAD") == stacked
     # The reset drops the notes of the build it throws away.
     notes = stacked_on.with_name("build-notes.md")
+    # A folder at the notes halts the version before the reset moves its branch.
+    notes.mkdir()
+    with pytest.raises(conduct["Stop"], match=r"build-notes\.md cannot be removed"):
+        run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+    notes.rmdir()
     notes.write_text("## 1 — Marks\n")
     assert run.reset_stack(version)
     assert _git(marks, "rev-parse", "HEAD") == cut
@@ -1896,6 +1902,62 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
 
 
+def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    notes = folder / "build-notes.md"
+    outside = tmp_path / "operator.md"
+    outside.write_text("line\n" * 60)
+
+    def plant_link() -> None:
+        os.link(outside, notes)
+
+    def plant_pipe() -> None:
+        os.mkfifo(notes)
+
+    # A hard link, a folder and a pipe halt the version at the count and at the trim.
+    for plant in (plant_link, notes.mkdir, plant_pipe):
+        plant()
+        for flags in (os.O_RDONLY, os.O_RDWR):
+            with pytest.raises(
+                conduct["Stop"], match=r"build-notes\.md (is not|cannot)"
+            ):
+                conduct["_open_notes"](root, "0001-todo", flags)
+        with pytest.raises(conduct["Stop"], match=r"build-notes\.md (is not|cannot)"):
+            conduct["_note_lines"](root, "0001-todo")
+        if notes.is_dir():
+            notes.rmdir()
+        else:
+            notes.unlink()
+    assert outside.read_text() == "line\n" * 60
+
+    notes.write_text("a\nb\n")
+    assert conduct["_note_lines"](root, "0001-todo") == 2
+
+
+def test_a_phase_check_wants_its_line_ticked_and_none_before_it_unticked(
+    tmp_path: Path,
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
+    version = conduct["Version"]("0001-todo", tree)
+    tasks = "openspec/changes/0001-todo/tasks.md"
+
+    def check(progress: str, phase: str) -> str | None:
+        _commit(tree, {tasks: f"## Progress\n\n{progress}"}, "build")
+        return conduct["_check_phase"](root, version, tree, phase)
+
+    one, two, three = "- [x] 1 — One\n", "- [x] 2 — Two\n", "- [ ] 3 — Three\n"
+    assert check(one + two + three, "2") is None
+    assert check(one + two.replace("x", " ") + three, "2") == "phase 2 unticked"
+    # An earlier phase unticked, or the phase's own line gone, fails too.
+    assert check(one + three, "2") == "phase 2 gone from ## Progress"
+    assert check(one.replace("x", " ") + two + three, "2") == "phase 1 unticked"
+
+
 @pytest.mark.slow
 def test_a_build_runs_a_worker_per_phase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1958,6 +2020,30 @@ def test_a_build_runs_a_worker_per_phase(
     calls.unlink()
     fake()
     assert spawned(run(plain, 0)) == [on[1]] * 4
+
+    # A `[build.moderate]` naming an effort alone keeps `[build]`'s model.
+    (tmp_path / "effort").mkdir()
+    effort = _primary(tmp_path / "effort")
+    _version(effort, "0001-todo", "- [ ] 1 — One · moderate\n")
+    models = effort / ".minions" / "changes" / "0001-todo" / "models.toml"
+    models.parent.mkdir(parents=True)
+    models.write_text(opus + '[build.moderate]\neffort = "medium"\n')
+    calls.unlink()
+    fake()
+    assert spawned(run(effort, 0)) == [f"{on[1]} · effort medium", on[1]]
+
+    # A phase that dies after its notes still has them cut.
+    (tmp_path / "died").mkdir()
+    died = _primary(tmp_path / "died")
+    _version(died, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("notes-0001-todo", "dies-phase-1")
+    lines = run(died, 1)
+    trimmed = died / ".minions" / "changes" / "0001-todo" / "build-notes.md"
+    assert len(trimmed.read_text().splitlines()) == 40
+    assert any(
+        line.endswith(" · notes — phase 1: kept 40 of 50 lines") for line in lines
+    )
 
     # A link at the notes halts the version before a phase spawn, writing nothing.
     (tmp_path / "linked").mkdir()

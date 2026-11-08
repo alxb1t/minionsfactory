@@ -684,21 +684,27 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
 def _open_notes(primary: Path, change: str, flags: int) -> int | None:
     """Return a descriptor on the change's `build-notes.md`; None with no file.
 
-    It follows no link: a link, or a file it cannot open, halts the version.
+    It follows no link: a link, a file it cannot open, or one that is not a regular
+    file of one name, a hard link, a folder or a pipe, halts the version.
     Why: 0102-build-per-phase design D3.
     """
     fd = _folder_fd(primary / ".minions", "changes", change)
+    name = f".minions/changes/{change}/{NOTES_FILE}"
     try:
-        return os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+        file = os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
     except FileNotFoundError:
         return None
     except OSError as error:
-        name = f".minions/changes/{change}/{NOTES_FILE}"
         linked = error.errno == errno.ELOOP
         why = "is a link" if linked else f"cannot be opened — {error.strerror}"
         raise Stop(1, f"conduct: halt — {name} {why}") from None
     finally:
         os.close(fd)
+    found = os.fstat(file)
+    if not stat.S_ISREG(found.st_mode) or found.st_nlink != 1:
+        os.close(file)
+        raise Stop(1, f"conduct: halt — {name} is not a regular file of one name")
+    return file
 
 
 def _note_lines(primary: Path, change: str) -> int:
@@ -1460,15 +1466,20 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
 def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
     """Return why a phase spawn's check fails, or None: phase ticked, tree clean.
 
+    The phase's line must stand, and it and every line before it must be ticked.
     Why: 0102-build-per-phase design D2.
     """
     change = version.change
-    if any(
-        mark != "x" and number == phase for mark, number, _ in _progress(tree, change)
-    ):
-        held = _build_halt(primary / ".minions", tree, change)
-        named = f" · {held[0]}: {held[1]}" if held else ""
-        return f"phase {phase} unticked{named}"
+    boxes = _progress(tree, change)
+    if all(number != phase for _, number, _ in boxes):
+        return f"phase {phase} gone from ## Progress"
+    for mark, number, _ in boxes:
+        if mark != "x":
+            held = _build_halt(primary / ".minions", tree, change)
+            named = f" · {held[0]}: {held[1]}" if held else ""
+            return f"phase {number} unticked{named}"
+        if number == phase:
+            break
     return "the tree is not clean" if _dirty(tree) else None
 
 
@@ -4647,11 +4658,17 @@ class Run:
                     phase=phase,
                 )
                 models = self.planned_models(version.change, stage)
-                # A moderate phase builds on `[build.moderate]` when it names one.
+                # A moderate phase builds on `[build.moderate]` when it names one,
+                # its missing model or effort `[build]`'s.
                 # Why: 0102-build-per-phase design D5.
                 if numbered and rating == "moderate":
                     moderate = self.planned_models(change, MODERATE)
-                    models = moderate if moderate[1] or moderate[2] else models
+                    if moderate[1] or moderate[2]:
+                        models = (
+                            moderate[0],
+                            moderate[1] or models[1],
+                            moderate[2] or models[2],
+                        )
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
@@ -4661,10 +4678,11 @@ class Run:
                 denied = self.spawn(
                     version.change, stage, cwd, prompt, models, mailbox=mailbox
                 )
-                if denied is None:
-                    return
+                # A phase that failed after its notes still has them cut.
                 if numbered:
                     self.trim_notes(change, str(phase), notes)
+                if denied is None:
+                    return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 try:
@@ -5072,10 +5090,17 @@ class Run:
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
         _refuse_config_commands(tree)
+        # The notes go first: a folder there halts the version before the branch moves.
+        try:
+            _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
+        except OSError as error:
+            name = f".minions/changes/{change}/{NOTES_FILE}"
+            raise Stop(
+                1, f"conduct: halt — {name} cannot be removed — {error.strerror}"
+            ) from None
         left = _git(tree, "rev-parse", "HEAD").strip()
         _git(tree, "reset", "-q", "--hard", cut)
         _unstack(self.primary, change)
-        _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
         moved = f"{left[:7]} → {cut[:7]}"
         said = f"{dependency} re-planned past {head[:7]}: {moved}"
         self.log.event(change, "reset", said)

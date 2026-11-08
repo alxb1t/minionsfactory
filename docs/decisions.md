@@ -449,8 +449,8 @@ tree, so none runs twice without an amend between. Phases hand over through `.mi
 which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` or `hard`; a moderate one runs on
 `[build.moderate]` when the models file names it.**
 
-- **Why:** one session carried every phase's reads to its end, 547k of context at 0097's last phase; a fresh worker per
-  phase simulated −$4.3 on 0097 and +$0.2 on 0096.
+- **Why:** one session carried every phase's reads to its end, most at the last phase; a fresh worker per phase
+  simulated cheaper on the largest build and level on the smaller, per the change's design Evidence table.
 - **Accepts:** each phase re-reads its base · a note the conductor cuts at 40 lines.
 - **Rejected:** a per-phase worker only on big changes — one behaviour is simpler · a tracked notes file — D6 keeps the
   record to four artifacts · a host per phase.

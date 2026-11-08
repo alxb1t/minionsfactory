@@ -14,9 +14,9 @@ requirements.
 
 ## Why
 
-One build session carries every phase's reads and output to its end: 0097's ran 206 turns, its context 28.6k at the start
-and 547k at the most, its last phase at a 522k median. A fresh worker per phase, re-reading a ~100k base, simulates −$4.3 on
-0097 and +$0.2 on 0096 ([evidence](design.md#evidence)). Per-phase workers also make a per-phase model possible.
+One build session carries every phase's reads and output to its end, its context at the most in the last phase. A fresh
+worker per phase, re-reading a base, simulates cheaper on the largest build and level on the smaller
+([evidence](design.md#evidence)). Per-phase workers also make a per-phase model possible.
 
 ## What Changes
 
