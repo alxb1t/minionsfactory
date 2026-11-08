@@ -3591,7 +3591,7 @@ def _record_repo(primary: Path) -> None:
     path = Path.home() / KEPT_ORIGINS / "repos"
     line = str(primary.resolve())
     try:
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.parent.mkdir(mode=0o700, exist_ok=True)
         if path.is_file() and line in path.read_text(errors="replace").splitlines():
             return
         flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW

@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The context
 - [x] 3 — Tool output
 - [x] 4 — The metrics
-- [ ] 5 — The record
+- [x] 5 — The record
 
 ## 1 — The spawn
 
@@ -83,11 +83,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The record
 
-- [ ] 5.1 Add D69 after D67 in `docs/decisions.md`, and `D69` to the map's line of *Repo conventions*, per
+- [x] 5.1 Add D69 after D67 in `docs/decisions.md`, and `D69` to the map's line of *Repo conventions*, per
   [D13](design.md#d13).
   Verify: `grep -n '^### D69 · A worker starts lean$' docs/decisions.md` prints a line; `grep -n 'D61, D67, D69' docs/decisions.md` prints a line.
-- [ ] 5.2 Amend D48, D50 and D64 in `docs/decisions.md`, per [D13](design.md#d13), each new phrase on one line (`0097·R2`).
+- [x] 5.2 Amend D48, D50 and D64 in `docs/decisions.md`, per [D13](design.md#d13), each new phrase on one line (`0097·R2`).
   Verify: `grep -n "Converge's conductor runs on the mid tier · medium" docs/decisions.md` prints nothing; `grep -n -e "Converge's conductor runs on Sonnet 5.5 · high" -e "adversarial running on converge's host, when a" -e 'Verify runs at medium.' -e 'reading those it cites and an index' -e 'and every repo a run started in' -e 'round, role and station, with first-turn context' docs/decisions.md` prints a line for each.
-- [ ] 5.3 Edit *Trust boundaries* in `THREAT_MODEL.md` and *The repo reaches nothing outside itself* in `docs/principles.md`,
+- [x] 5.3 Edit *Trust boundaries* in `THREAT_MODEL.md` and *The repo reaches nothing outside itself* in `docs/principles.md`,
   per [D13](design.md#d13), each new phrase on one line.
   Verify: `grep -n -e "station's tools alone, and the operator's plugins" -e 'the repo and its open worktrees' THREAT_MODEL.md` prints a line for each; `grep -n -e 'or a run started in' -e 'the list of repos a run started in' docs/principles.md` prints a line for each.

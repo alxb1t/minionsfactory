@@ -8444,7 +8444,8 @@ def test_a_worker_asking_for_a_missing_tool_halts(
     result = {"type": "tool_result", "tool_use_id": "t9", "is_error": True}
     result["content"] = "No such tool available: Task"
     log = tmp_path / "missing.log"
-    log.write_text('{"message": cut\n' + json.dumps({"message": {"content": [result]}}))
+    cut = '{"message": "No such tool available\n'
+    log.write_text(cut + json.dumps({"message": {"content": [result]}}))
     assert conduct["lacked"](log) == ["No such tool available: Task"]
 
 

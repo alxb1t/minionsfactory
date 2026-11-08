@@ -711,6 +711,7 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     record = _record(tmp_path, "0050-x")
     assert (record["first_cut"], record["first_supervise"]) == (19003, None)
     assert record["first_integrate"] == 1_000_000
+    assert review_metrics._spent([])["first"] is None
     assert (record["cost_converge"], record["turns_converge"]) == (2.0, 17)
     assert (record["tokens_converge"], record["seconds_converge"]) == (380, 93)
     assert (record["logs_converge"], record["spawns_converge"]) == (3, 4)
@@ -841,7 +842,8 @@ def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
     spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
     usage = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
     turn = {"type": "turn.completed", "usage": usage}
-    _worker_log(repo, "0001-x", "A-converge-conformance.log", spawn, turn)
+    bare = {"type": "turn.completed"}
+    _worker_log(repo, "0001-x", "A-converge-conformance.log", spawn, turn, bare)
     opened = _said(None, "x1", opus, input_tokens=4, cache_creation_input_tokens=10)
     _worker_log(
         repo, "0001-x", "A-converge-adversarial.log", opened, _result(0.1, 1, 1000)
