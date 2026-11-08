@@ -14,11 +14,11 @@ requirements.
 
 ## Why
 
-The cut cost $20.95 on 0097: its Opus plan reviews, of 66 and 72 turns, re-read everything, the second as much as the
-first, and 75–77% of the cut's reads repeated files another worker of the cut had read. Converge's round 3 on 0096 only
-verified non-blocking pickups, for $1.6–1.9; the bundle repeats the spec delta in 26–79k chars; checkers paged
-`diff.patch` 11 times; the release read 48k chars for two verdicts; and 0098 and 0100 each paid a round and a rescue for a
-`design.md` drift line the fixer could not touch ([measured](design.md#context)). This version is the token diet's second,
+On 0097 the cut's Opus plan reviews re-read everything, the second as much as the first, and most of the cut's reads
+repeated files another worker of the cut had read. Converge's last round on 0096 only verified non-blocking pickups; the
+bundle repeats the spec delta; checkers paged `diff.patch` again and again; the release read both findings files whole for
+their verdicts; and 0098 and 0100 each paid a round and a rescue for a `design.md` drift line the fixer could not touch
+([measured](design.md#context)). This version is the token diet's second,
 after worker diet, `0100-worker-diet`.
 
 ## What Changes

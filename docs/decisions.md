@@ -377,9 +377,9 @@ Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Once n
 by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
 the diff's files have their own file, and the release reads the findings files' frontmatter and card lines alone.**
 
-- **Why:** 0097's cut spent $8.76 on two reviews that re-read everything and $3.60 on Opus helpers whose reads repeated
-  75–77%; 0096's round 3 verified only pickups, $1.6–1.9; bundles of 26–79k chars repeated the delta; the release read 48k
-  chars for two verdicts.
+- **Why:** 0097's plan reviews re-read everything, and its helpers, on the strongest model, re-read what another worker of
+  the cut had read; 0096's last round verified only pickups; the bundles repeated the delta; the release read both findings
+  files whole for their verdicts.
 - **Accepts:** a budget the reviewer counts itself, and a review that reaches it leaves the rest unread, its doubts the
   person's or the switch's · a pickup check on conformance's model moves adversarial's head when `surfaces.py` exits 0 and
   no adversarial card was picked, as the head by rule does · a pickup whose check needs a mailbox role verifies in a
