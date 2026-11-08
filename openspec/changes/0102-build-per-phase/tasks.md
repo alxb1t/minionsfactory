@@ -5,27 +5,27 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — A build worker per phase
+- [x] 1 — A build worker per phase
 - [ ] 2 — The phase handoff
 - [ ] 3 — The moderate model
 - [ ] 4 — The record
 
 ## 1 — A build worker per phase
 
-- [ ] 1.1 **HALT CHECK** Confirm 0099-stacked-builds' reset stands in `skills/mf-ship/scripts/conduct.py`, as
+- [x] 1.1 **HALT CHECK** Confirm 0099-stacked-builds' reset stands in `skills/mf-ship/scripts/conduct.py`, as
   [D3](design.md#d3)'s last bullet needs; missing, the plan is wrong.
   Verify: `git grep -n "def reset_stack" HEAD -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Make the build of `tests/fake_worker.py` act as the design's *The fake host* paragraph says, save the modes
+- [x] 1.2 Make the build of `tests/fake_worker.py` act as the design's *The fake host* paragraph says, save the modes
   `notes-<id>` and `notes-link-<id>`, which 2.1 adds.
   Verify: `grep -n "idle-phase-" tests/fake_worker.py` prints a line.
-- [ ] 1.3 Add `test_a_build_runs_a_worker_per_phase`, its phase spawns alone, and `test_a_halt_in_a_phase_resumes_there`
+- [x] 1.3 Add `test_a_build_runs_a_worker_per_phase`, its phase spawns alone, and `test_a_halt_in_a_phase_resumes_there`
   to `tests/test_conduct.py`, per the design's `## Tests` rows; then build [D1](design.md#d1) and [D2](design.md#d2) in
   `skills/mf-ship/scripts/conduct.py`, each new why line citing `0102-build-per-phase design D1, D2`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "worker_per_phase or resumes_there"` reports `2 passed`.
-- [ ] 1.4 In `tests/test_conduct.py`, make `_calls` drop each ` with phase=<digits>` clause, and edit each exact `_calls`
+- [x] 1.4 In `tests/test_conduct.py`, make `_calls` drop each ` with phase=<digits>` clause, and edit each exact `_calls`
   list the run turns red, as the design's *The fake host* paragraph says.
   Verify: `uv run pytest -q tests/test_conduct.py -k dead_in_simplify` reports `1 passed`.
-- [ ] 1.5 In `tests/test_conduct.py`, edit `test_run_halts_on_a_human_phase`, `test_a_codex_worker_starts_on_mf_settings_alone`,
+- [x] 1.5 In `tests/test_conduct.py`, edit `test_run_halts_on_a_human_phase`, `test_a_codex_worker_starts_on_mf_settings_alone`,
   `test_a_station_runs_on_its_executor`, `test_each_check_passes_only_on_disk_evidence` and
   `test_an_amend_past_the_judged_head_gets_one_round`, per their `## Tests` rows.
   Verify: `uv run pytest -q tests/test_conduct.py` exits 0.

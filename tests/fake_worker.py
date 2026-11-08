@@ -133,6 +133,48 @@ def _done(root: Path, change: str, head: str) -> None:
     (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
+def _closed(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
+    """Write `build.done` at `HEAD`, then commit or plant as `modes` say."""
+    _done(primary, change, _git(tree, "rev-parse", "HEAD"))
+    if "person-commits" in modes:
+        _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
+    if "plant-network" in modes:
+        agents = primary / "AGENTS.md"
+        line = "- **Ship network:** `later.example`\n"
+        agents.write_text(agents.read_text() + line)
+
+
+def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) -> None:
+    """Tick one phase's boxes in one commit, or close; halt, idle or die as told.
+
+    Why: 0102-build-per-phase design *The fake host*.
+    """
+    if phase == "close":
+        if "dies-simplify" in modes:
+            sys.exit(1)
+        _closed(tree, primary, change, modes)
+        return
+    if f"idle-phase-{phase}" in modes:
+        return
+    if modes & {f"halt-{change}", f"halt-phase-{phase}"} and not _amended(tree, change):
+        folder = _folder(primary, change)
+        folder.mkdir(parents=True, exist_ok=True)
+        head = _git(tree, "rev-parse", "HEAD")
+        (folder / "build.halt").write_text(
+            f"sub-task: {phase}.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
+        )
+        return
+    tasks = tree / "openspec" / "changes" / change / "tasks.md"
+    text = tasks.read_text()
+    box = rf"^- \[ \] ({re.escape(phase)}(?:\.\d+)? )"
+    files = {str(tasks): re.sub(box, r"- [x] \1", text, flags=re.MULTILINE)}
+    if f"after-self-{change}" in modes:
+        proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
+        files[str(tasks.with_name("proposal.md"))] = proposal
+    if files[str(tasks)] != text:
+        _commit(tree, files, "build")
+
+
 def _by_rule(tree: Path, folder: Path) -> list[str] | None:
     """Return a line per merge when a catch-up selects merges alone, each replaying."""
     conformance = folder / "conformance.md"
@@ -492,7 +534,8 @@ def _fake(prompt: str) -> None:
     if station == "checker":
         _checker(here, str(role), str(change), modes)
         return
-    if station == "build" and "deny" in modes:
+    phase = re.search(r" with phase=(\w+)", prompt) if station == "build" else None
+    if station == "build" and "deny" in modes and not (phase and phase[1] == "close"):
         use = {
             "type": "tool_use",
             "id": "t1",
@@ -593,6 +636,8 @@ def _fake(prompt: str) -> None:
         _supervise(here, primary, str(change), modes)
     elif station == "cut-change":
         _cut(here, primary, str(change), prompt, modes)
+    elif phase is not None:
+        _phase(here, primary, str(change), phase[1], modes)
     elif (
         station == "build" and f"halt-{change}" in modes and not _amended(here, change)
     ):
@@ -619,13 +664,7 @@ def _fake(prompt: str) -> None:
             return
         if "dies-simplify" in modes:
             sys.exit(1)
-        _done(primary, str(change), _git(here, "rev-parse", "HEAD"))
-        if "person-commits" in modes:
-            _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
-        if "plant-network" in modes:
-            agents = primary / "AGENTS.md"
-            line = "- **Ship network:** `later.example`\n"
-            agents.write_text(agents.read_text() + line)
+        _closed(here, primary, str(change), modes)
     elif station == "converge":
         if "plant-executor" in modes:
             table = _folder(primary, str(change)) / "models.toml"

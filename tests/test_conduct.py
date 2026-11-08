@@ -226,7 +226,12 @@ def _codex_argvs(tmp_path: Path) -> list[list[str]]:
 
 
 def _calls(path: Path) -> list[str]:
-    return path.read_text().splitlines() if path.is_file() else []
+    """Return the fake's calls, a phase spawn's ` with phase=<digits>` dropped.
+
+    Why: 0102-build-per-phase design *The fake host*.
+    """
+    lines = path.read_text().splitlines() if path.is_file() else []
+    return [re.sub(r" with phase=\d+\b", "", line) for line in lines]
 
 
 def _log(root: Path) -> list[str]:
@@ -416,6 +421,10 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("build") == (0, "check: build · pass")
     (tree / "stray.txt").write_text("x\n")
     assert check("build") == (1, "check: build · fail — the tree is not clean")
+    # A phase spawn's check passes on its phase ticked at HEAD, on a clean tree alone.
+    version = conduct["find_version"](root, "0001-todo")
+    on_phase = conduct["check"](root, "build", version, phase="1")
+    assert on_phase == "the tree is not clean"
     (tree / "stray.txt").unlink()
     ran = tmp_path / "ran.txt"
     planted = tmp_path / "planted.sh"
@@ -1341,6 +1350,7 @@ def test_a_cut_only_version_merges_in_before_its_first_worker(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -1696,7 +1706,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == []
 
-    # A build that stops at a HUMAN phase gets no rescue: the phase needs the person.
+    # A build that reaches a HUMAN phase gets no rescue: the phase needs the person.
     stops = tmp_path / "stops"
     stops.mkdir()
     built = _primary(stops)
@@ -1708,7 +1718,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == ["probe", "build 0001-todo"]
     assert _log(built)[-2].endswith(
-        " · 0001-todo · halt — build check fail — phase 2 unticked"
+        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
     )
 
     # A HUMAN phase whose title names a cap, over small open blockers, gets no grant.
@@ -1857,6 +1867,7 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
         "build 0001-todo",
         "rescue 0001-todo",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -1879,6 +1890,73 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     said = capsys.readouterr().out.splitlines()
     halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
     assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
+
+
+def test_a_build_runs_a_worker_per_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    progress = "- [ ] 1 — One · moderate\n- [ ] 2 — Two · hard\n- [ ] 3 — Three\n"
+    _version(root, "0001-todo", progress)
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    build = "build 0001-todo with phase="
+    assert calls.read_text().splitlines() == [
+        "probe",
+        *(f"{build}{phase}" for phase in ("1", "2", "3", "close")),
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+
+
+@pytest.mark.slow
+def test_a_halt_in_a_phase_resumes_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-phase-2", "rescue-fix")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n- [ ] 2 — Two\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    build = "build 0001-todo with phase="
+    assert calls.read_text().splitlines() == [
+        "probe",
+        f"{build}1",
+        f"{build}2",
+        "rescue 0001-todo",
+        f"{build}2",
+        f"{build}close",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+
+    # A phase spawn that ticks nothing halts: no phase runs twice without an amend.
+    idle = tmp_path / "idle"
+    idle.mkdir()
+    lone = _primary(idle)
+    _version(lone, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("idle-phase-1")
+    assert (
+        _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert calls.read_text().splitlines().count(f"{build}1") == 1
+    assert any(
+        line.endswith(" · 0001-todo · halt — build check fail — phase 1 unticked")
+        for line in _log(lone)
+    )
 
 
 @pytest.mark.slow
@@ -1913,6 +1991,7 @@ def test_a_rescue_amends_at_amend_needed(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "rescue 0001-todo",
         "converge 0001-todo",
@@ -2123,6 +2202,7 @@ def test_an_amend_during_a_rescue_goes_on(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "rescue 0001-todo",
         "converge 0001-todo",
@@ -2517,6 +2597,7 @@ def test_a_supervisor_answers_a_diagnosed_halt(
         "rescue 0001-todo with decide=recommended",
         "supervise 0001-todo with decide=recommended",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -2749,6 +2830,7 @@ def test_a_supervisor_settles_an_integrate_note(
         "supervise 0002-marks with decide=recommended",
         "integrate 0002-marks with settled=supervisor",
         "build 0002-marks",
+        "build 0002-marks with phase=close",
         "converge 0002-marks",
         "release 0002-marks",
     ]
@@ -3585,7 +3667,12 @@ def test_a_queued_cut_is_cut_then_built(
 
     assert status() == ["0001-a · cut"]
     assert _run_claude(conduct, root, monkeypatch) == 0
-    made = ["cut-change 0001-a", *(f"{s} 0001-a" for s in ("build", "converge"))]
+    made = [
+        "cut-change 0001-a",
+        "build 0001-a",
+        "build 0001-a with phase=close",
+        "converge 0001-a",
+    ]
     assert _calls(calls) == ["probe", *made, "release 0001-a"]
     lines = _log(root)
     assert " · versions none · cuts 0001-a" in lines[0]
@@ -3670,6 +3757,7 @@ def test_a_cut_brief_reaches_the_supervisor(
         "rescue 0001-a with decide=recommended",
         "supervise 0001-a with decide=recommended and brief=brief.md",
         "build 0001-a",
+        "build 0001-a with phase=close",
         "converge 0001-a",
         "release 0001-a",
     ]
@@ -4400,6 +4488,7 @@ def test_a_codex_checker_runs_through_the_mailbox(
         "probe",
         "checker",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=mailbox",
         "checker 0001-todo conformance",
         "release 0001-todo",
@@ -4488,6 +4577,7 @@ def test_a_shadow_round_drives_no_fix(
     # Round 1 sends each checker, then the other host's shadow of each.
     assert _calls(calls)[3:] == [
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=mailbox and adversarial=mailbox"
         " and shadow=yes",
         "checker 0001-todo conformance",
@@ -4577,6 +4667,7 @@ def test_a_station_runs_on_its_executor(
         ("probe", "claude"),
         ("probe", "codex"),
         ("probe", "codex"),
+        ("build", "claude"),
         ("build", "claude"),
         ("converge", "codex"),
         ("release", "claude"),
@@ -4820,7 +4911,11 @@ def test_a_build_dead_in_simplify_resumes_at_it(
         == 1
     )
 
-    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "build 0001-todo with phase=close",
+    ]
     assert not marker.exists()
     tasks = tree / "openspec/changes/0001-todo/tasks.md"
     assert tasks.read_text() == "## Progress\n\n- [x] 1 — Todo\n"
@@ -4861,7 +4956,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
 
     assert _calls(calls) == [
         "probe",
-        "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -6797,11 +6892,16 @@ def test_a_run_goes_on_while_origin_is_down(
     seen = _calls(calls)
     assert seen[0] == "probe"
     assert set(seen[1:]) == {
-        f"{station} {change}"
-        for station in ("build", "converge", "release")
+        f"{station} {change}{clause}"
+        for station, clause in (
+            ("build", ""),
+            ("build", " with phase=close"),
+            ("converge", ""),
+            ("release", ""),
+        )
         for change in ("0001-todo", "0002-marks")
     }
-    assert len(seen) == 7
+    assert len(seen) == 9
     assert seen.index("build 0001-todo") < seen.index("build 0002-marks")
     assert seen.index("release 0001-todo") < seen.index("converge 0002-marks")
     for change in ("0001-todo", "0002-marks"):
@@ -6970,6 +7070,7 @@ def test_the_plan_is_read_once(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=claude and fix=claude",
     ]
     assert any(
@@ -7946,6 +8047,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -8828,6 +8930,7 @@ def test_a_probe_halts_on_a_write_out(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -8929,7 +9032,7 @@ def test_a_codex_worker_starts_on_mf_settings_alone(
         'model = "o3"\n[mcp_servers.pencil]\ncommand = "pencil"\n'
         "[plugins.notes]\nenabled = true\n"
     )
-    prompt = "Run the mf-build skill for change 0001-todo."
+    prompt = "Run the mf-build skill for change 0001-todo with phase=1."
     code = _main(
         conduct, tree, "agent", "--executor", "codex", prompt, monkeypatch=monkeypatch
     )

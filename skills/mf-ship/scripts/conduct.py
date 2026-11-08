@@ -221,8 +221,9 @@ TOKENS = (
 # Read-only by host: `upload.pypi.org` takes a package, and it is not here.
 NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
+# A build spawn builds one phase, or closes. Why: 0102-build-per-phase design D1, D2.
 PROMPTS = {
-    "build": "Run the mf-build skill for change {change}.",
+    "build": "Run the mf-build skill for change {change} with phase={phase}.",
     "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
@@ -1410,6 +1411,21 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     return None
 
 
+def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
+    """Return why a phase spawn's check fails, or None: phase ticked, tree clean.
+
+    Why: 0102-build-per-phase design D2.
+    """
+    change = version.change
+    if any(
+        mark != "x" and number == phase for mark, number, _ in _progress(tree, change)
+    ):
+        held = _build_halt(primary / ".minions", tree, change)
+        named = f" · {held[0]}: {held[1]}" if held else ""
+        return f"phase {phase} unticked{named}"
+    return "the tree is not clean" if _dirty(tree) else None
+
+
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the converge check fails, or None."""
     runs = primary / ".minions"
@@ -2258,12 +2274,20 @@ def check(
     version: Version,
     first_read: bool = False,
     offline: bool = False,
+    *,
+    phase: str | None = None,
 ) -> str | None:
-    """Return why a station's check on disk fails, or None when it passes."""
+    """Return why a station's check on disk fails, or None when it passes.
+
+    A build `phase` number checks that phase's spawn alone; `close` or none, the
+    whole build. Why: 0102-build-per-phase design D2.
+    """
     if stage == "release":
         return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
+    if stage == "build" and phase is not None and phase != "close":
+        return _check_phase(primary, version, version.tree, phase)
     if stage == "build":
         return _check_build(primary, version, version.tree)
     if stage == "converge":
@@ -4446,23 +4470,28 @@ class Run:
         taken settle goes on to integrate, whose merge must hold the settled tree.
         It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
         it, or `waiting` after a reset; else None. Each stage read past the build wakes
-        the waiting versions.
+        the waiting versions. The build spawns a worker per unticked phase, each
+        checked alone, then one for the close.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, its delta's *A supervisor answers what the
-        rescue leaves*; 0099-stacked-builds design D3.
+        rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
+        D1, D2.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
         try:
-            auto = False
+            auto = close = False
             while not self.stopped(version.change):
                 if self.reset_stack(version):
                     return "waiting"
                 if auto:
                     stage, why = "converge", "granted automatically"
+                elif close:
+                    stage, why = "build", "closing steps left"
                 else:
                     stage, why = self.stage(version)
+                close = False
                 if stage not in ("build", "human", "waiting"):
                     self.notify_built()
                 if stage == "stacked":
@@ -4533,11 +4562,16 @@ class Run:
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)
                             return
+                phase = None
+                if stage == "build":
+                    unticked = _unticked(cwd, change)
+                    phase = unticked[0] if unticked else "close"
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
                     grant=clause,
                     settled=settled,
+                    phase=phase,
                 )
                 models = self.planned_models(version.change, stage)
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
@@ -4554,11 +4588,15 @@ class Run:
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 try:
-                    reason = check(self.primary, stage, version, True, self.offline)
+                    reason = check(
+                        self.primary, stage, version, True, self.offline, phase=phase
+                    )
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
-                    reason = check(self.primary, stage, version, True, True)
+                    reason = check(
+                        self.primary, stage, version, True, True, phase=phase
+                    )
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
@@ -4582,6 +4620,10 @@ class Run:
                     ):
                         continue
                     return
+                # A phase built last, an amend's after converge began, still closes.
+                # Why: 0102-build-per-phase design D1.
+                close = phase not in (None, "close") and _unticked(cwd, change) is None
+                close = close and not _closed(minions, cwd, change)
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
