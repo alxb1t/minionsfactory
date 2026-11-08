@@ -95,7 +95,8 @@ the head the last round judged and matches each with `fnmatch`, whose `*` crosse
 the adversarial head by rule. A test module stays off it: conformance judges every test edit under *Gate integrity*,
 and a test-only pickup given an adversarial verify would spend what
 [D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a `conftest.py`, whose hooks reshape the whole
-run, is on it.
+run, is on it. A pickup's fix is checked by one worker, on adversarial's model when `surfaces.py` exits 1 over it or a
+picked card is adversarial's.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run.
@@ -105,6 +106,8 @@ run, is on it.
 - `skills/mf-converge/references/generic-adversarial.md` — what adversarial checks.
 - `skills/mf-converge/SKILL.md` — when adversarial runs, its head by rule among it, and what may write a findings file.
 - `skills/mf-converge/references/worker.md` — the grades and anchors that decide what a security card blocks.
+- `skills/mf-converge/references/verify.md` — how a checker promotes a fixed card, a security card's among them, and the
+  pickup check.
 - `skills/mf-rescue/SKILL.md` — the rescue's bounds, which never take a security `critical` or `high` card.
 - `skills/mf-supervise/SKILL.md` — the supervisor's bounds, which never take a security `critical` or `high` card.
 - `skills/mf-plan/SKILL.md` — its close, the one shell command a planning session runs outside the sandbox.

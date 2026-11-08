@@ -96,6 +96,11 @@ Never glob `.minions/changes/*`: it keeps the *previous* change's files, and a s
 work is what keying every path by the change id prevents. An absent file is never a reason to search;
 precondition 4 says what absence means.
 
+**Read each findings file in two reads, never whole:** its frontmatter, its first 20 lines — `Read` with a limit, or
+`sed -n 1,20p <file>` — to the closing `---`; then its cards' lines,
+`grep -n -i -e '^- \*\*' -e 'Priority:' -e 'Status:' -e 'inconclusive' <file>`. Preconditions 2, 3 and 7, and the
+report's `inconclusive` sections, are judged from those reads alone.
+
 **An old layout halts first.** A file of this change at one of its old paths, by exact name —
 `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
 `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
@@ -300,7 +305,7 @@ authorizes nothing.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
 `converge ran`, or `converge: skipped — no findings files`; each `inconclusive` section, from
-the findings files' frontmatter and Summaries; the paid-down cards, or `debt: none`; the metrics
+the `grep`'s `inconclusive` lines; the paid-down cards, or `debt: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a
 hand-edit (Step 2) is for the human to act on.

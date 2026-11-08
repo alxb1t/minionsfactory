@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — Helpers and notes
 - [x] 3 — The pickup check
 - [x] 4 — The bundle
-- [ ] 5 — The release and the record
+- [x] 5 — The release and the record
 
 ## 1 — Plan reviews
 
@@ -56,16 +56,16 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The release and the record
 
-- [ ] 5.1 Edit Step 1 and the close-out of `skills/mf-release/SKILL.md`, per [D5](design.md#d5), each new phrase on one line.
+- [x] 5.1 Edit Step 1 and the close-out of `skills/mf-release/SKILL.md`, per [D5](design.md#d5), each new phrase on one line.
   Verify: `grep -n -e 'in two reads, never whole' -e 'grep..s .inconclusive. lines' -e 'sed -n 1,20p' skills/mf-release/SKILL.md` prints a line for each.
-- [ ] 5.2 Add D71 after D68's block in `docs/decisions.md`, and `D71` after `D68` on the map's check-loop line, per
+- [x] 5.2 Add D71 after D68's block in `docs/decisions.md`, and `D71` after `D68` on the map's check-loop line, per
   [D6](design.md#d6).
   Verify: `grep -n '^### D71 · The cut and converge read what changed$' docs/decisions.md` prints a line; `grep -n 'D66, D68, D71' docs/decisions.md` prints a line.
-- [ ] 5.3 Amend D16, D40, D57, D64 and D66 in `docs/decisions.md`, per [D6](design.md#d6), each new phrase on one line.
+- [x] 5.3 Amend D16, D40, D57, D64 and D66 in `docs/decisions.md`, per [D6](design.md#d6), each new phrase on one line.
   Verify: `grep -n -e 'in one more round' -e 'bundles the debt cards on the diff' docs/decisions.md` prints nothing; `grep -n -e 'checked by one verify pass that is no round' -e 'the cut writes their answers to its notes' -e 'bundle.md., .debt-cards.md., .models.toml' -e 'cut.halt. and .cut-notes.md' -e 'as a diff from the living spec' -e 'writes the debt cards on' docs/decisions.md` prints a line for each.
-- [ ] 5.4 Edit *Checker*, *`fixed` is a claim* and *Every edit opens a round* in `docs/principles.md`, and `## Surfaces` in
+- [x] 5.4 Edit *Checker*, *`fixed` is a claim* and *Every edit opens a round* in `docs/principles.md`, and `## Surfaces` in
   `THREAT_MODEL.md` (`0095·S5`), per [D6](design.md#d6), each new phrase on one line.
   Verify: `grep -n -e 'a pickup.s by one pass outside the cap' -e 'A pickup check is one checker for both files' -e 'or a pickup check, promotes it' docs/principles.md` prints a line for each; `grep -n -e 'references/verify.md. — how a checker promotes' -e 'A pickup.s fix is checked by one worker' THREAT_MODEL.md` prints a line for each.
-- [ ] 5.5 Amend D53 in `docs/decisions.md`, its fixer sentence and its *Why*, per [D7](design.md#d7), each new phrase on
+- [x] 5.5 Amend D53 in `docs/decisions.md`, its fixer sentence and its *Why*, per [D7](design.md#d7), each new phrase on
   one line.
   Verify: `grep -n 'The converge fixer edits no plan: a card whose fix needs one' docs/decisions.md` prints nothing; `grep -n -e 'The converge fixer edits no plan, save the .design.md. prose' -e 'The fixer corrects a design.s prose' docs/decisions.md` prints a line for each.

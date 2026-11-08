@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The bundle holds each requirement its delta modifies or removes as a diff from the living spec; `debt_match.py` writes
   the debt cards on the diff's files to `debt-cards.md`, which adversarial reads in place of the bundle; each checker
   reads `diff.patch` once, in slices (change `0101-cut-converge-diet`, phase 4).
+- The release reads each findings file's frontmatter and card lines alone; D71 records the cut and converge diet, D16,
+  D40, D53, D57, D64 and D66, the principles and the threat model's surfaces follow it (change
+  `0101-cut-converge-diet`, phase 5).
 
 ## [0.82.0] - 2026-11-08
 
