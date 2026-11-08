@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.79
 debt: [0050·S7]
 ---
 
