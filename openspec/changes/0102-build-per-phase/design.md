@@ -118,15 +118,17 @@ stage build ─┬─ phase N unticked ──▶ spawn "… for change <id> with
 - **What a phase writes** — after its commit, one section: a `## <N> — <Title>` line, then what the next phase needs that
   `tasks.md`, `design.md` and `git log` do not say — a symbol's real home, a helper a test uses, a command that works, a trap
   met. Never the diff, never a task restated.
-- **The bound** — a new `NOTES = 40`. Before a phase spawn `advance` reads the file's lines (none when absent); after an exit
-  0, a new `Run.trim_notes(change, phase, before)` keeps `before` plus the first `NOTES` lines past it, rewrites the file
-  when it held more, and logs `notes — phase <N>: kept 40 of <m> lines`, `<m>` the lines the phase appended. `EVENTS`
-  gains `notes`.
+- **The bound** — a new `NOTES = 40`. Before a phase spawn `advance` reads the file's lines (none when absent); after a
+  phase spawn, whatever its exit, a new `Run.trim_notes(change, phase, before)` keeps `before` plus the first `NOTES` lines
+  past it, rewrites the file when it held more, and logs `notes — phase <N>: kept 40 of <m> lines`, `<m>` the lines the
+  phase appended, so a phase that fails after its append is cut too. `EVENTS` gains `notes`.
 - **A link** — the file is opened with `os.O_NOFOLLOW`, read and written through that descriptor; a link halts the version,
-  `build-notes.md is a link`, writing nothing — at the read before a phase spawn, which then spawns nothing, and at the trim
-  after it.
-- **The reset** — 0099's `reset_stack` also unlinks the file, so a dependent rebuilt from its cut commit reads no note of
-  the build thrown away.
+  `build-notes.md is a link`, and a file that is not a regular file of one name — a hard link, a folder or a pipe — halts
+  it, `build-notes.md is not a regular file of one name`, writing nothing — at the read before a phase spawn, which then
+  spawns nothing, and at the trim after it.
+- **The reset** — 0099's `reset_stack` also unlinks the file, before the branch moves, so a dependent rebuilt from its cut
+  commit reads no note of the build thrown away; a removal that fails halts the version, `build-notes.md cannot be
+  removed`.
 
 ### D4
 
