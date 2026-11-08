@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — A build worker per phase
 - [x] 2 — The phase handoff
 - [x] 3 — The moderate model
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — A build worker per phase
 
@@ -72,14 +72,14 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The record
 
-- [ ] 4.1 Run `grep -n "^### D[0-9]" docs/decisions.md`; add the decision [D7](design.md#d7) quotes to the group *The
+- [x] 4.1 Run `grep -n "^### D[0-9]" docs/decisions.md`; add the decision [D7](design.md#d7) quotes to the group *The
   check loop and the release* in `docs/decisions.md`, `<n>` one above the highest id it printed, and `D<n>` to that group's
   list in the map.
   Verify: `grep -n "· A build runs a fresh worker per phase$" docs/decisions.md` prints a line.
-- [ ] 4.2 Edit D65, D64, D57 and D13 in `docs/decisions.md`, per [D7](design.md#d7).
+- [x] 4.2 Edit D65, D64, D57 and D13 in `docs/decisions.md`, per [D7](design.md#d7).
   Verify: `grep -n "build.{done,halt,closing,discarded.patch}., .build-notes.md." docs/decisions.md` prints a line.
-- [ ] 4.3 Add the `build-notes.md` sentence to `THREAT_MODEL.md`'s *Entry points*, per [D7](design.md#d7).
+- [x] 4.3 Add the `build-notes.md` sentence to `THREAT_MODEL.md`'s *Entry points*, per [D7](design.md#d7).
   Verify: `grep -n "build-notes.md" THREAT_MODEL.md` prints a line.
-- [ ] 4.4 In the flow diagram of `skills/mf-ship/SKILL.md`, replace `build, stacked on it` with `build, stacked on it, a
+- [x] 4.4 In the flow diagram of `skills/mf-ship/SKILL.md`, replace `build, stacked on it` with `build, stacked on it, a
   worker a phase, then its close`, per [D7](design.md#d7).
   Verify: `grep -n "a worker a phase" skills/mf-ship/SKILL.md` prints a line.

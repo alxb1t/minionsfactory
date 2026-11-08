@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72
 ```
@@ -183,12 +183,11 @@ queue holds.**
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
 decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
-suggested Sonnet 5.5 · high for its whole build, where the session offers it: one model a change, and one build session.**
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
 
 - **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
   round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
-- **Rejected:** a second review after every fix · resuming a reviewer by a message · a build session per phase, which needs a
-  guard against re-spawning without end · a model per phase.
+- **Rejected:** a second review after every fix · resuming a reviewer by a message.
 
 ### D69 · A version names what it builds beside
 
@@ -236,7 +235,7 @@ Each is its own pass.**
 
 ### D13 · Simplify runs inside the build and blocks nothing
 
-**The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
+**The build closes with a simplify pass, its own worker under `mf-ship`, that edits in place and re-runs the gate. Its edits are then inside the
 frozen diff, so converge's checkers judge them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
 verdict.**
 
@@ -333,7 +332,7 @@ adversarial card awaiting its checker, takes its adversarial head by recomputati
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
 - **Accepts:** on Codex every worker on the conductor's host runs on the conductor's model; a decision the change does not
-  cite is read by its index line alone; the build keeps one model a change.
+  cite is read by its index line alone; the build's model is `[build]`'s, a moderate phase's `[build.moderate]`'s.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
   it · an adversarial verify skipped by the conductor's judgment.
 
@@ -441,6 +440,20 @@ searches the whole tree for each claim the amend changes.**
 - **Accepts:** code an amend contradicts outside the range, which only the stale-claim pass searches · a decision or
   spec-delta amend judged in one round.
 - **Rejected:** a full reopen after a decision amend · a fresh cap of three per amend · by rule for the person's amends.
+
+### D73 · A build runs a fresh worker per phase
+
+**Under `mf-ship`, the build station spawns `mf-build` once per unticked phase, `phase=<N>`, and once for the close,
+`phase=close`: simplify, the metrics and `build.done`. A phase spawn passes only on its phase ticked at `HEAD` on a clean
+tree, so none runs twice without an amend between. Phases hand over through `.minions/changes/<id>/build-notes.md`, of
+which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` or `hard`; a moderate one runs on
+`[build.moderate]` when the models file names it.**
+
+- **Why:** one session carried every phase's reads to its end, 547k of context at 0097's last phase; a fresh worker per
+  phase simulated −$4.3 on 0097 and +$0.2 on 0096.
+- **Accepts:** each phase re-reads its base · a note the conductor cuts at 40 lines.
+- **Rejected:** a per-phase worker only on big changes — one behaviour is simpler · a tracked notes file — D6 keeps the
+  record to four artifacts · a host per phase.
 
 ## The target repo
 
@@ -881,7 +894,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
-`build.{done,halt,closing,discarded.patch}`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
+`build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's

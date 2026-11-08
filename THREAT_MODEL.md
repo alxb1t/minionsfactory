@@ -72,7 +72,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
-  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)).
+  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). Among them `build-notes.md`, which the next phase
+  reads as evidence and the conductor trims through a descriptor that follows no link.
 - Rejoin requests, in the home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`: the person's session writes
   them and no worker can, so a file in `.minions/runs/rejoin/` is no request. A request has the live run read a version's
   stage from disk again, which it already trusts, and the models file of a version cut since its start. A version the

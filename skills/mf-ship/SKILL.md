@@ -19,7 +19,7 @@ preconditions ─▶ status ─▶ every open version at a halt stage or waiting
                     │
   each queued cut: wait for its after: ─▶ branch and worktree ─▶ cut ─▶ check cut, else cut-halted
                     │  a cut that passes is a version
-  each version, in parallel: wait for its after:'s build ─▶ build, stacked on it ─▶ wait for its release ─▶ converge
+  each version, in parallel: wait for its after:'s build ─▶ build, stacked on it, a worker a phase, then its close ─▶ wait for its release ─▶ converge
       a halt gets its rescue, under the switch its supervisor, then stops only its version, and blocks what names
       it; a crash stops the run
                     │  ready, one at a time

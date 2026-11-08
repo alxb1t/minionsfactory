@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The cut rates each phase ` · moderate` or ` · hard`; a moderate phase builds on `[build.moderate]` when the models
   file names it, on `[build]`'s executor, and `brief_check.py` takes an optional, hostless `build-moderate` part
   (change `0102-build-per-phase`, phase 3).
+- D73 records the build's worker per phase; D65, D64, D57 and D13 follow it, the threat model names `build-notes.md`,
+  and `mf-ship`'s flow shows a worker a phase (change `0102-build-per-phase`, phase 4).
 
 ## [0.84.0] - 2026-11-08
 
