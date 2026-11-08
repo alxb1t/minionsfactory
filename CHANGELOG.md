@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-11-09
+
+Gate: local 2m8s · CI not read under mf-ship · 0.84.0: local 2m13s · CI not read under mf-ship
+
 - Under `mf-ship`, the build spawns `mf-build` once per unticked phase, `phase=<N>`, then once for the close,
   `phase=close`. A phase spawn passes only on its phase ticked at `HEAD` on a clean tree, so no phase runs twice
   without an amend (change `0102-build-per-phase`, phase 1).
