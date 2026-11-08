@@ -77,7 +77,7 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 | [D3](#d3) | The pickup check | T8, C9 | the pickup verified in a full round; one verify worker per role |
 | [D4](#d4) | Requirement diffs, `debt-cards.md`, the patch in slices | T11, C11, C12 | the debt cards kept in the bundle |
 | [D5](#d5) | The release reads frontmatter and card lines | T12, C10 | the frontmatter alone — a `fixed` blocker would pass |
-| [D6](#d6) | D70; D16, D40, D57, D64, D66 and a principle amended; the surfaces | — | — |
+| [D6](#d6) | D71; D16, D40, D57, D64, D66 and a principle amended; the surfaces | — | — |
 
 ### D1
 
@@ -206,9 +206,9 @@ findings files' frontmatter and Summaries" becomes "each `inconclusive` section,
 
 ### D6
 
-- **D70**, in `docs/decisions.md` after D68's block, and `D70` after `D68` on the map's check-loop line:
+- **D71**, in `docs/decisions.md` after D68's block, and `D71` after `D68` on the map's check-loop line:
 
-### D70 · The cut and converge read what changed
+### D71 · The cut and converge read what changed
 
 **The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
 budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
@@ -228,7 +228,7 @@ the diff's files have their own file, and the release reads the findings files' 
 
 - **D16** — "converge fixes this run's small cards and its drift in one more round." becomes "converge fixes this run's
   small cards and its drift, checked by one verify pass that is no round
-  ([D70](#d70--the-cut-and-converge-read-what-changed))."
+  ([D71](#d71--the-cut-and-converge-read-what-changed))."
 - **D40** — "answering in the cut's thread and writing no file." becomes "answering in the cut's thread and writing no
   file: the cut writes their answers to its notes."
 - **D57** — "`diff.patch`, `bundle.md`, `models.toml`" becomes "`diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`";

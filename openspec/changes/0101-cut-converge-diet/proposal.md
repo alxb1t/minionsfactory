@@ -35,7 +35,7 @@ token diet's second, after worker diet, `0100-worker-diet`.
 - **The release** — reads each findings file's frontmatter and, by one `grep`, its cards' title, Priority and Status lines.
 - **Debt** — `worker.md`'s amend-round sentence names conformance alone (`0095·R3`); `references/verify.md` joins
   `THREAT_MODEL.md`'s `## Surfaces` (`0095·S5`).
-- **The record** — D70; D16, D40, D57, D64 and D66 amended; the principles *Every edit opens a round* and *`fixed` is a
+- **The record** — D71; D16, D40, D57, D64 and D66 amended; the principles *Every edit opens a round* and *`fixed` is a
   claim*, and the *Checker* term.
 
 ## Capabilities

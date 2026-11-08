@@ -14,7 +14,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [ ] 1.1 **HALT CHECK** The base stands, `0100-worker-diet` merged: this `Verify:` alone; the
   [Context](design.md#context)'s line numbers are `ed7298f`'s.
-  Verify: `test -d openspec/changes/archive/0100-worker-diet` exits 0; `grep -n '^### D69 · A worker starts lean$' docs/decisions.md` prints a line; `grep -n -e '^## Step 8.5 — Plan review$' -e '^\*\*Helpers\.\*\* Where the host starts fresh workers' skills/mf-cut-change/SKILL.md` prints a line for each.
+  Verify: `test -d openspec/changes/archive/0100-worker-diet` exits 0; `grep -n '^### D70 · A worker starts lean$' docs/decisions.md` prints a line; `grep -n -e '^## Step 8.5 — Plan review$' -e '^\*\*Helpers\.\*\* Where the host starts fresh workers' skills/mf-cut-change/SKILL.md` prints a line for each.
 - [ ] 1.2 Edit `## Step 8.5 — Plan review` of `skills/mf-cut-change/SKILL.md`: the packet, the budget, the review tree,
   the table's second row and the sentence on each review, per [D1](design.md#d1), each new phrase on one line.
   Verify: `grep -n -e 'the \*\*review packet\*\*' -e 'budget reached' -e 'git write-tree' -e 'judging the diff since the first' -e 'only at a path or .path:line.' skills/mf-cut-change/SKILL.md` prints a line for each.
@@ -55,9 +55,9 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [ ] 5.1 Edit Step 1 and the close-out of `skills/mf-release/SKILL.md`, per [D5](design.md#d5), each new phrase on one line.
   Verify: `grep -n -e 'in two reads, never whole' -e 'grep..s .inconclusive. lines' -e 'sed -n 1,20p' skills/mf-release/SKILL.md` prints a line for each.
-- [ ] 5.2 Add D70 after D68's block in `docs/decisions.md`, and `D70` after `D68` on the map's check-loop line, per
+- [ ] 5.2 Add D71 after D68's block in `docs/decisions.md`, and `D71` after `D68` on the map's check-loop line, per
   [D6](design.md#d6).
-  Verify: `grep -n '^### D70 · The cut and converge read what changed$' docs/decisions.md` prints a line; `grep -n 'D66, D68, D70' docs/decisions.md` prints a line.
+  Verify: `grep -n '^### D71 · The cut and converge read what changed$' docs/decisions.md` prints a line; `grep -n 'D66, D68, D71' docs/decisions.md` prints a line.
 - [ ] 5.3 Amend D16, D40, D57, D64 and D66 in `docs/decisions.md`, per [D6](design.md#d6), each new phrase on one line.
   Verify: `grep -n -e 'in one more round' -e 'bundles the debt cards on the diff' docs/decisions.md` prints nothing; `grep -n -e 'checked by one verify pass that is no round' -e 'the cut writes their answers to its notes' -e 'bundle.md., .debt-cards.md., .models.toml' -e 'cut.halt. and .cut-notes.md' -e 'as a diff from the living spec' -e 'writes the debt cards on' docs/decisions.md` prints a line for each.
 - [ ] 5.4 Edit *Checker*, *`fixed` is a claim* and *Every edit opens a round* in `docs/principles.md`, and `## Surfaces` in
