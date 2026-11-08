@@ -198,8 +198,8 @@ plan's parallel-with check proposes which, `beside:` by default. `conduct.py cut
 frontmatter, and nothing waits on it: integrate, and under the switch the supervisor, settle the overlap as they settle any
 moved base.**
 
-- **Why:** of 0081–0095's 14 `after:` links, 8 only avoided file overlap, each holding a build through the other's converge
-  and release, while integrate already merges a moved base in.
+- **Why:** most of 0081–0095's `after:` links only avoided file overlap, each holding a build through the other's
+  converge and release, while integrate already merges a moved base in.
 - **Accepts:** an overlap settled at integrate — a supervisor's spend, or a person's halt — where `after:` would have waited.
 - **Rejected:** `after:` for overlap — a wait the merge makes needless · a run-time reader of `beside:` — nothing it would
   order.

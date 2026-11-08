@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The plan's parallel-with check proposes `after:` only when one version needs a symbol, decision or requirement the
   other adds, else `beside:`; its template and close carry `beside`, and D69 records it, with `mf-ship`'s `cut` row
   (change `0098-beside`, phase 2).
+- D69's why names no counts, so it matches the design's quotation; the counts stay in the design's evidence (change
+  `0098-beside`, phase 3).
 
 ## [0.80.0] - 2026-11-08
 
