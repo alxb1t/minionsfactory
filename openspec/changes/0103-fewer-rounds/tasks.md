@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The round-1 pickup and the mechanism repeat
-- [ ] 2 — The fix note
+- [x] 2 — The fix note
 - [ ] 3 — The plan check
 - [ ] 4 — The corpus
 - [ ] 5 — CommonMark readers
@@ -30,13 +30,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The fix note
 
-- [ ] 2.1 Add the fix-note steps to `test_a_rescue_decides_under_the_switch` in `tests/test_conduct.py`, per the design's
+- [x] 2.1 Add the fix-note steps to `test_a_rescue_decides_under_the_switch` in `tests/test_conduct.py`, per the design's
   `## Tests` row.
   Verify: `grep -n "Fix note (2026-11-08, R2)" tests/test_conduct.py` prints a line.
-- [ ] 2.2 In `skills/mf-ship/scripts/conduct.py`, add `FIX_NOTE` and `_decisions`' split, and name the note in `_amend`'s
+- [x] 2.2 In `skills/mf-ship/scripts/conduct.py`, add `FIX_NOTE` and `_decisions`' split, and name the note in `_amend`'s
   docstring, per [D3](design.md#d3), each new why line citing `0103-fewer-rounds design D3`.
   Verify: `uv run pytest -q tests/test_conduct.py -k rescue_decides_under_the_switch` reports `1 passed`.
-- [ ] 2.3 In `skills/mf-converge/SKILL.md`, edit the fixer's plan bullet and Step 10's sentences, and in
+- [x] 2.3 In `skills/mf-converge/SKILL.md`, edit the fixer's plan bullet and Step 10's sentences, and in
   `skills/mf-converge/references/worker.md` the amend card, per [D3](design.md#d3).
   Verify: `grep -l "fix note" skills/mf-converge/SKILL.md skills/mf-converge/references/worker.md` prints both paths.
 

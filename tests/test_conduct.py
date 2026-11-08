@@ -2334,6 +2334,32 @@ def test_a_rescue_decides_under_the_switch(
     spaced = real.replace("## Decisions", "## Decisions ")
     assert decisions(spaced) != decisions(spaced.replace("a fix", "another fix"))
 
+    # A fix note closing an entry is no decision change, CRLF lines too; an edit of the
+    # entry's words, or a note followed by a line of words, still is.
+    entry = "## Decisions\n\n### D1\n\nRead the branch.\n\n## Tests\n"
+    noted = entry.replace(
+        "branch.\n", "branch.\n\nFix note (2026-11-08, R2): reads refs/heads.\n"
+    )
+    assert decisions(entry) == decisions(noted)
+    assert decisions(entry.replace("\n", "\r\n")) == decisions(
+        noted.replace("\n", "\r\n")
+    )
+    assert decisions(noted) != decisions(noted.replace("branch", "tag"))
+    assert decisions(entry) != decisions(
+        noted.replace("heads.\n", "heads.\nMore words.\n")
+    )
+
+    # An amend without the switch that appends a note is no decision change.
+    _commit(tree, {design: entry}, "build")
+    built = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {design: noted}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", built, ("tasks.md", "design.md")) == (
+        head,
+        "",
+        False,
+    )
+
 
 def test_an_amend_during_a_rescue_goes_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]

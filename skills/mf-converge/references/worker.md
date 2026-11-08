@@ -164,7 +164,7 @@ and name things rather than count them: "the conformance and adversarial files",
 
 **An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
 `design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose
-outside its `## Decisions` section, which the fixer corrects.
+outside its `## Decisions` section, which the fixer corrects, and a card whose fix a fix note records.
 The fixer never edits `tasks.md`, nor that section, a row of its table, a decision's D-id or a `## ` heading, and
 converge halts on such a card.
 

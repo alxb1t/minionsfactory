@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge's round-1 fix pass takes Step 8's pickup with its blockers, so round 2 verifies them all and Step 8 runs no
   second pickup; a pickup whose fixer commits nothing gets no check. A finding whose mechanism a debt card holds names
   `repeat of <card>` and keeps its grade (change `0103-fewer-rounds`, phase 1).
+- The converge fixer may append `Fix note (<date>, <card id>): <line>` to a `### D<n>` entry in `design.md`; `conduct.py`
+  reads an appended note as no decision change, and converge's close-out names each note (change `0103-fewer-rounds`,
+  phase 2).
 
 ## [0.85.0] - 2026-11-09
 

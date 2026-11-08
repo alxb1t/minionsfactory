@@ -373,8 +373,10 @@ again at its commit. The fixer:
   `verdict: clean`**. Those are the verify pass's;
 - marks a finding it believes wrong `wontfix` **with a justification**, never silently;
 - **never edits the change's `tasks.md`, nor `design.md`
-  save the prose a `drift` card names** outside its `## Decisions` section — never that section, a row of its table, a
-  decision's D-id or a `## ` heading: a card whose fix needs one of those is `wontfix`, naming the amend the person
+  save the prose a `drift` card names** outside its `## Decisions` section — never another line of that section, a row of
+  its table, a decision's D-id or a `## ` heading, save a **fix note**: when its fix changes how the code implements a
+  decision whose words still hold, it may append `Fix note (<YYYY-MM-DD>, <card id>): <one line>` as the last line of that
+  `### D<n>` entry. A card whose fix needs one of those is `wontfix`, naming the amend the person
   commits by its path. A blocking card's halts the round `amend needed — <card ids>` after the fix pass;
   a non-blocking card's is verified, and halts at Step 9;
 - does **not** delete, move, rename or empty a findings file or the diff patch, and does **not** write the
@@ -502,7 +504,8 @@ retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write ends
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the verdicts and the round, read from disk; each `inconclusive` section; each
-blocking finding's end state, by id; the cards
+blocking finding's end state, by id; each fix note the run's fixers appended, by its D-id and card, for the person to
+read; the cards
 written, by qualified id, and the debt's total card count, so a vanished file shows as a drop; the exit code of
 the gate you re-run at the end.
 

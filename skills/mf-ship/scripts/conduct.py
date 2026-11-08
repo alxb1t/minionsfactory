@@ -131,6 +131,9 @@ SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 CONDUCTOR = ("claude-sonnet-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
+# A line the converge fixer appends to a decision's entry; the run reads it as no
+# decision change. Why: 0103-fewer-rounds design D3.
+FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
 # Each old-layout path of a change, by its name in the change's folder.
 # Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
@@ -2707,13 +2710,31 @@ def _decisions(text: str | None) -> str:
     The section runs from the first line that starts `## Decisions` to the next `## `
     heading, CRLF lines or not. The headings make a section copied above the real
     one, added or renamed read as a change. Why: 0085-self-healing-ship design D4.
+    Each `### D<n>` entry loses its closing blank lines and `FIX_NOTE` lines, so a
+    note added or edited there changes nothing. Why: 0103-fewer-rounds design D3.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
     found = re.search(
         r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
     )
-    return "\n".join([*headings, found[1] if found else ""])
+    parts = re.split(r"^(?=### )", found[1] if found else "", flags=re.MULTILINE)
+    return "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+
+
+def _unnoted(part: str) -> str:
+    """Return a `### D<n>` entry without its closing blank lines and fix notes.
+
+    Any other part comes back as it is. Why: 0103-fewer-rounds design D3.
+    """
+    if not re.match(r"### D\d", part):
+        return part
+    lines = part.split("\n")
+    while lines and (
+        (line := lines[-1].removesuffix("\r")) == "" or FIX_NOTE.fullmatch(line)
+    ):
+        lines.pop()
+    return "\n".join(lines) + "\n"
 
 
 def _amend(
@@ -2725,7 +2746,8 @@ def _amend(
     touching the change's `amends` files alone; with no `amends` there is none. A
     decided amend touches `proposal.md` or changes `design.md`'s `## Decisions`: it
     stands with `proposal.md` in `amends`, the switch, and a `Decided-by: rescue`
-    trailer alone. No commit is (None, "", False).
+    trailer alone; a `FIX_NOTE` appended to a decision's entry is no decision change.
+    No commit is (None, "", False).
     Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
     """
     if not _ancestor(tree, before, "HEAD"):
