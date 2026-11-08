@@ -9,14 +9,15 @@
 Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prints
 `brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
 space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
-slug, bump, `after` and models, which the close pastes into `conduct.py cut`, are held
-to their shape; a models line may add checker and fixer parts, a host on a model, and
-a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. ` at column 0, a
-`- models: ` or `- **Acceptance:** ` line under it, an Acceptance's continuation, or
-the cut's `Cut` line. `## Dependencies` is `None.` or a table of item · package ·
-constraint · why. A checked line is printable, and each checked heading is written
-one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2 design D5;
-0091-cut-halts design D2; 0097-cross-model design D1.
+slug, bump, `after`, `beside` and models, which the close pastes into `conduct.py cut`,
+are held to their shape; a models line may add checker and fixer parts, a host on a
+model, and a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. ` at
+column 0, a `- models: ` or `- **Acceptance:** ` line under it, an Acceptance's
+continuation, or the cut's `Cut` line. `## Dependencies` is `None.` or a table of
+item · package · constraint · why. A checked line is printable, and each checked
+heading is written one way, once. Why: 0083-plan-queues design D1; 0088-paydown-2
+design D5; 0091-cut-halts design D2; 0097-cross-model design D1;
+0098-beside design D1, D2.
 """
 
 import argparse
@@ -41,6 +42,7 @@ ACCEPTANCE = "- **Acceptance:** "
 CUT = re.compile(r"Cut \d{4}-\d{2}-\d{2} as \d+-[a-z0-9-]+ at [0-9a-f]{7,40}\.")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
+HEADING_TAG = re.compile(r"</?h[1-6][^>]*>", re.IGNORECASE)
 CHECKED = ("## Decisions", "## For the cut")
 HEADINGS = ("## Decisions", "## Dependencies", "## For the cut")
 BUMPS = ("minor", "patch")
@@ -140,10 +142,26 @@ def halts(heading: str, lines: list[str], rules: dict[str, Any]) -> list[str]:
     return found
 
 
+def ids(number: str, kind: str, value: str, slug: re.Pattern[str]) -> list[str]:
+    """Return a halt for each entry of a head's `after` or `beside` part `slug` refuses.
+
+    `kind` names the entry; `none` names none.
+    e.g. "1", "a beside", " [x, a;b]" → ["item 1 — not a beside id: `a;b`"]
+    """
+    if (value := value.strip("[] `")) == "none":
+        return []
+    return [
+        f"item {number} — not {kind} id: `{named}`"
+        for named in (entry.strip("` ") for entry in value.split(","))
+        if not slug.fullmatch(named)
+    ]
+
+
 def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each field of an item's head out of shape.
 
-    `parts` is the head split on ` · `; its slug and each `after` entry match `slug`.
+    `parts` is the head split on ` · `; its slug and each `after` and `beside` entry
+    match `slug`. `beside:` is optional.
     e.g. "1", ["**x$(y)**", "minor", "after: none"] → ["item 1 — not a slug: `x$(y)`"]
     """
     found: list[str] = []
@@ -153,15 +171,16 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
         found.append(f"item {number} — not a bump: `{bump}`")
     afters = [part[6:] for part in parts if part.startswith("after:")]
     if len(afters) > 1:
-        return [*found, f"item {number} — more than one after:"]
-    if not afters:
-        return [*found, f"item {number} — no after:"]
-    after = afters[0]
-    if (after := after.strip("[] `")) == "none":
-        return found
-    for named in after.split(","):
-        if not slug.fullmatch(named := named.strip("` ")):
-            found.append(f"item {number} — not an after id: `{named}`")
+        found.append(f"item {number} — more than one after:")
+    elif not afters:
+        found.append(f"item {number} — no after:")
+    else:
+        found += ids(number, "an after", afters[0], slug)
+    besides = [part[7:] for part in parts if part.startswith("beside:")]
+    if len(besides) > 1:
+        found.append(f"item {number} — more than one beside:")
+    elif besides:
+        found += ids(number, "a beside", besides[0], slug)
     return found
 
 
@@ -257,14 +276,16 @@ def packages(brief: str, lines: list[str], conduct: dict[str, Any]) -> list[str]
 def grammar(lines: list[str]) -> list[str]:
     """Return a halt for each `## For the cut` line outside the item grammar.
 
-    A line is a blank of spaces; a head, `<n>. ` and text at column 0; a `- models: `
-    or `- **Acceptance:** ` line three spaces in or at its head's text; a continuation,
-    two or more spaces past the Acceptance line, right after it or another; or the
-    cut's `Cut` line. Lines count from 1 under the heading.
+    A line is a blank of spaces; a head, `<n>. ` and text at column 0; under a head, a
+    `- models: ` or `- **Acceptance:** ` line three spaces in or at its head's text; a
+    continuation, two or more spaces past the Acceptance line, right after it or
+    another; or the cut's `Cut` line. Lines count from 1 under the heading.
+    Why: 0098-beside design D1, D2.
     e.g. ["1. **a** · minor", "| · after: x"] → ["## For the cut line 2: …"]
     """
     found: list[str] = []
     column = 3
+    seen_head = False
     accepted: int | None = None
     for number, line in enumerate(lines, 1):
         text = line.lstrip(" ")
@@ -272,7 +293,12 @@ def grammar(lines: list[str]) -> list[str]:
         nested = None
         if opened := HEAD.match(line):
             column = len(opened[1]) + 2
-        elif at in (3, column) and text.startswith(("- models: ", ACCEPTANCE)):
+            seen_head = True
+        elif (
+            seen_head
+            and at in (3, column)
+            and text.startswith(("- models: ", ACCEPTANCE))
+        ):
             nested = at if text.startswith(ACCEPTANCE) else None
         elif accepted is not None and at >= accepted + 2 and text:
             nested = accepted
@@ -298,17 +324,37 @@ def printable(heading: str, lines: list[str]) -> list[str]:
 
 
 def fold(text: str) -> str:
-    r"""Return the letters and digits of `text`, case-folded.
+    r"""Return the letters and digits of `text` past its HTML heading tags, case-folded.
 
-    e.g. "##\tFor the Cut ##" → "forthecut"
+    Why: 0098-beside design D1, D2.
+    e.g. "<h2>For the Cut</h2>" → "forthecut"
     """
+    text = HEADING_TAG.sub("", text)
     return "".join(char for char in text if char.isalnum()).casefold()
+
+
+def alike(line: str, heading: str) -> bool:
+    """Return whether a folded line reads as a folded heading.
+
+    They match where `line` holds an ASCII character; a non-ASCII one stands for any.
+    `line` keeps at least one ASCII letter.
+    e.g. "fоrthecut", a Cyrillic `о`, "forthecut" → True
+    """
+    return (
+        len(line) == len(heading)
+        and any(char.isascii() and char.isalpha() for char in line)
+        and all(
+            ours == theirs or not ours.isascii()
+            for ours, theirs in zip(line, heading, strict=True)
+        )
+    )
 
 
 def headings(brief: str) -> list[str]:
     """Return a halt per line reading as a checked heading not written so, or twice.
 
-    Lines count from 1 in the brief.
+    A line reads as one when `alike` holds for their folds. Lines count from 1 in the
+    brief. Why: 0098-beside design D1, D2.
     e.g. " ## For the cut" → ["line 1 reads as `## For the cut` but is not written so"]
     """
     found: list[str] = []
@@ -317,7 +363,7 @@ def headings(brief: str) -> list[str]:
         for heading in HEADINGS:
             if line == heading and heading in seen:
                 found.append(f"line {number}: a second `{heading}`")
-            elif line != heading and fold(line) == fold(heading):
+            elif line != heading and alike(fold(line), fold(heading)):
                 found.append(
                     f"line {number} reads as `{heading}` but is not written so"
                 )
