@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — A build worker per phase
-- [ ] 2 — The phase handoff
+- [x] 2 — The phase handoff
 - [ ] 3 — The moderate model
 - [ ] 4 — The record
 
@@ -32,17 +32,17 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The phase handoff
 
-- [ ] 2.1 Add modes `notes-<id>` and `notes-link-<id>` to `tests/fake_worker.py`, and the notes step and the link roots to
+- [x] 2.1 Add modes `notes-<id>` and `notes-link-<id>` to `tests/fake_worker.py`, and the notes step and the link roots to
   `test_a_build_runs_a_worker_per_phase` in `tests/test_conduct.py`, per the design's `## Tests` row.
   Verify: `grep -n "notes-" tests/fake_worker.py` prints a line.
-- [ ] 2.2 In `skills/mf-ship/scripts/conduct.py`, add `NOTES`, `Run.trim_notes`, the `notes` event in `EVENTS`, the line
+- [x] 2.2 In `skills/mf-ship/scripts/conduct.py`, add `NOTES`, `Run.trim_notes`, the `notes` event in `EVENTS`, the line
   count before each phase spawn and the link halt, per [D3](design.md#d3), the why line citing
   `0102-build-per-phase design D3`.
   Verify: `uv run pytest -q tests/test_conduct.py -k worker_per_phase` reports `1 passed`.
-- [ ] 2.3 Add the reset step to `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py`, then make
+- [x] 2.3 Add the reset step to `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py`, then make
   `reset_stack` in `skills/mf-ship/scripts/conduct.py` unlink `build-notes.md`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k stacked_dependent_resets` reports `1 passed`.
-- [ ] 2.4 In `skills/mf-build/SKILL.md`, add the `phase=` table to the change-id section, Step 1's fourth read, Step 2's
+- [x] 2.4 In `skills/mf-build/SKILL.md`, add the `phase=` table to the change-id section, Step 1's fourth read, Step 2's
   item 7 and Step 4's phase report, per [D4](design.md#d4); the opening diagram's step 2 line gains `─▶ notes`.
   Verify: `grep -n "build-notes.md" skills/mf-build/SKILL.md` prints a line.
 

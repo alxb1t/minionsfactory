@@ -24,6 +24,7 @@ Why: 0040-mf-ship design D2.
 
 import argparse
 import contextlib
+import errno
 import fcntl
 import hashlib
 import itertools
@@ -86,7 +87,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset"),
+    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -100,6 +101,10 @@ STUCK = (*HALTS, "waiting")
 # A stacked version's file: the built head it builds on, its build's base.
 # Why: 0099-stacked-builds design D2, D5.
 STACKED_ON = "stacked-on"
+# What a phase hands the next, and the lines of each phase's append the run keeps.
+# Why: 0102-build-per-phase design D3.
+NOTES_FILE = "build-notes.md"
+NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
@@ -662,6 +667,35 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
             os.unlink(name, dir_fd=fd)
     finally:
         os.close(fd)
+
+
+def _open_notes(primary: Path, change: str, flags: int) -> int | None:
+    """Return a descriptor on the change's `build-notes.md`; None with no file.
+
+    It follows no link: a link, or a file it cannot open, halts the version.
+    Why: 0102-build-per-phase design D3.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    try:
+        return os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        name = f".minions/changes/{change}/{NOTES_FILE}"
+        linked = error.errno == errno.ELOOP
+        why = "is a link" if linked else f"cannot be opened — {error.strerror}"
+        raise Stop(1, f"conduct: halt — {name} {why}") from None
+    finally:
+        os.close(fd)
+
+
+def _note_lines(primary: Path, change: str) -> int:
+    """Return the lines of the change's `build-notes.md`; 0 with no file."""
+    file = _open_notes(primary, change, os.O_RDONLY)
+    if file is None:
+        return 0
+    with os.fdopen(file, "rb") as notes:
+        return len(notes.read().splitlines())
 
 
 def _cutter_halt(primary: Path, change: str) -> str | None:
@@ -4404,6 +4438,25 @@ class Run:
             )
         return models
 
+    def trim_notes(self, change: str, phase: str, before: int) -> None:
+        """Keep `build-notes.md`'s first `before` lines and `NOTES` past them.
+
+        It reads and rewrites the file through one descriptor that follows no link,
+        and logs a cut. Why: 0102-build-per-phase design D3.
+        """
+        file = _open_notes(self.primary, change, os.O_RDWR)
+        if file is None:
+            return
+        with os.fdopen(file, "r+b") as notes:
+            lines = notes.read().splitlines(keepends=True)
+            added = len(lines) - before
+            if added > NOTES:
+                notes.seek(0)
+                notes.truncate()
+                notes.write(b"".join(lines[: before + NOTES]))
+                said = f"phase {phase}: kept {NOTES} of {added} lines"
+                self.log.event(change, "notes", said)
+
     def _would_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:
         """Return whether `halt` at `stage` is a cap the run grants, and the blockers.
 
@@ -4471,12 +4524,12 @@ class Run:
         It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
         it, or `waiting` after a reset; else None. Each stage read past the build wakes
         the waiting versions. The build spawns a worker per unticked phase, each
-        checked alone, then one for the close.
+        checked alone, its `build-notes.md` append trimmed, then one for the close.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, its delta's *A supervisor answers what the
         rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
-        D1, D2.
+        D1, D2, D3.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -4566,6 +4619,9 @@ class Run:
                 if stage == "build":
                     unticked = _unticked(cwd, change)
                     phase = unticked[0] if unticked else "close"
+                numbered = phase not in (None, "close")
+                # A link at the notes halts here, before the spawn.
+                notes = _note_lines(self.primary, change) if numbered else 0
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
@@ -4585,6 +4641,8 @@ class Run:
                 )
                 if denied is None:
                     return
+                if numbered:
+                    self.trim_notes(change, str(phase), notes)
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 try:
@@ -4622,7 +4680,7 @@ class Run:
                     return
                 # A phase built last, an amend's after converge began, still closes.
                 # Why: 0102-build-per-phase design D1.
-                close = phase not in (None, "close") and _unticked(cwd, change) is None
+                close = numbered and _unticked(cwd, change) is None
                 close = close and not _closed(minions, cwd, change)
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
@@ -4959,7 +5017,8 @@ class Run:
         A dependency whose branch left that head was itself reset, so a chain resets
         with it. Released, the dependency is the one `after:` id whose kept branch
         holds that head. The version goes back to its cut commit, `stacked-on`
-        removed. Why: 0099-stacked-builds design D6.
+        and `build-notes.md` removed. Why: 0099-stacked-builds design D6;
+        0102-build-per-phase design D3.
         """
         change, tree = version.change, version.tree
         if tree is None:
@@ -4994,6 +5053,7 @@ class Run:
         left = _git(tree, "rev-parse", "HEAD").strip()
         _git(tree, "reset", "-q", "--hard", cut)
         _unstack(self.primary, change)
+        _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
         moved = f"{left[:7]} → {cut[:7]}"
         said = f"{dependency} re-planned past {head[:7]}: {moved}"
         self.log.event(change, "reset", said)

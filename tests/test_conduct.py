@@ -1158,9 +1158,13 @@ def test_a_stacked_dependent_resets_and_merges_back(
     _git(root, "config", "--unset", "mf.race")
     run.git_state = conduct["_git_state"](root)
     assert _git(marks, "rev-parse", "HEAD") == stacked
+    # The reset drops the notes of the build it throws away.
+    notes = stacked_on.with_name("build-notes.md")
+    notes.write_text("## 1 — Marks\n")
     assert run.reset_stack(version)
     assert _git(marks, "rev-parse", "HEAD") == cut
     assert not stacked_on.exists()
+    assert not notes.exists()
     reset = f"0001-todo re-planned past {built[:7]}: {stacked[:7]} → {cut[:7]}"
     assert any(line.endswith(f" · 0002-marks · reset — {reset}") for line in _log(root))
     assert conduct["_built_head"](root, "0001-todo") is None
@@ -1892,19 +1896,24 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
 
 
+@pytest.mark.slow
 def test_a_build_runs_a_worker_per_phase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    calls = fake()
+    calls = fake("notes-0001-todo")
     root = _primary(tmp_path)
     progress = "- [ ] 1 — One · moderate\n- [ ] 2 — Two · hard\n- [ ] 3 — Three\n"
     _version(root, "0001-todo", progress)
 
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
+    def run(at: Path, code: int) -> list[str]:
+        assert (
+            _main(conduct, at, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(at)
+
+    lines = run(root, 0)
 
     build = "build 0001-todo with phase="
     assert calls.read_text().splitlines() == [
@@ -1913,6 +1922,46 @@ def test_a_build_runs_a_worker_per_phase(
         "converge 0001-todo",
         "release 0001-todo",
     ]
+    # Each phase appends 50 lines; the conductor keeps 40 of each.
+    folder = root / ".minions" / "changes" / "0001-todo"
+    notes = (folder / "build-notes.md").read_text().splitlines()
+    sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
+    assert sections == [0, 40, 80]
+    assert len(notes) == 120
+    assert [notes[i] for i in sections] == ["## 1 — One", "## 2 — Two", "## 3 — Three"]
+    kept = " · 0001-todo · notes — phase 1: kept 40 of 50 lines"
+    assert any(line.endswith(kept) for line in lines)
+
+    # A link at the notes halts the version before a phase spawn, writing nothing.
+    (tmp_path / "linked").mkdir()
+    linked = _primary(tmp_path / "linked")
+    _version(linked, "0001-todo", "- [ ] 1 — One\n")
+    planted = linked / ".minions" / "changes" / "0001-todo"
+    planted.mkdir(parents=True)
+    (planted / "elsewhere.md").write_text("x\n")
+    (planted / "build-notes.md").symlink_to(planted / "elsewhere.md")
+    calls.unlink()
+    fake()
+    lines = run(linked, 1)
+    assert not any(call.startswith("build") for call in _calls(calls))
+    assert any(
+        " · 0001-todo · halt — " in line and "build-notes.md is a link" in line
+        for line in lines
+    )
+    assert (planted / "elsewhere.md").read_text() == "x\n"
+
+    # A phase that leaves a link there halts the version at the trim.
+    (tmp_path / "left").mkdir()
+    left = _primary(tmp_path / "left")
+    _version(left, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("notes-link-0001-todo")
+    lines = run(left, 1)
+    assert calls.read_text().splitlines() == ["probe", f"{build}1"]
+    assert any(
+        " · 0001-todo · halt — " in line and "build-notes.md is a link" in line
+        for line in lines
+    )
 
 
 @pytest.mark.slow

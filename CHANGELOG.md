@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Under `mf-ship`, the build spawns `mf-build` once per unticked phase, `phase=<N>`, then once for the close,
   `phase=close`. A phase spawn passes only on its phase ticked at `HEAD` on a clean tree, so no phase runs twice
   without an amend (change `0102-build-per-phase`, phase 1).
+- Phases hand over through `.minions/changes/<id>/build-notes.md`: `mf-build` reads it and appends a section a phase,
+  the conductor keeps 40 lines of each append, through a descriptor that follows no link, and a stacked reset removes
+  it (change `0102-build-per-phase`, phase 2).
 
 ## [0.84.0] - 2026-11-08
 

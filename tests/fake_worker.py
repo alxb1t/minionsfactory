@@ -145,7 +145,7 @@ def _closed(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
 
 
 def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) -> None:
-    """Tick one phase's boxes in one commit, or close; halt, idle or die as told.
+    """Tick one phase's boxes in one commit, or close; halt, idle, die or note as told.
 
     Why: 0102-build-per-phase design *The fake host*.
     """
@@ -173,6 +173,20 @@ def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) 
         files[str(tasks.with_name("proposal.md"))] = proposal
     if files[str(tasks)] != text:
         _commit(tree, files, "build")
+    notes = _folder(primary, change) / "build-notes.md"
+    if f"notes-{change}" in modes:
+        line = rf"^- \[[ x]\] {re.escape(phase)} — (.*?)(?: · (?:moderate|hard))?$"
+        found = re.search(line, text, re.MULTILINE)
+        notes.parent.mkdir(parents=True, exist_ok=True)
+        with notes.open("a") as out:
+            out.write(f"## {phase} — {found[1] if found else ''}\n")
+            out.write("".join(f"note {n}\n" for n in range(49)))
+    if f"notes-link-{change}" in modes:
+        beside = notes.with_name("notes-beside.md")
+        notes.parent.mkdir(parents=True, exist_ok=True)
+        beside.write_text("x\n")
+        notes.unlink(missing_ok=True)
+        notes.symlink_to(beside)
 
 
 def _by_rule(tree: Path, folder: Path) -> list[str] | None:
