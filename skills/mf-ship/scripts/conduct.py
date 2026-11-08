@@ -8,7 +8,7 @@
     conduct.py check <stage> <change-id>
     conduct.py log --verify <run-log>
     conduct.py run --executor claude|codex [--detach]
-    conduct.py cut <slug> <bump> brief=<path> [after=<id>[,<id>]]
+    conduct.py cut <slug> <bump> brief=<path> [after=<id>[,<id>]] [beside=<id>[,<id>]]
         --executor claude|codex [--model <m>] [--effort <e>]
     conduct.py stop
     conduct.py grant <change-id> --executor claude|codex
@@ -229,7 +229,7 @@ PROMPTS = {
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
-        " `{change} {bump} brief={brief}{after} unattended=yes`."
+        " `{change} {bump} brief={brief}{after}{beside} unattended=yes`."
     ),
 }
 SHELL_RULES = (
@@ -4722,8 +4722,14 @@ class Run:
             default = default_branch(primary)
             _git(primary, "worktree", "add", "-b", change, str(tree), default)
             after = f" after={','.join(entry['after'])}" if entry["after"] else ""
+            named = entry.get("beside")
+            beside = f" beside={','.join(named)}" if named else ""
             prompt = PROMPTS["cut"].format(
-                change=change, bump=entry["bump"], brief=entry["brief"], after=after
+                change=change,
+                bump=entry["bump"],
+                brief=entry["brief"],
+                after=after,
+                beside=beside,
             )
             models = (entry["executor"], entry["model"], entry["effort"])
             brief = Path(entry["brief"])
@@ -5780,9 +5786,9 @@ def _fence(mark: str, line: str) -> str:
 def _headed(text: str, heading: str) -> bool:
     r"""Return whether `heading` stands at most once outside a fence, in no other form.
 
-    A line in another form keeps `heading`'s letters and digits, case-folded, as
-    `brief_check.py`'s `fold` reads one: a trailing space or colon, a leading space,
-    a CRLF end, a setext title. A fence left open fails too.
+    A line in another form keeps `heading`'s letters and digits, case-folded: a
+    trailing space or colon, a leading space, a CRLF end, a setext title. A fence left
+    open fails too.
     e.g. "## D\nNone.\n## D\n", "## D" → False
     Why: 0091-cut-halts design D4.
     """
@@ -5909,23 +5915,33 @@ def cut(
     slug: str,
     bump: str,
     brief: str,
-    after: str | None,
+    links: list[str],
     executor: str,
     model: str | None,
     effort: str | None,
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    The entry holds the packages the brief approves for `slug`. The live run takes
-    it; with none live, a run starts. Why: 0082-cut-station design D1; 0091-cut-halts
-    design D3.
+    `links` are `after=<ids>` and `beside=<ids>`, each at most once. The entry holds
+    the packages the brief approves for `slug`, and `beside` only when given. The
+    live run takes it; with none live, a run starts. Why: 0082-cut-station design D1;
+    0091-cut-halts design D3; 0098-beside design D3.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
     if not brief.startswith("brief="):
         raise Stop(2, "cut: cannot run — expected brief=<path>")
-    if after is not None and not after.startswith("after="):
-        raise Stop(2, "cut: cannot run — expected after=<ids>")
+    linked: dict[str, list[str]] = {}
+    for link in links:
+        kind, equals, named = link.partition("=")
+        if not equals or kind not in ("after", "beside") or kind in linked:
+            raise Stop(
+                2, f"cut: cannot run — expected after=<ids> or beside=<ids>: {link}"
+            )
+        linked[kind] = named.split(",")
+    for named in linked.get("beside", []):
+        if not CHANGE_ID.fullmatch(named):
+            raise Stop(2, f"cut: cannot run — beside={named} is not a change id")
     path = Path(brief.removeprefix("brief="))
     if not path.is_absolute() or not path.is_file():
         raise Stop(2, f"cut: cannot run — {brief} is not an absolute path to a file")
@@ -5933,7 +5949,7 @@ def cut(
     if why := _brief_refused(path.resolve(), executor, moved):
         raise Stop(2, f"cut: cannot run — {why}")
     approved = _approval(path.resolve(), slug, "cut")
-    ids = after.removeprefix("after=").split(",") if after else []
+    ids = linked.get("after", [])
     primary = primary_of(cwd)
     with _queue_lock(primary):
         known = {version.change for version in open_versions(primary)}
@@ -5965,6 +5981,8 @@ def cut(
             "halt": None,
             "dependencies": approved,
         }
+        if "beside" in linked:
+            entry["beside"] = linked["beside"]
         _write_cut(primary, change, entry)
         if live:
             return f"cut: queued {change} · the live run takes it"
@@ -6465,7 +6483,7 @@ def main(argv_: list[str] | None = None) -> int:
     cutting.add_argument("slug")
     cutting.add_argument("bump", choices=("minor", "patch"))
     cutting.add_argument("brief", metavar="brief=<path>")
-    cutting.add_argument("after", metavar="after=<id>[,<id>]", nargs="?")
+    cutting.add_argument("links", metavar="[after=<ids>] [beside=<ids>]", nargs="*")
     cutting.add_argument("--executor", required=True, choices=("claude", "codex"))
     cutting.add_argument("--model")
     cutting.add_argument("--effort")
@@ -6511,7 +6529,7 @@ def main(argv_: list[str] | None = None) -> int:
                 args.slug,
                 args.bump,
                 args.brief,
-                args.after,
+                args.links,
                 args.executor,
                 args.model,
                 args.effort,

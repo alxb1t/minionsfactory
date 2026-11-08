@@ -84,7 +84,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 | a split | a version whose one diff would be too large for review is proposed as two |
 | re-measure | with `from=`: a fact citing a commit other than `<sha>` is checked again at `<sha>` |
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
-| parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file, with `after:` suggested when one needs the other's code |
+| parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file; `after:` is proposed only when one needs a symbol, decision or requirement the other adds, else `beside:`, the default (D69) |
 | packages | each package the phases would add, by exact name and version constraint, read from the target's manifests at `<ref>` |
 
 No `.minions/debt.md` → read an old `.minions/backlog.md` a run has not moved yet, in its place; neither → say so,
@@ -129,7 +129,7 @@ A hard close then queues the cut:
 1. **The models and the switch** are rows of the settled table the person confirms: per change, a model and effort
    for the build, converge, release and cut station, and `decide: recommended`, per [the brief](#the-brief).
 2. **The check:** run `uv run --script scripts/brief_check.py <brief>`, `scripts/` resolved from this skill's
-   package; it holds the commands, each item's slug, bump, `after` and models, `## For the cut`'s grammar and the
+   package; it holds the commands, each item's slug, bump, `after`, `beside` and models, `## For the cut`'s grammar and the
    `## Dependencies` table. Exit 1 → fix each line it prints
    in the brief and run it again; exit 2 → **halt**, naming it.
 3. **The question,** once, unless `then=ship` was given. First run `uv run --script ../mf-ship/scripts/conduct.py status`
@@ -138,8 +138,8 @@ A hard close then queues the cut:
    the run the yes joins or starts takes too. Then ask "confirm, and queue it?".
 4. **Yes, or `then=ship`:** the executor from runtime evidence — Claude Code → `claude`; Codex → `codex`. For each
    change of `## For the cut`, in order, run in the primary checkout
-   `uv run --script ../mf-ship/scripts/conduct.py cut <slug> <bump> brief=<the brief's absolute path> [after=<ids>] --executor <executor> --model <cut model> --effort <cut effort>`,
-   `../mf-ship/` resolved from this skill's package, each field as the checked brief holds it. An `after` naming an earlier change of the brief takes the id
+   `uv run --script ../mf-ship/scripts/conduct.py cut <slug> <bump> brief=<the brief's absolute path> [after=<ids>] [beside=<ids>] --executor <executor> --model <cut model> --effort <cut effort>`,
+   `../mf-ship/` resolved from this skill's package, each field as the checked brief holds it. An `after` or `beside` naming an earlier change of the brief takes the id
    its `cut` line printed (`cut: queued <id> · …`). Paste each line; an exit 2 stops the queue, reported in full.
    The yes is the person's to every merge and push in the run it joins or starts, as `mf-ship`'s is: each queued
    version, and each open version that run takes.
@@ -188,7 +188,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   - <a question still on the frontier — removed when it is empty>
 
   ## For the cut
-  <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · debt: [<ids>] or none · decide: recommended
+  <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · beside: <ids, or the slug of an earlier item> · debt: [<ids>] or none · decide: recommended
      - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
@@ -197,7 +197,8 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 session's menu, by `mf-cut-change`'s *Suggesting models* table —
 Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's own
 is the strongest tier · high by default. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
-proposed fix. The cut station writes `models.toml` from the `models:` line.
+proposed fix. The cut station writes `models.toml` from the `models:` line. `beside:` is optional: the versions this one only
+shares files with, which nothing waits on (D69).
 
 The `conformance`, `adversarial`, `fix` and `shadow` parts are optional. A host prefix, `claude/` or `codex/`, names a
 part's executor: `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker;

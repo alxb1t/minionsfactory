@@ -38,7 +38,7 @@ diets follow it.
   mailbox checker's tokens and dollars — a subagent's a gap, as no event holds its totals — each round and role's dollars
   from its own run's workers, each station's cost with the cut and the supervisor among them; the page reads every repo
   a run started in; the role table gets back its median duration and tokens (`0097·R4`).
-- **The record** — D69; D48, D50 and D64 amended (`0097·R2`); the threat model and the principles; the README line
+- **The record** — D70; D48, D50 and D64 amended (`0097·R2`); the threat model and the principles; the README line
   (`0097·R3`).
 
 ## Capabilities

@@ -95,7 +95,7 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 | [D10](#d10) | `gate_run.py` without `VIRTUAL_ENV`, quiet on green | T10 | the tail of make's output on green |
 | [D11](#d11) | `--tb=short` | T10 | the flag in the `Makefile` — a gate change for a print setting |
 | [D12](#d12) | The metrics per worker, round, role and station | T13, C1, C2, C6 | a second data file |
-| [D13](#d13) | D69; D48, D50, D64 amended; the threat model, the principles and the README | T13 | — |
+| [D13](#d13) | D70; D48, D50, D64 amended; the threat model, the principles and the README | T13 | — |
 
 ### D1
 
@@ -251,9 +251,9 @@ last line, so `mf-release` reads its seconds as before.
 
 ### D13
 
-- **D69**, in `docs/decisions.md` after D67, in *Repo conventions* and the map's line:
+- **D70**, in `docs/decisions.md` after D67, in *Repo conventions* and the map's line:
 
-### D69 · A worker starts lean
+### D70 · A worker starts lean
 
 **A Claude worker starts with its station's tools alone — the cut and converge `Agent` too, the probe `Bash` and `Read` —
 with the operator's plugins, output style and auto-memory off and the dynamic prompt sections moved out, and reaches only the
@@ -324,7 +324,7 @@ None.
 - **[A station's skill asks for a tool its row lacks]** → it halts naming the tool, never runs half-equipped; the rescue
   amends nothing here, the person edits the row. `mf-build`, `mf-simplify`, `mf-release`, `mf-rescue`, `mf-supervise` and
   `mf-integrate` start no subagent (`grep -n -i subagent` over them names none).
-- **[The settings keys or TTL variables change in a later CLI]** → the probe's first-turn line shows it in every run; D69
+- **[The settings keys or TTL variables change in a later CLI]** → the probe's first-turn line shows it in every run; D70
   names the intent, not the variable.
 - **[A plugin enabled outside `settings.json`]** → it still loads; the probe's first turn shows the cost.
 - **[A quiet gate hides a slow step]** → `gate_run.py` prints the seconds, and a red gate prints everything.

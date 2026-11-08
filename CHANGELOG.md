@@ -23,9 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A converge subagent's tokens and dollars are a gap, as Claude's log holds no subagent's final output count; a Claude
   mailbox checker's are its `result` event's; and each round and role's dollars sum its own run's workers alone, never
   an amend run's of the same round (change `0100-worker-diet`, converge fixes S1 and S2).
-- D69 records the lean worker; D48, D50 and D64 name the cited decisions, every repo a run started in, the cost per
+- D70 records the lean worker; D48, D50 and D64 name the cited decisions, every repo a run started in, the cost per
   worker and the conductor on Sonnet 5.5 · high; the threat model and the principles follow (change `0100-worker-diet`,
   phase 5).
+
+## [0.81.0] - 2026-11-08
+
+Gate: local 2m29s · CI not read under mf-ship · 0.80.0: local 2m20s · CI not read under mf-ship
+
+- A brief's head may name `· beside: <ids>`; `conduct.py cut` takes `beside=<ids>` and queues it, the cutter writes
+  `beside: [<ids>]` into the proposal, and nothing waits on it. `brief_check.py` takes a models or Acceptance line only
+  under a head, and halts an HTML heading or a non-ASCII spelling of a checked one (change `0098-beside`, phase 1).
+- The plan's parallel-with check proposes `after:` only when one version needs a symbol, decision or requirement the
+  other adds, else `beside:`; its template and close carry `beside`, and D69 records it, with `mf-ship`'s `cut` row
+  (change `0098-beside`, phase 2).
+- D69's why names no counts, so it matches the design's quotation; the counts stay in the design's evidence (change
+  `0098-beside`, phase 3).
 
 ## [0.80.0] - 2026-11-08
 

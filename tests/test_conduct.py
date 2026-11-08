@@ -53,12 +53,15 @@ def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
     return root.resolve()
 
 
-def _version(root: Path, change: str, progress: str, after: str = "") -> Path:
+def _version(
+    root: Path, change: str, progress: str, after: str = "", beside: str = ""
+) -> Path:
     """Cut `change` on a branch of that name, linked, `progress` its list."""
     tree = root.parent / change
     _git(root, "worktree", "add", "-q", "-b", change, str(tree))
     folder = f"openspec/changes/{change}"
     line = f"after: [{after}]\n" if after else ""
+    line += f"beside: [{beside}]\n" if beside else ""
     files = {
         f"{folder}/proposal.md": f"---\nbump: minor\n{line}---\n",
         f"{folder}/tasks.md": f"## Progress\n\n{progress}",
@@ -832,6 +835,21 @@ def test_a_ready_version_ships_past_a_slow_one(
         f" · 0009-planted · kept — {planted}: the local git config changed during the"
         " run: .git/config differs\n"
     ) in clean.log.path.read_text()
+
+
+def test_beside_waits_on_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-near", "- [ ] 1 — Near\n", beside="0001-todo")
+    capsys.readouterr()
+    assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "0001-todo · build",
+        "0002-near · build",
+    ]
 
 
 @pytest.mark.slow
@@ -2993,7 +3011,7 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     threads = [
         threading.Thread(
             target=lambda slug=slug: said.append(
-                conduct["cut"](root, slug, "minor", good, None, "claude", None, None)
+                conduct["cut"](root, slug, "minor", good, [], "claude", None, None)
             )
         )
         for slug in ("a", "b")
@@ -3033,7 +3051,13 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     cannot = "cut: cannot run — "
     assert refused("A b", "minor", good) == f"{cannot}not a slug: A b"
     assert refused("c", "minor", str(brief)) == f"{cannot}expected brief=<path>"
-    assert refused("c", "minor", good, "0001-todo") == f"{cannot}expected after=<ids>"
+    links = f"{cannot}expected after=<ids> or beside=<ids>: "
+    assert refused("c", "minor", good, "0001-todo") == f"{links}0001-todo"
+    twice = ("after=0001-todo", "after=0001-todo")
+    assert refused("c", "minor", good, *twice) == f"{links}after=0001-todo"
+    assert refused("c", "minor", good, "beside=x") == (
+        f"{cannot}beside=x is not a change id"
+    )
     assert refused("c", "minor", "brief=brief.md") == (
         f"{cannot}brief=brief.md is not an absolute path to a file"
     )
@@ -3083,12 +3107,13 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         "|---|---|---|---|\n| d | left-pad | 1.3.0 | a pad |\n"
         "| other | a | 1 | b |\n| d | `right-pad` | ^2 | a pad |\n"
     )
-    args = ("cut", "d", "patch", f"brief={alone}", "--executor", "codex")
-    args += ("--model", "opus")
+    args = ("cut", "d", "patch", f"brief={alone}", "beside=0001-todo")
+    args += ("--executor", "codex", "--model", "opus")
     assert _main(conduct, root, *args, "--effort", "high", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out == "cut: queued 0006-d · the live run takes it\n"
     picked = {"bump": "patch", "executor": "codex", "model": "opus", "effort": "high"}
     picked["brief"] = str(alone.resolve())
+    picked["beside"] = ["0001-todo"]
     picked["dependencies"] = [["left-pad", "1.3.0"], ["right-pad", "^2"]]
     assert conduct["_cuts"](root)["0006-d"] == {**entry, **picked}
     # A brief whose `## Dependencies` is prose reserves nothing.
@@ -3294,6 +3319,7 @@ def _queued(
     executor: str = "claude",
     halt: str | None = None,
     dependencies: tuple[tuple[str, str], ...] = (),
+    beside: tuple[str, ...] = (),
 ) -> None:
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
@@ -3309,6 +3335,8 @@ def _queued(
         "halt": halt,
         "dependencies": [list(row) for row in dependencies],
     }
+    if beside:
+        entry["beside"] = list(beside)
     conduct["_write_cut"](root, change, entry)
 
 
@@ -3388,6 +3416,15 @@ def test_a_queued_cut_is_cut_then_built(
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert any(line.endswith(" · 0005-p · check — cut · pass") for line in _log(root))
     assert "release 0005-p" in _calls(calls)
+
+    # A cut queued beside another carries it into its proposal.
+    calls.unlink()
+    fake()
+    _queued(conduct, root, "0006-s", brief, beside=("0005-p",))
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert "release 0006-s" in _calls(calls)
+    proposal = "main:openspec/changes/archive/0006-s/proposal.md"
+    assert "beside: [0005-p]\n" in _git(root, "show", proposal)
 
 
 def test_a_cut_brief_reaches_the_supervisor(

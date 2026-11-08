@@ -33,6 +33,7 @@ plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt
 | `bump` | yes | `minor`, or `patch` |
 | `brief` | no | a path to a grilling brief |
 | `after` | no | `after=<id>[,<id>]` — the versions this one builds on |
+| `beside` | no | `beside=<id>[,<id>]` — the versions this one only shares files with; nothing waits on them |
 | `unattended` | no | `unattended=yes` — set by the run's cut station alone, never by hand |
 
 **Unattended** (`unattended=yes`) — the cut never waits. Its **switch** is `decide: recommended` in the brief's
@@ -164,6 +165,7 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 
 - `proposal.md` opens with `bump: <bump>` frontmatter; the CLI neither emits nor checks it.
 - A version cut with `after` also lists them: `after: [0047-x]`.
+- A version cut with `beside` also lists them: `beside: [0047-x]`.
 - A paydown change — cut to close cards from `.minions/debt.md` — also lists their qualified ids there:
   `debt: [0012·S1, 0012·R4]`. `grep` each in `.minions/debt.md`; an id not found goes to the human, and unattended it is a halt. The cut
   leaves the debt alone: `mf-release` deletes the cards.

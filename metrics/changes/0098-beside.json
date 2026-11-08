@@ -1,0 +1,224 @@
+{
+  "change": "0098-beside",
+  "version": "0.81",
+  "base": "ed7298f",
+  "analyzed": "0277b2e",
+  "measured_on": "local",
+  "collected_at": "2026-11-08T16:48:31+02:00",
+  "mf_version": "v0.80.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 23949
+    },
+    "converge-conformance-reading-set": {
+      "value": 5128
+    },
+    "converge-adversarial-reading-set": {
+      "value": 7346
+    },
+    "shared-context": {
+      "value": 12642
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 281
+    },
+    "gate-seconds": {
+      "value": 149
+    },
+    "largest-module-lines": {
+      "value": 9049
+    },
+    "modules-over-1000-lines": {
+      "value": 4
+    },
+    "complex-functions": {
+      "value": 21
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.3
+    },
+    "python-lines": {
+      "value": 31675
+    },
+    "dependencies": {
+      "value": 0
+    },
+    "dev-dependencies": {
+      "value": 7
+    },
+    "test-seconds": {
+      "value": 143.2
+    },
+    "slowest-test-seconds": {
+      "value": 52.67
+    },
+    "test-seconds-summed": {
+      "value": 1208.63
+    },
+    "slow-tests": {
+      "value": 94
+    },
+    "total-coverage": {
+      "value": 97.95
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 101
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 48
+    },
+    "diff-lines": {
+      "value": 851
+    },
+    "diff-files": {
+      "value": 15
+    },
+    "lead-minutes": {
+      "value": 67.7
+    },
+    "build-minutes": {
+      "value": 23.6
+    },
+    "converge-minutes": {
+      "value": 40.0
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 1
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 1
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 1
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 1
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 6
+    },
+    "fix-commits": {
+      "value": 0
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-build": {
+      "value": 5.41
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 33501642
+    },
+    "tokens-build": {
+      "value": 15480933
+    },
+    "tokens-converge": {
+      "value": 17031829
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "conformance-confirmed": {
+      "value": 2
+    },
+    "adversarial-confirmed": {
+      "value": 0
+    },
+    "conformance-refuted": {
+      "value": 5
+    },
+    "adversarial-refuted": {
+      "value": 6
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 1413190
+    },
+    "adversarial-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": "no confirmed adversarial card"
+    },
+    "escapes": {
+      "value": 0
+    },
+    "debt-added": {
+      "value": 1
+    },
+    "debt-paid": {
+      "value": 4
+    }
+  }
+}

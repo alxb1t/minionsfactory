@@ -356,9 +356,12 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
         halt = f"{change} waits on one doubt: two readings · tasks.md:3\n"
         (folder / "cut.halt").write_text(halt)
         return
-    found = re.search(rf"`{change} (\w+) brief=\S+(?: after=(\S+))? ", prompt)
-    bump, after = (found[1], found[2]) if found else ("minor", None)
+    found = re.search(
+        rf"`{change} (\w+) brief=\S+(?: after=(\S+))?(?: beside=(\S+))? ", prompt
+    )
+    bump, after, beside = found.groups() if found else ("minor", None, None)
     line = f"after: [{after.replace(',', ', ')}]\n" if after else ""
+    line += f"beside: [{beside.replace(',', ', ')}]\n" if beside else ""
     spec = f"openspec/changes/{change}"
     files = {
         f"{spec}/proposal.md": f"---\nbump: {bump}\n{line}---\n",
