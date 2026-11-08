@@ -390,7 +390,7 @@ the diff's files have their own file, and the release reads the findings files' 
 ### D49 · One review method, one depth
 
 **Converge runs MF's method at one depth — one fresh worker per role, from a packet given up front, its decisions and
-living requirements in a bundle of what the change cites. The conformance and adversarial files are the same for every
+the requirements its delta changes, as diffs, in a bundle of what the change cites. The conformance and adversarial files are the same for every
 change.**
 
 - **Why:** one fresh reader per role, with the same checklist and finding bar, found what many readers found, at a

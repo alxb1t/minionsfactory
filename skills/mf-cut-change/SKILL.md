@@ -233,8 +233,8 @@ returns its doubts so far, its first line `budget reached`. Take each as a doubt
 
 **The review tree.** Before the first review, run `git add openspec/changes/<change-id>/`, then `git write-tree`; the
 sha it prints is the review tree. Before a second, run the same `git add`; the second reviewer gets its packet and the
-review tree, runs `git diff --cached <review tree> -- openspec/changes/<change-id>/`, and judges that diff and the
-tasks it touches alone.
+review tree, runs `git diff --cached <review tree> -- openspec/changes/<change-id>/`, and judges that diff, and each
+task that cites a decision or a path the diff changes.
 
 Each review is a new worker given its packet: a reviewer resumed by a message reads its own doubts as settled. A simple
 fix is not reviewed again.

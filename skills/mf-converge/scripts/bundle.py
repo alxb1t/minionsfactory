@@ -114,7 +114,8 @@ def diffed(living: str | None, block: str, title: str) -> str:
 
     `living` is the living spec's text, None when it has none; `block` is the delta's
     block for the title, "" for a removed one. A title the living spec lacks is named.
-    e.g. a removed "A" → a fenced `diff` block of `-` lines
+    The title heads the diff, and a requirement the delta leaves as it stood reads
+    `unchanged`. e.g. a removed "A" → its title, then a fenced `diff` of `-` lines
     """
     old = _requirement(living, title)
     if old is None:
@@ -126,7 +127,10 @@ def diffed(living: str | None, block: str, title: str) -> str:
         tofile="delta",
         lineterm="",
     )
-    return "```diff\n" + "\n".join(lines) + "\n```"
+    shown = "\n".join(lines)
+    return f"### Requirement: {title}\n\n" + (
+        f"```diff\n{shown}\n```" if shown else "unchanged"
+    )
 
 
 def _section(heading: str, parts: list[str]) -> str:

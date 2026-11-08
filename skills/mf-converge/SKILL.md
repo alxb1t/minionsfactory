@@ -453,8 +453,8 @@ tier are on the card — and no human confirms it.
    `open_cards.py` for both files, and `surfaces.py` over the re-freeze's range, halting on its exit 2 as Step 7 says;
    its exit 0 writes nothing by rule here, for the check sets both heads; a fixer that committed nothing runs no
    `surfaces.py`, as in Step 7, and counts as exit 1. The check **needs** adversarial when a picked card is
-   adversarial's or `surfaces.py` exits 1, else conformance. A role it needs is a mailbox role → verify in a normal
-   Step 7 round instead, counted. Else dispatch one fresh worker, its description `verify round <N> · pickup`, `<N>`
+   adversarial's or `surfaces.py` exits 1, else conformance. A role it needs is a mailbox role → write `pickup` with
+   `checked — round <N+1>` and verify in a normal Step 7 round instead, counted. Else dispatch one fresh worker, its description `verify round <N> · pickup`, `<N>`
    the last judged round, on the needed role's model at effort `medium`. Give it [verify](references/verify.md), both
    `<role>.open.md`, `diff.patch`, both findings paths and the design's `## Tests` section.
 6. **Read both files** under Step 5's table, writing no `verdicts` line, and write `pickup` with `checked`. Both

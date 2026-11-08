@@ -62,7 +62,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `## Dependencies` row before the yes (`0082·S5`).
 - A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
   (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
-- Findings files, status logs and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
+- Findings files, status logs, a cut's `cut-notes.md` (its facts are evidence, and a concurrent worker can rewrite
+  them) and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
@@ -141,7 +142,8 @@ picked card is adversarial's.
   and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
   this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with
   credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a new
-  class blocks, anchors included. A rescue writing the plan the build is then judged by is in this class
+  class blocks, anchors included. A converge fixer correcting the `design.md` prose a `drift` card names is in this class
+  too, bounded by the plan files and sections it never edits. A rescue writing the plan the build is then judged by is in this class
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any

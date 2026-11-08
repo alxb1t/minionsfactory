@@ -108,6 +108,23 @@ def test_a_bundle_holds_what_the_change_cites(
     assert _run(capsys, out)[0] == 0
     assert "- `Z` — not in the living spec" in out.read_text()
 
+    # A long requirement, changed past its first lines, keeps its title above the diff;
+    # one the delta leaves as it stood says so.
+    body = "".join(f"Line {n}.\n\n" for n in range(1, 9))
+    living = tmp_path / "openspec" / "specs" / "sdd" / "spec.md"
+    living.write_text(f"## Requirements\n\n### Requirement: Long\n\n{body}Last.\n")
+    same = "### Requirement: Same\n\nSame.\n"
+    living.write_text(living.read_text() + "\n" + same)
+    delta = (
+        f"## MODIFIED Requirements\n\n### Requirement: Long\n\n{body}Changed.\n\n{same}"
+    )
+    _change(tmp_path, design, delta)
+    assert _run(capsys, out)[0] == 0
+    required = out.read_text().split("\n## ")[-1]
+    assert "### Requirement: Long\n\n```diff\n" in required
+    assert "-Last.\n" in required and "+Changed.\n" in required
+    assert "### Requirement: Same\n\nunchanged\n" in required
+
     # A change citing nothing, with no delta, writes `None.` under each empty section.
     shutil.rmtree(tmp_path / "openspec" / "changes" / "0001-a" / "specs")
     decisions.write_text("")
