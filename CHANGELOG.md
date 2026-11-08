@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-11-08
+
+Gate: local 2m22s · CI not read under mf-ship · 0.81.0: local 2m29s · CI not read under mf-ship
+
 - Each Claude worker starts with its station's tools alone, the operator's plugins, output style and auto-memory off, no
   dynamic prompt sections, and a 1-hour cache for the cut and converge, 5 minutes for the rest; it reaches only the
   worktrees of open versions and queued cuts, a tool its station lacks halts it, and the probe names its first turn's
