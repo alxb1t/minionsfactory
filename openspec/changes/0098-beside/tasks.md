@@ -7,6 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The field
 - [x] 2 — The plan and the record
+- [ ] 3 — The record without counts
 
 ## 1 — The field
 
@@ -60,3 +61,9 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2.6 Add `, D69` after `D65` in the Planning list of the map at the top of `docs/decisions.md`, per
   [D6](design.md#d6).
   Verify: `grep -n 'D59, D62, D65, D69' docs/decisions.md` prints a line.
+
+## 3 — The record without counts
+
+- [ ] 3.1 Replace D69's `**Why:**` bullet in `docs/decisions.md` with the count-free one [D6](design.md#d6) quotes, so the
+  record and its quotation agree and the counts stay in [Evidence](design.md#evidence) (`0098-beside conformance R1`).
+  Verify: `grep -n "most of 0081–0095's .after:. links only avoided file overlap" docs/decisions.md` prints a line.

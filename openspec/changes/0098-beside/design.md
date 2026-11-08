@@ -72,9 +72,10 @@ docs/decisions.md` prints a line; `make gate` green.
 - **`0091·R3`** — `grammar()` sets a local `seen_head = True` on its first head; a `- models: ` or `- **Acceptance:** ` line
   while it is false falls to ``## For the cut line <n>: outside the item grammar: `<line>` ``. Its continuation then halts
   the same way, as no Acceptance line was taken.
-- **`0091·S3`, the fold** — `fold()` first drops each match of a new module constant
-  `HEADING_TAG = re.compile(r"</?h[1-6][^>]*>", re.IGNORECASE)` — an `<h1>`…`<h6>` tag, opening or closing, with any
-  attributes — then keeps letters and digits, case-folded. `<h2>For the cut</h2>` folds to `forthecut`.
+- **`0091·S3`, the fold** — `fold()` first drops each match of a new module constant `TAG = re.compile(r"<[^>]*>")` —
+  any HTML tag, heading or inline, opening or closing, with any attributes — then decodes character references with
+  `html.unescape`, then keeps letters and digits, case-folded (`0098-beside security S1`). `<h2>For the cut</h2>`,
+  `<h2><em>For the cut</em></h2>` and `<h2>For the c&#117;t</h2>` each fold to `forthecut`.
 - **`0091·S3`, the match** — a new `alike(line: str, heading: str) -> bool`, given both folds, is true when they have one
   length, hold at least one ASCII letter in `line`, and differ only where `line`'s character is not ASCII. `headings()` halts
   ``line <n> reads as `<heading>` but is not written so`` when a line is not the heading as written and `alike` holds for
@@ -142,8 +143,8 @@ plan's parallel-with check proposes which, `beside:` by default. `conduct.py cut
 frontmatter, and nothing waits on it: integrate, and under the switch the supervisor, settle the overlap as they settle any
 moved base.**
 
-- **Why:** of 0081–0095's 14 `after:` links, 8 only avoided file overlap, each holding a build through the other's converge
-  and release, while integrate already merges a moved base in.
+- **Why:** most of 0081–0095's `after:` links only avoided file overlap, each holding a build through the other's
+  converge and release, while integrate already merges a moved base in.
 - **Accepts:** an overlap settled at integrate — a supervisor's spend, or a person's halt — where `after:` would have waited.
 - **Rejected:** `after:` for overlap — a wait the merge makes needless · a run-time reader of `beside:` — nothing it would
   order.
@@ -153,17 +154,18 @@ moved base.**
 
 ## Evidence
 
-What [D6](#d6)'s why rests on.
+What [D6](#d6)'s why and [the Tests](#tests) rest on.
 
 | measure | value | source |
 |---|---|---|
 | `after:` ids in the proposals of 0081–0095 | 14 | `git grep -n "^after:" HEAD -- openspec/changes/archive/`, the `proposal.md` lines of 0083 to 0095 |
 | of them: file overlap only · real code need · borderline | 8 · 5 · 1 | the plan's read of each pair, recorded in its brief at `ed7298f` |
+| `def test_` lines in `tests/`: at the cut · at the build's end | 278 · 279 | `git grep -c '^def test_' HEAD -- tests/`, its counts summed, at `ed7298f` and at `ed37da0` |
 
 ## Tests
 
-`git grep -c '^def test_' HEAD -- tests/` sums to 278 at the cut; this change adds 1, so the build ends at 279. Each other
-step extends the test that already reaches its state (`T2`): the unit layer for `brief_check.py` and `cut()`, the fake
+One test is new, `test_beside_waits_on_nothing`, as [Evidence](#evidence) counts the suite. Each other step extends the
+test that already reaches its state (`T2`): the unit layer for `brief_check.py` and `cut()`, the fake
 worker for the cutter's prompt, the lowest layer that holds a cut's run (`T1`). No end-to-end test: the repo has no browser
 layer, so no end-to-end run is added.
 
