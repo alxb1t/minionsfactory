@@ -4140,6 +4140,54 @@ def test_a_codex_checker_runs_through_the_mailbox(
     assert list(mailbox.iterdir()) == []
 
 
+@pytest.mark.slow
+def test_a_shadow_round_drives_no_fix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake_codex("shadow-blocks")
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text(
+        '[converge]\nmodel = "claude-sonnet-5-5"\nshadow = true\n'
+        '[converge.conformance]\nexecutor = "codex"\n'
+        '[converge.adversarial]\nexecutor = "codex"\n'
+    )
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    # Round 1 sends each checker, then the other host's shadow of each.
+    assert _calls(calls)[3:] == [
+        "build 0001-todo",
+        "converge 0001-todo and conformance=mailbox and adversarial=mailbox"
+        " and shadow=yes",
+        "checker 0001-todo conformance",
+        "checker 0001-todo adversarial",
+        "checker 0001-todo shadow-conformance",
+        "checker 0001-todo shadow-adversarial",
+        "release 0001-todo",
+    ]
+    for role in ("conformance", "adversarial"):
+        shadow = (folder / f"shadow-{role}.md").read_text()
+        assert "\nexecutor: claude\n" in shadow
+        assert "\nverdict: changes-requested\n" in shadow
+        assert "\nexecutor: codex\n" in (folder / f"{role}.md").read_text()
+    # A shadow runs on converge's model where converge runs; its blocker held nothing.
+    spawned = [
+        line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
+    ]
+    assert "converge-shadow-adversarial · model claude-sonnet-5-5" in spawned
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
 def test_a_station_runs_on_its_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:

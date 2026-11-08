@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The models line and the plan
 - [x] 2 — The checker mailbox
-- [ ] 3 — Shadow round 1
+- [x] 3 — Shadow round 1
 - [ ] 4 — The metrics
 - [ ] 5 — The record
 
@@ -48,13 +48,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — Shadow round 1
 
-- [ ] 3.1 Add `tests/test_overlap.py`, then `skills/mf-converge/scripts/overlap.py`, per [D10](design.md#d10).
+- [x] 3.1 Add `tests/test_overlap.py`, then `skills/mf-converge/scripts/overlap.py`, per [D10](design.md#d10).
   Verify: `uv run pytest -q tests/test_overlap.py` reports `2 passed`; `grep -n -e '^NEAR = 5$' -e '^def overlap(' skills/mf-converge/scripts/overlap.py` prints a line for each.
-- [ ] 3.2 Add `test_a_shadow_round_drives_no_fix` over `fake_codex`, then `_open_mailbox` for a shadowed version and
+- [x] 3.2 Add `test_a_shadow_round_drives_no_fix` over `fake_codex`, then `_open_mailbox` for a shadowed version and
   `Run.checker`'s `_shadow` models for a shadow role in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5) and
   [D9](design.md#d9).
   Verify: `uv run pytest -q tests/test_conduct.py -k "shadow_round_drives_no_fix or runs_through_the_mailbox"` reports `2 passed`.
-- [ ] 3.3 Add `## Shadow round 1` and the `shadow` rows of the events and resume tables to `skills/mf-converge/SKILL.md`, per
+- [x] 3.3 Add `## Shadow round 1` and the `shadow` rows of the events and resume tables to `skills/mf-converge/SKILL.md`, per
   [D9](design.md#d9), and `("mf-converge", "scripts/overlap.py")` to `_METRICS_SCRIPTS` and the expected lists of
   `test_the_metrics_script_scan_reports_a_missing_script` in `tests/test_skills.py`.
   Verify: `grep -n -e '^## Shadow round 1$' -e 'scripts/overlap.py' skills/mf-converge/SKILL.md` prints a line for each; `grep -c '^| .shadow. |' skills/mf-converge/SKILL.md` prints `2`; `uv run pytest -q tests/test_skills.py -k metrics_script` reports `2 passed`.

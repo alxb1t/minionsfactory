@@ -3740,10 +3740,13 @@ class Run:
     def checker(self, change: str, role: str, cwd: Path, prompt: str) -> str:
         """Run one checker the mailbox asked for; return its answer, halting nothing.
 
-        Its models are the plan's, never the request's.
-        Why: 0097-cross-model design D5.
+        Its models are the plan's, never the request's; a shadow's, `_shadow`'s of
+        them. Why: 0097-cross-model design D5, D9.
         """
-        models = self.plan[change, f"converge.{role}"]
+        checked = role.removeprefix("shadow-")
+        models = self.plan[change, f"converge.{checked}"]
+        if checked != role:
+            models = _shadow(self.plan[change, "converge"], models)
         code, killed, out, _ = self.worker(
             change, f"converge-{role}", cwd, prompt, models
         )
@@ -4230,9 +4233,10 @@ class Run:
                         _worker_clause(name, models, converge)
                         for name, models in zip(WORKERS, planned, strict=True)
                     )
-                    if version.change in self.shadowed:
+                    shadowed = change in self.shadowed
+                    if shadowed:
                         workers += " and shadow=yes"
-                    if any(models[0] != converge for models in planned):
+                    if shadowed or any(models[0] != converge for models in planned):
                         mailbox = _mailbox(self.primary, change)
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)

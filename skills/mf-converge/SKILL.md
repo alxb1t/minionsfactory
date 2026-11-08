@@ -88,6 +88,7 @@ The events, and no others:
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
 | `verdicts` | Step 5, after each read | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — for a mailbox role, the executor, model and effort its answer names; else the executor you run on, and the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
+| `shadow` | [Shadow round 1](#shadow-round-1) | `overlap.py`'s line, or the shadow that exited 1, or `overlap.py`'s exit 2 |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
 | `pickup` | Step 8 | the picked ids, or `none` |
@@ -143,6 +144,20 @@ allowed. Every checker of a round finishes before any fixer starts.
 Dispatch in the foreground, and wait: never end your turn with a worker running. A host can end its background work
 with your turn.
 
+## Shadow round 1
+
+`shadow=yes` measures the other host's checkers on the same freeze; a shadow file drives nothing.
+
+- **When:** round 1 of a run marked neither `catch-up` nor `amend`, once its `verdicts` lines are written and before
+  Step 5 decides. A resumed run sends no shadow.
+- **What:** send `shadow-conformance` and `shadow-adversarial` through the mailbox, as *The workers* sends a mailbox
+  role, each with its role's packet and reference and the findings path `.minions/changes/<change-id>/shadow-<role>.md`.
+- **Then:** after both, run `uv run --script <this package>/scripts/overlap.py .minions/changes/<change-id>` and write
+  its line as the round's `shadow` event. A shadow that exited 1, or an `overlap.py` exit 2, is written as the `shadow`
+  event instead, and halts nothing.
+
+Step 5 reads no shadow file, and no fixer, pickup, debt card or `done` counts one.
+
 ## A granted round
 
 `grant=yes`, from `mf-ship grant` or a run's automatic grant at a cap of small cards: one more round past the cap. Open
@@ -179,6 +194,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `freeze` | a verify round → Step 7; else Step 3 |
 | `fan-out` | the same, for each role whose findings file has not judged this round's freeze |
 | `verdicts` | Step 5 |
+| `shadow` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |

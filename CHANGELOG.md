@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A converge checker on another host than converge's runs through its version's checker mailbox in the home queue:
   the conductor sends it with `conduct.py checker`, and `conduct.py` spawns it on the plan's model, at most
   `CHECKER_SPAWNS` a converge spawn; a findings file names its `executor:` (change `0097-cross-model`, phase 2).
+- Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze into shadow files that
+  drive nothing, and `overlap.py` counts what each side alone caught (change `0097-cross-model`, phase 3).
 
 ## [0.79.0] - 2026-11-08
 

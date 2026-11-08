@@ -520,6 +520,7 @@ _METRICS_SCRIPTS = [
     ("mf-converge", "scripts/debt_match.py"),
     ("mf-converge", "scripts/open_cards.py"),
     ("mf-converge", "../mf-ship/scripts/conduct.py"),
+    ("mf-converge", "scripts/overlap.py"),
 ]
 
 
@@ -578,6 +579,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/debt_match.py: not named",
         "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -603,6 +605,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-converge/SKILL.md: scripts/debt_match.py: not named",
         "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
+        "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
     ]
 
 
