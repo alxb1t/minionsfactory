@@ -10,8 +10,9 @@ Run from inside the repository; it reads the working tree, so it runs before or 
 a commit. The checks, in order: each ticked `Verify:` run again, argv and no shell;
 each sub-task unticked under a ticked phase; each name the diff removes that the
 change directory or `openspec/specs/` still names; each test of the base gone from
-`tests/`. Exit 0 `plan: clean` · 1 one `plan: …` line per problem · 2 `tasks.md`, the
-base or git cannot be read. Why: 0103-fewer-rounds design D4.
+`tests/`; each `**CORPUS**` case that `scripts/corpus.toml` lacks. Exit 0
+`plan: clean` · 1 one `plan: …` line per problem · 2 `tasks.md`, the base or git
+cannot be read. Why: 0103-fewer-rounds design D4, D5.
 """
 
 import argparse
@@ -19,6 +20,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import NamedTuple
 
@@ -53,6 +55,7 @@ REMOVAL = re.compile(
 )
 TEST_DEF = r"^[[:space:]]*(async[[:space:]]+)?def test_[A-Za-z0-9_]*"
 TEST_NAME = re.compile(r"\bdef (test_\w+)")
+CORPUS = re.compile(r"\*\*CORPUS\*\* `([a-z0-9-]+)`")
 
 
 class Stop(Exception):
@@ -319,6 +322,30 @@ def check_tests(root: Path, merge_base: str, tests: tuple[str, range]) -> list[s
     ]
 
 
+def check_corpus(tasks: list[Task], root: Path) -> list[str]:
+    """Return a line for each `**CORPUS**` case that `scripts/corpus.toml` lacks.
+
+    A sub-task, ticked or not, carries `**CORPUS** `<case>``; a missing file holds no
+    case. Why: 0103-fewer-rounds design D5.
+    """
+    marked = [(t.name, case) for t in tasks for case in CORPUS.findall(t.text)]
+    if not marked:
+        return []
+    try:
+        with (root / "scripts" / "corpus.toml").open("rb") as handle:
+            cases = tomllib.load(handle).get("case", [])
+    except OSError:
+        cases = []
+    except tomllib.TOMLDecodeError as error:
+        raise Stop(f"scripts/corpus.toml: {error}") from None
+    names = {case.get("name") for case in cases if isinstance(case, dict)}
+    return [
+        f"plan: {name} — no case {case} in scripts/corpus.toml"
+        for name, case in marked
+        if case not in names
+    ]
+
+
 def check(change: str, base: str) -> list[str]:
     """Return every problem line of a change's plan against the working tree."""
     if not CHANGE.fullmatch(change) or base.startswith("-"):
@@ -341,6 +368,7 @@ def check(change: str, base: str) -> list[str]:
         *check_boxes(parsed, found),
         *check_names(root, change, merge_base, tests),
         *check_tests(root, merge_base, tests),
+        *check_corpus(parsed, root),
     ]
 
 

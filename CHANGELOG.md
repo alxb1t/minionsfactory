@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   base's tests gone. The build runs it before `build.done`, the converge fixer after each fix and Step 7 after the gate,
   halting `amend needed — plan check` on a line only the plan can clear, which `mf-rescue` amends (change
   `0103-fewer-rounds`, phase 3).
+- `make corpus` runs `scripts/corpus.py` over `scripts/corpus.toml`'s cases, the repo's readers of run data over the run
+  directory, outside `make gate`. The cut marks a sub-task that adds such a reader `**CORPUS**`, the build runs
+  `make corpus` after it, and the plan check finds its case (change `0103-fewer-rounds`, phase 4).
 
 ## [0.85.0] - 2026-11-09
 

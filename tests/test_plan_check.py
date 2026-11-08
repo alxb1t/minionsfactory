@@ -225,6 +225,24 @@ def test_a_plan_check_finds_what_the_plan_left(
     )
     assert check() == (0, ["plan: clean"])
 
+    # A sub-task marked `**CORPUS**`, ticked or not, needs its case in the corpus.
+    marked = "- [x] 1.1 Read run data. **CORPUS** `open-cards`\n  Verify: `true`.\n"
+    _tasks(root, _ONE, marked)
+    assert check() == (
+        1,
+        ["plan: 1.1 — no case open-cards in scripts/corpus.toml"],
+    )
+    (root / "scripts").mkdir()
+    (root / "scripts/corpus.toml").write_text('[[case]]\nname = "open-cards"\n')
+    assert check() == (0, ["plan: clean"])
+    _tasks(
+        root,
+        f"{_ONE}- [ ] 2 — Two\n",
+        marked,
+        "\n## 2 — Two\n\n- [ ] 2.1 Read more. **CORPUS** `ghost`\n",
+    )
+    assert check() == (1, ["plan: 2.1 — no case ghost in scripts/corpus.toml"])
+
 
 def test_what_the_plan_check_cannot_read_exits_2(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -257,6 +275,17 @@ def test_what_the_plan_check_cannot_read_exits_2(
     _tasks(root, _ONE, "- [x] 1.1 Stray.\n  Verify: `true` and `.\n")
     code, said = check()
     assert (code, said.startswith("plan: cannot check — 1.1: ")) == (2, True)
+
+    # A corpus file that does not parse, for a sub-task marked `**CORPUS**`.
+    marked = "- [x] 1.1 Read. **CORPUS** `open-cards`\n  Verify: `true`.\n"
+    _tasks(root, _ONE, marked)
+    (root / "scripts").mkdir()
+    (root / "scripts/corpus.toml").write_text("[[case\n")
+    code, said = check()
+    assert (code, said.startswith("plan: cannot check — scripts/corpus.toml: ")) == (
+        2,
+        True,
+    )
 
     # No `tasks.md`.
     (root / _FOLDER / "tasks.md").unlink()

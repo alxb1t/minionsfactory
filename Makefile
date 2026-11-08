@@ -1,4 +1,4 @@
-.PHONY: fix gate check install-skills uninstall-skills
+.PHONY: fix gate check corpus install-skills uninstall-skills
 
 # A stacked build's base is its dependency's built head: 0099-stacked-builds design D5.
 STACKED_ON = $(shell git rev-parse --verify --quiet "$$(grep -sxE '[0-9a-f]{40}' "$$(git rev-parse --path-format=absolute --git-common-dir)/../.minions/changes/$$(git branch --show-current)/stacked-on")^{commit}")
@@ -27,6 +27,10 @@ check:
 	uv run ruff check .
 	uv run ty check
 	uv run pytest -q -n auto -m "not slow"
+
+# The readers of run data over this checkout's run directory; no gate runs it.
+corpus:
+	uv run --script scripts/corpus.py
 
 # Install a pinned MF release: `pin.py` exports a tag's `skills/` tree into the data folder and
 # links every `mf-*` on both hosts there. Bare, the newest tag `origin` holds; TAG=<tag> holds

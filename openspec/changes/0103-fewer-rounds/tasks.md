@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The round-1 pickup and the mechanism repeat
 - [x] 2 — The fix note
 - [x] 3 — The plan check
-- [ ] 4 — The corpus
+- [x] 4 — The corpus
 - [ ] 5 — CommonMark readers
 - [ ] 6 — The plan review's model
 - [ ] 7 — The record
@@ -59,13 +59,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The corpus
 
-- [ ] 4.1 Add `tests/test_corpus.py` with `test_the_corpus_runs_each_case` and `test_a_corpus_it_cannot_read_exits_2`, per the
+- [x] 4.1 Add `tests/test_corpus.py` with `test_the_corpus_runs_each_case` and `test_a_corpus_it_cannot_read_exits_2`, per the
   design's `## Tests` rows.
   Verify: `grep -n "def test_a_corpus_it_cannot_read_exits_2" tests/test_corpus.py` prints a line.
-- [ ] 4.2 Write `scripts/corpus.py` and `scripts/corpus.toml`, its cases named, per [D5](design.md#d5), the script's docstring
+- [x] 4.2 Write `scripts/corpus.py` and `scripts/corpus.toml`, its cases named, per [D5](design.md#d5), the script's docstring
   citing `0103-fewer-rounds design D5`.
   Verify: `uv run pytest -q tests/test_corpus.py` reports `2 passed`.
-- [ ] 4.3 In `Makefile`, replace the `.PHONY` line, and after the `check` recipe add a blank line and the last three `+`
+- [x] 4.3 In `Makefile`, replace the `.PHONY` line, and after the `check` recipe add a blank line and the last three `+`
   lines, per [D5](design.md#d5); the `gate` and `check` recipes stay as they are:
   ```diff
   - .PHONY: fix gate check install-skills uninstall-skills
@@ -75,13 +75,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   + 	uv run --script scripts/corpus.py
   ```
   Verify: `make -n corpus` prints `uv run --script scripts/corpus.py`.
-- [ ] 4.4 Add the `**CORPUS**` steps to `test_a_plan_check_finds_what_the_plan_left` in `tests/test_plan_check.py`, then check 5
+- [x] 4.4 Add the `**CORPUS**` steps to `test_a_plan_check_finds_what_the_plan_left` in `tests/test_plan_check.py`, then check 5
   to `skills/mf-converge/scripts/plan_check.py`, per [D5](design.md#d5).
   Verify: `grep -n "no case" skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 4.5 In `skills/mf-cut-change/SKILL.md`, add [D5](design.md#d5)'s Step 6 bullet; in `skills/mf-build/SKILL.md`, its
+- [x] 4.5 In `skills/mf-cut-change/SKILL.md`, add [D5](design.md#d5)'s Step 6 bullet; in `skills/mf-build/SKILL.md`, its
   Step 2 item 2 sentence.
   Verify: `grep -l "CORPUS" skills/mf-cut-change/SKILL.md skills/mf-build/SKILL.md` prints both paths.
-- [ ] 4.6 **HALT CHECK** Run the corpus over this checkout's run directory: a reader failing on its real data means the plan
+- [x] 4.6 **HALT CHECK** Run the corpus over this checkout's run directory: a reader failing on its real data means the plan
   missed a reader's fix.
   Verify: `make corpus` exits 0.
 

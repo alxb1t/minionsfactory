@@ -180,7 +180,8 @@ ticking the `N.M` boxes with the phase's box at item 5.
    it. Never amend a `Verify:`. A check you
    describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
    has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
-   Never change code to make it pass.
+   Never change code to make it pass. A `**CORPUS**` sub-task: once its check passes, run `make corpus`; any other
+   exit than 0 is a **halt**, naming the case and what it printed.
 3. **Run the phase's check** — `make check` after each phase but the last, when `make -n check` exits 0; after the
    last phase, or when `make -n check` exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1).
    It must exit 0. **Never weaken it to pass** — a deleted or skipped test,

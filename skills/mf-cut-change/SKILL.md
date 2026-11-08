@@ -184,6 +184,9 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
   `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
   unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
+- A sub-task that adds or alters code reading the run directory (`.minions/`), run logs or Codex sessions, in a repo whose
+  root `Makefile` has a `corpus` target, carries `` **CORPUS** `<case>` ``, `<case>` a case of `scripts/corpus.toml` it or
+  an earlier sub-task adds. `plan_check.py` fails a marked sub-task whose case is missing.
 
 ## Step 7 — Validate
 
