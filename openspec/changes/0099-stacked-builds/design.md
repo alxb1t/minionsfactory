@@ -290,8 +290,10 @@ cut ─▶ waiting ──(dependency built)──▶ stack merge ─▶ build �
 ### D7
 
 - **`Version.after_waits(self) -> Number`** in `scripts/metrics/run.py` — "Return the minutes from each `wait` event of the
-  version to its next event, summed; none is 0." Events of the version are `self.events`; a wait with no later event counts
-  nothing. `METRICS` gains `"after-wait-minutes": Version.after_waits` after `wait-minutes`.
+  version to its next event in the same run, summed; none is 0." Events of the version are `self.events`; a wait ends at
+  the version's next event only when that event's run stamp is the wait's (`later.stamp == event.stamp`), so a wait with no
+  later event in its run — its run ended, the next event another run's — counts nothing. `METRICS` gains
+  `"after-wait-minutes": Version.after_waits` after `wait-minutes`.
 - **`metrics/catalogue.toml`** — after `wait-minutes`:
 
   ```toml
@@ -355,7 +357,7 @@ the default branch.**
 
 ## Tests
 
-This change adds two tests, `test_a_stacked_dependent_resets_and_merges_back` and `test_diff_coverage_takes_the_stacked_base`.
+This change adds `test_a_stacked_dependent_resets_and_merges_back` and `test_diff_coverage_takes_the_stacked_base`.
 Each other step extends a test that already reaches its state (`T2`), at the lowest layer that holds it (`T1`): a `Run`
 method called on a scratch repo, the fake worker for a whole run, `make -n gate` for the recipe. No end-to-end test: the repo
 has no browser layer, so no end-to-end run is added.
