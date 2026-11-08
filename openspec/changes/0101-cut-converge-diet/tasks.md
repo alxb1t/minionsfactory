@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — Plan reviews
 - [x] 2 — Helpers and notes
-- [ ] 3 — The pickup check
+- [x] 3 — The pickup check
 - [ ] 4 — The bundle
 - [ ] 5 — The release and the record
 
@@ -27,14 +27,14 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The pickup check
 
-- [ ] 3.1 Add `## The pickup check`, the opening line's clause and the closing rule's clause to
+- [x] 3.1 Add `## The pickup check`, the opening line's clause and the closing rule's clause to
   `skills/mf-converge/references/verify.md`; edit the frontmatter's `round:` and the Status diagram in `worker.md`; per
   [D3](design.md#d3).
   Verify: `grep -n -e '^## The pickup check$' -e 'a pickup check is no round' -e 'save a \[pickup check\]' -e 'in a pickup check, both findings files' skills/mf-converge/references/verify.md` prints a line for each; `grep -n -e 'never by a pickup check' -e 'the checker or a pickup check:' skills/mf-converge/references/worker.md` prints a line for each.
-- [ ] 3.2 Edit the diagram, the `pickup` row of the events table, *Resuming a run*, Steps 6, 7 and 8 and *Never* of
+- [x] 3.2 Edit the diagram, the `pickup` row of the events table, *Resuming a run*, Steps 6, 7 and 8 and *Never* of
   `skills/mf-converge/SKILL.md`, per [D3](design.md#d3), each new phrase on one line.
   Verify: `grep -n -e 'the pickup round counts' -e 'in the pickup round' skills/mf-converge/SKILL.md` prints nothing; `grep -n -e 'the pickup check is no round' -e 'verify round <N> · pickup' -e 'A pickup check is due' -e '8 pickup: 6 fix, one check' -e 'Step 8 item 6' -e 'writing no .verdicts. line' -e 'A role it needs is a mailbox role' -e 'every way to Step 7' -e 'and a pickup check, own their files' skills/mf-converge/SKILL.md` prints a line for each.
-- [ ] 3.3 Edit the fixer's `tasks.md` and `design.md` bullet in Step 6 of `skills/mf-converge/SKILL.md`, and *An amend card*
+- [x] 3.3 Edit the fixer's `tasks.md` and `design.md` bullet in Step 6 of `skills/mf-converge/SKILL.md`, and *An amend card*
   in `skills/mf-converge/references/worker.md`, per [D7](design.md#d7), each new phrase on one line.
   Verify: `grep -n 'never edits the change.s .tasks.md. or .design.md.' skills/mf-converge/SKILL.md` prints nothing; `grep -n 'save the prose a .drift. card names' skills/mf-converge/SKILL.md` prints a line; `grep -n -e 'which the fixer corrects' -e 'The fixer never edits .tasks.md., nor that section' skills/mf-converge/references/worker.md` prints a line for each.
 

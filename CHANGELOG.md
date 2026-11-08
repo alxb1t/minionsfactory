@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0101-cut-converge-diet`, phase 1).
 - The cut's helpers run on Sonnet 5.5 · medium where the host offers it, and the cut writes their answers and the facts
   it read to `cut-notes.md`, which it reads in place of the files again (change `0101-cut-converge-diet`, phase 2).
+- Once no blocker is open, converge checks a pickup's fix with one verify worker over the pickup's own diff, which is no
+  round; the fixer corrects the `design.md` prose a `drift` card names, never a decision (change
+  `0101-cut-converge-diet`, phase 3).
 
 ## [0.82.0] - 2026-11-08
 

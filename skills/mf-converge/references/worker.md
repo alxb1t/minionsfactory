@@ -42,7 +42,7 @@ project: <repository name>
 branch: <branch name>
 head: <the commit this round judged>
 reviewed: <YYYY-MM-DD>
-round: <int, bumped by each verify pass>
+round: <int, bumped by each verify round, never by a pickup check>
 open_blocking: <int>
 verdict: clean | changes-requested
 mode: parallel | sequential | by-rule
@@ -77,7 +77,7 @@ anchors included.
 **Status is `open → fixed → verified`, and only the checker converges.**
 
 ```
-  open ──fix pass──▶ fixed ───────────────────┬─▶ verify pass, the same checker:
+  open ──fix pass──▶ fixed ───────────────────┬─▶ verify pass, the checker or a pickup check:
     │                                         │     fixed → verified · wontfix → accepted
     └──fix pass──▶ wontfix + justification ───┘     an amend card's wontfix stays, till an amend settles it
                                                     either → open again, with a one-line reason
@@ -160,8 +160,10 @@ field — never a heading, since the debt's headings are its changes. This refer
 and name things rather than count them: "the conformance and adversarial files", not "the two files".
 
 **An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
-`design.md` by its path, `openspec/changes/<change-id>/design.md`. The fixer never edits those files, and converge
-halts on such a card.
+`design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose
+outside its `## Decisions` section, which the fixer corrects.
+The fixer never edits `tasks.md`, nor that section, a row of its table, a decision's D-id or a `## ` heading, and
+converge halts on such a card.
 
 ```
 - **S1 — The upload reads a file of any size into memory**
