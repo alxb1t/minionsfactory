@@ -358,6 +358,22 @@ class Version:
                 since = None
         return _round(total / 60)
 
+    def after_waits(self) -> Number:
+        """Return the minutes from each `wait` event of the version to its next event.
+
+        The spans are summed: none is 0, and a wait with no later event in its run
+        counts nothing. Why: 0099-stacked-builds design D7.
+        """
+        events = self.events
+        total = sum(
+            (later.at - event.at).total_seconds()
+            for event, later in zip(events, events[1:], strict=False)
+            if event.who == self.change
+            and event.name == "wait"
+            and later.stamp == event.stamp
+        )
+        return _round(total / 60)
+
     def halts(self, station: str) -> int:
         """Return the version's halts on a station's check, exit or timeout."""
         return sum(
@@ -618,6 +634,7 @@ METRICS: dict[str, Callable[[Version], Number]] = {
     "lead-minutes": Version.lead,
     **{f"{stage}-minutes": lambda v, s=stage: v.minutes(s) for stage in STAGES},
     "wait-minutes": Version.waits,
+    "after-wait-minutes": Version.after_waits,
     "converge-rounds": Version.rounds,
     "blockers-round-1": Version.blockers,
     "grants": Version.grants,

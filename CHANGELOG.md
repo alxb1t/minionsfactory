@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-08
+
+Gate: local 2m13s · CI not read under mf-ship · 0.83.0: local 2m10s · CI not read under mf-ship
+
+- A dependent stacks on its one unreleased dependency's built head once that build passes: `conduct.py` merges it in as
+  `chore(stack)`, writes `stacked-on`, builds the dependent, and holds it as `stacked` until the release is merged back;
+  `delta` skips a change the merge archived, and `merge_in` checks the git config again before its commit (`0050·R5`)
+  (change `0099-stacked-builds`, phase 1).
+- While `stacked-on` stands, the gate's diff coverage, the build's gate check and metrics, and `mf-simplify`'s range take
+  its sha as their base, and `I17` passes on that head holding the dependency's change (change `0099-stacked-builds`,
+  phase 2).
+- A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit; the
+  merge back runs `integrate.py`'s `changelog` rule, which keeps only the entries past a stacked base's, so the
+  dependency's are not carried twice (change `0099-stacked-builds`, phase 3).
+- The `after-wait-minutes` run metric measures a dependent's wait on its `after:` ids; D72 records the stacked build,
+  D44, D45, D47, D57 and D63 follow it, and the threat model names it and drops `0050·R5` (change
+  `0099-stacked-builds`, phase 4).
+- `after-wait-minutes` closes a wait only with a later event of its own run, so the time between a stopped run and the
+  next no longer counts as a dependency wait (change `0099-stacked-builds`, converge fix S2).
+- The reset holds past the dependency's release: a decision-changing amend the dependency made before releasing
+  resets the stacked dependent before the merge back, so it builds again on the default branch rather than on a
+  superseded decision (change `0099-stacked-builds`, phase 5).
+
 ## [0.83.0] - 2026-11-08
 
 Gate: local 2m10s · CI not read under mf-ship · 0.82.0: local 2m22s · CI not read under mf-ship

@@ -860,7 +860,9 @@ def test_after_waits_for_its_dependency(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake()
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("hold-converge-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
@@ -874,19 +876,52 @@ def test_after_waits_for_its_dependency(
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert "0002-marks · waiting" in capsys.readouterr().out.splitlines()
 
+    # The dependent builds on the built head while its dependency converges.
+    # Why: 0099-stacked-builds design D1, D3.
+    marks = root / ".minions" / "changes" / "0002-marks"
+    built = root / ".minions" / "changes" / "0001-todo" / "build.done"
+    held: list[str] = []
+
+    def stacked() -> None:
+        assert "0002-marks · stacked" in conduct["status"](root).splitlines()
+        held.append(built.read_text().split()[1])
+        assert (marks / "stacked-on").read_text() == f"{held[0]}\n"
+        assert "release 0001-todo" not in _calls(calls)
+
+    said = (" · 0002-marks · wait — stacked on 0001-todo",)
+    join = _when_logged(root, said, stacked, hold)
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
+    join()
 
     seen = _calls(calls)
-    assert seen.index("release 0001-todo") < seen.index("build 0002-marks")
-    assert "chore(integrate): merge main into 0002-marks" in _git(
-        root, "log", "--format=%s", "0002-marks"
+    order = [
+        seen.index(call)
+        for call in (
+            "build 0001-todo",
+            "build 0002-marks",
+            "release 0001-todo",
+            "converge 0002-marks",
+        )
+    ]
+    assert order == sorted(order)
+    assert seen.count("build 0002-marks") == 1
+    subjects = _git(root, "log", "--format=%s", "0002-marks").splitlines()
+    merges = (
+        f"chore(stack): merge 0001-todo at {held[0][:7]} into 0002-marks",
+        "chore(integrate): merge main into 0002-marks",
+    )
+    assert all(merge in subjects for merge in merges)
+    assert not (marks / "stacked-on").exists()
+    assert any(
+        line.endswith(f" · 0002-marks · stacked — on 0001-todo at {held[0][:7]}")
+        for line in _log(root)
     )
     planted = fired.read_text().splitlines()
     assert "build" in planted
-    assert "chore(integrate): merge main into 0002-marks" not in planted
+    assert not set(merges) & set(planted)
     assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
 
@@ -903,6 +938,8 @@ def test_a_dependents_delta_halts_as_integrating(
     first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(second, {"main.txt": "x\n"}, "main moves")
     tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -969,12 +1006,16 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     calls = fake()
     module = conduct["main"].__globals__
     crashed = _primary(tmp_path)
-    _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    first = _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    _commit(first, {"todo.txt": "x\n"}, "build: a first part")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(crashed, {"main.txt": "x\n"}, "main moves")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
     crash.write_text(
         "def delta(tree):\n    raise OSError('no fork')\n\n"
         "def decisions(tree):\n    return 'decisions: none'\n\n"
+        "def unreleased(tree):\n    return False\n\n"
         "changelog = delta\n"
     )
     script = module["INTEGRATE"]
@@ -1013,6 +1054,186 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+    # A key planted while the merge is open halts it before its commit: 0050·R5.
+    _git(hooked, "config", "--unset", "hook.probe.event")
+    _git(hooked, "config", "--unset", "hook.probe.command")
+    held_run.git_state = conduct["_git_state"](hooked)
+
+    def planted(tree: Path) -> str:
+        _git(hooked, "config", "mf.race", "x")
+        return "delta: the default branch changed no requirement the delta edits"
+
+    held_run.delta = planted
+    changed = "the local git config changed during the run: .git/config differs"
+    with pytest.raises(conduct["Stop"], match=re.escape(changed)):
+        held_run.merge_in(waiting, "0002-marks", "main")
+    assert _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
+
+
+def test_a_stacked_dependent_resets_and_merges_back(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    # Why: 0099-stacked-builds design D1, D4, D6.
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _commit(root, {"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"}, "changelog")
+    first = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    entries = "# Changelog\n\n## [Unreleased]\n\n- d1\n"
+    _commit(first, {"CHANGELOG.md": entries}, "build: d1")
+    built = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", built)
+    marks = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    landed = "docs(0002-marks): land the change directory"
+    _git(marks, "commit", "-q", "--amend", "-m", landed)
+    cut = _git(marks, "rev-parse", "HEAD")
+    more = _version(
+        root, "0003-more", "- [ ] 1 — More\n", after="0001-todo, 0002-marks"
+    )
+    _commit(root, {"main.txt": "x\n"}, "main moves")
+    late = _version(root, "0004-late", "- [ ] 1 — Late\n", after="0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0002-marks", marks)
+    stacked_on = root / ".minions" / "changes" / "0002-marks" / "stacked-on"
+
+    # One unreleased, built dependency holding the version's base: it stacks.
+    assert run.ready(version, {})
+    assert stacked_on.read_text() == f"{built}\n"
+    stack = f"chore(stack): merge 0001-todo at {built[:7]} into 0002-marks"
+    assert _git(marks, "log", "-1", "--format=%s") == stack
+    stacked = _git(marks, "rev-parse", "HEAD")
+    for change, tree in (("0003-more", more), ("0004-late", late)):
+        assert not run.ready(conduct["Version"](change, tree), {})
+    assert run.blocked == ["0003-more", "0004-late"]
+
+    # Stacked, it is ready again and gets no gate merge.
+    assert run.ready(version, {})
+    run.catch_up(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+
+    # A head off its branch or unticked, or a file that does not stand, is none.
+    _done(root, "0003-more", _git(root, "rev-parse", "main"))
+    assert conduct["_built_head"](root, "0003-more") is None
+    _done(root, "0002-marks", cut)
+    assert conduct["_built_head"](root, "0002-marks") is None
+    (stacked_on.parent / "build.done").unlink()
+    standing = conduct["_stacked_on"]
+    for text in (b"\xff\n", f"{_git(late, 'rev-parse', 'HEAD')}\n".encode()):
+        stacked_on.write_bytes(text)
+        assert standing(root, "0002-marks", marks, []) is None
+    stacked_on.write_text(f"{cut}\n")
+    assert standing(root, "0002-marks", marks, ["0001-todo"]) is None
+    stacked_on.write_text(f"{built}\n")
+    assert conduct["_cut_commit"](more, "0003-more") is None
+
+    # An amend that changes no decision leaves it; one touching the proposal resets it.
+    amend = "docs(0001-todo): amend the change directory"
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    noted = {tasks: (first / tasks).read_text() + "\nA note.\n"}
+    _commit(first, noted, amend)
+    assert not run.reset_stack(version)
+    assert not run.reset_stack(conduct["Version"]("0002-marks", None))
+    assert not run.reset_stack(conduct["Version"]("0003-more", more))
+    assert stacked_on.is_file()
+    replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: patch\n---\n"}
+    _commit(first, replanned, amend)
+    uncut = conduct["Version"]("0002-marks", first)
+    with pytest.raises(conduct["Stop"], match="0002-marks: no cut commit to reset to"):
+        run.reset_stack(uncut)
+    _git(root, "config", "mf.race", "x")
+    with pytest.raises(conduct["Stop"], match="the local git config changed"):
+        run.reset_stack(version)
+    _git(root, "config", "--unset", "mf.race")
+    run.git_state = conduct["_git_state"](root)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+    assert run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == cut
+    assert not stacked_on.exists()
+    reset = f"0001-todo re-planned past {built[:7]}: {stacked[:7]} → {cut[:7]}"
+    assert any(line.endswith(f" · 0002-marks · reset — {reset}") for line in _log(root))
+    assert conduct["_built_head"](root, "0001-todo") is None
+
+    # The dependency's next build restacks it.
+    tip = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", tip)
+    assert run.ready(version, {})
+    assert stacked_on.read_text() == f"{tip}\n"
+
+    # A re-plan read while it waits stacked, or by `advance`, sends it back too.
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait)
+    live.start()
+    replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: minor\n---\n"}
+    _commit(first, replanned, amend)
+    assert run.landed(version, {"0001-todo": live})
+    gate.set()
+    live.join()
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
+    decided = {"openspec/changes/0001-todo/design.md": "## Decisions\n\n- D1\n"}
+    _commit(first, decided, amend)
+    assert run.advance(version, ("integrate", "release")) == "waiting"
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
+    _commit(marks, {"CHANGELOG.md": f"{entries}- x1\n"}, "build: x1")
+
+    # Built, it waits stacked; its dependency ended unreleased blocks it.
+    ticked = {
+        "openspec/changes/0002-marks/tasks.md": "## Progress\n\n- [x] 1 — Marks\n"
+    }
+    _commit(marks, ticked, "build: marks")
+    _done(root, "0002-marks", _git(marks, "rev-parse", "HEAD"))
+    run.take(version, {})
+    assert run.blocked[-1] == "0002-marks"
+    assert not run.stopped("0002-marks")
+
+    # The release merged back keeps the dependent's entries alone in [Unreleased].
+    (first / "openspec/changes/archive").mkdir()
+    folder = "openspec/changes/0001-todo"
+    _git(first, "mv", folder, "openspec/changes/archive/0001-todo")
+    release = "# Changelog\n\n## [Unreleased]\n\n## [0.1.0]\n\n- d1\n"
+    _commit(first, {"CHANGELOG.md": release}, "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0001-todo'", "0001-todo")
+    assert run.ready(version, {})
+    merged = _git(marks, "log", "-1", "--format=%s")
+    assert merged == "chore(integrate): merge main into 0002-marks"
+    assert not stacked_on.exists()
+    assert (marks / "CHANGELOG.md").read_text() == (
+        "# Changelog\n\n## [Unreleased]\n\n- x1\n\n## [0.1.0]\n\n- d1\n"
+    )
+
+    # A re-plan its dependency released past it still resets it, before the merge back.
+    redo = _version(root, "0005-redo", "- [x] 1 — Redo\n")
+    _commit(redo, {"redo.txt": "x\n"}, "build: redo")
+    head = _git(redo, "rev-parse", "HEAD")
+    _done(root, "0005-redo", head)
+    race = _version(root, "0006-race", "- [ ] 1 — Race\n", after="0005-redo")
+    landed = "docs(0006-race): land the change directory"
+    _git(race, "commit", "-q", "--amend", "-m", landed)
+    race_cut = _git(race, "rev-parse", "HEAD")
+    racing = conduct["Version"]("0006-race", race)
+    assert run.ready(racing, {})
+    race_on = root / ".minions" / "changes" / "0006-race" / "stacked-on"
+    assert race_on.read_text() == f"{head}\n"
+    race_left = _git(race, "rev-parse", "HEAD")
+    redone = {"openspec/changes/0005-redo/proposal.md": "---\nbump: patch\n---\n"}
+    _commit(redo, redone, "docs(0005-redo): amend the change directory")
+    _git(redo, "mv", "openspec/changes/0005-redo", "openspec/changes/archive/0005-redo")
+    _commit(redo, {}, "chore(release): v0.2.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0005-redo'", "0005-redo")
+    assert run.ready(racing, {})
+    said = f"0005-redo re-planned past {head[:7]}: {race_left[:7]} → {race_cut[:7]}"
+    assert any(line.endswith(f" · 0006-race · reset — {said}") for line in _log(root))
+    assert not race_on.exists()
+    assert _git(race, "log", "-1", "--format=%s") == (
+        "chore(integrate): merge main into 0006-race"
+    )
+    assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
 def test_a_merge_in_renumbers_a_planned_decision(
@@ -2503,6 +2724,8 @@ def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
     first = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(root, {"main.txt": "x\n"}, "main moves")
     tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -4485,15 +4708,21 @@ def test_a_changed_git_config_halts_a_merge_in(
             _git(root, "push", "-q", "origin", "main")
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
-        calls = fake(mode)
+        hold = scratch / "hold"
+        monkeypatch.setenv("FAKE_HOLD", str(hold))
+        calls = fake(mode, "hold-converge-0001-todo")
+        # The release plants its key after the dependent's build.
+        said_stacked = (" · 0002-marks · wait — stacked on 0001-todo",)
+        join = _when_logged(root, said_stacked, lambda: None, hold)
 
         assert (
             _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
             == 1
         )
+        join()
 
         assert "release 0001-todo" in _calls(calls)
-        assert "build 0002-marks" not in _calls(calls)
+        assert "converge 0002-marks" not in _calls(calls)
         assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
@@ -6565,11 +6794,16 @@ def test_a_run_goes_on_while_origin_is_down(
     # A release made offline passes as released locally; its dependent merges it.
     held = _git(away, "rev-parse", "main")
     lines = run(0)
-    assert _calls(calls) == [
-        "probe",
-        *(f"{station} 0001-todo" for station in ("build", "converge", "release")),
-        *(f"{station} 0002-marks" for station in ("build", "converge", "release")),
-    ]
+    seen = _calls(calls)
+    assert seen[0] == "probe"
+    assert set(seen[1:]) == {
+        f"{station} {change}"
+        for station in ("build", "converge", "release")
+        for change in ("0001-todo", "0002-marks")
+    }
+    assert len(seen) == 7
+    assert seen.index("build 0001-todo") < seen.index("build 0002-marks")
+    assert seen.index("release 0001-todo") < seen.index("converge 0002-marks")
     for change in ("0001-todo", "0002-marks"):
         assert f"{change} · check — release · pass" in lines
         assert not (root.parent / change).exists()
