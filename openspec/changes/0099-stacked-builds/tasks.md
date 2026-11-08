@@ -12,29 +12,33 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The stack
 
-- [ ] 1.1 **HALT CHECK** Confirm `merge_in` in `skills/mf-ship/scripts/conduct.py` still takes the default branch as its third
+- [x] 1.1 **HALT CHECK** Confirm `merge_in` in `skills/mf-ship/scripts/conduct.py` still takes the default branch as its third
   argument, per [D2](design.md#d2); missing, the plan is wrong.
   Verify: `grep -n 'def merge_in(self, tree: Path, change: str, default: str) -> None:' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.2 Add `hold-converge-<change>` to the converge of `tests/fake_worker.py`, then extend
+- [x] 1.2 Add `hold-converge-<change>` to the converge of `tests/fake_worker.py`, then extend
   `test_after_waits_for_its_dependency` in `tests/test_conduct.py` as the design's `## Tests` row says.
   Verify: `grep -n 'hold-converge-0001-todo' tests/test_conduct.py` prints a line.
-- [ ] 1.3 Add `STACKED_ON`, `_built_head`, `_replanned`, `_stacked_on` and `_merged_back`, and their reads in `stage_of`,
+- [x] 1.3 Add `STACKED_ON`, `_built_head`, `_replanned`, `_stacked_on` and `_merged_back`, and their reads in `stage_of`,
   to `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1), [D3](design.md#d3) and [D6](design.md#d6).
   Verify: `grep -n 'waits for its release' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.4 Give `merge_in` its `ref` and `stacked` arguments and the `chore(stack)` subject, and add `Run.stack`, in
+- [x] 1.4 Give `merge_in` its `ref` and `stacked` arguments and the `chore(stack)` subject, and add `Run.stack`, in
   `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2).
   Verify: `grep -n 'chore(stack): merge' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.5 Add `self.built`, `notify_built`, `stackable` and `until` to `Run`, and rewrite `ready` on them, in
+- [x] 1.5 Add `self.built`, `notify_built`, `stackable` and `until` to `Run`, and rewrite `ready` on them, in
   `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1) and [D3](design.md#d3).
   Verify: `grep -n '    def stackable(' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 1.6 Add `advance`'s return and its `stacked-on` removal, `Run.landed`, `take`'s loop, `catch_up`'s skip and the `wait`
+- [ ] 1.6 Extend `test_delta_reports_a_requirement_main_changed` in `tests/test_integrate.py`, as the design's `## Tests` row
+  says, then make `delta` in `skills/mf-integrate/scripts/integrate.py` drop each id whose archive `MERGE_HEAD` holds, per
+  [D2](design.md#d2).
+  Verify: `uv run pytest -q tests/test_integrate.py -k requirement_main_changed` reports `1 passed`.
+- [ ] 1.7 Add `advance`'s return and its `stacked-on` removal, `Run.landed`, `take`'s loop, `catch_up`'s skip and the `wait`
   and `stacked` events in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k after_waits_for_its_dependency` reports `1 passed`.
-- [ ] 1.7 Make the edits the design's `## Tests` names for `test_a_dependents_delta_halts_as_integrating`,
+- [ ] 1.8 Make the edits the design's `## Tests` names for `test_a_dependents_delta_halts_as_integrating`,
   `test_a_crashed_integrate_script_halts_and_a_rerun_merges` (its commits alone), `_delta_noted`,
   `test_a_changed_git_config_halts_a_merge_in` and `test_a_run_goes_on_while_origin_is_down` in `tests/test_conduct.py`.
   Verify: `grep -n 'the dependent waits unstacked' tests/test_conduct.py` prints a line.
-- [ ] 1.8 Add the config step to `test_a_merge_in_refuses_a_planted_hook` in `tests/test_conduct.py`, as the design's
+- [ ] 1.9 Add the config step to `test_a_merge_in_refuses_a_planted_hook` in `tests/test_conduct.py`, as the design's
   `## Tests` row says, then `merge_in`'s second config check, its docstring naming `0050·R5`, per [D2](design.md#d2).
   Verify: `grep -n '0050·R5' skills/mf-ship/scripts/conduct.py` prints a line.
 
