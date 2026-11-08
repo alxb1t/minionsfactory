@@ -91,7 +91,8 @@ RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
 STATIONS = ("build", "converge", "integrate", "release")
-WORKERS = ("converge.conformance", "converge.adversarial", "converge.fix")
+FIXER = "converge.fix"
+WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
 # A cut's worker table under its old name. Why: 0095-converge-roles design D2.
 OLD_WORKERS = {
     "converge.conformance": "converge.review",
@@ -2237,12 +2238,13 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` names no executor
-    and runs on converge's, halting where converge's table does, with no Codex check
-    of its own, and with no table of its own reads its `OLD_WORKERS` table. A table
-    no executor can run halts the version.
+    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` with no table of
+    its own reads its `OLD_WORKERS` table, halting where converge's table does. A
+    checker may name its executor, Codex-checked as a station; one naming none, and
+    the fixer, which names none, run on converge's, with no Codex check of their own.
+    A table no executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
-    design D1; 0095-converge-roles design D2.
+    design D1; 0095-converge-roles design D2; 0097-cross-model design D3.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2251,8 +2253,9 @@ def _models(
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
+    own = "executor" in table
     if station in WORKERS:
-        if "executor" in table:
+        if own and station == FIXER:
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2261,29 +2264,60 @@ def _models(
                     f"conduct: halt — {file}: {station} {value!r}"
                     " is not a model or effort",
                 )
-        executor = _models(runs, change, "converge", run)[0]
+        converge = _models(runs, change, "converge", run)[0]
+        executor = executor if own else converge
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
-    codex = executor == "codex" and station not in WORKERS
+    codex = executor == "codex" and (station not in WORKERS or own)
     if codex and (model or "").startswith("claude"):
         raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
     return str(executor), model, effort if isinstance(effort, str) else None
 
 
-def _worker_clause(station: str, models: tuple[str, str | None, str | None]) -> str:
-    """Return a converge worker's prompt clause; "" on Codex or with neither named.
+def _worker_clause(
+    station: str, models: tuple[str, str | None, str | None], converge: str
+) -> str:
+    """Return a converge worker's prompt clause, `converge` its conductor's executor.
 
-    e.g. ("converge.fix", ("claude", "m", None)) → " and fix=m/default"
-    Why: 0094-lighter-converge design D1.
+    A checker on another host is a mailbox role; else "" on Codex or with neither
+    named. Why: 0094-lighter-converge design D1; 0097-cross-model design D3.
+    e.g. ("converge.fix", ("claude", "m", None), "claude") → " and fix=m/default"
     """
     executor, model, effort = models
-    if executor == "codex" or (model is None and effort is None):
-        return ""
     role = station.split(".", 1)[1]
+    if executor != converge:
+        return f" and {role}=mailbox"
+    if converge == "codex" or (model is None and effort is None):
+        return ""
     return f" and {role}={model or 'default'}/{effort or 'default'}"
+
+
+def _shadows(runs: Path, change: str) -> bool:
+    """Return whether the cut's models file says `[converge] shadow = true`.
+
+    Why: 0097-cross-model design D3.
+    """
+    table = _table(runs, change, "converge")
+    return table is not None and table.get("shadow") is True
+
+
+def _shadow(
+    converge: tuple[str, str | None, str | None],
+    checker: tuple[str, str | None, str | None],
+) -> tuple[str, str | None, str | None]:
+    """Return a shadow checker's models: the executor `checker` does not run on.
+
+    It takes converge's model and effort where converge runs, else that host's
+    default. Why: 0097-cross-model design D3.
+    e.g. (("claude", "m", "e"), ("codex", "x", "y")) → ("claude", "m", "e")
+    """
+    executor = next(name for name in EXECUTORS if name != checker[0])
+    if converge[0] == executor:
+        return converge
+    return executor, None, None
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -3366,6 +3400,7 @@ class Run:
         self.reruns: set[str] = set()
         self.skips: set[str] = set()
         self.decides: set[str] = set()
+        self.shadowed: set[str] = set()
         self.decided: list[str] = []
         self.supervisions: dict[str, list[str]] = {}
         # Each settle `_settled` took, by change: the tree integrate must commit.
@@ -3974,10 +4009,17 @@ class Run:
                 with self.guard:
                     staged = self.settled.pop(version.change, None)
                 settled = "" if staged is None else " with settled=supervisor"
-                workers = "".join(
-                    _worker_clause(name, self.planned_models(version.change, name))
-                    for name in (WORKERS if stage == "converge" else ())
-                )
+                workers = ""
+                if stage == "converge":
+                    converge = self.planned_models(version.change, stage)[0]
+                    workers = "".join(
+                        _worker_clause(
+                            name, self.planned_models(version.change, name), converge
+                        )
+                        for name in WORKERS
+                    )
+                    if version.change in self.shadowed:
+                        workers += " and shadow=yes"
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
@@ -4353,9 +4395,11 @@ class Run:
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
         halts in `take`. Converge's worker tables are read as stations are; the
-        rescue's skip, `[converge] auto_grant` and the switch are read with them.
+        rescue's skip, `[converge] auto_grant` and `shadow`, and the switch are read
+        with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
-        design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1.
+        design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1;
+        0097-cross-model design D3.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -4366,6 +4410,7 @@ class Run:
                 skips = _skips_rescue(self.primary / ".minions", version.change)
                 grants = _auto_grants(self.primary / ".minions", version.change)
                 decides = _decides(self.primary / ".minions", version.change)
+                shadows = _shadows(self.primary / ".minions", version.change)
             except (Stop, ValueError):
                 continue
             with self.guard:
@@ -4374,6 +4419,8 @@ class Run:
                     self.skips.add(version.change)
                 if decides:
                     self.decides.add(version.change)
+                if shadows:
+                    self.shadowed.add(version.change)
 
     def models(
         self, change: str, station: str
@@ -4384,9 +4431,27 @@ class Run:
         except (Stop, ValueError):
             return None
 
+    def named(self, change: str) -> list[str]:
+        """Return each executor a version's plan names, a shadow's among them.
+
+        Why: 0097-cross-model design D3.
+        """
+        planned = [self.plan.get((change, station)) for station in PLANNED]
+        named = [models[0] for models in planned if models]
+        converge = self.plan.get((change, "converge"))
+        if change in self.shadowed and converge is not None:
+            checkers = (self.plan.get((change, name)) for name in WORKERS)
+            named += [
+                _shadow(converge, models)[0]
+                for name, models in zip(WORKERS, checkers, strict=True)
+                if models and name != FIXER
+            ]
+        return list(dict.fromkeys(named))
+
     def executors(self, *cutters: str) -> list[str]:
         """Return the run's executor, then each other one the plan or `cutters` name."""
-        named = (executor for executor, *_ in self.plan.values())
+        changes = dict.fromkeys(change for change, _ in self.plan)
+        named = (executor for change in changes for executor in self.named(change))
         return list(dict.fromkeys((self.executor, *named, *cutters)))
 
     def cut_halts(self, cuts: dict[str, dict[str, Any]]) -> None:
@@ -4609,8 +4674,7 @@ class Run:
             self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
-        named = (self.plan.get((change, station)) for station in PLANNED)
-        self.probe_for(change, [models[0] for models in named if models])
+        self.probe_for(change, self.named(change))
         return not self.stopped(change)
 
     def probe_for(self, change: str, executors: list[str]) -> None:

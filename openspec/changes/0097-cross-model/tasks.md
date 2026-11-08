@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The models line and the plan
+- [x] 1 — The models line and the plan
 - [ ] 2 — The checker mailbox
 - [ ] 3 — Shadow round 1
 - [ ] 4 — The metrics
@@ -12,16 +12,16 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The models line and the plan
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it, with `0096-codex-ready` landed.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it, with `0096-codex-ready` landed.
   Verify: `grep -n -e 'names an executor' -e '^FINDINGS_KEYS = ' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n '^STATIONS = ("build", "converge", "release", "cut")$' skills/mf-plan/scripts/brief_check.py` prints a line; `grep -n 'FAKE_CODEX_ARGV' tests/fake_codex.py` prints a line.
-- [ ] 1.2 Extend `test_a_hard_brief_is_ready_for_the_cut` and `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`, then
+- [x] 1.2 Extend `test_a_hard_brief_is_ready_for_the_cut` and `test_a_brief_out_of_shape_halts` in `tests/test_brief_check.py`, then
   the grammar of `models` in `skills/mf-plan/scripts/brief_check.py`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_brief_check.py -k "hard_brief_is_ready or out_of_shape_halts"` reports `2 passed`; `grep -n -e '^HOSTS = ' -e '^CHECKS = ' skills/mf-plan/scripts/brief_check.py` prints a line for each.
-- [ ] 1.3 Add `test_a_checker_on_another_host_is_planned_and_probed` and edit `test_a_worker_clause_names_its_model_and_effort` in
+- [x] 1.3 Add `test_a_checker_on_another_host_is_planned_and_probed` and edit `test_a_worker_clause_names_its_model_and_effort` in
   `tests/test_conduct.py`, then `_models`, `_worker_clause`, `_shadows`, `_shadow`, `Run.named`, `read_plan`, `executors`, `admit`
   and the clause's caller in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k "another_host_is_planned or worker_clause_names or station_runs_on_its_executor or models_mismatch"` reports `4 passed`; `grep -n -e '^def _shadow(' -e '^def _shadows(' -e 'def named(' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 1.4 Edit the models line and its paragraph in `skills/mf-plan/SKILL.md`, and *Suggesting models*' paragraph and template in
+- [x] 1.4 Edit the models line and its paragraph in `skills/mf-plan/SKILL.md`, and *Suggesting models*' paragraph and template in
   `skills/mf-cut-change/SKILL.md`, per [D2](design.md#d2).
   Verify: `grep -n 'conformance <host/model> <effort>' skills/mf-plan/SKILL.md` prints a line; `grep -n -e '# shadow = true' -e "from the brief's host" skills/mf-cut-change/SKILL.md` prints a line for each; `grep -n "usually the person's edit" skills/mf-cut-change/SKILL.md` prints nothing.
 

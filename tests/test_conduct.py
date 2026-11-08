@@ -3800,15 +3800,24 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
     conduct = _conduct()
     clause = conduct["_worker_clause"]
     assert (
-        clause("converge.conformance", ("claude", "claude-opus-5-5", "high"))
+        clause("converge.conformance", ("claude", "claude-opus-5-5", "high"), "claude")
         == " and conformance=claude-opus-5-5/high"
     )
     assert (
-        clause("converge.fix", ("claude", "claude-sonnet-5-5", None))
+        clause("converge.fix", ("claude", "claude-sonnet-5-5", None), "claude")
         == " and fix=claude-sonnet-5-5/default"
     )
-    assert clause("converge.conformance", ("codex", "gpt-5", "high")) == ""
-    assert clause("converge.adversarial", ("claude", None, None)) == ""
+    assert clause("converge.conformance", ("codex", "gpt-5", "high"), "codex") == ""
+    assert clause("converge.adversarial", ("claude", None, None), "claude") == ""
+    # A checker on another host than converge's goes through the mailbox.
+    assert (
+        clause("converge.conformance", ("codex", "gpt-6.1-sol", "high"), "claude")
+        == " and conformance=mailbox"
+    )
+    assert (
+        clause("converge.adversarial", ("claude", None, None), "codex")
+        == " and adversarial=mailbox"
+    )
 
     minions = tmp_path / ".minions"
     table = minions / "changes" / "0001-todo" / "models.toml"
@@ -3841,9 +3850,19 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
     file = "conduct: halt — changes/0001-todo/models.toml"
     for station, text, said in (
         (
+            "converge.fix",
+            '[converge.fix]\nexecutor = "codex"\n',
+            f"{file}: converge.fix names an executor",
+        ),
+        (
+            "converge.adversarial",
+            '[converge.adversarial]\nexecutor = "codex"\nmodel = "claude-opus-5-5"\n',
+            f"{file}: converge.adversarial on codex, model claude-opus-5-5",
+        ),
+        (
             "converge.conformance",
-            '[converge.conformance]\nexecutor = "codex"\n',
-            f"{file}: converge.conformance names an executor",
+            '[converge.conformance]\nexecutor = "gemini"\n',
+            f"{file}: executor 'gemini' unknown",
         ),
         (
             "converge.fix",
@@ -3855,6 +3874,57 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
         with pytest.raises(conduct["Stop"]) as stop:
             models(minions, "0001-todo", station, "claude")
         assert str(stop.value) == said
+
+
+def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    minions = root / ".minions"
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text(
+        '[converge]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\nshadow = true\n'
+        '[converge.conformance]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        'effort = "high"\n'
+    )
+    models = conduct["_models"]
+    assert models(minions, "0001-todo", "converge.conformance", "claude") == (
+        "codex",
+        "gpt-6.1-sol",
+        "high",
+    )
+    # A checker naming no executor runs on converge's.
+    assert models(minions, "0001-todo", "converge.adversarial", "claude") == (
+        "claude",
+        None,
+        None,
+    )
+    # A shadow runs on the other host: on converge's model where converge runs.
+    shadow = conduct["_shadow"]
+    converge = ("claude", "claude-sonnet-5-5", "medium")
+    assert shadow(converge, ("codex", "gpt-6.1-sol", "high")) == converge
+    assert shadow(converge, ("claude", None, None)) == ("codex", None, None)
+    assert conduct["_shadows"](minions, "0001-todo")
+
+    run = conduct["Run"](root, "claude")
+    version = conduct["Version"]("0001-todo", tree)
+    run.read_plan([version])
+    assert run.shadowed == {"0001-todo"}
+    assert run.named("0001-todo") == ["claude", "codex"]
+    assert run.executors() == ["claude", "codex"]
+    # A Claude-only plan's shadow alone names Codex, and each named host is probed.
+    table.write_text("[converge]\nshadow = true\n")
+    probed: list[list[str]] = []
+    run = conduct["Run"](root, "claude")
+    run.probe_for = lambda change, executors: probed.append(executors)
+    assert run.admit(version)
+    assert probed == [["claude", "codex"]]
+    table.write_text("[converge]\nshadow = false\n")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert not conduct["_shadows"](minions, "0001-todo")
+    assert (run.shadowed, run.executors()) == (set(), ["claude"])
 
 
 def test_a_station_runs_on_its_executor(

@@ -189,7 +189,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
   ## For the cut
   <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · debt: [<ids>] or none · decide: recommended
-     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort>
+     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
 
@@ -198,6 +198,10 @@ session's menu, by `mf-cut-change`'s *Suggesting models* table —
 Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's own
 is the strongest tier · high by default. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
 proposed fix. The cut station writes `models.toml` from the `models:` line.
+
+The `conformance`, `adversarial`, `fix` and `shadow` parts are optional. A host prefix, `claude/` or `codex/`, names a
+part's executor: `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker;
+`cut` and `fix` take none. `shadow` turns on the shadow round 1, the person's choice at each close.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its
 `## For the cut` slug, the exact package, its version constraint, and why. `conduct.py cut` copies the item's rows into
