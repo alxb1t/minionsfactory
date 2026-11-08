@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `after-wait-minutes` run metric measures a dependent's wait on its `after:` ids; D70 records the stacked build,
   D44, D45, D47, D57 and D63 follow it, and the threat model names it and drops `0050·R5` (change
   `0099-stacked-builds`, phase 4).
+- `after-wait-minutes` closes a wait only with a later event of its own run, so the time between a stopped run and the
+  next no longer counts as a dependency wait (change `0099-stacked-builds`, converge fix S2).
 
 ## [0.81.0] - 2026-11-08
 

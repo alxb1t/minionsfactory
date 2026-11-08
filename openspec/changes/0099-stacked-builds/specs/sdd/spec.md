@@ -86,11 +86,19 @@ not lower SHALL block its version, and an edit that leaves a running version `wa
 - **AND** unrelated versions run in parallel meanwhile
 
 #### Scenario: A dependent's delta edits what its dependency changed
-- **WHEN** a dependent's delta modifies a requirement the default branch changed since its base, and the run takes no
-  supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **WHEN** an unstacked dependent's delta modifies a requirement the default branch changed since its base, and the run
+  takes no supervisor settle — no switch, or a supervisor was spawned on that open merge before
 - **THEN** the merge stays open, the note names both changes, and the version halts with no build
 - **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
 - **THEN** a re-run of `mf-ship` builds the version
+
+#### Scenario: A stacked dependent's delta edits what its dependency released
+- **WHEN** a stacked dependent's build is done, its delta modifies a requirement its dependency's release changed, and the
+  run takes no supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **THEN** the merge back stays open, the note names both changes, `stacked-on` stands, and the version halts as
+  `integrating`, its build done
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` removes `stacked-on`, builds nothing again, and runs converge from round 1
 
 #### Scenario: A cut names a dependency it cannot have
 - **WHEN** `after=` names an id that is merged, unknown, or not lower than the change's
@@ -319,8 +327,8 @@ REMOVED title the default branch changed SHALL be reported.
 `metrics/catalogue.toml` SHALL declare the run metrics, each one script, `scripts/metrics/run.py <kind>`, which the release's
 `metrics.py collect` runs: minutes from the run logs for the lead (the cut commit to the release's spawn), each stage — build,
 converge, catch-up, integrate — the person's waits (a halt until a rejoin, a person's grant or a later run's start names the
-version), and the time a dependent waits on its `after:` ids (each `wait` event of the version until its next event, a
-version with none 0); converge's rounds outside catch-up and amend runs, the amend rounds, round 1's blockers and the grants; the halts by
+version), and the time a dependent waits on its `after:` ids (each `wait` event of the version until its next event in
+the same run, a version with none 0); converge's rounds outside catch-up and amend runs, the amend rounds, round 1's blockers and the grants; the halts by
 station; the rescues fixed and diagnosed; build and
 fix commits, split at the build's `.done` head along the first parent; cost and tokens, all turns, total and per station, and the
 cost per changed line; per role — conformance and adversarial, each metric id named for its role — the confirmed and refuted

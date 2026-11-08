@@ -361,14 +361,16 @@ class Version:
     def after_waits(self) -> Number:
         """Return the minutes from each `wait` event of the version to its next event.
 
-        The spans are summed: none is 0, and a wait with no later event counts nothing.
-        Why: 0099-stacked-builds design D7.
+        The spans are summed: none is 0, and a wait with no later event in its run
+        counts nothing. Why: 0099-stacked-builds design D7.
         """
         events = self.events
         total = sum(
             (later.at - event.at).total_seconds()
             for event, later in zip(events, events[1:], strict=False)
-            if event.who == self.change and event.name == "wait"
+            if event.who == self.change
+            and event.name == "wait"
+            and later.stamp == event.stamp
         )
         return _round(total / 60)
 

@@ -4298,7 +4298,8 @@ class Run:
         the waiting versions.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
-        0090-supervisor-merge design D4, security S2; 0099-stacked-builds design D3.
+        0090-supervisor-merge design D4, its delta's *A supervisor answers what the
+        rescue leaves*; 0099-stacked-builds design D3.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides

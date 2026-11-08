@@ -529,6 +529,19 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert read("integrate-minutes", "0003-z") == 0
     # The wait on an `after:` id runs to the version's next event.
     assert read("after-wait-minutes", "0003-z") == 0.5
+    # A wait its run left unfinished ends with that run: the next run's start, a day
+    # later, closes nothing.
+    _write(
+        tmp_path,
+        {
+            ".minions/runs/20261107-100000.md": "# Ship run 20261107-100000\n\n"
+            "10:00:00 · 0006-u · wait — after 0001-x\n",
+            ".minions/runs/20261108-100000.md": "# Ship run 20261108-100000\n\n"
+            "10:00:00 · run · start — executor claude · versions 0006-u · mf v1\n"
+            "10:01:00 · 0006-u · spawn — build · model m\n",
+        },
+    )
+    assert read("after-wait-minutes", "0006-u") == 0
     assert read("grants", "0003-z") == "gap: no 0003-z/status_log.md"
     assert read("build-commits", "0003-z") == "gap: no head in 0003-z/build.done"
     # A version released by hand: no run log, its commits and cards still read.
