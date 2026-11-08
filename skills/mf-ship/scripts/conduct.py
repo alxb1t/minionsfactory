@@ -2799,19 +2799,25 @@ def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str])
 
 
 def _answer(
-    code: int, killed: bool, models: tuple[str, str | None, str | None], limit: str
+    code: int,
+    killed: bool,
+    models: tuple[str, str | None, str | None],
+    limit: str,
+    fallback: bool = False,
 ) -> str:
     """Return a checker's answer: its exit, executor, model, effort and why it ended.
 
     e.g. 0, False, ("codex", "m", None), "" →
     "exit 0 · executor codex · model m · effort default"
-    Why: 0097-cross-model design D5.
+    A `fallback` names it last. Why: 0097-cross-model design D5; 0104-codex-limits
+    design D3.
     """
     executor, model, effort = models
     timed = " · timed out" if killed else ""
+    named = f" · {FALLBACK}" if fallback else ""
     return (
         f"exit {code} · executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'}{timed}{limit}"
+        f" · effort {effort or 'default'}{timed}{limit}{named}"
     )
 
 
@@ -3171,13 +3177,16 @@ def work(
     out: Path | int,
     claim: Path | None,
     between: Callable[[], None] | None = None,
+    timeout: float | None = None,
 ) -> tuple[int, bool]:
     """Run one worker in its own process group, output to `out`, held in `claim`.
 
     `out` is a path, or a descriptor it closes. With `between`, it is called each
     `MAILBOX_POLL` seconds while the worker runs. Return its exit code and whether
-    `TIMEOUT` killed it. Why: 0097-cross-model design D5.
+    its `timeout`, else `TIMEOUT`, killed it.
+    Why: 0097-cross-model design D5; 0104-codex-limits design D3.
     """
+    limit = TIMEOUT if timeout is None else timeout
     if isinstance(out, Path):
         out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as sink:
@@ -3193,7 +3202,7 @@ def work(
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = claim / str(worker.pid) if claim else None
-        deadline = time.monotonic() + TIMEOUT
+        deadline = time.monotonic() + limit
         try:
             if group:
                 group.write_text(_ps(worker.pid, "lstart="))
@@ -3210,7 +3219,7 @@ def work(
                     os.killpg(worker.pid, signal.SIGKILL)
                     worker.wait()
                     raise
-            return worker.wait(timeout=TIMEOUT), False
+            return worker.wait(timeout=limit), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
             return worker.wait(), True
@@ -4067,7 +4076,8 @@ class Run:
         Why: 0097-cross-model design D5; 0100-worker-diet design D5; 0104-codex-limits
         design D2.
         """
-        between = None if mailbox is None else self.server(who, cwd, mailbox)
+        deadline = time.monotonic() + TIMEOUT
+        between = None if mailbox is None else self.server(who, cwd, mailbox, deadline)
         code, killed, out, denied = self.worker(
             who, station, cwd, prompt, models, repo, brief, mailbox, between
         )
@@ -4088,35 +4098,79 @@ class Run:
             return None
         return denied
 
-    def server(self, who: str, cwd: Path, mailbox: Path) -> Callable[[], None]:
+    def server(
+        self, who: str, cwd: Path, mailbox: Path, deadline: float
+    ) -> Callable[[], None]:
         """Return what serves a converge spawn's checker mailbox between its polls.
 
-        Why: 0097-cross-model design D5.
+        Each checker runs within `deadline`, converge's own, on the monotonic clock.
+        Why: 0097-cross-model design D5; 0104-codex-limits design D3.
         """
         served = 0
 
         def serve() -> None:
             nonlocal served
             served = serve_requests(
-                mailbox, served, lambda role, text: self.checker(who, role, cwd, text)
+                mailbox,
+                served,
+                lambda role, text: self.checker(who, role, cwd, text, deadline),
             )
 
         return serve
 
-    def checker(self, change: str, role: str, cwd: Path, prompt: str) -> str:
+    def checker(
+        self, change: str, role: str, cwd: Path, prompt: str, deadline: float
+    ) -> str:
         """Run one checker the mailbox asked for; return its answer, halting nothing.
 
         Its models are the plan's, never the request's; a shadow's, `_shadow`'s of
-        them. Why: 0097-cross-model design D5, D9.
+        them. Past `deadline` it starts nothing; else it gets what is left of it.
+        Why: 0097-cross-model design D5, D9; 0104-codex-limits design D3.
         """
+        if time.monotonic() >= deadline:
+            return "exit 1 · refused: converge's time is spent"
         checked = role.removeprefix("shadow-")
+        shadow = checked != role
+        converge = self.plan[change, "converge"]
         models = self.plan[change, f"converge.{checked}"]
-        if checked != role:
-            models = _shadow(self.plan[change, "converge"], models)
-        code, killed, out, _ = self.worker(
-            change, f"converge-{role}", cwd, prompt, models
-        )
-        return _answer(code, killed, models, usage_limit(out))
+        if shadow:
+            models = _shadow(converge, models)
+        fallback, codex_runs = False, 0
+        while True:
+            if models[0] == "codex" and (
+                codex_runs == 2 or not self.codex_ready(change, deadline)
+            ):
+                if shadow:
+                    return _answer(1, False, models, " · stopped by a usage limit")
+                models, fallback = _shadow(converge, models), True
+            code, killed, out, _ = self.worker(
+                change,
+                f"converge-{role}",
+                cwd,
+                prompt,
+                models,
+                timeout=deadline - time.monotonic(),
+            )
+            if models[0] != "codex" or not usage_limit(out):
+                return _answer(code, killed, models, usage_limit(out), fallback)
+            codex_runs += 1
+
+    def codex_ready(self, change: str, deadline: float) -> bool:
+        """Return whether Codex may run a checker now, waiting for a near reset.
+
+        A reset, from a limit or a primary window at `HEADROOM`, at most `LIMIT_WAIT`
+        away and inside `deadline` is slept to; any other is no wait. Codex still
+        unprobed is then probed for `change`. Why: 0104-codex-limits design D3.
+        """
+        resets = [self.limited_until("codex"), _headroom(time.time())]
+        if reset := max((at for at in resets if at is not None), default=None):
+            ahead = reset - time.time()
+            if ahead > LIMIT_WAIT or time.monotonic() + ahead >= deadline:
+                return False
+            time.sleep(ahead)
+        if "codex" not in self.probed:
+            self.probe_for(change, ["codex"], [])
+        return "codex" in self.probed
 
     def worker(
         self,
@@ -4129,8 +4183,11 @@ class Run:
         brief: Path | None = None,
         mailbox: Path | None = None,
         between: Callable[[], None] | None = None,
+        timeout: float | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker and log it and its denials; halt nothing.
+
+        A `timeout` replaces `TIMEOUT`; `work` is called as before without one.
 
         Return its exit, whether `TIMEOUT` killed it, its log and its denials.
         """
@@ -4168,7 +4225,9 @@ class Run:
             os.write(sink, f"{json.dumps(line)}\n".encode())
         started = time.monotonic()
         claim = self.runs / "active"
-        if between is not None:
+        if timeout is not None:
+            code, killed = work(command, cwd, sink, claim, between, timeout=timeout)
+        elif between is not None:
             code, killed = work(command, cwd, sink, claim, between)
         else:
             code, killed = work(command, cwd, sink, claim)
@@ -4231,6 +4290,8 @@ class Run:
         if held == "converge-halted" and halt and "verify: halt" in halt:
             self.diagnose(change, halt)
             return False
+        if held == "converge-halted" and halt and "usage limit" in halt:
+            return False
         with self.guard:
             self.rescues.setdefault(change, []).append(held)
         models = self.planned_models(change, "rescue")
@@ -4292,6 +4353,8 @@ class Run:
         change, tree = version.change, version.tree
         minions = self.primary / ".minions"
         integrating = held == "integrating"
+        converged = held == "converge-halted"
+        halt = (_converge_halt(minions, change) or "") if converged else ""
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -4301,10 +4364,8 @@ class Run:
             or self.supervised(change, held)
             or self.stopped("run")
             or (
-                held == "converge-halted"
-                and _security_held(
-                    minions, change, _converge_halt(minions, change) or ""
-                )
+                converged
+                and ("usage limit" in halt or _security_held(minions, change, halt))
             )
             or (
                 integrating

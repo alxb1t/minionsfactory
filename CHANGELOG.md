@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0104-codex-limits`, phase 1).
 - A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>` and goes on, and only a
   version or queued cut with a station on Codex halts, alone (change `0104-codex-limits`, phase 2).
+- A Codex checker that is limited runs on Claude on converge's model and effort until the reset, waiting for one at most
+  15 minutes away inside converge's time; a served checker gets only what is left of converge's time, and a converge
+  halt naming a usage limit gets no rescue and no supervisor (change `0104-codex-limits`, phase 3).
 
 ## [0.83.0] - 2026-11-08
 

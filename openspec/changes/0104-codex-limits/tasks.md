@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The limit data
 - [x] 2 — The probe
-- [ ] 3 — The mailbox fallback
+- [x] 3 — The mailbox fallback
 - [ ] 4 — The record
 - [ ] 5 — The linked worktree
 - [ ] 6 — The request id and the record of decisions
@@ -33,21 +33,21 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The mailbox fallback
 
-- [ ] 3.1 Extend `test_a_checker_request_is_bounded` as D3's *The refusal* says, with `checker-sleep` in `tests/fake_worker.py`;
+- [x] 3.1 Extend `test_a_checker_request_is_bounded` as D3's *The refusal* says, with `checker-sleep` in `tests/fake_worker.py`;
   then `work`'s and `Run.worker`'s `timeout`, the `deadline` of `Run.spawn`, `Run.server` and `Run.checker`, and the
   refusal, in `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k "checker_request_is_bounded or carries_the_allowlist or run_halts_on_a_timeout"` reports `3 passed`; `grep -n -F "refused: converge's time is spent" skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 Add `test_a_limited_checker_falls_back_to_claude`, with the cases D3's *The fallback's test* names, to
+- [x] 3.2 Add `test_a_limited_checker_falls_back_to_claude`, with the cases D3's *The fallback's test* names, to
   `tests/test_conduct.py`; then `Run.codex_ready`, `Run.checker`'s fallback and shadow rule, and `_answer`'s `fallback`,
   per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k "limited_checker_falls_back or runs_through_the_mailbox or shadow_round_drives_no_fix"` reports `3 passed`; `grep -n -e 'def codex_ready(' -e '^FALLBACK = "fallback: codex usage limit"$' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 3.3 Add `test_a_usage_limit_converge_halt_gets_no_rescue` to `tests/test_conduct.py`, then the usage-limit test in
+- [x] 3.3 Add `test_a_usage_limit_converge_halt_gets_no_rescue` to `tests/test_conduct.py`, then the usage-limit test in
   `Run.rescue` and `Run.supervise`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "usage_limit_converge_halt or rescue_amends_at_amend_needed or rescue_diagnoses_a_decision_halt"` reports `3 passed`.
-- [ ] 3.4 Add `test_a_codex_limit_at_the_probe_halts_its_stations_alone`, marked `slow`, to `tests/test_conduct.py`, per
+- [x] 3.4 Add `test_a_codex_limit_at_the_probe_halts_its_stations_alone`, marked `slow`, to `tests/test_conduct.py`, per
   [D2](design.md#d2) and [D3](design.md#d3); its commit body says why no run in the suite reaches its state (`T2`).
   Verify: `uv run pytest -q tests/test_conduct.py -k "limit_at_the_probe_halts_its_stations"` reports `1 passed`.
-- [ ] 3.5 Edit *A mailbox role* and the `verdicts` row of the events table in `skills/mf-converge/SKILL.md`, per
+- [x] 3.5 Edit *A mailbox role* and the `verdicts` row of the events table in `skills/mf-converge/SKILL.md`, per
   [D3](design.md#d3) and [C17](design.md#goals--non-goals).
   Verify: `grep -n -e 'tokens its answer names' -e 'fallback: codex usage limit' -e 'stopped by a usage limit' skills/mf-converge/SKILL.md` prints a line for each.
 

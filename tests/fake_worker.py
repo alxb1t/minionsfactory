@@ -415,9 +415,12 @@ def _checker(here: Path, role: str, change: str, modes: set[str]) -> None:
     """Write a checker's findings file with every key, and a usage event.
 
     The probe's, for `0001-probe`, requests changes; `checker-silent` writes none. A
-    shadow's blocks under `shadow-blocks`. Why: 0096-codex-ready design D9;
-    0097-cross-model design D7.
+    shadow's blocks under `shadow-blocks`; `checker-sleep` waits a minute first.
+    Why: 0096-codex-ready design D9; 0097-cross-model design D7; 0104-codex-limits
+    design D3.
     """
+    if "checker-sleep" in modes:
+        time.sleep(60)
     if change == "0001-probe":
         if "checker-silent" in modes:
             return

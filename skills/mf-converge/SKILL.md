@@ -88,7 +88,7 @@ The events, and no others:
 | `start` | Step 1, once the preconditions pass | the `(inferred:` echo when the id was inferred; base, head, commit count, files changed |
 | `freeze` | Step 2, and Step 6's re-freeze | the range and its counts |
 | `fan-out` | Step 3, Step 7 | the roles dispatched, the range they judge, the worker count |
-| `verdicts` | Step 5, after the reads | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — for a mailbox role, the executor, model and effort its answer names; else the executor you run on, and the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
+| `verdicts` | Step 5, after the reads | one line per role: its file's `verdict` and `open_blocking`, then `executor <x> · model <m> · effort <e> · tokens <n>` — for a mailbox role, the executor, model, effort and tokens its answer names, then ` · fallback: codex usage limit` when it names it; else the executor you run on, and the model and effort the role's worker was given, `default` where none; `tokens` the worker's figure, or `unavailable` |
 | `shadow` | [Shadow round 1](#shadow-round-1) | `overlap.py`'s line, or the shadow that exited 1, or `overlap.py`'s exit 2 |
 | `fix` | Step 6, at dispatch and at commit | the ids sent; then the commit id and the gate's result |
 | `verify` | Step 7 | the round and the range |
@@ -133,8 +133,10 @@ Codex among them, runs on your model. Never read the models file yourself: a wor
 prompt to `.minions/changes/<change-id>/<role>.prompt.md`, then running
 `uv run --script <this package>/../mf-ship/scripts/conduct.py checker <change-id> <role>` in the foreground. Exit 3 →
 run it again with `--wait`, never without: a re-run without it sends a second request. Go on until it exits 0 or 1. Its
-answer, `exit <n> · executor <x> · model <m> · effort <e>`, names the role's executor, model and effort; exit 1 is a
-worker that failed. Every other role is dispatched as above.
+answer, `exit <n> · executor <x> · model <m> · effort <e>`, then ` · fallback: codex usage limit`, ` · tokens <n>` and
+` · request <id>` where it has them, names the role's executor, model, effort and tokens; exit 1 is a worker that failed,
+and a checker role's answer naming `stopped by a usage limit` halts with that part in the `halt` line; a shadow's halts
+nothing, as below. Every other role is dispatched as above.
 
 A **worker** is a new host subagent or a fresh agent process, given explicit task inputs and shared files, and no
 build transcript: never a resumed worker or a fork of the producer's conversation. Before dispatch, confirm the host

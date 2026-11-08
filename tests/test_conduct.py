@@ -3987,7 +3987,7 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
 
 
 def test_a_checker_request_is_bounded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     serve, opened = conduct["serve_requests"], conduct["_open_mailbox"]
@@ -4081,6 +4081,196 @@ def test_a_checker_request_is_bounded(
         work(sleeper, tmp_path, out, claim, failed)
     assert time.monotonic() - started < 10
     assert list(claim.iterdir()) == []
+
+    # A `timeout` replaces `TIMEOUT`, with `between` and without it.
+    assert work(sleeper, tmp_path, out, None, lambda: None, timeout=0.2) == (-9, True)
+    assert work(sleeper, tmp_path, out, None, timeout=0.2) == (-9, True)
+
+    # A served checker gets what is left of converge's time: none, and it starts
+    # nothing; a moment, and a checker that outlasts it is killed.
+    fake("checker-sleep")
+    (tmp_path / "ship").mkdir()
+    root = _primary(tmp_path / "ship")
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text("[converge]\n")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    run = conduct["Run"](root, "claude")
+    run.read_plan([conduct["Version"]("0001-todo", tree)])
+    ask = "You are converge's conformance checker for change 0001-todo.\n"
+    spent = time.monotonic() - 1
+    assert run.checker("0001-todo", "conformance", tree, ask, spent) == (
+        "exit 1 · refused: converge's time is spent"
+    )
+    assert run.outs == {}
+    started = time.monotonic()
+    answer = run.checker("0001-todo", "conformance", tree, ask, started + 1.5)
+    assert "exit -9 · executor claude" in answer and " · timed out" in answer
+    assert time.monotonic() - started < 30
+    # Through `Run.server`, the same deadline reaches the checker.
+    box = tmp_path / "box"
+    assert opened(box) is None
+    serving = run.server("0001-todo", tree, box, time.monotonic() - 1)
+    (box / "conformance.request").write_text(ask)
+    serving()
+    assert (box / "conformance.answer").read_text() == (
+        "exit 1 · refused: converge's time is spent\n"
+    )
+
+
+def test_a_limited_checker_falls_back_to_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    claude_argvs = tmp_path / "claude-argv.jsonl"
+    ask = "You are converge's conformance checker for change 0001-todo.\n"
+    coded = "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+    fell = (
+        "exit 0 · executor claude · model claude-sonnet-5-5 · effort medium"
+        " · fallback: codex usage limit"
+    )
+    stopped = (
+        "exit 1 · executor codex · model default · effort default"
+        " · stopped by a usage limit"
+    )
+    # A patched clock: a sleep moves it past what it waits for, and Codex then answers.
+    now = [time.time()]
+    sleeps: list[float] = []
+    after = [""]
+
+    real_sleep = time.sleep
+
+    def sleep(seconds: float) -> None:
+        if seconds < 1:
+            real_sleep(seconds)
+            return
+        sleeps.append(seconds)
+        now[0] += seconds + 1
+        monkeypatch.setenv("FAKE_CODEX_MODE", after[0])
+
+    monkeypatch.setattr(time, "time", lambda: now[0])
+    monkeypatch.setattr(time, "sleep", sleep)
+
+    def windows(
+        primary: float, secondary: float, primary_in: int, second_in: int
+    ) -> None:
+        rates = {
+            name: {
+                "used_percent": used,
+                "window_minutes": 300,
+                "resets_at": now[0] + wait,
+            }
+            for name, used, wait in (
+                ("primary", primary, primary_in),
+                ("secondary", secondary, second_in),
+            )
+        }
+        payload = {"type": "token_count", "rate_limits": rates}
+        event = {"type": "event_msg", "payload": payload}
+        (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(
+            json.dumps(event) + "\n"
+        )
+
+    def spawned() -> tuple[int, int]:
+        claudes = (
+            len(claude_argvs.read_text().splitlines()) if claude_argvs.is_file() else 0
+        )
+        return len(_codex_argvs(tmp_path)), claudes
+
+    def models(text: str) -> None:
+        (folder / "models.toml").write_text(
+            '[converge]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n' + text
+        )
+        run.read_plan([conduct["Version"]("0001-todo", tree)])
+
+    def check(role: str = "conformance", ahead: float = 3000) -> str:
+        return run.checker("0001-todo", role, tree, ask, time.monotonic() + ahead)
+
+    fake_codex("", "limit")
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    on_codex = (
+        '[converge.conformance]\nexecutor = "codex"\n'
+        'model = "gpt-6.1-sol"\neffort = "high"\n'
+    )
+    models(on_codex)
+
+    # A Codex exit on a limit two hours off: the checker runs on Claude, once.
+    windows(50, 100, 3600, 7200)
+    assert check() == fell
+    assert spawned() == (1, 1) and sleeps == []
+    assert run.limited_until("codex") is not None
+    # Twin: a limit a quarter hour off is waited for, then Codex runs again.
+    run.limited.clear()
+    windows(50, 100, 3600, 600)
+    after[0] = ""
+    assert check() == coded
+    assert spawned() == (3, 1) and len(sleeps) == 1 and 599 <= sleeps[0] <= 601
+    # A second limited exit, on Claude: Codex never runs a third time.
+    run.limited.clear()
+    windows(50, 100, 3600, 600)
+    fake_codex("", "limit")
+    after[0] = "limit"
+    assert check() == fell
+    assert spawned() == (5, 2) and len(sleeps) == 2
+
+    # A primary window at 92% sends the checker to Claude with no Codex spawn.
+    run.limited.clear()
+    windows(92, 10, 7200, 7200)
+    assert check() == fell
+    assert spawned() == (5, 3) and len(sleeps) == 2
+    # Twin: the same window ten minutes from its reset is waited for.
+    windows(92, 10, 600, 7200)
+    after[0] = ""
+    assert check() == coded
+    assert spawned() == (6, 3) and len(sleeps) == 3
+    # A wait that runs past converge's time is no wait.
+    windows(92, 10, 600, 7200)
+    assert check(ahead=60) == fell
+    assert spawned() == (6, 4) and len(sleeps) == 3
+
+    # A spent deadline starts nothing.
+    assert check(ahead=-1) == "exit 1 · refused: converge's time is spent"
+    assert spawned() == (6, 4)
+
+    # A shadow on Codex, limited, answers exit 1 and starts no worker; so does one
+    # whose own run meets the limit, and neither starts a Claude run.
+    models('shadow = true\n[converge.conformance]\nexecutor = "claude"\n')
+    run.limited["codex"] = now[0] + 7200
+    assert check("shadow-conformance") == stopped
+    assert spawned() == (6, 4)
+    run.limited.clear()
+    windows(50, 100, 3600, 7200)
+    fake_codex("", "limit")
+    assert check("shadow-conformance") == stopped
+    assert spawned() == (7, 4)
+
+    # Codex limited at the probe and unprobed: waited for, probed, then run on Codex.
+    models(on_codex)
+    run.limited.clear()
+    run.probed.discard("codex")
+    run.limited["codex"] = now[0] + 600
+    fake_codex("", "")
+    after[0] = ""
+    assert check() == coded
+    assert "codex" in run.probed and run.halts == []
+    # A probe failing on anything but a limit halts the version; Claude checks.
+    run.probed.discard("codex")
+    run.limited["codex"] = now[0] + 600
+    fake_codex("unsandboxed", "")
+    assert check() == fell
+    assert [who for who, _ in run.halts] == ["0001-todo"]
 
 
 def test_the_checker_command_sends_and_waits(
@@ -4243,6 +4433,67 @@ def test_a_codex_checker_runs_through_the_mailbox(
     assert any(
         line.endswith(f" · 0002-more · halt — the checker mailbox {linked} is a link")
         for line in _log(root)
+    )
+
+
+@pytest.mark.slow
+def test_a_codex_limit_at_the_probe_halts_its_stations_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake_codex("", "limit")
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    # Codex's rollout for the fake's thread: both windows spent, two hours from reset.
+    sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    spent = {
+        "used_percent": 100,
+        "window_minutes": 300,
+        "resets_at": time.time() + 7200,
+    }
+    payload = {
+        "type": "token_count",
+        "rate_limits": {"primary": spent, "secondary": spent},
+    }
+    event = json.dumps({"type": "event_msg", "payload": payload})
+    (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(event + "\n")
+    root = _primary(tmp_path)
+    tables = {
+        "0001-claude": "",
+        "0002-check": '[converge.conformance]\nexecutor = "codex"\n',
+        "0003-build": '[build]\nexecutor = "codex"\n',
+    }
+    for change, table in tables.items():
+        _version(root, change, "- [ ] 1 — Todo\n")
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+
+    lines = _log(root)
+    # The probe is no halt: the limit is logged, and only the Codex build halts.
+    assert any(" · run · limited — codex limited until " in line for line in lines)
+    assert not any(" · run · halt — " in line and "probe" in line for line in lines)
+    [halted] = [line for line in lines if " · 0003-build · halt — " in line]
+    assert " · halt — probe-codex — codex limited until " in halted
+    assert not any(" · 0003-build · spawn — build" in line for line in lines)
+    # The Claude-only version and the checker version ship; the checker ran on Claude.
+    assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
+    assert "build 0003-build" not in _calls(calls)
+    assert _calls(calls).count("checker 0002-check conformance") == 2
+    assert (
+        "\nexecutor: claude\n"
+        in (root / ".minions/changes/0002-check/conformance.md").read_text()
+    )
+    assert lines[-1].endswith(
+        " · run · halt — halted 0003-build · blocked none · released v0.1.0 v0.2.0"
+        " · needs 0003-build a fix"
     )
 
 
@@ -7758,6 +8009,49 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert amendable(runs, "0001-todo", halt)
     log.write_text(f"# t\n\n## Run 3 — d\n{halt}\n")
     assert not amendable(runs, "0001-todo", halt)
+
+
+def test_a_usage_limit_converge_halt_gets_no_rescue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("rescue-hollow")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    _findings(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    limit = (
+        "10:00:00 · round 1 · halt — converge worker exit 1 · stopped by a usage limit"
+        f" · resets 5:50 PM · head {head}"
+    )
+    log.write_text(f"# t\n\n## Run 1 — d\n{limit}\n")
+    version = conduct["find_version"](root, "0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    run.decides.add("0001-todo")
+    run.diagnosed.add("0001-todo")
+    amends = ("tasks.md", "design.md")
+
+    # A halt that names a usage limit starts no rescue and no supervisor, and counts
+    # and diagnoses nothing.
+    assert not run.rescue(version, "converge-halted", amends)
+    assert run.rescues == {} and run.halts == []
+    assert not (root / ".minions" / "changes" / "0001-todo" / "rescue.md").exists()
+    assert not run.supervise(version, "converge-halted", True)
+    assert run.supervisions == {} and _calls(calls) == []
+
+    # Twin: a converge halt that names none gets its rescue and its supervisor.
+    log.write_text(
+        f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — red · head {head}\n"
+    )
+    run.rescue(version, "converge-halted", amends)
+    assert run.rescues == {"0001-todo": ["converge-halted"]}
+    assert _calls(calls)[:1] == ["rescue 0001-todo with decide=recommended"]
+    run.supervise(version, "converge-halted", True)
+    assert run.supervisions == {"0001-todo": ["converge-halted"]}
 
 
 def test_a_verify_halt_is_diagnosed_without_a_worker(
