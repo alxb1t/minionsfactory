@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — Config isolation
 - [x] 2 — JSON events
-- [ ] 3 — The swap window
+- [x] 3 — The swap window
 - [ ] 4 — The probe and the record
 
 ## 1 — Config isolation
@@ -38,11 +38,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The swap window
 
-- [ ] 3.1 Add `test_a_swapped_root_halts_a_codex_spawn` — the worktree `argv` gets as `cwd`, then a cutter's brief folder, each
+- [x] 3.1 Add `test_a_swapped_root_halts_a_codex_spawn` — the worktree `argv` gets as `cwd`, then a cutter's brief folder, each
   swapped for a link to a sibling folder — and extend `test_a_worker_carries_the_allowlist_and_a_denial_is_named` for `exclude_slash_tmp`, then
   `_unswapped` and the flag in `argv` of `skills/mf-ship/scripts/conduct.py`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k "swapped_root_halts_a_codex_spawn or carries_the_allowlist"` reports `2 passed`; `grep -n -e '^def _unswapped' -e 'exclude_slash_tmp=true' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 3.2 Rewrite `reach`'s docstring in `skills/mf-ship/scripts/conduct.py`, per [D7](design.md#d7).
+- [x] 3.2 Rewrite `reach`'s docstring in `skills/mf-ship/scripts/conduct.py`, per [D7](design.md#d7).
   Verify: `grep -n 'no listed path can be' skills/mf-ship/scripts/conduct.py` prints nothing.
 
 ## 4 — The probe and the record

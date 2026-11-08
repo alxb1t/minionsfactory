@@ -2563,8 +2563,9 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
 def reach(primary: Path) -> list[Path]:
     """Return what a worker may edit: the primary and each linked worktree.
 
-    A path inside another stays covered and unlisted, so no listed path can be
-    swapped for a symlink by a worker. Why: 0050-codex-review design D5.
+    A path inside another stays covered and unlisted. A listed path a worker swaps
+    for a link halts the next Codex spawn. Why: 0050-codex-review design D5;
+    0096-codex-ready design D7.
     """
     root = primary.resolve()
     if _common_dir(root) is None:
@@ -2684,6 +2685,25 @@ def _run_dir(primary: Path) -> Path:
     return minions
 
 
+def _unswapped(paths: list[Path]) -> None:
+    """Stop with 1 at the first path that is a link, no folder or not its resolved path.
+
+    A worker can swap a writable root between `reach` and a Codex spawn.
+    Why: 0096-codex-ready design D7.
+    """
+    for path in paths:
+        try:
+            folder = stat.S_ISDIR(os.lstat(path).st_mode)
+        except OSError:
+            folder = False
+        if not folder or path.resolve() != path:
+            raise Stop(
+                1,
+                f"conduct: halt — the writable root {path} is a link or moved:"
+                " a worker swapped it",
+            )
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -2697,7 +2717,8 @@ def argv(
     """Return the worker's command line, the shell rules appended to the prompt.
 
     `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
-    `.git` no longer resolves to the common directory in `repo`. A run passes its
+    `.git` no longer resolves to the common directory in `repo`, or when a writable
+    root or `cwd` is a link `_unswapped` names. A run passes its
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
     or a `.minions` that is a link, stops with 1. Why: 0082-cut-station design D5.
@@ -2744,8 +2765,9 @@ def argv(
     if common and _common_dir(primary) != common:
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     # Codex roots are folders: a cutter's holds its brief's.
-    folders = [*trees, *(path.parent for path in edits)]
-    roots = [*([str(common)] if common else []), *(str(tree) for tree in folders)]
+    folders = [*([common] if common else []), *trees, *(path.parent for path in edits)]
+    _unswapped([*folders, cwd])
+    roots = [str(folder) for folder in folders]
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
@@ -2764,6 +2786,9 @@ def argv(
         # Codex makes `TMPDIR` a root, links resolved; a worker can link
         # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
         *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
+        # A forged worktree entry under `/tmp` names no folder a worker could make.
+        # Why: 0096-codex-ready design D7.
+        *("-c", "sandbox_workspace_write.exclude_slash_tmp=true"),
         *("-c", "sandbox_workspace_write.network_access=false"),
         # A worker can write a tree's `.codex/`, and an untrusted tree's starts nothing.
         # Why: 0053-sandbox-patch design D6.

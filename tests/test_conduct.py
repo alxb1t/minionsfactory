@@ -8047,6 +8047,50 @@ def test_a_codex_worker_starts_on_mf_settings_alone(
     assert json.loads(events[-1])["type"] == "turn.completed"
 
 
+def test_a_swapped_root_halts_a_codex_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+
+    def halted(path: Path, *brief: Path) -> None:
+        with pytest.raises(conduct["Stop"]) as stop:
+            argv("codex", "Do it.", tree, None, None, repo, None, *brief)
+        assert stop.value.code == 1
+        assert str(stop.value) == (
+            f"conduct: halt — the writable root {path} is a link or moved:"
+            " a worker swapped it"
+        )
+
+    # The worktree the spawn runs in, moved aside, then a link to a sibling there.
+    assert argv("codex", "Do it.", tree, None, None, repo)
+    aside = tmp_path / "aside"
+    tree.rename(aside)
+    halted(tree)
+    tree.symlink_to(sibling)
+    halted(tree)
+    tree.unlink()
+    aside.rename(tree)
+
+    # A cutter's brief folder, swapped for a link to a sibling holding a brief.
+    brief = tmp_path / "vault" / "brief.md"
+    brief.parent.mkdir()
+    brief.write_text("# brief\n")
+    assert argv("codex", "Cut.", tree, None, None, repo, None, brief)
+    brief.parent.rename(tmp_path / "vault-aside")
+    brief.parent.symlink_to(sibling)
+    (sibling / "brief.md").write_text("# brief\n")
+    halted(brief.parent, brief)
+    # Twin: a Claude cutter's brief is a file it edits, never a root; it starts.
+    assert argv("claude", "Cut.", tree, None, None, repo, None, brief)
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8192,6 +8236,9 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
     assert exclude in codex
     assert codex[codex.index(exclude) - 1] == "-c"
+    # No `/tmp` root: a forged worktree entry there names no folder a worker made.
+    slash_tmp = "sandbox_workspace_write.exclude_slash_tmp=true"
+    assert codex[codex.index(slash_tmp) - 1] == "-c"
     assert "sandbox_workspace_write.network_access=false" in codex
     assert codex[-3:] == ["-C", str(root), f"Do it.\n\n{rules}"]
     # Twin: the drill's trusted plant, the same table trusted, loads the plant.

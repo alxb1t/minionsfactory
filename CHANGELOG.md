@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Codex worker's JSON log reads as a Claude log does: its denials, usage limit and MCP calls, and a spawn line naming
   its model; the run and review metrics price its tokens by the new, empty `skills/mf-review-metrics/prices.toml`, a
   model with no row a cost gap (change `0096-codex-ready`, phase 2).
+- A writable root or working directory a worker swapped for a link halts the next Codex spawn, and no Codex worker has
+  `/tmp` as a root (change `0096-codex-ready`, phase 3).
 
 ## [0.78.0] - 2026-11-08
 
