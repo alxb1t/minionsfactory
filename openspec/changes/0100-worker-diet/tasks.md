@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The spawn
 - [x] 2 — The context
 - [x] 3 — Tool output
-- [ ] 4 — The metrics
+- [x] 4 — The metrics
 - [ ] 5 — The record
 
 ## 1 — The spawn
@@ -62,22 +62,22 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The metrics
 
-- [ ] 4.1 Extend `test_run_logs_give_cost_turns_and_tokens_per_station` in `tests/test_review_metrics.py` with `cut` and
+- [x] 4.1 Extend `test_run_logs_give_cost_turns_and_tokens_per_station` in `tests/test_review_metrics.py` with `cut` and
   `supervise` logs and first turns, then `STATIONS`, `first_turn`, `_results`, `_spent`, `_cost_logs` and `cost_table` in
   `skills/mf-review-metrics/scripts/review_metrics.py`, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k run_logs_give_cost` reports `1 passed`; `grep -n '^def first_turn(' skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
-- [ ] 4.2 Add `test_workers_are_priced_per_round_and_role` and edit `test_codex_sessions_fill_the_rounds` in
+- [x] 4.2 Add `test_workers_are_priced_per_round_and_role` and edit `test_codex_sessions_fill_the_rounds` in
   `tests/test_review_metrics.py`, then `WORKER`, `_converge_workers`, `_priced_worker`, the records' `dollars` and the data's
   `workers` and `stations` in `review_metrics.py`, and `prices.toml`'s comment, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k "workers_are_priced or codex_sessions_fill"` reports `2 passed`; `grep -n -e '^WORKER = ' -e '^def _converge_workers(' -e '^def _priced_worker(' skills/mf-review-metrics/scripts/review_metrics.py` prints a line for each; `grep -n 'cache_write_1h' skills/mf-review-metrics/prices.toml` prints a line.
-- [ ] 4.3 Add `test_every_repo_a_run_started_in` to `tests/test_review_metrics.py` and a step to `test_every_station_starts_lean`
+- [x] 4.3 Add `test_every_repo_a_run_started_in` to `tests/test_review_metrics.py` and a step to `test_every_station_starts_lean`
   asserting the home folder's `repos`, then `recorded` and `settings` in `review_metrics.py` and `_record_repo` and `run` in
   `skills/mf-ship/scripts/conduct.py`, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_review_metrics.py tests/test_conduct.py -k "every_repo_a_run_started_in or no_config_exits_2 or every_station_starts_lean or runs_close_starts_the_next_run"` reports `4 passed`; `grep -n '^def _record_repo(' skills/mf-ship/scripts/conduct.py` prints a line; `grep -n '^def recorded(' skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
-- [ ] 4.4 Extend `test_the_page_draws_charts_and_lists_gaps` in `tests/test_review_metrics.py`, then `_role`, `model_table`
+- [x] 4.4 Extend `test_the_page_draws_charts_and_lists_gaps` in `tests/test_review_metrics.py`, then `_role`, `model_table`
   and `summary` in `skills/mf-review-metrics/scripts/review_metrics.py`, per [D12](design.md#d12) (`0097·R4`).
   Verify: `uv run pytest -q tests/test_review_metrics.py -k page_draws_charts` reports `1 passed`; `grep -n -e 'median duration (s)' -e 'median tokens' skills/mf-review-metrics/scripts/review_metrics.py` prints a line for each.
-- [ ] 4.5 Edit *Run* and *Report* in `skills/mf-review-metrics/SKILL.md` and the skill's row in `README.md`, per
+- [x] 4.5 Edit *Run* and *Report* in `skills/mf-review-metrics/SKILL.md` and the skill's row in `README.md`, per
   [D12](design.md#d12) (`0097·R3`).
   Verify: `grep -n 'per role, executor and model' README.md` prints a line; `grep -n 'per model' README.md` prints nothing; `grep -n -e 'first-turn context' -e 'cost per worker' skills/mf-review-metrics/SKILL.md` prints a line for each.
 

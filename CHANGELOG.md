@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (change `0100-worker-diet`, phase 2).
 - `gate_run.py` runs the gate without `VIRTUAL_ENV` and prints its summary line alone when green, make's output first
   when red; pytest prints short tracebacks (change `0100-worker-diet`, phase 3).
+- `review-metrics.json` holds each converge worker's tokens, dollars and first-turn context, each round and role's
+  dollars, and each station's cost with the cut and the supervisor among them; the page reads every repo a run started
+  in, and the role table shows its median duration and tokens again (change `0100-worker-diet`, phase 4).
 
 ## [0.80.0] - 2026-11-08
 

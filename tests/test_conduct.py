@@ -8364,6 +8364,14 @@ def test_every_station_starts_lean(
     assert conduct["tools_for"]("converge-adversarial") == conduct["WORKER_TOOLS"]
     assert conduct["tools_for"]("probe-codex-checker") == ("Bash", "Read")
 
+    # The run recorded its primary in the home folder, once.
+    # Why: 0100-worker-diet design D12.
+    repos = Path.home() / conduct["KEPT_ORIGINS"] / "repos"
+    assert repos.read_text() == f"{root}\n"
+    assert repos.stat().st_mode & 0o777 == 0o600
+    conduct["_record_repo"](root)
+    assert repos.read_text() == f"{root}\n"
+
     # The cut and converge wait past 5 minutes; no station, the host's default.
     repo = (root, root / ".git")
     argv = conduct["argv"]

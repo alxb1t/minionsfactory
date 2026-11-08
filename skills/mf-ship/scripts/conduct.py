@@ -3582,6 +3582,25 @@ def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
     return mark
 
 
+def _record_repo(primary: Path) -> None:
+    """Add the primary to the home folder's list of repos a run started in, once.
+
+    The review metrics read it; no worker writes there. A home folder that refuses
+    it records nothing. Why: 0100-worker-diet design C1, D12.
+    """
+    path = Path.home() / KEPT_ORIGINS / "repos"
+    line = str(primary.resolve())
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if path.is_file() and line in path.read_text(errors="replace").splitlines():
+            return
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
+        with os.fdopen(os.open(path, flags, 0o600), "a") as file:
+            file.write(f"{line}\n")
+    except OSError:
+        return
+
+
 def _unmark(pin: dict[str, Any], mark: Path | None) -> None:
     """Remove this run's live mark, when it still holds this run's pid."""
     if mark and pin["holder"](mark) == os.getpid():
@@ -5520,6 +5539,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         (active / "start").write_text(started)
         (active / "pid").write_text(str(os.getpid()))
+        _record_repo(primary)
         conductor = Run(primary, executor)
         try:
             code = conductor.ship()
