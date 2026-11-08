@@ -24,4 +24,6 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(home / ".gitconfig"))
     for name, folder in ISOLATED.items():
         monkeypatch.setenv(name, str(home / folder))
+    # Why: 0100-worker-diet design D2 — `_plugins_off` reads the operator's otherwise.
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     return home

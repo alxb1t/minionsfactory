@@ -511,6 +511,16 @@ def _fake(prompt: str) -> None:
             ]
         for block in blocks:
             print(json.dumps({"message": {"content": [block]}}))
+    if station == "build" and "missing-tool" in modes:
+        use = {"type": "tool_use", "id": "t1", "name": "Agent", "input": {}}
+        result = {
+            "type": "tool_result",
+            "tool_use_id": "t1",
+            "is_error": True,
+            "content": "<tool_use_error>No such tool available: Agent</tool_use_error>",
+        }
+        for block in (use, result):
+            print(json.dumps({"message": {"content": [block]}}))
     if station == "build" and "dies-limit" in modes:
         event = {
             "type": "result",
@@ -544,6 +554,13 @@ def _fake(prompt: str) -> None:
             ]
             init = {"type": "system", "subtype": "init", "mcp_servers": servers}
             print(json.dumps(init))
+        if "first-turn" in modes:
+            usage = {
+                "input_tokens": 3,
+                "cache_read_input_tokens": 15000,
+                "cache_creation_input_tokens": 4000,
+            }
+            print(json.dumps({"type": "assistant", "message": {"usage": usage}}))
         sandboxed = "unsandboxed" not in modes
         # The sandbox's stand-in: a read-only mark refuses the gate's write out.
         if sandboxed:

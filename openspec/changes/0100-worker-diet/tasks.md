@@ -4,7 +4,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The spawn
+- [x] 1 — The spawn
 - [ ] 2 — The context
 - [ ] 3 — Tool output
 - [ ] 4 — The metrics
@@ -12,19 +12,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The spawn
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `grep -n -e '^def argv(' -e '^def reach(' -e '^def worker_settings(' -e '^SUPERVISOR = ' -e '^def open_versions(' -e '^def _cuts(' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'FAKE_CLAUDE_ARGV' tests/fake_claude.py` prints a line.
-- [ ] 1.2 Add `test_every_station_starts_lean` and the edits for D1–D3 the design's [Tests](design.md#tests) names, in
+- [x] 1.2 Add `test_every_station_starts_lean` and the edits for D1–D3 the design's [Tests](design.md#tests) names, in
   `tests/test_conduct.py`, and [D2](design.md#d2)'s in `tests/conftest.py`; then the names [D1](design.md#d1)–[D3](design.md#d3)
   give in `skills/mf-ship/scripts/conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "every_station_starts_lean or starts_in_the_sandbox or station_runs_on_its_executor or no_hook_runs or carries_the_allowlist or plan_is_read_once"` reports `6 passed`; `grep -n -e '^STATION_TOOLS = ' -e '^WORKER_TOOLS = ' -e '^CACHE_HOUR = ' -e '^def tools_for(' -e '^def _plugins_off(' -e 'exclude-dynamic-system-prompt-sections' -e 'ENABLE_PROMPT_CACHING_1H' -e 'FORCE_PROMPT_CACHING_5M' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 1.3 Add `test_reach_stops_at_live_worktrees` to `tests/test_conduct.py`, then `reach` in
+- [x] 1.3 Add `test_reach_stops_at_live_worktrees` to `tests/test_conduct.py`, then `reach` in
   `skills/mf-ship/scripts/conduct.py`, per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k "reach_stops_at_live_worktrees or carries_the_allowlist or starts_in_the_sandbox"` reports `3 passed`.
-- [ ] 1.4 Add `test_a_worker_asking_for_a_missing_tool_halts` to `tests/test_conduct.py` and the `missing-tool` mode to
+- [x] 1.4 Add `test_a_worker_asking_for_a_missing_tool_halts` to `tests/test_conduct.py` and the `missing-tool` mode to
   `tests/fake_worker.py`, then `MISSING`, `lacked` and `Run.spawn` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k missing_tool_halts` reports `1 passed`; `grep -n -e '^MISSING = "No such tool available"$' -e '^def lacked(' -e 'asked for a tool its station lacks' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'missing-tool' tests/fake_worker.py` prints a line.
-- [ ] 1.5 Add `test_the_probe_reports_its_first_turn` to `tests/test_conduct.py` and the `first-turn` mode to
+- [x] 1.5 Add `test_the_probe_reports_its_first_turn` to `tests/test_conduct.py` and the `first-turn` mode to
   `tests/fake_worker.py`, then `first_turn` and `Run.probe` in `skills/mf-ship/scripts/conduct.py`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k probe_reports_its_first_turn` reports `1 passed`; `grep -n -e '^def first_turn(' -e 'first turn {' skills/mf-ship/scripts/conduct.py` prints a line for each; `grep -n 'first-turn' tests/fake_worker.py` prints a line.
 
