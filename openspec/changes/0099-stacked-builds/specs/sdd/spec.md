@@ -23,10 +23,12 @@ the sha it names as their base, in place of the merge-base with the default bran
 hex digits from it, resolved through `git rev-parse --verify`, never as text in its recipe.
 
 An amend of the dependency's change directory past the stacked-on head that touches its `proposal.md` or changes its
-`design.md`'s `## Decisions`, or a stacked-on head the dependency's branch no longer holds, SHALL, while the dependency has not
-released, reset the dependent's branch to its cut commit, past the config refusals, remove `stacked-on`, and log `reset`
-naming the head it left; the dependent SHALL wait for a built head past that amend. The reset SHALL be read before each of the dependent's stages and at each poll of its wait, never
-during a station's run.
+`design.md`'s `## Decisions` SHALL, while `stacked-on` stands — before the dependency's release or after it, until the merge
+back — reset the dependent's branch to its cut commit, past the config refusals, remove `stacked-on`, and log `reset`
+naming the head it left; so SHALL a stacked-on head that the branch of a dependency that has not released no longer holds.
+A dependent reset while its dependency has not released SHALL wait for a built head past that amend; one whose dependency
+released SHALL get the default branch merged in and build again. The reset SHALL be read before each of the dependent's
+stages, at each poll of its wait and before the merge back, never during a station's run.
 
 #### Scenario: A dependent builds while its dependency converges
 - **WHEN** `0002` names `0001` in `after:`, and `0001`'s build check passes while its converge is held
@@ -43,6 +45,13 @@ during a station's run.
 - **THEN** `0002`'s branch is back at its cut commit, `stacked-on` is gone, and the run log names the head it left
 - **AND WHEN** the amend touches `tasks.md` alone
 - **THEN** `0002` stays stacked
+
+#### Scenario: A dependency re-plans and releases during the dependent's build
+- **WHEN** `0002` is stacked on `0001`'s built head, an amend of `0001`'s change directory past that head touches its
+  `proposal.md`, and `0001` releases before `0002`'s merge back
+- **THEN** before the merge back `0002`'s branch is back at its cut commit, `stacked-on` is gone, and the run log names the
+  head it left
+- **AND** the run merges the default branch into `0002`, and `0002` builds again
 
 #### Scenario: Two unreleased dependencies
 - **WHEN** a version names two unreleased versions in `after:`, each with a built head

@@ -74,7 +74,7 @@ docs/decisions.md` and `grep -n -i "stacked" THREAT_MODEL.md` print a line; `mak
 | [D3](#d3) | A new stage, `stacked`; `take` loops ready → advance while a version is stacked or sent back; the merge back removes `stacked-on`; a stacked version gets no gate merge | E8 | `stacked` in `STUCK` — a stacked run would start no worker · a separate catch-up round |
 | [D4](#d4) | The changelog rule keeps the branch's entries past a stacked base's, and runs on every merge whose base holds `[Unreleased]` entries | E8; C2 | the rule on every clean merge — it would rewrite today's merges and their replays |
 | [D5](#d5) | `stacked-on` is the base of the build's gate check and metrics, `mf-simplify`'s range and the gate's diff coverage; `I17` takes it | E9, E10 | `DIFF_BASE` passed by each station — `gate_run.py` takes no argument |
-| [D6](#d6) | A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit, read between stations | E3, E11 | killing a running build · a reset on any amend |
+| [D6](#d6) | A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit, read between stations and before the merge back, the dependency released or not | E3, E11 | killing a running build · a reset on any amend · keeping a dependent built on a decision its dependency's release superseded |
 | [D7](#d7) | `after-wait-minutes` from the run log's `wait` events | E13 | the time from the cut — it counts the build |
 | [D8](#d8) | The record: D70; D44, D45, D47, D57 and D63 edited; the threat model; `mf-ship`'s flow | E12; `0095·R6` | — |
 
@@ -269,14 +269,23 @@ cut ─▶ waiting ──(dependency built)──▶ stack merge ─▶ build �
 - **`_cut_commit(tree: Path, change: str) -> str | None`** — the newest commit of `git log --first-parent --format=%H %s
   HEAD` whose subject is `docs(<change>): land the change directory`.
 - **`Run.reset_stack(self, version: Version) -> bool`** — "Reset a stacked version whose dependency re-planned past its
-  stacked-on head, or left it; True if so." It acts when the version has exactly one unreleased id, a `_stacked_on` head, and
-  either `_replanned(primary, dependency, head)` or that head no longer an ancestor of `refs/heads/<dependency>` — the
-  dependency was itself reset, so a chain resets with it. Else False. Acting: no cut commit → `Stop(1, f"conduct: halt —
-  {change}: no cut commit to reset to")`; else `_config_changed` raised, `_refuse_config_commands(tree)`, `git reset -q --hard
-  <cut>`, `_remove_in` of `stacked-on`, and `(change, "reset", f"{dependency} re-planned past {head[:7]}: {left[:7]} →
-  {cut[:7]}")`, `left` the `HEAD` it left.
-- **Where it is read** — at the top of `advance`'s loop, before the stage read, returning `waiting`; and in `landed`'s wait.
-  `ready`'s next `until` then waits for a built head past the amend, which `_built_head`'s re-plan rule holds back.
+  stacked-on head, or left it; True if so." It acts on a `_stacked_on` head and its dependency, read two ways:
+  - **unreleased** — the version has exactly one unreleased id, the head holds its `tasks.md`, and either
+    `_replanned(primary, dependency, head)` or that head no longer an ancestor of `refs/heads/<dependency>` — the
+    dependency was itself reset, so a chain resets with it;
+  - **released** — no id is unreleased, `_stacked_on(primary, change, tree, [])` stands, the dependency is the one `after:`
+    id whose `refs/heads/<id>` holds the head — the release keeps the branch; none, or two, is none — and
+    `_replanned(primary, dependency, head)`: an amend the dependency made before its release, read after it, still resets.
+
+  Else False. Acting: no cut commit → `Stop(1, f"conduct: halt — {change}: no cut commit to reset to")`; else
+  `_config_changed` raised, `_refuse_config_commands(tree)`, `git reset -q --hard <cut>`, `_remove_in` of `stacked-on`, and
+  `(change, "reset", f"{dependency} re-planned past {head[:7]}: {left[:7]} → {cut[:7]}")`, `left` the `HEAD` it left.
+- **Where it is read** — at the top of `advance`'s loop, before the stage read, returning `waiting`; in `landed`'s wait; and
+  in `ready`, once no id is unreleased, for a version whose `stacked-on` stands, before its `merge_in` of the default branch
+  and its `_unstack`. Reset there, `ready` goes on: it merges the default branch into the cut commit, and `advance` reads
+  the build open, since the merge's first parent is not the head `build.done` names, so the version builds again. Reset
+  before the release, `ready`'s next `until` waits for a built head past the amend, which `_built_head`'s re-plan rule holds
+  back.
 
 ### D7
 
@@ -308,8 +317,9 @@ version's base, `conduct.py` merges that head into the version with no agent, wr
 `.minions/changes/<id>/stacked-on`, and the version builds. Built, it waits as `stacked`; once the dependency releases, the
 run merges the default branch in, removes `stacked-on`, and converge runs round 1. While `stacked-on` stands, the build's gate
 check and metrics, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
-change directory past that head that changes a decision resets the version to its cut commit; it stacks again on the
-dependency's next build.**
+change directory past that head that changes a decision resets the version to its cut commit, until the merge back, even
+once the dependency released; it stacks again on the dependency's next build, or, the dependency released, builds again on
+the default branch.**
 
 - **Why:** a dependent waited through its dependency's converge, about 45 minutes, which rarely changes the code it builds on.
 - **Accepts:** a dependent built on code its dependency's converge has not judged — it never converges or releases before
@@ -345,16 +355,21 @@ dependency's next build.**
 
 ## Tests
 
-`git grep -c '^def test_' HEAD -- tests/` sums to 278 at the cut; `0098-beside` adds 1, and this change adds 2, so the build
-ends at 281. Each other step extends a test that already reaches its state (`T2`), at the lowest layer that holds it (`T1`):
-a `Run` method called on a scratch repo, the fake worker for a whole run, `make -n gate` for the recipe. No end-to-end test:
-the repo has no browser layer, so no end-to-end run is added.
+This change adds two tests, `test_a_stacked_dependent_resets_and_merges_back` and `test_diff_coverage_takes_the_stacked_base`.
+Each other step extends a test that already reaches its state (`T2`), at the lowest layer that holds it (`T1`): a `Run`
+method called on a scratch repo, the fake worker for a whole run, `make -n gate` for the recipe. No end-to-end test: the repo
+has no browser layer, so no end-to-end run is added.
+
+| measure | count | command |
+|---|---|---|
+| tests at the cut | 278 | `git grep -c '^def test_' HEAD -- tests/`, summed, at the cut |
+| tests at the build's head, `0098-beside`'s 1 and this change's 2 added | 281 | `git grep -c '^def test_' HEAD -- tests/`, summed, at `a729d50` |
 
 | test | gains |
 |---|---|
 | `test_after_waits_for_its_dependency` (`T:838`) | under the new fake mode `hold-converge-0001-todo`, released by `_when_logged` on `" · 0002-marks · wait — stacked on 0001-todo"`; inside the hold, `conduct["status"](root)` prints `0002-marks · stacked`, `stacked-on` holds `0001-todo`'s `build.done` head, and `release 0001-todo` is not called; after the run, `build 0001-todo` < `build 0002-marks` < `release 0001-todo` < `converge 0002-marks` in the calls, `build 0002-marks` called once, `0002-marks`'s log holds `chore(stack): merge 0001-todo at <sha7> into 0002-marks` and `chore(integrate): merge main into 0002-marks`, neither in the hook's file, `stacked-on` is gone, and the run log holds `0002-marks · stacked — on 0001-todo at <sha7>` ([D1](#d1)–[D3](#d3)); its `release`-before-`build` assertion goes, the behaviour it held retired by D70 |
 | `test_a_merge_in_refuses_a_planted_hook` (`T:981`) | after `hook.probe.event` and `hook.probe.command` are unset and `held_run.git_state` read again, a step whose `held_run.delta` writes a key into `.git/config` and returns: `merge_in` raises `the local git config changed during the run: .git/config differs`, the merge stays open, and no `chore(integrate)` commit lands (`0050·R5`, [D2](#d2)) |
-| `test_a_stacked_dependent_resets_and_merges_back` (new, `T`) | on a scratch repo with a `Run`, `ready` called with no threads: `0001-todo` built, its `CHANGELOG.md` `[Unreleased]` holding `- d1`; `0002-marks` cut as `docs(0002-marks): land the change directory` stacks — `stacked-on`, the `chore(stack)` subject; `0003-more`, naming both, and `0004-late`, cut after a `main` commit the built head lacks, are blocked ([D1](#d1)); a `tasks.md`-only amend of `0001-todo` leaves `reset_stack` False; one touching `proposal.md` makes it True, `HEAD` the cut commit, `stacked-on` gone, the `reset` event logged, and `_built_head` None ([D6](#d6)); a new `build.done` at `0001-todo`'s tip restacks it; `0002-marks` adds `- x1`; `0001-todo` released with `- d1` under `## [0.1.0]`, `ready` merges `main`, `stacked-on` is gone, and `CHANGELOG.md`'s `[Unreleased]` holds `- x1` alone ([D4](#d4)) |
+| `test_a_stacked_dependent_resets_and_merges_back` (new, `T`) | on a scratch repo with a `Run`, `ready` called with no threads: `0001-todo` built, its `CHANGELOG.md` `[Unreleased]` holding `- d1`; `0002-marks` cut as `docs(0002-marks): land the change directory` stacks — `stacked-on`, the `chore(stack)` subject; `0003-more`, naming both, and `0004-late`, cut after a `main` commit the built head lacks, are blocked ([D1](#d1)); a `tasks.md`-only amend of `0001-todo` leaves `reset_stack` False; one touching `proposal.md` makes it True, `HEAD` the cut commit, `stacked-on` gone, the `reset` event logged, and `_built_head` None ([D6](#d6)); a new `build.done` at `0001-todo`'s tip restacks it; `0002-marks` adds `- x1`; `0001-todo` released with `- d1` under `## [0.1.0]`, `ready` merges `main`, `stacked-on` is gone, and `CHANGELOG.md`'s `[Unreleased]` holds `- x1` alone ([D4](#d4)); then a second pair, `0005-redo` built and `0006-race`, after it and cut as `docs(0006-race): land the change directory`, stacks; an amend of `0005-redo` past the stacked-on head touching its `proposal.md`, then its release merged into `main`: `ready` resets `0006-race` before the merge back — the `reset` event names the head it left, `stacked-on` is gone — and merges `main` into its cut commit, the merge's first parent that cut commit ([D6](#d6)) |
 | `test_delta_reports_a_requirement_main_changed` (`tests/test_integrate.py:539`) | the version also holds `openspec/changes/0004-a/proposal.md`, a stacked dependency's change, and `main`'s release commit adds `openspec/changes/archive/0004-a/proposal.md`: the output stays `delta: changed on the default branch: sdd: First` ([D2](#d2)) |
 | `test_changelog_keeps_the_branch_entries_above_the_released_sections` (`tests/test_integrate.py:203`) | a stacked base: the base's `[Unreleased]` holds `- d1`, `HEAD`'s `- d1` and `- x1`, the default branch's none: `changelog` keeps `- x1` alone; `HEAD`'s entries lacking `- d1` halt with the rule's message ([D4](#d4)) |
 | `test_replay_reproduces_a_rule_settled_merge` (`tests/test_integrate.py:407`) | a stacked branch's clean merge of the default branch, settled by `changelog`, replays `by rule — CHANGELOG.md` ([D4](#d4)) |
