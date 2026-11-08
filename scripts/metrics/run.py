@@ -33,7 +33,7 @@ MIDNIGHT = timedelta(hours=12)
 STAGES = ("build", "converge", "catch-up", "integrate")
 # The stages a version's cost sums; the release's own log is still being written.
 SPENT = (*STAGES, "rescue", "supervise")
-ROLES = ("review", "security")
+ROLES = ("conformance", "adversarial")
 MODEL_USAGE = (
     "inputTokens",
     "outputTokens",
@@ -46,7 +46,7 @@ USAGE = (
     "cache_read_input_tokens",
     "cache_creation_input_tokens",
 )
-ROLE = re.compile(r"\b(review|security)\b", re.IGNORECASE)
+ROLE = re.compile(r"\b(conformance|adversarial)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")

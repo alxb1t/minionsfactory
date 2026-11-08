@@ -399,7 +399,8 @@ def test_each_check_passes_only_on_disk_evidence(
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
-    assert check("converge") == (1, "check: converge · fail — no review findings file")
+    no_file = (1, "check: converge · fail — no conformance findings file")
+    assert check("converge") == no_file
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD~1"))
     assert check("converge")[1].endswith(", not HEAD")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
@@ -655,7 +656,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     )
     # The catch-up over the integrate merge replays by rule, with no worker.
     findings = root / ".minions" / "changes" / "0001-todo"
-    assert "\n## By rule\n" in (findings / "review.md").read_text()
+    assert "\n## By rule\n" in (findings / "conformance.md").read_text()
     assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
@@ -1715,6 +1716,17 @@ def test_a_rescue_amends_at_amend_needed(
     assert blocks(minions, "0001-todo", "halt — amend needed — R1 S1 · head a")
     assert not blocks(minions, "0001-todo", "halt — amend needed — R1 · head a")
     assert blocks(minions, "0009-none", "halt — amend needed — R1 · head a")
+    # An adversarial card of another category is no security card; an unread one is.
+    adversarial = minions / "changes" / "0001-todo" / "adversarial.md"
+    card = adversarial.read_text()
+    adversarial.write_text(
+        card.replace("· adversarial · security", "· adversarial · stability")
+    )
+    assert not blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+    adversarial.write_text(
+        card.replace("· adversarial · security — why.", "· adversarial")
+    )
+    assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
 
 
 @pytest.mark.slow
@@ -1863,12 +1875,12 @@ def test_a_drift_amend_answers_its_halt(tmp_path: Path) -> None:
     head = _git(tree, "rev-parse", "HEAD")
     folder = root / ".minions" / "changes" / "0001-todo"
     folder.mkdir(parents=True)
-    for role in ("review", "security"):
+    for role in ("conformance", "adversarial"):
         text = f"---\nverdict: clean\nhead: {head}\nround: 1\n---\n"
-        if role == "review":
+        if role == "conformance":
             text += (
                 "\n- **R6 — a finding**\n"
-                "  - **Priority:** drift · review · maintainability — why.\n"
+                "  - **Priority:** drift · conformance · maintainability — why.\n"
                 f"  - **Fix:** amend `{design}`'s prose · size: one line.\n"
                 "  - **Status:** open\n"
             )
@@ -2351,23 +2363,26 @@ def test_a_supervisor_amend_outside_the_change_halts(
     assert held(minions, "0001-todo", halt)
     card = (
         "- **S1 — a finding**\n"
-        "  - **Priority:** high · security · stability — why.\n"
+        "  - **Priority:** high · adversarial · security — why.\n"
         "  - **Fix:** a fix · size: one line.\n"
         "  - **Status:** open\n"
     )
-    security = minions / "changes" / "0001-todo" / "security.md"
-    security.write_text(card)
+    adversarial = minions / "changes" / "0001-todo" / "adversarial.md"
+    adversarial.write_text(card)
     assert held(minions, "0001-todo", halt)
-    security.write_text(card.replace("open", "verified — held"))
+    adversarial.write_text(card.replace("open", "verified — held"))
     assert not held(minions, "0001-todo", halt)
     # A Status wrapped in backticks, as stations write them, reads the same.
-    security.write_text(card.replace("open", "`open`"))
+    adversarial.write_text(card.replace("open", "`open`"))
     assert held(minions, "0001-todo", halt)
     # A blocking card the halt's `amend needed` names bars it whatever its Status.
     named = "10:00:00 · round 3 · halt — amend needed — S1 · head abc1234"
-    security.write_text(card.replace("open", "wontfix — amend"))
+    adversarial.write_text(card.replace("open", "wontfix — amend"))
     assert held(minions, "0001-todo", named)
     assert not held(minions, "0001-todo", named.replace("S1", "S2"))
+    # An open blocking card of another category is no security card.
+    adversarial.write_text(card.replace("· security —", "· stability —"))
+    assert not held(minions, "0001-todo", halt)
 
 
 def test_a_refused_supervisor_amend_is_not_the_persons(
@@ -3744,35 +3759,50 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
     conduct = _conduct()
     clause = conduct["_worker_clause"]
     assert (
-        clause("converge.review", ("claude", "claude-opus-5-5", "high"))
-        == " and review=claude-opus-5-5/high"
+        clause("converge.conformance", ("claude", "claude-opus-5-5", "high"))
+        == " and conformance=claude-opus-5-5/high"
     )
     assert (
         clause("converge.fix", ("claude", "claude-sonnet-5-5", None))
         == " and fix=claude-sonnet-5-5/default"
     )
-    assert clause("converge.review", ("codex", "gpt-5", "high")) == ""
-    assert clause("converge.security", ("claude", None, None)) == ""
+    assert clause("converge.conformance", ("codex", "gpt-5", "high")) == ""
+    assert clause("converge.adversarial", ("claude", None, None)) == ""
 
     minions = tmp_path / ".minions"
     table = minions / "changes" / "0001-todo" / "models.toml"
     table.parent.mkdir(parents=True)
     table.write_text(
         '[converge]\nexecutor = "claude"\n'
-        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
     )
     models = conduct["_models"]
-    assert models(minions, "0001-todo", "converge.review", "codex") == (
+    assert models(minions, "0001-todo", "converge.conformance", "codex") == (
         "claude",
         "claude-opus-5-5",
         "high",
     )
+    # A cut's old table names the worker it was written for.
+    table.write_text(
+        '[converge.review]\nmodel = "claude-sonnet-5-5"\n'
+        '[converge.security]\neffort = "max"\n'
+    )
+    assert models(minions, "0001-todo", "converge.conformance", "claude") == (
+        "claude",
+        "claude-sonnet-5-5",
+        None,
+    )
+    assert models(minions, "0001-todo", "converge.adversarial", "claude") == (
+        "claude",
+        None,
+        "max",
+    )
     file = "conduct: halt — changes/0001-todo/models.toml"
     for station, text, said in (
         (
-            "converge.review",
-            '[converge.review]\nexecutor = "codex"\n',
-            f"{file}: converge.review names an executor",
+            "converge.conformance",
+            '[converge.conformance]\nexecutor = "codex"\n',
+            f"{file}: converge.conformance names an executor",
         ),
         (
             "converge.fix",
@@ -3797,7 +3827,7 @@ def test_a_station_runs_on_its_executor(
     (minions / "changes" / "0001-todo").mkdir(parents=True)
     table = (
         '[converge]\nexecutor = "codex"\n'
-        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
         '[release]\nmodel = "opus"\neffort = "high"\n'
     )
     (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
@@ -3821,7 +3851,7 @@ def test_a_station_runs_on_its_executor(
         "high",
     )
     # A worker table runs on converge's executor, with no Codex check.
-    assert models(minions, "0001-todo", "converge.review", "claude") == (
+    assert models(minions, "0001-todo", "converge.conformance", "claude") == (
         "codex",
         "claude-opus-5-5",
         "high",
@@ -3858,7 +3888,7 @@ def test_a_station_runs_on_its_executor(
     ]
     # A worker on Codex is given no model: the Codex converge names none.
     converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
-    assert converged and " and review=" not in converged[0]
+    assert converged and " and conformance=" not in converged[0]
 
     other = tmp_path / "other"
     other.mkdir()
@@ -3880,13 +3910,13 @@ def test_a_station_runs_on_its_executor(
 
 
 @pytest.mark.slow
-def test_a_fix_reaching_no_surface_takes_security_by_rule(
+def test_a_fix_reaching_no_surface_takes_adversarial_by_rule(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     fake("fix-surfaces")
     threats = "# t\n\n## Surfaces\n\n- `0001-todo.txt` — a surface\n"
-    # A fix touching no listed path releases with security by rule.
+    # A fix touching no listed path releases with adversarial by rule.
     # Why: 0094-lighter-converge D8.
     monkeypatch.setenv("FAKE_FIX", "notes.txt")
     root = _primary(tmp_path)
@@ -3898,8 +3928,8 @@ def test_a_fix_reaching_no_surface_takes_security_by_rule(
         == 0
     )
 
-    security = root / ".minions" / "changes" / "0001-todo" / "security.md"
-    assert "mode: by-rule\n" in security.read_text()
+    adversarial = root / ".minions" / "changes" / "0001-todo" / "adversarial.md"
+    assert "mode: by-rule\n" in adversarial.read_text()
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
@@ -4044,7 +4074,7 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     )
     head = _git(tree, "rev-parse", "HEAD")
     findings = root / ".minions" / "changes" / "0001-todo"
-    assert f"head: {head}\n" in (findings / "review.md").read_text()
+    assert f"head: {head}\n" in (findings / "conformance.md").read_text()
     capsys.readouterr()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out.strip() == "0001-todo · converge"
@@ -4349,16 +4379,18 @@ def test_a_run_moves_an_old_backlog_to_the_debt(
 def _old_layout(root: Path) -> tuple[Path, Path]:
     """Return a built version and one halted in its build, their files at old paths.
 
-    The first is clean at its head; the second holds a build halt, a models file
-    and a gate-check export. Strays the move leaves stand beside them.
+    The first is clean at its head; the second holds a build halt, a models file,
+    a gate-check export and findings files. Strays the move leaves stand beside them.
     """
     built = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     halted = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     head = _git(built, "rev-parse", "HEAD")
     _done(root, "0001-todo", head)
     _findings(root, "0001-todo", head)
+    _findings(root, "0002-marks", _git(halted, "rev-parse", "HEAD"))
     minions = root / ".minions"
     marks = minions / "changes" / "0002-marks"
+    (marks / "status_log.md").unlink()
     (marks / "gate-check" / "base").mkdir(parents=True)
     halt = f"sub-task: 1.1\nstop: 3\nhead: {_git(halted, 'rev-parse', 'HEAD')}\n"
     (marks / "build.halt").write_text(halt)
@@ -4368,8 +4400,8 @@ def _old_layout(root: Path) -> tuple[Path, Path]:
 
 _OLD = {
     "0001-todo": {
-        "review.md": "findings/0001-todo_review.md",
-        "security.md": "findings/0001-todo_security.md",
+        "conformance.md": "findings/0001-todo_review.md",
+        "adversarial.md": "findings/0001-todo_security.md",
         "status_log.md": "findings/0001-todo_status_log.md",
         "build.done": "build/0001-todo.done",
     },
@@ -4377,6 +4409,8 @@ _OLD = {
         "build.halt": "build/0002-marks.halt",
         "models.toml": "models/0002-marks.toml",
         "gate-check": "gate-check/0002-marks",
+        "conformance.md": "changes/0002-marks/review.md",
+        "adversarial.md": "changes/0002-marks/security.md",
     },
 }
 _STRAYS = (
@@ -4427,8 +4461,11 @@ def test_a_run_moves_an_old_layout(
     assert conductor.migrate_layout() is None
     text = conductor.log.path.read_text()
     assert " · run · move — 0001-todo: 5 files\n" in text
-    assert " · run · move — 0002-marks: 3 files\n" in text
+    assert " · run · move — 0002-marks: 5 files\n" in text
     assert stages() == expected
+    marks = minions / "changes" / "0002-marks"
+    assert (marks / "conformance.md").is_file() and (marks / "adversarial.md").is_file()
+    assert not (marks / "review.md").exists() and not (marks / "security.md").exists()
     logs = minions / "changes" / "0001-todo" / "logs"
     assert (logs / "20261101-230000-converge-2.log").read_text() == "converge\n"
     assert (minions / "changes" / "0002-marks" / "gate-check" / "base").is_dir()
@@ -4446,12 +4483,30 @@ def test_a_run_moves_an_old_layout(
     assert _calls(calls) == []
     both = (
         " · run · halt — .minions/findings/0001-todo_review.md and"
-        " .minions/changes/0001-todo/review.md both stand"
+        " .minions/changes/0001-todo/conformance.md both stand"
     )
     logs = (minions / "runs").glob("*.md")
     assert both in "".join(log.read_text() for log in logs)
     assert old.read_text() == "old\n"
+    # A folder's old name beside its new one halts as well.
+    beside = minions / "changes" / "0001-todo" / "review.md"
+    beside.write_text("old\n")
     old.unlink()
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/changes/0001-todo/review.md and"
+        " .minions/changes/0001-todo/conformance.md both stand:"
+        " a person settles which to keep"
+    )
+    # Two old files naming one new path halt naming both, before the new one.
+    old.write_text("old\n")
+    assert conduct["Run"](root, "claude").migrate_layout() == (
+        ".minions/findings/0001-todo_review.md and"
+        " .minions/changes/0001-todo/review.md both name"
+        " .minions/changes/0001-todo/conformance.md: a person settles which to keep"
+    )
+    assert old.read_text() == beside.read_text() == "old\n"
+    old.unlink()
+    beside.unlink()
 
     # A link at an old file, or at a change's folder, halts with nothing moved.
     target = tmp_path / "elsewhere.toml"
@@ -4684,7 +4739,7 @@ def test_a_release_cut_short_is_recovered(
     _git(forged, "commit", "-q", "--amend", "--allow-empty", "-m", subject)
     assert last() == "0006-six · released"
     assert stage_of(root, find(root, "0006-six"))[1] == (
-        "v9.0.0 is not tagged; no review findings file: a person reads this tip"
+        "v9.0.0 is not tagged; no conformance findings file: a person reads this tip"
     )
     _findings(root, "0006-six", _git(forged, "rev-parse", "HEAD~1"))
     _git(forged, "tag", "v9.0.0")
@@ -6190,7 +6245,7 @@ def test_the_plan_is_read_once(
     workers = root / ".minions" / "changes" / "0001-todo" / "models.toml"
     workers.parent.mkdir(parents=True, exist_ok=True)
     workers.write_text(
-        '[converge.review]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
         '[converge.fix]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
     )
 
@@ -6202,10 +6257,11 @@ def test_the_plan_is_read_once(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
-        "converge 0001-todo and review=claude and fix=claude",
+        "converge 0001-todo and conformance=claude and fix=claude",
     ]
     assert any(
-        " and review=claude-opus-5-5/high and fix=claude-sonnet-5-5/high." in str(arg)
+        " and conformance=claude-opus-5-5/high and fix=claude-sonnet-5-5/high."
+        in str(arg)
         for args in started
         for arg in args
     )
@@ -6595,33 +6651,33 @@ def test_a_small_cap_is_granted_automatically(
     assert blockers(minions, "0001-todo") is None
     _cards(root, "0001-todo", head, "a test")
     assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
-    security = minions / "changes" / "0001-todo" / "security.md"
-    cards = security.read_text()
+    adversarial = minions / "changes" / "0001-todo" / "adversarial.md"
+    cards = adversarial.read_text()
     unsized = cards.replace("high ·", "critical ·").replace(" · size: a test.", "")
-    security.write_text(unsized)
+    adversarial.write_text(unsized)
     assert blockers(minions, "0001-todo")[1] == ("S1", "a design change")
-    security.write_text(cards)
+    adversarial.write_text(cards)
     # A Priority, a size or a Status wrapped in backticks, as stations write them,
     # reads the same.
-    review = minions / "changes" / "0001-todo" / "review.md"
-    plain = review.read_text()
+    conformance = minions / "changes" / "0001-todo" / "conformance.md"
+    plain = conformance.read_text()
     quoted = plain.replace(
-        "blocking · review · stability", "`blocking · review · stability`"
+        "blocking · conformance · stability", "`blocking · conformance · stability`"
     ).replace("**Status:** open", "**Status:** `open`")
-    review.write_text(quoted.replace("size: one line.", "size: `one line`."))
+    conformance.write_text(quoted.replace("size: one line.", "size: `one line`."))
     assert blockers(minions, "0001-todo") == [("R1", "one line"), ("S1", "a test")]
     # One that is no regular file is unread: a device or a FIFO could hang the run.
-    review.unlink()
-    review.symlink_to(os.devnull)
+    conformance.unlink()
+    conformance.symlink_to(os.devnull)
     assert blockers(minions, "0001-todo") is None
-    review.unlink()
-    review.write_bytes(b"\xff")
+    conformance.unlink()
+    conformance.write_bytes(b"\xff")
     assert blockers(minions, "0001-todo") is None
-    review.write_text(plain)
+    conformance.write_text(plain)
     # A file with no card, as a station that found nothing writes it, holds none.
-    security.write_text("---\nverdict: clean\n---\n\n## Refuted\n\n## Summary\n")
+    adversarial.write_text("---\nverdict: clean\n---\n\n## Refuted\n\n## Summary\n")
     assert blockers(minions, "0001-todo") == [("R1", "one line")]
-    security.write_text(cards)
+    adversarial.write_text(cards)
 
     def run() -> int:
         return _main(
@@ -7094,13 +7150,13 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     _git(cut, "reset", "-q", "--hard", amended_head)
     # A catch-up halt over a findings file no longer clean is answered too: the
     # amend round re-judges it.
-    review = base / ".minions" / "changes" / "0001-todo" / "review.md"
-    clean = review.read_text()
-    review.write_text(clean.replace("verdict: clean", "verdict: blocking"))
+    conformance = base / ".minions" / "changes" / "0001-todo" / "conformance.md"
+    clean = conformance.read_text()
+    conformance.write_text(clean.replace("verdict: clean", "verdict: blocking"))
     halt = f"10:00:00 · round 1 · halt — red · head {merged}"
     log.write_text(f"# t\n\n## Run 2 — d · catch-up\n{halt}\n{start}\n")
     assert stage_of(base, version) == amended
-    review.write_text(clean)
+    conformance.write_text(clean)
     assert stage_of(base, version) == amended
 
     calls = fake("amends")
@@ -7163,7 +7219,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert f"· round 2 · freeze — {judged}..{amend}" in text
     own = text.split("## Run 2 — d · amend\n")[1].split("## Run")[0]
     assert "· round 1 ·" not in own
-    assert "round: 2" in (folder / "review.md").read_text()
+    assert "round: 2" in (folder / "conformance.md").read_text()
 
     # An amend adding a phase brings the build's code into the round's range.
     (tmp_path / "phase").mkdir()
@@ -8168,8 +8224,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         "Run the mf-converge skill for change 0001-todo."
     )
     assert converge.format(
-        change="0001-todo", workers=" and review=a/b", grant=" and grant=yes"
-    ).endswith("and review=a/b and grant=yes.")
+        change="0001-todo", workers=" and conformance=a/b", grant=" and grant=yes"
+    ).endswith("and conformance=a/b and grant=yes.")
     models = root / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True, exist_ok=True)
     (models / "models.toml").write_text('[converge]\ntier = "high"\n')

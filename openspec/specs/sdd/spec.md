@@ -146,52 +146,38 @@ When that range holds a merge of the default branch, the round SHALL judge the m
 
 ### Requirement: Anchored harms block, and drift has its own tier
 
-`skills/mf-converge/references/worker.md`, converge's worker reference, SHALL name the **anchors** — data loss or an irreversible delete, spend, exposure of
-personal data or secrets, silent wrong output — and SHALL grade an anchored finding `blocking` in review and at least
-`high` in security, save a route in a class the threat model's *Out of scope* accepts by name, which is carded and does
-not block, anchors included. Review SHALL grade `blocking | drift | nit`, where `drift` is docs, comments, README or CHANGELOG
-text the code contradicts; `drift` SHALL NOT block, save an amend card, on which converge halts at Step 9. A spec scenario the
-code contradicts SHALL stay `blocking`.
+`skills/mf-converge/references/worker.md`, converge's worker reference, SHALL name the **anchors** — data loss or an
+irreversible delete, spend, exposure of personal data or secrets, silent wrong output — and SHALL grade an anchored finding
+`blocking` in conformance and at least `high` in adversarial, save a route adversarial finds in a class the threat model's *Out of
+scope* accepts by name, which is carded and does not block, anchors included. Conformance SHALL grade `blocking | drift | nit`, where `drift`
+is docs, comments, README or CHANGELOG text the code contradicts; `drift` SHALL NOT block, save an amend card, on which converge
+halts at Step 9. A spec scenario the code contradicts SHALL stay `blocking`. Adversarial SHALL grade
+`critical | high | medium | low`, `high` a bug that would block.
 
 #### Scenario: Converge and the method page name the anchors and the drift tier
-- **WHEN** review or security finds data loss or an irreversible delete, spend, exposure of personal data or
-  secrets, or silent wrong output
-- **THEN** review grades it `blocking` and security at least `high`, so the loop fixes it
+- **WHEN** conformance or adversarial finds data loss or an irreversible delete, spend, exposure of personal data or secrets,
+  or silent wrong output
+- **THEN** conformance grades it `blocking` and adversarial at least `high`, so the loop fixes it
 
 #### Scenario: Prose the code contradicts
-- **WHEN** review finds docs, comments, README or CHANGELOG text the code contradicts
+- **WHEN** conformance finds docs, comments, README or CHANGELOG text the code contradicts
 - **THEN** it grades the finding `drift`, which does not block, save an amend card, on which converge halts at Step 9
 - **AND** a spec scenario the code contradicts stays `blocking`
 
 #### Scenario: A route in the accepted class
-- **WHEN** security finds a route in a class the threat model's *Out of scope* accepts by name, with an anchored harm
+- **WHEN** adversarial finds a route in a class the threat model's *Out of scope* accepts by name, with an anchored harm
 - **THEN** it cards the route, and the card does not block
 
 ### Requirement: A repeated finding escalates
 
-Each station SHALL read `.minions/debt.md`, else an old `.minions/backlog.md` a run has not moved. A finding that repeats a debt card SHALL name that card's id in its
-**Related** field as `repeat of <id>`, and SHALL go up one level: security by one step, a review `nit` or `drift` to
-`blocking`.
+Each station SHALL read the debt cards its bundle holds, `bundle.md`'s `## Debt cards on the diff's files`. A finding that
+repeats a debt card SHALL name that card's id in its **Related** field as `repeat of <id>`, and SHALL go up one level:
+adversarial by one step, a conformance `nit` or `drift` to `blocking`.
 
 #### Scenario: Converge names the repeat rule
-- **WHEN** a station's finding describes a defect already carded in `.minions/debt.md`
+- **WHEN** a station's finding describes a defect a debt card in its bundle already holds
 - **THEN** its **Related** field names `repeat of <id>`
-- **AND** it goes up one level: security by one step, a review `nit` or `drift` to `blocking`
-
-### Requirement: Review searches for stale claims
-
-The review station SHALL run a **stale-claim pass** after its sections: every path, symbol, verb, route or count the
-diff renames, deletes or changes is searched across the rest of the tree, and each mention the change made false is
-carded as `drift`. The station SHALL say in its Summary that the pass ran, and `skills/mf-converge/SKILL.md` SHALL
-check that it did.
-
-#### Scenario: Converge names the stale-claim pass
-- **WHEN** the frozen diff renames a path that a file outside the diff still names
-- **THEN** review cards that mention as `drift`, and its Summary says the stale-claim pass ran
-
-#### Scenario: A review without the pass
-- **WHEN** a review findings file's Summary does not say the stale-claim pass ran
-- **THEN** `mf-converge` treats it as a scope failure and halts
+- **AND** it goes up one level: adversarial by one step, a conformance `nit` or `drift` to `blocking`
 
 ### Requirement: A fix's test fails without the fix
 
@@ -219,7 +205,7 @@ heading, so the newest run and the newest line are on top. No line SHALL be edit
 `start`, `freeze`, `fan-out`, `verdicts`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
 `done`, and a run SHALL end on `halt` or `done`. Each `verdicts` line SHALL name one role and end `executor <x> · model <m> ·
 effort <e> · tokens <n>`: the executor the conductor runs on, the model and effort its worker was given, `default` where none,
-and `tokens` the worker's figure or `unavailable`. A security head written by rule SHALL write one `by rule` line,
+and `tokens` the worker's figure or `unavailable`. An adversarial head written by rule SHALL write one `by rule` line,
 `no surface`. The log SHALL NOT be a findings file: no station writes it and no release reads it.
 
 #### Scenario: Converge names the log, its order and its events
@@ -229,7 +215,7 @@ and `tokens` the worker's figure or `unavailable`. A security head written by ru
 - **AND** the newest run and the newest line are on top, and no earlier line changes
 
 #### Scenario: A round's verdicts
-- **WHEN** a round's review and security files are read, each written by its worker
+- **WHEN** a round's conformance and adversarial files are read, each written by its worker
 - **THEN** the log holds one `verdicts` line for each role, each naming the executor, and the model and effort that role's
   worker was given
 
@@ -243,8 +229,8 @@ and `tokens` the worker's figure or `unavailable`. A security head written by ru
 
 #### Scenario: A security head by rule
 - **WHEN** `surfaces.py` exits 0 in a verify round
-- **THEN** the log holds one `by rule` line, `no surface`, the round's `fan-out` names review alone, and its one `verdicts`
-  line is review's
+- **THEN** the log holds one `by rule` line, `no surface`, the round's `fan-out` names conformance alone, and its one
+  `verdicts` line is conformance's
 
 ### Requirement: A skill infers the one active change
 
@@ -551,28 +537,6 @@ in `skills/mf-converge/SKILL.md` SHALL never delete or merge a test.
 - **WHEN** the fix station clears a finding
 - **THEN** it deletes and merges no test
 
-### Requirement: Review judges test cost and traced coverage
-
-The review station SHALL run a **test-cost pass** after its sections, carding each new end-to-end test that a lower
-layer proves, that re-opens a state another test reaches, or that runs on engines its outcome cannot depend on. When
-the freeze removes a test, it SHALL run a **coverage-trace pass**, tracing each removed assertion and scenario id to
-the test that runs it now, or to the decision, in force at the base, that the design's `## Tests` table names as retiring it. A
-proof carried by neither SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The
-station SHALL say in its Summary that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
-
-#### Scenario: Converge names both passes where they run and where they are checked
-- **WHEN** a review findings file's Summary does not say the test-cost pass ran, or the coverage-trace pass ran or
-  the freeze removed no test
-- **THEN** `mf-converge` treats it as a scope failure and halts
-
-#### Scenario: The freeze removes a test the table retires
-- **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force at the base
-- **THEN** the coverage-trace pass accepts the removal and cards nothing for it
-
-#### Scenario: A proof carried by neither
-- **WHEN** a removed assertion maps to no remaining test and to no retiring decision
-- **THEN** review cards it `blocking`
-
 ### Requirement: The release records the gate's time
 
 `skills/mf-release/SKILL.md` SHALL take precondition 1's gate time from the seconds `gate_run.py`'s last line prints —
@@ -612,15 +576,15 @@ link `CODING_STANDARDS.md` and `CONTRIBUTING.md` as mandatory context, and `docs
 as context for designing, building and reviewing; bootstrap SHALL halt when a `CODING_STANDARDS.md`,
 `CODE_STANDARDS.md`, `CONTRIBUTING.md`, `THREAT_MODEL.md`, `ARCHITECTURE.md` or `docs/decisions.md` already exists.
 Cut, build, converge and release SHALL explicitly read it and the mandatory context it identifies before work.
-Build, and converge for every worker it dispatches, SHALL also read a root `CODING_STANDARDS.md`,
+Build, and converge for its conformance worker, SHALL also read a root `CODING_STANDARDS.md`,
 `CODE_STANDARDS.md` or `CONTRIBUTING.md` that `AGENTS.md` does not name. A contradiction between those files SHALL
-go to the person: review cards it as drift, and the build halts on one that decides its phase's code. No filename
+go to the person: conformance cards it as drift, and the build halts on one that decides its phase's code. No filename
 SHALL take precedence over another.
 Cut and build SHALL read the architecture decisions and the threat model — the documents `AGENTS.md` names, else
-`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. Converge SHALL hand every worker
-the threat model and, in place of `docs/decisions.md`, the decisions the change cites, in full, and an index of all, as its
-bundle holds them; other architecture documents go to every worker whole. The build SHALL halt on a phase that contradicts a
-decision in force, unless a task of the change amends that decision.
+`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. Converge SHALL hand its conformance
+worker, in place of `docs/decisions.md`, the decisions the change cites, in full, and an index of all, as its bundle holds them,
+and other architecture documents — `ARCHITECTURE.md`, `docs/adr/*.md` — whole; it SHALL hand its adversarial worker the threat
+model. The build SHALL halt on a phase that contradicts a decision in force, unless a task of the change amends that decision.
 The root context SHALL explicitly direct reading of the shared principles and decisions rather than rely on
 host-specific import syntax.
 
@@ -644,11 +608,12 @@ host-specific import syntax.
 
 #### Scenario: An existing repo has standards its AGENTS.md does not name
 - **WHEN** the build starts on a repo whose root holds `CODE_STANDARDS.md` and whose `AGENTS.md` does not name it
-- **THEN** the build reads it, and converge hands it to every worker
+- **THEN** the build reads it, and converge hands it to its conformance worker
 
 #### Scenario: A converge worker's decisions
-- **WHEN** converge dispatches a worker in a repo whose `docs/decisions.md` has `### D` headings
+- **WHEN** converge dispatches its conformance worker in a repo whose `docs/decisions.md` has `### D` headings
 - **THEN** the worker reads the decisions the change cites, in full, and the index from `bundle.md`, and not the whole file
+- **AND** the adversarial worker reads `THREAT_MODEL.md`, and no decision
 
 #### Scenario: A phase contradicts a decision in force
 - **WHEN** a phase's tasks would break a decision in the repo's `docs/decisions.md`, and no task amends it
@@ -659,32 +624,33 @@ host-specific import syntax.
 ### Requirement: Generic passes preserve the station boundaries
 
 `mf-simplify` SHALL edit only the change's own lines, by its angles and closed edit kinds, inside the oracles its
-skill names, before independent checking. The build SHALL retain its gate and separate simplify-commit ordering. Review SHALL check correctness, spec, standards, architecture and gate integrity in separate sections,
-each citing its source document, including the existing stale-claim, test-cost and coverage-trace passes.
+skill names, before independent checking. The build SHALL retain its gate and separate simplify-commit ordering. Conformance
+SHALL check spec, plan, architecture, standards and gate integrity in separate sections, each citing its source document,
+including the existing stale-claim, test-cost and coverage-trace passes.
 
-Security SHALL read the target's threat model first, then inspect changed behavior and relevant surrounding
-context for concrete vulnerabilities, secrets exposure, unsafe permissions and trust-boundary failures, including
-prompt, tool and model-output trust where relevant. A finding SHALL be introduced by the change, unless the
-contract's passes or repeat rule name it or it is a contradiction between standards files, carry a concrete scenario
-and the offending line quoted, and SHALL NOT be one the reference's do-not-flag list names unless the target's threat
-model overrides it. A section whose source document is missing SHALL be marked `inconclusive`, never
-read as a pass. Findings SHALL use the existing cards, severity, verdict, verification and release contracts. Review
-and security SHALL edit their own findings files, leave code changes to the fix station, and keep findings local
-rather than publish external comments.
+Adversarial SHALL read the target's threat model first, then try to break the changed behaviour and its surrounding context —
+races, boundary and malformed input, partial failure, ordering, a removed guard — and inspect it for concrete
+vulnerabilities, secrets exposure, unsafe permissions and trust-boundary failures, including prompt, tool and model-output
+trust where relevant. A finding SHALL be introduced by the change, unless the contract's passes or repeat rule name it or it is
+a contradiction between standards files, carry a concrete scenario and the offending line quoted, and SHALL NOT be one the
+reference's do-not-flag list names unless the target's threat model overrides it. A section whose source document is missing
+SHALL be marked `inconclusive`, never read as a pass. Findings SHALL use the existing cards, severity, verdict, verification and
+release contracts. Conformance and adversarial SHALL edit their own findings files, leave code changes to the fix station, and
+keep findings local rather than publish external comments.
 
 #### Scenario: A generic pass receives a frozen change
-- **WHEN** the station receives the explicit base and head, patch and change artifacts
-- **THEN** it reads relevant source context and judges that range without requiring a GitHub remote or review plugin
+- **WHEN** the station receives the explicit base and head, patch and the packet its reference names
+- **THEN** it judges that range without requiring a GitHub remote or review plugin
 - **AND** it reports the scope it actually inspected rather than declaring an uninspected change clean
 
 #### Scenario: A generic worker verifies a fix
-- **WHEN** fresh review and security workers receive their findings and the fix range
+- **WHEN** fresh conformance and adversarial workers receive their open cards and the fix range
 - **THEN** each promotes verified findings or reopens them under the existing contract
-- **AND** review receives the design's test table and runs the required review passes
+- **AND** conformance receives the design's test table and runs the required passes
 
 #### Scenario: A section lacks its source document
 - **WHEN** the target has no threat model, or one whose sections read `Not written yet:`
-- **THEN** the security file's threat-model section is `inconclusive`, its generic classes are still checked, and
+- **THEN** the adversarial file's threat-model section is `inconclusive`, its generic classes are still checked, and
   the verdict may still be `clean`
 
 ### Requirement: Independent workers have fresh contexts
@@ -700,7 +666,7 @@ station SHALL halt before work requiring an unavailable worker capability, namin
 capability.
 
 #### Scenario: A generic host executes workers sequentially
-- **WHEN** review completes before a fresh security worker starts
+- **WHEN** conformance completes before a fresh adversarial worker starts
 - **THEN** both judge the same frozen head and neither receives the build transcript
 - **AND** a fix starts after both findings files are complete
 
@@ -710,8 +676,8 @@ capability.
 
 #### Scenario: A host runs one worker at a time
 - **WHEN** converge runs on a host that cannot run workers in parallel
-- **THEN** it runs the review worker, then the security worker, over the same frozen head, and the findings files record
-  `mode: sequential`
+- **THEN** it runs the conformance worker, then the adversarial worker, over the same frozen head, and the findings files
+  record `mode: sequential`
 
 #### Scenario: A by-rule catch-up records no worker
 - **WHEN** every merge of a catch-up replays by the fixed rules
@@ -720,9 +686,9 @@ capability.
 
 ### Requirement: Bundled generic role references resolve
 
-The shipped skills SHALL explicitly load their role resources: converge's review, security and worker references on every
-executor, and `mf-simplify` in the build, whose link SHALL resolve from the build's installed package, not the
-target's cwd; a missing target SHALL halt the build, naming it.
+The shipped skills SHALL explicitly load their role resources: converge's conformance, adversarial, verify and worker
+references on every executor, and `mf-simplify` in the build, whose link SHALL resolve from the build's installed package, not
+the target's cwd; a missing target SHALL halt the build, naming it.
 Their `references/` Markdown targets SHALL resolve to nonempty files within the referring skill's package, a
 `#section` after a target ignored by the check, and the
 build's link to `mf-simplify` to a nonempty file in that skill's package.
@@ -1006,7 +972,7 @@ created with `mkdir`, halting after two minutes of waiting and naming the lock. 
 claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
 ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
 follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and naming it a
-file, not a lock, when a file or a link stands there; it SHALL NOT replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its review, security and status
+file, not a lock, when a file or a link stands there; it SHALL NOT replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its conformance, adversarial and status
 log files, its diff patch, its models file, the cutter's `cut.halt`, integrate's notes, build's marks, rescue's diagnosis, release's `held`, its gate-check
 export and its worker logs — each script finding it through one `_change_dir(primary, id)`; `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic. A run SHALL move an old layout's files into it at its start, under its claim,
@@ -1044,7 +1010,8 @@ layouts.
 
 #### Scenario: A run moves an old layout
 - **WHEN** a run starts beside `.minions/findings/<id>_review.md`, `models/<id>.toml`, `build/<id>.done` and a stray `findings/notes.txt`
-- **THEN** each moves into `.minions/changes/<id>/`, the stray stays, the version's stage reads as before, and a second start moves nothing
+- **THEN** each moves into `.minions/changes/<id>/`, the findings file as `conformance.md`, the stray stays, the version's stage
+  reads as before, and a second start moves nothing
 
 #### Scenario: A hand-run release on an old layout
 - **WHEN** `mf-release` runs by hand for a change whose findings sit in `.minions/findings/`
@@ -1327,7 +1294,7 @@ the findings file with its counter-evidence, never as a card.
 
 The build SHALL identify and report the executing agent from runtime evidence, not from its model, provider or
 editor, and SHALL choose no engine by it: every station runs MF's own method on every executor. The build SHALL run
-`mf-simplify` and no native `/simplify`; review and security SHALL run MF's method from the bundled references, and
+`mf-simplify` and no native `/simplify`; conformance and adversarial SHALL run MF's method from the bundled references, and
 converge SHALL invoke no native `/code-review` or `/security-review`.
 
 #### Scenario: Claude Code has its native commands
@@ -1340,7 +1307,7 @@ converge SHALL invoke no native `/code-review` or `/security-review`.
 
 #### Scenario: Claude Code converges
 - **WHEN** converge runs on Claude Code
-- **THEN** every review and security worker loads MF's references, and no native review command runs
+- **THEN** every conformance and adversarial worker loads MF's references, and no native review command runs
 
 #### Scenario: A Claude model runs outside Claude Code
 - **WHEN** a Claude model runs in another executor, including a Zed OpenRouter thread
@@ -1392,7 +1359,9 @@ write no findings file and hold no verdict.
 and `-<n>.log` alike — and the operator's Codex sessions,
 `~/.codex/sessions/**/*.jsonl`, without writing to any repo,
 parse each field it can, record a field it cannot as a gap —
-never a zero — and write one self-contained HTML page, with no script, to the config's `out` or `--out`. The page
+never a zero — and write one self-contained HTML page, with no script, to the config's `out` or `--out`. It SHALL read a change's
+`conformance.md`, else its `review.md`, and its `adversarial.md`, else its `security.md`, and SHALL record each role by the name
+its file or line carries. The page
 SHALL hold a table per repo and per model, a cost table per repo — each change's stations with their dollars, turns, tokens and
 seconds — charts over changes drawn by `mf-build`'s `chart()`, and the list of fields each repo lacked. A log's dollars and tokens
 SHALL be its last result event's cumulative `total_cost_usd` and `modelUsage`, its turns and seconds the sum over its result events;
@@ -1413,6 +1382,10 @@ beside the page: one record per round and role, with its executor, model, effort
 - **WHEN** one repo holds `.minions/changes/<id>/` and another the old `.minions/findings/` and `runs/<stamp>/` logs
 - **THEN** both repos' changes are read, with their cost, and neither is written
 
+#### Scenario: Both role names
+- **WHEN** one change's folder holds `conformance.md` and `adversarial.md`, and another's `review.md` and `security.md`
+- **THEN** both changes are read, each round recorded under the role names its files and lines carry
+
 #### Scenario: Files from every era
 - **WHEN** a repo holds a findings file with no cards, one with cards and no `## Refuted`, a status log, and a file with
   the verdict states and `## Refuted`, with or without a `tier:` line
@@ -1430,8 +1403,8 @@ beside the page: one record per round and role, with its executor, model, effort
 - **THEN** each role's tokens are read from its own figure, and none is summed into the other
 
 #### Scenario: A Codex worker
-- **WHEN** a Codex session's parent ran in the repo's worktree inside a round's window, its path naming `review`
-- **THEN** `review-metrics.json` holds that round's review record with the session's tokens, model and effort, `source:
+- **WHEN** a Codex session's parent ran in the repo's worktree inside a round's window, its path naming `conformance`
+- **THEN** `review-metrics.json` holds that round's conformance record with the session's tokens, model and effort, `source:
   codex-session`
 
 #### Scenario: A page from findings
@@ -2090,13 +2063,13 @@ integrate when the default branch holds a first-parent commit past `origin` that
 
 ### Requirement: Converge runs one depth
 
-`skills/mf-converge/SKILL.md`, with its worker reference `skills/mf-converge/references/worker.md`, SHALL run one depth: each role's one fresh worker SHALL judge the change from a packet given up
-front, its decisions and living requirements from the change's bundle, reading beyond the diff only to trace a named angle,
-and SHALL run review's stale-claim, test-cost and coverage-trace
-passes itself. It SHALL take no `tier=`, and SHALL halt, naming the parameter as removed, when one is given. The review and
-security files' frontmatter SHALL record `mode`, `workers`, `model` and `packet`, and no tier. The cut SHALL write no `tier` into
-`.minions/changes/<change-id>/models.toml`; `mf-ship` SHALL read none from it, and SHALL pass none to converge. The converge
-prompt SHALL carry the worker models, when any, before a grant clause.
+`skills/mf-converge/SKILL.md`, with its worker reference `skills/mf-converge/references/worker.md`, SHALL run one depth: each
+role's one fresh worker SHALL judge the change from the packet its reference names, given up front, conformance's decisions and
+living requirements from the change's bundle, reading beyond the diff only to trace a named angle, and conformance SHALL run its
+stale-claim, test-cost and coverage-trace passes itself. It SHALL take no `tier=`, and SHALL halt, naming the parameter as
+removed, when one is given. The conformance and adversarial files' frontmatter SHALL record `mode`, `workers`, `model` and
+`packet`, and no tier. The cut SHALL write no `tier` into `.minions/changes/<change-id>/models.toml`; `mf-ship` SHALL read none
+from it, and SHALL pass none to converge. The converge prompt SHALL carry the worker models, when any, before a grant clause.
 
 #### Scenario: Converge runs
 - **WHEN** converge runs
@@ -2314,21 +2287,21 @@ as before.
 
 #### Scenario: A merge and the person's amend
 - **WHEN** the selection is a merge that replays and the person's amend of the change directory, and Step 1 passes
-- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
+- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches conformance and adversarial over the selection
 
 #### Scenario: A merge and the rescue's amend
 - **WHEN** the selection is a merge that replays and the rescue's amend of the change directory, carrying its `Rescue:` trailer
-- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
+- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches conformance and adversarial over the selection
 
 #### Scenario: A merge and the supervisor's amend
 - **WHEN** the selection is a merge that replays and the supervisor's amend of the change directory, carrying its `Supervisor:`
   trailer
-- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches review and security over the selection
+- **THEN** the catch-up writes no `## By rule`, and one Step 7 round dispatches conformance and adversarial over the selection
 
 #### Scenario: A merge someone judged
 - **WHEN** the merge holds a hunk the integrator resolved as a union, a person's resolution, a test edited, or a requirement
   the delta edits that the default branch changed, the delta changing or removing a line of the default branch's block
-- **THEN** replay exits 1, and the catch-up round dispatches review and security as before
+- **THEN** replay exits 1, and the catch-up round dispatches conformance and adversarial as before
 
 #### Scenario: A merge of a commit the default branch does not hold
 - **WHEN** the merge's second parent is not an ancestor of the default branch, though git merged it with no conflict
@@ -2523,7 +2496,7 @@ in a new unticked phase after the last, with its `## Progress` line, never under
 - **THEN** the version halts, naming the file
 
 #### Scenario: A rescue at amend needed
-- **WHEN** converge halts `amend needed` on a review card whose fix names a `design.md` prose amend, in the run or before it
+- **WHEN** converge halts `amend needed` on a conformance card whose fix names a `design.md` prose amend, in the run or before it
 - **THEN** the rescue commits that amend, and the version converges again in the same run, in a catch-up run marked `· amend`,
   with no new round 1
 - **AND WHEN** the card is a security card of `high` severity
@@ -2607,8 +2580,9 @@ hold and name none. `skills/mf-ship/SKILL.md` SHALL say that a closed lid sleeps
 
 ### Requirement: A run grants one round at a small cap, and halts a large one for a re-plan
 
-When a version's converge halts with `cap reached` in a run, `conduct.py` SHALL read the open blocking findings in its review and
-security findings files — review's `blocking`, security's `critical` and `high`, each `Status: open` — and, when every one's fix is
+When a version's converge halts with `cap reached` in a run, `conduct.py` SHALL read the open blocking findings in its
+conformance and adversarial findings files — conformance's `blocking`, adversarial's `critical` and `high`, each
+`Status: open` — and, when every one's fix is
 sized `one line`, `a test` or `one line and a test`, no granted round reached the cap — its converge run is not marked `· grant`,
 and the run has not granted the version already — and its models
 file's `[converge]` table does not say `auto_grant = false`, SHALL spawn converge with `grant=yes` itself, writing no grant file and
@@ -2737,14 +2711,16 @@ converge, catch-up, integrate — and the person's waits (a halt until a rejoin,
 version); converge's rounds outside catch-up and amend runs, the amend rounds, round 1's blockers and the grants; the halts by
 station; the rescues fixed and diagnosed; build and
 fix commits, split at the build's `.done` head along the first parent; cost and tokens, all turns, total and per station, and the
-cost per changed line; per role, the confirmed and refuted cards and the tokens per confirmed card; the escapes — cards whose
+cost per changed line; per role — conformance and adversarial, each metric id named for its role — the confirmed and refuted
+cards and the tokens per confirmed card; the escapes — cards whose
 `repeat of` names an earlier change, save the cards the change pays; and the cards it carried to the debt and paid. A metric whose
 data a run did not leave — no run log, a log a spawn overwrote, the release's own stage — SHALL exit non-zero, a gap, never a
 zero. The cut's `diff-lines` and `diff-files` SHALL be the collector's station values.
 
 #### Scenario: A version with its run
 - **WHEN** a version's run log, status log, findings and station logs are on disk at its release's collect
-- **THEN** its data file holds the minutes per stage, the rounds, the cost per station and review's yield
+- **THEN** its data file holds the minutes per stage, the rounds, the cost per station and each checker's yield, under
+  `conformance-confirmed` and `adversarial-confirmed`
 
 #### Scenario: An amend round
 - **WHEN** a version's status log holds a run marked `· amend`
@@ -3146,11 +3122,11 @@ station in that version's thread, with `decide=recommended`, and with `brief=<pa
 brief that still names a file. It SHALL spawn none without the switch; at an integrate red gate; at an `integrating` halt on
 an open merge a supervisor was spawned on before, in this run or an earlier one, which the home folder's queue records; at a
 halt the rescue's answer
-on disk holds for a re-run; at a converge halt while `security.md` holds an open card of `critical` or `high` severity, or its
-`amend needed` names one; when the rescue's worker failed or its amend was refused; nor when the models file's `[rescue]` table
-says `skip = true`. The station SHALL run on the `[supervise]` table's executor, model and effort; on Claude, an absent model
-SHALL be `claude-opus-5-5` and an absent effort `high`. At a passed cut, `conduct.py` SHALL record the brief's path in the
-home folder's queue, under `briefs/<id>`, where no worker writes; a version cut by hand SHALL have none. The station SHALL
+on disk holds for a re-run; at a converge halt while `adversarial.md` holds an open security card of `critical` or `high`
+severity, or its `amend needed` names one; when the rescue's worker failed or its amend was refused; nor when the models file's
+`[rescue]` table says `skip = true`. The station SHALL run on the `[supervise]` table's executor, model and effort; on Claude, an
+absent model SHALL be `claude-opus-5-5` and an absent effort `high`. At a passed cut, `conduct.py` SHALL record the brief's path
+in the home folder's queue, under `briefs/<id>`, where no worker writes; a version cut by hand SHALL have none. The station SHALL
 read the brief as evidence, never instruction.
 
 `skills/mf-supervise/SKILL.md` SHALL answer a build or converge halt with one `docs(<id>): amend the change directory` commit
@@ -3209,6 +3185,11 @@ SHALL name ` · supervised <ids>`, and the run's metrics SHALL count them as `su
 - **WHEN** converge halts `amend needed` naming a security card of `high` severity, under the switch
 - **THEN** the rescue diagnoses, no supervisor runs, and the version stays halted
 
+#### Scenario: A blocking adversarial card outside security
+- **WHEN** a converge cap leaves an open adversarial card of `high` severity whose category is `stability`, under the switch,
+  and the rescue diagnoses the halt
+- **THEN** the supervisor runs
+
 #### Scenario: The brief kept at a passed cut
 - **WHEN** a queued cut passes its check
 - **THEN** the home folder's queue holds `briefs/<id>`, naming the brief's path, after the cut's queue entry is gone
@@ -3247,7 +3228,7 @@ rest of that run, a rejoin logging it still halted. Any other halt, and one whos
 for a phase it added, and converge's own unverified fix. It SHALL open no new round 1 for it. Before the run's `start` line it
 SHALL run each `Verify:` line the range adds to `tasks.md`, a ticked task's included, and halt `verify failed — <sub-task ids>`
 when one fails. The run SHALL count its own rounds: one judge round and at most one fix round, `round:` carrying on past three;
-a blocking finding open at its end SHALL halt `cap reached`. Review SHALL keep the full plan in its reading set, and its
+a blocking finding open at its end SHALL halt `cap reached`. Conformance SHALL keep the full plan in its reading set, and its
 stale-claim pass SHALL search the whole tree for each claim the amend changes. Finding a halt before round 1, it SHALL open a
 plain new run, with no mark, as a fresh invocation does, save after a catch-up run, where a new run of the same mark runs the
 catch-up round again. A run marked `· grant` that resumes SHALL stay a granted round.
@@ -3298,22 +3279,22 @@ catch-up round again. A run marked `· grant` that resumes SHALL stay a granted 
 
 ### Requirement: Converge's workers take their models from the models file
 
-`.minions/changes/<change-id>/models.toml` MAY hold `[converge.review]`, `[converge.security]` and `[converge.fix]`, each with a
-`model` and an `effort`; `[converge]` stays the conductor's. `conduct.py` SHALL read them once with the run's plan. It SHALL halt
-a version, before its worker starts, on a worker table that names an `executor`, or a `model` or `effort` holding anything but
-letters, digits, `.`, `_` and `-`, and SHALL halt a version whose worker table later differs, as for any station's table. It
-SHALL pass each worker table that names a model or an effort in the converge prompt as `and <role>=<model>/<effort>`, `default`
-for the one absent, before any grant clause; with converge on Codex it SHALL pass none. Converge SHALL put each on its worker's
-call and SHALL NOT read the models file itself. A fixer sent any blocking card SHALL run on review's model and effort, and
-otherwise on the fixer's. A role given none, or a host whose worker call takes no model, SHALL run its worker on the
-conductor's model. The cut SHALL write the worker tables: review and security on the strongest tier · high, the fixer on the
-mid tier · high, and `[converge]` on the mid tier · medium unless the brief names converge's model, each mapped to the offered
-models.
+`.minions/changes/<change-id>/models.toml` MAY hold `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`,
+each with a `model` and an `effort`; `[converge]` stays the conductor's. `conduct.py` SHALL read them once with the run's plan.
+It SHALL halt a version, before its worker starts, on a worker table that names an `executor`, or a `model` or `effort` holding
+anything but letters, digits, `.`, `_` and `-`, and SHALL halt a version whose worker table later differs, as for any station's
+table. It SHALL pass each worker table that names a model or an effort in the converge prompt as `and <role>=<model>/<effort>`,
+`default` for the one absent, before any grant clause; with converge on Codex it SHALL pass none. Converge SHALL put each on its
+worker's call and SHALL NOT read the models file itself. A fixer sent any blocking card SHALL run on adversarial's model and
+effort, and otherwise on the fixer's. A role given none, or a host whose worker call takes no model, SHALL run its worker on the
+conductor's model. The cut SHALL write the worker tables: conformance on the mid tier · high, adversarial on the strongest
+tier · high, the fixer on the mid tier · high, and `[converge]` on the mid tier · medium unless the brief names converge's model,
+each mapped to the offered models.
 
 #### Scenario: The converge prompt names each worker's model
-- **WHEN** a version's models file holds `[converge.review]` with `model = "claude-opus-5-5"` and `effort = "high"`, and
+- **WHEN** a version's models file holds `[converge.adversarial]` with `model = "claude-opus-5-5"` and `effort = "high"`, and
   `[converge.fix]` with `model = "claude-sonnet-5-5"` and `effort = "high"`, and its converge runs on Claude
-- **THEN** its converge prompt reads `Run the mf-converge skill for change <change-id> and review=claude-opus-5-5/high and
+- **THEN** its converge prompt reads `Run the mf-converge skill for change <change-id> and adversarial=claude-opus-5-5/high and
   fix=claude-sonnet-5-5/high.`
 
 #### Scenario: Converge on Codex
@@ -3321,7 +3302,7 @@ models.
 - **THEN** its converge prompt names no worker model, and every worker runs on the conductor's model
 
 #### Scenario: A worker table names an executor
-- **WHEN** `[converge.review]` names `executor = "codex"`
+- **WHEN** `[converge.conformance]` names `executor = "codex"`
 - **THEN** that version halts naming the table, and no worker starts for it
 
 #### Scenario: A worker table changes during the run
@@ -3330,7 +3311,7 @@ models.
 
 #### Scenario: The fixer by grade
 - **WHEN** converge dispatches a fixer sent a blocking card
-- **THEN** the fixer runs on review's model and effort
+- **THEN** the fixer runs on adversarial's model and effort
 - **AND WHEN** it dispatches a fixer sent only non-blocking cards
 - **THEN** the fixer runs on the fixer's model and effort
 
@@ -3340,10 +3321,10 @@ At each freeze, converge SHALL run `skills/mf-converge/scripts/bundle.py`, which
 `.minions/changes/<change-id>/bundle.md`: each repo decision the change's proposal, design, tasks or spec delta cites — by a
 `decisions.md#d<n>` link, or by `D<n> · ` and that decision's title — in full; an index, each `### D` heading of
 `docs/decisions.md`; and each living requirement the delta modifies or removes, in full. A decisions file with no `### D`
-heading SHALL go into the bundle whole. A design's own decision ids SHALL cite no repo decision. Each worker SHALL read the
-bundle in place of the decisions file and the living spec, opening a decision the index names only to trace review's
-architecture angle. `bundle.py` SHALL refuse to write through a link, and SHALL exit 2, writing nothing, on a file it cannot
-read.
+heading SHALL go into the bundle whole. A design's own decision ids SHALL cite no repo decision. Conformance SHALL read the
+bundle in place of the decisions file and the living spec, opening a decision the index names only to trace its architecture
+section; adversarial SHALL read the bundle's debt cards alone. `bundle.py` SHALL refuse to write through a link, and SHALL exit
+2, writing nothing, on a file it cannot read.
 
 #### Scenario: A change cites a decision
 - **WHEN** a change's design links `docs/decisions.md#d48--…` and names a `D3` of its own
@@ -3358,29 +3339,170 @@ read.
 - **WHEN** a target's `docs/decisions.md` holds no `### D` heading
 - **THEN** `bundle.md` holds the whole file
 
-### Requirement: A fix that reaches no surface takes its security head by recomputation
+### Requirement: Converge's checkers are conformance and adversarial
+
+Converge SHALL run two checkers. **Conformance** SHALL judge the code against the change's own spec delta, design, tasks and
+the decisions it cites, write `.minions/changes/<change-id>/conformance.md`, and grade `blocking` · `drift` · `nit`, its card
+ids `R<n>`. **Adversarial** SHALL try to break the change — races, edge cases, exploits, security — write
+`.minions/changes/<change-id>/adversarial.md`, and grade `critical` · `high` · `medium` · `low`, `high` a bug that would block,
+its card ids `S<n>`. Each SHALL load its reference, `skills/mf-converge/references/generic-conformance.md` or
+`skills/mf-converge/references/generic-adversarial.md`, whose `## The packet` table SHALL name what the conductor gives it:
+conformance the range, `diff.patch`, the simplify commit's body, the change's `proposal.md`, `design.md`, `tasks.md` and spec
+delta, its `bundle.md`, root `AGENTS.md` and the root standards files; adversarial the range, `diff.patch`, the source and tests
+around the diff's hunks, `THREAT_MODEL.md`, root `AGENTS.md` and the bundle's debt cards. Conformance SHALL read no code beyond
+the diff's hunks, save its stale-claim search. Each SHALL read `diff.patch` once, and run `git diff` or `git show` only for a
+file's context the patch does not hold. A **security card** SHALL be an adversarial card whose Priority's category is
+`security`.
+
+#### Scenario: A converge round
+- **WHEN** converge dispatches a round's checkers
+- **THEN** conformance writes `conformance.md` and adversarial writes `adversarial.md`, and the release reads both
+
+#### Scenario: The packets
+- **WHEN** the packet tables of the conformance and adversarial references are read
+- **THEN** conformance's names the change's artifacts, `bundle.md` and `diff.patch`, and no source beyond the diff's hunks
+- **AND** adversarial's names `THREAT_MODEL.md`
+
+#### Scenario: A security card
+- **WHEN** an adversarial card's Priority reads `high · adversarial · security`
+- **THEN** it is a security card
+- **AND WHEN** it reads `high · adversarial · stability`
+- **THEN** it blocks, and is no security card
+
+### Requirement: A run moves the old findings files to the checkers' names
+
+At its start, under its claim, before any worker, `conduct.py run` SHALL move each `.minions/changes/<change-id>/review.md` to
+`conformance.md` and each `security.md` to `adversarial.md`, and an old layout's `.minions/findings/<change-id>_review.md` and
+`_security.md` straight to the new names, by the old-layout move's rules: a link at an old file or its folder, an old file
+beside its new one, or two old files naming one new path SHALL halt with nothing moved, and a second start SHALL move nothing.
+`gate_check.py`, `integrate.py`, `conduct.py grant`, and a hand-run `mf-release`, `mf-integrate`, `mf-converge` or `mf-build`,
+finding a change's `review.md` or `security.md` in its folder, SHALL halt naming `/mf-ship`; `conduct.py status` and `report`
+SHALL name such a change `old layout`; `run.py` SHALL read the new names alone, its role metrics a gap without them. A models file's `[converge.review]` and `[converge.security]` SHALL be read
+as `[converge.conformance]` and `[converge.adversarial]` when the new table is absent.
+
+#### Scenario: A run moves the old names
+- **WHEN** a run starts beside `.minions/changes/<id>/review.md` and `security.md`
+- **THEN** they move to `conformance.md` and `adversarial.md`, the version's stage reads as before, and a second start moves
+  nothing
+
+#### Scenario: Both names stand
+- **WHEN** a run starts beside `.minions/changes/<id>/review.md` and `conformance.md`
+- **THEN** the run halts, naming both, and moves nothing
+
+#### Scenario: A hand-run converge on the old names
+- **WHEN** `mf-converge` runs by hand for a change whose folder holds `review.md`
+- **THEN** it halts, naming the file and `/mf-ship`, and writes no status log
+
+#### Scenario: An old worker table
+- **WHEN** a version's models file holds `[converge.review]` and no `[converge.conformance]`
+- **THEN** conformance's worker takes `[converge.review]`'s model and effort
+
+### Requirement: Converge bundles the debt cards on the diff's files
+
+At each freeze, after `bundle.py`, converge SHALL run `skills/mf-converge/scripts/debt_match.py`, which appends to `bundle.md` a
+`## Debt cards on the diff's files` section: each card of `.minions/debt.md`, in full, whose **What it affects** field names in
+backticks a path the frozen patch changes, a `:<line>` suffix dropped; `None.` when no card matches, or no debt file stands. No
+worker SHALL read `.minions/debt.md`; the repeat rule SHALL match the bundled cards. `debt_match.py` SHALL refuse to write
+through a link, and SHALL exit 2, writing nothing, when the bundle or the patch cannot be read.
+
+#### Scenario: A card on a file the diff touches
+- **WHEN** the debt holds a card whose **What it affects** names `` `src/a.py:12` `` and another naming `` `src/b.py` ``, and the
+  patch changes `src/a.py` alone
+- **THEN** the bundle holds the first card in full and not the second
+
+#### Scenario: No debt file
+- **WHEN** no `.minions/debt.md` stands
+- **THEN** the bundle's debt section reads `None.`
+
+#### Scenario: A bundle that is a link
+- **WHEN** `bundle.md` is a link
+- **THEN** `debt_match.py` exits 2 naming it, and the link's target is unchanged
+
+### Requirement: A verify worker reads its open cards and the fix diff
+
+In a Step 7 round after a Step 6 fix, converge SHALL run `skills/mf-converge/scripts/open_cards.py` for each checker it
+dispatches, which writes `.minions/changes/<change-id>/<role>.open.md`: each card of the findings file whose Status is `open`,
+`fixed` or `wontfix`, verbatim, and no other. The verify worker SHALL receive that file, the fix diff, its findings path and
+`skills/mf-converge/references/verify.md`, in place of its role reference and the worker reference, and SHALL edit only those
+cards' Status lines, the frontmatter, the Summary, the `## Resolution log`, and a new card for a regression the fix introduced.
+Conformance's verify SHALL also run its stale-claim, test-cost and coverage-trace passes over the fix diff, given the design's
+`## Tests` section. A catch-up's judge round SHALL dispatch the role references, as round 1 does. `open_cards.py` SHALL refuse to
+write through a link, and SHALL exit 2, writing nothing, on a findings file it cannot read.
+
+#### Scenario: The open cards
+- **WHEN** a findings file holds cards whose Status is `open`, `fixed`, `wontfix`, `verified` and `accepted`
+- **THEN** `open_cards.py` writes the `open`, `fixed` and `wontfix` cards alone
+
+#### Scenario: A verify round
+- **WHEN** converge dispatches a Step 7 round after a fix commit
+- **THEN** each checker's worker gets its open cards, the fix diff, its findings path and `references/verify.md`, and not its
+  role reference
+
+#### Scenario: A catch-up's judge round
+- **WHEN** a catch-up round dispatches its checkers over late commits
+- **THEN** each loads its role reference, as in round 1
+
+### Requirement: Conformance searches for stale claims
+
+The conformance station SHALL run a **stale-claim pass** after its sections: every path, symbol, verb, route or count the diff
+renames, deletes or changes is searched across the rest of the tree, the living spec and the decisions included, and each
+mention the change made false is carded as `drift`. The station SHALL say in its Summary that the pass ran, and
+`skills/mf-converge/SKILL.md` SHALL check that it did.
+
+#### Scenario: Converge names the stale-claim pass
+- **WHEN** the frozen diff renames a path that a file outside the diff still names
+- **THEN** conformance cards that mention as `drift`, and its Summary says the stale-claim pass ran
+
+#### Scenario: A conformance file without the pass
+- **WHEN** a conformance findings file's Summary does not say the stale-claim pass ran
+- **THEN** `mf-converge` treats it as a scope failure and halts
+
+### Requirement: Conformance judges test cost and traced coverage
+
+The conformance station SHALL run a **test-cost pass** after its sections, carding each new end-to-end test that a lower layer
+proves, that re-opens a state another test reaches, or that runs on engines its outcome cannot depend on. When the freeze
+removes a test, it SHALL run a **coverage-trace pass**, tracing each removed assertion and scenario id to the test that runs it
+now, or to the decision, in force at the base, that the design's `## Tests` table names as retiring it. A proof carried by
+neither SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The station SHALL say in its Summary
+that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
+
+#### Scenario: Converge names both passes where they run and where they are checked
+- **WHEN** a conformance findings file's Summary does not say the test-cost pass ran, or the coverage-trace pass ran or the
+  freeze removed no test
+- **THEN** `mf-converge` treats it as a scope failure and halts
+
+#### Scenario: The freeze removes a test the table retires
+- **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force at the base
+- **THEN** the coverage-trace pass accepts the removal and cards nothing for it
+
+#### Scenario: A proof carried by neither
+- **WHEN** a removed assertion maps to no remaining test and to no retiring decision
+- **THEN** conformance cards it `blocking`
+
+### Requirement: A fix that reaches no surface takes its adversarial head by recomputation
 
 `THREAT_MODEL.md` MAY hold `## Surfaces`, one ``- `<glob>` `` line per path a fix reaches security through, and the
 bootstrap's template SHALL hold the section unwritten. In a Step 7 round after a fix commit, converge SHALL run
-`skills/mf-converge/scripts/surfaces.py` over the fix range. It SHALL print `surfaces: no surface` and exit 0 when the security
-file says `verdict: clean`, holds no card whose Status is other than `verified` or `accepted`, and the range touches no path a
-glob listed at its start matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed glob among the
-reasons. On exit 0 converge SHALL write the security file's `head:` to the fix head by rule, with `mode: by-rule` and
-`workers: 0`, and dispatch review alone; on exit 1 it SHALL dispatch both. A catch-up run, its fix round included, SHALL
-dispatch both, as before.
+`skills/mf-converge/scripts/surfaces.py` over the fix range. It SHALL print `surfaces: no surface` and exit 0 when the
+adversarial file says `verdict: clean`, holds no card whose Status is other than `verified` or `accepted`, and the range
+touches no path a glob listed at its start matches; otherwise it SHALL print `surfaces: verify — <reason>` and exit 1, a threat model with no listed
+glob among the reasons. On exit 0 converge SHALL write the adversarial file's `head:` to the fix head by rule, with
+`mode: by-rule` and `workers: 0`, and dispatch conformance alone; on exit 1 it SHALL dispatch both. A catch-up run, its fix
+round included, SHALL dispatch both, as before.
 
 #### Scenario: A fix reaches no surface
-- **WHEN** a fix touches no listed path, and the security file is clean with every card `verified` or `accepted`
-- **THEN** `surfaces.py` exits 0, the security file's `head:` is the fix head with `mode: by-rule`, and no security worker runs
+- **WHEN** a fix touches no listed path, and the adversarial file is clean with every card `verified` or `accepted`
+- **THEN** `surfaces.py` exits 0, the adversarial file's `head:` is the fix head with `mode: by-rule`, and no adversarial worker
+  runs
 
 #### Scenario: A fix touches a surface
 - **WHEN** a fix touches a path a listed glob matches
-- **THEN** `surfaces.py` exits 1 naming the path and its glob, and security verifies the fix
+- **THEN** `surfaces.py` exits 1 naming the path and its glob, and adversarial verifies the fix
 
-#### Scenario: A security card awaits its checker
-- **WHEN** the security file holds a card whose Status is `fixed`
-- **THEN** `surfaces.py` exits 1 naming the card, and security verifies the fix
+#### Scenario: An adversarial card awaits its checker
+- **WHEN** the adversarial file holds a card whose Status is `fixed`
+- **THEN** `surfaces.py` exits 1 naming the card, and adversarial verifies the fix
 
 #### Scenario: A threat model lists no surface
 - **WHEN** `THREAT_MODEL.md` has no `## Surfaces` glob, or no `THREAT_MODEL.md` exists
-- **THEN** `surfaces.py` exits 1, and security verifies the fix
+- **THEN** `surfaces.py` exits 1, and adversarial verifies the fix

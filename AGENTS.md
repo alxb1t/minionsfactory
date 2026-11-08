@@ -5,8 +5,8 @@ line is an `mf-*` skill, and a person conducts them. The project is built the wa
 record is [`docs/README.md`](docs/README.md).
 
 > **This file is shared, role-independent context — what is *true* of this repo, not a script.** What you *do*
-> comes from the prompt or task you were given: author a change, build a phase, review the branch diff, run a
-> security pass, apply fixes. Where your prompt conflicts with this file, **the prompt wins**; infer no workflow
+> comes from the prompt or task you were given: author a change, build a phase, check the diff's conformance, run
+> an adversarial pass, apply fixes. Where your prompt conflicts with this file, **the prompt wins**; infer no workflow
 > from this file alone.
 
 ## The record
@@ -17,8 +17,8 @@ context.**
 
 **Before designing, building or reviewing — the cut, build and converge — also read [the threat model](THREAT_MODEL.md).**
 
-**A converge worker reads, of the decisions, those its change cites, in full, and an index of all — its `bundle.md` — in
-place of the whole page.**
+**Converge's conformance worker reads, of the decisions, those its change cites, in full, and an index of all — its
+`bundle.md` — in place of the whole page; its adversarial worker reads the threat model.**
 
 - **A patch** (`vX.Y.Z`) fixes what the line already does — debt cards, a rule that misstates the behaviour, a
   defect. It adds no station, parameter, decision or requirement, and may modify a requirement to correct it.

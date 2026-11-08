@@ -6,12 +6,12 @@ another way is a [decision](decisions.md).
 
 ## Words
 
-- **Station** — one role in the line, with one job: cut, build, review, security, fix, release.
+- **Station** — one role in the line, with one job: cut, build, conformance, adversarial, fix, release.
 - **Change** — the unit of work and of release: a directory under `openspec/changes/` holding its proposal,
   design, tasks and spec delta.
 - **Conductor** — whoever dispatches stations and reads their results from disk: a person, `mf-converge` for
   the check loop, or `mf-ship`'s script for a whole run.
-- **Checker** — a station that judges and edits nothing but its own findings file: review, security.
+- **Checker** — a station that judges and edits nothing but its own findings file: conformance, adversarial.
 - **Findings file** — a checker's one output, `.minions/changes/<change-id>/<role>.md`, its verdict in the
   frontmatter.
 - **Round** — one pass of the checkers over a frozen diff. A fix opens the next.
@@ -23,10 +23,10 @@ another way is a [decision](decisions.md).
 What keeps a verdict worth having.
 
 ```
-  build ──▶ freeze the diff ──▶ review ‖ security ──▶ all clean? ── yes ──▶ release
-                                  fresh, read-only        │ no
-                                         ▲                ▼
-                                         └── verify ◀── fix: writes `fixed`, a claim
+  build ──▶ freeze the diff ──▶ conformance ‖ adversarial ──▶ all clean? ── yes ──▶ release
+                                  fresh, read-only                │ no
+                                         ▲                        ▼
+                                         └── verify ◀────────── fix: writes `fixed`, a claim
                                     promotes to `verified`, or reopens
 ```
 
@@ -36,14 +36,14 @@ What keeps a verdict worth having.
 
 - **Why:** a station's report on itself is a claim; more opinions from the reader who wrote the code verify
   nothing.
-- **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; review.
+- **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; conformance.
 - **Accepted exception:** `mf-cut-change` checks its own artifacts. Its plan review, a fresh worker's (Step 8.5),
   the person's read of the committed change and `mf-build` Step 1 are the independent checks.
 
 ### A checker is a fresh reader of a frozen diff
 
-**Review and security run as new instances with no memory of the build, over one diff frozen before they start,
-read-only except for their own findings file.**
+**Conformance and adversarial run as new instances with no memory of the build, over one diff frozen before they
+start, read-only except for their own findings file.**
 
 - **Why:** a reader who remembers the build reads what was meant, not what was written; a diff that moves under
   the check has no verdict.
@@ -55,16 +55,16 @@ read-only except for their own findings file.**
 `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
-- **Held by:** `mf-converge` Steps 6 and 7; its worker reference's verify pass reopens a test fix with no red run.
+- **Held by:** `mf-converge` Steps 6 and 7; its verify reference reopens a test fix with no red run.
 
 ### Nothing reads as clean by being absent
 
 **A missing findings file is not clean. A station that resolved zero files must not write `clean`, except when
-each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A review
-without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a catch-up over
-merges alone, whose every merge `integrate.py replay` rebuilds by the fixed rules alone. So is a security head over a
-fix that touches no surface the threat model lists, with no security card awaiting its checker: `surfaces.py`
-recomputes it.**
+each checker independently proves converge's non-empty merge-only catch-up has empty resolution diffs. A
+conformance file without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a
+catch-up over merges alone, whose every merge `integrate.py replay` rebuilds by the fixed rules alone. So is an
+adversarial head over a fix that touches no surface the threat model lists, with no adversarial card awaiting its
+checker: `surfaces.py` recomputes it.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
@@ -109,8 +109,8 @@ carried by a named remaining test or retired by a decision in force at the base,
 weakening.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
-- **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; review reads
-  the diff for it; `I16`, `T5` and review's coverage-trace pass, for consolidation; `mf-converge`
+- **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; conformance reads
+  the diff for it; `I16`, `T5` and conformance's coverage-trace pass, for consolidation; `mf-converge`
   precondition 6 and `mf-release` precondition 8, through `skills/mf-converge/scripts/gate_check.py`, for the
   recipe.
 
@@ -184,7 +184,7 @@ secret or an absolute path it holds.**
 **When a thing is deleted, its name leaves code, skills and docs in the same commit.**
 
 - **Why:** a resurrected word resurrects its assumptions.
-- **Held by:** the retiring change's acceptance, run once; `mf-build`'s `W2` list in the phase commit; review's
+- **Held by:** the retiring change's acceptance, run once; `mf-build`'s `W2` list in the phase commit; conformance's
   stale-claim pass. No standing scan ([D37](decisions.md#d37--tests-hold-what-is-true-now-nothing-tests-an-absence)).
 
 ## Authoring

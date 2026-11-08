@@ -7,7 +7,7 @@ as the `mf-*` skills: each station of the line is a skill, and a person conducts
    plan ────▶ cut ───────────▶ build ────▶ converge ──────────▶ release      the stations
      │         │                 │            │                    │
   mf-plan    mf-cut-change    mf-build     mf-converge          mf-release    the skills
-                                           review ‖ security
+                                     conformance ‖ adversarial
 
    conducted by a person, or by mf-ship: a script that starts each station as a fresh agent process
 ```

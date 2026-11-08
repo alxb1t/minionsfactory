@@ -107,6 +107,16 @@ def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
     # Twin: once a run moves it, the check reads the gate.
     old.unlink()
     assert _check(tmp_path, base).returncode == 0
+    # A change folder's old findings name halts the same.
+    named = tmp_path / ".minions" / "changes" / _CHANGE / "review.md"
+    named.parent.mkdir(parents=True, exist_ok=True)
+    named.write_text("---\nverdict: clean\n---\n")
+    result = _check(tmp_path, base)
+    assert (result.returncode, result.stdout) == (
+        2,
+        f"gate: cannot check — .minions/changes/{_CHANGE}/review.md is the old layout:"
+        " /mf-ship moves it\n",
+    )
 
 
 @pytest.mark.slow

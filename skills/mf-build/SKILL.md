@@ -80,10 +80,11 @@ The **run directory** is `.minions/` beside the primary checkout:
 `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
 `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
 `.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
-`.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/` → halt, naming it and `/mf-ship`, whose run
-moves it, before the resume table below reads `.minions/changes/<change-id>/` and before you write any file in it, so
-no `build.halt`: a new file beside an old one halts the move. Any other file is no old layout: a stray the move
-leaves never halts.
+`.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/`, or
+`.minions/changes/<change-id>/review.md` or `security.md` → halt, naming it and `/mf-ship`, whose run moves it,
+before the resume table below reads `.minions/changes/<change-id>/` and before you write any file in it, so no
+`build.halt`: a new file beside an old one halts the move. Any other file is no old layout: a stray the move leaves
+never halts.
 
 **First, check the input-contract items marked yes** — a failure halts, naming the id:
 
@@ -211,8 +212,8 @@ After the last phase, and only then, write `.minions/changes/<change-id>/build.c
 3. Name its commit and `net:` line in your report, `lean already`, or `nothing kept` with the angles reverted, the
    skips and the notes. No edits → no commit.
 
-**Why inside the build:** simplify runs **before** the review and security stations `mf-converge` fans out, so
-review reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
+**Why inside the build:** simplify runs **before** the conformance and adversarial stations `mf-converge` fans out, so
+conformance reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
 unreviewed edits after the final station had spoken. So simplify writes **no findings file**, and `mf-release`
 names it excluded (its precondition 4).
 
@@ -337,7 +338,7 @@ This skill owns this list. `mf-cut-change` carries the same ids; `tests/test_ski
 | **P9** | **Stable ids, cited as links** | `per [D3](design.md#d3)` — agents grep `D3`, people click it |
 | **P10** | **One word per thing** | define a term once, in bold; never swap in a synonym |
 | **P11** | **Concrete names** | files, commands, symbols in backticks; a text change as before → after |
-| **P12** | **No counts — name the things** | "the review and security files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
+| **P12** | **No counts — name the things** | "the conformance and adversarial files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
 | **P13** | **Size limits** | a paragraph fits in 3 sentences, a task in 3 lines; anything longer is a decision or a doc section, linked |
 
 `P` covers the markdown docs you create or rewrite — `README.md`, `docs/`, `AGENTS.md` — and your CHANGELOG
@@ -379,8 +380,8 @@ after:   # Every tracked root outside the history and the specs is scanned.
 
 - **Never batch phases into one commit**, and never continue past a phase without its commit.
 - **Never summarize a check you were told to run** — a task's verification or the gate.
-- **Never review, converge or release your own work** — no fan-out, review, security pass or converge loop — and
-  never archive, fold, tag, merge or push.
+- **Never review, converge or release your own work** — no fan-out, conformance or adversarial pass, or converge
+  loop — and never archive, fold, tag, merge or push.
 - **Never `git add -A`.** Stage by name.
 - **Never commit a secret, or a real absolute path from the machine the run is on** — the operator's home
   directory or the repository's own root, least of all one transcribed out of a `.minions/` artefact into

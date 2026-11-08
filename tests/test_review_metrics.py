@@ -50,7 +50,8 @@ def _card(number: int, priority: str, *fields: str) -> str:
 
 
 def _findings(root: Path, name: str, text: str) -> None:
-    found = re.fullmatch(r"(.+?)_(review|security|status_log)\.md", name)
+    roles = "conformance|adversarial|review|security"
+    found = re.fullmatch(rf"(.+?)_({roles}|status_log)\.md", name)
     assert found, name
     folder = root / ".minions" / "changes" / found[1]
     folder.mkdir(parents=True, exist_ok=True)
@@ -346,6 +347,8 @@ def test_tokens_are_read_per_role(
     log = f"""# 0040-roles — converge status
 
 ## Run 2 — 2026-10-31 23:58
+00:05:00 · round 6 · verdicts — adversarial clean · tokens unavailable
+00:04:00 · round 6 · verdicts — conformance clean · tokens 11
 00:03:00 · round 5 · {both} 5000
 00:02:00 · round 4 · verdicts — review clean · {claude} · tokens 97960
 00:01:00 · round 4 · verdicts — security clean · {codex} · tokens unavailable
@@ -362,9 +365,11 @@ def test_tokens_are_read_per_role(
 
     rows = review_metrics.round_data(tmp_path)
     figures = [(r["run"], r["round"], r["role"], r["tokens"]) for r in rows]
-    # Each role's figure is its own; a line naming both roles and one figure is
-    # recorded under `both`, credited to neither.
+    # Each role's figure is its own, under either era's name; a line naming both
+    # roles and one figure is recorded under `both`, credited to neither.
     assert figures == [
+        (2, 6, "adversarial", None),
+        (2, 6, "conformance", 11),
         (2, 5, "both", 5000),
         (2, 4, "review", 97960),
         (2, 4, "security", None),
@@ -378,13 +383,13 @@ def test_tokens_are_read_per_role(
         (1, 1, "security", 41346),
     ]
     # D1's tail names the executor, model and effort; `default` is a gap.
-    named = [(r["executor"], r["model"], r["effort"]) for r in rows[1:3]]
+    named = [(r["executor"], r["model"], r["effort"]) for r in rows[3:5]]
     assert named == [("claude", "opus", "high"), ("codex", None, None)]
     assert {(r["sessions"], r["source"]) for r in rows} == {(None, "status-log")}
     # The chart's tokens are the change's sum, each figure once.
-    assert _record(tmp_path, "0040-roles")["tokens"] == 5000 + 97960 + 15 + 115000 + (
-        128126 + 115356 + 45426 + 41346
-    )
+    assert _record(tmp_path, "0040-roles")[
+        "tokens"
+    ] == 11 + 5000 + 97960 + 15 + 115000 + (128126 + 115356 + 45426 + 41346)
     # With no `$TZ`, a window is the system's local time in UTC.
     local = review_metrics.datetime(2026, 11, 1, 0, 0, 30)
     assert review_metrics._utc(local) == local.astimezone(review_metrics.UTC)
@@ -438,6 +443,9 @@ def test_codex_sessions_fill_the_rounds(
     log = f"""# 0001-x — converge status
 
 ## Run 1 — 2026-11-05 10:00
+10:45:00 · round 3 · verdicts — adversarial clean · tokens unavailable
+10:40:00 · round 3 · fan-out — adversarial dispatched · 1 worker
+10:35:00 · round 3 · freeze — b..c · 1 commit · 1 file
 10:30:00 · round 2 · verdicts — review clean · {claude} · tokens 900
 10:29:00 · round 2 · verdicts — security clean · tokens unavailable
 10:20:00 · round 2 · fan-out — review and security dispatched · 2 workers
@@ -477,6 +485,9 @@ def test_codex_sessions_fill_the_rounds(
     ):
         meta = _meta(f"2026-11-05T{started}Z", "/w", url, "/root/security_r", parent)
         _session(tmp_path, f"{name}.jsonl", meta, *_worked("g6", "low", total))
+    # A worker of the new era is matched by its name as written.
+    adversarial = _meta("2026-11-05T09:42:00Z", "/w", url, "/root/adversarial_r3", "R")
+    _session(tmp_path, "o-adversarial.jsonl", adversarial, *_worked("g7", "low", 80))
     reviewer = _meta("2026-11-05T09:05:00Z", "/x", other, "/root/review_round1")
     noise = ['{"type": "token_count", cut', '["token_count"]']
     _session(
@@ -510,6 +521,19 @@ def test_codex_sessions_fill_the_rounds(
         r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", data["generated"]
     )
     assert data["records"] == [
+        {
+            "repo": "repo",
+            "change": "0001-x",
+            "run": 1,
+            "round": 3,
+            "role": "adversarial",
+            "executor": "codex",
+            "model": "g7",
+            "effort": "low",
+            "tokens": 80,
+            "sessions": 1,
+            "source": "codex-session",
+        },
         {
             "repo": "repo",
             "change": "0001-x",
@@ -761,6 +785,12 @@ def test_both_layouts_are_read(tmp_path: Path) -> None:
     (unmoved_findings / "0002-b_status_log.md").write_text(log)
     _run_log(unmoved, "20260102-100000/0002-b_converge.log", spent)
     _run_log(unmoved, "20260102-100000/0002-bc_converge.log", spent)
+    # A folder holding the checkers' names reads as one holding the old names.
+    named = "## Run 1 — 2026-01-04 10:00\n"
+    named += "10:01:00 · round 1 · verdicts — conformance clean\n"
+    _findings(moved, "0004-d_conformance.md", _front(reviewed="2026-01-04"))
+    _findings(moved, "0004-d_adversarial.md", _front(reviewed="2026-01-05"))
+    _findings(moved, "0004-d_status_log.md", named)
     # Per change, the new folder wins over a file left at its old path.
     _findings(moved, "0003-c_review.md", _front(reviewed="2026-01-03"))
     old = moved / ".minions" / "findings"
@@ -774,7 +804,11 @@ def test_both_layouts_are_read(tmp_path: Path) -> None:
         "0001-a": ("2026-01-01", 2.0),
         "0002-b": ("2026-01-02", 2.0),
         "0003-c": ("2026-01-03", None),
+        "0004-d": ("2026-01-04", None),
     }
     rounds = review_metrics.round_data(moved) + review_metrics.round_data(unmoved)
-    assert sorted({row["change"] for row in rounds}) == ["0001-a", "0002-b"]
+    assert sorted({row["change"] for row in rounds}) == ["0001-a", "0002-b", "0004-d"]
+    assert {row["role"] for row in rounds if row["change"] == "0004-d"} == {
+        "conformance"
+    }
     assert sorted(tmp_path.rglob("*")) == before

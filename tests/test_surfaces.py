@@ -1,6 +1,7 @@
-"""Converge's security head by rule: a fix that reaches no surface needs no verify.
+"""Converge's adversarial head by rule: a fix that reaches no surface needs no verify.
 
-Each repository built under `tmp_path`. Why: 0094-lighter-converge design D8.
+Each repository built under `tmp_path`. Why: 0094-lighter-converge design D8;
+0095-converge-roles design D3.
 """
 
 import importlib.util
@@ -56,20 +57,20 @@ def _fix(root: Path, path: str) -> tuple[str, str]:
     return start, _commit(root, path)
 
 
-def _security(root: Path, verdict: str = "clean", status: str = "verified") -> Path:
-    path = root / "security.md"
+def _adversarial(root: Path, verdict: str = "clean", status: str = "verified") -> Path:
+    path = root / "adversarial.md"
     path.write_text(
         f"---\nverdict: {verdict}\nhead: x\nround: 2\n---\n\n"
-        "- **S1 — a finding**\n  - **Priority:** low · security — why.\n"
+        "- **S1 — a finding**\n  - **Priority:** low · adversarial · security — why.\n"
         f"  - **Status:** {status} — a note\n\n## Resolution log\n\n- d · round 1\n"
     )
     return path
 
 
 def _run(
-    capsys: pytest.CaptureFixture[str], security: Path, start: str, end: str
+    capsys: pytest.CaptureFixture[str], adversarial: Path, start: str, end: str
 ) -> tuple[int, str]:
-    code = surfaces.main([str(security), start, end])
+    code = surfaces.main([str(adversarial), start, end])
     return code, capsys.readouterr().out
 
 
@@ -78,18 +79,18 @@ def test_a_fix_that_reaches_no_surface_is_by_rule(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     start, end = _fix(tmp_path, "docs/a.md")
-    security = _security(tmp_path)
+    adversarial = _adversarial(tmp_path)
     done = subprocess.run(
-        [sys.executable, str(_SCRIPT), str(security), start, end],
+        [sys.executable, str(_SCRIPT), str(adversarial), start, end],
         cwd=tmp_path,
         capture_output=True,
         text=True,
     )
     assert (done.returncode, done.stdout) == (0, "surfaces: no surface\n")
 
-    # A security file with no card has none awaiting its checker.
-    security.write_text("---\nverdict: clean\nhead: x\nround: 1\n---\n")
-    assert surfaces.main([str(security), start, end]) == 0
+    # An adversarial file with no card has none awaiting its checker.
+    adversarial.write_text("---\nverdict: clean\nhead: x\nround: 1\n---\n")
+    assert surfaces.main([str(adversarial), start, end]) == 0
 
 
 def test_a_fix_that_reaches_security_is_verified(
@@ -97,15 +98,15 @@ def test_a_fix_that_reaches_security_is_verified(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     start, end = _fix(tmp_path, "skills/x/scripts/y.py")
-    security = _security(tmp_path)
-    assert _run(capsys, security, start, end) == (
+    adversarial = _adversarial(tmp_path)
+    assert _run(capsys, adversarial, start, end) == (
         1,
         "surfaces: verify — skills/x/scripts/y.py matches skills/*/scripts/*\n",
     )
 
     # A path git would quote is matched as it is named.
     quoted = _commit(tmp_path, "skills/x/scripts/helper_é.py")
-    assert _run(capsys, security, end, quoted) == (
+    assert _run(capsys, adversarial, end, quoted) == (
         1,
         "surfaces: verify — skills/x/scripts/helper_é.py matches skills/*/scripts/*\n",
     )
@@ -113,7 +114,7 @@ def test_a_fix_that_reaches_security_is_verified(
     # The list is read at `<from>`, so a fix cannot drop the glob its own edit matches.
     _commit(tmp_path, "THREAT_MODEL.md", _THREATS.replace("skills/*/", "docs/"))
     edited = _commit(tmp_path, "skills/x/scripts/z.py")
-    assert _run(capsys, security, quoted, edited) == (
+    assert _run(capsys, adversarial, quoted, edited) == (
         1,
         "surfaces: verify — skills/x/scripts/z.py matches skills/*/scripts/*\n",
     )
@@ -122,7 +123,7 @@ def test_a_fix_that_reaches_security_is_verified(
     listed = _git(tmp_path, "rev-parse", f"{quoted}:THREAT_MODEL.md")
     narrowed = _git(tmp_path, "rev-parse", f"{edited}:THREAT_MODEL.md")
     _git(tmp_path, "replace", listed, narrowed)
-    assert _run(capsys, security, quoted, edited) == (
+    assert _run(capsys, adversarial, quoted, edited) == (
         1,
         "surfaces: verify — skills/x/scripts/z.py matches skills/*/scripts/*\n",
     )
@@ -137,46 +138,46 @@ def test_a_fix_that_reaches_security_is_verified(
         ("*open*", "open"),
         ("Fixed", "Fixed"),
     ):
-        _security(tmp_path, status=status)
-        assert _run(capsys, security, start, start) == (
+        _adversarial(tmp_path, status=status)
+        assert _run(capsys, adversarial, start, start) == (
             1,
-            f"surfaces: verify — security card S1 is {said}\n",
+            f"surfaces: verify — adversarial card S1 is {said}\n",
         )
     # A Status under a title off the card's form is settled by the same allowlist.
-    security.write_text(
+    adversarial.write_text(
         "---\nverdict: clean\n---\n\n- **S1 – a finding**\n"
         "  - **Status:** fixed — a note\n"
     )
-    assert _run(capsys, security, start, start) == (
+    assert _run(capsys, adversarial, start, start) == (
         1,
-        "surfaces: verify — security card S1 is fixed\n",
+        "surfaces: verify — adversarial card S1 is fixed\n",
     )
-    security.write_text("---\nverdict: clean\n---\n\n- **S1 — a finding**\n")
-    assert _run(capsys, security, start, start) == (
+    adversarial.write_text("---\nverdict: clean\n---\n\n- **S1 — a finding**\n")
+    assert _run(capsys, adversarial, start, start) == (
         1,
-        "surfaces: verify — security card S1 is unsettled\n",
+        "surfaces: verify — adversarial card S1 is unsettled\n",
     )
-    _security(tmp_path, verdict="changes-requested")
-    assert _run(capsys, security, start, start) == (
+    _adversarial(tmp_path, verdict="changes-requested")
+    assert _run(capsys, adversarial, start, start) == (
         1,
-        "surfaces: verify — security.md is not clean\n",
+        "surfaces: verify — adversarial.md is not clean\n",
     )
 
     # A threat model that lists no glob at `<from>`, or holds no file there.
-    _security(tmp_path)
+    _adversarial(tmp_path)
     bare = _commit(tmp_path, "THREAT_MODEL.md", "# threat model\n\n## Out of scope\n")
     _git(tmp_path, "rm", "-q", "THREAT_MODEL.md")
     _git(tmp_path, "commit", "-q", "-m", "gone")
     for head in (bare, _git(tmp_path, "rev-parse", "HEAD")):
-        assert _run(capsys, security, head, head) == (
+        assert _run(capsys, adversarial, head, head) == (
             1,
             "surfaces: verify — THREAT_MODEL.md lists no surface\n",
         )
 
-    code, said = _run(capsys, security, "nowhere", end)
+    code, said = _run(capsys, adversarial, "nowhere", end)
     assert code == 2 and said.startswith("surfaces: cannot read — git diff failed: ")
-    security.unlink()
-    assert _run(capsys, security, start, end) == (
+    adversarial.unlink()
+    assert _run(capsys, adversarial, start, end) == (
         2,
-        f"surfaces: cannot read — {security}: No such file or directory\n",
+        f"surfaces: cannot read — {adversarial}: No such file or directory\n",
     )

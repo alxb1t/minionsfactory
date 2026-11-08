@@ -1,6 +1,6 @@
 ---
 name: mf-converge
-description: Conduct the end-of-change check loop — freeze the diff, fan out review and security as fresh read-only workers, read their verdicts from disk, dispatch one fix pass, re-verify, to a cap of three rounds. Use when every phase of a change is built and committed and the branch needs converging before release.
+description: Conduct the end-of-change check loop — freeze the diff, fan out conformance and adversarial as fresh read-only workers, read their verdicts from disk, dispatch one fix pass, re-verify, to a cap of three rounds. Use when every phase of a change is built and committed and the branch needs converging before release.
 ---
 
 # mf-converge — conduct the end-of-change loop
@@ -72,7 +72,8 @@ top. Only you write it — each dispatch, return and decision. It is not a findi
   `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
   `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
   `.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
-  `.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/` → **halt**, naming it and `/mf-ship`,
+  `.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/`, or
+  `.minions/changes/<change-id>/review.md` or `security.md` → **halt**, naming it and `/mf-ship`,
   whose run moves it; write no status log. Any other file is no old layout: a stray the move leaves never halts.
 - **Insert only.** Each event goes directly under the latest `## Run` heading; a written line stays as it is.
 - **A run ends on `halt` or `done`.** Every halt writes `halt` with its reason before you stop, ending
@@ -101,9 +102,9 @@ The events, and no others:
 
 ## Run 2 — 2026-09-28 10:04
 10:21:40 · round 1 · done — converged in 1 round · 0 cards to debt
-10:09:05 · round 1 · verdicts — security clean · open_blocking 0 · executor claude · model default · effort default · tokens unavailable
-10:09:02 · round 1 · verdicts — review clean · open_blocking 0 · executor claude · model opus · effort high · tokens 97960
-10:04:20 · round 1 · fan-out — review and security dispatched · 2 workers
+10:09:05 · round 1 · verdicts — adversarial clean · open_blocking 0 · executor claude · model default · effort default · tokens unavailable
+10:09:02 · round 1 · verdicts — conformance clean · open_blocking 0 · executor claude · model opus · effort high · tokens 97960
+10:04:20 · round 1 · fan-out — conformance and adversarial dispatched · 2 workers
 10:04:12 · round 1 · start — base a1b2c3 · head d4e5f6 · 3 commits · 5 files
 
 ## Run 1 — 2026-09-27 14:02
@@ -113,13 +114,14 @@ The events, and no others:
 
 ## The workers — before checker dispatch
 
-**Every host runs MF's method:** each checker loads [review](references/generic-review.md) or
-[security](references/generic-security.md), and with it [the worker reference](references/worker.md), resolved from
-the installed package; the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
+**Every host runs MF's method:** each checker loads [conformance](references/generic-conformance.md) or
+[adversarial](references/generic-adversarial.md), and with it [the worker reference](references/worker.md), resolved from
+the installed package; a round after a fix loads [verify](references/verify.md) alone in their place, per Step 7;
+the fixer loads the worker reference, per Step 6. Load it yourself too: Step 5 reads the
 frontmatter keys it fixes, By rule writes them, and Steps 8 and 9 read the card's size and Status. Each role is one
 fresh worker. A `tier=` given → **halt**: the `tier` parameter was removed.
 
-**Worker models:** `review=`, `security=` and `fix=`, each `<model>/<effort>` with `default` for none, name each
+**Worker models:** `conformance=`, `adversarial=` and `fix=`, each `<model>/<effort>` with `default` for none, name each
 worker's model; `mf-ship` passes them from the models file, and a person may pass them by hand. Put each on its
 worker's call — on Claude Code the Agent tool's `model` is the family the name holds, `claude-opus-5-5` → `opus`, and
 its `effort` the effort; `default` passes none. A role given none, and every worker on a host whose call takes no model,
@@ -144,7 +146,8 @@ then verify in one Step 7 round. Both `clean` → Step 9, never Step 8. A blocke
 
 Check first. The newest run's top line is neither `halt` nor `done` → this invocation continues that run: open no new
 `## Run` heading, keep its round, and go on from its latest event. Workers stay fresh, and read the same frozen head.
-**A verify round** is a round in a catch-up run, or after a `fix` line in this run: its checkers need Step 7's inputs.
+**A verify round** is a round in a catch-up run, or after a `fix` line in this run: it goes on at Step 7, which gives a
+round after a fix its open cards and a catch-up's judge round Step 3's inputs.
 
 The top line is a `halt` naming `.minions/debt.lock`, or an older `.minions/backlog.lock` → continue that run at
 Step 9 when both findings files are clean at `HEAD`; else halt, naming the file.
@@ -174,7 +177,7 @@ A run marked `· grant` that resumes stays a granted round: its verify round cle
 | `pickup` | `none` → Step 9; else Step 8 item 4, the same ids |
 | `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
-| `by rule` | a catch-up run → Step 9; else Step 7's review dispatch |
+| `by rule` | a catch-up run → Step 9; else Step 7's conformance dispatch |
 
 ## Catch-up round
 
@@ -212,7 +215,7 @@ Open the run marked `· catch-up`, or `· amend` after an answered halt, and wri
    A range with a merge uses [Catch-up scope](references/worker.md#catch-up-scope): overwrite the patch with the merge's
    `git show --remerge-diff` and the other commits' own diffs, and print that scope's numbers. The merge is
    judged by what it decided; the gate judges the combined tree.
-6. **Run one Step 7 round.** Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
+6. **Run one Step 7 round**, its judge round on Step 3's inputs. Both `clean` → Step 9, never Step 8. Otherwise Step 7's rules apply, under the run's
    count. A blocking finding open at the end of its own count is a `halt — cap reached`, as at the cap.
 
 ### By rule
@@ -269,39 +272,31 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 4. **Write the bundle** —
    `uv run --script <this package>/scripts/bundle.py <change-id> .minions/changes/<change-id>/bundle.md`: the
    decisions the change cites, an index of all, and the living requirements its delta modifies or removes. Exit 2,
-   or `uv` missing → **halt**, naming what it printed.
+   or `uv` missing → **halt**, naming what it printed. Then append the debt cards on the diff's files —
+   `uv run --script <this package>/scripts/debt_match.py .minions/debt.md .minions/changes/<change-id>/diff.patch .minions/changes/<change-id>/bundle.md`,
+   else an old `.minions/backlog.md` in place of the debt; exit 2, or `uv` missing → **halt**, naming what it printed.
 5. **Print** `base` · `head` · the **commit count** · the **files changed** count, before any station speaks.
    These are round 1's numbers for Step 5's scope check.
 6. **Write `freeze` to the status log.**
 
 ## Step 3 — Dispatch fresh read-only workers
 
-The stations are **review** and **security**. Simplify ran inside `mf-build` and wrote no findings file; its
-edits are in this range, so review judges them.
+The stations are **conformance** and **adversarial**. Simplify ran inside `mf-build` and wrote no findings file;
+its edits are in this range, so conformance and adversarial judge them.
 
 Dispatch both roles as fresh workers, per *The workers*, read-only apart from their own findings
 files. Give each:
 
-- the range `<base>..HEAD` and its two commit ids;
-- the patch path `.minions/changes/<change-id>/diff.patch`, and the selected commits, parents, diff kinds and
-  counts for a merge-aware [catch-up scope](references/worker.md#catch-up-scope);
-- the body of the range's `refactor(<change-id>): simplify` commit, when it has one: its notes are for review;
-- its findings path `.minions/changes/<change-id>/<role>.md`;
-- root `AGENTS.md`, its mandatory context, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md`
-  it does not name, the architecture documents and threat model — the ones it names, else `ARCHITECTURE.md`,
-  `docs/adr/*.md` and `THREAT_MODEL.md` when present, each whole — and the change's proposal, design, tasks and spec
-  delta under `openspec/changes/<change-id>/` — review reads the design's `## Tests` table;
-- `.minions/changes/<change-id>/bundle.md`, in place of `docs/decisions.md` and the living specs: the decisions the
-  change cites, in full, an index of all, and the living requirements the delta modifies or removes;
+- the packet its reference's `## The packet` table names, and the selected commits, parents, diff kinds and counts
+  for a merge-aware [catch-up scope](references/worker.md#catch-up-scope); the simplify commit's body is for review;
 - its mode and reference;
-- the card, from [`## The card`](references/worker.md#the-card) — every finding is a card;
-- `.minions/debt.md`, read-only, when it exists, else an old `.minions/backlog.md` a run has not moved yet, and the
-  repeat rule of [review and security](references/worker.md#review-and-security).
+- its findings path `.minions/changes/<change-id>/<role>.md`;
+- the card, from [`## The card`](references/worker.md#the-card) — every finding is a card.
 
 Write `fan-out` to the status log at dispatch.
 
-The repeat rule, review's stale-claim, test-cost and coverage-trace passes, and the scoping are the workers':
-[review and security](references/worker.md#review-and-security).
+The repeat rule, conformance's stale-claim, test-cost and coverage-trace passes, and the scoping are the workers':
+[conformance and adversarial](references/worker.md#conformance-and-adversarial).
 
 ## Step 4 — The findings file contract
 
@@ -318,12 +313,12 @@ Write `verdicts` to the status log after each read. A file is **not clean** — 
 |---|---|
 | is missing | a station that never ran, or crashed, cannot pass the loop |
 | resolved zero files outside the checked empty-resolution case, or materially fewer files or commits than [this round's freeze](references/worker.md#not-clean) | a scope failure, indistinguishable from a real clean |
-| is review's, and its Summary does not say the stale-claim pass ran | drift outside the diff went unsearched |
-| is review's, and its Summary does not say the test-cost pass ran, or does not say the coverage-trace pass ran or the freeze removed no test | the test passes went unrun |
+| is conformance's, and its Summary does not say the stale-claim pass ran | drift outside the diff went unsearched |
+| is conformance's, and its Summary does not say the test-cost pass ran, or does not say the coverage-trace pass ran or the freeze removed no test | the test passes went unrun |
 
 What a station writes on a scope it did not resolve is the workers': [not clean](references/worker.md#not-clean).
 
-Non-blocking cards — review `drift` and `nit`, security `medium` and `low` — stay in the findings files until
+Non-blocking cards — conformance `drift` and `nit`, adversarial `medium` and `low` — stay in the findings files until
 Step 9, so pickup can fix them first. Both `clean`, both scopes matching → converged: go to Step 8.
 
 ## Step 6 — The fix station (a fresh worker, inside this loop)
@@ -331,7 +326,7 @@ Step 9, so pickup can fix them first. Both `clean`, both scopes matching → con
 The fix pass is a station **inside** `mf-converge`, not a separate skill and not a mode of `mf-build`: a
 build∥fix seam prevents nothing — both produce, both commit, neither judges.
 
-Dispatch a **fresh worker**, in the foreground, on `review=`'s model when any card it is
+Dispatch a **fresh worker**, in the foreground, on `adversarial=`'s model when any card it is
 sent is blocking, else on `fix=`'s, to clear every **open blocking** finding across both files — in the pickup round,
 exactly the cards Step 8 names — to a **green gate**, and wait for it. Write `fix` to the status log at dispatch and
 again at its commit. The fixer:
@@ -339,7 +334,7 @@ again at its commit. The fixer:
 - fixes test-first where there is logic, to the [rules for tests](references/worker.md#rules-for-tests): a finding's regression test
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`);
 - **never weakens the gate** — no new blanket suppression, no loosened config — and **never deletes or merges a
-  test**: consolidation is planned at the cut (`T5`). Review checks for exactly this;
+  test**: consolidation is planned at the cut (`T5`). Conformance checks for exactly this;
 - sets each addressed card's [**Status**](references/worker.md#the-card) to `fixed`, with a one-line note;
 - **proves red before green**: for a card whose **Fix** size includes `a test`, it pastes the new or extended
   test's failing run from before the fix into the **Status** note — for an extended test, the existing test with
@@ -362,7 +357,8 @@ unchanged head and the previous freeze's patch, and Step 5 compares against that
 
 **Otherwise re-freeze** to the scoped range `<previous head>..<new head>` — the head the last round judged to the
 head the fix produced — overwriting `.minions/changes/<change-id>/diff.patch`: the verify pass judges **the
-fix**, not the branch again. Rewrite the bundle as Step 2 does, halting as it says. Print the range · commit count ·
+fix**, not the branch again. Rewrite the bundle and its debt cards as Step 2 does, `debt_match.py` after
+`bundle.py`, halting as it says. Print the range · commit count ·
 files changed; `base` stays Step 2's merge-base.
 These numbers supersede the previous round's for Step 5. Write `freeze` to the status log. There are no per-round
 patch files: each findings file's `head:` and its `## Resolution log` are the per-round record, and a second
@@ -372,23 +368,33 @@ record drifts.
 
 Re-run the gate yourself, through `gate_run.py`, then Step 1.6's `gate_check.py`, and write `verify` to the status log.
 
-**The security head by rule:** after a Step 6 commit, run
-`uv run --script <this package>/scripts/surfaces.py .minions/changes/<change-id>/security.md <previous head> <new head>`,
+**The adversarial head by rule:** after a Step 6 commit, run
+`uv run --script <this package>/scripts/surfaces.py .minions/changes/<change-id>/adversarial.md <previous head> <new head>`,
 the re-freeze's range.
 
-- **Exit 0** → in the security file set `head:` to `HEAD`, `round:` to this round, `reviewed:` to today,
+- **Exit 0** → in the adversarial file set `head:` to `HEAD`, `round:` to this round, `reviewed:` to today,
   `mode: by-rule` and `workers: 0`, keeping `verdict: clean` and `open_blocking: 0`; add
   `- <previous head>..<new head>: no surface` under a `## By rule` section above its `## Resolution log`; append
   `<date> · round N · by rule: no surface` to the log; write `by rule` to the status log,
-  `round N · by rule — no surface`; and dispatch review alone. Step 5 reads that file for `verdict: clean` and its
-  `head:` alone, with no `verdicts` line.
+  `round N · by rule — no surface`; and dispatch conformance alone. Step 5 reads that file for `verdict: clean` and
+  its `head:` alone, with no `verdicts` line.
 - **Exit 1** → dispatch both. Exit 2, or `uv` missing → **halt**, naming what it printed.
 - A catch-up run, its fix round and an `· amend` run's included, and a fixer that committed nothing, run no
   `surfaces.py`: dispatch both.
 
-Dispatch review, and security unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's inputs and
-dispatch rules, and write `fan-out`. Also pass each its own findings file and the scoped fix diff. Each runs [the verify pass](references/worker.md#the-verify-pass), red
-runs included. Read the verdicts from disk under Step 5.
+**The open cards:** for each checker you dispatch, run
+`uv run --script <this package>/scripts/open_cards.py .minions/changes/<change-id>/<role>.md .minions/changes/<change-id>/<role>.open.md`;
+exit 2, or `uv` missing → **halt**, naming what it printed.
+
+Dispatch conformance, and adversarial unless by rule, again as **fresh** workers at `round ≥ 2`, with Step 3's
+dispatch rules, and write `fan-out`. Give each [verify](references/verify.md), its `<role>.open.md`, the fix diff
+`diff.patch`, its findings path and, for conformance, the design's `## Tests` section — never Step 3's packet, its
+role reference or the worker reference. Each runs verify's pass, red runs included. Read the verdicts from disk under
+Step 5.
+
+A catch-up's judge round judges new commits, and the cards its range answers, by the worker reference's
+[scoping](references/worker.md#conformance-and-adversarial): it runs no `open_cards.py` and dispatches Step 3's
+inputs over its freeze. Its fix round's verify is a round after a fix, as above.
 
 Both `clean` → converged: go to Step 8. Otherwise loop back to Step 6.
 
@@ -458,7 +464,7 @@ Write `done` to the status log. The last line: `Next: /mf-release, in a fresh se
 
 - **Never review in your own context.** Fresh workers cannot be dispatched, awaited and read from shared disk →
   **halt and say so**; never report a verdict you produced.
-- **Never edit a findings file**, save [By rule](#by-rule)'s write and Step 7's security head by rule. The stations
+- **Never edit a findings file**, save [By rule](#by-rule)'s write and Step 7's adversarial head by rule. The stations
   own their files; you read them.
 - **Never delete, move, rename or empty a findings file or the diff patch.** Clearing them is the human's act.
 - **Never edit or delete a status-log line.** Insert only: the log is the record of what the loop did.

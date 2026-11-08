@@ -79,19 +79,20 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 
 ## Surfaces
 
-The path globs a converge fix reaches security through: `skills/mf-converge/scripts/surfaces.py` reads this list at the
-head the last round judged and matches each with `fnmatch`, whose `*` crosses `/`, and a fix touching none takes its
-security head by rule. A test module stays off it: review judges every test edit under *Gate integrity*, and a test-only
-pickup verified by security would spend what [D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a
-`conftest.py`, whose hooks reshape the whole run, is on it.
+The path globs a converge fix reaches adversarial through: `skills/mf-converge/scripts/surfaces.py` reads this list at
+the head the last round judged and matches each with `fnmatch`, whose `*` crosses `/`, and a fix touching none takes
+the adversarial head by rule. A test module stays off it: conformance judges every test edit under *Gate integrity*,
+and a test-only pickup given an adversarial verify would spend what
+[D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a `conftest.py`, whose hooks reshape the whole
+run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
 - `skills/mf-release/SKILL.md` — the merge and push on the person's yes.
-- `skills/mf-converge/references/generic-security.md` — what security checks.
-- `skills/mf-converge/SKILL.md` — when security runs, its head by rule among it, and what may write a findings file.
+- `skills/mf-converge/references/generic-adversarial.md` — what adversarial checks.
+- `skills/mf-converge/SKILL.md` — when adversarial runs, its head by rule among it, and what may write a findings file.
 - `skills/mf-converge/references/worker.md` — the grades and anchors that decide what a security card blocks.
 - `skills/mf-rescue/SKILL.md` — the rescue's bounds, which never take a security `critical` or `high` card.
 - `skills/mf-supervise/SKILL.md` — the supervisor's bounds, which never take a security `critical` or `high` card.
@@ -117,7 +118,7 @@ pickup verified by security would spend what [D64](docs/decisions.md#d64--conver
 - `uv.lock` — the pinned dependencies.
 - `.github/*` — CI and its tools.
 - `AGENTS.md` — `Ship tools:` and `Ship network:`, which reach every worker's sandbox.
-- `THREAT_MODEL.md` — this file: what security weighs, and this list.
+- `THREAT_MODEL.md` — this file: what adversarial weighs, and this list.
 
 ## Out of scope
 
@@ -147,8 +148,8 @@ pickup verified by security would spend what [D64](docs/decisions.md#d64--conver
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
-  one a version a run. So is the security head by rule: it reads the security file's cards, which a worker writes, so a
-  forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
+  one a version a run. So is the adversarial head by rule: it reads the adversarial file's cards, which a worker writes, so
+  a forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
   cannot drop the glob its own edit matches.
 
 ## Known gaps

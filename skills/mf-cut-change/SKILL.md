@@ -314,7 +314,7 @@ after the brief's `## For the cut` list. The last line: `Next: the run builds it
 | **P9** | **Stable ids, cited as links** | `per [D3](design.md#d3)` — agents grep `D3`, people click it |
 | **P10** | **One word per thing** | define a term once, in bold; never swap in a synonym |
 | **P11** | **Concrete names** | files, commands, symbols in backticks; a text change as before → after |
-| **P12** | **No counts — name the things** | "the review and security files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
+| **P12** | **No counts — name the things** | "the conformance and adversarial files", not "the two files". The one exception: a change's evidence and measurement tables in `design.md`, each count with the command that produced it. A `Verify:`'s expected output is a check, not prose |
 | **P13** | **Size limits** | a paragraph fits in 3 sentences, a task in 3 lines; anything longer is a decision or a doc section, linked |
 
 A task, before → after:
@@ -363,7 +363,7 @@ After the commit, suggest in chat a model for the build, the check loop and the 
 session's menu; with no menu, describe the capability needed — never invent model names.
 
 When the brief's `## For the cut` item for this change names models, write exactly those: the person chose them at the
-plan's close. The brief names no worker table: write `[converge.review]`, `[converge.security]` and `[converge.fix]`
+plan's close. The brief names no worker table: write `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`
 from the Converge bullet. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -383,8 +383,9 @@ a change, never one per phase.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it: the conductor, `[converge]`, on the mid tier · medium, review and security on the strongest
-  tier · high, and the fixer on the mid tier · high. Say which you found.
+  output — means run it: the conductor, `[converge]`, on the mid tier · medium,
+  conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · high.
+  Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -402,10 +403,10 @@ effort = "<effort>"        # only where the host exposes it
 [converge]
 model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
 # executor = "codex"  # optional, per table; absent, the run's. A cross-host pairing is usually the person's edit
-[converge.review]
+[converge.conformance]
 model = "<offered model>"
 effort = "<effort>"
-[converge.security]
+[converge.adversarial]
 model = "<offered model>"
 effort = "<effort>"
 [converge.fix]

@@ -82,6 +82,17 @@ def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
         " /mf-ship moves it\n",
     )
     assert not (root / ".minions" / "changes").exists()
+    # A change folder's old findings name halts the same.
+    old.unlink()
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "security.md").write_text("---\nverdict: clean\n---\n")
+    result = _run(root, "next", "0001-todo")
+    assert (result.returncode, result.stdout) == (
+        2,
+        "next: cannot run — .minions/changes/0001-todo/security.md is the old layout:"
+        " /mf-ship moves it\n",
+    )
 
 
 def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
@@ -154,12 +165,15 @@ def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
 
     findings = root / ".minions" / "changes" / "009-early"
     findings.mkdir(parents=True, exist_ok=True)
-    (findings / "review.md").write_text("---\nverdict: clean\n---\n")
+    (findings / "conformance.md").write_text("---\nverdict: clean\n---\n")
     result = _run(root, "next", "009-early")
     assert result.returncode == 1
     assert "not ready — converge ran, and a findings file is missing" in result.stdout
 
-    (findings / "security.md").write_text("---\nverdict: clean\n---\n")
+    (findings / "adversarial.md").write_text("---\nverdict: blocking\n---\n")
+    result = _run(root, "next", "009-early")
+    assert "not ready — adversarial.md is not clean" in result.stdout
+    (findings / "adversarial.md").write_text("---\nverdict: clean\n---\n")
     assert _run(root, "next", "009-early").returncode == 0
 
     proposal = "---\nbump: minor\nafter: [009-early]\n---\n"

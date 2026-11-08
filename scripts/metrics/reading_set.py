@@ -2,11 +2,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Print the words a station reads before it starts: `converge`, `worker` or `shared`.
+"""Print the words a station reads before it starts.
 
-A worker reads the decisions' index, `INDEX`, in place of the whole file.
-Why: 0030-change-impact design D7; 0076-context-cost design D4;
-0094-lighter-converge design D10.
+The set is `converge`, `conformance`, `adversarial` or `shared`. Conformance reads
+the decisions' index, `INDEX`, in place of the whole file; adversarial reads the
+threat model and no decision. Why: 0030-change-impact design D7; 0076-context-cost
+design D4; 0094-lighter-converge design D10; 0095-converge-roles design D13.
 """
 
 import sys
@@ -29,11 +30,19 @@ SETS = {
         "skills/mf-converge/SKILL.md",
         "skills/mf-converge/references/worker.md",
     ),
-    "worker": (
-        *(INDEX if path == DECISIONS else path for path in SHARED),
+    "conformance": (
+        "AGENTS.md",
+        "CODING_STANDARDS.md",
+        "CONTRIBUTING.md",
+        INDEX,
+        "skills/mf-converge/references/worker.md",
+        "skills/mf-converge/references/generic-conformance.md",
+    ),
+    "adversarial": (
+        "AGENTS.md",
         "THREAT_MODEL.md",
         "skills/mf-converge/references/worker.md",
-        "skills/mf-converge/references/generic-review.md",
+        "skills/mf-converge/references/generic-adversarial.md",
     ),
 }
 

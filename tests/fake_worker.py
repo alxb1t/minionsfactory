@@ -45,7 +45,7 @@ def _findings(
 ) -> None:
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    for role in ("review", "security"):
+    for role in ("conformance", "adversarial"):
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: {round}\n---\n"
         (folder / f"{role}.md").write_text(text)
     log = folder / "status_log.md"
@@ -55,31 +55,32 @@ def _findings(
 def _cards(
     root: Path, change: str, head: str, size: str, granted: bool = False
 ) -> None:
-    """Write both findings files capped at `head`, security's open blocker sized `size`.
+    """Write both findings files capped at `head`, the `S` blocker sized `size`.
 
-    Review's open blocker is sized `one line`; a nit, a `medium` and a verified
+    Conformance's open blocker is sized `one line`; a nit, a `medium` and a verified
     blocker, each sized `a design change`, block nothing. A `granted` round's run is
     marked `· grant`, as `mf-converge` marks it.
     """
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     cards = {
-        "review": [
+        "conformance": [
             ("R1", "blocking", "one line", "open"),
             ("R2", "nit", "a design change", "open"),
             ("R3", "blocking", "a design change", "verified — held"),
         ],
-        "security": [
+        "adversarial": [
             ("S1", "high", size, "open"),
             ("S2", "medium", "a design change", "open"),
         ],
     }
+    categories = {"conformance": "stability", "adversarial": "security"}
     for role, listed in cards.items():
         text = f"---\nverdict: changes-requested\nhead: {head}\nround: 3\n---\n\n"
         for card, severity, fix, status in listed:
             text += (
                 f"- **{card} — a finding**\n"
-                f"  - **Priority:** {severity} · {role} · stability — why.\n"
+                f"  - **Priority:** {severity} · {role} · {categories[role]} — why.\n"
                 f"  - **Fix:** a fix · size: {fix}.\n"
                 f"  - **Status:** {status}\n"
             )
@@ -92,19 +93,24 @@ def _cards(
 def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
     """Write converge's `amend needed — <card>` halt at `head`, after round 1's start.
 
-    The card is `wontfix`, naming a `design.md` prose amend: review's `blocking`, or
-    security's `high` for an `S` id. The other findings file is clean.
+    The card is `wontfix`, naming a `design.md` prose amend: conformance's
+    `blocking`, or adversarial's `high` security card for an `S` id. The other
+    findings file is clean.
     """
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    role, severity = ("security", "high") if card[0] == "S" else ("review", "blocking")
-    for name in ("review", "security"):
+    role, severity, category = (
+        ("adversarial", "high", "security")
+        if card[0] == "S"
+        else ("conformance", "blocking", "stability")
+    )
+    for name in ("conformance", "adversarial"):
         verdict = "changes-requested" if name == role else "clean"
         text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
         if name == role:
             text += (
                 f"\n- **{card} — a finding**\n"
-                f"  - **Priority:** {severity} · {role} · stability — why.\n"
+                f"  - **Priority:** {severity} · {role} · {category} — why.\n"
                 "  - **Fix:** amend design.md's prose · size: one line.\n"
                 "  - **Status:** wontfix — needs the amend of design.md's prose\n"
             )
@@ -124,8 +130,8 @@ def _done(root: Path, change: str, head: str) -> None:
 
 def _by_rule(tree: Path, folder: Path) -> list[str] | None:
     """Return a line per merge when a catch-up selects merges alone, each replaying."""
-    review = folder / "review.md"
-    text = review.read_text() if review.is_file() else ""
+    conformance = folder / "conformance.md"
+    text = conformance.read_text() if conformance.is_file() else ""
     found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
     head = _git(tree, "rev-parse", "HEAD")
     if not found or found[1] == head:
@@ -152,7 +158,7 @@ def _by_rule(tree: Path, folder: Path) -> list[str] | None:
 
 def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     """Write both findings files clean at `head` with `## By rule`; log the round."""
-    for role in ("review", "security"):
+    for role in ("conformance", "adversarial"):
         text = f"---\nverdict: clean\nhead: {head}\nround: 2\nworkers: 0\n---\n"
         text += "\n## By rule\n\n" + "\n".join(lines) + "\n"
         (folder / f"{role}.md").write_text(text)
@@ -166,7 +172,7 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
 def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
     """Judge the head clean, commit a fix at `FAKE_FIX`, then judge it as Step 7 does.
 
-    Security takes the fix head by rule, `mode: by-rule`, when `surfaces.py` exits 0.
+    Adversarial takes the fix head by rule, `mode: by-rule`, when `surfaces.py` exits 0.
     """
     folder = _folder(primary, change)
     start = _git(tree, "rev-parse", "HEAD")
@@ -176,7 +182,7 @@ def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
     script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
     done = subprocess.run(
         [sys.executable, str(script / "scripts" / "surfaces.py")]
-        + [str(folder / "security.md"), start, end],
+        + [str(folder / "adversarial.md"), start, end],
         cwd=tree,
         capture_output=True,
         text=True,
@@ -185,9 +191,9 @@ def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
     said = done.stdout.split(" — ")[0].strip()
     mode = {"surfaces: no surface": "by-rule", "surfaces: verify": "parallel"}[said]
     _findings(primary, change, end, round=2)
-    security = folder / "security.md"
-    text = security.read_text().replace("round: 2\n", f"round: 2\nmode: {mode}\n")
-    security.write_text(text)
+    adversarial = folder / "adversarial.md"
+    text = adversarial.read_text().replace("round: 2\n", f"round: 2\nmode: {mode}\n")
+    adversarial.write_text(text)
 
 
 def _integrate(
@@ -563,8 +569,8 @@ def _fake(prompt: str) -> None:
             _write_by_rule(folder, head, lines)
             return
         if "amends" in modes or "amend-halts" in modes:
-            review = folder / "review.md"
-            text = review.read_text() if review.is_file() else ""
+            conformance = folder / "conformance.md"
+            text = conformance.read_text() if conformance.is_file() else ""
             found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
             judged = found[1] if found else head
             _findings(primary, str(change), head, round=2)

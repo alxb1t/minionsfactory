@@ -2,17 +2,17 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Decide whether a converge fix needs a security verify.
+"""Decide whether a converge fix needs an adversarial verify.
 
-    surfaces.py <security.md> <from> <to>
+    surfaces.py <adversarial.md> <from> <to>
 
-Run from the repository root. Exit 0, `surfaces: no surface`: the security file is
+Run from the repository root. Exit 0, `surfaces: no surface`: the adversarial file is
 clean, every card and Status line `verified` or `accepted`, and no path of
 `<from>..<to>` matches a glob of `THREAT_MODEL.md`'s `## Surfaces` as `<from>` holds
 it. Exit 1,
 `surfaces: verify — <reason>`, the first that holds. Exit 2,
 `surfaces: cannot read — <why>`.
-Why: 0094-lighter-converge design D8.
+Why: 0094-lighter-converge design D8; 0095-converge-roles design D3.
 """
 
 import argparse
@@ -40,7 +40,7 @@ class Unread(Exception):
 
 
 class Verify(Exception):
-    """End the run with the reason security verifies the fix, and exit 1."""
+    """End the run with the reason adversarial verifies the fix, and exit 1."""
 
 
 def surfaces(text: str) -> list[str]:
@@ -52,28 +52,28 @@ def surfaces(text: str) -> list[str]:
     return GLOB.findall(found[1]) if found else []
 
 
-def decide(security: Path, start: str, end: str) -> None:
+def decide(adversarial: Path, start: str, end: str) -> None:
     """Return when the fix reaches no surface; raise `Verify` or `Unread` else."""
     try:
-        text = security.read_text()
+        text = adversarial.read_text()
     except OSError as error:
-        raise Unread(f"{security}: {error.strerror}") from error
+        raise Unread(f"{adversarial}: {error.strerror}") from error
     head = FRONTMATTER.match(text)
     if not head or not re.search(r"^verdict: clean$", head[1], re.MULTILINE):
-        raise Verify(f"{security.name} is not clean")
+        raise Verify(f"{adversarial.name} is not clean")
     starts = list(CARD.finditer(text))
     ends = [card.start() for card in starts[1:]] + [len(text)]
     for card, end_at in zip(starts, ends[: len(starts)], strict=True):
         status = STATUS.search(text, card.end(), end_at)
         said = status[1] if status else ""
         if said not in SETTLED:
-            raise Verify(f"security card {card[1]} is {said or 'unsettled'}")
+            raise Verify(f"adversarial card {card[1]} is {said or 'unsettled'}")
     # Every Status line too, so one under a title `CARD` misses still waits.
     for status in STATUS.finditer(text):
         if status[1] not in SETTLED:
             titles = TITLE.findall(text, 0, status.start())
             named = titles[-1] if titles else "unnamed"
-            raise Verify(f"security card {named} is {status[1] or 'unsettled'}")
+            raise Verify(f"adversarial card {named} is {status[1] or 'unsettled'}")
     # Replacement off, as `pin.py`'s and `conduct.py`'s history reads: a worker can
     # write `refs/replace/`, and swap the list read at `<from>`.
     unreplaced = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
@@ -103,16 +103,16 @@ def decide(security: Path, start: str, end: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print whether the fix needs a security verify; return the exit code."""
+    """Print whether the fix needs an adversarial verify; return the exit code."""
     parser = argparse.ArgumentParser(
-        description="Decide whether a converge fix needs a security verify."
+        description="Decide whether a converge fix needs an adversarial verify."
     )
-    parser.add_argument("security", type=Path, help="the security findings file")
+    parser.add_argument("adversarial", type=Path, help="the adversarial findings file")
     parser.add_argument("start", metavar="from", help="the head the last round judged")
     parser.add_argument("end", metavar="to", help="the head the fix produced")
     args = parser.parse_args(argv)
     try:
-        decide(args.security, args.start, args.end)
+        decide(args.adversarial, args.start, args.end)
     except Verify as verify:
         print(f"surfaces: verify — {verify}")
         return 1
