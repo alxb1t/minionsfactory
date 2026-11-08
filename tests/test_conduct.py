@@ -1109,15 +1109,45 @@ def test_a_stacked_dependent_resets_and_merges_back(
         assert not run.ready(conduct["Version"](change, tree), {})
     assert run.blocked == ["0003-more", "0004-late"]
 
+    # Stacked, it is ready again and gets no gate merge.
+    assert run.ready(version, {})
+    run.catch_up(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+
+    # A head off its branch or unticked, or a file that does not stand, is none.
+    _done(root, "0003-more", _git(root, "rev-parse", "main"))
+    assert conduct["_built_head"](root, "0003-more") is None
+    _done(root, "0002-marks", cut)
+    assert conduct["_built_head"](root, "0002-marks") is None
+    (stacked_on.parent / "build.done").unlink()
+    standing = conduct["_stacked_on"]
+    for text in (b"\xff\n", f"{_git(late, 'rev-parse', 'HEAD')}\n".encode()):
+        stacked_on.write_bytes(text)
+        assert standing(root, "0002-marks", marks, []) is None
+    stacked_on.write_text(f"{cut}\n")
+    assert standing(root, "0002-marks", marks, ["0001-todo"]) is None
+    stacked_on.write_text(f"{built}\n")
+    assert conduct["_cut_commit"](more, "0003-more") is None
+
     # An amend that changes no decision leaves it; one touching the proposal resets it.
     amend = "docs(0001-todo): amend the change directory"
     tasks = "openspec/changes/0001-todo/tasks.md"
     noted = {tasks: (first / tasks).read_text() + "\nA note.\n"}
     _commit(first, noted, amend)
     assert not run.reset_stack(version)
+    assert not run.reset_stack(conduct["Version"]("0002-marks", None))
     assert stacked_on.is_file()
     replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: patch\n---\n"}
     _commit(first, replanned, amend)
+    uncut = conduct["Version"]("0002-marks", first)
+    with pytest.raises(conduct["Stop"], match="0002-marks: no cut commit to reset to"):
+        run.reset_stack(uncut)
+    _git(root, "config", "mf.race", "x")
+    with pytest.raises(conduct["Stop"], match="the local git config changed"):
+        run.reset_stack(version)
+    _git(root, "config", "--unset", "mf.race")
+    run.git_state = conduct["_git_state"](root)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
     assert run.reset_stack(version)
     assert _git(marks, "rev-parse", "HEAD") == cut
     assert not stacked_on.exists()
@@ -1130,7 +1160,36 @@ def test_a_stacked_dependent_resets_and_merges_back(
     _done(root, "0001-todo", tip)
     assert run.ready(version, {})
     assert stacked_on.read_text() == f"{tip}\n"
+
+    # A re-plan read while it waits stacked, or by `advance`, sends it back too.
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait)
+    live.start()
+    replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: minor\n---\n"}
+    _commit(first, replanned, amend)
+    assert run.landed(version, {"0001-todo": live})
+    gate.set()
+    live.join()
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
+    decided = {"openspec/changes/0001-todo/design.md": "## Decisions\n\n- D1\n"}
+    _commit(first, decided, amend)
+    assert run.advance(version, ("integrate", "release")) == "waiting"
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
     _commit(marks, {"CHANGELOG.md": f"{entries}- x1\n"}, "build: x1")
+
+    # Built, it waits stacked; its dependency ended unreleased blocks it.
+    ticked = {
+        "openspec/changes/0002-marks/tasks.md": "## Progress\n\n- [x] 1 — Marks\n"
+    }
+    _commit(marks, ticked, "build: marks")
+    _done(root, "0002-marks", _git(marks, "rev-parse", "HEAD"))
+    run.take(version, {})
+    assert run.blocked[-1] == "0002-marks"
+    assert not run.stopped("0002-marks")
 
     # The release merged back keeps the dependent's entries alone in [Unreleased].
     (first / "openspec/changes/archive").mkdir()

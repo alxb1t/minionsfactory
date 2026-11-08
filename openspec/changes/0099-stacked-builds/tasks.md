@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The stack
 - [x] 2 — The base
 - [x] 3 — The reset and the merge back
-- [ ] 4 — The record
+- [x] 4 — The record
 
 ## 1 — The stack
 
@@ -82,30 +82,30 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The record
 
-- [ ] 4.1 Extend `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the design's `## Tests` row says,
+- [x] 4.1 Extend `test_run_metrics_read_the_run_logs` in `tests/test_metric_scripts.py`, as the design's `## Tests` row says,
   then `Version.after_waits` and its `METRICS` entry in `scripts/metrics/run.py`, per [D7](design.md#d7).
   Verify: `grep -n '"after-wait-minutes": Version.after_waits' scripts/metrics/run.py` prints a line.
-- [ ] 4.2 Add the `after-wait-minutes` metric after `wait-minutes` in `metrics/catalogue.toml`, as [D7](design.md#d7) quotes it.
+- [x] 4.2 Add the `after-wait-minutes` metric after `wait-minutes` in `metrics/catalogue.toml`, as [D7](design.md#d7) quotes it.
   Verify: `grep -n 'id = "after-wait-minutes"' metrics/catalogue.toml` prints a line.
-- [ ] 4.3 Add D70 after D47 in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+- [x] 4.3 Add D70 after D47 in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n '^### D70 · A dependent builds on its dependency.s built head$' docs/decisions.md` prints a line.
-- [ ] 4.4 Add `, D70` after `D67` in the Repo conventions list of the map at the top of `docs/decisions.md`, per
+- [x] 4.4 Add `, D70` after `D67` in the Repo conventions list of the map at the top of `docs/decisions.md`, per
   [D8](design.md#d8).
   Verify: `grep -n 'D60, D61, D67, D70' docs/decisions.md` prints a line.
-- [ ] 4.5 Add D44's sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+- [x] 4.5 Add D44's sentence in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'A stacked dependent takes its dependency.s built head by a' docs/decisions.md` prints a line.
-- [ ] 4.6 Make D45's edits in `docs/decisions.md`, as [D8](design.md#d8) quotes them.
+- [x] 4.6 Make D45's edits in `docs/decisions.md`, as [D8](design.md#d8) quotes them.
   Verify: `grep -n 'a stacked branch.s .CHANGELOG.md. on any merge' docs/decisions.md` prints a line.
-- [ ] 4.7 Make D47's edit in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
+- [x] 4.7 Make D47's edit in `docs/decisions.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'a dependent building on its dependency.s built head' docs/decisions.md` prints a line.
-- [ ] 4.8 Add `stacked-on` to D57's list in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 4.8 Add `stacked-on` to D57's list in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -n 'discarded.patch}., .stacked-on.' docs/decisions.md` prints a line.
-- [ ] 4.9 Make D63's edit in `docs/decisions.md`, per [D8](design.md#d8) (`0095·R6`).
+- [x] 4.9 Make D63's edit in `docs/decisions.md`, per [D8](design.md#d8) (`0095·R6`).
   Verify: `grep -n 'Conformance keeps the full plan' docs/decisions.md` prints a line.
-- [ ] 4.10 Add the stacked-build bullet to *Trust boundaries* in `THREAT_MODEL.md`, as [D8](design.md#d8) quotes it.
+- [x] 4.10 Add the stacked-build bullet to *Trust boundaries* in `THREAT_MODEL.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'A stacked build runs on code no converge has judged' THREAT_MODEL.md` prints a line.
-- [ ] 4.11 Drop `0050·R5` from *Known gaps* in `THREAT_MODEL.md` and rewrite its config-race gap, as [D8](design.md#d8)
+- [x] 4.11 Drop `0050·R5` from *Known gaps* in `THREAT_MODEL.md` and rewrite its config-race gap, as [D8](design.md#d8)
   quotes it.
   Verify: `grep -n 'compares the config again right before its commit' THREAT_MODEL.md` prints a line.
-- [ ] 4.12 Edit the flow's version line in `skills/mf-ship/SKILL.md`, as [D8](design.md#d8) quotes it.
+- [x] 4.12 Edit the flow's version line in `skills/mf-ship/SKILL.md`, as [D8](design.md#d8) quotes it.
   Verify: `grep -n 'build, stacked on it' skills/mf-ship/SKILL.md` prints a line.

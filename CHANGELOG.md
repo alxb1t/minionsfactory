@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit; the
   merge back runs `integrate.py`'s `changelog` rule, which keeps only the entries past a stacked base's, so the
   dependency's are not carried twice (change `0099-stacked-builds`, phase 3).
+- The `after-wait-minutes` run metric measures a dependent's wait on its `after:` ids; D70 records the stacked build,
+  D44, D45, D47, D57 and D63 follow it, and the threat model names it and drops `0050·R5` (change
+  `0099-stacked-builds`, phase 4).
 
 ## [0.81.0] - 2026-11-08
 

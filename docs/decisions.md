@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70
 ```
 
 ## The shape
@@ -410,7 +410,7 @@ charts over changes through `mf-build`'s chart, and a record per round and role.
 change directory, the person's, the rescue's or the supervisor's — opens one amend round: a catch-up run marked `· amend` over
 `<judged head>..HEAD`, holding the amend, the build's code for a phase it added and converge's own unverified fix. Before its
 `start` it runs each `Verify:` the range adds to `tasks.md`; then one judge round and at most one fix round, a blocker left
-`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. The checkers keep the full plan, and the stale-claim pass
+`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. Conformance keeps the full plan, and the stale-claim pass
 searches the whole tree for each claim the amend changes.**
 
 - **Why:** an amended run restarted at round 1 over the whole change with a fresh cap of three: 24% of converge's spend, a
@@ -598,8 +598,9 @@ the bootstrap templates — never that a sentence exists.**
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
 primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch and
 every reservation `conduct.py cut` wrote under its lock ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
-Every worktree shares the primary's `.minions/`, save the gate's own junit report, which sits in the checkout that ran
-it; the release merges in the primary.**
+A stacked dependent takes its dependency's built head by a merge
+([D70](#d70--a-dependent-builds-on-its-dependencys-built-head)). Every worktree shares the primary's `.minions/`, save the
+gate's own junit report, which sits in the checkout that ran it; the release merges in the primary.**
 
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; an open branch reserves its id
   once its change is committed, and a queued cut's reservation before.
@@ -615,7 +616,9 @@ the merge, its body naming every path it settled: a rule, the union, the person,
 the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
-its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
+its gate, save a stacked one; it also merges a dependency's built head into its stacked dependent
+([D70](#d70--a-dependent-builds-on-its-dependencys-built-head)). It settles a conflict in `CHANGELOG.md` or
+`docs/decisions.md`, and a stacked branch's `CHANGELOG.md` on any merge, by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
 `integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
@@ -627,6 +630,7 @@ its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `int
 ### D47 · `mf-ship` takes cut versions to the default branch unattended
 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
+a dependent building on its dependency's built head ([D70](#d70--a-dependent-builds-on-its-dependencys-built-head)),
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
@@ -668,6 +672,23 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
   version held until `origin` answers.
+
+### D70 · A dependent builds on its dependency's built head
+
+**Once a version's one unreleased `after:` dependency passes its build check, with no halt, and its built head holds the
+version's base, `conduct.py` merges that head into the version with no agent, writes its sha to
+`.minions/changes/<id>/stacked-on`, and the version builds. Built, it waits as `stacked`; once the dependency releases, the
+run merges the default branch in, removes `stacked-on`, and converge runs round 1. While `stacked-on` stands, the build's gate
+check and metrics, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
+change directory past that head that changes a decision resets the version to its cut commit; it stacks again on the
+dependency's next build.**
+
+- **Why:** a dependent waited through its dependency's converge, about 45 minutes, which rarely changes the code it builds on.
+- **Accepts:** a dependent built on code its dependency's converge has not judged — it never converges or releases before
+  that converge and release · a reset that drops the dependent's build and any amend of its own · a forged `stacked-on`,
+  which narrows the build's gate check and diff coverage alone: the run removes it before converge and the release.
+- **Rejected:** rebasing the dependent onto the built head (D44, D45) · stacking on two dependencies, or on a head that lacks
+  the dependent's base · stopping a running build at a re-plan.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
@@ -819,7 +840,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
 `status_log.md`, `diff.patch`, `bundle.md`, `models.toml`, the cutter's `cut.halt`, `integrate.{md,red,resolved,settled}`,
-`build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
+`build.{done,halt,closing,discarded.patch}`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
