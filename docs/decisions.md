@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70
 ```
 
 ## The shape
@@ -319,10 +319,11 @@ starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-ano
 
 ### D64 · Converge spends where judgment is
 
-**Converge's conductor runs on the mid tier · medium, its conformance worker on the mid tier · high,
-its adversarial worker on the strongest tier · high, and its fixer on the mid tier · high, on adversarial's model when a
-card it is sent blocks: the models file's `[converge]`, `[converge.conformance]`, `[converge.adversarial]` and
-`[converge.fix]`, which `conduct.py` reads once and passes in the converge prompt. Conformance reads `bundle.md` — the
+**Converge's conductor runs on Sonnet 5.5 · high, its conformance worker on the mid tier · high,
+its adversarial worker on the strongest tier · high, and its fixer on the mid tier · medium, on adversarial's model,
+adversarial running on converge's host, when a card it is sent blocks: the models file's `[converge]`,
+`[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
+converge prompt. Verify runs at medium. Conformance reads `bundle.md` — the
 decisions the change cites, in full, an index of all, and the living requirements the delta modifies or removes — in
 place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of `THREAT_MODEL.md`, with no
 adversarial card awaiting its checker, takes its adversarial head by recomputation.**
@@ -396,10 +397,11 @@ station says so.**
 ### D50 · Review metrics are read across repos and drawn on one page
 
 **`mf-review-metrics` reads the findings files, status logs and run logs of the repos the operator's config names,
-and the operator's Codex sessions, leniently — every unreadable field a gap — and writes one self-contained page and
-its data, `review-metrics.json`, beside it: tables
-per repo and per role, executor and model, four headline numbers,
-charts over changes through `mf-build`'s chart, and a record per round and role. Numbers only; it writes into no repo and is no station of the line.**
+and every repo a run started in, and the operator's Codex sessions, leniently — every unreadable field a gap — and
+writes one self-contained page and its data, `review-metrics.json`, beside it: tables
+per repo and per role, executor and model, the cost per worker, round, role and station, with first-turn context, four
+headline numbers, charts over changes through `mf-build`'s chart, and a record per round and role. Numbers only; it
+writes into no repo and is no station of the line.**
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
@@ -464,8 +466,8 @@ converge read a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING
 ### D48 · A repo's architecture decisions and threat model have a known home
 
 **Its architecture decisions live in `docs/decisions.md` — or `ARCHITECTURE.md`, `docs/adr/` — and its threat model
-in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force, the
-build halts on a phase that breaks one unless the change amends it, and converge
+in `THREAT_MODEL.md`: named in `AGENTS.md`, else found by name. The cut designs within the decisions in force,
+reading those it cites and an index, the build halts on a phase that breaks one unless the change amends it, and converge
 hands its conformance worker its bundle — of the decisions, those the change cites, in full, and an index of all — and
 its adversarial worker the threat model. `mf-bootstrap` writes `THREAT_MODEL.md` and an empty `docs/decisions.md`.**
 
@@ -704,6 +706,20 @@ runs one conformance checker on a fixture, passing on a findings file to the con
 - **Accepts:** a priced cost only for a model the table holds · the checker's verdict unjudged · a swap after the check, while
   Codex starts.
 - **Rejected:** an MF-written Codex profile · judging the checker's verdict · list prices written by the cut.
+
+### D70 · A worker starts lean
+
+**A Claude worker starts with its station's tools alone — the cut and converge `Agent` too, the probe `Bash` and `Read` —
+with the operator's plugins, output style and auto-memory off and the dynamic prompt sections moved out, and reaches only the
+worktrees of open versions and queued cuts. The cut and converge ask for the 1-hour cache, every other station the 5-minute
+one. A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index; the
+converge conductor reads no mandatory context.**
+
+- **Why:** a worker's first turn was ~28.6k tokens before any work, re-read every turn; build carried all 55 decisions for
+  206 turns; only the cut's and converge's waits outlast 5 minutes.
+- **Accepts:** a station that needs a new tool halts until its row changes · a decision the build does not cite is read by
+  its index line alone.
+- **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.
 
 ### D53 · A rescue amends the plan, never the code or a decision
 

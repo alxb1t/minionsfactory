@@ -2,16 +2,16 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Write a converge status-log event or run heading with the clock's time.
+"""Write converge status-log events or a run heading with the clock's time.
 
-    stamp.py <log> '<round N · event — detail>'
+    stamp.py <log> '<round N · event — detail>' ['<event>' …]
     stamp.py <log> --run <N> [--mark <mark>]
 
-An event goes directly under the first `## Run` line; a run heading directly under
-the `# ` title, a blank line before the older runs. Prints the line written. Exit 0,
-or 2 with `stamp: cannot stamp — …` and the log unchanged; a log that is a link is
-refused, as `gate_run.py` refuses one.
-Why: 0088-paydown-2 design D7.
+Each event goes directly under the first `## Run` line, in order, so the last given is
+on top; a run heading directly under the `# ` title, a blank line before the older
+runs. Prints each line written. Exit 0, or 2 with `stamp: cannot stamp — …` and the
+log unchanged; a log that is a link is refused, as `gate_run.py` refuses one.
+Why: 0088-paydown-2 design D7; 0100-worker-diet design D9.
 """
 
 import argparse
@@ -22,7 +22,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-USAGE = "give one event, or --run with an optional --mark"
+USAGE = "give events, or --run with an optional --mark"
 
 
 class Stop(Exception):
@@ -35,12 +35,13 @@ def _now() -> datetime:
 
 
 def stamp(
-    text: str, event: str | None, run: int | None, mark: str | None
-) -> tuple[list[str], str]:
-    """Return the log's lines with the new line inserted, and that line.
+    text: str, events: list[str], run: int | None, mark: str | None
+) -> tuple[list[str], list[str]]:
+    """Return the log's lines with the new lines inserted, and those lines.
 
-    e.g. the lines "# t", "", "## Run 1 — d" and the event "round 1 · go" →
-    "10:02:03 · round 1 · go", inserted after "## Run 1 — d"
+    e.g. the lines "# t", "", "## Run 1 — d" and the events "round 1 · go" and
+    "round 1 · on" → "10:02:03 · round 1 · on" then "10:02:03 · round 1 · go",
+    inserted after "## Run 1 — d"
     """
     lines = text.splitlines()
     now = _now()
@@ -53,12 +54,12 @@ def stamp(
         rest = lines[1:]
         while rest and not rest[0].strip():
             rest.pop(0)
-        return [lines[0], "", line, *(["", *rest] if rest else [])], line
+        return [lines[0], "", line, *(["", *rest] if rest else [])], [line]
     at = next((i for i, line in enumerate(lines) if line.startswith("## Run")), None)
     if at is None:
         raise Stop("no ## Run heading")
-    line = f"{now:%H:%M:%S} · {event}"
-    return [*lines[: at + 1], line, *lines[at + 1 :]], line
+    written = [f"{now:%H:%M:%S} · {event}" for event in events]
+    return [*lines[: at + 1], *reversed(written), *lines[at + 1 :]], written
 
 
 def read(log: Path) -> str:
@@ -100,27 +101,27 @@ def write(log: Path, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Stamp one line into a status log; return the exit code."""
+    """Stamp events or a run heading into a status log; return the exit code."""
     parser = argparse.ArgumentParser(
-        description="Write a status-log event or run heading with the clock's time."
+        description="Write status-log events or a run heading with the clock's time."
     )
     parser.add_argument("log", type=Path, help="the status log")
-    parser.add_argument("event", nargs="?", help="'round N · event — detail'")
+    parser.add_argument("event", nargs="*", help="'round N · event — detail'")
     parser.add_argument("--run", type=int, help="open run N under the title")
     parser.add_argument("--mark", help="the run heading's mark, e.g. catch-up")
     args = parser.parse_args(argv)
     try:
-        if (args.event is None) == (args.run is None) or (
+        if (not args.event) == (args.run is None) or (
             args.mark is not None and args.run is None
         ):
             raise Stop(USAGE)
         text = read(args.log)
-        lines, line = stamp(text, args.event, args.run, args.mark)
+        lines, written = stamp(text, args.event, args.run, args.mark)
         write(args.log, "\n".join(lines) + "\n")
     except Stop as stop:
         print(f"stamp: cannot stamp — {stop}")
         return 2
-    print(line)
+    print("\n".join(written))
     return 0
 
 

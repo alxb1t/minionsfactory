@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-11-08
+
+Gate: local 2m22s · CI not read under mf-ship · 0.81.0: local 2m29s · CI not read under mf-ship
+
+- Each Claude worker starts with its station's tools alone, the operator's plugins, output style and auto-memory off, no
+  dynamic prompt sections, and a 1-hour cache for the cut and converge, 5 minutes for the rest; it reaches only the
+  worktrees of open versions and queued cuts, a tool its station lacks halts it, and the probe names its first turn's
+  context (change `0100-worker-diet`, phase 1).
+- The cut and the build read the decisions they cite and an index, which `bundle.py --decisions` prints, and the
+  principles and the threat model when a task names them; the converge conductor reads no mandatory context and runs on
+  Sonnet 5.5 · high by default, its fixer and verify workers at `medium`; one `stamp.py` call writes several events
+  (change `0100-worker-diet`, phase 2).
+- `gate_run.py` runs the gate without `VIRTUAL_ENV` and prints its summary line alone when green, make's output first
+  when red; pytest prints short tracebacks (change `0100-worker-diet`, phase 3).
+- `review-metrics.json` holds each converge worker's tokens, dollars and first-turn context, each round and role's
+  dollars, and each station's cost with the cut and the supervisor among them; the page reads every repo a run started
+  in, and the role table shows its median duration and tokens again (change `0100-worker-diet`, phase 4).
+- A converge subagent's tokens and dollars are a gap, as Claude's log holds no subagent's final output count; a Claude
+  mailbox checker's are its `result` event's; and each round and role's dollars sum its own run's workers alone, never
+  an amend run's of the same round (change `0100-worker-diet`, converge fixes S1 and S2).
+- D70 records the lean worker; D48, D50 and D64 name the cited decisions, every repo a run started in, the cost per
+  worker and the conductor on Sonnet 5.5 · high; the threat model and the principles follow (change `0100-worker-diet`,
+  phase 5).
+
 ## [0.81.0] - 2026-11-08
 
 Gate: local 2m29s · CI not read under mf-ship · 0.80.0: local 2m20s · CI not read under mf-ship
