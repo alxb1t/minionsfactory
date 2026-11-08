@@ -22,10 +22,11 @@ neither the config nor the run's repo list names a repo, or the config names no 
 
 Beside the page it writes `review-metrics.json`: one record per round and role — its executor, model, effort, tokens,
 dollars and source, a gap as `null`; `workers`, the cost per worker — each converge subagent and mailbox checker, with
-its role, round, model, tokens, first-turn context and dollars, priced by `prices.toml`; and `stations`, each change's
-stations, the cut and the supervisor among them, with their dollars, turns, tokens, seconds and first-turn context. The
-first-turn context is what a log's first turn read: its input, cache-read and cache-write tokens. A record's dollars are
-its round and role's workers'. A Codex worker's tokens come from its session in `$CODEX_HOME/sessions`, else
+its role, round, run, model, tokens, first-turn context and dollars, priced by `prices.toml`; and `stations`, each
+change's stations, the cut and the supervisor among them, with their dollars, turns, tokens, seconds and first-turn
+context. The first-turn context is what a log's first turn read: its input, cache-read and cache-write tokens. A
+subagent's tokens and dollars are a gap: Claude's log holds no subagent's final output count. A record's dollars are its
+run, round and role's workers'. A Codex worker's tokens come from its session in `$CODEX_HOME/sessions`, else
 `~/.codex/sessions`, matched to its round by the round's window and where its parent ran: the change's worktree, or the
 primary when no other version's round overlaps. A round its line names `executor claude` is never filled from a session.
 

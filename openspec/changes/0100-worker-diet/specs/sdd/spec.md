@@ -302,9 +302,10 @@ turns and seconds gaps; a log's **first-turn context** SHALL be its first assist
 tokens, or a Codex log's first `turn.completed` input tokens;
 a station with no log and a log with neither result nor `turn.completed` event SHALL be a gap, and a station the run log shows spawned more times than
 the logs read SHALL be marked `<read> of <spawns>`. A **worker** SHALL be each subagent a converge log's `task_started` event
-names, with its role and round read from the event's description, `<role> round <N>`, a gap where it names none, and its
-tokens, model and first-turn context from its assistant events, each counted once by message id; and each mailbox checker's
-log. A worker's dollars SHALL be its tokens priced by `prices.toml` under its model — input, cache read at `cached_input`, the
+names, with its role and round read from the event's description, `<role> round <N>`, a gap where it names none, its model
+and first-turn context from its assistant events, and its tokens a gap, as no event holds a subagent's final output count;
+and each mailbox checker's log, its tokens its last `result` event's `usage`, or its `turn.completed` events', else a gap. A
+worker's run SHALL be the status log's run whose window of its round holds its first event, else a gap. A worker's dollars SHALL be its tokens priced by `prices.toml` under its model — input, cache read at `cached_input`, the
 5-minute cache write at `cache_write`, the 1-hour at `cache_write_1h`, output — a gap with no row or no price a token needs.
 The status log's tokens SHALL be read per role, in every form a `verdicts` line
 holds; a line naming both roles SHALL be recorded under the role `both`, credited to neither. A Codex worker's tokens SHALL be read from its session — the
@@ -314,8 +315,8 @@ into a round its line names `executor claude`. A role's executor SHALL be its fi
 `verdicts` line names. An **escape** SHALL be a card whose `repeat of` names an earlier change's card, traced to that change's
 round 1 by the card's role and that role's executor. The shadow overlap SHALL be `overlap.py`'s count over each change's
 round 1 and shadow files. It SHALL write `review-metrics.json`
-beside the page: `records`, one per round and role, with its executor, model, effort, tokens, dollars — its workers' summed,
-a gap when any is — and source; `workers`, one per worker; `stations`, one per change and station, with its dollars, turns,
+beside the page: `records`, one per round and role, with its executor, model, effort, tokens, dollars — the workers' of its run, round and role
+summed, a gap when none or any is — and source; `workers`, one per worker; `stations`, one per change and station, with its dollars, turns,
 tokens, seconds and first-turn context; `roles`, one per change
 and role; `shadow`, one per change and role with a shadow file; `escapes`; and `headline`; a gap as `null`. The page and
 `headline` SHALL show four numbers: each executor's share of the shadow rounds' distinct blockers that it alone caught; escapes
@@ -359,10 +360,11 @@ hold it, and no worker SHALL write that file.
 - **THEN** the cost table and `stations` hold a cut and a supervise entry with their dollars and first-turn context
 
 #### Scenario: Cost per worker, round and role
-- **WHEN** a converge log holds a subagent `conformance round 1` and one `adversarial round 1`, each with assistant events of
-  a model `prices.toml` prices, and one `fix round 1` of a model it lacks
-- **THEN** `workers` holds three records, each with its role, round, tokens and first-turn context, the fixer's dollars a gap
-- **AND** round 1's conformance record holds its worker's dollars
+- **WHEN** a converge log holds a subagent `conformance round 1` and one `adversarial round 1`, each message's assistant events
+  repeating the usage its stream opened with and a placeholder output count, and an amend run's log one `conformance round 1`
+- **THEN** `workers` holds a record for each, with its role, round, run and first-turn context, its tokens and dollars a gap
+- **AND** a Claude mailbox checker's tokens are its last `result` event's `usage`, its dollars those tokens priced
+- **AND** each run's round 1 conformance record sums its own run's workers' dollars alone
 
 #### Scenario: Cost from a Codex log
 - **WHEN** a station's log is a Codex JSON log with two `turn.completed` events, and its spawn line names a model the price

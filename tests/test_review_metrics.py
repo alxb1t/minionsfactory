@@ -778,18 +778,52 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     assert rows[0][2] == "— · 1100004 tokens"
 
 
-def _said(parent: str | None, message: str, model: str, **usage: object) -> object:
-    held = {"id": message, "model": model, "usage": usage}
-    return {"type": "assistant", "parent_tool_use_id": parent, "message": held}
+def _said(
+    parent: str | None, message: str, model: str, at: str | None = None, **usage: object
+) -> object:
+    # The CLI's stream-json: one event per content block, each with the usage the
+    # message's stream opened with, `stop_reason` null and `output_tokens` a
+    # placeholder; no event carries the message's final count.
+    held = {"id": message, "model": model, "stop_reason": None, "usage": usage}
+    said = {"type": "assistant", "parent_tool_use_id": parent, "message": held}
+    return said | ({"timestamp": at} if at else {})
+
+
+def _answered(tool: str, **last: int) -> object:
+    # The Agent tool's result: `totalTokens` and `usage` are its last turn's alone.
+    done = {"status": "completed", "totalTokens": sum(last.values()), "usage": last}
+    content = [{"type": "tool_result", "tool_use_id": tool, "content": "done"}]
+    return {
+        "type": "user",
+        "parent_tool_use_id": None,
+        "message": {"role": "user", "content": content},
+        "tool_use_result": done,
+    }
 
 
 def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
+    # A round's record sums its own run's workers alone, never another run's of
+    # the same round number; a worker placed in no run joins no record.
+    row = {"repo": "repo", "change": "0001-x", "round": 1, "role": "conformance"}
+    rows = [row | {"run": 1}, row | {"run": 2}, row | {"run": None}]
+    spent = [row | {"run": run, "dollars": 2.0} for run in (1, 2, None)]
+    priced = review_metrics._priced_rounds(rows, spent)
+    assert [r["dollars"] for r in priced] == [2.0, 2.0, None]
+
     repo = tmp_path / "repo"
     claude = "executor claude · model m · effort high · tokens 9"
+    fanned = "fan-out — conformance and adversarial dispatched · 2 workers"
+    # An amend run restarts at round 1.
     log = (
-        "# 0001-x — converge status\n\n## Run 1 — 2026-11-05 10:00\n"
+        "# 0001-x — converge status\n\n## Run 2 — 2026-11-05 12:00\n"
+        f"12:10:00 · round 1 · verdicts — conformance clean · {claude}\n"
+        f"12:00:30 · round 1 · {fanned}\n"
+        "12:00:10 · round 1 · freeze — a..b · 1 commit · 1 file\n\n"
+        "## Run 1 — 2026-11-05 10:00\n"
         f"10:10:00 · round 1 · verdicts — adversarial clean · {claude}\n"
         f"10:10:00 · round 1 · verdicts — conformance clean · {claude}\n"
+        f"10:00:30 · round 1 · {fanned}\n"
+        "10:00:10 · round 1 · freeze — a..b · 1 commit · 1 file\n"
     )
     _findings(repo, "0001-x_status_log.md", log)
     prices = repo / ".minions" / "prices.toml"
@@ -816,110 +850,96 @@ def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
         "cache_read_input_tokens": 1000,
         "cache_creation_input_tokens": 300,
         "cache_creation": written,
-        "output_tokens": 50,
+        "output_tokens": 8,
     }
+    at = "2026-11-05T10:01:00.000Z"
     _worker_log(
         repo,
         "0001-x",
         "A-converge.log",
         _said(None, "c0", sonnet, input_tokens=2, cache_read_input_tokens=20000),
         task("t1", "conformance round 1"),
-        _said("t1", "m1", sonnet, **reading),
-        _said("t1", "m1", sonnet, **reading),
-        _said("t1", "m2", sonnet, input_tokens=5, output_tokens=5),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m1", sonnet, at, **reading),
+        _said("t1", "m2", sonnet, at, input_tokens=5, output_tokens=5),
+        _answered("t1", input_tokens=5, output_tokens=30_000),
         task("t2", "Adversarial round 1: break it"),
-        _said("t2", "a1", opus, input_tokens=1_000_000),
+        _said("t2", "a1", opus, "2026-11-05T10:02:00Z", input_tokens=1_000_000),
         task("t3", "fix round 1"),
-        _said("t3", "f1", "claude-haiku-5-5", input_tokens=7),
+        _said("t3", "f1", "claude-haiku-5-5", "2026-11-05T10:12:00Z", input_tokens=7),
         task("t4", "Explore the parser"),
         {"type": "assistant", "parent_tool_use_id": "t4", "message": {"id": "e0"}},
-        _said("t4", "e1", sonnet, input_tokens=1),
+        _said("t4", "e1", sonnet, at, input_tokens=1),
         _said("t9", "n1", sonnet, input_tokens=1),
         '{"type": "assistant", cut',
         _result(1.5, 9, 60000, m={"inputTokens": 2}),
     )
-    # A mailbox checker's log is a worker of its own, its round a gap.
+    # The amend run's conformance worker, at round 1 again.
+    again = "2026-11-05T12:01:00Z"
+    _worker_log(
+        repo,
+        "0001-x",
+        "B-converge.log",
+        task("t5", "conformance round 1"),
+        _said("t5", "m5", sonnet, again, input_tokens=3, output_tokens=2),
+    )
+    # A mailbox checker's log is a worker of its own, its round a gap; a Claude
+    # one's tokens are its `result`'s totals, and with no `result`, a gap.
     spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
     usage = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
     turn = {"type": "turn.completed", "usage": usage}
     bare = {"type": "turn.completed"}
     _worker_log(repo, "0001-x", "A-converge-conformance.log", spawn, turn, bare)
-    opened = _said(None, "x1", opus, input_tokens=4, cache_creation_input_tokens=10)
+    opened = _said(None, "x1", opus, input_tokens=4, cache_read_input_tokens=10)
+    totals = {"input_tokens": 9, "cache_read_input_tokens": 90, "output_tokens": 3000}
     _worker_log(
-        repo, "0001-x", "A-converge-adversarial.log", opened, _result(0.1, 1, 1000)
+        repo,
+        "0001-x",
+        "A-converge-adversarial.log",
+        opened,
+        _said(None, "x2", opus, input_tokens=5, output_tokens=2),
+        {"type": "result", "total_cost_usd": 0.1, "usage": totals},
     )
+    _worker_log(repo, "0001-x", "A-converge-shadow-adversarial.log", opened)
     out = tmp_path / "site" / "page.html"
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(review_metrics, "PRICES", prices)
+        patch.setenv("TZ", "UTC")
         assert review_metrics.main(["--repo", str(repo), "--out", str(out)]) == 0
 
     data = json.loads(out.with_name("review-metrics.json").read_text())
-    shown = [
-        {k: w[k] for k in ("role", "round", "model", "tokens", "first", "source")}
-        for w in data["workers"]
-    ]
+    keys = ("role", "round", "run", "model", "tokens", "first", "source")
+    shown = [tuple(w[k] for k in keys) for w in data["workers"]]
+    # A subagent's tokens are a gap: its events hold no final output count, and
+    # its Agent result only its last turn's.
     assert shown == [
-        {
-            "role": "conformance",
-            "round": 1,
-            "model": sonnet,
-            "tokens": 1370,
-            "first": 1310,
-            "source": "subagent",
-        },
-        {
-            "role": "adversarial",
-            "round": 1,
-            "model": opus,
-            "tokens": 1_000_000,
-            "first": 1_000_000,
-            "source": "subagent",
-        },
-        {
-            "role": "fix",
-            "round": 1,
-            "model": "claude-haiku-5-5",
-            "tokens": 7,
-            "first": 7,
-            "source": "subagent",
-        },
-        {
-            "role": None,
-            "round": None,
-            "model": sonnet,
-            "tokens": 1,
-            "first": 1,
-            "source": "subagent",
-        },
-        {
-            "role": "conformance",
-            "round": None,
-            "model": "gpt-6.1-sol",
-            "tokens": 1100,
-            "first": 1000,
-            "source": "mailbox",
-        },
-        {
-            "role": "adversarial",
-            "round": None,
-            "model": opus,
-            "tokens": 14,
-            "first": 14,
-            "source": "mailbox",
-        },
+        ("conformance", 1, 1, sonnet, None, 1310, "subagent"),
+        ("adversarial", 1, 1, opus, None, 1_000_000, "subagent"),
+        ("fix", 1, None, "claude-haiku-5-5", None, 7, "subagent"),
+        (None, None, None, sonnet, None, 1, "subagent"),
+        ("conformance", 1, 2, sonnet, None, 3, "subagent"),
+        ("conformance", None, None, "gpt-6.1-sol", 1100, 1000, "mailbox"),
+        ("adversarial", None, None, opus, 3099, 14, "mailbox"),
+        ("shadow-adversarial", None, None, opus, None, 14, "mailbox"),
     ]
     dollars = [worker["dollars"] for worker in data["workers"]]
-    expected = [0.002745, 5.0, None, 0.000003, 0.0024, None]
+    expected = [None, None, None, None, None, 0.0024, 0.075090, None]
     assert dollars == [pytest.approx(d) if d else d for d in expected]
     assert {w["repo"] for w in data["workers"]} == {"repo"}
     assert {w["change"] for w in data["workers"]} == {"0001-x"}
-    # Each round and role's record holds its workers' dollars.
-    held = {r["role"]: r["dollars"] for r in data["records"]}
-    assert held == {"conformance": pytest.approx(0.002745), "adversarial": 5.0}
+    # Each round and role's record holds its workers' dollars: here a gap each.
+    held = [(r["run"], r["role"], r["dollars"]) for r in data["records"]]
+    assert held == [
+        (2, "conformance", None),
+        (1, "adversarial", None),
+        (1, "conformance", None),
+    ]
     assert {s["station"]: s["first"] for s in data["stations"]} == {
         "converge": 20002,
         "converge-conformance": 1000,
         "converge-adversarial": 14,
+        "converge-shadow-adversarial": None,
     }
     [converge] = (s for s in data["stations"] if s["station"] == "converge")
     assert (converge["dollars"], converge["turns"], converge["seconds"]) == (1.5, 9, 60)
