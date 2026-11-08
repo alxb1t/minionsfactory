@@ -3972,11 +3972,13 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     assert run.executors() == ["claude", "codex"]
     # A Claude-only plan's shadow alone names Codex, and each named host is probed.
     table.write_text("[converge]\nshadow = true\n")
-    probed: list[list[str]] = []
+    probed: list[tuple[list[str], list[str]]] = []
     run = conduct["Run"](root, "claude")
-    run.probe_for = lambda change, executors: probed.append(executors)
+    run.probe_for = lambda change, executors, stations: probed.append(
+        (executors, stations)
+    )
     assert run.admit(version)
-    assert probed == [["claude", "codex"]]
+    assert probed == [(["claude", "codex"], ["claude"])]
     table.write_text("[converge]\nshadow = false\n")
     run = conduct["Run"](root, "claude")
     run.read_plan([version])
@@ -8813,6 +8815,128 @@ def test_the_codex_probe_runs_a_checker(
     assert conduct["check_checker"](scratch, usage) == (
         "the checker wrote no conformance.md"
     )
+
+
+def test_a_usage_limit_at_the_probe_is_no_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(conduct["main"].__globals__, "_unlinked", lambda _: None)
+    root = _primary(tmp_path)
+    # A run's claim folder, which `ship` makes.
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    minions = root / ".minions"
+
+    def joined(change: str, table: str) -> Path:
+        folder = minions / "changes" / change
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "models.toml").write_text(table)
+        return _version(root, change, "- [ ] 1 — Todo\n")
+
+    def until(reset: float) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(reset))
+
+    calls = fake_codex("", "limit")
+    calls.unlink(missing_ok=True)
+    run = conduct["Run"](root, "claude")
+    run.probe("codex")
+    # A limit at the probe halts nothing, leaves Codex unprobed and is logged once.
+    assert run.halts == [] and "codex" not in run.probed
+    assert _calls(calls) == ["probe"]
+    pattern = r" · run · limited — codex limited until \d{4}-\d\d-\d\d \d\d:\d\d\n"
+    assert len(re.findall(pattern, run.log.path.read_text())) == 1
+    assert run.limited_until("claude") is None
+    reset = run.limited_until("codex")
+    assert reset is not None and reset > time.time()
+    reason = f"probe-codex — codex limited until {until(reset)}"
+    assert run.limited_reason("codex") == reason
+    run.limited["codex"] = float("inf")
+    assert run.limited_reason("codex") == (
+        "probe-codex — codex limited until a reset it did not name"
+    )
+    assert run.limited_until("codex") == float("inf")
+    run.limited["codex"] = time.time() - 1
+    assert run.limited_until("codex") is None and run.limited == {}
+    # Twin: a failed Codex probe that names no limit halts as it did.
+    calls = fake_codex("unsandboxed")
+    calls.unlink(missing_ok=True)
+    run = conduct["Run"](root, "claude")
+    run.probe("codex")
+    assert [who for who, _ in run.halts] == ["run"]
+    assert run.limited == {}
+
+    table = '[build]\nexecutor = "codex"\n[converge]\n'
+    build = conduct["Version"]("0001-build", joined("0001-build", table))
+    table = '[converge]\n[converge.conformance]\nexecutor = "codex"\n'
+    check = conduct["Version"]("0002-check", joined("0002-check", table))
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, check])
+    run.probed.add("claude")
+    assert run.on_stations("0001-build") == ["codex", "claude"]
+    assert run.on_stations("0002-check") == ["claude"]
+    assert run.named("0002-check") == ["claude", "codex"]
+
+    # A limit holding probes nothing: the version with a station on Codex halts, a
+    # checker-only version is passed over, and no refusal is kept.
+    calls = fake_codex("", "limit")
+    calls.unlink(missing_ok=True)
+    hold = time.time() + 3600
+    run.limited["codex"] = hold
+    run.probe_for("0001-build", run.named("0001-build"), run.on_stations("0001-build"))
+    assert run.halts == [
+        ("0001-build", f"probe-codex — codex limited until {until(hold)}")
+    ]
+    run.probe_for("0002-check", run.named("0002-check"), run.on_stations("0002-check"))
+    assert [who for who, _ in run.halts] == ["0001-build"]
+    assert run.refused == {} and "codex" not in run.probed
+    assert _calls(calls) == []
+
+    # A limit the probe itself records counts the same, once; a refusal is not kept.
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, check])
+    run.probed.add("claude")
+    run.probe_for("0002-check", ["codex"], [])
+    assert run.halts == [] and run.refused == {} and _calls(calls) == ["probe"]
+    run.probe_for("0001-build", ["codex"], ["codex"])
+    assert [who for who, _ in run.halts] == ["0001-build"]
+    assert _calls(calls) == ["probe"]
+    calls.unlink()
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, check])
+    run.probed.add("claude")
+    run.probe_for("0001-build", ["codex"], ["codex"])
+    assert run.refused == {} and _calls(calls) == ["probe"]
+    assert run.halts[0][1].startswith("probe-codex — codex limited until ")
+
+    # A joining version goes through `probe_for` the same way.
+    calls.unlink()
+    run = conduct["Run"](root, "claude")
+    run.probed.add("claude")
+    run.limited["codex"] = hold
+    assert not run.admit(build)
+    assert run.admit(check)
+    assert _calls(calls) == []
+
+    # After the start's probes, `hold_limited` halts each version with a station on
+    # a limited executor and each queued cut it runs on one, and `take` skips them.
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief, executor="codex")
+    _queued(conduct, root, "0004-b", brief)
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, check])
+    run.probed.add("claude")
+    assert run.hold_limited(["0001-build", "0002-check"], ["0003-a", "0004-b"]) == set()
+    run.limited["codex"] = hold
+    held = run.hold_limited(["0001-build", "0002-check"], ["0003-a", "0004-b"])
+    assert held == {"0003-a"}
+    why = f"probe-codex — codex limited until {until(hold)}"
+    assert run.halts == [("0001-build", why), ("0003-a", f"cut-halted — {why}")]
+    cuts = conduct["_cuts"](root)
+    assert (cuts["0003-a"]["halt"], cuts["0004-b"]["halt"]) == (why, None)
+    run.catch_up = lambda version: pytest.fail("a halted version is taken no further")
+    run.take(build, {})
+    assert [who for who, _ in run.halts] == ["0001-build", "0003-a"]
 
 
 def test_a_codex_worker_starts_on_mf_settings_alone(

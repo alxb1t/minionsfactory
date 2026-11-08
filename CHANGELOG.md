@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` reads Codex's limit data: the rollout file a log's `thread_id` names gives each window's share and reset,
   and the `try again at` text is the fallback; a primary window at `HEADROOM` or more counts as a limit (change
   `0104-codex-limits`, phase 1).
+- A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>` and goes on, and only a
+  version or queued cut with a station on Codex halts, alone (change `0104-codex-limits`, phase 2).
 
 ## [0.83.0] - 2026-11-08
 

@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The limit data
-- [ ] 2 — The probe
+- [x] 2 — The probe
 - [ ] 3 — The mailbox fallback
 - [ ] 4 — The record
 - [ ] 5 — The linked worktree
@@ -23,11 +23,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The probe
 
-- [ ] 2.1 Add `test_a_usage_limit_at_the_probe_is_no_refusal`, joining versions included, and edit
+- [x] 2.1 Add `test_a_usage_limit_at_the_probe_is_no_refusal`, joining versions included, and edit
   `test_a_checker_on_another_host_is_planned_and_probed`'s `probe_for` stub, in `tests/test_conduct.py`; then the `Run`
   members [D2](design.md#d2) lists before `hold_limited`, in `skills/mf-ship/scripts/conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "usage_limit_at_the_probe or new_executor_is_probed_mid_run or codex_probe_runs_a_checker or another_host_is_planned"` reports `4 passed`; `grep -n -e 'def limited_until(' -e 'def on_stations(' -e 'def limited_reason(' skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.2 Extend `test_a_usage_limit_at_the_probe_is_no_refusal` with `hold_limited`, then `Run.hold_limited`, the
+- [x] 2.2 Extend `test_a_usage_limit_at_the_probe_is_no_refusal` with `hold_limited`, then `Run.hold_limited`, the
   start's `held` and `take`'s return in `skills/mf-ship/scripts/conduct.py`, per [D2](design.md#d2).
   Verify: `uv run pytest -q tests/test_conduct.py -k "usage_limit_at_the_probe or station_runs_on_its_executor or probe_halts_on_a_write_out"` reports `3 passed`; `grep -n 'def hold_limited(' skills/mf-ship/scripts/conduct.py` prints a line.
 

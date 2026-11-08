@@ -92,7 +92,7 @@ EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise"),
+    *("rescue", "move", "cut", "supervise", "limited"),
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -3544,6 +3544,16 @@ def _headroom(now: float) -> float | None:
     return None
 
 
+def _until(reset: float) -> str:
+    """Return a limit's reset as local `%Y-%m-%d %H:%M`, or what `inf` says.
+
+    e.g. 1794153000.0 → `2026-11-08 17:50`; `math.inf` → `a reset it did not name`
+    """
+    if reset == math.inf:
+        return "a reset it did not name"
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(reset))
+
+
 def mcp_started(executor: str, log: Path) -> str | None:
     """Return why a worker's start fails the probe, or None when no MCP server started.
 
@@ -3833,6 +3843,7 @@ class Run:
         self.planned: set[str] = set()
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
+        self.limited: dict[str, float] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
         self.reruns: set[str] = set()
@@ -3892,6 +3903,68 @@ class Run:
         """Return whether a halt names `change` or the run."""
         with self.guard:
             return any(who in ("run", change) for who, _ in self.halts)
+
+    def limit(self, executor: str, log: Path) -> None:
+        """Record an executor's limit from the log of the worker it stopped, and log it.
+
+        Why: 0104-codex-limits design D2.
+        """
+        reset = _reset_at(log, time.time())
+        with self.guard:
+            self.limited[executor] = reset
+        self.log.event("run", "limited", f"{executor} limited until {_until(reset)}")
+
+    def limited_until(self, executor: str) -> float | None:
+        """Return an executor's reset while it is ahead; a passed one is dropped."""
+        with self.guard:
+            reset = self.limited.get(executor)
+            if reset is not None and reset <= time.time():
+                del self.limited[executor]
+                return None
+            return reset
+
+    def limited_reason(self, executor: str) -> str:
+        """Return why a station on a limited executor halts.
+
+        e.g. `probe-codex — codex limited until 2026-11-08 17:50`
+        """
+        station = "probe" if executor == self.executor else f"probe-{executor}"
+        with self.guard:
+            reset = self.limited.get(executor, math.inf)
+        return f"{station} — {executor} limited until {_until(reset)}"
+
+    def on_stations(self, change: str) -> list[str]:
+        """Return the executors of a version's planned stations, its checkers' left out.
+
+        Why: 0104-codex-limits design D2.
+        """
+        stations = (station for station in PLANNED if station not in WORKERS[:2])
+        named = (
+            models[0]
+            for station in stations
+            if (models := self.plan.get((change, station)))
+        )
+        return list(dict.fromkeys(named))
+
+    def hold_limited(self, changes: list[str], cuts: list[str]) -> set[str]:
+        """Halt what has a station on a limited executor; return the cuts it halted.
+
+        Each planned change halts, and each queued cut whose executor is limited
+        halts as a cut. Why: 0104-codex-limits design D2.
+        """
+        for change in changes:
+            for executor in self.on_stations(change):
+                if self.limited_until(executor) is not None:
+                    self.halt(change, self.limited_reason(executor))
+                    break
+        entries = _cuts(self.primary)
+        held: set[str] = set()
+        for change in cuts:
+            executor = str(entries.get(change, {}).get("executor"))
+            if self.limited_until(executor) is not None:
+                self.cut_halted(change, self.limited_reason(executor), False)
+                held.add(change)
+        return held
 
     def closing(self) -> str:
         """Return the closing line's detail: what halted, is blocked and released."""
@@ -3983,13 +4056,16 @@ class Run:
         repo: Repo | None = None,
         brief: Path | None = None,
         mailbox: Path | None = None,
+        limits: bool = False,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout, a tool its station lacks or a
         failed exit halted `who`. A cutter's `brief` goes to `argv`, and so does a
-        converge's `mailbox`, which is served while it runs.
-        Why: 0097-cross-model design D5; 0100-worker-diet design D5.
+        converge's `mailbox`, which is served while it runs. With `limits`, a failed
+        exit while its executor is limited halts nothing and gives None too.
+        Why: 0097-cross-model design D5; 0100-worker-diet design D5; 0104-codex-limits
+        design D2.
         """
         between = None if mailbox is None else self.server(who, cwd, mailbox)
         code, killed, out, denied = self.worker(
@@ -4006,6 +4082,8 @@ class Run:
             self.halt(who, f"{station} asked for a tool its station lacks: {named}")
             return None
         if code != 0:
+            if limits and self.limited_until(models[0]) is not None:
+                return None
             self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
             return None
         return denied
@@ -4096,6 +4174,8 @@ class Run:
             code, killed = work(command, cwd, sink, claim)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
+        if executor == "codex" and code != 0 and usage_limit(out):
+            self.limit("codex", out)
         denied = denials(out)
         for call in denied:
             self.log.event(who, "denied", f"{station} · {call}")
@@ -4778,7 +4858,12 @@ class Run:
             self.merge_in(tree, change, default)
 
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
-        """Take one version to its release, a halt or a block."""
+        """Take one version to its release, a halt or a block.
+
+        A version a halt already names is taken no further.
+        """
+        if self.stopped(version.change):
+            return
         try:
             for station in PLANNED:
                 _models(
@@ -5034,7 +5119,8 @@ class Run:
             self.halts = [held for held in self.halts if held[0] != change]
         if self.seen is not None:
             self.seen.add(change)
-        self.probe_for(change, [str(entry.get("executor"))])
+        cutter = str(entry.get("executor"))
+        self.probe_for(change, [cutter], [cutter])
         if self.stopped(change):
             return False
         self.log.event("run", "cut", f"{change}: taken")
@@ -5192,14 +5278,17 @@ class Run:
             self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
-        self.probe_for(change, self.named(change))
+        self.probe_for(change, self.named(change), self.on_stations(change))
         return not self.stopped(change)
 
-    def probe_for(self, change: str, executors: list[str]) -> None:
+    def probe_for(self, change: str, executors: list[str], stations: list[str]) -> None:
         """Probe each executor the run has not, once; a refused one halts `change`.
 
         An executor whose probe failed halts it with that probe's reason, probed no
-        second time. Two threads never probe one executor at once.
+        second time. One with a limit holding is not probed: `change` halts on it when
+        it is among `stations`, else the executor is passed over, and a limit the probe
+        records counts the same. Two threads never probe one executor at once.
+        Why: 0104-codex-limits design D2.
         """
         with self.probing:
             for executor in dict.fromkeys(executors):
@@ -5208,14 +5297,20 @@ class Run:
                 if (refused := self.refused.get(executor)) is not None:
                     self.halt(change, refused)
                     continue
-                self.probe(executor, change)
-                if executor not in self.probed:
-                    with self.guard:
-                        self.refused[executor] = next(
-                            reason
-                            for who, reason in reversed(self.halts)
-                            if who == change
-                        )
+                limit = self.limited_until(executor)
+                if limit is None:
+                    self.probe(executor, change)
+                    if executor in self.probed:
+                        continue
+                    limit = self.limited_until(executor)
+                if limit is not None:
+                    if executor in stations:
+                        self.halt(change, self.limited_reason(executor))
+                    continue
+                with self.guard:
+                    self.refused[executor] = next(
+                        reason for who, reason in reversed(self.halts) if who == change
+                    )
 
     def probe(self, executor: str, who: str = "run") -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
@@ -5253,7 +5348,7 @@ class Run:
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
             models = (executor, None, None)
             repo = _repo(scratch)
-            denied = self.spawn(who, station, scratch, PROBE, models, repo)
+            denied = self.spawn(who, station, scratch, PROBE, models, repo, limits=True)
             with self.guard:
                 out = self.outs[who, station]
             # Why: 0100-worker-diet design D6.
@@ -5284,7 +5379,10 @@ class Run:
             base, head = checker_fixture(scratch)
             prompt = CHECKER_PROBE.format(base=base, head=head)
             models = (executor, None, None)
-            denied = self.spawn(who, checker, scratch, prompt, models, _repo(scratch))
+            repo = _repo(scratch)
+            denied = self.spawn(
+                who, checker, scratch, prompt, models, repo, limits=True
+            )
             with self.guard:
                 out = self.outs[who, checker]
             reason = check_checker(scratch, out) or mcp_started(executor, out)
@@ -5616,13 +5714,18 @@ class Run:
                 self.probe(executor)
                 if self.halts:
                     break
-        if not (self.halts or self.blocked):
+        halted = bool(self.halts)
+        cut_held: set[str] = set()
+        if not halted:
+            changes = [version.change for version in versions]
+            cut_held = self.hold_limited(changes, sorted(takeable))
+        if not (halted or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:
                 threads[version.change] = threading.Thread(
                     target=self.take, args=(version, threads), name=version.change
                 )
-            for change in sorted(takeable):
+            for change in sorted(takeable - cut_held):
                 threads[change] = threading.Thread(
                     target=self.cut, args=(change, threads)
                 )
