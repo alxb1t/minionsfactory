@@ -330,6 +330,15 @@ script = "scripts/metrics/run.py"
 args = ["wait-minutes"]
 
 [[metric]]
+id = "after-wait-minutes"
+title = "Time a dependent waits on its after: ids"
+group = "run"
+unit = "minutes"
+better = "lower"
+script = "scripts/metrics/run.py"
+args = ["after-wait-minutes"]
+
+[[metric]]
 id = "converge-rounds"
 title = "Converge rounds"
 group = "run"
