@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.84
 after: [0098-beside]
 debt: [0050·R5, 0095·R6]
 ---
