@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.78
 after: [0094-lighter-converge]
 ---
 

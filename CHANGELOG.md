@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-11-08
+
+Gate: local 1m51s · CI not read under mf-ship · 0.77.0: local 1m54s · CI not read under mf-ship
+
 - Converge's checkers become **conformance**, which holds the code to the change's own plan, and **adversarial**, which
   tries to break it: `conformance.md` and `adversarial.md`, `generic-conformance.md` and `generic-adversarial.md` with a
   packet each; a run moves a folder's old `review.md` and `security.md`, and a hand-run station halts on them; a
