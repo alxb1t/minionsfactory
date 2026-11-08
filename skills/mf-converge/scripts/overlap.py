@@ -9,7 +9,9 @@
 Reads `conformance.md` and `adversarial.md`, their cards of round 1, and
 `shadow-conformance.md` and `shadow-adversarial.md`, every card. Two cards match when
 their `What it affects` spans share a path, a line of one within `NEAR` of a line of
-the other, or either names that path bare. Prints one line, each role's counts, and
+the other, or either names that path bare: a span is a path when it has a `/` or a
+file suffix, and bare when its card gives that path no line. Prints one line, each
+role's counts, and
 exits 0, or `overlap: cannot read — <file>` and exits 2. Why: 0097-cross-model design
 D10.
 """
@@ -26,6 +28,8 @@ TITLE = re.compile(r"^- \*\*\S+ — ")
 AFFECTS = re.compile(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", re.MULTILINE)
 SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")
+# A file path: a `/` or a lower-case suffix, so `main()` and `os.O_RDONLY` are not one.
+PATH = re.compile(r"[\w.-]*(?:/[\w.-]*)+|[\w.-]*\.[a-z0-9]{1,5}")
 PRIORITY = re.compile(r"^[ \t]+- \*\*Priority:\*\*\s*(\S+)", re.MULTILINE)
 ROUND = re.compile(r"^[ \t]+- \*\*Round:\*\*\s*(\d+)", re.MULTILINE)
 EXECUTOR = re.compile(r"^executor:\s*(\S+)\s*$", re.MULTILINE)
@@ -54,18 +58,25 @@ def cards(text: str) -> list[str]:
 
 
 def anchors(card: str) -> list[Anchor]:
-    """Return the path and lines of each span of a card's `What it affects`.
+    """Return the path and lines of each path span of a card's `What it affects`.
 
-    e.g. "`a.py:12-14` and `b.py`" → [("a.py", 12, 14), ("b.py", None, None)]
+    A span is a path when it has a `/` or a file suffix; a path the card also gives a
+    line is not named bare. e.g. "`f()` in `a.py` (`a.py:12-14`) and `b.py`" →
+    [("a.py", 12, 14), ("b.py", None, None)]
     """
     affects = AFFECTS.search(card)
     found: list[Anchor] = []
     for span in SPAN.findall(affects[1]) if affects else []:
         path = LINES.sub("", span)
+        if not PATH.fullmatch(path):
+            continue
         numbers = [int(number) for number in span[len(path) + 1 :].split("-") if number]
         low, high = (numbers[0], numbers[-1]) if numbers else (None, None)
         found.append((path, low, high))
-    return found
+    lined = {path for path, low, _ in found if low is not None}
+    return [
+        anchor for anchor in found if anchor[1] is not None or anchor[0] not in lined
+    ]
 
 
 def matches(one: list[Anchor], other: list[Anchor]) -> bool:

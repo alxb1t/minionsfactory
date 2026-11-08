@@ -119,6 +119,27 @@ def test_the_overlap_counts_shared_and_unique_catches(
         "primary_blockers": 0,
         "shadow_blockers": 0,
     }
+    # A span is a path only with a `/` or a file suffix, and a card that gives a path a
+    # line names it bare nowhere: a shared function name, or a far line on the file
+    # the card also names bare, matches nothing.
+    held = _card("S1", "high", "`main()` in `a.py` (`a.py:10`)")
+    assert overlap.overlap(
+        [held],
+        [
+            _card("S9", "high", "`main()` in `b.py` (`b.py:900`)"),
+            _card("S8", "high", "`main()` in `a.py` (`a.py:400`)"),
+            _card("S7", "high", "`os.O_RDONLY` and `:1079` in `skills/x/run`"),
+        ],
+        ("high",),
+    ) == {
+        "shared": 0,
+        "primary_alone": 1,
+        "shadow_alone": 3,
+        "shared_blockers": 0,
+        "primary_blockers": 1,
+        "shadow_blockers": 3,
+    }
+    assert overlap.anchors(held) == [("a.py", 10, 10)]
 
 
 def test_the_overlap_refuses_what_it_cannot_read(
