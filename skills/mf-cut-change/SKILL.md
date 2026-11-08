@@ -15,10 +15,14 @@ description: Cut a new in-repo change from a settled grilling — create its ver
                  └── I1 … I19 ──────┘   the input contract, owned by mf-build
 ```
 
-Before work, read root `AGENTS.md`, the mandatory context it names, a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md`
-or `CONTRIBUTING.md` it does not name, and the architecture decisions and threat model: the ones it names, else
-`docs/decisions.md`, `ARCHITECTURE.md`, `docs/adr/*.md` and `THREAT_MODEL.md` when present. They are shared context,
-not your source: design within the decisions in force. A target's own test rule that conflicts with `T1`–`T6` wins:
+Before work, read root `AGENTS.md`, the mandatory context it names, and a root `CODING_STANDARDS.md`,
+`CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name. Of the decisions, from a brief run
+`uv run --script <this package>/../mf-converge/scripts/bundle.py --decisions <brief>` and read what it prints — the
+decisions it cites, in full, and an index; from the conversation, read the index it prints and in full each decision
+the conversation settles against. Read `ARCHITECTURE.md` and `docs/adr/*.md` whole, when present, and the principles
+and the threat model — `docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when the source's
+phases name the file. They are shared context, not your source: design within the decisions in force, and read in
+full any decision whose index line the change touches. A target's own test rule that conflicts with `T1`–`T6` wins:
 plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt**, naming it.
 
 ## Parameters
@@ -384,8 +388,8 @@ a change, never one per phase.
 
 - **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
   path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it: the conductor, `[converge]`, on the mid tier · medium,
-  conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · high.
+  output — means run it: the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
+  conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · medium.
   Say which you found.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 

@@ -11,11 +11,13 @@ record is [`docs/README.md`](docs/README.md).
 
 ## The record
 
-**Before work, read [the principles](docs/principles.md), [the decisions in force](docs/decisions.md),
-[the coding standards](CODING_STANDARDS.md) and [the contribution guide](CONTRIBUTING.md): mandatory shared
-context.**
+**Before work, read [the coding standards](CODING_STANDARDS.md) and [the contribution guide](CONTRIBUTING.md):
+mandatory shared context. Every station but the cut, the build and the converge conductor also reads
+[the principles](docs/principles.md) and [the decisions in force](docs/decisions.md).**
 
-**Before designing, building or reviewing — the cut, build and converge — also read [the threat model](THREAT_MODEL.md).**
+**The cut and the build read the index `skills/mf-converge/scripts/bundle.py --decisions` prints and, in full, the
+decisions their work cites or touches; [the principles](docs/principles.md) and [the threat model](THREAT_MODEL.md)
+when a task names the file. The converge conductor reads none of it.**
 
 **Converge's conformance worker reads, of the decisions, those its change cites, in full, and an index of all — its
 `bundle.md` — in place of the whole page; its adversarial worker reads the threat model.**

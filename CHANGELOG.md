@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dynamic prompt sections, and a 1-hour cache for the cut and converge, 5 minutes for the rest; it reaches only the
   worktrees of open versions and queued cuts, a tool its station lacks halts it, and the probe names its first turn's
   context (change `0100-worker-diet`, phase 1).
+- The cut and the build read the decisions they cite and an index, which `bundle.py --decisions` prints, and the
+  principles and the threat model when a task names them; the converge conductor reads no mandatory context and runs on
+  Sonnet 5.5 · high by default, its fixer and verify workers at `medium`; one `stamp.py` call writes several events
+  (change `0100-worker-diet`, phase 2).
 
 ## [0.80.0] - 2026-11-08
 

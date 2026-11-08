@@ -2232,6 +2232,17 @@ def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
     table.unlink()
     assert models(minions, "0001-todo", "supervise", "codex") == ("codex", None, None)
 
+    # Converge's conductor on Claude takes Sonnet high when its table names neither;
+    # a table naming one keeps it, the other none. Why: 0100-worker-diet design D8.
+    conductor = ("claude", "claude-sonnet-5-5", "high")
+    assert models(minions, "0001-todo", "converge", "claude") == conductor
+    assert models(minions, "0001-todo", "converge", "codex") == ("codex", None, None)
+    table.write_text('[converge]\nmodel = "claude-opus-5-5"\n')
+    opus = ("claude", "claude-opus-5-5", None)
+    assert models(minions, "0001-todo", "converge", "claude") == opus
+    table.write_text('[converge]\neffort = "max"\n')
+    assert models(minions, "0001-todo", "converge", "claude") == ("claude", None, "max")
+
 
 def _switched(root: Path, change: str) -> None:
     """Write `change`'s models file holding the switch alone."""

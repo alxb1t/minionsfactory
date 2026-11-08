@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The spawn
-- [ ] 2 — The context
+- [x] 2 — The context
 - [ ] 3 — Tool output
 - [ ] 4 — The metrics
 - [ ] 5 — The record
@@ -30,23 +30,23 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The context
 
-- [ ] 2.1 Add `test_decisions_print_what_the_files_cite` to `tests/test_bundle.py`, then `decisions_text` and the
+- [x] 2.1 Add `test_decisions_print_what_the_files_cite` to `tests/test_bundle.py`, then `decisions_text` and the
   `--decisions` form in `skills/mf-converge/scripts/bundle.py`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_bundle.py` reports `3 passed`; `grep -n -e '^def decisions_text(' -e '"--decisions"' skills/mf-converge/scripts/bundle.py` prints a line for each.
-- [ ] 2.2 Add the `mf-build` and `mf-cut-change` rows of `bundle.py` to `_METRICS_SCRIPTS` and the expected lists in
+- [x] 2.2 Add the `mf-build` and `mf-cut-change` rows of `bundle.py` to `_METRICS_SCRIPTS` and the expected lists in
   `tests/test_skills.py`; then edit *The record* in `AGENTS.md`, `skills/mf-build/SKILL.md`, `skills/mf-cut-change/SKILL.md`,
   `skills/mf-converge/SKILL.md` and `skills/mf-bootstrap/templates/AGENTS.md.tmpl`, per [D7](design.md#d7).
   Verify: `grep -n 'bundle.py --decisions' AGENTS.md skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints a line for each file; `grep -n 'no other mandatory context' skills/mf-converge/SKILL.md` prints a line; `grep -n -e 'the cut, build and converge — also read' AGENTS.md skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints nothing; `uv run pytest -q tests/test_skills.py` reports `21 passed`.
-- [ ] 2.3 Edit `test_reading_sets_count_words` in `tests/test_metric_scripts.py`, then `SETS["converge"]` in
+- [x] 2.3 Edit `test_reading_sets_count_words` in `tests/test_metric_scripts.py`, then `SETS["converge"]` in
   `scripts/metrics/reading_set.py`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_metric_scripts.py -k reading_sets_count_words` reports `1 passed`.
-- [ ] 2.4 Extend `test_the_supervisor_runs_on_its_own_table` in `tests/test_conduct.py`, then `CONDUCTOR` and `_models` in
+- [x] 2.4 Extend `test_the_supervisor_runs_on_its_own_table` in `tests/test_conduct.py`, then `CONDUCTOR` and `_models` in
   `skills/mf-ship/scripts/conduct.py`, per [D8](design.md#d8).
   Verify: `uv run pytest -q tests/test_conduct.py -k supervisor_runs_on_its_own_table` reports `1 passed`; `grep -n '^CONDUCTOR = ("claude-sonnet-5-5", "high")$' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.5 Edit Steps 6 and 7 of `skills/mf-converge/SKILL.md` and the Converge bullet of *Suggesting models* in
+- [x] 2.5 Edit Steps 6 and 7 of `skills/mf-converge/SKILL.md` and the Converge bullet of *Suggesting models* in
   `skills/mf-cut-change/SKILL.md`, per [D8](design.md#d8), each new phrase on one line.
   Verify: `grep -n -e "always at the fixer's effort" -e "verify worker runs on its role's model" skills/mf-converge/SKILL.md` prints a line for each; `grep -n -e 'conductor, .\[converge\]., on Sonnet 5.5 · high' -e 'the fixer on the mid tier · medium' skills/mf-cut-change/SKILL.md` prints a line for each.
-- [ ] 2.6 Extend `test_a_stamp_writes_the_clock_time_under_the_latest_run` and `test_a_log_out_of_shape_is_not_stamped` in
+- [x] 2.6 Extend `test_a_stamp_writes_the_clock_time_under_the_latest_run` and `test_a_log_out_of_shape_is_not_stamped` in
   `tests/test_stamp.py`, then `skills/mf-converge/scripts/stamp.py`; edit *An event* and Step 5 of
   `skills/mf-converge/SKILL.md`, per [D9](design.md#d9), each new phrase on one line.
   Verify: `uv run pytest -q tests/test_stamp.py` reports `2 passed`; `grep -n 'nargs="\*"' skills/mf-converge/scripts/stamp.py` prints a line; `grep -n -e 'in one call' -e 'both .verdicts. lines in one' skills/mf-converge/SKILL.md` prints a line for each.

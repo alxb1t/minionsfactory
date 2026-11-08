@@ -118,6 +118,7 @@ SUPERVISES = 2
 SETTLES = ("openspec/", "docs/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
+CONDUCTOR = ("claude-sonnet-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
 ROLES = ("conformance", "adversarial")
 # Each old-layout path of a change, by its name in the change's folder.
@@ -2257,13 +2258,15 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`. A worker of `WORKERS` with no table of
+    the supervisor's on Claude, `SUPERVISOR`, and converge's on Claude, `CONDUCTOR`,
+    when its table names neither. A worker of `WORKERS` with no table of
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
     A table no executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
-    design D1; 0095-converge-roles design D2; 0097-cross-model design D3.
+    design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
+    0100-worker-diet design D8.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2288,6 +2291,8 @@ def _models(
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
+    if station == "converge" and executor == "claude" and model is effort is None:
+        model, effort = CONDUCTOR
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
     codex = executor == "codex" and (station not in WORKERS or own)
