@@ -671,7 +671,8 @@ def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts. Why: 0076-context-cost design D1.
+    Each spawn's log counts; a field one read log lacks is the station's gap.
+    Why: 0076-context-cost design D1; 0096-codex-ready design D6.
     """
     runs = repo / RUNS
     spawn = re.compile(
@@ -688,9 +689,9 @@ def _cost_logs(repo: Path, change: str) -> Record:
     for station in STATIONS:
         logs = _station_logs(repo, change, station)
         found = [_results(path) for path in logs]
-        spent = [_spent(events) for events in found]
+        spent = [_spent(events) for events in found if events]
         for key in ("cost", "turns", "tokens", "seconds"):
-            record[f"{key}_{station}"] = _held(row[key] for row in spent)
+            record[f"{key}_{station}"] = _total(row[key] for row in spent)
         record[f"logs_{station}"] = len(logs)
         record[f"read_{station}"] = sum(map(bool, found))
         record[f"spawns_{station}"] = spawns[station]

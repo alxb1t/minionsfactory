@@ -700,6 +700,18 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     _, rows = review_metrics.cost_table([_record(timed_out, "0052-z")])
     assert rows[0][2] == "$0.25 · 1 turns · 4 tokens · 1 s · 1 of 2"
 
+    # A field one read log lacks is the station's gap, never the other logs' sum.
+    mixed = tmp_path / "mixed"
+    _findings(mixed, "0053-w_review.md", _front())
+    _worker_log(mixed, "0053-w", "A-converge.log", one)
+    _worker_log(mixed, "0053-w", "B-converge.log", spawn("o9"), turn)
+    record = _record(mixed, "0053-w")
+    assert (record["cost_converge"], record["turns_converge"]) == (None, None)
+    assert record["seconds_converge"] is None
+    assert record["read_converge"] == 2
+    _, rows = review_metrics.cost_table([record])
+    assert rows[0][2] == "— · 1100004 tokens"
+
 
 def test_the_page_draws_charts_and_lists_gaps(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
