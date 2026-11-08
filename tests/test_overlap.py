@@ -119,9 +119,9 @@ def test_the_overlap_counts_shared_and_unique_catches(
         "primary_blockers": 0,
         "shadow_blockers": 0,
     }
-    # A span is a path only with a `/` or a file suffix, and a card that gives a path a
-    # line names it bare nowhere: a shared function name, or a far line on the file
-    # the card also names bare, matches nothing.
+    # A bare span is a path only with a `/` or a file suffix, and a card that gives a
+    # path a line names it bare nowhere: a shared function name, or a far line on the
+    # file the card also names bare, matches nothing.
     held = _card("S1", "high", "`main()` in `a.py` (`a.py:10`)")
     assert overlap.overlap(
         [held],
@@ -140,6 +140,30 @@ def test_the_overlap_counts_shared_and_unique_catches(
         "shadow_blockers": 3,
     }
     assert overlap.anchors(held) == [("a.py", 10, 10)]
+    # A span with a line is a path whatever its shape, and a bare span only with a `/`
+    # or a named file suffix: neighbouring `Makefile` lines match, and a method name
+    # on far lines of one file does not.
+    make = _card("S1", "high", "the gate in `Makefile` (`Makefile:12`)")
+    ship = _card("S2", "medium", "`Run.ship` in `conduct.py` (`conduct.py:100`)")
+    assert overlap.overlap(
+        [make, ship],
+        [
+            _card("S8", "medium", "`Run.ship` in `conduct.py` (`conduct.py:3000`)"),
+            _card("S9", "medium", "the gate in `Makefile` (`Makefile:14`)"),
+        ],
+        ("high",),
+    ) == {
+        "shared": 1,
+        "primary_alone": 1,
+        "shadow_alone": 1,
+        "shared_blockers": 1,
+        "primary_blockers": 0,
+        "shadow_blockers": 0,
+    }
+    assert [overlap.anchors(card) for card in (make, ship)] == [
+        [("Makefile", 12, 12)],
+        [("conduct.py", 100, 100)],
+    ]
 
 
 def test_the_overlap_refuses_what_it_cannot_read(
