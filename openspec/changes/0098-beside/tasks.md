@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The field
-- [ ] 2 — The plan and the record
+- [x] 2 — The plan and the record
 
 ## 1 — The field
 
@@ -45,18 +45,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The plan and the record
 
-- [ ] 2.1 Replace the how of the `parallel with` row in Step 3 of `skills/mf-plan/SKILL.md`, as [D5](design.md#d5)
+- [x] 2.1 Replace the how of the `parallel with` row in Step 3 of `skills/mf-plan/SKILL.md`, as [D5](design.md#d5)
   quotes it.
   Verify: `grep -n 'else .beside:., the default (D69)' skills/mf-plan/SKILL.md` prints a line.
-- [ ] 2.2 Edit Step 6's items 2 and 4 in `skills/mf-plan/SKILL.md`, per [D5](design.md#d5).
+- [x] 2.2 Edit Step 6's items 2 and 4 in `skills/mf-plan/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -n '\[after=<ids>\] \[beside=<ids>\]' skills/mf-plan/SKILL.md` prints a line.
-- [ ] 2.3 Add the `beside:` part to the template's head, and its sentence to the end of the paragraph opening
+- [x] 2.3 Add the `beside:` part to the template's head, and its sentence to the end of the paragraph opening
   "`## For the cut` is filled when the frontier is empty", in `skills/mf-plan/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -n 'beside: <ids, or the slug of an earlier item>' skills/mf-plan/SKILL.md` prints a line.
-- [ ] 2.4 Edit the `cut` row of `skills/mf-ship/SKILL.md`, per [D5](design.md#d5).
+- [x] 2.4 Edit the `cut` row of `skills/mf-ship/SKILL.md`, per [D5](design.md#d5).
   Verify: `grep -n 'an .after. id or a .beside. id it refuses' skills/mf-ship/SKILL.md` prints a line.
-- [ ] 2.5 Add D69 after D65 in `docs/decisions.md`, as [D6](design.md#d6) quotes it.
+- [x] 2.5 Add D69 after D65 in `docs/decisions.md`, as [D6](design.md#d6) quotes it.
   Verify: `grep -n '^### D69 · A version names what it builds beside$' docs/decisions.md` prints a line.
-- [ ] 2.6 Add `, D69` after `D65` in the Planning list of the map at the top of `docs/decisions.md`, per
+- [x] 2.6 Add `, D69` after `D65` in the Planning list of the map at the top of `docs/decisions.md`, per
   [D6](design.md#d6).
   Verify: `grep -n 'D59, D62, D65, D69' docs/decisions.md` prints a line.

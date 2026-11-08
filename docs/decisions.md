@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67
 ```
@@ -189,6 +189,20 @@ suggested Sonnet 5.5 · high for its whole build, where the session offers it: o
   round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
 - **Rejected:** a second review after every fix · resuming a reviewer by a message · a build session per phase, which needs a
   guard against re-spawning without end · a model per phase.
+
+### D69 · A version names what it builds beside
+
+**A version that only shares files with another names it in `beside:` and builds in parallel from the default branch;
+`after:` is kept for a symbol, decision or requirement the other adds, and holds the build until that one releases. The
+plan's parallel-with check proposes which, `beside:` by default. `conduct.py cut` and the cut carry it into the proposal's
+frontmatter, and nothing waits on it: integrate, and under the switch the supervisor, settle the overlap as they settle any
+moved base.**
+
+- **Why:** of 0081–0095's 14 `after:` links, 8 only avoided file overlap, each holding a build through the other's converge
+  and release, while integrate already merges a moved base in.
+- **Accepts:** an overlap settled at integrate — a supervisor's spend, or a person's halt — where `after:` would have waited.
+- **Rejected:** `after:` for overlap — a wait the merge makes needless · a run-time reader of `beside:` — nothing it would
+  order.
 
 ## The check loop and the release
 

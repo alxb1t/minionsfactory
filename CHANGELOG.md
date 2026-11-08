@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A brief's head may name `· beside: <ids>`; `conduct.py cut` takes `beside=<ids>` and queues it, the cutter writes
   `beside: [<ids>]` into the proposal, and nothing waits on it. `brief_check.py` takes a models or Acceptance line only
   under a head, and halts an HTML heading or a non-ASCII spelling of a checked one (change `0098-beside`, phase 1).
+- The plan's parallel-with check proposes `after:` only when one version needs a symbol, decision or requirement the
+  other adds, else `beside:`; its template and close carry `beside`, and D69 records it, with `mf-ship`'s `cut` row
+  (change `0098-beside`, phase 2).
 
 ## [0.80.0] - 2026-11-08
 
