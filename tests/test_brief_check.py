@@ -465,16 +465,23 @@ def test_a_brief_out_of_shape_halts(
     )
     assert brief_check.main([str(_write(tmp_path, forms))]) == 1
     assert capsys.readouterr().out.splitlines() == [
-        *(
-            f"brief: halt — line {n} reads as `## For the cut` but is not written so"
-            for n in (22, 23, 24, 26)
-        ),
-        "brief: halt — ## For the cut line 7: a character isprintable() refuses",
-        "brief: halt — ## For the cut line 6: outside the item grammar:"
-        " ` ## For the cut`",
-        "brief: halt — ## For the cut line 7: outside the item grammar:"
-        " `##\tFor the cut`",
+        f"brief: halt — line {n} reads as `## For the cut` but is not written so"
+        for n in (22, 23, 24, 26)
     ]
+    # A `## For the cut` in a fence ends no section and opens none, as CommonMark
+    # reads it: the brief is ready.
+    fenced = _READY.replace(
+        "\n## Dependencies\n", "\n```\n## For the cut\n```\n\n## Dependencies\n"
+    )
+    assert brief_check.main([str(_write(tmp_path, fenced))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    # A carriage return that ends no `\r\n` halts its line, and the brief is read
+    # with it as a space.
+    lone = _READY.replace("## Decisions\n", "note\rmore\n## Decisions\n")
+    assert brief_check.main([str(_write(tmp_path, lone))]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — line 7: a carriage return not before a newline\n"
+    )
     # S3: an HTML heading, and one with a Cyrillic `о` for its `o`; 0098·S1: an HTML
     # heading holding inline markup or a character reference.
     html = _READY + (
@@ -494,6 +501,12 @@ def test_a_brief_out_of_shape_halts(
             (28, "## Dependencies"),
         )
     ]
+    # An HTML heading opened inline, in a paragraph that starts with a reference.
+    inline = _READY + "\n## Notes\n\n&nbsp;<h2>For the cut</h2>\n"
+    assert brief_check.main([str(_write(tmp_path, inline))]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — line 24 reads as `## For the cut` but is not written so\n"
+    )
     # The heading written so, a second time.
     again = _READY + "\n## For the cut\n"
     assert brief_check.main([str(_write(tmp_path, again))]) == 1

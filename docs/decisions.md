@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72
 ```
@@ -31,8 +31,8 @@ all about one thing.**
 
 **What MinionsFactory ships is a way of working — grill, cut, build, converge, release — as installable skills. It
 is not a framework. The stations install nothing into the repo they work on; `mf-bootstrap` writes a new
-repo's starting files, once. A skill may bundle a standard-library script, run from its own package and never
-copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
+repo's starting files, once. A skill may bundle a standard-library script, or one whose PEP 723
+header names a package the person approved, run from its own package and never copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
 
 - **Why:** a tool installed per repo is a copy of the contract in every target.
 
@@ -181,7 +181,7 @@ queue holds.**
 ### D65 · A lighter plan review and build
 
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
-decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker
+decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Opus 5.5 · high
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
 suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
 
@@ -372,8 +372,8 @@ nothing, and `overlap.py` counts what each side alone caught. The review metrics
 
 **The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
 budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
-Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Once no blocker is open, a pickup's fix is checked
-by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
+Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Round 1's fix pass takes the pickup with its blockers; once no blocker
+is open, a pickup's fix is checked by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
 the diff's files have their own file, and the release reads the findings files' frontmatter and card lines alone.**
 
 - **Why:** 0097's plan reviews re-read everything, and its helpers, on the strongest model, re-read what another worker of
@@ -454,6 +454,22 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 - **Accepts:** each phase re-reads its base · a note the conductor cuts at 40 lines.
 - **Rejected:** a per-phase worker only on big changes — one behaviour is simpler · a tracked notes file — D6 keeps the
   record to four artifacts · a host per phase.
+
+### D74 · Converge's rounds are cut at their causes
+
+**Round 1's fix pass takes the pickup with its blockers, and a pickup fix that commits nothing gets no check. The fixer
+records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
+`plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the base's
+tests gone, at the build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside
+the gate. The Markdown readers parse with `markdown-it-py`. Plan reviews run on Opus 5.5 · high; the cut's default model is
+Sonnet 5.5 · high.**
+
+- **Why:** across 0080–0100, most rounds past the first were a pickup alone or grew from one, an amend round over plan prose
+  a fix left stale, or a blocker a deterministic check could have found.
+- **Accepts:** a fix note the person reads after the run · a corpus that reads only what this machine's run directory holds ·
+  a header range `uv` resolves at run time.
+- **Rejected:** a pickup in every fix pass · grading a mechanism repeat up · `make corpus` in the gate · a hand-split reader
+  patched form by form.
 
 ## The target repo
 
@@ -792,7 +808,8 @@ ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none f
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
-`## Decisions` section: a card whose fix needs any other plan edit halts `amend needed`. A
+`## Decisions` section and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
+fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task

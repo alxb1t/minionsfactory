@@ -67,6 +67,7 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 |---|---|---|
 | a `**HUMAN` phase — the halt's phase, or its sub-task's, is marked `**HUMAN` | diagnosis | — |
 | converge's `verify: halt` | diagnosed by the run | — |
+| converge's `amend needed — plan check` | fix | each line `plan_check.py --change <change-id> --base <default-branch>` prints, cleared in `tasks.md` and `design.md`'s prose: a `Verify:` the task's own result passes, a stale claim of a removed name dropped |
 | converge's `amend needed` | fix | the amend its cards name — a `wontfix` card's note, or an open drift card's **Fix** — in `tasks.md` and `design.md`'s prose |
 | a `Verify:` that cannot pass — its search matches a line no task touches, its expected output is wrong at `HEAD` | fix | the `Verify:` the task's own result passes |
 | a reader a deletion missed — a file the change turns red that no task names | fix | the file, named in the task that turns it red |
@@ -77,7 +78,7 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 | integrate's red gate or note | diagnosis | — |
 
 An `amend needed` halt naming a security card of severity `critical` or `high` is a diagnosis, whatever the switch. Its
-commit's `Rescue:` trailer names the card ids: `Rescue: R4`.
+commit's `Rescue:` trailer names the card ids: `Rescue: R4`; a plan-check halt's names `Rescue: plan check`.
 
 A cap whose last halt line says `re-plan: <ids>` is the plan's, not a grant's: the run refused its automatic grant. Its
 diagnosis's `proposal:` is `/mf-plan <change-id> depth=hard from=<its brief>`, and its `cause:` names the ids.

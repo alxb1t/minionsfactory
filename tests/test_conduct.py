@@ -2334,6 +2334,32 @@ def test_a_rescue_decides_under_the_switch(
     spaced = real.replace("## Decisions", "## Decisions ")
     assert decisions(spaced) != decisions(spaced.replace("a fix", "another fix"))
 
+    # A fix note closing an entry is no decision change, CRLF lines too; an edit of the
+    # entry's words, or a note followed by a line of words, still is.
+    entry = "## Decisions\n\n### D1\n\nRead the branch.\n\n## Tests\n"
+    noted = entry.replace(
+        "branch.\n", "branch.\n\nFix note (2026-11-08, R2): reads refs/heads.\n"
+    )
+    assert decisions(entry) == decisions(noted)
+    assert decisions(entry.replace("\n", "\r\n")) == decisions(
+        noted.replace("\n", "\r\n")
+    )
+    assert decisions(noted) != decisions(noted.replace("branch", "tag"))
+    assert decisions(entry) != decisions(
+        noted.replace("heads.\n", "heads.\nMore words.\n")
+    )
+
+    # An amend without the switch that appends a note is no decision change.
+    _commit(tree, {design: entry}, "build")
+    built = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {design: noted}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", built, ("tasks.md", "design.md")) == (
+        head,
+        "",
+        False,
+    )
+
 
 def test_an_amend_during_a_rescue_goes_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -4084,22 +4110,33 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
             mode == "dies-cut"
         )
     # A heading in another form, or a fence left open or closed by another mark,
-    # fails closed rather than reading as no section.
+    # fails closed rather than reading as no section; a table as CommonMark and GFM
+    # render it is read, CRLF and lone CR line ends and a backtick info string included.
     neither = conduct["_cuts"](root)["0022-t"]["halt"]
     table = "## Dependencies\n| package | constraint | why |\n|---|---|---|\n"
     table += "| evil | 1 | x |\n"
+    evil = f"{conduct['UNAPPROVED']}: evil 1"
     show = names["_show"]
     for text, line in (
         (table.replace("s\n", "s \n", 1), neither),
         (table.replace("s\n", "s:\n", 1), neither),
         (f" {table}", neither),
         (table.replace("## Dependencies", "Dependencies\n---"), neither),
-        (table.replace("\n", "\r\n"), neither),
+        (table.replace("\n", "\r\n"), evil),
+        (table.replace("\n", "\r"), evil),
         (f"```\n{table}", neither),
-        (f"```\n~~~\n```\n{table}", f"{conduct['UNAPPROVED']}: evil 1"),
+        (f"```\n~~~\n```\n{table}", evil),
+        (f"```x`\n{table}", evil),
+        ("## Dependencies\n- left-pad\n", neither),
     ):
         names["_show"] = lambda cwd, rev, path, text=text: text
         assert conduct["_unapproved"](root, "0022-t", []) == line
+    # A line a GFM table takes for a row, though it opens like a heading, is a row.
+    names["_show"] = lambda cwd, rev, path: table.replace("| evil", "#- note\n| evil")
+    noted = conduct["_unapproved"](root, "0022-t", [])
+    assert noted is not None
+    assert noted.startswith(f"{conduct['UNAPPROVED']}: ")
+    assert noted.endswith("evil 1")
     names["_show"] = show
 
     # A package the entry does not approve halts the cut, naming it.
@@ -4114,6 +4151,13 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     logged = f" · 0020-p · halt — cut-halted — {unapproved}"
     assert any(entry.endswith(logged) for entry in _log(root))
+    # A tag of the branch's name at the default branch's tip is not the branch.
+    rows = conduct["_unapproved"](root, "0020-p", [])
+    assert rows is not None
+    assert rows.endswith("right-pad ^2")
+    _git(root, "tag", "0020-p", conduct["default_branch"](root))
+    assert conduct["_unapproved"](root, "0020-p", []) == rows
+    _git(root, "tag", "-d", "0020-p")
     # A rejoin reads the brief's rows; one it cannot read keeps the halt.
     names["_start_run"] = lambda primary, executor: 4242
     packages.unlink()

@@ -75,7 +75,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). Among them `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
-  version.
+  version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change: a note
+  can misstate the code, and the verify round and the person read it.
 - Rejoin requests, in the home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`: the person's session writes
   them and no worker can, so a file in `.minions/runs/rejoin/` is no request. A request has the live run read a version's
   stage from disk again, which it already trusts, and the models file of a version cut since its start. A version the
@@ -96,6 +97,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   widens that list. A passed cut's brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and
   `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
   worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
+- `tasks.md`'s `Verify:` commands, which `plan_check.py` runs again at the build's close and after each converge fix, argv
+  with no shell, as the build ran them; and `make corpus`, an operator target outside the gate, which runs the readers
+  over the run directory and the operator's Codex sessions and writes only under `.minions/corpus/`.
 
 ## Surfaces
 

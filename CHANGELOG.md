@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-11-09
+
+Gate: local 2m14s · CI not read under mf-ship · 0.85.0: local 2m8s · CI not read under mf-ship
+
+- Converge's round-1 fix pass takes Step 8's pickup with its blockers, so round 2 verifies them all and Step 8 runs no
+  second pickup; a pickup whose fixer commits nothing gets no check. A finding whose mechanism a debt card holds names
+  `repeat of <card>` and keeps its grade (change `0103-fewer-rounds`, phase 1).
+- The converge fixer may append `Fix note (<date>, <card id>): <line>` to a `### D<n>` entry in `design.md`; `conduct.py`
+  reads an appended note as no decision change, and converge's close-out names each note (change `0103-fewer-rounds`,
+  phase 2).
+- `plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the
+  base's tests gone. The build runs it before `build.done`, the converge fixer after each fix and Step 7 after the gate,
+  halting `amend needed — plan check` on a line only the plan can clear, which `mf-rescue` amends (change
+  `0103-fewer-rounds`, phase 3).
+- `make corpus` runs `scripts/corpus.py` over `scripts/corpus.toml`'s cases, the repo's readers of run data over the run
+  directory, outside `make gate`. The cut marks a sub-task that adds such a reader `**CORPUS**`, the build runs
+  `make corpus` after it, and the plan check finds its case (change `0103-fewer-rounds`, phase 4).
+- `brief_check.py` and the cut station's `## Dependencies` check read Markdown with `markdown-it-py` as CommonMark does,
+  so a fenced heading holds no section and a table row GFM renders is read; a lone carriage return halts the brief, and
+  the cut reads the branch as `refs/heads/<id>`. A fuzz corpus compares both readers with the rendered page (change
+  `0103-fewer-rounds`, phase 5; closes `0091·R4`, `0091·S4`, `0091·S5`).
+- `mf-cut-change` runs its plan reviews on Opus 5.5 · high by name, whatever the cut's model; `mf-plan`'s default cut model
+  becomes Sonnet 5.5 · high (change `0103-fewer-rounds`, phase 6).
+- D74 records the cuts to converge's rounds; D2, D53, D65 and D71 follow it, and the coding standards, `AGENTS.md` and the
+  threat model name the `markdown-it-py` header, `make corpus`, the fix note and the plan check (change
+  `0103-fewer-rounds`, phase 7).
+- `plan_check.py` holds a re-run `Verify:` to the output it names: a command exiting 0 fails when it prints something where
+  the `Verify:` says `prints nothing`, or other than the number it names; a `grep -c` printing `0` on exit 1 passes
+  (change `0103-fewer-rounds`, phase 8).
+
 ## [0.85.0] - 2026-11-09
 
 Gate: local 2m8s · CI not read under mf-ship · 0.84.0: local 2m13s · CI not read under mf-ship
