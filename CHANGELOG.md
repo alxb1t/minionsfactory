@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `brief_check.py` reads a brief's facts and models: a `## Facts` item must end `` (`<path>:<line>[-<line>]` at `<sha>`) ``,
+  `--facts` prints them as JSON, and `--models <brief> <slug>` prints the item's models file; a tag that only starts like a
+  heading, `<h12>` or `<h2-widget>`, ends no section (change `0106-cut-scripts`, phase 1).
+
 ## [0.88.0] - 2026-11-09
 
 Gate: local 2m51s · CI not read under mf-ship · 0.87.0: local 2m12s · CI not read under mf-ship

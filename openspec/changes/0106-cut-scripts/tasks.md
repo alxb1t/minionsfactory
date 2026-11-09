@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The brief's parser · hard
+- [x] 1 — The brief's parser · hard
 - [ ] 2 — facts.py · hard
 - [ ] 3 — cut_pre.py and cut_check.py · hard
 - [ ] 4 — The queue writes the models file · hard
@@ -13,22 +13,22 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The brief's parser
 
-- [ ] 1.1 **HALT CHECK** Confirm `headed()` in `skills/mf-plan/scripts/brief_check.py` still ends a section on a `lower().startswith`
+- [x] 1.1 **HALT CHECK** Confirm `headed()` in `skills/mf-plan/scripts/brief_check.py` still ends a section on a `lower().startswith`
   prefix, as [D3](design.md#d3) needs; missing, the plan is wrong.
   Verify: `grep -n "lower().startswith" skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 1.2 Add `test_a_fact_citing_a_path_and_a_line_is_ready` and `test_a_fact_out_of_grammar_halts` to `tests/test_brief_check.py`,
+- [x] 1.2 Add `test_a_fact_citing_a_path_and_a_line_is_ready` and `test_a_fact_out_of_grammar_halts` to `tests/test_brief_check.py`,
   per the `## Tests` rows of [D1](design.md#d1).
   Verify: `grep -n "def test_a_fact_out_of_grammar_halts" tests/test_brief_check.py` prints a line.
-- [ ] 1.3 Add `test_models_prints_the_items_toml` and `test_a_custom_tag_opens_no_section` to `tests/test_brief_check.py`, per
+- [x] 1.3 Add `test_models_prints_the_items_toml` and `test_a_custom_tag_opens_no_section` to `tests/test_brief_check.py`, per
   [D2](design.md#d2) and [D3](design.md#d3).
   Verify: `grep -n "def test_a_custom_tag_opens_no_section" tests/test_brief_check.py` prints a line.
-- [ ] 1.4 In `skills/mf-plan/scripts/brief_check.py`, add `FACT`, the fact halts and `--facts` as [D1](design.md#d1) says, and
+- [x] 1.4 In `skills/mf-plan/scripts/brief_check.py`, add `FACT`, the fact halts and `--facts` as [D1](design.md#d1) says, and
   describe them in the module docstring; each new why line cites `0106-cut-scripts design D1`.
   Verify: `uv run pytest -q tests/test_brief_check.py -k "fact"` passes.
-- [ ] 1.5 In `skills/mf-plan/scripts/brief_check.py`, add `models_toml` and the `--models <brief> <slug>` form as
+- [x] 1.5 In `skills/mf-plan/scripts/brief_check.py`, add `models_toml` and the `--models <brief> <slug>` form as
   [D2](design.md#d2) says; the positional `brief` stays, a `slug` positional follows it.
   Verify: `uv run pytest -q tests/test_brief_check.py -k "models_prints"` passes.
-- [ ] 1.6 In `skills/mf-plan/scripts/brief_check.py`, add `BLOCK_HEADING` beside `INLINE_HEADING` and use it in `headed()` in place of the
+- [x] 1.6 In `skills/mf-plan/scripts/brief_check.py`, add `BLOCK_HEADING` beside `INLINE_HEADING` and use it in `headed()` in place of the
   `startswith` test, and cut `headed()`'s docstring to 3 lines, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_brief_check.py tests/test_markdown_corpus.py` passes.
 
