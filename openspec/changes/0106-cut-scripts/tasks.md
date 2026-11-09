@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The brief's parser · hard
-- [ ] 2 — facts.py · hard
+- [x] 2 — facts.py · hard
 - [ ] 3 — cut_pre.py and cut_check.py · hard
 - [ ] 4 — The queue writes the models file · hard
 - [ ] 5 — The skills and the record · hard
@@ -34,20 +34,20 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — facts.py
 
-- [ ] 2.1 **HALT CHECK** Confirm `brief_check.py` now names `--facts`, which `facts.py` calls ([D4](design.md#d4)); missing, phase 1
+- [x] 2.1 **HALT CHECK** Confirm `brief_check.py` now names `--facts`, which `facts.py` calls ([D4](design.md#d4)); missing, phase 1
   is not built.
   Verify: `grep -n -e "--facts" skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 2.2 Add `tests/test_facts.py` with the `place` rows of `## Tests`: `test_a_fact_on_an_untouched_path_stands`,
+- [x] 2.2 Add `tests/test_facts.py` with the `place` rows of `## Tests`: `test_a_fact_on_an_untouched_path_stands`,
   `test_a_fact_whose_lines_shifted_is_moved`, `test_a_fact_on_a_changed_line_is_unplaced` and
   `test_a_fact_with_no_commit_or_a_bad_sha_is_unplaced`, in a scratch repository, feeding facts to `place_all`.
   Verify: `grep -n "def test_a_fact_with_no_commit_or_a_bad_sha_is_unplaced" tests/test_facts.py` prints a line.
-- [ ] 2.3 Add to `tests/test_facts.py` `test_readers_print_each_hit_or_none`, `test_the_notes_file_is_written_and_appended`,
+- [x] 2.3 Add to `tests/test_facts.py` `test_readers_print_each_hit_or_none`, `test_the_notes_file_is_written_and_appended`,
   `test_what_cannot_be_read_exits_2` and `test_the_brief_reaches_the_placer`, the last with the runner swapped.
   Verify: `grep -n "def test_the_brief_reaches_the_placer" tests/test_facts.py` prints a line.
-- [ ] 2.4 Write `skills/mf-cut-change/scripts/facts.py`: the `uv` script header with `dependencies = []`, the runner constant, and
+- [x] 2.4 Write `skills/mf-cut-change/scripts/facts.py`: the `uv` script header with `dependencies = []`, the runner constant, and
   `place` with the placement of [D4](design.md#d4), exits 0, 1 and 2.
   Verify: `uv run pytest -q tests/test_facts.py -k "stands or moved or unplaced"` passes.
-- [ ] 2.5 In `facts.py`, add `readers` and the `--notes` writing of [D4](design.md#d4).
+- [x] 2.5 In `facts.py`, add `readers` and the `--notes` writing of [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_facts.py` passes.
 
 ## 3 — cut_pre.py and cut_check.py
