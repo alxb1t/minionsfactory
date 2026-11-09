@@ -201,7 +201,7 @@ follows it: while one is due, every way to Step 7 — the table's, a verify roun
 | `shadow` | Step 5 |
 | `fix` | a commit since the freeze → Step 6's re-freeze, then Step 7; else Step 6, a fresh fixer continuing a dirty tree |
 | `verify` | Step 7 |
-| `pickup` | `none` → Step 9; `checked` → Step 8 item 6; `with the fix` → Step 6, the blocking cards and those ids; else Step 8 item 4, the same ids |
+| `pickup` | `none` → Step 9; `checked — round <N+1>` → Step 7, that counted verify round; `checked` → Step 8 item 6; `with the fix` → Step 6, the blocking cards and those ids; else Step 8 item 4, the same ids |
 | `debt`, or an older `backlog` | Step 10 |
 | `catch-up` | [Catch-up round](#catch-up-round) |
 | `by rule` | a catch-up run → Step 9; else Step 7's conformance dispatch |
