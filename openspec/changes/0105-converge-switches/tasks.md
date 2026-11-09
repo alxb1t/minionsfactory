@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The grammar · hard
+- [x] 1 — The grammar · hard
 - [ ] 2 — Conduct reads the switches · hard
 - [ ] 3 — Converge with one role, the stub and the release · hard
 - [ ] 4 — The repo default and the surfaces warning · moderate
@@ -13,20 +13,20 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The grammar
 
-- [ ] 1.1 **HALT CHECK** Confirm `models()` still takes a part's name only from a three-word part in
+- [x] 1.1 **HALT CHECK** Confirm `models()` still takes a part's name only from a three-word part in
   `skills/mf-plan/scripts/brief_check.py`, as [D1](design.md#d1) needs; missing, the plan is wrong.
   Verify: `grep -n "len(part) == 3" skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 1.2 Add `test_a_models_line_naming_a_skip` to `tests/test_brief_check.py`, per the design's `## Tests` row.
+- [x] 1.2 Add `test_a_models_line_naming_a_skip` to `tests/test_brief_check.py`, per the design's `## Tests` row.
   Verify: `grep -n "def test_a_models_line_naming_a_skip" tests/test_brief_check.py` prints a line.
-- [ ] 1.3 In `skills/mf-plan/scripts/brief_check.py`, make [D1](design.md#d1)'s `models()` and `MODELS` edits, the new why
+- [x] 1.3 In `skills/mf-plan/scripts/brief_check.py`, make [D1](design.md#d1)'s `models()` and `MODELS` edits, the new why
   line citing `0105-converge-switches design D1`.
   Verify: `uv run pytest -q tests/test_brief_check.py -k models_line_naming_a_skip` reports `1 passed`.
-- [ ] 1.4 In `skills/mf-plan/SKILL.md`, make [D1](design.md#d1)'s edit to the `models:` grammar line.
+- [x] 1.4 In `skills/mf-plan/SKILL.md`, make [D1](design.md#d1)'s edit to the `models:` grammar line.
   Verify: `grep -n "converge skip" skills/mf-plan/SKILL.md` prints a line.
-- [ ] 1.5 In `skills/mf-cut-change/SKILL.md`, replace the dead `skip, read by hand` text of the Converge bullet and the
+- [x] 1.5 In `skills/mf-cut-change/SKILL.md`, replace the dead `skip, read by hand` text of the Converge bullet and the
   suggestion block, and drop the comment of the template's `[converge]` line, per [D1](design.md#d1).
   Verify: `grep -n "skip, read by hand" skills/mf-cut-change/SKILL.md` prints nothing.
-- [ ] 1.6 In `skills/mf-cut-change/SKILL.md`, add [D1](design.md#d1)'s new comment line to the template, after its `# shadow = true`
+- [x] 1.6 In `skills/mf-cut-change/SKILL.md`, add [D1](design.md#d1)'s new comment line to the template, after its `# shadow = true`
   line, and the sentence before the template that writes a brief's `skip` parts into `models.toml`.
   Verify: `grep -n "no worker tables" skills/mf-cut-change/SKILL.md` prints a line.
 

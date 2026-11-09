@@ -189,7 +189,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
   ## For the cut
   <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · beside: <ids, or the slug of an earlier item> · debt: [<ids>] or none · decide: recommended
-     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
+     - models: build <model> <effort> · converge <model> <effort> | converge skip · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · conformance <host/model> <effort> | conformance skip · adversarial <host/model> <effort> | adversarial skip · fix <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
 
@@ -204,7 +204,8 @@ shares files with, which nothing waits on (D69).
 The `build-moderate`, `conformance`, `adversarial`, `fix` and `shadow` parts are optional. `build-moderate` builds the
 phases the cut rates `moderate`. A host prefix, `claude/` or `codex/`, names a part's executor:
 `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker; `cut`, `fix` and
-`build-moderate` take none. `shadow` turns on the shadow round 1, the person's choice at each close.
+`build-moderate` take none. `shadow` turns on the shadow round 1, the person's choice at each close. `skip` takes no
+model, no effort and no `shadow`; both checkers skipped is `converge skip`.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its
 `## For the cut` slug, the exact package, its version constraint, and why. `conduct.py cut` copies the item's rows into

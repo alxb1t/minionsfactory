@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The models line takes `converge skip`, `conformance skip` and `adversarial skip`; `brief_check.py` refuses a skip beside
+  `shadow`, a model or effort, and both checkers skipped. `mf-cut-change` drops its dead `skip, read by hand` text and
+  writes a brief's skip as `skip = true` in `models.toml` (change `0105-converge-switches`, phase 1).
+
 ## [0.86.0] - 2026-11-09
 
 Gate: local 2m14s · CI not read under mf-ship · 0.85.0: local 2m8s · CI not read under mf-ship
