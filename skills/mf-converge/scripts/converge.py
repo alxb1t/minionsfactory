@@ -382,18 +382,6 @@ def old_layout(primary: Path, change: str) -> str | None:
     return None
 
 
-def default_branch(tree: Path) -> str:
-    """Return the branch `origin/HEAD` names, else `main`."""
-    done = subprocess.run(
-        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-        cwd=tree,
-        capture_output=True,
-        text=True,
-    )
-    named = done.stdout.strip().removeprefix("origin/")
-    return named if done.returncode == 0 and named else "main"
-
-
 def preconditions(context: Context) -> str:
     """Check Step 1's preconditions, halting on the first that fails; return the base.
 
@@ -410,7 +398,7 @@ def preconditions(context: Context) -> str:
         raise Halt(f"tasks.md cannot be read: {error.strerror}") from error
     if open_box := next((n for box, n in boxes if box == " "), None):
         raise Halt(f"phase {open_box} of tasks.md is unticked: mf-build owns it")
-    base = git(tree, "merge-base", default_branch(tree), "HEAD").strip()
+    base = base_of(context)
     if base == head(context):
         raise Halt("the range is empty: base is HEAD")
     context.base = base
@@ -1551,7 +1539,8 @@ def report(context: Context, paid: Debt, gate: int) -> str:
 
 def base_of(context: Context) -> str:
     """Return Step 2's base: the merge-base of the default branch and `HEAD`."""
-    return git(context.tree, "merge-base", default_branch(context.tree), "HEAD").strip()
+    default = INTEGRATE["default_branch"](context.tree)
+    return git(context.tree, "merge-base", default, "HEAD").strip()
 
 
 def grant(context: Context) -> int:
@@ -1597,7 +1586,7 @@ def select(context: Context, judged: str) -> list[tuple[str, list[str]]]:
             f"history rewritten: {judged[:7]} is not on HEAD's first-parent chain"
             " — re-converge from round 1"
         )
-    default = default_branch(context.tree)
+    default = INTEGRATE["default_branch"](context.tree)
     for sha, parents in chosen:
         if (
             len(parents) > 2
