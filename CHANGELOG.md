@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   facts grammar and re-measures with `facts.py`; `tests/test_skills.py` lists the scripts each skill names. D77 records
   it, amending D7, D40 and D41 (change `0106-cut-scripts`, phase 5).
 
+## [0.89.0] - 2026-11-09
+
+Gate: local 4m37s · CI not read under mf-ship · 0.88.0: local 2m51s · CI not read under mf-ship
+
+- `conduct.py` gains `sandboxed()`: it runs a plain command under macOS Seatbelt, writing only to the version's trees, reading
+  no credential, with no network, and stops with exit 2 where `sandbox-exec` is missing (change `0107-sandbox-runner`,
+  phase 1).
+- `conduct.py sandboxed -- <cmd>` runs a command under `sandboxed()` over the version's trees, and exits 2 with `no OS
+  sandbox` or `no command`; `mf-ship`'s command table lists it and D51 states the rule (change `0107-sandbox-runner`,
+  phase 2).
+
 ## [0.88.0] - 2026-11-09
 
 Gate: local 2m51s · CI not read under mf-ship · 0.87.0: local 2m12s · CI not read under mf-ship

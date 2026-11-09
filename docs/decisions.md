@@ -785,7 +785,9 @@ the default branch.**
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
 the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter to
 the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
-reach no unlisted domain. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
+reach no unlisted domain. A plain command a run starts on a builder's code — the gate, a check script, a `Verify:` —
+runs under `sandboxed()`: macOS Seatbelt, writes inside the version's trees alone, no credential read and no network, and
+no OS sandbox ends it with exit 2. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
 refused, and on Codex one checker. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a
 hostile repo needs a container.**
@@ -800,9 +802,10 @@ hostile repo needs a container.**
   under the common directory, as a Claude worker does · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker · a Claude worker starts no MCP server, the operator's own included ·
   a Codex worker loads no user config ([D67](#d67--a-codex-worker-starts-on-mfs-settings-logs-json-and-is-proved-by-a-checker))
-  · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin`.
+  · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin` · a plain command has
+  no network, so one that needs a registry fails red · Linux has no runner until a run starts there.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
-  reaches every local service.
+  reaches every local service · a plain command run bare where no OS sandbox stands.
 
 ### D67 · A Codex worker starts on MF's settings, logs JSON and is proved by a checker
 

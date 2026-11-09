@@ -16,6 +16,7 @@
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
+    conduct.py sandboxed -- <cmd>
 
 Exit 0 done · 1 halt · 2 cannot run. Every stage and check is read from git and
 the run directory, so a re-run derives them again.
@@ -3321,6 +3322,91 @@ def _plugins_off() -> dict[str, bool]:
         return {}
     plugins = settings.get("enabledPlugins") if isinstance(settings, dict) else None
     return dict.fromkeys(plugins, False) if isinstance(plugins, dict) else {}
+
+
+def _profile(trees: list[Path], home: Path) -> str:
+    """Return the Seatbelt profile: writes in `trees`, no secret read, no network.
+
+    A later rule beats an earlier one, so the secrets stay denied inside a tree.
+    Why: 0107-sandbox-runner design D1.
+    """
+
+    def quoted(path: Path) -> str:
+        escaped = str(path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    writes = " ".join(f"(subpath {quoted(tree)})" for tree in trees)
+    devices = " ".join(
+        f'(literal "{device}")'
+        for device in (
+            *("/dev/null", "/dev/tty", "/dev/dtracehelper", "/dev/autofs_nowait"),
+            *("/dev/stdout", "/dev/stderr"),
+        )
+    )
+    secrets = " ".join(
+        f"(subpath {quoted(home / secret.removeprefix('~/'))})" for secret in SECRETS
+    )
+    return "\n".join(
+        (
+            "(version 1)",
+            "(allow default)",
+            "(deny file-write*)",
+            f"(allow file-write* {writes} {devices})",
+            f"(deny file-read* file-write* {secrets})",
+            "(deny network*)",
+        )
+    )
+
+
+def sandboxed(argv: list[str], cwd: Path, trees: list[Path]) -> int:
+    """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
+
+    e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`; no sandbox stops with 2.
+    Why: 0107-sandbox-runner design D2.
+    """
+    sandbox_exec = shutil.which("sandbox-exec")
+    if sandbox_exec is None:
+        raise Stop(
+            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
+        )
+    tmp = trees[0] / ".minions" / "tmp"
+    try:
+        os.close(_folder_fd(trees[0], ".minions", "tmp"))
+    except OSError as error:
+        raise Stop(2, f"conduct: cannot run — scratch folder {tmp}: {error}") from error
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name != "VIRTUAL_ENV" and name not in TOKENS
+    }
+    for pair in HOOKS_OFF:
+        key, _, value = pair.partition("=")
+        env[key] = value
+    env["UV_OFFLINE"] = "1"
+    env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
+    env["TMPDIR"] = str(tmp)
+    denied = False
+    with subprocess.Popen(
+        [sandbox_exec, "-p", _profile(trees, Path.home()), *argv],
+        cwd=cwd,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        errors="replace",
+    ) as process:
+        for line in process.stdout or ():
+            print(line, end="", flush=True)
+            denied = denied or CODEX_DENIAL in line
+        code = process.wait()
+    if code != 0 and denied:
+        print(
+            "sandboxed: denied — the OS sandbox refused a call:"
+            " writes stay in the trees, no network",
+            file=sys.stderr,
+        )
+    return code if code >= 0 else 128 - code
 
 
 def tools_for(station: str) -> tuple[str, ...]:
@@ -7800,6 +7886,10 @@ def main(argv_: list[str] | None = None) -> int:
         "anchor", help="a person seeds the first offline base"
     )
     anchoring.add_argument("--yes", metavar="sha")
+    boxing = commands.add_parser(
+        "sandboxed", help="run a command under the OS sandbox, over the version's trees"
+    )
+    boxing.add_argument("argv", metavar="cmd", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:
@@ -7840,6 +7930,11 @@ def main(argv_: list[str] | None = None) -> int:
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
             print(anchor(cwd, args.yes))
+        elif args.command == "sandboxed":
+            command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+            if not command:
+                raise Stop(2, "sandboxed: cannot run — no command")
+            return sandboxed(command, cwd, reach(primary_of(cwd)))
         else:
             print(report(cwd))
     except Stop as stop:
