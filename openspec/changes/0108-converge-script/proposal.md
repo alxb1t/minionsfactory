@@ -45,6 +45,8 @@ Requirements, in [the delta](specs/sdd/spec.md):
 - *The converge fixer leaves the plan to the person* — MODIFIED: `Amend:` marks an amend card; `## Tests` and `## Dependencies`
   join the sections it never edits; `fix.md`.
 - *Each release records its run* — MODIFIED: a converge worker's log counts in the converge stage.
+- *A plan check holds the plan to the built tree* — MODIFIED: a living requirement the delta removes names nothing the check
+  holds against the plan.
 - *Converge's workers take their models from the models file* — MODIFIED: no conductor model, the fixer always on `fix=`, a skip
   read once.
 - *A shadow round 1 runs the other host's checkers* — MODIFIED: through the checker call, not the mailbox.
@@ -72,12 +74,12 @@ None.
 ## Impact
 
 Adds `skills/mf-converge/scripts/converge.py`, `skills/mf-converge/references/fix.md`, `tests/test_converge.py`. Changes
-`skills/mf-converge/SKILL.md`, its references, `open_cards.py`, `skills/mf-ship/scripts/conduct.py`, `skills/mf-ship/SKILL.md`,
+`skills/mf-converge/SKILL.md`, its references, `open_cards.py`, `plan_check.py`, `tests/test_plan_check.py`, `skills/mf-ship/scripts/conduct.py`, `skills/mf-ship/SKILL.md`,
 `tests/fake_worker.py`, `tests/conftest.py`, `tests/test_conduct.py`, `tests/test_sandboxed.py`, `tests/test_skills.py`,
 `tests/test_open_cards.py`, `tests/test_review_metrics.py`, `tests/test_metric_scripts.py`, `scripts/metrics/reading_set.py`,
 `skills/mf-review-metrics/SKILL.md`, `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl`, `docs/principles.md`, `skills/mf-review-metrics/scripts/review_metrics.py`,
 `scripts/metrics/run.py`, `metrics/catalogue.toml`, `THREAT_MODEL.md` and `docs/decisions.md`. Deletes
-`skills/mf-converge/scripts/surfaces.py` and `tests/test_surfaces.py`.
+`skills/mf-converge/scripts/surfaces.py` and `tests/test_surfaces.py`, both deleted.
 
 Dependencies: none. The gate recipe stays unchanged. `0106-cut-scripts` opens `conduct.py` too, in `_models_file`, `_table`,
 `_models`, `PROMPTS` and `main`, as this change does: a merge there is a text merge ([design](design.md#risks--trade-offs)).

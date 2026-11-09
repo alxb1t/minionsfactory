@@ -13,6 +13,7 @@ only the phase's end is green.
 - [x] 4 — The debt, the halts and the report · hard
 - [x] 5 — `conduct.py`: the in-process call and the retirements · hard
 - [x] 6 — The front, the record and the metrics · hard
+- [ ] 7 — The plan check skips a requirement the delta removes · moderate
 
 ## 1 — The fields
 
@@ -33,7 +34,7 @@ only the phase's end is green.
   Verify: `git grep -n -e '^## Prompt' -e 'plan check left:' -- skills/mf-converge/references/fix.md` prints a line for each.
 - [x] 1.6 Add a `## Prompt` block, with [D2](design.md#d2)'s placeholders, to `skills/mf-converge/references/generic-conformance.md`,
   `generic-adversarial.md` and `verify.md`, below `## The packet` where there is one.
-  Verify: `git grep -l '^## Prompt' -- skills/mf-converge/references/` prints each reference named in this task and `fix.md`.
+  Verify: `git grep -l '^## Prompt' -- skills/mf-converge/references/` lists generic-conformance.md, generic-adversarial.md, verify.md and fix.md.
 
 ## 2 — The script's start: preconditions, freeze, dispatch, verdicts
 
@@ -115,7 +116,7 @@ only the phase's end is green.
   `git grep -n -e 'converge 0001' -e '"checker"' -e 'mailbox' -e 'surfaces' tests/test_conduct.py`; bring each to the new fake under its own
   name, and add `test_a_version_converges_with_no_conducting_worker` (slow), per the renames and removals of
   [the Tests table](design.md#tests).
-  Verify: `uv run pytest -q tests/test_conduct.py` exits 0; `git grep -n -e 'converge 0001-todo and' -e 'mailbox' -- tests/test_conduct.py` prints nothing.
+  Verify: `uv run pytest -q -n auto tests/test_conduct.py` exits 0; `git grep -n -e 'converge 0001-todo and' -e 'mailbox' -- tests/test_conduct.py` prints nothing.
 - [x] 5.7 Delete `skills/mf-converge/scripts/surfaces.py`, `tests/test_surfaces.py`, the `_METRICS_SCRIPTS` entry of
   `tests/test_skills.py` naming `surfaces.py` and the two expected-list strings that name it; reword the lines of `docs/principles.md`
   that name `surfaces.py` and its test.
@@ -145,3 +146,12 @@ only the phase's end is green.
   `<stamp>-converge-<role>-r<N>.log` in `review_metrics.py`, the description path kept; count each such log in the converge stage in
   `scripts/metrics/run.py`, its test in `tests/test_metric_scripts.py` extended.
   Verify: `uv run pytest -q tests/test_review_metrics.py tests/test_metric_scripts.py` exits 0.
+
+## 7 — The plan check skips a requirement the delta removes
+
+- [ ] 7.1 Extend `test_a_plan_check_finds_what_the_plan_left` in `tests/test_plan_check.py` as [the Tests table](design.md#tests) says:
+  a removed name on a line of `openspec/specs/cap/spec.md` inside a requirement the change's `specs/cap/spec.md` lists under
+  `## REMOVED Requirements` halts nothing, and the same name in the next requirement, which the delta keeps, exits 1 naming its
+  line. Then skip such a line in `check_names` of `skills/mf-converge/scripts/plan_check.py`, per [C8](design.md#c-rows) and the
+  delta's *A plan check holds the plan to the built tree*; `check_names`' docstring and the module docstring say so.
+  Verify: `uv run pytest -q tests/test_plan_check.py` exits 0; `git grep -n 'REMOVED Requirements' -- skills/mf-converge/scripts/plan_check.py` prints a line.

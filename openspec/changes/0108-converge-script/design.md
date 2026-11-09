@@ -19,11 +19,11 @@ a path stands. Lines are `ccfa6a1`'s, from the cut's notes. `C` is `skills/mf-sh
 | F4 | `K` holds many rules and halt sites; these places judge: Step 5's scope and Summary checks, the amend card's drift exception, **Still true?**, `plan check left:` read from free text, each worker's prompt composed free, Step 10's `inconclusive` sections | `K:355-362`, `W:166-170`, `K:502-529`, `K:389`, `K:334-338`, `K:531-542` |
 | F5 | the converge scripts stand, each `main(argv=None) -> int`; not scripted: the loop and resume, the verdict read, the pickup pick, amend detection, the debt write, By rule's frontmatter edit, catch-up enumeration, the report | `skills/mf-converge/scripts/` |
 | F6 | the spawner is reusable: module-level `argv`, `work`, `_free_log`, `tokens_of`; `Run.worker(who, station, cwd, prompt, models, …) -> (exit, killed, log, denials)` names its log `<stamp>-<station>` | `C:3390-3594`, `C:4680-4749`, `C:4717` |
-| F7 | `Run.checker(change, role, cwd, prompt, deadline, request) -> str` runs one checker, holds the Codex fallback and returns a mailbox answer; the mailbox — request and answer files, `serve_requests`, `checker()`, its subparser, `_mailbox`, `_open_mailbox`, `Run.server`, the constants `CHECKERS`, `MAILBOX_POLL`, `CHECKER_WAIT`, `REQUEST_BYTES`, `REQUEST_ID`, `CHECKER_SPAWNS` — exists for a sandboxed LLM conductor | `C:4613-4661`, `C:2989-3160`, `C:6812`, `C:7446`, `C:7717-7720`, `C:73-80` |
+| F7 | `Run.checker(change, role, cwd, prompt, deadline, request) -> str` runs one checker, holds the Codex fallback and returns a mailbox answer; the mailbox — request and answer files, `serve_requests`, `checker()`, its subparser, `_mailbox`, `_open_mailbox`, `Run.server`, the constants `CHECKERS`, `MAILBOX_POLL`, `CHECKER_WAIT`, `REQUEST_BYTES`, `REQUEST_ID`, `CHECKER_SPAWNS` — exists for a sandboxed LLM conductor; [D8](#d8) removes it | `C:4613-4661`, `C:2989-3160`, `C:6812`, `C:7446`, `C:7717-7720`, `C:73-80` |
 | F8 | `C` runs outside any sandbox; the gate, `gate_check.py` and `plan_check.py` run inside the LLM conductor's. [0107-sandbox-runner](../0107-sandbox-runner/design.md) adds `sandboxed(argv, cwd, trees) -> int`, which tees to `sys.stdout` and takes no file | `K:290`, `K:431-433`, the design of 0107 |
 | F9 | `Run.__init__` loads `integrate.py` by `runpy.run_path(str(INTEGRATE))`; `INTEGRATE` is a module constant | `C:86`, `C:4305` |
 | F10 | `_clear` kills a claim group only when its leader is an executor name, else raises `Stop(2)` | `C:4154` |
-| F11 | `CONDUCTOR` has one reader, `_models`; the converge row of `STATION_TOOLS` is read by `tools_for` alone; `CACHE_HOUR` by `argv` alone | `C:153`, `C:2577`, `C:202`, `C:3306`, `C:207`, `C:3435` |
+| F11 | `CONDUCTOR`, which [D8](#d8) renames, has one reader, `_models`; the converge row of `STATION_TOOLS` is read by `tools_for` alone; `CACHE_HOUR` by `argv` alone | `C:153`, `C:2577`, `C:202`, `C:3306`, `C:207`, `C:3435` |
 | F12 | the fixer runs on adversarial's model when a card is blocking and adversarial is no mailbox role; no test asserts it | `K:374-377`, `openspec/specs/sdd/spec.md:3743-3749` |
 | F13 | H5 is `surfaces.py`, the adversarial head by rule: never fired, 0 of 25 | `K:439-452`, `openspec/specs/sdd/spec.md:3925-3951` |
 | F14 | `stage_of` and `_unjudged` read a converge skip from `models.toml` at every poll, while the checker skips and the `decide` switch are read once into `Run.skipped` | `C:1250`, `C:1476`, `C:4342`, `C:5867-5873` |
@@ -36,7 +36,7 @@ a path stands. Lines are `ccfa6a1`'s, from the cut's notes. `C` is `skills/mf-sh
 
 **Goals:** the brief's acceptance — `make gate` exits 0; with the fake hosts a version converges through `conduct.py` with no
 converge LLM spawn, one log per worker; a malformed findings file gets one rewrite worker, then a debt card; a worker's exit 1
-gets one retry; the fixer runs on `fix=`'s model with a blocking card open; `surfaces.py` is gone; `serve_requests` is gone;
+gets one retry; the fixer runs on `fix=`'s model with a blocking card open; `surfaces.py` is deleted; `serve_requests` is removed;
 D78 stands. Also the debt of [D11](#d11).
 
 **Non-Goals:** tool evidence before the checkers; Linux; a change to what a checker judges or how it grades; H15 and H16 of the
@@ -69,6 +69,7 @@ efficiency ledger, which the person records outside the repository.
 | C6 | `converge()` meets exceptions as [D1](#d1) says: only `host.sandboxed`'s code 2 is "cannot run"; a worker's failure is a `halt` event and exit 1; a thread's exception propagates | brief decision C2 |
 | C7 | `replay` failing, which `K` halts on, is a worker round, as the brief's Q5 says | brief decision C3 |
 | C4 | the phrases "mailbox" in the living *The review-metrics station charts past findings, read-only* and *A halt stops only its version, and a re-run resumes* stay: they name older logs and a retired path that the release's fold cannot reword without copying two long requirements | the delta's *A converge worker is booked by its log name* carries the new rule |
+| C8 | `plan_check.py` skips a line of `openspec/specs/<capability>/spec.md` that stands in a requirement the change's `specs/<capability>/spec.md` lists under `## REMOVED Requirements`, from its `### Requirement:` heading to the next `### Requirement:` or `## ` heading; the delta's *A plan check holds the plan to the built tree* says so | the delta removes *A converge checker on another host runs through the mailbox*, whose living text names `CHECKER_WAIT` and `REQUEST_BYTES`, and the release folds a removal only after the build's close: without the skip, every change that removes a requirement naming the code it deletes halts its close (the build's close halt, answered by the supervisor) |
 
 ### D1
 
@@ -229,14 +230,14 @@ lines itself inside that one call.
 
 - `Run.advance`: for the converge stage, no prompt, mailbox or spawn. It logs `spawn converge · script` and, on return,
   `finish converge · exit <n> · <s>s` — so the run log's minutes and `log verify` keep their pairs — then runs `check` and `judge`
-  as now. `PROMPTS` loses its converge entry; `_worker_clause`, `WORKERS`'s clause use and `shadowed` clause go.
-- The mailbox goes: the constants `CHECKERS`, `MAILBOX_POLL`, `CHECKER_WAIT`, `REQUEST_BYTES`, `REQUEST_ID` and `CHECKER_SPAWNS`, `_mailbox`, `_open_mailbox`, `_take_request`, `_reply`, `serve_requests`, `_answer`,
-  `_answer_refused`, `Run.server`, `checker()` and the `checker` subparser, with their tests. `_entries`, `_bounded` and `_place`
+  as now. `PROMPTS` loses its converge entry; `_worker_clause`, `WORKERS`'s clause use and `shadowed` clause are removed.
+- The mailbox is removed: the constants `CHECKERS`, `MAILBOX_POLL`, `CHECKER_WAIT`, `REQUEST_BYTES`, `REQUEST_ID` and `CHECKER_SPAWNS`, `_mailbox`, `_open_mailbox`, `_take_request`, `_reply`, `serve_requests`, `_answer`,
+  `_answer_refused`, `Run.server`, `checker()` and the `checker` subparser, removed with their tests. `_entries`, `_bounded` and `_place`
   stay: other code reads them ([F7](#context)).
 - `Run.checker` takes the [D4](#d4) arguments and returns `Checked`; the `mailbox` parameters of `argv`, `Run.spawn` and `Run.worker`
   go with their last reader, and so does the `between` parameter of `work`, `Run.worker` and `Run.spawn`, whose only reader was
   `Run.server`.
-- Converge's row of `STATION_TOOLS` and `CACHE_HOUR`'s `"converge"` go. `[converge] model` stays the checkers' default: `CONDUCTOR`
+- Converge's row of `STATION_TOOLS` and `CACHE_HOUR`'s `"converge"` are removed. `[converge] model` stays the checkers' default: `CONDUCTOR`
   is renamed `CHECKER_DEFAULT` and its branch in `_models` stays, so `[converge]` on Claude naming no model and no effort plans
   `claude-sonnet-5-5` · `high`, and `Run.checker` runs a checker whose table names no model on the plan's `converge` model, and
   on its effort when the table names none either — the delta's *The conductor's default*.
@@ -376,6 +377,7 @@ tests/test_review_metrics.py tests/test_metric_scripts.py` prints 160, 2, 21, 2,
 | `test_a_codex_checker_runs_through_run_checker` (renamed from `test_a_codex_checker_runs_through_the_mailbox`) | integration | the Codex spawn, its models, no mailbox | T2 |
 | `test_a_limited_checker_falls_back_to_claude`, `test_a_shadow_round_drives_no_fix`, `test_a_small_cap_is_granted_automatically` and the other converge tests of [F15](#context) (extended) | integration | each keeps its name and its assertion, over `converge.py` and the per-role fake | T2 |
 | `test_review_metrics_books_a_worker_by_its_log_name` (new, `tests/test_review_metrics.py`) | unit | the delta's scenarios | T1 |
+| `test_a_plan_check_finds_what_the_plan_left` (extended, `tests/test_plan_check.py`) | unit | [C8](#c-rows): a removed name in a living requirement the delta removes halts nothing; the same name in the next requirement, which the delta keeps, exits 1 naming its line | T1 |
 
 **Removed.** Each test below is deleted and named here, as T5 asks.
 

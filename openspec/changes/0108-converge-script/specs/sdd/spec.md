@@ -463,6 +463,75 @@ with no `turn.completed` as no tokens and no dollars. `skills/mf-review-metrics/
 - **WHEN** a converge worker on `claude-sonnet-5-5` reads one million input tokens and writes one million output tokens
 - **THEN** the review metrics price it at 12 dollars from `prices.toml`
 
+### Requirement: A plan check holds the plan to the built tree
+
+`skills/mf-converge/scripts/plan_check.py --change <id> --base <rev>` SHALL exit 1, printing one `plan: ` line per problem,
+when: the command of a ticked sub-task's `Verify:`, run again as argv with no shell from the repository root, exits non-zero,
+save a search whose `Verify:` says `prints nothing` or `` prints `0` ``, which passes on exit 1 printing nothing, or `0` alone
+for `` prints `0` ``; that command exits 0 printing anything where its `Verify:` says it `prints nothing`, or printing other
+than the number alone where it says it `` prints `<N>` `` or `` reports `<N>` ``; a
+`- [ ] N.M` box stands unticked under a ticked `## Progress` phase; a name the diff from the merge base of `<rev>` and `HEAD`
+removes — a Python `def` or `class` name, or an upper-case module-level name, that nothing outside `openspec/` names at
+`HEAD`, or the base name of a file the diff deletes — is still named, as a word, on a line of `openspec/specs/` or of the
+change directory outside `tasks.md` and `design.md`'s `## Tests` section, that line holding no word of removal and, in
+`openspec/specs/<capability>/spec.md`, standing in no requirement the change's `specs/<capability>/spec.md` lists under
+`## REMOVED Requirements`; a `def test_`
+name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Tests` section does not name it; or a sub-task
+marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL NOT run again a `**HALT CHECK**` sub-task's
+command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
+exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
+`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, and SHALL halt on any
+other exit than 0, writing no `build.done`. Converge's fixer SHALL run it after its gate and before its commit, clearing each
+problem as a blocking card of the same pass, or setting it `wontfix` naming the amend; converge's Step 7 SHALL run it after
+`gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any verify worker, counting no round; a line
+the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the run `amend needed — plan check:
+<subjects>`, naming each line's sub-task, `path:line` or test name and never the command it quotes. `skills/mf-rescue/SKILL.md`
+SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and `design.md`'s prose.
+
+#### Scenario: A ticked check that no longer holds
+- **WHEN** at the build's close a ticked sub-task's `Verify:` command exits 1
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command, and the build halts with no `build.done`
+
+#### Scenario: A ticked check that exits 0 with other output
+- **WHEN** a ticked sub-task's `Verify:` says a search prints nothing and the search finds a match, or says `printf 1` prints
+  `2`
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command
+- **AND WHEN** its `Verify:` says `printf 1` prints `1`, or says a `grep -c` that finds nothing prints `0`
+- **THEN** that check halts nothing
+
+#### Scenario: An unticked box under a finished phase
+- **WHEN** `## Progress` ticks phase 2 and sub-task `2.3` stands unticked
+- **THEN** `plan_check.py` exits 1, naming `2.3`
+
+#### Scenario: A removed name still in the plan
+- **WHEN** the diff removes `def _fence`, nothing outside `openspec/` names `_fence` at `HEAD`, and a `design.md` line names it
+  with no word of removal
+- **THEN** `plan_check.py` exits 1, naming that line
+- **AND WHEN** the line says the change deletes `_fence`
+- **THEN** that line halts nothing
+
+#### Scenario: A removed name in a requirement the delta removes
+- **WHEN** the diff removes `LIMIT`, and a line of `openspec/specs/cap/spec.md` names it with no word of removal
+- **THEN** `plan_check.py` exits 1, naming that line
+- **AND WHEN** the line stands in a requirement the change's `specs/cap/spec.md` lists under `## REMOVED Requirements`
+- **THEN** that line halts nothing, and the same name in the next requirement, which the delta keeps, still exits 1
+
+#### Scenario: A test the base had
+- **WHEN** `def test_old` stands under `tests/` at the merge base and nowhere at `HEAD`
+- **THEN** `plan_check.py` exits 1, naming `test_old`
+- **AND WHEN** `design.md`'s `## Tests` section names `test_old`
+- **THEN** it halts nothing
+
+#### Scenario: A clean plan
+- **WHEN** every ticked `Verify:` passes, every box under a ticked phase is ticked, and no removed name or base test is missing
+- **THEN** `plan_check.py` exits 0 and prints `plan: clean`
+
+#### Scenario: A fix that breaks a ticked check
+- **WHEN** converge's fixer commits a fix and Step 7's `plan_check.py` exits 1
+- **THEN** the conductor sends its lines to the fix station before any verify worker, and the round count stays
+- **AND WHEN** the next Step 7's `plan_check.py` prints a line that fix pass was sent, naming sub-task `3.2`
+- **THEN** converge halts `amend needed — plan check: 3.2`, and the rescue amends `tasks.md` or `design.md` to clear it
+
 ## REMOVED Requirements
 
 ### Requirement: A fix that reaches no surface takes its adversarial head by recomputation
