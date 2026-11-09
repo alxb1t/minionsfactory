@@ -368,6 +368,19 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     assert "section 3 is not listed in `## Progress`" in text
     assert "1.1 has no Verify:" in text
     assert "`## Progress` does not follow the title and its line" in text
+    # An unlisted phase's sub-task under a listed phase's section, then in its own.
+    _edit(root, "tasks.md", "## 3 — First", "## 1 — First")
+    _edit(root, "tasks.md", "- [ ] 2 — Second **HUMAN**\n", "")
+    _edit(root, "tasks.md", "## 2 — Second\n\n", "")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "sub-task 2.1 is not of a listed phase" in why
+    assert "sub-task 2.1 sits in section 1" not in why
+    _edit(root, "tasks.md", "- [ ] 2.1 Run", "## 2 — Second\n\n- [ ] 2.1 Run")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "sub-task 2.1 is not of a listed phase" in why
+    assert "section 2 is not listed in `## Progress`" in why
 
 
 def test_a_ritual_is_each_station_the_build_owns(

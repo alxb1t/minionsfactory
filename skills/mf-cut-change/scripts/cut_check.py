@@ -276,6 +276,15 @@ def row_i4(change: Change, plan: dict[str, Any]) -> str | None:
     for task in plan["subtasks"](change.tasks):
         if plan["verify_of"](task.text) is None:
             problems.append(f"{task.name} has no Verify:")
+        if int(task.name.split(".")[0]) not in ids:
+            problems.append(f"sub-task {task.name} is not of a listed phase")
+    current: int | None = None
+    for _, line in prose_lines(change.tasks):
+        if line.startswith("## "):
+            current = int(m[1]) if (m := PHASE.match(line[3:])) else None
+        elif (m := SUBTASK.match(line)) and (name := m[1].split()[0]):
+            if int(name.split(".")[0]) in ids and int(name.split(".")[0]) != current:
+                problems.append(f"sub-task {name} sits outside its `## … —` section")
     return " · ".join(problems) or None
 
 
