@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the models line in
   `mf-plan` and the cut, and the cut warns when an adversarial skip's tasks name a `## Surfaces` file (change
   `0105-converge-switches`, phase 4).
+- D75 records the skip switches and D14 names them; `THREAT_MODEL.md` accepts a planted `skip` in `models.toml` (change
+  `0105-converge-switches`, phase 5).
 
 ## [0.86.0] - 2026-11-09
 

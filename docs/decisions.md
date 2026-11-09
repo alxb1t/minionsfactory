@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72
 ```
@@ -247,7 +247,8 @@ verdict.**
 
 **A change may be released without the check loop. The release then writes `converge: skipped` into its report and
 the release commit. The diff patch or either findings file means converge ran, and then both files must exist and
-be clean.**
+be clean. A plan may also skip converge, or one checker, on the models line; the release then states `converge: skipped —
+by plan` or `<role>: skipped`.**
 
 - **Why:** a prose-only change read by hand does not earn the check passes, and a silent skip would look like a
   pass.
@@ -470,6 +471,22 @@ Sonnet 5.5 · high.**
   a header range `uv` resolves at run time.
 - **Rejected:** a pickup in every fix pass · grading a mechanism repeat up · `make corpus` in the gate · a hand-split reader
   patched form by form.
+
+### D75 · A person may skip converge, or a checker, per version
+
+**A version's models line may say `converge skip`, `conformance skip` or `adversarial skip`; `models.toml` holds it as `skip =
+true` under `[converge]` or the checker's table. A skipped converge sends a built version from build to integrate and release,
+the run log naming `converge skipped — plan` and the release `converge: skipped — by plan`. A skipped checker's findings file
+is a clean stub at `HEAD`, `mode: skipped`, and the release names it. A repo's `**Converge:**` line in `AGENTS.md` only
+pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` alone.**
+
+- **Why:** a proof of concept does not earn converge's tokens, and the hand skip D14 allows lived in release alone: the run
+  sent such a version back to converge.
+- **Accepts:** no hand read and no debt for a skipped converge, the gate the only floor · no security reader under an
+  adversarial skip, the release naming it · a planted `skip` in the worker-writable `models.toml`, in the class *Out of scope*
+  accepts, as the `decide` switch is.
+- **Rejected:** a `**Converge:**` switch `conduct.py` reads — D56, D58 and D60 reject an `AGENTS.md` switch per version · a floor
+  under an adversarial skip · `_unjudged` learning a skipped role.
 
 ## The target repo
 

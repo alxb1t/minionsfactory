@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — Conduct reads the switches · hard
 - [x] 3 — Converge with one role, the stub and the release · hard
 - [x] 4 — The repo default and the surfaces warning · moderate
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The grammar
 
@@ -89,13 +89,13 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The record
 
-- [ ] 5.1 **HALT CHECK** Confirm no decision D75 stands in `docs/decisions.md`, as [D7](design.md#d7) needs; one standing, the
+- [x] 5.1 **HALT CHECK** Confirm no decision D75 stands in `docs/decisions.md`, as [D7](design.md#d7) needs; one standing, the
   plan is wrong.
   Verify: `grep -n "^### D75" docs/decisions.md` prints nothing.
-- [ ] 5.2 In `docs/decisions.md`, after D74's entry, add D75 with [D7](design.md#d7)'s heading and text, and add `D75` to the
+- [x] 5.2 In `docs/decisions.md`, after D74's entry, add D75 with [D7](design.md#d7)'s heading and text, and add `D75` to the
   check-loop group's index on line 13.
   Verify: `grep -n "^### D75 · " docs/decisions.md` prints a line.
-- [ ] 5.3 In `docs/decisions.md`, add [D7](design.md#d7)'s sentence to D14's first paragraph.
+- [x] 5.3 In `docs/decisions.md`, add [D7](design.md#d7)'s sentence to D14's first paragraph.
   Verify: `grep -n "A plan may also skip converge" docs/decisions.md` prints a line.
-- [ ] 5.4 In `THREAT_MODEL.md`'s `## Out of scope`, add [D7](design.md#d7)'s planted-skip entry after the worker-steering class.
+- [x] 5.4 In `THREAT_MODEL.md`'s `## Out of scope`, add [D7](design.md#d7)'s planted-skip entry after the worker-steering class.
   Verify: `grep -n "planted skip" THREAT_MODEL.md` prints a line.
