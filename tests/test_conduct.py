@@ -10285,16 +10285,25 @@ def test_a_linked_tree_writes_under_the_codex_sandbox(
     command = conduct["argv"](
         "codex", "Do it.", tree, None, None, (root, root / ".git")
     )
-    prefix = "sandbox_workspace_write."
-    pairs = [
-        pair
+    prefix = "sandbox_workspace_write.writable_roots="
+    (roots,) = [
+        json.loads(pair.removeprefix(prefix))
         for flag, pair in zip(command, command[1:], strict=False)
         if flag == "-c" and pair.startswith(prefix)
     ]
-    sandbox = ["codex", "sandbox", "-c", 'sandbox_mode="workspace-write"']
-    for pair in pairs:
-        sandbox += ["-c", pair]
+    # codex-cli 0.163's `codex sandbox` requires a permission profile and ignores
+    # `sandbox_mode` and `sandbox_workspace_write.*` under one, so a profile carries
+    # conduct's roots; `:slash_tmp` and `:tmpdir` read-only stand in for its two
+    # exclude flags, so /tmp and tmp_path are not trivially writable.
+    writes = ",".join(f'{json.dumps(r)}="write"' for r in roots)
+    profile = (
+        'permissions.mf={extends=":workspace",filesystem={":slash_tmp"="read",'
+        f'":tmpdir"="read",{writes}}}}}'
+    )
+    sandbox = ["codex", "sandbox", "-P", "mf", "-c", profile]
     sandbox += ["-C", str(tree), "--", "git", "write-tree"]
+    # Codex refuses a CODEX_HOME that does not exist: the empty one is made.
+    Path(os.environ["CODEX_HOME"]).mkdir()
 
     done = subprocess.run(sandbox, capture_output=True, text=True)
 

@@ -10,7 +10,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 4 — The record
 - [x] 5 — The linked worktree
 - [x] 6 — The request id and the record of decisions
-- [ ] 7 — The real Codex check **HUMAN**
+- [x] 7 — The real Codex check **HUMAN**
 
 ## 1 — The limit data
 
@@ -105,7 +105,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 The person runs the real-Codex test in their own terminal, outside any sandbox, at the worktree's root, per
 [C14](design.md#goals--non-goals).
 
-- [ ] 7.1 Run the test against the installed `codex`, writing its summary into the change directory:
+- [x] 7.1 Run the test against the installed `codex`, writing its summary into the change directory:
   ```sh
   MF_REAL_CODEX=1 uv run pytest -q tests/test_conduct.py -k linked_tree_writes_under_the_codex_sandbox > openspec/changes/0104-codex-limits/real-codex.txt
   ```
