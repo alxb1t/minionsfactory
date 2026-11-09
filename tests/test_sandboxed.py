@@ -1,7 +1,5 @@
-"""`sandboxed()`: a plain command under macOS Seatbelt, writing only to the trees.
+"""`sandboxed()` under Seatbelt: a fake `sandbox-exec`, and the real one where it nests.
 
-A fake `sandbox-exec` on `PATH` proves the profile, the environment, the exit and the
-halt; the tests that apply the real one skip where it cannot nest.
 Why: 0107-sandbox-runner design D5.
 """
 
@@ -135,6 +133,16 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
         key, value = pair.split("=", 1)
         assert env[key] == value
     assert fake_sandbox.read_text() == conduct["_profile"](trees, Path.home())
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    (planted / ".minions").symlink_to(outside)
+    with pytest.raises(conduct["Stop"]) as stop:
+        conduct["sandboxed"](_python("pass"), planted, [planted.resolve()])
+    assert stop.value.code == 2
+    assert not (outside / "tmp").exists()
 
 
 @pytest.mark.parametrize(

@@ -3334,10 +3334,7 @@ def _profile(trees: list[Path], home: Path) -> str:
 def sandboxed(argv: list[str], cwd: Path, trees: list[Path]) -> int:
     """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
 
-    It writes inside `trees` alone, reads no secret and has no network. No
-    `sandbox-exec` stops with 2: the command never runs bare. A signal's exit is
-    128 plus its number; a refusal in the output of a failed command gets a line.
-    e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`.
+    e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`; no sandbox stops with 2.
     Why: 0107-sandbox-runner design D2.
     """
     sandbox_exec = shutil.which("sandbox-exec")
@@ -3346,7 +3343,10 @@ def sandboxed(argv: list[str], cwd: Path, trees: list[Path]) -> int:
             2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
         )
     tmp = trees[0] / ".minions" / "tmp"
-    tmp.mkdir(parents=True, exist_ok=True)
+    try:
+        os.close(_folder_fd(trees[0], ".minions", "tmp"))
+    except OSError as error:
+        raise Stop(2, f"conduct: cannot run — scratch folder {tmp}: {error}") from error
     env = {
         name: value
         for name, value in os.environ.items()
