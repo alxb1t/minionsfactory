@@ -268,8 +268,12 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
 | a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
+A **surfaces warning** shows too when the change's models skip adversarial or converge: for each file a task names that a
+`## Surfaces` glob of `THREAT_MODEL.md` matches, `surfaces warning — <path> matches <glob>: adversarial is skipped`. It waits
+for nothing; the commit goes on.
+
 Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
-change, which commits.
+change, which commits. Each surfaces warning is a line of `.minions/changes/<change-id>/cut-notes.md` instead.
 
 On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
 edit the human asks for after the commit is a further commit on the branch,
@@ -394,7 +398,9 @@ session's menu; with no menu, describe the capability needed — never invent mo
 When the brief's `## For the cut` item for this change names models, write exactly those, each host as its table's
 `executor`: the person chose them at the plan's close. Write `[converge.conformance]`, `[converge.adversarial]` or
 `[converge.fix]` from the Converge bullet when the brief's line lacks its part. A last `shadow` is `shadow = true` under
-`[converge]`. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
+`[converge]`. When the source names no models for the change, a root `AGENTS.md` line `**Converge:** skip`, `conformance skip`
+or `adversarial skip` pre-fills the suggestion with that part; the person confirms or changes it. Read the line for nothing
+else. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
 skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
 `[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.

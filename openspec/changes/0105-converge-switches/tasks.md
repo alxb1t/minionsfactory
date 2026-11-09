@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The grammar · hard
 - [x] 2 — Conduct reads the switches · hard
 - [x] 3 — Converge with one role, the stub and the release · hard
-- [ ] 4 — The repo default and the surfaces warning · moderate
+- [x] 4 — The repo default and the surfaces warning · moderate
 - [ ] 5 — The record · moderate
 
 ## 1 — The grammar
@@ -80,10 +80,10 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The repo default and the surfaces warning
 
-- [ ] 4.1 In `skills/mf-plan/SKILL.md`, add [D5](design.md#d5)'s `**Converge:**` pre-fill to the paragraph after the `models:` grammar
+- [x] 4.1 In `skills/mf-plan/SKILL.md`, add [D5](design.md#d5)'s `**Converge:**` pre-fill to the paragraph after the `models:` grammar
   line.
   Verify: `grep -n -F "**Converge:**" skills/mf-plan/SKILL.md` prints a line.
-- [ ] 4.2 In `skills/mf-cut-change/SKILL.md`, add [D5](design.md#d5)'s pre-fill to *Suggesting models*, and its surfaces warning to
+- [x] 4.2 In `skills/mf-cut-change/SKILL.md`, add [D5](design.md#d5)'s pre-fill to *Suggesting models*, and its surfaces warning to
   Step 9 and the unattended notes.
   Verify: `grep -n "surfaces warning" skills/mf-cut-change/SKILL.md` prints a line.
 

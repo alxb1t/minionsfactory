@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge dispatches the checker not skipped alone; `skip_stub.py` writes the skipped one's findings file clean at `HEAD`,
   `mode: skipped`. `mf-release` states `converge: skipped — by plan` and `<role>: skipped`, and `review_metrics.py` books a
   worker by the start of its description, a stub's `0` a gap (change `0105-converge-switches`, phase 3).
+- A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the models line in
+  `mf-plan` and the cut, and the cut warns when an adversarial skip's tasks name a `## Surfaces` file (change
+  `0105-converge-switches`, phase 4).
 
 ## [0.86.0] - 2026-11-09
 
