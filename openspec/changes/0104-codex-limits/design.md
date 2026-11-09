@@ -266,7 +266,7 @@ the same halt, in its first test. The version then halts for the person, as D53 
 
 ### D8
 
-- **D76**, in `docs/decisions.md` after D70's block, and `D76` after `D70` on the map's *Repo conventions* line:
+- **D76**, in `docs/decisions.md` after D70's block, and `D76` after `D72` on the map's *Repo conventions* line:
 
 ### D76 · A Codex usage limit falls back, and halts only what runs on Codex
 
