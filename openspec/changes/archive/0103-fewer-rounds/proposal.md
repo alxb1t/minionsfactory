@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.86
 after: [0102-build-per-phase]
 debt: [0091·R4, 0091·S4, 0091·S5]
 ---

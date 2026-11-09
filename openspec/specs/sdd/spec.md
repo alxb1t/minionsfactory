@@ -182,12 +182,19 @@ halts at Step 9. A spec scenario the code contradicts SHALL stay `blocking`. Adv
 
 Each station SHALL read the debt cards on the diff's files, `.minions/changes/<change-id>/debt-cards.md`. A finding that
 repeats a debt card SHALL name that card's id in its **Related** field as `repeat of <id>`, and SHALL go up one level:
-adversarial by one step, a conformance `nit` or `drift` to `blocking`.
+adversarial by one step, a conformance `nit` or `drift` to `blocking`. A finding whose mechanism a debt card holds in another
+form — the same code misreading the same kind of input — SHALL also name `repeat of <id>` in its **Related** field, and SHALL
+keep its grade, its **Priority** saying it is a repeat of that card's mechanism.
 
 #### Scenario: Converge names the repeat rule
 - **WHEN** a station's finding describes a defect a card in `debt-cards.md` already holds
 - **THEN** its **Related** field names `repeat of <id>`
 - **AND** it goes up one level: adversarial by one step, a conformance `nit` or `drift` to `blocking`
+
+#### Scenario: A repeat of a card's mechanism
+- **WHEN** a station finds that `_rows` misreads a new Markdown form, and `debt-cards.md` holds a card on `_rows` misreading
+  another form
+- **THEN** its **Related** field names `repeat of <that card's id>`, and its grade stays the one its harm earns
 
 ### Requirement: A fix's test fails without the fix
 
@@ -2565,7 +2572,8 @@ it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting 
 
 After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand a fresh read-only worker the **review packet**: the change
 directory, `HEAD`, the cut's notes file and one question — whether each task can be built as written, each `Verify:` pass
-after it, and each the search script did not run fail before it, save a `**HALT CHECK**`, which should hold. The reviewer
+after it, and each the search script did not run fail before it, save a `**HALT CHECK**`, which should hold. Every plan
+reviewer SHALL run on Opus 5.5 at `high` effort where the host offers it, whatever model the cut runs on. The reviewer
 SHALL start from the packet, opening another file only at a `path:line` the change or the notes cite. Its prompt SHALL give
 it a budget of 40 turns; a review that reaches it SHALL return its doubts so far under a first line `budget reached`, and the
 cut SHALL take each of them as a doubt still standing after the second review. The cut SHALL fix a
@@ -2626,6 +2634,10 @@ SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to
 - **THEN** it returns that doubt under a first line `budget reached`
 - **AND** the cut takes the doubt as one still standing after the second review: the person's, or under the switch the
   recommended option
+
+#### Scenario: A cut on another model
+- **WHEN** the cut runs on Sonnet 5.5 and the host offers Opus 5.5
+- **THEN** each plan review runs on Opus 5.5 at `high` effort
 
 ### Requirement: The build refuses an edited Verify:
 
@@ -2834,16 +2846,22 @@ count as cut-only.
 
 `skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md`, nor its `design.md` save the prose a `drift` card
 names outside the `## Decisions` section, which it SHALL correct; it SHALL NOT edit that section, a row of its table, a decision's
-D-id or a `## ` heading. A card whose fix needs any of those SHALL be set `wontfix`, naming the amend the person commits by the
-file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md` by path, save a `drift`
-card's naming that prose. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
-pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds, and SHALL NOT turn it `accepted`; in an amend
+D-id or a `## ` heading, save one line it MAY append as the last line of a `### D<n>` entry of that section,
+`Fix note (<YYYY-MM-DD>, <card id>): <one line>`, recording how the code now implements that decision, the entry's other lines
+untouched. A card whose fix that line records SHALL be no amend card, and converge's close-out SHALL name each fix note the run
+appended, by its D-id and card. A card whose fix needs any other edit of those SHALL be set `wontfix`, naming the amend the
+person commits by the file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md`
+by path, save a `drift` card's naming that prose or a fix note. A blocking amend card SHALL halt the round
+`amend needed — <card ids>` after the fix pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds,
+and SHALL NOT turn it `accepted`; in an amend
 round, it SHALL turn an amend card the amend settled, its **Still true?** check showing the defect gone, `verified`, its note
 naming the amend. At Step 9,
 before the debt lock, every non-blocking amend card left `wontfix`, or `open` and `drift`, whose **Still true?** check still shows
 the defect, SHALL halt the run `amend needed — <card ids>`, writing nothing to the debt, save one *Converge keeps deferred work
 in one repository debt file* lets go on. The person's amend answers either halt.
-Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1.6 does, after the gate.
+The fixer SHALL run `plan_check.py` after its gate, as *A plan check holds the plan to the built tree* says.
+Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1.6 does, after the gate; Step 7 SHALL then run
+`plan_check.py`.
 
 #### Scenario: A fix that needs a `Verify:` changed
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
@@ -2853,6 +2871,12 @@ Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1
 - **WHEN** the pickup picks a `drift` card whose **Fix** names a line of the change's `design.md` outside its `## Decisions`
   section
 - **THEN** the fixer corrects that line and sets the card `fixed`; it is no amend card, and Step 9 halts on nothing for it
+
+#### Scenario: A fix that changes how a decision is built
+- **WHEN** a card's fix changes how the code implements the change's D3, and D3's own words still hold
+- **THEN** the fixer appends `Fix note (<date>, <card id>): <how the code now does it>` as the last line of D3's entry, edits no
+  other line of it, and sets the card `fixed`
+- **AND** converge's close-out names D3 and the card
 
 #### Scenario: Drift that needs the design amended
 - **WHEN** the pickup's fixer sets a `drift` card `wontfix`, naming an amend of a decision in the change's `design.md`
@@ -2967,12 +2991,15 @@ converge fixer leaves the plan to the person* says; an amend card whose id an an
 since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
 other card. After both verdicts are
 clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
-sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. One fresh worker, the **pickup
-check**, SHALL verify that fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. When round 1 of a run that is no
+catch-up run leaves a blocking card open, its fix pass SHALL take those same cards with the blocking ones — the **round-1
+pickup** — and round 2's verify round SHALL judge them all; pickup SHALL then not run again in that run. One fresh worker, the
+**pickup check**, SHALL verify a pickup's fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
 adversarial's model when a picked card is adversarial's or `skills/mf-converge/scripts/surfaces.py` exits 1 over the fix's
 range — the fix touching a `## Surfaces` path of `THREAT_MODEL.md`, or an adversarial card not `verified` or `accepted` — else
 on conformance's. When the role whose model it needs is a mailbox role, converge SHALL instead verify the fix in a normal round,
-counted. The pickup check SHALL be no round: it SHALL set both findings files' `head:` and leave their
+counted. A pickup whose fixer commits nothing SHALL get no pickup check. The pickup check SHALL be no round: it SHALL set both
+findings files' `head:` and leave their
 `round:` as it stands, and a blocking card it leaves open SHALL go to a fix and a verify round counted against the cap. It
 SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
 it was fixed and the card's **Still true?** check shows the defect gone.
@@ -3004,6 +3031,16 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 - **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt logged since the newest
   `round 1 · start` line named and the debt does not hold
 - **THEN** it halts `amend needed — <its id>`
+
+#### Scenario: A round-1 pickup
+- **WHEN** round 1 leaves one blocking card open and two non-blocking cards sized `one line`
+- **THEN** one fix pass takes all three, and round 2's verify round judges all three
+- **AND WHEN** round 2 reads both files clean
+- **THEN** no pickup runs, and converge goes on to the debt
+
+#### Scenario: A pickup that commits nothing
+- **WHEN** the pickup's fixer sets every picked card `wontfix` and commits nothing
+- **THEN** no pickup check runs, and converge goes on to the debt
 
 ### Requirement: The release does not read the debt
 
@@ -3100,10 +3137,14 @@ before, or that a request names. For each, `conduct.py` SHALL make the branch na
 default branch, as code, then run `mf-cut-change` with `unattended=yes` as a fresh sandboxed worker in that worktree, logged
 as the station `cut`. The cut SHALL pass when the branch's tip is the change's `docs(<id>): land the change directory` commit,
 the branch holds `openspec/changes/<id>/`, its tree is clean, `.minions/changes/<id>/models.toml` stands, and each row of the
-`## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written; a
-`## Dependencies` that is neither `None.` nor a table of package, constraint and why SHALL fail it, as SHALL a line outside a
-fence that reads as `## Dependencies` once every character but a letter or a digit is dropped and case is folded but is not
-it as written, a second `## Dependencies`, or a fence left open; a missing one adds no package. The run SHALL then
+`## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written. The station
+SHALL read the branch's tip, its change directory and its `design.md` at `refs/heads/<id>`, never a tag of that name, and SHALL
+read `design.md` as CommonMark with GFM tables
+renders it: the section opens at the ATX heading written `## Dependencies` and runs to the next heading of level one or two, or
+HTML heading of those levels, and its rows are the cells of the table rendered there. A section that is neither `None.` nor
+one table of package, constraint and why SHALL fail the cut, as SHALL a heading or HTML heading that reads as `## Dependencies`
+once every character but a letter or a digit is dropped and case is folded but is not written so, or a second
+`## Dependencies`; a line inside a code block is no heading, and a missing section adds no package. The run SHALL then
 delete its queue entry and reservation, read its models file and probe a new executor, and take the version through its
 stations as any open version. A branch that already holds the change SHALL be checked, not cut again. A cut whose
 `after` names a queued cut SHALL wait until that cut passes, and halt when it halts. The cutter's executor SHALL be probed
@@ -3124,6 +3165,16 @@ before its first worker, as a version's is. The run SHALL never read the brief f
 #### Scenario: A cut that adds another package
 - **WHEN** the committed `design.md` lists a package the queue entry does not hold, or a constraint other than the one it holds
 - **THEN** the cut halts at `cut-halted`, naming each such package and constraint
+
+#### Scenario: A table a line splitter would miss
+- **WHEN** the committed `design.md`'s `## Dependencies` table lists `evil 1` after a line `` ```x` `` above the section, or
+  under lone carriage returns, or after a row `#- note`
+- **THEN** the cut halts at `cut-halted`, naming `evil 1`
+
+#### Scenario: A tag named after the change
+- **WHEN** a tag named the change id points at a commit whose `design.md` lists no package, and the branch's `design.md` lists
+  one the queue entry does not hold
+- **THEN** the station reads the branch, and the cut halts naming that package
 
 ### Requirement: The cutter reaches its worktree, the run directory and its brief
 
@@ -3240,7 +3291,10 @@ say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 
 `## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
 `## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
 variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one.
-Lines split at a newline alone. It SHALL also exit 1 when a line of `## For the cut` is none of: a blank line; a head, opening
+It SHALL read the brief as CommonMark does: a section opens at the ATX heading written `## Decisions`, `## Dependencies` or
+`## For the cut`, and runs to the next heading of level one or two, in any form, or HTML heading of those levels; a section's
+lines split at a newline. A carriage return not before a newline SHALL exit 1, naming its line. It SHALL also exit 1 when a
+line of `## For the cut` is none of: a blank line; a head, opening
 `<n>. ` and one space at the line's start; under a head, a `- models: ` or `- **Acceptance:** ` line indented three spaces or
 as far as its head's text; a line indented at least two spaces past its Acceptance line, after that line or its
 continuation; or the cut's `Cut <YYYY-MM-DD> as <id> at <sha>.` line. It SHALL also exit 1 when a head names a slug, an
@@ -3253,10 +3307,12 @@ omit `beside:`. A build,
 converge, release, conformance or adversarial model MAY open with a host, `claude/` or `codex/`; a host it does not know, or a
 host on the cut, fix or build-moderate model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
 `## For the cut` holds a character for which `str.isprintable()` is false, printing `brief: halt — <section> line <n>: a
-character isprintable() refuses`; when a line of the brief that is not `## Decisions`, `## Dependencies` or `## For the cut` as
-written reads as one of them once its `<h1>`…`<h6>` tags and every character but a letter or a digit are dropped and case is folded,
-a letter or digit outside ASCII standing for any one, and at least one ASCII letter left, or a second line is
-one of them as written; when the brief has no `## Dependencies`; and when that section is neither `None.` nor a table of item,
+character isprintable() refuses`; when a heading of any form, a line of an HTML block, or a line holding an inline `<h1>`…`<h6>`
+tag, that is not `## Decisions`, `## Dependencies` or `## For the cut` as written, reads as one of them once its `<h1>`…`<h6>`
+tags and every character but a letter or a digit are dropped and case is folded,
+a letter or digit outside ASCII standing for any one, and at least one ASCII letter left, or a second heading is
+one of them as written; a line inside a fenced or indented code block SHALL be none of these; when the brief has no
+`## Dependencies`; and when that section is neither `None.` nor a table of item,
 package, constraint and why whose every row names a `## For the cut` item's slug, a package and a constraint.
 It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
 be parsed. It SHALL run no command it reads.
@@ -3300,6 +3356,14 @@ be parsed. It SHALL run no command it reads.
   `For the cut` underlined `---`, `<h2>For the cut</h2>`, or `## For the cut` with a Cyrillic `о` for its `o`, besides its
   `## For the cut`, or that heading twice
 - **THEN** `brief_check.py` exits 1, naming each such line
+
+#### Scenario: A For the cut heading in a fenced block
+- **WHEN** a brief holds `## For the cut` inside a fenced code block, besides its own `## For the cut`
+- **THEN** that line halts nothing and opens no section, as CommonMark reads it
+
+#### Scenario: A lone carriage return
+- **WHEN** a brief's line holds a carriage return not before a newline
+- **THEN** `brief_check.py` exits 1, naming that line
 
 #### Scenario: A brief's packages
 - **WHEN** a hard brief has no `## Dependencies`, or one that is prose, or a row naming no `## For the cut` item
@@ -3346,7 +3410,9 @@ halt and an `amend needed` halt: it MAY edit `proposal.md` and `design.md`'s `##
 test, take a security card of `critical` or `high` severity, approve a gate makefile, settle an integrate conflict, release,
 merge or push, or answer a run-wide halt. `conduct.py` SHALL take an amend that touches `proposal.md` or changes `design.md`'s
 `## Decisions` section only under the switch and with that trailer, logging `rescue — <id>: decided · <sub-task> · <commit>`;
-without the switch it SHALL refuse it, naming the decision. The run's closing line, and its `done` line, SHALL name
+without the switch it SHALL refuse it, naming the decision. Lines of the form `Fix note (<YYYY-MM-DD>, <card id>): <text>` that
+end a `### D<n>` entry, added or edited, SHALL be no change to that section; any other edit of the entry SHALL be one. The
+run's closing line, and its `done` line, SHALL name
 ` · decided <ids>` when a rescue decided, `report` SHALL print a line for each decision, and the run's metrics SHALL count them as `rescues-decided`.
 
 #### Scenario: A decided amend
@@ -3357,6 +3423,12 @@ without the switch it SHALL refuse it, naming the decision. The run's closing li
 #### Scenario: No switch
 - **WHEN** the models file has no `decide`, and the rescue commits the same amend
 - **THEN** the run refuses it, naming the decision, and the version stays halted
+
+#### Scenario: An amend that appends a fix note
+- **WHEN** the models file has no `decide`, and the rescue's amend appends a `Fix note (…)` line as the last line of D2's entry
+- **THEN** the run takes it as an amend that decided nothing
+- **AND WHEN** the amend also edits a line of D2's own words
+- **THEN** the run refuses it, naming the decision
 
 #### Scenario: A worker writes the switch
 - **WHEN** a worker adds `decide = "recommended"` to the models file during the run
@@ -4044,3 +4116,88 @@ Codex build SHALL halt the version before its worker starts. The run SHALL read 
 #### Scenario: A moderate table names a host
 - **WHEN** `[build.moderate]` names `executor = "codex"`
 - **THEN** the version halts naming the table, and no worker starts for it
+
+### Requirement: A plan check holds the plan to the built tree
+
+`skills/mf-converge/scripts/plan_check.py --change <id> --base <rev>` SHALL exit 1, printing one `plan: ` line per problem,
+when: the command of a ticked sub-task's `Verify:`, run again as argv with no shell from the repository root, exits non-zero,
+save a search whose `Verify:` says `prints nothing` or `` prints `0` ``, which passes on exit 1 printing nothing, or `0` alone
+for `` prints `0` ``; that command exits 0 printing anything where its `Verify:` says it `prints nothing`, or printing other
+than the number alone where it says it `` prints `<N>` `` or `` reports `<N>` ``; a
+`- [ ] N.M` box stands unticked under a ticked `## Progress` phase; a name the diff from the merge base of `<rev>` and `HEAD`
+removes — a Python `def` or `class` name, or an upper-case module-level name, that nothing outside `openspec/` names at
+`HEAD`, or the base name of a file the diff deletes — is still named, as a word, on a line of `openspec/specs/` or of the
+change directory outside `tasks.md` and `design.md`'s `## Tests` section, that line holding no word of removal; a `def test_`
+name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Tests` section does not name it; or a sub-task
+marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL NOT run again a `**HALT CHECK**` sub-task's
+command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
+exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
+`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, and SHALL halt on any
+other exit than 0, writing no `build.done`. Converge's fixer SHALL run it after its gate and before its commit, clearing each
+problem as a blocking card of the same pass, or setting it `wontfix` naming the amend; converge's Step 7 SHALL run it after
+`gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any verify worker, counting no round; a line
+the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the run `amend needed — plan check:
+<subjects>`, naming each line's sub-task, `path:line` or test name and never the command it quotes. `skills/mf-rescue/SKILL.md`
+SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and `design.md`'s prose.
+
+#### Scenario: A ticked check that no longer holds
+- **WHEN** at the build's close a ticked sub-task's `Verify:` command exits 1
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command, and the build halts with no `build.done`
+
+#### Scenario: A ticked check that exits 0 with other output
+- **WHEN** a ticked sub-task's `Verify:` says a search prints nothing and the search finds a match, or says `printf 1` prints
+  `2`
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command
+- **AND WHEN** its `Verify:` says `printf 1` prints `1`, or says a `grep -c` that finds nothing prints `0`
+- **THEN** that check halts nothing
+
+#### Scenario: An unticked box under a finished phase
+- **WHEN** `## Progress` ticks phase 2 and sub-task `2.3` stands unticked
+- **THEN** `plan_check.py` exits 1, naming `2.3`
+
+#### Scenario: A removed name still in the plan
+- **WHEN** the diff removes `def _fence`, nothing outside `openspec/` names `_fence` at `HEAD`, and a `design.md` line names it
+  with no word of removal
+- **THEN** `plan_check.py` exits 1, naming that line
+- **AND WHEN** the line says the change deletes `_fence`
+- **THEN** that line halts nothing
+
+#### Scenario: A test the base had
+- **WHEN** `def test_old` stands under `tests/` at the merge base and nowhere at `HEAD`
+- **THEN** `plan_check.py` exits 1, naming `test_old`
+- **AND WHEN** `design.md`'s `## Tests` section names `test_old`
+- **THEN** it halts nothing
+
+#### Scenario: A clean plan
+- **WHEN** every ticked `Verify:` passes, every box under a ticked phase is ticked, and no removed name or base test is missing
+- **THEN** `plan_check.py` exits 0 and prints `plan: clean`
+
+#### Scenario: A fix that breaks a ticked check
+- **WHEN** converge's fixer commits a fix and Step 7's `plan_check.py` exits 1
+- **THEN** the conductor sends its lines to the fix station before any verify worker, and the round count stays
+- **AND WHEN** the next Step 7's `plan_check.py` prints a line that fix pass was sent, naming sub-task `3.2`
+- **THEN** converge halts `amend needed — plan check: 3.2`, and the rescue amends `tasks.md` or `design.md` to clear it
+
+### Requirement: A reader of run data has a corpus case
+
+`make corpus` SHALL run `scripts/corpus.py`, which SHALL run each `[[case]]` of `scripts/corpus.toml` — a reader's argv, run
+with no shell from the repository root — once per file its `each` globs match under the run directory, or once when it has
+none, writing only under the run directory's `corpus/`. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
+file cannot be read or the run directory is a link, and 0 otherwise. `make gate` and `make check` SHALL NOT run it.
+`skills/mf-cut-change/SKILL.md` SHALL mark each sub-task that adds or alters code reading the run directory, run logs or Codex
+sessions `` **CORPUS** `<case>` `` in a repository whose root `Makefile` has a `corpus` target, and SHALL plan the case in
+`scripts/corpus.toml`. `skills/mf-build/SKILL.md` SHALL run `make corpus` after such a sub-task's `Verify:` passes and before
+its tick, halting on any other exit than 0. `plan_check.py` SHALL fail a marked sub-task whose case `scripts/corpus.toml` does
+not hold.
+
+#### Scenario: The corpus over this repository
+- **WHEN** `make corpus` runs in this repository
+- **THEN** each case runs over the run directory's own findings files, status logs, run logs and Codex sessions, and it exits 0
+
+#### Scenario: A reader that fails on real data
+- **WHEN** a case's reader exits 1 on one change's findings file
+- **THEN** `make corpus` exits 1, naming the case and that file
+
+#### Scenario: A marked sub-task with no case
+- **WHEN** a ticked sub-task is marked `` **CORPUS** `review-metrics` `` and `scripts/corpus.toml` holds no case of that name
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the case
