@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `conduct.py` gains `sandboxed()`: it runs a plain command under macOS Seatbelt, writing only to the version's trees, reading
+  no credential, with no network, and stops with exit 2 where `sandbox-exec` is missing (change `0107-sandbox-runner`,
+  phase 1).
+
 ## [0.88.0] - 2026-11-09
 
 Gate: local 2m51s · CI not read under mf-ship · 0.87.0: local 2m12s · CI not read under mf-ship
