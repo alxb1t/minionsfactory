@@ -21,8 +21,8 @@ override; `--repo` reads no repo list.
 neither the config nor the run's repo list names a repo, or the config names no page.
 
 Beside the page it writes `review-metrics.json`: one record per round and role — its executor, model, effort, tokens,
-dollars and source, a gap as `null`; `workers`, the cost per worker — each converge subagent and mailbox checker, with
-its role, round, run, model, tokens, first-turn context and dollars, priced by `prices.toml`; and `stations`, each
+dollars and source, a gap as `null`; `workers`, the cost per worker — each converge worker, booked by its log name, or an older
+log's subagent by its description, with its role, round, run, model, tokens, first-turn context and dollars, priced by `prices.toml`; and `stations`, each
 change's stations, the cut and the supervisor among them, with their dollars, turns, tokens, seconds and first-turn
 context. The first-turn context is what a log's first turn read: its input, cache-read and cache-write tokens. A
 subagent's tokens and dollars are a gap: Claude's log holds no subagent's final output count. A record's dollars are its

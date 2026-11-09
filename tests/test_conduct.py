@@ -5165,6 +5165,15 @@ def test_the_converge_command_runs_by_hand(
     for bad in ("fix=claude-sonnet-5-5", "shadow=yes", "fix=a b/high", "fix=skip"):
         assert by_hand(bad) == 2
         assert capsys.readouterr().out.startswith(f"converge: cannot run — {bad} ")
+    # No version worktree, or no executor to start the workers, cannot run.
+    gone = _main(conduct, root, "converge", "0009-gone", monkeypatch=monkeypatch)
+    assert gone == 2
+    assert "no version worktree holds 0009-gone" in capsys.readouterr().out
+    with monkeypatch.context() as bare:
+        bare.delenv("MF_SHIP_AGENT")
+        bare.setenv("PATH", str(tmp_path / "no-bin"))
+        assert by_hand("--executor", "codex") == 2
+    assert "codex is not on PATH" in capsys.readouterr().out
     assert _calls(calls) == []
 
     # Its exit is the script's: 0 at `done`, its report printed last.
@@ -5189,6 +5198,13 @@ def test_the_converge_command_runs_by_hand(
     assert fixer[0].endswith(" · model claude-sonnet-5-5 · effort medium")
     halt = (folder / "status_log.md").read_text()
     assert " · halt — cap reached, R1, S1 open · security S1 · head " in halt
+
+    # `grant=yes` runs one round past the cap, in a run marked `· grant`.
+    assert by_hand("fix=claude-sonnet-5-5/medium", "grant=yes") == 0
+    runs = re.findall(
+        r"^## Run \d+ — .*$", (folder / "status_log.md").read_text(), re.M
+    )
+    assert runs[0].endswith(" · grant")
 
 
 @pytest.mark.slow

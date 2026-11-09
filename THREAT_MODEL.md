@@ -17,7 +17,7 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - **Unattended workers run in an OS sandbox**
   ([D51](docs/decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)): writes stay in
   the repo and its open worktrees, a Codex worker's also in each linked
-  worktree's folder under the common directory, a converge worker's also in its checker mailbox, a cutter's in its worktree, the run directory and the brief its queue entry names
+  worktree's folder under the common directory, a cutter's in its worktree, the run directory and the brief its queue entry names
   ([D58](docs/decisions.md#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter's in the brief's whole
   folder, Codex roots being folders, so `cut` and the station refuse a Codex brief whose folder holds anything else, and
   the station refuses a brief or a `.minions` that is a link — network on a short list and no
@@ -33,9 +33,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   The conductor parses a Codex worker's JSON log, which the worker writes: a forged event misstates a denial, a limit, a
   cost or the checker probe's usage and MCP checks, never a stage's check on disk; a forged `thread_id` reads another Codex rollout,
   misstating a reset or a quota share: a wait is bounded by `LIMIT_WAIT`, but a far reset keeps Codex limited, and its
-  checkers on Claude, for the run. Within converge, a checker the mailbox
-  starts on another host writes its findings file, which the conductor reads as evidence,
-  as it reads a subagent's. `conduct.py` stamps a mailbox findings file's `model:` and `tokens:`
+  checkers on Claude, for the run. Within converge, each checker, on either host, writes its findings file, which
+  `converge.py` reads as evidence. `conduct.py` stamps a checker's findings file's `model:` and `tokens:`
   and appends a Codex log's `mf.quota` line, following no link.
 - **A stacked build runs on code no converge has judged**
   ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its dependency's
@@ -90,13 +89,6 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered it, save by the
   person's amends alone, which let it go on, so a request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
   person's own fix then, or a grant landing as it ends, waits for a re-run.
-- Checker requests, in the home folder's queue, `checkers/<change-id>/`: that version's converge worker alone may write
-  it, so no other worker forges one. A request names one of four roles by its file name and holds a checker's prompt;
-  `conduct.py` reads it through one descriptor, following no link, at most `REQUEST_BYTES`, takes the executor, model and
-  effort from the plan it read once, never from the request, and serves at most `CHECKER_SPAWNS` a converge spawn, so a
-  forged request spends at most that, each checker, and a Codex probe a request starts, within converge's remaining
-  time, its answer naming its request;
-  a request holding a NUL byte still halts the run (`0097·S4`) (`0097·S6`).
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes and holds
   the packages its cut may add, stands in the home folder, where no worker writes, so no worker names that brief or
@@ -104,18 +96,16 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
   worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
 - `tasks.md`'s `Verify:` commands, which `plan_check.py` runs again at the build's close and after each converge fix, argv
-  with no shell, as the build ran them; and `make corpus`, an operator target outside the gate, which runs the readers
+  with no shell, as the build ran them; a card's **Still true?** command, which a checker writes and `converge.py` runs at
+  the debt write, its backtick span `shlex`-split, no shell, under `sandboxed()`; and `make corpus`, an operator target outside the gate, which runs the readers
   over the run directory and the operator's Codex sessions and writes only under `.minions/corpus/`.
 
 ## Surfaces
 
-The path globs a converge fix reaches adversarial through: `skills/mf-converge/scripts/surfaces.py` reads this list at
-the head the last round judged and matches each with `fnmatch`, whose `*` crosses `/`, and a fix touching none takes
-the adversarial head by rule. A test module stays off it: conformance judges every test edit under *Gate integrity*,
-and a test-only pickup given an adversarial verify would spend what
-[D64](docs/decisions.md#d64--converge-spends-where-judgment-is) saves; a `conftest.py`, whose hooks reshape the whole
-run, is on it. A pickup's fix is checked by one worker, on adversarial's model when `surfaces.py` exits 1 over it or a
-picked card is adversarial's.
+The path globs adversarial must judge: the cut's surfaces warning reads this list, naming each file a task names that a
+glob matches when the change's models skip adversarial or converge. No converge fix reads it: every fix gets its verify
+round. A test module stays off it: conformance judges every test edit under *Gate integrity*; a `conftest.py`, whose
+hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run.
@@ -123,7 +113,7 @@ picked card is adversarial's.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
 - `skills/mf-release/SKILL.md` — the merge and push on the person's yes.
 - `skills/mf-converge/references/generic-adversarial.md` — what adversarial checks.
-- `skills/mf-converge/SKILL.md` — when adversarial runs, its head by rule among it, and what may write a findings file.
+- `skills/mf-converge/SKILL.md` — the front of `converge.py`, and what may write a findings file.
 - `skills/mf-converge/references/worker.md` — the grades and anchors that decide what a security card blocks.
 - `skills/mf-converge/references/verify.md` — how a checker promotes a fixed card, a security card's among them, and the
   pickup check.
@@ -160,8 +150,9 @@ picked card is adversarial's.
   and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
   this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with
   credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a new
-  class blocks, anchors included. A converge fixer correcting the `design.md` prose a `drift` card names is in this class
-  too, bounded by the plan files and sections it never edits. A rescue writing the plan the build is then judged by is in this class
+  class blocks, anchors included. A converge fixer correcting the `design.md` prose a `drift` card names, or appending a
+  fix note, is in this class too, as a rescue's amend is: bounded by `tasks.md` and the `## Decisions`, `## Tests` and
+  `## Dependencies` sections it never edits (`0101·S4`). A rescue writing the plan the build is then judged by is in this class
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any
@@ -182,9 +173,7 @@ picked card is adversarial's.
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
-  one a version a run. So is the adversarial head by rule: it reads the adversarial file's cards, which a worker writes, so
-  a forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
-  cannot drop the glob its own edit matches.
+  one a version a run.
 - **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
   table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
   Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.

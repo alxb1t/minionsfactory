@@ -5,6 +5,7 @@ sandbox, the checkers and the fixer, so no worker process runs.
 Why: 0108-converge-script design D1, its `## Tests` table.
 """
 
+import os
 import runpy
 import subprocess
 import time
@@ -136,7 +137,8 @@ class Host:
         self.results: dict[str, Checked | list[Checked]] = {}
         self.fixers: list[Callable[[Host], int | None]] = []
         self.fixed: list[tuple[str, tuple[str, str | None, str | None], str]] = []
-        self.sandbox = True
+        # False is no OS sandbox; an exception is a runner that breaks.
+        self.sandbox: bool | Exception = True
 
     def folder(self) -> Path:
         return self.primary / ".minions" / "changes" / _CHANGE
@@ -151,6 +153,8 @@ class Host:
     def sandboxed(
         self, argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
     ) -> int:
+        if isinstance(self.sandbox, Exception):
+            raise self.sandbox
         if not self.sandbox:
             raise NoSandbox("conduct: cannot run — no OS sandbox")
         assert cwd == self.tree
@@ -324,9 +328,43 @@ def _no_sandbox(host: Host) -> None:
     host.sandbox = False
 
 
+def _unrelated(host: Host) -> None:
+    _git(host.tree, "checkout", "-q", "--orphan", "lone")
+    _git(host.tree, "commit", "-q", "-m", "a root of its own")
+
+
+def _unreadable(host: Host) -> None:
+    tasks = host.tree / "openspec" / "changes" / _CHANGE / "tasks.md"
+    tasks.unlink()
+    tasks.symlink_to("gone.md")
+    _git(host.tree, "add", str(tasks))
+    _git(host.tree, "commit", "-q", "-m", "tasks.md is a link")
+
+
+def _linked_commands(host: Host) -> None:
+    host.folder().mkdir(parents=True)
+    (host.folder() / "commands-r1.log").symlink_to(host.primary / "elsewhere.log")
+
+
+def _unstamped(host: Host) -> None:
+    host.folder().mkdir(parents=True)
+    (host.folder() / "status_log.md").write_text("no title\n")
+
+
 _REFUSED: dict[str, tuple[Callable[[Host], None], int, str | None]] = {
     "dirty": (_dirty, 1, "the tree is dirty: stray.txt"),
     "unticked": (_unticked, 1, "phase 2 of tasks.md is unticked: mf-build owns it"),
+    "unrelated": (_unrelated, 1, "git merge-base failed: "),
+    "unreadable": (
+        _unreadable,
+        1,
+        "tasks.md cannot be read: No such file or directory",
+    ),
+    "linked commands": (
+        _linked_commands,
+        1,
+        "commands-r1.log cannot be opened: Too many levels of symbolic links",
+    ),
     "empty": (_empty, 1, "the range is empty: base is HEAD"),
     "no gate": (_no_gate, 1, "the root Makefile's gate runs no command"),
     "red": (_red, 1, "the gate is red before round 1: gate_run.py exit 2"),
@@ -338,6 +376,7 @@ _REFUSED: dict[str, tuple[Callable[[Host], None], int, str | None]] = {
     "verify": (_verify, 1, "verify: halt — 1.2, 2.1"),
     "old layout": (_old, 1, None),
     "no sandbox": (_no_sandbox, 2, None),
+    "unstamped": (_unstamped, 2, None),
 }
 
 
@@ -359,12 +398,22 @@ def test_a_converge_refuses_what_it_cannot_start(
         assert f".minions/findings/{_CHANGE}_review.md" in printed
         assert "/mf-ship" in printed
         return
+    if case == "unstamped":
+        # A log that takes no run takes no halt either: exit 2, the log as it stood.
+        assert "status_log.md cannot be stamped" in printed
+        assert log.read_text() == "no title\n"
+        return
     written = events(host)
     assert not any(line.startswith("round 1 · start") for line in written)
     if case == "no sandbox":
         assert "no OS sandbox" in printed
         reason = "conduct: cannot run — no OS sandbox"
     assert written[-1] == f"round 1 · halt — {reason} · head {head}"
+    if case == "no sandbox":
+        # Any other failure of the runner is no "cannot run": it propagates.
+        host.sandbox = RuntimeError("the runner broke")
+        with pytest.raises(RuntimeError, match="the runner broke"):
+            run(host)
 
 
 def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -> None:
@@ -411,6 +460,17 @@ def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -
         "# Debt cards on the diff's files\n\nNone.\n"
     )
 
+    # A planted link takes no patch and no bundle: the freeze halts naming it.
+    for name, said in (
+        ("diff.patch", "the patch cannot be written"),
+        ("bundle.md", "bundle: cannot bundle"),
+    ):
+        (folder / name).unlink()
+        (folder / name).symlink_to(host.primary / "elsewhere")
+        with pytest.raises(converge["Halt"], match=said):
+            converge["freeze"](context, base, head)
+        (folder / name).unlink()
+
 
 _REFERENCES = (
     "generic-conformance.md",
@@ -420,7 +480,7 @@ _REFERENCES = (
 )
 
 
-def test_each_worker_prompt_is_filled_from_its_reference() -> None:
+def test_each_worker_prompt_is_filled_from_its_reference(tmp_path: Path) -> None:
     converge = _converge()
     names = converge["PLACEHOLDERS"]
     values = {name: f"<{name} value>" for name in names}
@@ -439,6 +499,13 @@ def test_each_worker_prompt_is_filled_from_its_reference() -> None:
     del values["findings"]
     with pytest.raises(ValueError, match="verify.md: findings is not filled"):
         converge["prompt"]("verify.md", **values)
+    # A reference with no `## Prompt`, or one naming no placeholder, is refused.
+    with pytest.raises(ValueError, match="worker.md has no ## Prompt block"):
+        converge["prompt"]("worker.md", **values)
+    odd = tmp_path / "odd.md"
+    odd.write_text("## Prompt\n\n```text\nrole: {colour}\n```\n")
+    with pytest.raises(ValueError, match=r"\{colour\} is no placeholder"):
+        converge["prompt"](str(odd), **values)
 
 
 def _card(
@@ -541,6 +608,9 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     (folder / "linked.md").symlink_to(folder / "conformance.md")
     linked = converge["read_findings"](folder / "linked.md", "conformance", frozen)
     assert linked.malformed == "linked.md is malformed: it is a link"
+    os.mkfifo(folder / "piped.md")
+    piped = converge["read_findings"](folder / "piped.md", "conformance", frozen)
+    assert piped.malformed == "piped.md is malformed: it is not a file"
 
     frozen = converge["Freeze"]("b" * 40, head, 1, 1)
     context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
@@ -562,6 +632,15 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
         " · model default · effort default · tokens unavailable"
         " · fallback: codex usage limit",
     ]
+    # A file missing, or one not clean, halts the round naming it.
+    halt = converge["Halt"]
+    with pytest.raises(halt, match="conformance.md is missing: its checker left no"):
+        converge["held"](context, read | {"conformance": None}, frozen)
+    narrow = folder / "conformance.md"
+    narrow.write_text(findings("conformance", head, files=0, commits=0))
+    small = converge["read_findings"](narrow, "conformance", frozen)
+    with pytest.raises(halt, match="scope resolved 0 files"):
+        converge["held"](context, read | {"conformance": small}, frozen)
 
 
 def _verdicts(

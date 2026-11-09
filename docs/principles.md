@@ -9,7 +9,7 @@ another way is a [decision](decisions.md).
 - **Station** — one role in the line, with one job: cut, build, conformance, adversarial, fix, release.
 - **Change** — the unit of work and of release: a directory under `openspec/changes/` holding its proposal,
   design, tasks and spec delta.
-- **Conductor** — whoever dispatches stations and reads their results from disk: a person, `mf-converge` for
+- **Conductor** — whoever dispatches stations and reads their results from disk: a person, `converge.py` for
   the check loop, or `mf-ship`'s script for a whole run.
 - **Checker** — a station that judges and edits nothing but its own findings file: conformance, adversarial.
   A pickup check is one checker for both files.
@@ -37,7 +37,7 @@ What keeps a verdict worth having.
 
 - **Why:** a station's report on itself is a claim; more opinions from the reader who wrote the code verify
   nothing.
-- **Held by:** `mf-converge` Step 3, which dispatches fresh checker subagents or fresh agent processes; conformance.
+- **Held by:** `converge.py`'s `dispatch`, which starts each checker as a fresh agent process; conformance.
 - **Accepted exception:** `mf-cut-change` checks its own artifacts. Its plan review, a fresh worker's (Step 8.5),
   the person's read of the committed change and `mf-build` Step 1 are the independent checks.
 
@@ -48,7 +48,7 @@ start, read-only except for their own findings file.**
 
 - **Why:** a reader who remembers the build reads what was meant, not what was written; a diff that moves under
   the check has no verdict.
-- **Held by:** `mf-converge` Steps 2 and 3; `mf-release` precondition 7, which ships only the judged head.
+- **Held by:** `converge.py`'s `freeze` and `dispatch`; `mf-release` precondition 7, which ships only the judged head.
 
 ### `fixed` is a claim; only the checker writes `verified`
 
@@ -56,7 +56,7 @@ start, read-only except for their own findings file.**
 or a pickup check, promotes it to `verified` or reopens it.**
 
 - **Why:** a fixer that can zero the counter reads as converged.
-- **Held by:** `mf-converge` Steps 6 and 7; its verify reference reopens a test fix with no red run.
+- **Held by:** `converge.py`'s `fix` and `verify`; converge's verify reference reopens a test fix with no red run.
 
 ### Nothing reads as clean by being absent
 
@@ -68,7 +68,7 @@ checker's stub is a clean the plan wrote, not a recomputation, and the release n
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
-- **Held by:** `mf-converge` Step 5 and its *By rule*; `mf-release` precondition 4, which states a skip and halts
+- **Held by:** `converge.py`'s `read_verdicts` and `by_rule`; `mf-release` precondition 4, which states a skip and halts
   on a lone patch or findings file; the *Never* lists of `mf-converge` and `mf-release`;
   `tests/test_integrate.py::test_replay_refuses_a_judged_merge`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
@@ -84,7 +84,7 @@ what is left goes to the debt or halts.**
 - **Why:** without the count, a fix slips in after the last check. Without the cap, a loop on prose never ends.
 - **A merge or an amend:** a catch-up over merges and amends, and an answered halt, counts its own rounds: one judge
   round, at most one fix round ([D63](decisions.md#d63--an-answered-amend-gets-one-round-over-its-range)).
-- **Held by:** `mf-converge` Step 7 and its catch-up round.
+- **Held by:** `converge.py`'s `verify`, `cap` and `catch_up`.
 
 ## The gate
 
@@ -97,8 +97,8 @@ integrate and release gate through `gate_run.py`: a recorded run of this exact t
 
 - **Why:** "it passed" is a claim about the gate, not the gate. A record is keyed by the tree and the dry run, so it
   holds what a run of that tree said, and the fresh run keeps a forged one from a tag.
-- **Held by:** `mf-build` Step 1, `mf-converge`, `mf-integrate` and `mf-release`, each printing `make -n gate`
-  before its first gate run; `mf-release` precondition 1 and Step 4.3's `--fresh`;
+- **Held by:** `mf-build` Step 1, `mf-integrate` and `mf-release`, each printing `make -n gate`
+  before its first gate run, and `converge.py`'s `preconditions`, which halts on an empty dry run; `mf-release` precondition 1 and Step 4.3's `--fresh`;
   `tests/test_gate_run.py::test_reuse_is_refused_on_a_dirty_tree` and
   `tests/test_gate_run.py::test_fresh_runs_whatever_stands_and_records`.
 
@@ -110,9 +110,9 @@ carried by a named remaining test or retired by a decision in force at the base,
 weakening.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
-- **Held by:** `mf-build` Step 2 and its stop-conditions; `mf-converge` Step 6 and its *Never* list; conformance reads
-  the diff for it; `I16`, `T5` and conformance's coverage-trace pass, for consolidation; `mf-converge`
-  precondition 6 and `mf-release` precondition 8, through `skills/mf-converge/scripts/gate_check.py`, for the
+- **Held by:** `mf-build` Step 2 and its stop-conditions; converge's fix reference and `mf-converge`'s *Never* list;
+  conformance reads the diff for it; `I16`, `T5` and conformance's coverage-trace pass, for consolidation;
+  `converge.py`'s `preconditions` and `mf-release` precondition 8, through `skills/mf-converge/scripts/gate_check.py`, for the
   recipe.
 
 ## State and the boundary
@@ -133,8 +133,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
 
 - **Why:** a fresh session must find its place with no transcript. Resume is free; any view of a run is a
   projection of files.
-- **Held by:** `mf-build` Step 1; the *Parameter — the change id* section of `mf-build`, `mf-converge` and
-  `mf-release`, which reads the active change from git.
+- **Held by:** `mf-build` Step 1; the *Parameter — the change id* section of `mf-build` and `mf-release`, and
+  `mf-converge`'s *Parameters*, which read the active change from git.
 
 ### The repo reaches nothing outside itself
 
@@ -154,8 +154,7 @@ is done on a commit and a ticked box together; a round number lives in the findi
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it,
   the list of repos a run started in, `repos`, the
   default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, and the
-  queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests, and a converge worker's
-  checker mailbox, which that worker writes;
+  queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests;
 - `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,
   `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too, and the `mf-*` links on
   `~/.claude/skills` and `~/.agents/skills`, which a run's end moves — named in no target repo

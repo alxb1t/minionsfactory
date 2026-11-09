@@ -12,7 +12,7 @@ only the phase's end is green.
 - [x] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
 - [x] 4 — The debt, the halts and the report · hard
 - [x] 5 — `conduct.py`: the in-process call and the retirements · hard
-- [ ] 6 — The front, the record and the metrics · hard
+- [x] 6 — The front, the record and the metrics · hard
 
 ## 1 — The fields
 
@@ -123,25 +123,25 @@ only the phase's end is green.
 
 ## 6 — The front, the record and the metrics
 
-- [ ] 6.1 Cut `K` to the front of [D10](design.md#d10): the parameters, `conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…] [grant=yes]`,
+- [x] 6.1 Cut `K` to the front of [D10](design.md#d10): the parameters, `conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…] [grant=yes]`,
   what it prints, a pointer to `converge.py`'s docstring. In `tests/test_skills.py` the converge rows become `converge.py` and
   `../mf-ship/scripts/conduct.py`, and the expected lists and `_GATE_RUN_UNNAMED` change in step.
   Verify: `uv run pytest -q tests/test_skills.py` exits 0; `git grep -n 'conduct.py converge' -- skills/mf-converge/SKILL.md` prints a line.
-- [ ] 6.2 Reword what the docs say of the conductor: `W`'s *Not clean*, *The verify pass* and the `model` and `tokens` lines
+- [x] 6.2 Reword what the docs say of the conductor: `W`'s *Not clean*, *The verify pass* and the `model` and `tokens` lines
   of its frontmatter block name `converge.py` and no mailbox; `verify.md` and the `Held by` lines of `docs/principles.md` name
   `converge.py`, not Steps of `K`; `skills/mf-ship/SKILL.md` loses its mailbox sentences and gains the `converge` row in its command
   table; `skills/mf-review-metrics/SKILL.md` and `docs/principles.md` lose their mailbox words.
   Verify: `git grep -n -i -e 'mailbox' -e 'conduct.py checker' -- skills/mf-ship/SKILL.md skills/mf-converge skills/mf-review-metrics/SKILL.md docs/principles.md` prints nothing.
-- [ ] 6.3 Edit `THREAT_MODEL.md` as [D10](design.md#d10) says — the `## Surfaces` intro, *Out of scope*'s fixer line, the mailbox
+- [x] 6.3 Edit `THREAT_MODEL.md` as [D10](design.md#d10) says — the `## Surfaces` intro, *Out of scope*'s fixer line, the mailbox
   lines — and the same intro in `skills/mf-bootstrap/templates/THREAT_MODEL.md.tmpl`.
   Verify: `git grep -n -i -e 'surfaces.py' -e 'mailbox' -- THREAT_MODEL.md skills/mf-bootstrap/templates` prints nothing.
-- [ ] 6.4 Add D78 to `docs/decisions.md` and its index line, and edit D3, D40, D47, D51, D53, D64, D68, D70, D71 and D76 where they
+- [x] 6.4 Add D78 to `docs/decisions.md` and its index line, and edit D3, D40, D47, D51, D53, D64, D68, D70, D71 and D76 where they
   live, as [D9](design.md#d9) says.
   Verify: `git grep -n -e '^### D78 · The converge conductor is a script' -e 'checker mailbox' -e 'mailbox checker' -e 'mailbox role' -- docs/decisions.md` prints the D78 heading alone.
-- [ ] 6.5 Point `converge-reading-set` in `metrics/catalogue.toml` at `AGENTS.md`, `W` and `fix.md`, with `scripts/metrics/reading_set.py`
+- [x] 6.5 Point `converge-reading-set` in `metrics/catalogue.toml` at `AGENTS.md`, `W` and `fix.md`, with `scripts/metrics/reading_set.py`
   and its test in `tests/test_metric_scripts.py`.
   Verify: `uv run pytest -q tests/test_metric_scripts.py` exits 0; `git grep -n 'references/fix.md' -- scripts/metrics/reading_set.py` prints a line.
-- [ ] 6.6 Add `test_review_metrics_books_a_worker_by_its_log_name` to `tests/test_review_metrics.py`; then book the log name
+- [x] 6.6 Add `test_review_metrics_books_a_worker_by_its_log_name` to `tests/test_review_metrics.py`; then book the log name
   `<stamp>-converge-<role>-r<N>.log` in `review_metrics.py`, the description path kept; count each such log in the converge stage in
   `scripts/metrics/run.py`, its test in `tests/test_metric_scripts.py` extended.
   Verify: `uv run pytest -q tests/test_review_metrics.py tests/test_metric_scripts.py` exits 0.

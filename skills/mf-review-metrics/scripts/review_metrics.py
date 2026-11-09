@@ -46,7 +46,8 @@ FILES = (
     "status_log.md",
 )
 OLD_FILES = re.compile(r"(.+)_(?:review|security|status_log)\.md")
-# The checkers converge's mailbox starts are stations of their own here: a cost cell.
+# The checkers an older converge's mailbox started are stations of their own here: a
+# cost cell.
 CHECKERS = (
     "converge-conformance",
     "converge-adversarial",
@@ -91,9 +92,18 @@ PRICES = Path(__file__).resolve().parents[1] / "prices.toml"
 SPENT = ("result", "turn.completed")
 # A turn's context: what it read before it wrote. Why: 0100-worker-diet design C2.
 CONTEXT = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
-# A converge subagent's role and round, from the description converge gives it.
+# An older converge subagent's role and round, from the description converge gave it.
 # Why: 0100-worker-diet design C6, D12; 0105-converge-switches design D6.
 WORKER = re.compile(r"^(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)
+# A converge worker's role and round, from its log's name; and the older converge and
+# mailbox logs `_station_logs` reads. Why: 0108-converge-script design D4, D10.
+LOGGED = re.compile(
+    r"-converge-(conformance|adversarial|fix|verify-conformance|verify-adversarial"
+    r"|verify-pickup)-r(\d+)(?:-\d+)?\.log$"
+)
+OLDER = re.compile(
+    r"-converge(?:-(?:shadow-)?(?:conformance|adversarial))?(?:-\d+)?\.log$"
+)
 # The events a worker's tokens are read from.
 WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.spawn"')
 DAY_SECONDS = 86400
@@ -894,17 +904,16 @@ def _new_worker(role: str | None, round_: int | None) -> Record:
     }
 
 
-def _log_workers(path: Path, mailbox: str | None) -> list[Record]:
-    """Return a converge log's subagents, or a `mailbox` checker's log as one worker.
+def _log_workers(path: Path, own: Record | None) -> list[Record]:
+    """Return an older converge log's subagents, or the log as the one worker `own`.
 
     A subagent is what a `task_started` event names, its role and round from its
     description. A worker's `assistant` events give its model, first-turn context
     and start alone: the CLI writes each with the usage its message's stream opened
     with, the output a placeholder. Its tokens are a log's totals: a Claude
-    mailbox log's last `result`, a Codex one's turns; a subagent's, which no event
+    worker log's last `result`, a Codex one's turns; a subagent's, which no event
     holds — its Agent result's are its last turn's — are a gap.
     """
-    own = _new_worker(mailbox, None)
     tasks: dict[str, Record] = {}
     with path.open(encoding="utf-8", errors="replace") as lines:
         for n, line in enumerate(lines):
@@ -918,20 +927,45 @@ def _log_workers(path: Path, mailbox: str | None) -> list[Record]:
                 )
                 tasks[str(event.get("tool_use_id"))] = _new_worker(role, round_)
             elif kind == "assistant" and isinstance(message, dict):
-                worker = own if mailbox and parent is None else tasks.get(str(parent))
+                worker = (
+                    own
+                    if own is not None and parent is None
+                    else tasks.get(str(parent))
+                )
                 if worker is not None:
                     worker["start"] = worker["start"] or _moment(event.get("timestamp"))
                     _opened(worker, message.get("model"), _usage(message.get("usage")))
-            elif kind == "turn.completed" and mailbox:
+            elif kind == "turn.completed" and own is not None:
                 usage = _codex_usage(event.get("usage"))
                 _opened(own, None, usage)
                 own["usage"].update(usage or {})
-            elif kind == "result" and mailbox:
+            elif kind == "result" and own is not None:
                 own["usage"] = Counter(_usage(event.get("usage")))
-            elif kind == "mf.spawn" and n == 0 and mailbox:
+            elif kind == "mf.spawn" and n == 0 and own is not None:
                 spawned = event.get("model")
                 own["model"] = spawned if isinstance(spawned, str) else None
-    return [own] if mailbox else list(tasks.values())
+    return [own] if own is not None else list(tasks.values())
+
+
+def _named_workers(repo: Path, change: str) -> list[Record]:
+    """Return a worker per converge log a run named `<stamp>-converge-<role>-r<N>`.
+
+    A name of another form is a worker of no role and round, a gap; an older converge
+    log and a mailbox checker's are left to `_station_logs`.
+    e.g. `<stamp>-converge-fix-r2.log` → role "fix", round 2
+    """
+    folder = _change_dir(repo, change) / "logs"
+    logs = sorted(folder.glob("*-converge-*.log")) if _moved(repo, change) else []
+    named = [
+        (log, LOGGED.search(log.name)) for log in logs if not OLDER.search(log.name)
+    ]
+    return [
+        worker
+        for log, found in named
+        for worker in _log_workers(
+            log, _new_worker(*((found[1], int(found[2])) if found else (None, None)))
+        )
+    ]
 
 
 def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
@@ -949,12 +983,14 @@ def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
 
 
 def _converge_workers(repo: Path, change: str) -> list[Record]:
-    """Return a record per converge subagent and per mailbox checker's log, priced.
+    """Return a record per converge worker, priced.
 
-    Each holds its repo, change, role, round, run, model, tokens, first-turn
-    context, dollars and source, `subagent` or `mailbox`; a gap is None. Its run is
-    the status log's run whose window of its round holds its first event.
-    Why: 0100-worker-diet design D12.
+    A worker is a log named by its role and round, an older converge log's subagent,
+    or an older mailbox checker's log. Each holds its repo, change, role, round, run,
+    model, tokens, first-turn context, dollars and source, `log`, `subagent` or
+    `mailbox`; a gap is None. Its run is the status log's run whose window of its
+    round holds its first event. Why: 0100-worker-diet design D12;
+    0108-converge-script design D10.
     """
     status = _file(repo, change, "status_log.md")
     windows = {
@@ -981,8 +1017,11 @@ def _converge_workers(repo: Path, change: str) -> list[Record]:
         (worker, "mailbox")
         for station in CHECKERS
         for log in _station_logs(repo, change, station)
-        for worker in _log_workers(log, station.removeprefix("converge-"))
+        for worker in _log_workers(
+            log, _new_worker(station.removeprefix("converge-"), None)
+        )
     ]
+    found += [(worker, "log") for worker in _named_workers(repo, change)]
     prices = _prices()
     return [
         {

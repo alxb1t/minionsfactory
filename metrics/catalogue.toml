@@ -3,7 +3,7 @@
 
 [[metric]]
 id = "converge-reading-set"
-title = "Converge conductor's reading set"
+title = "Converge fixer's reading set"
 group = "instruction load"
 unit = "words"
 better = "lower"

@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixer and verify worker is its own spawn with its own log, and `conduct.py converge <id>` runs it by hand. The checker
   mailbox, its `checker` command and `surfaces.py` are gone; a converge skip is read once, with the plan (`0105·S2`)
   (change `0108-converge-script`, phase 5).
+- `mf-converge` becomes a thin front for `conduct.py converge`; D78 records the script, and the decisions, principles,
+  threat model and `mf-ship` lose the mailbox. Review metrics book a converge worker by its log name, and `run.py` counts
+  each worker's log in the converge stage's cost and tokens. A status log that cannot be stamped now exits 2, not raising
+  (change `0108-converge-script`, phase 6).
 
 ## [0.88.0] - 2026-11-09
 

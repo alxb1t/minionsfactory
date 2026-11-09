@@ -58,8 +58,8 @@ skipped gives you neither file: its findings file is a stub, `mode: skipped`, wh
 - **A card whose Fix size includes `a test`** is reopened when its **Status** note holds no red run, or the new test
   does not exercise the card's **When you'd hit it** scenario. You cannot re-run the test on the parent: check that
   the run is there and fits the scenario.
-- **An amend card's `wontfix`** stays `wontfix` when its justification holds, never `accepted`: converge's Step 9
-  halts on it. A justification that does not hold reopens it, as any `wontfix`. In an amend round, an amend card the
+- **An amend card's `wontfix`** stays `wontfix` when its justification holds, never `accepted`: `converge.py`'s
+  debt write halts on it. A justification that does not hold reopens it, as any `wontfix`. In an amend round, an amend card the
   amend settled goes `verified`, naming it.
 - **A regression the fix introduced** is a new `open` card in [the card](worker.md#the-card)'s shape, graded on your
   scale in [the findings file contract](worker.md#the-findings-file-contract).

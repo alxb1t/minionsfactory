@@ -840,6 +840,48 @@ def test_review_metrics_books_a_worker_by_its_description() -> None:
     assert review_metrics._workers({"mode": "parallel", "workers": "4"}) == 4
 
 
+def test_review_metrics_books_a_worker_by_its_log_name(tmp_path: Path) -> None:
+    # Why: 0108-converge-script design D10; the delta's scenarios.
+    _findings(tmp_path, "0001-x_conformance.md", _front())
+    sonnet = "claude-sonnet-5-5"
+    claude = (
+        _said(None, "f1", sonnet, input_tokens=4),
+        {"type": "result", "usage": {"input_tokens": 10, "output_tokens": 5}},
+    )
+    _worker_log(tmp_path, "0001-x", "20261109-101500-converge-fix-r2.log", *claude)
+    # A repeat of the spawn is the same role and round.
+    _worker_log(
+        tmp_path, "0001-x", "20261109-101500-converge-conformance-r1-2.log", *claude
+    )
+    spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
+    usage = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
+    _worker_log(
+        tmp_path,
+        "0001-x",
+        "20261109-101500-converge-verify-pickup-r3.log",
+        spawn,
+        {"type": "turn.completed", "usage": usage},
+    )
+    # A log of another form is booked to no role, as a gap.
+    _worker_log(tmp_path, "0001-x", "20261109-101500-converge-extra.log", *claude)
+    # An older converge log and a mailbox checker's are read as before, and once.
+    _worker_log(tmp_path, "0001-x", "A-converge.log", *claude)
+    _worker_log(tmp_path, "0001-x", "A-converge-adversarial.log", *claude)
+
+    keys = ("role", "round", "model", "tokens", "source")
+    booked = [
+        tuple(w[k] for k in keys)
+        for w in review_metrics._converge_workers(tmp_path, "0001-x")
+    ]
+    assert booked == [
+        ("adversarial", None, sonnet, 15, "mailbox"),
+        ("conformance", 1, sonnet, 15, "log"),
+        (None, None, sonnet, 15, "log"),
+        ("fix", 2, sonnet, 15, "log"),
+        ("verify-pickup", 3, "gpt-6.1-sol", 1100, "log"),
+    ]
+
+
 def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
     # A round's record sums its own run's workers alone, never another run's of
     # the same round number; a worker placed in no run joins no record.

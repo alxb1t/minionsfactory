@@ -11,6 +11,9 @@ by hand, `conduct.py converge <change-id> [conformance=…] [adversarial=…] [f
 [grant=yes]` calls it. Exit 0 done · 1 halted · 2 cannot run; the report, or the
 halt, is printed.
 
+The Steps the functions name: 1 preconditions · 2 freeze · 3 dispatch · 5 verdicts ·
+6 fix · 7 verify and the cap · 8 pickup · 9 debt · 10 report.
+
 It loads, from this folder, `stamp.py`, which writes each status-log event,
 `bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`, `plan_check.py` and
 `overlap.py`, and `../../mf-integrate/scripts/integrate.py` for `replay`. It runs
@@ -30,7 +33,7 @@ import subprocess
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -746,7 +749,9 @@ def converge(
         return resume(context, grant)
     except Cannot as cannot:
         print(cannot)
-        halt(context, str(cannot))
+        # why: a status log that cannot be stamped takes no halt either; D1's exit 2
+        with suppress(Cannot):
+            halt(context, str(cannot))
         return 2
     except Halt as halted:
         halt(context, str(halted))

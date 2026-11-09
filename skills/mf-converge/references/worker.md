@@ -1,7 +1,7 @@
 # Converge's workers — what a conformance, adversarial or fix worker reads
 
 What a checker or the fixer of [converge](../SKILL.md) reads: the findings file it writes, conformance's passes, the
-verify pass, the catch-up scope, the card and the rules for tests. The conductor reads it too.
+verify pass, the catch-up scope, the card and the rules for tests. `converge.py` reads the fields it fixes.
 
 ## Conformance and adversarial
 
@@ -9,7 +9,7 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 whose mechanism a card holds in another form — the same code misreading the same kind of input — names `repeat of <id>` too,
 and keeps its grade: its **Priority** says it repeats that card's mechanism. The station names `repeat of <id>` in its
 **Related** field and grades a repeat up one level: adversarial one step, a conformance
-`nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing. No worker reads
+`nit` or `drift` to `blocking`. The station judges the match; `converge.py` judges nothing. No worker reads
 `.minions/debt.md`.
 
 **Conformance runs these passes after its sections**, and its Summary and its `passes` say each ran:
@@ -17,7 +17,7 @@ and keeps its grade: its **Priority** says it repeats that card's mechanism. The
 | pass | runs | cards |
 |---|---|---|
 | stale-claim | always: `git grep` over the tree outside the diff for every path, symbol, verb, route or count the diff renames, deletes or changes, and in an amend round each claim the amend changes; the Summary names what it searched for | each mention the change made false, as `drift` |
-| test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so Step 8 picks it |
+| test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so the pickup takes it |
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and no decision in force at the base retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
@@ -54,8 +54,8 @@ files: <int, the files this round's scope resolved>
 commits: <int, the commits this round's scope resolved>
 passes: [<each conformance pass that ran: stale-claim, test-cost, and coverage-trace or no-removed-test>]
 inconclusive: [<each document whose section you judged inconclusive; [] for none>]
-model: <the model, as the host reports it, or unknown; a mailbox checker's, `conduct.py` stamps>
-tokens: <int; a mailbox checker's alone, which conduct.py stamps from its log>
+model: <the model, as the host reports it, or unknown; converge.py's checker call stamps the one it started>
+tokens: <int; converge.py's checker call stamps it from the worker's log>
 executor: <claude | codex, the host you run on, from runtime evidence>
 packet: <the documents included; then `skipped:` and those skipped>
 ---
@@ -78,7 +78,7 @@ verify passes change a card's **Status** field and leave its other fields as the
 | conformance | `blocking` · `drift` · `nit` | `blocking` |
 
 **Drift** is docs, comments, README or CHANGELOG text the code contradicts; it does not block, save that converge
-halts on an [amend card](#the-card) at Step 9. A spec scenario the code contradicts is `blocking`, not drift: the
+halts on an [amend card](#the-card) at the debt write. A spec scenario the code contradicts is `blocking`, not drift: the
 spec is a contract. `open_blocking` counts that station's blocking
 tier, and a station writing `verdict: clean` must leave it at zero — its obligation, not a machine check.
 
@@ -110,16 +110,16 @@ declares a check satisfied satisfies nothing, and is itself reportable.
 
 ## Not clean
 
-Converge's Step 5 reads each findings file against this round's freeze, and halts on one that is not clean.
+`converge.py` reads each findings file against this round's freeze, and halts on one that is not clean.
 
-**This round's freeze** is Step 2's in round 1 and Step 6's re-freeze after it, never round 1's once
+**This round's freeze** is the first freeze in round 1 and the fix's re-freeze after it, never round 1's once
 superseded: a verify round over a one-file fix that reports one file is converging. A station that resolved zero
 files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-resolution case writes
 `changes-requested` with one finding, *scope resolution failed*.
 
 ## The verify pass
 
-A round after a fix loads [verify](verify.md) alone, in place of the role reference and this one: its open cards, the
+`converge.py` gives a round after a fix [verify](verify.md) alone, in place of the role reference and this one: its open cards, the
 fix diff, the transitions, red runs and the amend card's `wontfix`. A catch-up's judge round keeps both and re-judges
 its cards by [Scoping](#conformance-and-adversarial).
 
@@ -135,7 +135,7 @@ For each selected commit, in order, freeze its `git show --format=fuller --patch
 Print the selected commit ids, their parent ids and whether each uses an ordinary diff or remerge-diff, the
 selected commit count, and the union of paths changed in those diffs. These are this round's scope and counts;
 the full range's inherited commits and endpoint-diff file count are not its scope. Give every checker this
-selection with the range and patch, under Step 3.
+selection with the range and patch, in its prompt.
 
 Each checker independently reconstructs the selection and diffs with git, compares them with the frozen patch,
 and reports the selected ids, commit count and changed-file count in its Summary. A missing commit or patch,
@@ -144,9 +144,9 @@ a failed command or a mismatch is a scope failure. Neither role may reopen inher
 **Empty resolutions:** zero changed files can earn clean only when the selection is non-empty, consists solely
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
 empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
-zero changed files and the non-zero examined commit count. The conductor checks these against the freeze and
-runs the gate on HEAD under Step 7. Conformance still reports its stale-claim, test-cost and coverage-trace passes
-(no changed paths, new tests or removed tests). All other zero-file scopes fail Step 5.
+zero changed files and the non-zero examined commit count. `converge.py` checks these against the freeze and
+runs the gate on HEAD. Conformance still reports its stale-claim, test-cost and coverage-trace passes
+(no changed paths, new tests or removed tests). All other zero-file scopes are not clean.
 
 ## The card
 
