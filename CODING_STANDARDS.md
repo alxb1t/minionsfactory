@@ -13,4 +13,5 @@ markdown doc and CHANGELOG entry: terse, answer first, things named rather than 
 - **Python 3.12 or later, typed and documented** — the gate runs ruff's `D` and `ANN` rules and strict types;
   tests are exempt from `D`. The settings are `pyproject.toml`'s.
 - **A skill's script is a `uv` script** — a PEP 723 header with `requires-python = ">=3.12"` and
-  `dependencies = []`, run with `uv run --script`.
+  `dependencies = []`, save the CommonMark parser `markdown-it-py>=3,<4` in the scripts that read Markdown,
+  `brief_check.py` and `conduct.py`; run with `uv run --script`.

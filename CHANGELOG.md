@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `0103-fewer-rounds`, phase 5; closes `0091·R4`, `0091·S4`, `0091·S5`).
 - `mf-cut-change` runs its plan reviews on Opus 5.5 · high by name, whatever the cut's model; `mf-plan`'s default cut model
   becomes Sonnet 5.5 · high (change `0103-fewer-rounds`, phase 6).
+- D74 records the cuts to converge's rounds; D2, D53, D65 and D71 follow it, and the coding standards, `AGENTS.md` and the
+  threat model name the `markdown-it-py` header, `make corpus`, the fix note and the plan check (change
+  `0103-fewer-rounds`, phase 7).
 
 ## [0.85.0] - 2026-11-09
 

@@ -31,7 +31,8 @@ when a task names the file. The converge conductor reads none of it.**
 annotations, `B` bug patterns and `S` security enabled) · strict types · the CI workflow's lint · the secret scan ·
 the tests on every core, under coverage, writing the junit report `.minions/test-report.xml` · 100% coverage of the lines changed since `DIFF_BASE`. The `Makefile` recipe
 is the only list of the commands; the skills and CI (`.github/workflows/ci.yml`) run `make gate`, and no prose copies
-them. **`make check`** runs its fast steps, no `slow` test, between build phases.
+them. **`make check`** runs its fast steps, no `slow` test, between build phases. **`make corpus`** runs the readers of
+run data over this checkout's run directory and Codex sessions; no gate runs it.
 
 The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, resolved on `PATH`, its allowlist in
 `.betterleaks.toml`, which names each path `.gitignore` names: the scan reads what git can track.

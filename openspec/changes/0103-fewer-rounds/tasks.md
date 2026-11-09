@@ -11,7 +11,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 4 — The corpus
 - [x] 5 — CommonMark readers
 - [x] 6 — The plan review's model
-- [ ] 7 — The record
+- [x] 7 — The record
 
 ## 1 — The round-1 pickup and the mechanism repeat
 
@@ -118,19 +118,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 7 — The record
 
-- [ ] 7.1 Run `grep -n "^### D[0-9]" docs/decisions.md`; add the decision [D8](design.md#d8) quotes to the group *The check
+- [x] 7.1 Run `grep -n "^### D[0-9]" docs/decisions.md`; add the decision [D8](design.md#d8) quotes to the group *The check
   loop and the release* in `docs/decisions.md`, `<n>` one above the highest id it printed, and `D<n>` to that group's list in
   the map.
   Verify: `grep -n "· Converge's rounds are cut at their causes$" docs/decisions.md` prints a line.
-- [ ] 7.2 Edit D2 and D53 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 7.2 Edit D2 and D53 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -n "names a package the person approved" docs/decisions.md` prints a line.
-- [ ] 7.3 Edit D65 and D71 in `docs/decisions.md`, per [D8](design.md#d8).
+- [x] 7.3 Edit D65 and D71 in `docs/decisions.md`, per [D8](design.md#d8).
   Verify: `grep -n "fresh worker on Opus 5.5" docs/decisions.md` prints a line.
-- [ ] 7.4 Edit `CODING_STANDARDS.md`'s script rule, per [D6](design.md#d6).
+- [x] 7.4 Edit `CODING_STANDARDS.md`'s script rule, per [D6](design.md#d6).
   Verify: `grep -n "markdown-it-py" CODING_STANDARDS.md` prints a line.
-- [ ] 7.5 Add `AGENTS.md`'s `make corpus` sentence after its `make check` one, per [D8](design.md#d8).
+- [x] 7.5 Add `AGENTS.md`'s `make corpus` sentence after its `make check` one, per [D8](design.md#d8).
   Verify: `grep -n "make corpus" AGENTS.md` prints a line.
-- [ ] 7.6 Add [D8](design.md#d8)'s fix-note sentence and its new bullet to `THREAT_MODEL.md`'s *Entry points*.
+- [x] 7.6 Add [D8](design.md#d8)'s fix-note sentence and its new bullet to `THREAT_MODEL.md`'s *Entry points*.
   Verify: `grep -n "plan_check.py" THREAT_MODEL.md` prints a line.
-- [ ] 7.7 **HALT CHECK** Run the plan check over this change: a line it prints is a plan the build cannot amend.
+- [x] 7.7 **HALT CHECK** Run the plan check over this change: a line it prints is a plan the build cannot amend.
   Verify: `uv run --script skills/mf-converge/scripts/plan_check.py --change 0103-fewer-rounds --base main` prints `plan: clean`.
