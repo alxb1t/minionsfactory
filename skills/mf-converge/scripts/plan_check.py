@@ -171,10 +171,11 @@ def verify_of(text: str) -> str | None:
 def rerun(name: str, command: Command, root: Path) -> list[str]:
     """Return the lines a command that fails prints, none when it passes.
 
-    A command passes on exit 0 printing what its `Verify:` says: nothing, the number
-    alone, or anything when it says neither. A `grep` or `git grep` also passes on
-    exit 1 printing nothing when its `Verify:` says it prints nothing or `0`, or
-    printing `0` alone when it says `0`. Why: 0103-fewer-rounds design D4.
+    A command passes on exit 0 printing what its `Verify:` says: nothing, not even a
+    blank line, the number alone, or anything when it says neither. A `grep` or
+    `git grep` also passes on exit 1 printing nothing when its `Verify:` says it
+    prints nothing or `0`, or printing `0` alone when it says `0`. Why:
+    0103-fewer-rounds design D4.
     """
     argv = tokens(command.text)
     search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
@@ -191,12 +192,14 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
             errors="replace",
             timeout=TIMEOUT_SECONDS,
         )
-        code, output = done.returncode, done.stdout.splitlines()
+        code, stdout = done.returncode, done.stdout
     except subprocess.TimeoutExpired:
         return [f"plan: {name} — `{command.text}` timed out"]
     except OSError as error:
-        code, output = 127, [str(error.strerror)]
-    printed = "\n".join(output).strip()
+        code, stdout = 127, str(error.strerror)
+    output = stdout.splitlines()
+    # Nothing is no byte at all, blank lines included; a count is read stripped.
+    printed = stdout if command.nothing else stdout.strip()
     if code == 0 and wanted in (None, printed):
         return []
     if code == 1 and search and wanted in ("", "0") and printed in ("", wanted):

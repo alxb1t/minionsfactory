@@ -133,6 +133,10 @@ def test_a_plan_check_finds_what_the_plan_left(
         1,
         [f"plan: 1.1 — `{found}` {other}", "  | src/mod.py:9:class Old:"],
     )
+    # Blank lines are output: a `prints nothing` search that finds them fails.
+    blank = "grep ^$ src/mod.py"
+    _tasks(root, _ONE, f"- [x] 1.1 Blank.\n  Verify: `{blank}` prints nothing.\n")
+    assert check() == (1, [f"plan: 1.1 — `{blank}` {other}", *["  | "] * 5])
     # A count a `Verify:` names is the whole output: `printf 1` is not `2`, is `1`.
     _tasks(root, _ONE, "- [x] 1.1 Wrong.\n  Verify: `printf 1` prints `2`.\n")
     assert check() == (1, [f"plan: 1.1 — `printf 1` {other}", "  | 1"])
