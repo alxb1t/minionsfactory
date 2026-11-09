@@ -681,6 +681,9 @@ def test_a_ready_version_ships_past_a_slow_one(
     root = _primary(tmp_path)
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    marks = root / ".minions" / "changes" / "0002-marks"
+    marks.mkdir(parents=True)
+    (marks / "models.toml").write_text("[converge]\nskip = true\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -690,6 +693,11 @@ def test_a_ready_version_ships_past_a_slow_one(
     seen = _calls(calls)
     assert seen[0] == "probe"
     assert seen.index("build 0001-todo") < seen.index("converge 0001-todo")
+    # A converge skipped by the plan sends the built version to its release.
+    assert "converge 0002-marks" not in seen
+    assert seen.index("build 0002-marks") < seen.index("release 0002-marks")
+    assert not (marks / "conformance.md").exists()
+    assert not (marks / "adversarial.md").exists()
     between = seen[
         seen.index("release 0002-marks") + 1 : seen.index("release 0001-todo")
     ]
@@ -708,6 +716,11 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+    # The run log says "converge skipped — plan", as the event `converge`, once.
+    skipped = [line for line in lines if " · converge — " in line]
+    assert [line.split(" · ", 1)[1] for line in skipped] == [
+        "0002-marks · converge — skipped — plan"
+    ]
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
     log = conduct["last_log"](root / ".minions" / "runs")
@@ -4397,6 +4410,15 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
         clause("converge.adversarial", ("claude", None, None), "codex")
         == " and adversarial=mailbox"
     )
+    # A skipped checker takes no model and no mailbox, on either host.
+    assert (
+        clause("converge.adversarial", ("claude", None, None), "claude", True)
+        == " and adversarial=skip"
+    )
+    assert (
+        clause("converge.conformance", ("codex", "gpt-6.1-sol", "high"), "claude", True)
+        == " and conformance=skip"
+    )
 
     minions = tmp_path / ".minions"
     table = minions / "changes" / "0001-todo" / "models.toml"
@@ -4504,6 +4526,38 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     run.read_plan([version])
     assert not conduct["_shadows"](minions, "0001-todo")
     assert (run.shadowed, run.executors()) == (set(), ["claude"])
+
+    # A skipped checker's table stays in the plan, but its host is not probed.
+    names = conduct["WORKERS"]
+    table.write_text(
+        '[converge.conformance]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        "skip = true\n"
+    )
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert run.skipped == {"0001-todo": frozenset({"converge.conformance"})}
+    assert ("0001-todo", "converge.conformance") in run.plan
+    assert (run.named("0001-todo"), run.executors()) == (["claude"], ["claude"])
+    # Converge skipped skips every worker, and a shadow of a skipped checker is none.
+    table.write_text(
+        "[converge]\nskip = true\nshadow = true\n"
+        '[converge.conformance]\nexecutor = "codex"\n'
+    )
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert run.skipped == {"0001-todo": frozenset(("converge", *names))}
+    assert (run.named("0001-todo"), run.executors()) == (["claude"], ["claude"])
+    skips = conduct["_skips"]
+    for text, held in (
+        ("[converge]\nskip = false\n", frozenset()),
+        ('[converge]\nskip = "true"\n', frozenset()),
+        ("[converge.adversarial]\nskip = 1\n", frozenset()),
+        ("[converge\n", frozenset()),
+        ("[rescue]\nskip = true\n", frozenset()),
+        ("[converge.adversarial]\nskip = true\n", {"converge.adversarial"}),
+    ):
+        table.write_text(text)
+        assert skips(minions, "0001-todo") == held, text
 
 
 def test_a_checker_request_is_bounded(

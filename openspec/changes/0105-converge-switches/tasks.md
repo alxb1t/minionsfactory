@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The grammar · hard
-- [ ] 2 — Conduct reads the switches · hard
+- [x] 2 — Conduct reads the switches · hard
 - [ ] 3 — Converge with one role, the stub and the release · hard
 - [ ] 4 — The repo default and the surfaces warning · moderate
 - [ ] 5 — The record · moderate
@@ -32,18 +32,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — Conduct reads the switches
 
-- [ ] 2.1 **HALT CHECK** Confirm `ROLES` still names both checkers in `skills/mf-ship/scripts/conduct.py`, as
+- [x] 2.1 **HALT CHECK** Confirm `ROLES` still names both checkers in `skills/mf-ship/scripts/conduct.py`, as
   [D2](design.md#d2) needs; missing, the plan is wrong.
   Verify: `grep -n "^ROLES = " skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 Add the steps of the design's `## Tests` rows for `test_a_worker_clause_names_its_model_and_effort` and
+- [x] 2.2 Add the steps of the design's `## Tests` rows for `test_a_worker_clause_names_its_model_and_effort` and
   `test_a_checker_on_another_host_is_planned_and_probed` to `tests/test_conduct.py`.
   Verify: `grep -n "adversarial=skip" tests/test_conduct.py` prints a line.
-- [ ] 2.3 Add the step of the design's `## Tests` row for `test_a_ready_version_ships_past_a_slow_one` to `tests/test_conduct.py`.
+- [x] 2.3 Add the step of the design's `## Tests` row for `test_a_ready_version_ships_past_a_slow_one` to `tests/test_conduct.py`.
   Verify: `grep -n "converge skipped — plan" tests/test_conduct.py` prints a line.
-- [ ] 2.4 In `skills/mf-ship/scripts/conduct.py`, add `_skips`, edit `_unjudged`, `stage_of`, `Run`, `_worker_clause` and the
+- [x] 2.4 In `skills/mf-ship/scripts/conduct.py`, add `_skips`, edit `_unjudged`, `stage_of`, `Run`, `_worker_clause` and the
   converge spawn, per [D2](design.md#d2), each new why line citing `0105-converge-switches design D2`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "worker_clause_names or another_host_is_planned or ships_past_a_slow_one"` reports `3 passed`.
-- [ ] 2.5 In `skills/mf-ship/SKILL.md`, per [D2](design.md#d2), add to the flow diagram's converge steps and to the paragraph that opens `Converge runs MF's
+- [x] 2.5 In `skills/mf-ship/SKILL.md`, per [D2](design.md#d2), add to the flow diagram's converge steps and to the paragraph that opens `Converge runs MF's
   method` the words that a version whose models file says `[converge] skip = true` skips converge and its catch-up round.
   Verify: `grep -n "skips converge" skills/mf-ship/SKILL.md` prints a line.
 

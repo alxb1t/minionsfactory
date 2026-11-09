@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The models line takes `converge skip`, `conformance skip` and `adversarial skip`; `brief_check.py` refuses a skip beside
   `shadow`, a model or effort, and both checkers skipped. `mf-cut-change` drops its dead `skip, read by hand` text and
   writes a brief's skip as `skip = true` in `models.toml` (change `0105-converge-switches`, phase 1).
+- `conduct.py` reads `skip = true` under `[converge]` or a checker's table: a skipped converge sends a built version to
+  integrate and release, the run log saying `converge — skipped — plan`; a skipped checker takes `<role>=skip` in the
+  converge prompt and is not probed (change `0105-converge-switches`, phase 2).
 
 ## [0.86.0] - 2026-11-09
 

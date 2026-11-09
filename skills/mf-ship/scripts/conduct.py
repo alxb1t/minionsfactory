@@ -95,6 +95,8 @@ EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
     *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
+    # why: the plan's skipped converge is logged, 0105-converge-switches design D2
+    "converge",
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -1223,7 +1225,12 @@ def _converge_done(runs: Path, change: str) -> bool:
 
 
 def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | None:
-    """Return why converge is not clean at `rev`, or None when it is."""
+    """Return why converge is not clean at `rev`, or None when it is.
+
+    A converge the plan skips is None. Why: 0105-converge-switches design D2.
+    """
+    if "converge" in _skips(runs, change):
+        return None
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
         file = _change_dir(runs.parent, change) / f"{role}.md"
@@ -1447,7 +1454,9 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             "stacked",
             f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
         )
-    if halt := _converge_halt(runs, change):
+    # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
+    skipped = "converge" in _skips(runs, change)
+    if halt := None if skipped else _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _rerun(runs, tree, change, halt):
@@ -1457,13 +1466,14 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if "cap reached" in halt and _granted(runs, change, take=False):
             return "converge", "granted"
         return "converge-halted", halt
-    if end is not None and not _converge_done(runs, change):
+    if end is not None and not skipped and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):
         return "converge", why
     if not _ancestor(tree, default, "HEAD"):
         return "integrate", f"{default} is not an ancestor of HEAD"
-    return "release", f"converge clean at HEAD; {default} is an ancestor"
+    verdict = "converge skipped by plan" if skipped else "converge clean at HEAD"
+    return "release", f"{verdict}; {default} is an ancestor"
 
 
 def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
@@ -2529,16 +2539,23 @@ def _models(
 
 
 def _worker_clause(
-    station: str, models: tuple[str, str | None, str | None], converge: str
+    station: str,
+    models: tuple[str, str | None, str | None],
+    converge: str,
+    skipped: bool = False,
 ) -> str:
     """Return a converge worker's prompt clause, `converge` its conductor's executor.
 
-    A checker on another host is a mailbox role; else "" on Codex or with neither
-    named. Why: 0094-lighter-converge design D1; 0097-cross-model design D3.
+    A skipped checker is `skip`, on any host. A checker on another host is a
+    mailbox role; else "" on Codex or with neither named.
+    Why: 0094-lighter-converge design D1; 0097-cross-model design D3;
+    0105-converge-switches design D2.
     e.g. ("converge.fix", ("claude", "m", None), "claude") → " and fix=m/default"
     """
     executor, model, effort = models
     role = station.split(".", 1)[1]
+    if skipped:
+        return f" and {role}=skip"
     if executor != converge:
         return f" and {role}=mailbox"
     if converge == "codex" or (model is None and effort is None):
@@ -2569,6 +2586,29 @@ def _shadow(
     if converge[0] == executor:
         return converge
     return executor, None, None
+
+
+def _skips(runs: Path, change: str) -> frozenset[str]:
+    """Return the converge stations the cut's models file skips; none on a bad file.
+
+    `[converge] skip = true` skips converge and each worker; else each checker's
+    table that says it. Only the value `true` skips.
+    Why: 0105-converge-switches design D2.
+    e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
+    """
+    checkers = [name for name in WORKERS if name != FIXER]
+    try:
+        tables = {name: _table(runs, change, name) for name in ("converge", *checkers)}
+    except (Stop, ValueError):
+        return frozenset()
+    skipping = {
+        name for name, table in tables.items() if table and table.get("skip") is True
+    }
+    return (
+        frozenset(("converge", *WORKERS))
+        if "converge" in skipping
+        else frozenset(skipping)
+    )
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -3948,6 +3988,11 @@ class Run:
         self.skips: set[str] = set()
         self.decides: set[str] = set()
         self.shadowed: set[str] = set()
+        # Each version's skipped converge stations as the plan read them, and the
+        # versions whose skipped converge the log says. Why: 0105-converge-switches
+        # design D2.
+        self.skipped: dict[str, frozenset[str]] = {}
+        self.skip_logged: set[str] = set()
         self.decided: list[str] = []
         self.supervisions: dict[str, list[str]] = {}
         # Each settle `_settled` took, by change: the tree integrate must commit.
@@ -4569,6 +4614,17 @@ class Run:
         Why: 0090-supervisor-merge design D4.
         """
         stage, why = stage_of(self.primary, version)
+        change = version.change
+        # Logged once, at the first stage past a skipped converge.
+        # Why: 0105-converge-switches design D2.
+        if stage in ("integrate", "release") and "converge" in _skips(
+            self.primary / ".minions", change
+        ):
+            with self.guard:
+                first = change not in self.skip_logged
+                self.skip_logged.add(change)
+            if first:
+                self.log.event(change, "converge", "skipped — plan")
         with self.guard:
             settled = version.change in self.settled
         if settled and stage == "integrating" and why.startswith("semantic conflict"):
@@ -4592,7 +4648,8 @@ class Run:
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, its delta's *A supervisor answers what the
         rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
-        D1, D2, D3.
+        D1, D2, D3; 0105-converge-switches design D2, whose skipped checker takes
+        `<role>=skip` in the converge prompt and no mailbox.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -4666,14 +4723,19 @@ class Run:
                 if stage == "converge":
                     converge = self.planned_models(version.change, stage)[0]
                     planned = [self.planned_models(change, name) for name in WORKERS]
+                    skipped = self.skipped.get(change, frozenset())
                     workers = "".join(
-                        _worker_clause(name, models, converge)
+                        _worker_clause(name, models, converge, name in skipped)
                         for name, models in zip(WORKERS, planned, strict=True)
                     )
                     shadowed = change in self.shadowed
                     if shadowed:
                         workers += " and shadow=yes"
-                    if shadowed or any(models[0] != converge for models in planned):
+                    if shadowed or any(
+                        models[0] != converge
+                        for name, models in zip(WORKERS, planned, strict=True)
+                        if name not in skipped
+                    ):
                         mailbox = _mailbox(self.primary, change)
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)
@@ -5293,11 +5355,11 @@ class Run:
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
         halts in `take`. Converge's worker tables are read as stations are; the
-        rescue's skip, `[converge] auto_grant` and `shadow`, and the switch are read
-        with them.
+        rescue's skip, `[converge] auto_grant` and `shadow`, the converge skips, and
+        the switch are read with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
         design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1;
-        0097-cross-model design D3.
+        0097-cross-model design D3; 0105-converge-switches design D2.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -5309,10 +5371,13 @@ class Run:
                 grants = _auto_grants(self.primary / ".minions", version.change)
                 decides = _decides(self.primary / ".minions", version.change)
                 shadows = _shadows(self.primary / ".minions", version.change)
+                skipped = _skips(self.primary / ".minions", version.change)
             except (Stop, ValueError):
                 continue
             with self.guard:
                 self.grants_auto[version.change] = grants
+                if skipped:
+                    self.skipped[version.change] = skipped
                 if skips:
                     self.skips.add(version.change)
                 if decides:
@@ -5332,9 +5397,15 @@ class Run:
     def named(self, change: str) -> list[str]:
         """Return each executor a version's plan names, a shadow's among them.
 
-        Why: 0097-cross-model design D3.
+        A skipped station and a skipped checker's shadow name none.
+        Why: 0097-cross-model design D3; 0105-converge-switches design D2.
         """
-        planned = [self.plan.get((change, station)) for station in PLANNED]
+        skipped = self.skipped.get(change, frozenset())
+        planned = [
+            self.plan.get((change, station))
+            for station in PLANNED
+            if station not in skipped
+        ]
         named = [models[0] for models in planned if models]
         converge = self.plan.get((change, "converge"))
         if change in self.shadowed and converge is not None:
@@ -5342,7 +5413,7 @@ class Run:
             named += [
                 _shadow(converge, models)[0]
                 for name, models in zip(WORKERS, checkers, strict=True)
-                if models and name != FIXER
+                if models and name != FIXER and name not in skipped
             ]
         return list(dict.fromkeys(named))
 
