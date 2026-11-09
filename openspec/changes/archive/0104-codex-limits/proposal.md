@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.88
 beside: [0103-fewer-rounds]
 debt: [0097·S2, 0097·S3, 0097·S6]
 ---

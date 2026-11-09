@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-11-09
+
+Gate: local 2m51s · CI not read under mf-ship · 0.87.0: local 2m12s · CI not read under mf-ship
+
 - `conduct.py` reads Codex's limit data: the rollout file a log's `thread_id` names gives each window's share and reset,
   and the `try again at` text is the fallback; a primary window at `HEADROOM` or more counts as a limit (change
   `0104-codex-limits`, phase 1).
