@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mechanical rows, folds in `openspec validate`, the gate-edit check, the search script and the corpus check, and prints
   the rows left to judgment. The docstrings of `corpus.py` and `plan_check.py` are cut to the limit (change
   `0106-cut-scripts`, phase 3).
+- `conduct.py cut` writes the item's `models.toml` from `brief_check.py --models` when it queues the cut and keeps its text
+  in the entry; the run writes it again before each cutter, and the cut halts on a file the cutter changed. A tag that
+  only starts like a heading ends no section in `conduct.py` either (change `0106-cut-scripts`, phase 4).
 
 ## [0.88.0] - 2026-11-09
 

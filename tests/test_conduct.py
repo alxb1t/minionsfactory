@@ -3569,6 +3569,27 @@ def _claimed(conduct: dict[str, Any], root: Path) -> None:
     (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
 
 
+_MODELS = "\n\n".join(
+    f'[{part}]\nmodel = "opus"\neffort = "high"'
+    for part in ("build", "converge", "release")
+)
+_MODELS += "\n"
+
+
+def _items(*slugs: str) -> str:
+    """Return a brief's `## For the cut` section, one item per slug, all on opus."""
+    line = "build opus high · converge opus high · release opus high · cut opus high"
+    return "## For the cut\n" + "".join(
+        f"{n}. **{slug}** · minor · after: none · debt: none\n   - models: {line}\n"
+        for n, slug in enumerate(slugs, 1)
+    )
+
+
+def _swap_runner(conduct: dict[str, Any]) -> None:
+    """Run `brief_check.py` by this interpreter: the suite needs no `uv`."""
+    conduct["main"].__globals__["UV_RUN"] = (sys.executable,)
+
+
 def test_parallel_cuts_reserve_apart_and_start_one_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3582,8 +3603,9 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     archived = "openspec/changes/archive/0002-old/proposal.md"
     _commit(root, {archived: "---\nbump: minor\n---\n"}, "archive 0002-old")
     brief = tmp_path / "brief.md"
-    brief.write_text("# brief\n")
+    brief.write_text(f"# brief\n\n{_items('a', 'b', 'c')}")
     good = f"brief={brief}"
+    _swap_runner(conduct)
     starts: list[tuple[Path, str]] = []
 
     def start(primary: Path, executor: str) -> int:
@@ -3623,6 +3645,7 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         "effort": None,
         "halt": None,
         "dependencies": [],
+        "models": _MODELS,
     }
     assert cuts == dict.fromkeys(cuts, entry)
     reserved = root / ".minions" / "cuts"
@@ -3691,7 +3714,8 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
     alone.write_text(
         "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
         "|---|---|---|---|\n| d | left-pad | 1.3.0 | a pad |\n"
-        "| other | a | 1 | b |\n| d | `right-pad` | ^2 | a pad |\n"
+        "| other | a | 1 | b |\n| d | `right-pad` | ^2 | a pad |\n\n"
+        f"{_items('d')}"
     )
     args = ("cut", "d", "patch", f"brief={alone}", "beside=0001-todo")
     args += ("--executor", "codex", "--model", "opus")
@@ -3712,6 +3736,69 @@ def test_parallel_cuts_reserve_apart_and_start_one_run(
         " item · package · constraint · why"
     )
     assert sorted(os.listdir(reserved)) == before
+
+
+def test_a_cut_queues_its_models_file(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    brief = tmp_path / "brief.md"
+    brief.write_text(f"# brief\n\n{_items('a')}")
+    said = conduct["cut"](
+        root, "a", "minor", f"brief={brief}", [], "claude", None, None
+    )
+    assert said == "cut: queued 0001-a · the live run takes it"
+    written = root / ".minions" / "changes" / "0001-a" / "models.toml"
+    assert written.read_text() == _MODELS
+    assert conduct["_cuts"](root)["0001-a"]["models"] == _MODELS
+    # The check reads the file by hash, through no link.
+    hashed = conduct["_models_hash"]
+    assert hashed(root, "0001-a") == hashlib.sha256(_MODELS.encode()).hexdigest()
+    written.unlink()
+    assert hashed(root, "0001-a") is None
+    written.symlink_to(tmp_path / "brief.md")
+    assert hashed(root, "0001-a") is None
+    written.unlink()
+    written.write_text(_MODELS)
+
+    # A brief with no item for the slug, a runner that fails, prints text TOML
+    # refuses, or is missing, or times out, reserves nothing.
+    names = conduct["main"].__globals__
+    runners = {
+        "no item named `b`": (sys.executable,),
+        "models for b: exit 3": (sys.executable, "-c", "raise SystemExit(3)"),
+        "not TOML": (sys.executable, "-c", "print('[')"),
+        "No such file": ("/nonexistent/uv",),
+    }
+    before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    for why, runner in runners.items():
+        names["UV_RUN"] = runner
+        with pytest.raises(conduct["Stop"]) as refused:
+            conduct["cut"](
+                root, "b", "minor", f"brief={brief}", [], "claude", None, None
+            )
+        assert refused.value.code == 2
+        assert str(refused.value).startswith("cut: cannot run — ")
+        assert why in str(refused.value)
+        after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+        assert after == before
+        assert not (root / ".minions" / "changes" / "0002-b").exists()
+    names["UV_RUN"] = (sys.executable, "-c", "import time; time.sleep(5)")
+    names["GIT_TIMEOUT"] = 0.2
+    with pytest.raises(conduct["Stop"], match="timed out"):
+        conduct["cut"](root, "b", "minor", f"brief={brief}", [], "claude", None, None)
+
+    # A link where the change's folder goes refuses the write, and reserves nothing.
+    names["UV_RUN"] = (sys.executable,)
+    names["GIT_TIMEOUT"] = 60
+    brief.write_text(f"# brief\n\n{_items('a', 'b')}")
+    (root / ".minions" / "changes" / "0002-b").symlink_to(tmp_path)
+    with pytest.raises(conduct["Stop"], match="models.toml cannot be written"):
+        conduct["cut"](root, "b", "minor", f"brief={brief}", [], "claude", None, None)
+    assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
@@ -3906,6 +3993,7 @@ def _queued(
     halt: str | None = None,
     dependencies: tuple[tuple[str, str], ...] = (),
     beside: tuple[str, ...] = (),
+    models: str | None = None,
 ) -> None:
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
@@ -3923,6 +4011,8 @@ def _queued(
     }
     if beside:
         entry["beside"] = list(beside)
+    if models is not None:
+        entry["models"] = models
     conduct["_write_cut"](root, change, entry)
 
 
@@ -4016,6 +4106,16 @@ def test_a_queued_cut_is_cut_then_built(
     assert "release 0006-s" in _calls(calls)
     proposal = "main:openspec/changes/archive/0006-s/proposal.md"
     assert "beside: [0005-p]\n" in _git(root, "show", proposal)
+
+    # An entry that holds `models`: the queue wrote the file and the cutter writes
+    # none, so the cut passes on the file the entry carries.
+    calls.unlink()
+    fake("cut-bare")
+    _queued(conduct, root, "0007-m", brief, models=_MODELS)
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert "release 0007-m" in _calls(calls)
+    models = root / ".minions" / "changes" / "0007-m" / "models.toml"
+    assert models.read_text() == _MODELS
 
 
 def test_a_cut_brief_reaches_the_supervisor(
@@ -4210,6 +4310,12 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         (f"```\n~~~\n```\n{table}", evil),
         (f"```x`\n{table}", evil),
         ("## Dependencies\n- left-pad\n", neither),
+        # A tag that only starts like a heading's ends no section: `<h12>` above or
+        # below the table, `<h2-widget>` after `None.`. A real `<h2>` ends it.
+        (table.replace("\n|", "\n<h12>\n\n|", 1), neither),
+        (f"{table}\n<h12>x</h12>\n", neither),
+        ("## Dependencies\nNone.\n\n<h2-widget>\n", neither),
+        ('## Dependencies\nNone.\n\n<h2 id="x">Next</h2>\n', None),
     ):
         names["_show"] = lambda cwd, rev, path, text=text: text
         assert conduct["_unapproved"](root, "0022-t", []) == line
@@ -4301,6 +4407,30 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert "cut-change 0020-p" not in _calls(calls)
     assert any(line.endswith(" · 0020-p · check — cut · pass") for line in _log(root))
     assert "release 0020-p" in _calls(calls)
+
+    # A cutter that writes other text than the queue's halts the cut; a rejoin
+    # restores the file from the entry, and the committed branch is checked, not cut.
+    changed = "changes/0030-h/models.toml changed since the cut was queued"
+    models = root / ".minions" / "changes" / "0030-h" / "models.toml"
+    _queued(conduct, root, "0030-h", brief, models=_MODELS)
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert models.read_text() != _MODELS
+    assert conduct["_cuts"](root)["0030-h"]["halt"] == changed
+    assert any(
+        entry.endswith(f" · 0030-h · halt — cut-halted — {changed}")
+        for entry in _log(root)
+    )
+    names["_start_run"] = lambda primary, executor: 4242
+    conduct["rejoin"](root, "0030-h")
+    names["_start_run"] = start
+    calls.unlink()
+    fake()
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert models.read_text() == _MODELS
+    assert "cut-change 0030-h" not in _calls(calls)
+    assert "release 0030-h" in _calls(calls)
 
     # A crash in the station sets its halt, a stop's line or `conduct.py failed`.
     def broken(primary: Path, change: str, tree: Path) -> str | None:

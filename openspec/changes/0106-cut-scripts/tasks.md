@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The brief's parser · hard
 - [x] 2 — facts.py · hard
 - [x] 3 — cut_pre.py and cut_check.py · hard
-- [ ] 4 — The queue writes the models file · hard
+- [x] 4 — The queue writes the models file · hard
 - [ ] 5 — The skills and the record · hard
 
 ## 1 — The brief's parser
@@ -74,25 +74,25 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — The queue writes the models file
 
-- [ ] 4.1 **HALT CHECK** Confirm `_check_cut` in `skills/mf-ship/scripts/conduct.py` still only tests that `models.toml` stands, as
+- [x] 4.1 **HALT CHECK** Confirm `_check_cut` in `skills/mf-ship/scripts/conduct.py` still only tests that `models.toml` stands, as
   [D7](design.md#d7) needs; missing, the plan is wrong.
   Verify: `grep -n 'models.toml").is_file' skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.2 In `tests/test_conduct.py`, edit `test_parallel_cuts_reserve_apart_and_start_one_run`, which `cut()` turns red: each brief it
+- [x] 4.2 In `tests/test_conduct.py`, edit `test_parallel_cuts_reserve_apart_and_start_one_run`, which `cut()` turns red: each brief it
   queues holds an item per slug, `UV_RUN` is swapped for this interpreter, and each entry holds `models`.
   Verify: `grep -n "UV_RUN" tests/test_conduct.py` prints a line.
-- [ ] 4.3 Add `test_a_cut_queues_its_models_file` to `tests/test_conduct.py`, per [D7](design.md#d7): the file, the entry's text, and
+- [x] 4.3 Add `test_a_cut_queues_its_models_file` to `tests/test_conduct.py`, per [D7](design.md#d7): the file, the entry's text, and
   exit 2 with nothing reserved for a brief with no item.
   Verify: `grep -n "def test_a_cut_queues_its_models_file" tests/test_conduct.py` prints a line.
-- [ ] 4.4 Extend `test_a_queued_cut_is_cut_then_built` and `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py` with
+- [x] 4.4 Extend `test_a_queued_cut_is_cut_then_built` and `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py` with
   the steps of their `## Tests` rows, the custom-tag texts of [D3](design.md#d3) in the `_unapproved` loop among them.
   Verify: `grep -n "models.toml changed since the cut was queued" tests/test_conduct.py` prints a line.
-- [ ] 4.5 In `skills/mf-ship/scripts/conduct.py`, add `UV_RUN`, `BRIEF_CHECK` and the models read, and make `cut()` write the file and
+- [x] 4.5 In `skills/mf-ship/scripts/conduct.py`, add `UV_RUN`, `BRIEF_CHECK` and the models read, and make `cut()` write the file and
   the entry's `models`, per [D7](design.md#d7); each new why line cites `0106-cut-scripts design D7`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "queues_its_models or reserve_apart"` passes.
-- [ ] 4.6 In `conduct.py`, write the entry's text again at the start of `cutting()`, before its test of the branch, and make
+- [x] 4.6 In `conduct.py`, write the entry's text again at the start of `cutting()`, before its test of the branch, and make
   `_check_cut` read the entry's text from the queue and fail a changed file, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k "cut_then_built or rejoin_cuts_again"` passes.
-- [ ] 4.7 In `conduct.py`, define `BLOCK_HEADING` beside `INLINE_HEADING`, use it in `_boundary` in place of the prefix test, and
+- [x] 4.7 In `conduct.py`, define `BLOCK_HEADING` beside `INLINE_HEADING`, use it in `_boundary` in place of the prefix test, and
   cut the docstrings of `_headed` and `_rows` to 3 lines, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k "rejoin_cuts_again"` passes.
 
