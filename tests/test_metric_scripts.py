@@ -730,6 +730,9 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
         "debt-paid": 2,
     }
     assert {metric: read(metric) for metric in expected} == expected
+    # A version with no Codex log holding a quota line has no quota: a gap.
+    for window in ("codex-window-5h", "codex-window-week"):
+        assert read(window) == "gap: no mf.quota line in a Codex log"
 
     assert read("debt-paid", "0002-y") == 0
     assert read("debt-paid", "0004-w") == 1
@@ -836,6 +839,40 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     # Conformance's subagent turns and its Codex checker's tokens, over 2 cards.
     assert priced("conformance-tokens-per-confirmed") == round((115 + 1_100_000) / 2)
     assert run.Version(tmp_path, "0001-x", "a", "b").role_tokens("adversarial") == 37
+    # Quota lines sum over the stages' Codex logs and their checkers'; a Claude log and
+    # a Codex log with no quota line are passed over.
+    checker_log = "0001-x/logs/20261101-230000-converge-conformance.log"
+    quota = {"type": "mf.quota", "five_hour": 10.0, "weekly": 2.0}
+    for name, line in (
+        (converge_2, quota),
+        (checker_log, quota | {"five_hour": 2.5, "weekly": 0.5}),
+    ):
+        with (tmp_path / ".minions/changes" / name).open("a") as file:
+            file.write(json.dumps(line) + "\n")
+    assert priced("codex-window-5h") == 12.5
+    assert priced("codex-window-week") == 2.5
+    # A Codex log stopped before its first turn spends nothing and is no gap.
+    stopped = json.dumps(spawn | {"effort": "high"}) + "\n"
+    _write(tmp_path, {f".minions/changes/{checker_log}": stopped})
+    assert priced("cost-usd-converge") == 2.0 + 2 * 2.4
+    assert priced("tokens-converge") == 500 + 2 * 1_100_000
+    assert priced("codex-window-5h") == 10.0
+    # A Codex log that did work and then failed spent an unknown sum: a gap, no zero.
+    item = {"item": {"type": "command_execution"}}
+    limit = [{"type": "error"}, {"type": "turn.failed"}]
+    for events, spent in (
+        ([{"type": "item.started"} | item], f"gap: no result event in {checker_log}"),
+        ([{"type": "item.completed"} | item], f"gap: no result event in {checker_log}"),
+        # Twin: one limited before any item started spent nothing.
+        ([], 500 + 2 * 1_100_000),
+    ):
+        held = [{"type": "turn.started"}, *events, *limit]
+        log = stopped + "".join(json.dumps(event) + "\n" for event in held)
+        _write(tmp_path, {f".minions/changes/{checker_log}": log})
+        assert priced("tokens-converge") == spent
+    # Twin: a Codex log with a turn and no `mf.quota` line is passed over, no gap.
+    _write(tmp_path, {f".minions/changes/{checker_log}": stopped + json.dumps(turn)})
+    assert priced("codex-window-week") == 2.0
     # Twin: a role with neither a subagent event nor a checker log stays a gap.
     (tmp_path / ".minions/changes/0001-x/logs/20261101-230000-converge.log").unlink()
     _worker_log(tmp_path, "0001-x/logs/20261101-230000-converge.log", 2.0, 500)

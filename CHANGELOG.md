@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-11-09
+
+Gate: local 2m51s · CI not read under mf-ship · 0.87.0: local 2m12s · CI not read under mf-ship
+
+- `conduct.py` reads Codex's limit data: the rollout file a log's `thread_id` names gives each window's share and reset,
+  and the `try again at` text is the fallback; a primary window at `HEADROOM` or more counts as a limit (change
+  `0104-codex-limits`, phase 1).
+- A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>` and goes on, and only a
+  version or queued cut with a station on Codex halts, alone (change `0104-codex-limits`, phase 2).
+- A Codex checker that is limited runs on Claude on converge's model and effort until the reset, waiting for one at most
+  15 minutes away inside converge's time; a served checker, and a Codex probe it starts, gets only what is left of
+  converge's time, and a converge
+  halt naming a usage limit gets no rescue and no supervisor (change `0104-codex-limits`, phase 3).
+- A mailbox checker's answer names its tokens and `fallback: codex usage limit`; `conduct.py` stamps its findings file's
+  `model:` and `tokens:`, and each Codex spawn's log ends with its share of the 5-hour and weekly windows, which the run
+  metrics sum as `codex-window-5h` and `codex-window-week`; `prices.toml` gains the Claude rows (change
+  `0104-codex-limits`, phase 4).
+- Each linked worktree's gitdir is a Codex writable root, the config guard reads each linked worktree's `config.worktree`,
+  and the Codex probe writes a linked worktree's index with `git write-tree`; a skipped test runs Codex's own sandbox
+  when `MF_REAL_CODEX=1` (change `0104-codex-limits`, phase 5).
+- A checker request carries an id line and its answer names it, so a leftover answer is waited past; D76 records the Codex
+  usage limit, D47, D51, D53, D67 and D68 follow it, and `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` say what a
+  request can still do and what a limit halts (change `0104-codex-limits`, phase 6).
+- The real-Codex test passes against codex-cli 0.163, whose `codex sandbox` needs a permission profile: it carries
+  conduct's writable roots in one, `/tmp` and the temp folder read-only, in an empty `CODEX_HOME` (change
+  `0104-codex-limits`, phase 7).
+
 ## [0.87.0] - 2026-11-09
 
 Gate: local 2m12s · CI not read under mf-ship · 0.86.0: local 2m14s · CI not read under mf-ship

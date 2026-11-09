@@ -491,9 +491,12 @@ def _checker(here: Path, role: str, change: str, modes: set[str]) -> None:
     """Write a checker's findings file with every key, and a usage event.
 
     The probe's, for `0001-probe`, requests changes; `checker-silent` writes none. A
-    shadow's blocks under `shadow-blocks`. Why: 0096-codex-ready design D9;
-    0097-cross-model design D7.
+    shadow's blocks under `shadow-blocks`; `checker-sleep` waits a minute first.
+    Why: 0096-codex-ready design D9; 0097-cross-model design D7; 0104-codex-limits
+    design D3.
     """
+    if "checker-sleep" in modes:
+        time.sleep(60)
     if change == "0001-probe":
         if "checker-silent" in modes:
             return
@@ -648,6 +651,13 @@ def _fake(prompt: str) -> None:
             for mark in Path(os.environ["HOME"], ".mf-ship-origin").glob("probe-*"):
                 mark.chmod(0o400)
         _commit(here, {"probe.txt": "ok\n"}, "probe")
+        # A Codex probe's linked tree: `tree-silent` leaves its index unwritten.
+        if "git write-tree in tree/" in prompt and "tree-silent" not in modes:
+            tree = here / "tree"
+            made = subprocess.run(
+                ["git", "write-tree"], cwd=tree, capture_output=True, text=True
+            )
+            (tree / "tree.txt").write_text(made.stdout)
         translated = "translated" in modes
         with tempfile.TemporaryDirectory(prefix="fake-uname-") as folder:
             env = dict(os.environ)

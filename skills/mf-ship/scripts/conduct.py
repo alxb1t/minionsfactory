@@ -31,9 +31,11 @@ import hashlib
 import html
 import itertools
 import json
+import math
 import os
 import re
 import runpy
+import secrets
 import shlex
 import shutil
 import signal
@@ -72,7 +74,15 @@ CHECKERS = ("conformance", "adversarial", "shadow-conformance", "shadow-adversar
 MAILBOX_POLL = 2
 CHECKER_WAIT = 100
 REQUEST_BYTES = 65536
+# A request's id line, `request <16 hex digits>`, and the last ` · request <id>` of
+# an answer. Why: 0104-codex-limits design D7.
+REQUEST_ID = re.compile(r"request ([0-9a-f]{16})")
 CHECKER_SPAWNS = 8
+# A Codex limit: the longest wait for a reset, the primary window's share that counts
+# as a limit, and the answer's note. Why: 0104-codex-limits design D1.
+LIMIT_WAIT = 900
+HEADROOM = 90
+FALLBACK = "fallback: codex usage limit"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
@@ -97,6 +107,7 @@ EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
     *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
+    "limited",
     "converge skipped",
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
@@ -268,6 +279,11 @@ PROBE = (
     "In this directory, write the word ok to probe.txt, commit it with the"
     " message probe, then run make gate."
 )
+# A Codex probe's linked worktree: its index must be writable. Why: 0104-codex-limits
+# design D6.
+TREE_PROBE = (
+    "Then run git write-tree in tree/ and write what it prints to tree/tree.txt."
+)
 # A Codex probe's second worker. Why: 0096-codex-ready design D8.
 CHECKER_PROBE = (
     "You are converge's conformance checker for change 0001-probe in this directory."
@@ -277,7 +293,8 @@ CHECKER_PROBE = (
     " write .minions/changes/0001-probe/conformance.md to the worker reference's"
     " findings file contract. Edit nothing else."
 )
-# The findings file contract's frontmatter keys, as the worker reference lists them.
+# The findings file contract's frontmatter keys, as the worker reference lists them,
+# save `tokens`, which `conduct.py` stamps. Why: 0104-codex-limits design D5.
 FINDINGS_KEYS = (
     *("type", "plan", "project", "branch", "head", "reviewed", "round"),
     *("open_blocking", "verdict", "mode", "workers", "model", "executor", "packet"),
@@ -1578,13 +1595,27 @@ def _check_release(
 
 
 def _config_held(cwd: Path) -> list[str]:
-    """Return the keys in the repo's own git config that `CONFIG_PLAIN` lacks."""
+    """Return the keys in the repo's own git config that `CONFIG_PLAIN` lacks.
+
+    Each linked worktree's `config.worktree` is read as a file, which git itself reads
+    only under `extensions.worktreeConfig`. Why: 0104-codex-limits design D6.
+    """
     listed = _git(cwd, "config", "--list", "--show-scope", "--name-only")
-    return [
+    held = [
         name
         for scope, _, name in (line.partition("\t") for line in listed.splitlines())
         if scope in ("local", "worktree") and not CONFIG_PLAIN.fullmatch(name)
     ]
+    common = _common_dir(cwd)
+    for folder in _gitdirs(common) if common else []:
+        file = folder / "config.worktree"
+        with contextlib.suppress(OSError):
+            if stat.S_ISREG(os.lstat(file).st_mode):
+                names = _git(
+                    cwd, "config", "--file", str(file), "--list", "--name-only"
+                )
+                held += [n for n in names.splitlines() if not CONFIG_PLAIN.fullmatch(n)]
+    return held
 
 
 def _lfs_wrote(cwd: Path, name: str) -> bool:
@@ -2273,6 +2304,19 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     if (scratch / ".gated").is_file():
         return None
     return "make gate left no .gated"
+
+
+def check_tree(tree: Path) -> str | None:
+    """Return why the probe's linked tree fails, or None when its index was written.
+
+    `tree.txt`, read through no link, must hold what `git write-tree` prints there.
+    Why: 0104-codex-limits design D6.
+    """
+    named = _bounded(tree / "tree.txt")
+    made = _maybe(tree, "write-tree")
+    if named is not None and made is not None and named.strip() == made.strip():
+        return None
+    return "the worker could not write a linked worktree's index: git write-tree"
 
 
 def checker_fixture(scratch: Path) -> tuple[str, str]:
@@ -3041,12 +3085,14 @@ def _reply(fd: int, role: str, answer: str) -> None:
         _place(fd, f"{role}.answer", f"{answer}\n")
 
 
-def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str]) -> int:
+def serve_requests(
+    mailbox: Path, served: int, spawn: Callable[[str, str, str], str]
+) -> int:
     """Answer each checker request in `mailbox`; return the count `spawn` served.
 
-    `served` counts this converge spawn's checkers so far: past `CHECKER_SPAWNS`, or
-    for a request that is a link, no file or too long, no checker starts. An entry
-    named for no role is left. Why: 0097-cross-model design D5.
+    `served` counts this converge spawn's checkers so far; `spawn` gets a request's
+    role, its text and its id. Why: 0097-cross-model design D5; 0104-codex-limits
+    design D7.
     """
     names = _entries(mailbox, empty=False)
     try:
@@ -3058,17 +3104,20 @@ def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str])
             if f"{role}.request" not in names:
                 continue
             prompt = _take_request(fd, f"{role}.request")
+            first, _, rest = (prompt or "").partition("\n")
+            found = REQUEST_ID.fullmatch(first)
             if prompt is None:
                 answer = (
                     f"exit 1 · refused: {role}.request is a link, no file or too long"
                 )
+            elif found is None:
+                answer = f"exit 1 · refused: {role}.request names no request"
             elif served >= CHECKER_SPAWNS:
-                answer = (
-                    f"exit 1 · refused: more than {CHECKER_SPAWNS} checker requests"
-                )
+                many = f"more than {CHECKER_SPAWNS} checker requests"
+                answer = _answer_refused(many, found[1])
             else:
                 served += 1
-                answer = spawn(role, prompt)
+                answer = spawn(role, rest, found[1])
             _reply(fd, role, answer)
     finally:
         os.close(fd)
@@ -3076,20 +3125,40 @@ def serve_requests(mailbox: Path, served: int, spawn: Callable[[str, str], str])
 
 
 def _answer(
-    code: int, killed: bool, models: tuple[str, str | None, str | None], limit: str
+    code: int,
+    killed: bool,
+    models: tuple[str, str | None, str | None],
+    limit: str,
+    fallback: bool = False,
+    tokens: int | None = None,
+    request: str = "",
 ) -> str:
     """Return a checker's answer: its exit, executor, model, effort and why it ended.
 
     e.g. 0, False, ("codex", "m", None), "" →
     "exit 0 · executor codex · model m · effort default"
-    Why: 0097-cross-model design D5.
+    A `fallback`, `tokens` and `request` name it last, in that order.
+    Why: 0097-cross-model design D5; 0104-codex-limits design D3, D5, D7.
     """
     executor, model, effort = models
     timed = " · timed out" if killed else ""
+    named = f" · {FALLBACK}" if fallback else ""
+    counted = "" if tokens is None else f" · tokens {tokens}"
+    asked = f" · request {request}" if request else ""
     return (
         f"exit {code} · executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'}{timed}{limit}"
+        f" · effort {effort or 'default'}{timed}{limit}{named}{counted}{asked}"
     )
+
+
+def _answer_refused(why: str, request: str) -> str:
+    """Return a checker's refusal, naming the `request` it refuses when it has one.
+
+    e.g. "converge's time is spent", "0123456789abcdef" →
+    "exit 1 · refused: converge's time is spent · request 0123456789abcdef"
+    """
+    asked = f" · request {request}" if request else ""
+    return f"exit 1 · refused: {why}{asked}"
 
 
 def _granted(runs: Path, change: str, take: bool) -> bool:
@@ -3295,6 +3364,29 @@ def _unswapped(paths: list[Path]) -> None:
             )
 
 
+def _gitdirs(common: Path) -> list[Path]:
+    """Return each linked worktree's gitdir under `common`, sorted: folders, no link.
+
+    Codex's sandbox leaves a gitdir a `.git` pointer names read-only, even inside a
+    writable root, so each is a root of its own. A `worktrees/` that is a link, or
+    absent, holds none. Why: 0104-codex-limits design D6.
+    e.g. `<common>/worktrees/0001-todo` → [that]
+    """
+    folder = common / "worktrees"
+    try:
+        if not stat.S_ISDIR(os.lstat(folder).st_mode):
+            return []
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return []
+    found: list[Path] = []
+    for name in names:
+        with contextlib.suppress(OSError):
+            if stat.S_ISDIR(os.lstat(folder / name).st_mode):
+                found.append(folder / name)
+    return found
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -3369,7 +3461,7 @@ def argv(
         raise Stop(1, "conduct: halt — the primary's .git moved during the run")
     # Codex roots are folders: a cutter's holds its brief's.
     folders = [
-        *([common] if common else []),
+        *([common, *_gitdirs(common)] if common else []),
         *trees,
         *(path.parent for path in edits),
         *mailboxes,
@@ -3448,13 +3540,16 @@ def work(
     out: Path | int,
     claim: Path | None,
     between: Callable[[], None] | None = None,
+    timeout: float | None = None,
 ) -> tuple[int, bool]:
     """Run one worker in its own process group, output to `out`, held in `claim`.
 
     `out` is a path, or a descriptor it closes. With `between`, it is called each
     `MAILBOX_POLL` seconds while the worker runs. Return its exit code and whether
-    `TIMEOUT` killed it. Why: 0097-cross-model design D5.
+    its `timeout`, else `TIMEOUT`, killed it.
+    Why: 0097-cross-model design D5; 0104-codex-limits design D3.
     """
+    limit = TIMEOUT if timeout is None else timeout
     if isinstance(out, Path):
         out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as sink:
@@ -3470,7 +3565,7 @@ def work(
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = claim / str(worker.pid) if claim else None
-        deadline = time.monotonic() + TIMEOUT
+        deadline = time.monotonic() + limit
         try:
             if group:
                 group.write_text(_ps(worker.pid, "lstart="))
@@ -3487,7 +3582,7 @@ def work(
                     os.killpg(worker.pid, signal.SIGKILL)
                     worker.wait()
                     raise
-            return worker.wait(timeout=TIMEOUT), False
+            return worker.wait(timeout=limit), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
             return worker.wait(), True
@@ -3687,6 +3782,261 @@ def usage_limit(log: Path) -> str:
                 named = f" · resets {resets[1]}" if resets else ""
                 return f" · stopped by a usage limit{named}"
     return ""
+
+
+class Window(NamedTuple):
+    """A Codex rate-limit window: the share used and the epoch second it resets."""
+
+    used: float
+    resets: float
+
+
+def _codex_home() -> Path:
+    """Return Codex's home folder: `CODEX_HOME`, else `~/.codex`."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
+def _thread_id(log: Path) -> str | None:
+    """Return the first `thread.started` event's `thread_id`, or None if not a token.
+
+    The log is worker-written: the pattern keeps a glob out of `_rollout`.
+    e.g. `{"type": "thread.started", "thread_id": "019a-b"}` → `019a-b`
+    """
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"thread.started"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "thread.started":
+                thread = event.get("thread_id")
+                if isinstance(thread, str) and re.fullmatch(r"[0-9A-Za-z-]+", thread):
+                    return thread
+                return None
+    return None
+
+
+def _rollout(thread: str | None) -> Path | None:
+    """Return the Codex rollout file `thread` names, or the newest one for None.
+
+    e.g. `rollout-2026-11-08T10-00-00-<thread>.jsonl` under `sessions/YYYY/MM/DD/`
+    """
+    pattern = (
+        "*/*/*/rollout-*.jsonl" if thread is None else f"*/*/*/rollout-*-{thread}.jsonl"
+    )
+    files = [
+        path
+        for path in (_codex_home() / "sessions").glob(pattern)
+        if path.is_file() and not path.is_symlink()
+    ]
+    return max(files, key=os.path.getmtime, default=None)
+
+
+def _number(value: object) -> float | None:
+    """Return `value` as a float when it is a number, else None; a bool is no number."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _windows(rollout: Path | None) -> dict[str, Window]:
+    """Return the `primary` and `secondary` windows of a rollout's last `token_count`.
+
+    A window whose `used_percent` or `resets_at` is no number is left out; a missing or
+    unreadable rollout gives `{}`.
+    """
+    if rollout is None:
+        return {}
+    limits: dict[str, object] = {}
+    try:
+        with rollout.open(errors="replace") as lines:
+            for line in lines:
+                if '"token_count"' not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                payload = event.get("payload") if isinstance(event, dict) else None
+                if isinstance(payload, dict) and payload.get("type") == "token_count":
+                    rates = payload.get("rate_limits")
+                    limits = rates if isinstance(rates, dict) else limits
+    except OSError:
+        return {}
+    windows: dict[str, Window] = {}
+    for name in ("primary", "secondary"):
+        rate = limits.get(name)
+        if not isinstance(rate, dict):
+            continue
+        used, resets = _number(rate.get("used_percent")), _number(rate.get("resets_at"))
+        if used is not None and resets is not None:
+            windows[name] = Window(used, resets)
+    return windows
+
+
+def _next_clock(text: str, now: float) -> float | None:
+    """Return the epoch of the next local time `text` names after `now`, or None.
+
+    e.g. `5:50 PM` at 10:00 → today 17:50; at 18:00 → tomorrow 17:50
+    """
+    try:
+        clock = time.strptime(text.strip(), "%I:%M %p")
+    except ValueError:
+        return None
+    today = time.localtime(now)
+    day = (*today[:3], clock.tm_hour, clock.tm_min, 0, 0, 0, -1)
+    ahead = time.mktime(day)
+    if ahead > now:
+        return ahead
+    return time.mktime((*today[:2], today.tm_mday + 1, *day[3:]))
+
+
+def _reset_at(log: Path, now: float) -> float:
+    """Return the epoch second a Codex limit lifts: the rollout, the text, else never.
+
+    The rollout is the one the log's `thread_id` names; its latest window at 100%, else
+    its most used, gives the reset. The log's `try again at` time is the fallback.
+    """
+    windows = _windows(_rollout(_thread_id(log)))
+    if windows:
+        full = [window.resets for window in windows.values() if window.used >= 100]
+        return max(full) if full else max(windows.values(), key=lambda w: w.used).resets
+    named = re.search(r"resets (.+)$", usage_limit(log))
+    clock = _next_clock(named[1], now) if named else None
+    return math.inf if clock is None else clock
+
+
+def _headroom(now: float) -> float | None:
+    """Return the reset of a primary window at `HEADROOM` or more, else None."""
+    primary = _windows(_rollout(None)).get("primary")
+    if primary and primary.used >= HEADROOM and primary.resets > now:
+        return primary.resets
+    return None
+
+
+def tokens_of(log: Path) -> int | None:
+    """Return a worker log's tokens, or None when it holds no usage.
+
+    A Codex log's `turn.completed` input and output tokens summed; else a Claude log's
+    last `result` event's `modelUsage`, as `scripts/metrics/run.py` sums it.
+    Why: 0104-codex-limits design D5.
+    """
+    codex: int | None = None
+    claude: int | None = None
+    kinds = ("inputTokens", "outputTokens", "cacheReadInputTokens")
+    kinds += ("cacheCreationInputTokens",)
+    with log.open(errors="replace") as lines:
+        for line in lines:
+            if '"turn.completed"' not in line and '"modelUsage"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            usage = event.get("usage")
+            if event.get("type") == "turn.completed" and isinstance(usage, dict):
+                turn = _count(usage.get("input_tokens")) + _count(
+                    usage.get("output_tokens")
+                )
+                codex = (codex or 0) + turn
+            models = event.get("modelUsage")
+            if event.get("type") == "result" and isinstance(models, dict):
+                claude = sum(
+                    _count(model.get(kind))
+                    for model in models.values()
+                    if isinstance(model, dict)
+                    for kind in kinds
+                )
+    return codex if codex is not None else claude
+
+
+def _stamped(text: str, model: str | None, tokens: int | None) -> str | None:
+    """Return a findings file with its frontmatter's `model:` and `tokens:` set.
+
+    None when it has no frontmatter. e.g. `model: x` → `model: m`, then `tokens: 5`
+    """
+    found = re.match(r"---\n(.*?\n)---\n", text, re.DOTALL)
+    if found is None:
+        return None
+    kept = [
+        line
+        for line in found[1].splitlines(keepends=True)
+        if not line.startswith("tokens:")
+    ]
+    stamp = [f"model: {model or 'default'}\n"]
+    stamp += [] if tokens is None else [f"tokens: {tokens}\n"]
+    at = next((i for i, line in enumerate(kept) if line.startswith("model:")), None)
+    if at is None:
+        kept += stamp
+    else:
+        kept[at : at + 1] = stamp
+    return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
+
+
+def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
+    """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
+
+    A file that is no regular file, or has no frontmatter, is left as it is.
+    Why: 0104-codex-limits design D5.
+    """
+    try:
+        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return
+    try:
+        with contextlib.suppress(OSError):
+            file = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+            try:
+                if not stat.S_ISREG(os.fstat(file).st_mode):
+                    return
+                with os.fdopen(file, "rb", closefd=False) as handle:
+                    text = handle.read().decode(errors="replace")
+            finally:
+                os.close(file)
+            if (stamped := _stamped(text, model, tokens)) is not None:
+                _place(fd, name, stamped)
+    finally:
+        os.close(fd)
+
+
+def _quota(log: Path, before: dict[str, Window]) -> None:
+    """Append a Codex log's `mf.quota` line: the shares its windows moved.
+
+    The rollout is the one the log's thread names. A share is the rise in `used`
+    when `before` names the same reset, else `used` itself, never below 0.
+    Why: 0104-codex-limits design D5.
+    """
+    thread = _thread_id(log)
+    after = {} if thread is None else _windows(_rollout(thread))
+    if not after:
+        return
+    shares: dict[str, float] = {}
+    for name, key in (("primary", "five_hour"), ("secondary", "weekly")):
+        if (end := after.get(name)) is None:
+            continue
+        start = before.get(name)
+        used = (
+            end.used - start.used if start and start.resets == end.resets else end.used
+        )
+        shares[key] = round(max(used, 0.0), 1)
+    with contextlib.suppress(OSError):
+        fd = os.open(log, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        with os.fdopen(fd, "w") as handle:
+            handle.write(json.dumps({"type": "mf.quota", **shares}) + "\n")
+
+
+def _until(reset: float) -> str:
+    """Return a limit's reset as local `%Y-%m-%d %H:%M`, or what `inf` says.
+
+    e.g. 1794153000.0 → `2026-11-08 17:50`; `math.inf` → `a reset it did not name`
+    """
+    if reset == math.inf:
+        return "a reset it did not name"
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(reset))
 
 
 def mcp_started(executor: str, log: Path) -> str | None:
@@ -3979,6 +4329,7 @@ class Run:
         self.planned: set[str] = set()
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
+        self.limited: dict[str, float] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
         self.reruns: set[str] = set()
@@ -4048,6 +4399,69 @@ class Run:
         """Return whether a halt names `change` or the run."""
         with self.guard:
             return any(who in ("run", change) for who, _ in self.halts)
+
+    def limit(self, executor: str, log: Path) -> None:
+        """Record an executor's limit from the log of the worker it stopped, and log it.
+
+        Why: 0104-codex-limits design D2.
+        """
+        reset = _reset_at(log, time.time())
+        with self.guard:
+            self.limited[executor] = reset
+        self.log.event("run", "limited", f"{executor} limited until {_until(reset)}")
+
+    def limited_until(self, executor: str) -> float | None:
+        """Return an executor's reset while it is ahead; a passed one is dropped."""
+        with self.guard:
+            reset = self.limited.get(executor)
+            if reset is not None and reset <= time.time():
+                del self.limited[executor]
+                return None
+            return reset
+
+    def limited_reason(self, executor: str) -> str:
+        """Return why a station on a limited executor halts.
+
+        e.g. `probe-codex — codex limited until 2026-11-08 17:50`
+        """
+        station = "probe" if executor == self.executor else f"probe-{executor}"
+        with self.guard:
+            reset = self.limited.get(executor, math.inf)
+        return f"{station} — {executor} limited until {_until(reset)}"
+
+    def on_stations(self, change: str) -> list[str]:
+        """Return the executors of a version's planned stations, its checkers' left out.
+
+        A skipped station names none. Why: 0104-codex-limits design D2.
+        """
+        left = {*WORKERS[:2], *self.skipped.get(change, frozenset())}
+        stations = (station for station in PLANNED if station not in left)
+        named = (
+            models[0]
+            for station in stations
+            if (models := self.plan.get((change, station)))
+        )
+        return list(dict.fromkeys(named))
+
+    def hold_limited(self, changes: list[str], cuts: list[str]) -> set[str]:
+        """Halt what has a station on a limited executor; return the cuts it halted.
+
+        Each planned change halts, and each queued cut whose executor is limited
+        halts as a cut. Why: 0104-codex-limits design D2.
+        """
+        for change in changes:
+            for executor in self.on_stations(change):
+                if self.limited_until(executor) is not None:
+                    self.halt(change, self.limited_reason(executor))
+                    break
+        entries = _cuts(self.primary)
+        held: set[str] = set()
+        for change in cuts:
+            executor = str(entries.get(change, {}).get("executor"))
+            if self.limited_until(executor) is not None:
+                self.cut_halted(change, self.limited_reason(executor), False)
+                held.add(change)
+        return held
 
     def closing(self) -> str:
         """Return the closing line's detail: what halted, is blocked and released."""
@@ -4139,22 +4553,28 @@ class Run:
         repo: Repo | None = None,
         brief: Path | None = None,
         mailbox: Path | None = None,
+        limits: bool = False,
+        deadline: float | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout, a tool its station lacks or a
         failed exit halted `who`. A cutter's `brief` goes to `argv`, and so does a
-        converge's `mailbox`, which is served while it runs.
-        Why: 0097-cross-model design D5; 0100-worker-diet design D5.
+        converge's `mailbox`, which is served while it runs. With `limits`, a failed
+        exit while its executor is limited halts nothing and gives None too. A
+        `deadline` ends it in place of `TIMEOUT`. Why: 0097-cross-model design D5;
+        0100-worker-diet design D5; 0104-codex-limits design D2.
         """
-        between = None if mailbox is None else self.server(who, cwd, mailbox)
+        timeout = None if deadline is None else deadline - time.monotonic()
+        if deadline is None:
+            deadline = time.monotonic() + TIMEOUT
+        between = None if mailbox is None else self.server(who, cwd, mailbox, deadline)
         code, killed, out, denied = self.worker(
-            who, station, cwd, prompt, models, repo, brief, mailbox, between
+            who, station, cwd, prompt, models, repo, brief, mailbox, between, timeout
         )
         if killed:
-            self.halt(
-                who, f"{station} timed out after {TIMEOUT}s; its group was killed"
-            )
+            took = TIMEOUT if timeout is None else max(round(timeout), 0)
+            self.halt(who, f"{station} timed out after {took}s; its group was killed")
             return None
         # Why: 0100-worker-diet design D5.
         if missing := lacked(out):
@@ -4162,39 +4582,100 @@ class Run:
             self.halt(who, f"{station} asked for a tool its station lacks: {named}")
             return None
         if code != 0:
+            if limits and self.limited_until(models[0]) is not None:
+                return None
             self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
             return None
         return denied
 
-    def server(self, who: str, cwd: Path, mailbox: Path) -> Callable[[], None]:
+    def server(
+        self, who: str, cwd: Path, mailbox: Path, deadline: float
+    ) -> Callable[[], None]:
         """Return what serves a converge spawn's checker mailbox between its polls.
 
-        Why: 0097-cross-model design D5.
+        Each checker runs within `deadline`, converge's own, on the monotonic clock.
+        Why: 0097-cross-model design D5; 0104-codex-limits design D3.
         """
         served = 0
 
         def serve() -> None:
             nonlocal served
             served = serve_requests(
-                mailbox, served, lambda role, text: self.checker(who, role, cwd, text)
+                mailbox,
+                served,
+                lambda role, text, request: self.checker(
+                    who, role, cwd, text, deadline, request
+                ),
             )
 
         return serve
 
-    def checker(self, change: str, role: str, cwd: Path, prompt: str) -> str:
+    def checker(
+        self,
+        change: str,
+        role: str,
+        cwd: Path,
+        prompt: str,
+        deadline: float,
+        request: str = "",
+    ) -> str:
         """Run one checker the mailbox asked for; return its answer, halting nothing.
 
         Its models are the plan's, never the request's; a shadow's, `_shadow`'s of
-        them. Why: 0097-cross-model design D5, D9.
+        them. Past `deadline` it starts nothing; else it gets what is left of it. The
+        answer names the `request` it answers. Why: 0097-cross-model design D5, D9;
+        0104-codex-limits design D3, D7.
         """
+        if time.monotonic() >= deadline:
+            return _answer_refused("converge's time is spent", request)
         checked = role.removeprefix("shadow-")
+        shadow = checked != role
+        converge = self.plan[change, "converge"]
         models = self.plan[change, f"converge.{checked}"]
-        if checked != role:
-            models = _shadow(self.plan[change, "converge"], models)
-        code, killed, out, _ = self.worker(
-            change, f"converge-{role}", cwd, prompt, models
-        )
-        return _answer(code, killed, models, usage_limit(out))
+        if shadow:
+            models = _shadow(converge, models)
+        fallback, codex_runs = False, 0
+        while True:
+            if models[0] == "codex" and (
+                codex_runs == 2 or not self.codex_ready(change, deadline)
+            ):
+                if shadow:
+                    stopped = " · stopped by a usage limit"
+                    return _answer(1, False, models, stopped, request=request)
+                models, fallback = _shadow(converge, models), True
+            code, killed, out, _ = self.worker(
+                change,
+                f"converge-{role}",
+                cwd,
+                prompt,
+                models,
+                timeout=deadline - time.monotonic(),
+            )
+            if models[0] != "codex" or not usage_limit(out):
+                tokens = tokens_of(out)
+                if code == 0:
+                    folder = _change_dir(self.primary, change)
+                    _stamp(folder, f"{role}.md", models[1], tokens)
+                limit = usage_limit(out)
+                return _answer(code, killed, models, limit, fallback, tokens, request)
+            codex_runs += 1
+
+    def codex_ready(self, change: str, deadline: float) -> bool:
+        """Return whether Codex may run a checker now, waiting for a near reset.
+
+        A reset at most `LIMIT_WAIT` away and inside `deadline` is slept to; Codex
+        still unprobed is then probed for `change` within `deadline`.
+        Why: 0104-codex-limits design D3.
+        """
+        resets = [self.limited_until("codex"), _headroom(time.time())]
+        if reset := max((at for at in resets if at is not None), default=None):
+            ahead = reset - time.time()
+            if ahead > LIMIT_WAIT or time.monotonic() + ahead >= deadline:
+                return False
+            time.sleep(max(ahead, 0))
+        if "codex" not in self.probed:
+            self.probe_for(change, ["codex"], [], deadline)
+        return "codex" in self.probed
 
     def worker(
         self,
@@ -4207,8 +4688,11 @@ class Run:
         brief: Path | None = None,
         mailbox: Path | None = None,
         between: Callable[[], None] | None = None,
+        timeout: float | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker and log it and its denials; halt nothing.
+
+        A `timeout` replaces `TIMEOUT`; `work` is called as before without one.
 
         Return its exit, whether `TIMEOUT` killed it, its log and its denials.
         """
@@ -4244,14 +4728,21 @@ class Run:
                 "effort": effort,
             }
             os.write(sink, f"{json.dumps(line)}\n".encode())
+        before = _windows(_rollout(None)) if executor == "codex" else {}
         started = time.monotonic()
         claim = self.runs / "active"
-        if between is not None:
+        if timeout is not None:
+            code, killed = work(command, cwd, sink, claim, between, timeout=timeout)
+        elif between is not None:
             code, killed = work(command, cwd, sink, claim, between)
         else:
             code, killed = work(command, cwd, sink, claim)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
+        if executor == "codex":
+            _quota(out, before)
+            if code != 0 and usage_limit(out):
+                self.limit("codex", out)
         denied = denials(out)
         for call in denied:
             self.log.event(who, "denied", f"{station} · {call}")
@@ -4306,6 +4797,8 @@ class Run:
         halt = _converge_halt(self.primary / ".minions", change)
         if held == "converge-halted" and halt and "verify: halt" in halt:
             self.diagnose(change, halt)
+            return False
+        if held == "converge-halted" and halt and "usage limit" in halt:
             return False
         with self.guard:
             self.rescues.setdefault(change, []).append(held)
@@ -4368,6 +4861,8 @@ class Run:
         change, tree = version.change, version.tree
         minions = self.primary / ".minions"
         integrating = held == "integrating"
+        converged = held == "converge-halted"
+        halt = (_converge_halt(minions, change) or "") if converged else ""
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -4377,10 +4872,8 @@ class Run:
             or self.supervised(change, held)
             or self.stopped("run")
             or (
-                held == "converge-halted"
-                and _security_held(
-                    minions, change, _converge_halt(minions, change) or ""
-                )
+                converged
+                and ("usage limit" in halt or _security_held(minions, change, halt))
             )
             or (
                 integrating
@@ -5204,10 +5697,13 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block.
 
-        A stacked version waits for its dependency's release, then is ready again.
-        Its end wakes the versions waiting on it.
+        A version a halt already names is taken no further. A stacked version waits
+        for its dependency's release, then is ready again. Its end wakes the versions
+        waiting on it.
         Why: 0099-stacked-builds design D1, D3.
         """
+        if self.stopped(version.change):
+            return
         with self.built:
             self.ended.discard(version.change)
         try:
@@ -5482,7 +5978,8 @@ class Run:
             self.halts = [held for held in self.halts if held[0] != change]
         if self.seen is not None:
             self.seen.add(change)
-        self.probe_for(change, [str(entry.get("executor"))])
+        cutter = str(entry.get("executor"))
+        self.probe_for(change, [cutter], [cutter])
         if self.stopped(change):
             return False
         self.log.event("run", "cut", f"{change}: taken")
@@ -5640,14 +6137,20 @@ class Run:
             self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
-        self.probe_for(change, self.named(change))
+        self.probe_for(change, self.named(change), self.on_stations(change))
         return not self.stopped(change)
 
-    def probe_for(self, change: str, executors: list[str]) -> None:
+    def probe_for(
+        self,
+        change: str,
+        executors: list[str],
+        stations: list[str],
+        deadline: float | None = None,
+    ) -> None:
         """Probe each executor the run has not, once; a refused one halts `change`.
 
-        An executor whose probe failed halts it with that probe's reason, probed no
-        second time. Two threads never probe one executor at once.
+        A limited executor halts `change` only when among `stations`; a probe ends by
+        `deadline`, when given. Why: 0104-codex-limits design D2.
         """
         with self.probing:
             for executor in dict.fromkeys(executors):
@@ -5656,16 +6159,24 @@ class Run:
                 if (refused := self.refused.get(executor)) is not None:
                     self.halt(change, refused)
                     continue
-                self.probe(executor, change)
-                if executor not in self.probed:
-                    with self.guard:
-                        self.refused[executor] = next(
-                            reason
-                            for who, reason in reversed(self.halts)
-                            if who == change
-                        )
+                if self.limited_until(executor) is None:
+                    self.probe(executor, change, deadline)
+                    if executor in self.probed:
+                        continue
+                # A probe that failed and halted nothing met a limit `spawn` excused.
+                with self.guard:
+                    halts = (
+                        reason for who, reason in self.halts[::-1] if who == change
+                    )
+                    refused = next(halts, None)
+                    if refused is not None:
+                        self.refused[executor] = refused
+                if refused is None and executor in stations:
+                    self.halt(change, self.limited_reason(executor))
 
-    def probe(self, executor: str, who: str = "run") -> None:
+    def probe(
+        self, executor: str, who: str = "run", deadline: float | None = None
+    ) -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
         Its log names no MCP server, and a Codex probe then passes `probe_checker`. A
@@ -5696,34 +6207,52 @@ class Run:
                 return
             _git(scratch, "init", "-q", "-b", "main")
             (scratch / "Makefile").write_text(probe_gate(mark, _native()))
-            (scratch / ".gitignore").write_text(".gated\n.arch\n")
+            codex = executor == "codex"
+            ignored = ".gated\n.arch\n" + ("tree/\n" if codex else "")
+            (scratch / ".gitignore").write_text(ignored)
             _git(scratch, "add", "Makefile", ".gitignore")
             _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", "init")
+            if codex:
+                _git(scratch, "worktree", "add", "-q", "--detach", "tree")
             models = (executor, None, None)
             repo = _repo(scratch)
-            denied = self.spawn(who, station, scratch, PROBE, models, repo)
+            prompt = f"{PROBE} {TREE_PROBE}" if codex else PROBE
+            denied = self.spawn(
+                who,
+                station,
+                scratch,
+                prompt,
+                models,
+                repo,
+                limits=True,
+                deadline=deadline,
+            )
             with self.guard:
                 out = self.outs[who, station]
             # Why: 0100-worker-diet design D6.
             turn = first_turn(out)
             shown = "" if turn is None else f" · first turn {turn} tokens"
+            tree = check_tree(scratch / "tree") if codex else None
             if denied is not None and self.judge(
                 who,
                 station,
-                check_probe(scratch, mark) or mcp_started(executor, out),
+                check_probe(scratch, mark) or tree or mcp_started(executor, out),
                 denied,
                 shown,
             ):
-                if executor != "codex" or self.probe_checker(executor, who):
+                if not codex or self.probe_checker(executor, who, deadline):
                     self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
 
-    def probe_checker(self, executor: str, who: str) -> bool:
+    def probe_checker(
+        self, executor: str, who: str, deadline: float | None = None
+    ) -> bool:
         """Prove a checker writes a findings file to the contract; else halt `who`.
 
-        Its verdict is logged, never judged. Why: 0096-codex-ready design D9.
+        Its verdict is logged, never judged; it ends by `deadline`, when given. Why:
+        0096-codex-ready design D9.
         """
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-checker-")).resolve()
         station = "probe" if executor == self.executor else f"probe-{executor}"
@@ -5732,7 +6261,17 @@ class Run:
             base, head = checker_fixture(scratch)
             prompt = CHECKER_PROBE.format(base=base, head=head)
             models = (executor, None, None)
-            denied = self.spawn(who, checker, scratch, prompt, models, _repo(scratch))
+            repo = _repo(scratch)
+            denied = self.spawn(
+                who,
+                checker,
+                scratch,
+                prompt,
+                models,
+                repo,
+                limits=True,
+                deadline=deadline,
+            )
             with self.guard:
                 out = self.outs[who, checker]
             reason = check_checker(scratch, out) or mcp_started(executor, out)
@@ -6064,13 +6603,18 @@ class Run:
                 self.probe(executor)
                 if self.halts:
                     break
-        if not (self.halts or self.blocked):
+        halted = bool(self.halts)
+        cut_held: set[str] = set()
+        if not halted:
+            changes = [version.change for version in versions]
+            cut_held = self.hold_limited(changes, sorted(takeable))
+        if not (halted or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:
                 threads[version.change] = threading.Thread(
                     target=self.take, args=(version, threads), name=version.change
                 )
-            for change in sorted(takeable):
+            for change in sorted(takeable - cut_held):
                 threads[change] = threading.Thread(
                     target=self.cut, args=(change, threads)
                 )
@@ -6902,9 +7446,9 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
     """Send a checker's prompt through the version's mailbox; print its answer.
 
-    Converge's sandboxed conductor runs it; `wait` sends nothing. Return the answer's
-    exit, 1 with none, 2 when nothing can be sent, 3 past `CHECKER_WAIT`.
-    Why: 0097-cross-model design D4.
+    `wait` sends nothing. Return the answer's exit, 1 with none, 2 when nothing can be
+    sent, 3 past `CHECKER_WAIT`. Why: 0097-cross-model design D4; 0104-codex-limits
+    design D7.
     """
     if not CHANGE_ID.fullmatch(change) or role not in CHECKERS:
         print("checker: cannot run — not a change id and a checker role")
@@ -6919,20 +7463,35 @@ def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
     try:
         if not wait:
             prompt = _change_dir(primary, change) / f"{role}.prompt.md"
-            if (text := _bounded(prompt)) is None:
+            request = secrets.token_hex(8)
+            line = f"request {request}\n"
+            text = _bounded(prompt)
+            if text is None or len(f"{line}{text}".encode()) > REQUEST_BYTES:
                 print(f"checker: cannot run — {prompt} is a link, no file or too long")
                 return 2
-            _place(fd, f"{role}.request", text)
+            with contextlib.suppress(OSError):
+                os.unlink(f"{role}.answer", dir_fd=fd)
+            _place(fd, f"{role}.request", f"{line}{text}")
+            _place(fd, f"{role}.sent", request)
         deadline = time.monotonic() + CHECKER_WAIT
-        while (answer := _bounded(f"{role}.answer", fd)) is None:
+        while True:
+            sent = _bounded(f"{role}.sent", fd)
+            answer = _bounded(f"{role}.answer", fd)
+            if sent is not None and answer is not None:
+                named = re.search(rf" · {REQUEST_ID.pattern}\s*$", answer)
+                if named and named[1] == sent.strip():
+                    break
+                with contextlib.suppress(OSError):
+                    os.unlink(f"{role}.answer", dir_fd=fd)
             if time.monotonic() >= deadline:
                 print(
                     f"checker: waiting — run conduct.py checker {change} {role} --wait"
                 )
                 return 3
             time.sleep(MAILBOX_POLL)
-        with contextlib.suppress(OSError):
-            os.unlink(f"{role}.answer", dir_fd=fd)
+        for name in ("answer", "sent"):
+            with contextlib.suppress(OSError):
+                os.unlink(f"{role}.{name}", dir_fd=fd)
     finally:
         os.close(fd)
     print(answer, end="")

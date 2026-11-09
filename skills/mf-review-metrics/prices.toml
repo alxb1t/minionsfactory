@@ -3,5 +3,7 @@
 # output = <usd> }; a Claude row adds cache_write = <usd> and cache_write_1h = <usd>, the
 # 5-minute and 1-hour cache writes, cached_input its cache reads.
 # A model with no row is a cost gap naming it. Why: 0096-codex-ready design C1, D6;
-# 0100-worker-diet design C6, D12.
+# 0100-worker-diet design C6, D12; 0104-codex-limits design D5.
 [models]
+"claude-opus-5-5" = { input = 4.0, cached_input = 0.2, output = 20.0, cache_write = 5.0, cache_write_1h = 8.0 }
+"claude-sonnet-5-5" = { input = 2.0, cached_input = 0.1, output = 10.0, cache_write = 2.5, cache_write_1h = 4.0 }
