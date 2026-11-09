@@ -532,6 +532,73 @@ SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md`
 - **AND WHEN** the next Step 7's `plan_check.py` prints a line that fix pass was sent, naming sub-task `3.2`
 - **THEN** converge halts `amend needed — plan check: 3.2`, and the rescue amends `tasks.md` or `design.md` to clear it
 
+### Requirement: A station keeps a log per spawn
+
+`conduct.py` SHALL write each spawn's worker log to `.minions/changes/<change-id>/logs/<stamp>-<station>.log` for a change, and to
+`.minions/runs/<stamp>/run_<station>.log` for the run's own probe, and a later spawn of the same station in the same stamp to
+`-<n>.log`, `n` from 2, so no spawn's log overwrites another's; the newest is read by its stamp and `n`, never by the name's sort.
+
+#### Scenario: A converge spawned twice in a run
+- **WHEN** a version's converge fixer of round 1 fails and is spawned again in the same run
+- **THEN** the change's `logs/` holds `<stamp>-converge-fix-r1.log` and `<stamp>-converge-fix-r1-2.log`
+
+### Requirement: Converge keeps deferred work in one repository debt file
+
+`skills/mf-converge/scripts/converge.py` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
+shows the defect, to one file, `.minions/debt.md`, under a heading for its change — save an amend card that halts, as *The
+converge fixer leaves the plan to the person* says; an amend card whose id an answered `amend needed` halt logged
+since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
+other card. After both verdicts are
+clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. When round 1 of a run that is no
+catch-up run leaves a blocking card open, its fix pass SHALL take those same cards with the blocking ones — the **round-1
+pickup** — and round 2's verify round SHALL judge them all; pickup SHALL then not run again in that run. One fresh worker, the
+**pickup check**, SHALL verify a pickup's fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
+adversarial's table when a picked card is adversarial's, else on conformance's. A pickup whose fixer commits nothing SHALL get
+no pickup check. The pickup check SHALL be no round: it SHALL set both
+findings files' `head:` and leave their
+`round:` as it stands, and a blocking card it leaves open SHALL go to a fix and a verify round counted against the cap. It
+SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
+it was fixed and the card's **Still true?** check shows the defect gone.
+
+#### Scenario: Converge names the one debt file and the pickup sizes
+- **WHEN** both verdicts are clean, a round remains under the cap, pickup has not run in this run, the run is not a
+  catch-up round, and open non-blocking cards are sized `one line`, `a test` or `one line and a test`, or are `drift`
+- **THEN** converge fixes exactly those cards and checks the fix by one pickup check
+
+#### Scenario: A pickup check
+- **WHEN** round 2 reads both files clean, and pickup picks a conformance `drift` card and an adversarial `medium` card
+- **THEN** one fresh worker, on adversarial's table at `medium` effort, judges both cards against the pickup's diff
+- **AND** both files' `head:` is `HEAD`, their `round:` stays 2, and no round 3 runs
+- **AND WHEN** the pickup check leaves a blocking card open
+- **THEN** converge sends it to a fix, and verifies in round 3
+
+#### Scenario: Converge writes the debt
+- **WHEN** the loop ends clean with non-blocking cards still not `verified`
+- **THEN** converge writes each one whose **Still true?** check still shows the defect, and whose id is not yet in
+  the debt, to `.minions/debt.md` under its change's heading, and to no per-version file
+- **AND** it names each moot card, whose check shows the defect gone, in its report
+- **AND** it deletes an older card only when a verified repeat of it fixed the defect and its **Still true?**
+  check shows the defect gone
+
+#### Scenario: An amend card after its amend
+- **WHEN** Step 9 finds an amend card whose **Still true?** check still shows the defect, and an answered `amend needed` halt
+  logged since the newest `round 1 · start` line named its id, or its qualified id already stands in the debt
+- **THEN** converge writes it to the debt unless its id is there already, and halts nothing
+- **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt logged since the newest
+  `round 1 · start` line named and the debt does not hold
+- **THEN** it halts `amend needed — <its id>`
+
+#### Scenario: A round-1 pickup
+- **WHEN** round 1 leaves one blocking card open and two non-blocking cards sized `one line`
+- **THEN** one fix pass takes all three, and round 2's verify round judges all three
+- **AND WHEN** round 2 reads both files clean
+- **THEN** no pickup runs, and converge goes on to the debt
+
+#### Scenario: A pickup that commits nothing
+- **WHEN** the pickup's fixer sets every picked card `wontfix` and commits nothing
+- **THEN** no pickup check runs, and converge goes on to the debt
+
 ## REMOVED Requirements
 
 ### Requirement: A fix that reaches no surface takes its adversarial head by recomputation

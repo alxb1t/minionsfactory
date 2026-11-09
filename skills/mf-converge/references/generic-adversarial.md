@@ -39,6 +39,7 @@ working directory is the worktree you judge. Load `references/generic-adversaria
 skill, with the worker reference it names, and follow them.
 
 - The judged range: {range}; write `head: {head}` and `mode: {mode}`.
+- {scope}
 - The packet: `diff.patch` at {patch}, `debt-cards.md` at {debt_cards}; the rest of the packet from your working
   directory.
 - Your findings file, the one file you write: {findings}

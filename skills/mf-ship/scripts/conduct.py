@@ -4591,14 +4591,10 @@ class Run:
         deadline: float,
         effort: str | None = None,
     ) -> Checked:
-        """Run one converge checker, logged as `station`; return what it did.
+        """Run one converge checker as `station` on `table`'s models; halt nothing.
 
-        It runs on `table`'s models in the plan: a table naming no model, on
-        converge's host, takes converge's model, and its effort when the table names
-        none; a shadow's are `_shadow`'s. A given `effort` replaces the plan's. Past
-        `deadline` it starts nothing; else it gets what is left of it. It halts
-        nothing. Why: 0097-cross-model design D9; 0104-codex-limits design D3;
-        0108-converge-script design D4, D8.
+        A given `effort` replaces the plan's; past `deadline` it starts nothing.
+        Why: 0097-cross-model D9; 0104-codex-limits D3; 0108-converge-script D4, D8.
         """
         checked = table.removeprefix("shadow-")
         shadow = checked != table
@@ -4641,6 +4637,15 @@ class Run:
                     _stamp(folder, f"{table}.md", models[1], tokens)
                 return Checked(code, killed, models, usage_limit(out), fallback, tokens)
             codex_runs += 1
+
+    def lacks(self, who: str, station: str) -> list[str]:
+        """Return each tool the station's last log asked for and its station lacks.
+
+        Why: 0100-worker-diet design D5; 0108-converge-script design D5.
+        """
+        with self.guard:
+            out = self.outs.get((who, station))
+        return lacked(out) if out is not None else []
 
     def trees(self) -> list[Path]:
         """Return what a sandboxed command may write: `reach`'s trees.

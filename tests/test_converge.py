@@ -137,6 +137,8 @@ class Host:
         self.results: dict[str, Checked | list[Checked]] = {}
         self.fixers: list[Callable[[Host], int | None]] = []
         self.fixed: list[tuple[str, tuple[str, str | None, str | None], str]] = []
+        # The tools a station's log shows it asked for and lacks, by station.
+        self.lacking: dict[str, list[str]] = {}
         # False is no OS sandbox; an exception is a runner that breaks.
         self.sandbox: bool | Exception = True
 
@@ -190,6 +192,10 @@ class Host:
         if isinstance(result, list):
             return result.pop(0) if len(result) > 1 else result[0]
         return result
+
+    def lacks(self, who: str, station: str) -> list[str]:
+        assert who == _CHANGE
+        return self.lacking.get(station, [])
 
     def worker(
         self,
@@ -916,6 +922,17 @@ def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:
     assert not any(" · done — " in line for line in written)
     assert "round: 3\n" in (host.folder() / "conformance.md").read_text()
 
+    spent = (len(host.checks), len(host.fixed))
+    log = (host.folder() / "status_log.md").read_text()
+
+    assert run(host) == 1
+
+    assert (len(host.checks), len(host.fixed)) == spent
+    assert (host.folder() / "status_log.md").read_text().count("## Run") == (
+        log.count("## Run")
+    )
+    assert events(host)[-1] == written[-1]
+
 
 def test_plan_check_left_halts_amend_needed(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
@@ -1211,6 +1228,10 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
         ("converge-conformance-r2", "conformance", None),
     ]
     assert f"{judged}..{late}" in host.checks[0][3]
+    assert (
+        f"The scope: a catch-up round of 1 commit and 1 file.\n- {late} (parents"
+        f" {judged}): ordinary diff\n"
+    ) in host.checks[0][3]
 
     tasks = _TASKS + "\n- [x] 1.1 One.\n  Verify: `git grep -n nope` prints a line.\n"
     _commit(
@@ -1247,6 +1268,11 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
     assert patch.startswith(f"commit {merged}\nMerge: ")
     assert f"commit {amended}\n" in patch
     assert "src/moved.txt" not in patch
+    parents = _git(host.tree, "rev-list", "--parents", "-n", "1", merged).split()[1:]
+    assert (
+        f"- {merged} (parents {' '.join(parents)}): remerge-diff\n"
+        f"- {amended} (parents {merged}): ordinary diff\n"
+    ) in host.checks[0][3]
     written = events(host)
     assert written[0].endswith(f"HEAD {amended[:7]} · its own count")
     assert written[2].endswith(" · 2 commits · 1 file")
@@ -1681,6 +1707,13 @@ def test_a_still_true_command_runs_sandboxed_and_a_prose_card_goes_unchecked(
         "R4": _card("R4 nit", size=_DESIGN, still="`ls src`"),
         "R5": _card("R5 nit", size=_DESIGN, still="read `src/a.py` and its caller"),
         "R6": _card("R6 nit", size=_DESIGN, still="`'unbalanced`"),
+        "R7": _card(
+            "R7 nit",
+            amend="yes",
+            status="wontfix",
+            size=_DESIGN,
+            still="read `src/a.py` and its caller",
+        ),
     }
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", *cards.values()
@@ -1689,11 +1722,11 @@ def test_a_still_true_command_runs_sandboxed_and_a_prose_card_goes_unchecked(
     assert run(host) == 0
 
     text = _debt(host).read_text()
-    for ident in ("R2", "R4", "R5", "R6"):
+    for ident in ("R2", "R4", "R5", "R6", "R7"):
         assert _filed(cards[ident]) in text
     assert "R3" not in text
     assert events(host)[-2] == (
-        "round 1 · debt — written 0001·R2, 0001·R4, 0001·R5, 0001·R6 · moot R3"
+        "round 1 · debt — written 0001·R2, 0001·R4, 0001·R5, 0001·R6, 0001·R7 · moot R3"
     )
     assert [argv for argv in host.ran if argv[0] in ("false", "true", "ls")] == [
         ["false"],
@@ -1845,6 +1878,27 @@ def test_a_failed_worker_gets_one_retry(host: Host) -> None:
     )
     assert [station for station, *_ in host.fixed] == ["converge-fix-r1"] * 2
 
+    # A zero exit does not excuse a call to a tool the station lacks.
+    host.fixers = [fixing]
+    host.lacking["converge-fix-r1"] = ["Agent", "Task"]
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 1 · halt — converge-fix-r1 asked for a tool its station lacks:"
+        f" Agent, Task · head {_head(host)}"
+    )
+
+    host.answers.clear()
+    host.lacking = {"converge-conformance-r1": ["Agent"]}
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 1 · halt — converge-conformance-r1 asked for a tool its station"
+        f" lacks: Agent · head {_head(host)}"
+    )
+
 
 def _twice(
     first: Callable[[str], None], then: Callable[[str], None]
@@ -1942,18 +1996,31 @@ def test_the_report_names_the_verdicts(
         (host.folder() / "fix.md").write_text("fixed: R1\nplan check left: none\n")
 
     host.fixers = [noting]
-    host.exits["gate_run.py"] = [0, 0, 0, 3]
+    workers = {**_WORKERS, "adversarial": "skip"}
 
-    assert run(host, {**_WORKERS, "adversarial": "skip"}) == 0
+    assert run(host, workers) == 0
 
     assert capsys.readouterr().out.endswith(
         f"Converged in 2 rounds at {_head(host)[:7]}: conformance clean, adversarial"
         " skipped, the loop judged without it.\n"
         "Blocking R1 verified; inconclusive: conformance design.md; fix notes to"
         " read: D1 (R1).\n"
-        "To the debt 0001·R2; the debt holds 2 cards; the gate exits 3.\n"
+        "To the debt 0001·R2; the debt holds 2 cards; the gate exits 0.\n"
         "Next: /mf-release, in a fresh session.\n"
     )
+
+    host.answers.clear()
+    host.fixers.clear()
+    host.exits["gate_run.py"] = [0, 3]
+
+    assert run(host, workers) == 1
+
+    assert events(host)[-1] == (
+        f"round 1 · halt — the gate is red at the close: gate_run.py exit 3"
+        f" · head {_head(host)}"
+    )
+    assert " · done — " not in "".join(events(host))
+    assert "Next: /mf-release" not in capsys.readouterr().out
 
     host.exits["gate_run.py"] = 2
 

@@ -52,8 +52,12 @@ Each status-log event as it writes it, `HH:MM:SS · round N · <event> — <deta
 | 1 | `converge: halt — <reason>`; the log's `halt` line ends ` · head <sha>` | halted: a cap, an amend, a red gate, a worker that failed twice |
 | 2 | `converge: cannot run — <why>` | no OS sandbox, no worktree, an executor not on `PATH`, a bad argument |
 
-The steps, the events, each halt and each worker's inputs are in `converge.py`'s module docstring and its functions'. What a
-worker reads is in [the worker reference](references/worker.md), [fix](references/fix.md) and [verify](references/verify.md).
+The Steps its functions name: 1 preconditions · 2 freeze · 3 dispatch · 5 verdicts · 6 fix · 7 verify and the cap · 8 pickup ·
+9 debt · 10 report. It loads `stamp.py` (each status-log event), `bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`,
+`plan_check.py` and `overlap.py` from its folder, and `../../mf-integrate/scripts/integrate.py` for `replay`; it runs
+`gate_run.py`, `gate_check.py`, `plan_check.py`, `make -n gate`, each `Verify:` a catch-up's range adds and each card's
+**Still true?** command under the host's sandbox. The events, each halt and each worker's inputs are in `converge.py`'s
+functions' docstrings. What a worker reads is in [the worker reference](references/worker.md), [fix](references/fix.md) and [verify](references/verify.md).
 
 ## Report, then stop
 

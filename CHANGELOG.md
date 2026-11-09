@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` skips a line of a living spec inside a requirement the change's delta lists under `## REMOVED
   Requirements`: a change that removes a requirement naming the code it deletes no longer halts its close
   (change `0108-converge-script`, phase 7).
+- `converge.py` halts on a red close-out gate, on a worker whose log asked for a tool its station lacks and on a cap
+  re-run with no grant or answer; an amend card with no command goes to the debt unchecked, and a catch-up's judge prompt
+  names its selected commits. The README, the spec delta and the docstrings match (change `0108-converge-script`, round 1).
 
 ## [0.90.0] - 2026-11-09
 

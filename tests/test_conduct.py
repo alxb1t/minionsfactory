@@ -5244,6 +5244,21 @@ def test_the_run_hands_converge_its_trees_and_sandbox(
         run.sandboxed([sys.executable, "-c", "raise SystemExit(3)"], tree, [tree]) == 3
     )
 
+    # A worker's log names a tool its station lacks; a station with no log names none.
+    log = tmp_path / "worker.log"
+    asked = {"type": "tool_use", "id": "t1", "name": "Agent"}
+    result = {"type": "tool_result", "tool_use_id": "t1", "is_error": True}
+    result["content"] = "No such tool available: Agent"
+    log.write_text(
+        "".join(
+            json.dumps({"message": {"content": [block]}}) + "\n"
+            for block in (asked, result)
+        )
+    )
+    run.outs["0001-todo", "converge-fix-r1"] = log
+    assert run.lacks("0001-todo", "converge-fix-r1") == ["Agent"]
+    assert run.lacks("0001-todo", "converge-fix-r2") == []
+
 
 def test_a_skip_is_read_once(tmp_path: Path) -> None:
     conduct = _conduct()

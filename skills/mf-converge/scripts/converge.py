@@ -4,22 +4,8 @@
 # ///
 """Conduct converge: the preconditions, the freeze, the rounds, the debt and the report.
 
-    converge(host, change, tree, *, workers, grant=False, deadline) -> int
-
-`conduct.py` loads this file by `runpy` and calls `converge` in a version's thread;
-by hand, `conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…]
-[grant=yes]` calls it. Exit 0 done · 1 halted · 2 cannot run; the report, or the
-halt, is printed.
-
-The Steps the functions name: 1 preconditions · 2 freeze · 3 dispatch · 5 verdicts ·
-6 fix · 7 verify and the cap · 8 pickup · 9 debt · 10 report.
-
-It loads, from this folder, `stamp.py`, which writes each status-log event,
-`bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`, `plan_check.py` and
-`overlap.py`, and `../../mf-integrate/scripts/integrate.py` for `replay`. It runs
-`gate_run.py`, `gate_check.py`, `plan_check.py`, `make -n gate`, each `Verify:` a
-catch-up's range adds and each card's **Still true?** command under
-`host.sandboxed`. Why: 0108-converge-script design D1, D3, D6.
+`conduct.py converge <change-id>` or a version's thread calls `converge(host, …)`.
+Exit 0 done · 1 halted · 2 cannot run. Why: design D1, D3, D6; Steps: `SKILL.md`.
 """
 
 import errno
@@ -70,7 +56,7 @@ SUBTASK = re.compile(r"^  (\d+(?:\.\d+)+)(?: · uncommitted)?$", re.MULTILINE)
 REFERENCES = HERE.parent / "references"
 # The `## Prompt` placeholders. Why: design D2.
 PLACEHOLDERS = (
-    *("change", "role", "round", "base", "head", "range", "findings", "patch"),
+    *("change", "role", "round", "base", "head", "range", "scope", "findings", "patch"),
     *("bundle", "debt_cards", "open", "ids", "models", "mode"),
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
@@ -177,6 +163,9 @@ class Host(Protocol):
         effort: str | None = None,
     ) -> Checked:
         """Run one checker on `table`'s models; return what it did."""
+
+    def lacks(self, who: str, station: str) -> list[str]:
+        """Return each tool the station's log asked for and its station lacks."""
 
     def worker(
         self,
@@ -800,6 +789,9 @@ def resume(context: Context, granting: bool) -> int:
     if judged := behind(context):
         begin(context, "catch-up")
         return catch_up(context, judged)
+    if top is not None and top.name == "halt" and unanswered(context, run):
+        context.round = top.round
+        raise Halt(HALTED.sub("", top.detail))
     begin(context, None)
     return fresh(context)
 
@@ -975,11 +967,22 @@ def failure(
     return f"{station} worker exit {code}{limit}"
 
 
-def fixer(context: Context, ids: str) -> None:
-    """Run one fixer through `host.worker`, on `fix=`'s model, retried once.
+def unequipped(context: Context, station: str) -> None:
+    """Halt, naming each tool the station's log asked for and its station lacks.
 
-    Its effort is `fix=`'s, `medium` when it names none. A timeout kill, or a second
-    failure, halts. Why: design D4, D5.
+    Why: design D5; 0100-worker-diet D5.
+    """
+    if missing := context.host.lacks(context.change, station):
+        raise Halt(
+            f"{station} asked for a tool its station lacks: {', '.join(missing)}"
+        )
+
+
+def fixer(context: Context, ids: str) -> None:
+    """Run one fixer through `host.worker` on `fix=`'s model, retried once.
+
+    A kill or a second failure halts; its effort is `medium` unless `fix=` names one.
+    Why: design D4, D5.
     """
     executor, model, effort = context.workers["fix"]
     station = f"converge-fix-r{context.round}"
@@ -999,6 +1002,8 @@ def fixer(context: Context, ids: str) -> None:
         code, killed, _, _ = context.host.worker(
             context.change, station, context.tree, told, models, timeout=seconds
         )
+        if not killed:
+            unequipped(context, station)
         why = failure(station, seconds, code, killed)
         if why is None:
             return
@@ -1163,7 +1168,8 @@ def finish(context: Context, owed: bool = True) -> int:
     """
     stubs(context)
     paid = debt(context) if owed else debted(context)
-    gate = sandboxed(context, script("gate_run.py"))
+    if gate := sandboxed(context, script("gate_run.py")):
+        raise Halt(f"the gate is red at the close: gate_run.py exit {gate}")
     rounds_ = _plural(context.round, "round")
     cards = _plural(len(paid.written), "card")
     stamp(context, f"done — converged in {rounds_} · {cards} to debt")
@@ -1263,9 +1269,8 @@ def answered_amends(context: Context) -> set[str]:
 def amends(context: Context, cards: list[Card], holds: set[str]) -> dict[str, str]:
     """Run each amend card's check before the debt; return the moot ones' commands.
 
-    An amend card is `Amend: yes`, `wontfix` or an `open` `drift`. One whose check is
-    not exit 1 halts `amend needed`, unless an answered halt named it or the debt holds
-    it. Why: design D7.
+    An amend card's check that is not exit 1 halts `amend needed`; no check goes
+    unchecked. Why: design D7.
     """
     number = context.change.partition("-")[0]
     answered = answered_amends(context)
@@ -1281,7 +1286,7 @@ def amends(context: Context, cards: list[Card], holds: set[str]) -> dict[str, st
         code, command = still_true(context, card.fields.get("Still true?", ""))
         if code == 1:
             moot[card.id] = command
-        else:
+        elif code is not None:
             left.append(card.id)
     if left:
         raise Halt(f"amend needed — {', '.join(left)}")
@@ -1776,6 +1781,19 @@ def answered(context: Context, run: Run) -> str | None:
     return judged if judged == sha or any(amends) else None
 
 
+def unanswered(context: Context, run: Run) -> bool:
+    """Return whether the run's halt is a cap no grant or answer has moved.
+
+    Its files read, at one head. Why: design D3; D56.
+    """
+    files = _files(context)
+    heads = {verdict.head for verdict in files}
+    cap = run.events[0].detail.startswith("cap reached")
+    return (
+        cap and not before_round(run) and len(files) == len(ROLES) and len(heads) == 1
+    )
+
+
 def behind(context: Context) -> str | None:
     """Return the judged head when both files are clean at one head not `HEAD`."""
     files = _files(context)
@@ -1907,6 +1925,23 @@ def stubs(context: Context) -> None:
             raise Halt(f"skip_stub: cannot stub — {stop}") from stop
 
 
+def scope_of(context: Context, frozen: Freeze) -> str:
+    """Return a judge round's scope: the whole range, or a catch-up's selection.
+
+    Each selected commit, its parents and diff kind, then the counts. Why: `worker.md`.
+    """
+    if context.mark not in ("catch-up", "amend"):
+        return "The scope: the whole range."
+    noun = "an amend" if context.mark == "amend" else "a catch-up"
+    lines = [
+        f"- {sha} (parents {' '.join(parents)}):"
+        f" {'remerge-diff' if len(parents) == 2 else 'ordinary diff'}"
+        for sha, parents in select(context, frozen.base)
+    ]
+    counts = f"{_plural(frozen.commits, 'commit')} and {_plural(frozen.files, 'file')}"
+    return "\n".join([f"The scope: {noun} round of {counts}.", *lines])
+
+
 def checker_prompt(
     context: Context,
     frozen: Freeze,
@@ -1922,6 +1957,7 @@ def checker_prompt(
         change=context.change,
         round=context.round,
         range=f"{frozen.base}..{frozen.head}",
+        scope=scope_of(context, frozen),
         head=frozen.head,
         mode=mode,
         patch=folder / "diff.patch",
@@ -2013,6 +2049,7 @@ def _failed(
     why = failure(station, seconds, result.code, result.killed, result.limit)
     if why and (result.killed or result.limit):
         raise Halt(why)
+    unequipped(context, station)
     if why is None and not os.path.lexists(context.folder / f"{table}.md"):
         why = f"{table}.md is missing: its checker left no findings file"
     return why
