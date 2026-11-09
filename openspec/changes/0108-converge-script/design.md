@@ -383,11 +383,11 @@ tests/test_review_metrics.py tests/test_metric_scripts.py` prints 160, 2, 21, 2,
 
 | removed test | carried by, or retired by |
 |---|---|
-| `test_a_fix_that_reaches_no_surface_is_by_rule` and `test_a_fix_that_reaches_security_is_verified` (`tests/test_surfaces.py`, whole file) | retired by [D9](#d9)'s D78 and the delta's REMOVED requirement: H5 is dropped (brief Q7) |
+| `test_a_fix_that_reaches_no_surface_is_by_rule` and `test_a_fix_that_reaches_security_is_verified` (`tests/test_surfaces.py`, whole file) | no live behaviour to carry: they prove only *A fix that reaches no surface takes its adversarial head by recomputation*, which this change's delta removes ([specs/sdd/spec.md:604](specs/sdd/spec.md)), with `surfaces.py`; the person retired it at the plan (brief Q7, H5 never fired) |
 | `test_a_fix_reaching_no_surface_takes_adversarial_by_rule` (`tests/test_conduct.py`) | the same |
-| `test_a_worker_clause_names_its_model_and_effort` (`tests/test_conduct.py`) | retired by D78: the converge prompt names no worker; the models are the plan's, read by `test_a_blocker_is_fixed_verified_and_cleared` |
-| `test_a_checker_request_is_bounded` (`tests/test_conduct.py`) | the request, answer and `work`-`between` assertions are retired by D78 with the mailbox and the parameter; the spent-deadline refusal and the timeout kill of `Run.checker` are carried by `test_a_codex_checker_runs_through_run_checker`, extended with each |
-| `test_the_checker_command_sends_and_waits` (`tests/test_conduct.py`) | retired by D78: the `checker` command is gone |
+| `test_a_worker_clause_names_its_model_and_effort` (`tests/test_conduct.py`) | carried by `test_a_blocker_is_fixed_verified_and_cleared`, which reads each worker's model from the plan; the prompt clause it also proved goes with the LLM conductor (brief Q1, Q8) |
+| `test_a_checker_request_is_bounded` (`tests/test_conduct.py`) | the request, answer and `work`-`between` assertions prove only *A converge checker on another host runs through the mailbox*, which this change's delta removes ([specs/sdd/spec.md:612](specs/sdd/spec.md)), the person's call at the plan (brief Q6); the spent-deadline refusal and the timeout kill of `Run.checker` are carried by `test_a_codex_checker_runs_through_run_checker`, extended with each |
+| `test_the_checker_command_sends_and_waits` (`tests/test_conduct.py`) | no live behaviour to carry: it proves only the mailbox's `checker` command, under *A converge checker on another host runs through the mailbox*, which this change's delta removes ([specs/sdd/spec.md:612](specs/sdd/spec.md)), brief Q6 |
 
 - The end-to-end runs it adds are none beyond the one slow integration test, which runs on the fake hosts.
 - After the build, `tests/test_surfaces.py` is gone and `tests/test_conduct.py` loses the tests of the table above and gains its new ones.
