@@ -236,8 +236,10 @@ lines itself inside that one call.
 - `Run.checker` takes the [D4](#d4) arguments and returns `Checked`; the `mailbox` parameters of `argv`, `Run.spawn` and `Run.worker`
   go with their last reader, and so does the `between` parameter of `work`, `Run.worker` and `Run.spawn`, whose only reader was
   `Run.server`.
-- `CONDUCTOR`, its use in `_models`, converge's row of `STATION_TOOLS` and `CACHE_HOUR`'s `"converge"` go. `[converge] model`
-  stays the checkers' default.
+- Converge's row of `STATION_TOOLS` and `CACHE_HOUR`'s `"converge"` go. `[converge] model` stays the checkers' default: `CONDUCTOR`
+  is renamed `CHECKER_DEFAULT` and its branch in `_models` stays, so `[converge]` on Claude naming no model and no effort plans
+  `claude-sonnet-5-5` · `high`, and `Run.checker` runs a checker whose table names no model on the plan's `converge` model, and
+  on its effort when the table names none either — the delta's *The conductor's default*.
 - `stage_of` and `_unjudged` take a `skips` argument, the run's read-once `Run.skipped` for the version; given, it replaces the
   `_skips(runs, change)` read, so a skip planted after the plan was read binds at the next run (card `0105·S2`). Called with none,
   by `status` and `check` by hand, they read the file as before. `Run.advance` and the stage poll pass it.
@@ -281,7 +283,8 @@ The edits, before → after:
 - `### D51`: gains "The converge script runs at the conductor's rights and runs each command of a builder's code under the sandbox
   runner."
 - `### D53`: "The converge fixer edits no plan" keeps; gains "`## Tests` and `## Dependencies` among the sections it never edits".
-- `### D64`: "Converge's conductor runs on Sonnet 5.5 · high" is cut; "and its fixer on the mid tier · medium, on adversarial's model,
+- `### D64`: "Converge's conductor runs on Sonnet 5.5 · high" → "Converge's checkers default to `[converge]`'s model, Sonnet 5.5 ·
+  high"; "and its fixer on the mid tier · medium, on adversarial's model,
   adversarial running on converge's host and not skipped, when a card it is sent blocks" → "and its fixer on the mid tier · medium
   always"; "A fix that touches no `## Surfaces` path … takes its adversarial head by recomputation" goes, with **Rejected**'s
   "an adversarial verify skipped by the conductor's judgment".

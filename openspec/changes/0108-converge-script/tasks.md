@@ -89,7 +89,8 @@ only the phase's end is green.
 - [ ] 5.1 Add `test_the_run_hands_converge_its_trees_and_sandbox`; bring `test_a_limited_checker_falls_back_to_claude` and the two
   renamed tests of [the Tests table](design.md#tests) to the new call, the second extended with a spent deadline and a timeout kill;
   then make `Run.checker` take `(change, station, table, cwd, prompt, deadline, effort)` and return a frozen `Checked`, per
-  [D4](design.md#d4), and add `Run.trees` and `Run.sandboxed`, per [D1](design.md#d1).
+  [D4](design.md#d4): a checker whose table names no model runs on the plan's `converge` model, and on its effort when the
+  table names none either (the delta's *The conductor's default*); and add `Run.trees` and `Run.sandboxed`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "hands_converge"` exits 0; `git grep -n -e '^class Checked' -e '    def trees(' -e '    def sandboxed(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
 - [ ] 5.2 Add `test_a_skip_is_read_once`; then `CONVERGE` beside `INTEGRATE`, its load in `Run.__init__`, and in `Run.advance` the
   call in place of the converge spawn and its mailbox, logging `spawn converge · script` and `finish converge`; drop converge's entry of
@@ -97,9 +98,12 @@ only the phase's end is green.
   `skips` argument, per [D8](design.md#d8); `status` and `check` pass none.
   Verify: `uv run pytest -q tests/test_conduct.py -k "skip_is_read_once"` exits 0; `git grep -n -e '^CONVERGE = ' -e 'skips: frozenset' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
 - [ ] 5.3 Delete the mailbox from `C` as [D8](design.md#d8) lists, the `between` parameter of `work`, `Run.worker` and `Run.spawn`
-  included; `_entries`, `_bounded` and `_place` stay. Delete `CONDUCTOR`, its branch in `_models`, the converge row of
-  `STATION_TOOLS` and `"converge"` from `CACHE_HOUR`.
-  Verify: `git grep -n -e 'def serve_requests' -e 'def _open_mailbox' -e '^def _worker_clause(' -e '^CONDUCTOR = ' -e '^    "converge": ("Bash"' -- skills/mf-ship/scripts/conduct.py` prints nothing.
+  included; `_entries`, `_bounded` and `_place` stay. Rename `CONDUCTOR` to `CHECKER_DEFAULT`, its branch in `_models` kept,
+  so `[converge]` on Claude naming no model and no effort plans `claude-sonnet-5-5` · `high`, the checkers' default of the
+  delta's *The conductor's default*; reword `_models`' docstring and the comment of its case in
+  `test_the_supervisor_runs_on_its_own_table`, whose assertions stay. Delete the converge row of `STATION_TOOLS` and
+  `"converge"` from `CACHE_HOUR`.
+  Verify: `git grep -n -e 'def serve_requests' -e 'def _open_mailbox' -e '^def _worker_clause(' -e '^CONDUCTOR = ' -e '^    "converge": ("Bash"' -- skills/mf-ship/scripts/conduct.py` prints nothing; `git grep -n '^CHECKER_DEFAULT = ("claude-sonnet-5-5", "high")' -- skills/mf-ship/scripts/conduct.py` prints a line.
 - [ ] 5.4 Add `test_the_converge_command_runs_by_hand`; then the `converge` subparser, its branch in `main` and its line in the
   module docstring of `C`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "by_hand"` exits 0; `git grep -n -e 'args.command == "converge"' -e 'conduct.py converge' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
