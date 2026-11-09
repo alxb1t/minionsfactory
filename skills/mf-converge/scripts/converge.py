@@ -427,7 +427,8 @@ def gated(context: Context, when: str) -> None:
         raise Halt(f"the gate is red {when}: gate_run.py exit {code}")
     argv = script("gate_check.py", "--change", context.change, "--base", context.base)
     code, printed = _captured(context, argv)
-    if code == 1 and printed.startswith("verify: halt"):
+    said = printed.splitlines()
+    if code == 1 and any(line.startswith("verify: halt") for line in said):
         raise Halt(f"verify: halt — {', '.join(SUBTASK.findall(printed))}")
     if code != 0:
         lines = (line.strip() for line in printed.splitlines())

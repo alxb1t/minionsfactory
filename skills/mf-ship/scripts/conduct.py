@@ -14,6 +14,8 @@
     conduct.py grant <change-id> --executor claude|codex
     conduct.py rejoin [<change-id>] [--yes <hash>]
     conduct.py agent --executor claude|codex <prompt>
+    conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…] [grant=yes]
+        [--executor claude|codex]
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
     conduct.py sandboxed -- <cmd>
@@ -36,7 +38,6 @@ import math
 import os
 import re
 import runpy
-import secrets
 import shlex
 import shutil
 import signal
@@ -69,22 +70,14 @@ DEBT_LOCK = ".minions/debt.lock"
 OLD_DEBT = ".minions/backlog.md"
 OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
-# The checker mailbox: its roles, poll and bounds; the spawns are three rounds of two
-# checkers and a shadow pair. Why: 0097-cross-model design D4.
-CHECKERS = ("conformance", "adversarial", "shadow-conformance", "shadow-adversarial")
-MAILBOX_POLL = 2
-CHECKER_WAIT = 100
-REQUEST_BYTES = 65536
-# A request's id line, `request <16 hex digits>`, and the last ` · request <id>` of
-# an answer. Why: 0104-codex-limits design D7.
-REQUEST_ID = re.compile(r"request ([0-9a-f]{16})")
-CHECKER_SPAWNS = 8
-# A Codex limit: the longest wait for a reset, the primary window's share that counts
-# as a limit, and the answer's note. Why: 0104-codex-limits design D1.
+# The most of a file a worker leaves that `_bounded` reads.
+READ_BYTES = 65536
+# A Codex limit: the longest wait for a reset, and the primary window's share that
+# counts as a limit. Why: 0104-codex-limits design D1.
 LIMIT_WAIT = 900
 HEADROOM = 90
-FALLBACK = "fallback: codex usage limit"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
+CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
 DECISIONS = "docs/decisions.md"
@@ -151,7 +144,7 @@ SUPERVISES = 2
 SETTLES = ("openspec/", "docs/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
-CONDUCTOR = ("claude-sonnet-5-5", "high")
+CHECKER_DEFAULT = ("claude-sonnet-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
 # A line the converge fixer appends to a decision's entry; the run reads it as no
 # decision change. Why: 0103-fewer-rounds design D3.
@@ -200,12 +193,12 @@ TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
 # `WORKER_TOOLS`. Why: 0100-worker-diet design D1.
 STATION_TOOLS = {
     "cut": ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"),
-    "converge": ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"),
     "probe": ("Bash", "Read"),
 }
 WORKER_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill")
-# Only these stations wait past 5 minutes. Why: 0100-worker-diet design D3.
-CACHE_HOUR = ("cut", "converge")
+# Only these stations wait past 5 minutes. Why: 0100-worker-diet design D3;
+# 0108-converge-script design D4.
+CACHE_HOUR = ("cut",)
 # A Claude worker's error for a tool its station lacks. Why: 0100-worker-diet design D5.
 MISSING = "No such tool available"
 COMMANDS = (
@@ -257,7 +250,6 @@ DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
 # A build spawn builds one phase, or closes. Why: 0102-build-per-phase design D1, D2.
 PROMPTS = {
     "build": "Run the mf-build skill for change {change} with phase={phase}.",
-    "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
@@ -1243,12 +1235,19 @@ def _converge_done(runs: Path, change: str) -> bool:
     return _is_event(_run_end(runs, change) or "", "done")
 
 
-def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | None:
+def _unjudged(
+    runs: Path,
+    tree: Path,
+    change: str,
+    rev: str = "HEAD",
+    skips: frozenset[str] | None = None,
+) -> str | None:
     """Return why converge is not clean at `rev`, or None when it is.
 
-    A converge the plan skips is None. Why: 0105-converge-switches design D2.
+    A converge the plan skips is None: the run's `skips`, read once, else the file's.
+    Why: 0105-converge-switches design D2; 0108-converge-script design D8.
     """
-    if "converge" in _skips(runs, change):
+    if "converge" in (_skips(runs, change) if skips is None else skips):
         return None
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
@@ -1385,12 +1384,19 @@ def _release_died(runs: Path, change: str) -> bool:
     return False
 
 
-def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str, str]:
+def _release_tip(
+    primary: Path,
+    tree: Path,
+    change: str,
+    tag: str,
+    skips: frozenset[str] | None = None,
+) -> tuple[str, str]:
     """Return the stage of a tip that says it is released; only a death re-enters.
 
     The re-entry merges unasked, so it takes no person's no, a tag on `HEAD`
     or none, the converge clean at the parent, an unmoved base and a release worker
     that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
+    `skips` is `stage_of`'s.
     """
     runs = primary / ".minions"
     if (_change_dir(primary, change) / "release.held").is_file():
@@ -1409,7 +1415,7 @@ def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str,
             f"{tag} {stated}; {default} moved, so recover by hand: {undo}git reset"
             f" --hard HEAD~1, then /mf-integrate {change}, /mf-converge, /mf-release"
         )
-    if why := _unjudged(runs, tree, change, "HEAD~1"):
+    if why := _unjudged(runs, tree, change, "HEAD~1", skips):
         return "released", f"{tag} {stated}; {why}: a person reads this tip"
     if _release_died(runs / "runs", change):
         return "release", f"{tag} {stated}; the merge is left"
@@ -1419,8 +1425,14 @@ def _release_tip(primary: Path, tree: Path, change: str, tag: str) -> tuple[str,
     )
 
 
-def stage_of(primary: Path, version: Version) -> tuple[str, str]:
-    """Return a version's stage, read in its worktree, and why; the first match wins."""
+def stage_of(
+    primary: Path, version: Version, skips: frozenset[str] | None = None
+) -> tuple[str, str]:
+    """Return a version's stage, read in its worktree, and why; the first match wins.
+
+    A run passes `skips`, its plan's converge skips read once; with none, the models
+    file is read. Why: 0108-converge-script design D8.
+    """
     tree = version.tree
     change = version.change
     if tree is None:
@@ -1448,7 +1460,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     tag = _tag_of(primary, change)
     default = default_branch(primary)
     if tag is not None:
-        return _release_tip(primary, tree, version.change, tag)
+        return _release_tip(primary, tree, version.change, tag, skips)
     after = _dependencies(primary, change)
     missing = [name for name in after if not _shipped(primary, default, name)]
     stacked = _stacked_on(primary, change, tree, missing)
@@ -1474,7 +1486,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
         )
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
-    skipped = "converge" in _skips(runs, change)
+    skipped = "converge" in (_skips(runs, change) if skips is None else skips)
     if halt := None if skipped else _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
@@ -1487,7 +1499,7 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         return "converge-halted", halt
     if end is not None and not skipped and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
-    if why := _unjudged(runs, tree, change):
+    if why := _unjudged(runs, tree, change, skips=skips):
         return "converge", why
     if not _ancestor(tree, default, "HEAD"):
         return "integrate", f"{default} is not an ancestor of HEAD"
@@ -2537,8 +2549,9 @@ def _models(
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
     An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`, and converge's on Claude, `CONDUCTOR`,
-    when its table names neither. A worker of `WORKERS` with no table of
+    the supervisor's on Claude, `SUPERVISOR`, and converge's on Claude when its table
+    names neither, `CHECKER_DEFAULT`: the checkers' default, for no converge model
+    starts a conductor. A worker of `WORKERS` with no table of
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
@@ -2546,7 +2559,8 @@ def _models(
     executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
     design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
-    0100-worker-diet design D8; 0102-build-per-phase design D5.
+    0100-worker-diet design D8; 0102-build-per-phase design D5; 0108-converge-script
+    design D8.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2575,36 +2589,13 @@ def _models(
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
     if station == "converge" and executor == "claude" and model is effort is None:
-        model, effort = CONDUCTOR
+        model, effort = CHECKER_DEFAULT
     if executor not in EXECUTORS:
         raise Stop(1, f"conduct: halt — {file}: executor {executor!r} unknown")
     codex = executor == "codex" and (station not in WORKERS or own)
     if codex and (model or "").startswith("claude"):
         raise Stop(1, f"conduct: halt — {file}: {station} on codex, model {model}")
     return str(executor), model, effort if isinstance(effort, str) else None
-
-
-def _worker_clause(
-    station: str,
-    models: tuple[str, str | None, str | None],
-    converge: str,
-    skipped: bool = False,
-) -> str:
-    """Return a converge worker's prompt clause, `converge` its conductor's executor.
-
-    Skipped, `skip`; on another host, `mailbox`; else "" on Codex or with neither named.
-    Why: 0094-lighter-converge D1; 0097-cross-model D3; 0105-converge-switches D2.
-    e.g. ("converge.fix", ("claude", "m", None), "claude") → " and fix=m/default"
-    """
-    executor, model, effort = models
-    role = station.split(".", 1)[1]
-    if skipped:
-        return f" and {role}=skip"
-    if executor != converge:
-        return f" and {role}=mailbox"
-    if converge == "codex" or (model is None and effort is None):
-        return ""
-    return f" and {role}={model or 'default'}/{effort or 'default'}"
 
 
 def _shadows(runs: Path, change: str) -> bool:
@@ -3016,27 +3007,8 @@ def _entries(folder: Path, empty: bool) -> list[str]:
         os.close(fd)
 
 
-def _open_mailbox(mailbox: Path) -> str | None:
-    """Make a version's checker mailbox, mode 0o700, and empty it; else say why not.
-
-    A mailbox that is a link or no folder is emptied through nothing.
-    Why: 0097-cross-model design D5.
-    """
-    with contextlib.suppress(OSError):
-        mailbox.parent.mkdir(parents=True, exist_ok=True)
-        mailbox.mkdir(mode=0o700)
-    try:
-        folder = stat.S_ISDIR(os.lstat(mailbox).st_mode)
-    except OSError:
-        folder = False
-    if not folder:
-        return f"the checker mailbox {mailbox} is a link"
-    _entries(mailbox, empty=True)
-    return None
-
-
 def _bounded(path: Path | str, fd: int | None = None) -> str | None:
-    """Return a regular file's text, read following no link, at most `REQUEST_BYTES`.
+    """Return a regular file's text, read following no link, at most `READ_BYTES`.
 
     A relative `path` is read in the folder `fd` holds. None when it is a link, no
     file or unreadable. Why: 0097-cross-model design D4.
@@ -3047,21 +3019,11 @@ def _bounded(path: Path | str, fd: int | None = None) -> str | None:
         try:
             if stat.S_ISREG(os.fstat(file).st_mode):
                 with os.fdopen(file, "rb", closefd=False) as handle:
-                    data = handle.read(REQUEST_BYTES + 1)
-                if len(data) <= REQUEST_BYTES:
+                    data = handle.read(READ_BYTES + 1)
+                if len(data) <= READ_BYTES:
                     text = data.decode(errors="replace")
         finally:
             os.close(file)
-    return text
-
-
-def _take_request(fd: int, name: str) -> str | None:
-    """Return a request's text, as `_bounded` reads it through `fd`, and remove it."""
-    text = _bounded(name, fd)
-    with contextlib.suppress(OSError):
-        os.unlink(name, dir_fd=fd)
-    with contextlib.suppress(OSError):
-        os.rmdir(name, dir_fd=fd)
     return text
 
 
@@ -3078,88 +3040,6 @@ def _place(fd: int, name: str, text: str) -> None:
     with os.fdopen(os.open(part, flags, 0o600, dir_fd=fd), "w") as handle:
         handle.write(text)
     os.rename(part, name, src_dir_fd=fd, dst_dir_fd=fd)
-
-
-def _reply(fd: int, role: str, answer: str) -> None:
-    """Write `<role>.answer` through `fd`; a mailbox that refuses it gets none."""
-    with contextlib.suppress(OSError):
-        _place(fd, f"{role}.answer", f"{answer}\n")
-
-
-def serve_requests(
-    mailbox: Path, served: int, spawn: Callable[[str, str, str], str]
-) -> int:
-    """Answer each checker request in `mailbox`; return the count `spawn` served.
-
-    `served` counts this converge spawn's checkers so far; `spawn` gets a request's
-    role, its text and its id. Why: 0097-cross-model design D5; 0104-codex-limits
-    design D7.
-    """
-    names = _entries(mailbox, empty=False)
-    try:
-        fd = os.open(mailbox, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except OSError:
-        return served
-    try:
-        for role in CHECKERS:
-            if f"{role}.request" not in names:
-                continue
-            prompt = _take_request(fd, f"{role}.request")
-            first, _, rest = (prompt or "").partition("\n")
-            found = REQUEST_ID.fullmatch(first)
-            if prompt is None:
-                answer = (
-                    f"exit 1 · refused: {role}.request is a link, no file or too long"
-                )
-            elif found is None:
-                answer = f"exit 1 · refused: {role}.request names no request"
-            elif served >= CHECKER_SPAWNS:
-                many = f"more than {CHECKER_SPAWNS} checker requests"
-                answer = _answer_refused(many, found[1])
-            else:
-                served += 1
-                answer = spawn(role, rest, found[1])
-            _reply(fd, role, answer)
-    finally:
-        os.close(fd)
-    return served
-
-
-def _answer(
-    code: int,
-    killed: bool,
-    models: tuple[str, str | None, str | None],
-    limit: str,
-    fallback: bool = False,
-    tokens: int | None = None,
-    request: str = "",
-) -> str:
-    """Return a checker's answer: its exit, executor, model, effort and why it ended.
-
-    e.g. 0, False, ("codex", "m", None), "" →
-    "exit 0 · executor codex · model m · effort default"
-    A `fallback`, `tokens` and `request` name it last, in that order.
-    Why: 0097-cross-model design D5; 0104-codex-limits design D3, D5, D7.
-    """
-    executor, model, effort = models
-    timed = " · timed out" if killed else ""
-    named = f" · {FALLBACK}" if fallback else ""
-    counted = "" if tokens is None else f" · tokens {tokens}"
-    asked = f" · request {request}" if request else ""
-    return (
-        f"exit {code} · executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'}{timed}{limit}{named}{counted}{asked}"
-    )
-
-
-def _answer_refused(why: str, request: str) -> str:
-    """Return a checker's refusal, naming the `request` it refuses when it has one.
-
-    e.g. "converge's time is spent", "0123456789abcdef" →
-    "exit 1 · refused: converge's time is spent · request 0123456789abcdef"
-    """
-    asked = f" · request {request}" if request else ""
-    return f"exit 1 · refused: {why}{asked}"
 
 
 def _granted(runs: Path, change: str, take: bool) -> bool:
@@ -3485,7 +3365,6 @@ def argv(
     repo: Repo,
     lines: ShipLines | None = None,
     brief: Path | None = None,
-    mailbox: Path | None = None,
     *,
     station: str | None = None,
 ) -> list[str]:
@@ -3496,10 +3375,9 @@ def argv(
     root or `cwd` is a link `_unswapped` names. A run passes its
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
-    or a `.minions` that is a link, stops with 1. A converge's `mailbox` is one more
-    write, through its sandbox alone. A Claude worker of a `station` starts with its
-    tools and cache lifetime; with none, the host's. Why: 0082-cut-station design D5;
-    0097-cross-model design D6; 0100-worker-diet design D1–D4.
+    or a `.minions` that is a link, stops with 1. A Claude worker of a `station` starts
+    with its tools and cache lifetime; with none, the host's. Why: 0082-cut-station
+    design D5; 0100-worker-diet design D1–D4.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
@@ -3510,7 +3388,6 @@ def argv(
         raise Stop(1, f"conduct: halt — {why}")
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
-    mailboxes = [] if mailbox is None else [mailbox]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
     # A worker's `mktemp` lands inside its sandbox. Why: 0084-ship-fixes-2 design D6.
     tmp = primary / ".minions" / "tmp"
@@ -3532,7 +3409,7 @@ def argv(
             *(arg for tree in trees for arg in ("--add-dir", str(tree))),
             *(
                 "--settings",
-                worker_settings(primary, [*trees, *edits, *mailboxes], common, network),
+                worker_settings(primary, [*trees, *edits], common, network),
             ),
             # A worker can write the project's settings and `.mcp.json`, and each
             # runs at a start, outside the sandbox.
@@ -3553,7 +3430,6 @@ def argv(
         *([common, *_gitdirs(common)] if common else []),
         *trees,
         *(path.parent for path in edits),
-        *mailboxes,
     ]
     _unswapped([*folders, cwd])
     roots = [str(folder) for folder in folders]
@@ -3628,15 +3504,12 @@ def work(
     cwd: Path,
     out: Path | int,
     claim: Path | None,
-    between: Callable[[], None] | None = None,
     timeout: float | None = None,
 ) -> tuple[int, bool]:
     """Run one worker in its own process group, output to `out`, held in `claim`.
 
-    `out` is a path, or a descriptor it closes. With `between`, it is called each
-    `MAILBOX_POLL` seconds while the worker runs. Return its exit code and whether
-    its `timeout`, else `TIMEOUT`, killed it.
-    Why: 0097-cross-model design D5; 0104-codex-limits design D3.
+    `out` is a path, or a descriptor it closes. Return its exit code and whether its
+    `timeout`, else `TIMEOUT`, killed it. Why: 0104-codex-limits design D3.
     """
     limit = TIMEOUT if timeout is None else timeout
     if isinstance(out, Path):
@@ -3654,23 +3527,9 @@ def work(
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = claim / str(worker.pid) if claim else None
-        deadline = time.monotonic() + limit
         try:
             if group:
                 group.write_text(_ps(worker.pid, "lstart="))
-            while between is not None:
-                try:
-                    return worker.wait(timeout=MAILBOX_POLL), False
-                except subprocess.TimeoutExpired:
-                    if time.monotonic() >= deadline:
-                        raise
-                try:
-                    between()
-                except BaseException:
-                    # A worker its claim no longer names would outlive the run.
-                    os.killpg(worker.pid, signal.SIGKILL)
-                    worker.wait()
-                    raise
             return worker.wait(timeout=limit), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -4386,12 +4245,33 @@ def preconditions(cwd: Path, executor: str) -> Path:
     return primary
 
 
+@dataclass(frozen=True)
+class Checked:
+    """What one converge checker did: its exit, the models it ran on, its tokens.
+
+    `limit` is the usage limit or the refusal that ended it, else "".
+    Why: 0108-converge-script design D4.
+    """
+
+    code: int
+    killed: bool
+    models: tuple[str, str | None, str | None]
+    limit: str
+    fallback: bool
+    tokens: int | None
+
+
 class Run:
     """One ship run: the probe, then every open version to the default branch."""
 
     def __init__(self, primary: Path, executor: str) -> None:
-        """Load `integrate.py`, and open the run log in the primary's run directory."""
+        """Load `integrate.py` and `converge.py`, and open the run log.
+
+        The run log is in the primary's run directory. Why: 0108-converge-script
+        design D1.
+        """
         integrate = runpy.run_path(str(INTEGRATE))
+        self.converge = runpy.run_path(str(CONVERGE))["converge"]
         self.delta = integrate["delta"]
         self.unreleased = integrate["unreleased"]
         self.rules = {
@@ -4405,6 +4285,8 @@ class Run:
         self.worktrees = primary / (_agents_values(primary, "Worktrees") or [""])[0]
         self.executor = executor
         self.runs = primary / ".minions" / "runs"
+        # Where each worker's group is held; a converge by hand holds none.
+        self.claim: Path | None = self.runs / "active"
         self.queue = _queue(primary)
         # The queued cuts the run read; None until `ship` reads the queue.
         self.seen: set[str] | None = None
@@ -4473,7 +4355,7 @@ class Run:
             version = find_version(self.primary, change)
             if version is None or version.tree is None:
                 return None
-            stage, why = stage_of(self.primary, version)
+            stage, why = stage_of(self.primary, version, self.skips_of(version.change))
             return stage, why, _git(version.tree, "rev-parse", "HEAD").strip()
         except Exception:
             return None
@@ -4641,25 +4523,20 @@ class Run:
         models: tuple[str, str | None, str | None],
         repo: Repo | None = None,
         brief: Path | None = None,
-        mailbox: Path | None = None,
         limits: bool = False,
         deadline: float | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout, a tool its station lacks or a
-        failed exit halted `who`. A cutter's `brief` goes to `argv`, and so does a
-        converge's `mailbox`, which is served while it runs. With `limits`, a failed
-        exit while its executor is limited halts nothing and gives None too. A
-        `deadline` ends it in place of `TIMEOUT`. Why: 0097-cross-model design D5;
-        0100-worker-diet design D5; 0104-codex-limits design D2.
+        failed exit halted `who`. A cutter's `brief` goes to `argv`. With `limits`, a
+        failed exit while its executor is limited halts nothing and gives None too. A
+        `deadline` ends it in place of `TIMEOUT`. Why: 0100-worker-diet design D5;
+        0104-codex-limits design D2.
         """
         timeout = None if deadline is None else deadline - time.monotonic()
-        if deadline is None:
-            deadline = time.monotonic() + TIMEOUT
-        between = None if mailbox is None else self.server(who, cwd, mailbox, deadline)
         code, killed, out, denied = self.worker(
-            who, station, cwd, prompt, models, repo, brief, mailbox, between, timeout
+            who, station, cwd, prompt, models, repo, brief, timeout
         )
         if killed:
             took = TIMEOUT if timeout is None else max(round(timeout), 0)
@@ -4677,52 +4554,42 @@ class Run:
             return None
         return denied
 
-    def server(
-        self, who: str, cwd: Path, mailbox: Path, deadline: float
-    ) -> Callable[[], None]:
-        """Return what serves a converge spawn's checker mailbox between its polls.
-
-        Each checker runs within `deadline`, converge's own, on the monotonic clock.
-        Why: 0097-cross-model design D5; 0104-codex-limits design D3.
-        """
-        served = 0
-
-        def serve() -> None:
-            nonlocal served
-            served = serve_requests(
-                mailbox,
-                served,
-                lambda role, text, request: self.checker(
-                    who, role, cwd, text, deadline, request
-                ),
-            )
-
-        return serve
-
     def checker(
         self,
         change: str,
-        role: str,
+        station: str,
+        table: str,
         cwd: Path,
         prompt: str,
         deadline: float,
-        request: str = "",
-    ) -> str:
-        """Run one checker the mailbox asked for; return its answer, halting nothing.
+        effort: str | None = None,
+    ) -> Checked:
+        """Run one converge checker, logged as `station`; return what it did.
 
-        Its models are the plan's, never the request's; a shadow's, `_shadow`'s of
-        them. Past `deadline` it starts nothing; else it gets what is left of it. The
-        answer names the `request` it answers. Why: 0097-cross-model design D5, D9;
-        0104-codex-limits design D3, D7.
+        It runs on `table`'s models in the plan: a table naming no model, on
+        converge's host, takes converge's model, and its effort when the table names
+        none; a shadow's are `_shadow`'s. A given `effort` replaces the plan's. Past
+        `deadline` it starts nothing; else it gets what is left of it. It halts
+        nothing. Why: 0097-cross-model design D9; 0104-codex-limits design D3;
+        0108-converge-script design D4, D8.
         """
-        if time.monotonic() >= deadline:
-            return _answer_refused("converge's time is spent", request)
-        checked = role.removeprefix("shadow-")
-        shadow = checked != role
+        checked = table.removeprefix("shadow-")
+        shadow = checked != table
         converge = self.plan[change, "converge"]
         models = self.plan[change, f"converge.{checked}"]
+        if models[0] == converge[0] and models[1] is None:
+            models = (models[0], converge[1], models[2] or converge[2])
         if shadow:
             models = _shadow(converge, models)
+
+        def given(
+            planned: tuple[str, str | None, str | None],
+        ) -> tuple[str, str | None, str | None]:
+            return planned if effort is None else (planned[0], planned[1], effort)
+
+        models = given(models)
+        if time.monotonic() >= deadline:
+            return Checked(1, False, models, "converge's time is spent", False, None)
         fallback, codex_runs = False, 0
         while True:
             if models[0] == "codex" and (
@@ -4730,11 +4597,11 @@ class Run:
             ):
                 if shadow:
                     stopped = " · stopped by a usage limit"
-                    return _answer(1, False, models, stopped, request=request)
-                models, fallback = _shadow(converge, models), True
+                    return Checked(1, False, models, stopped, False, None)
+                models, fallback = given(_shadow(converge, models)), True
             code, killed, out, _ = self.worker(
                 change,
-                f"converge-{role}",
+                station,
                 cwd,
                 prompt,
                 models,
@@ -4744,10 +4611,25 @@ class Run:
                 tokens = tokens_of(out)
                 if code == 0:
                     folder = _change_dir(self.primary, change)
-                    _stamp(folder, f"{role}.md", models[1], tokens)
-                limit = usage_limit(out)
-                return _answer(code, killed, models, limit, fallback, tokens, request)
+                    _stamp(folder, f"{table}.md", models[1], tokens)
+                return Checked(code, killed, models, usage_limit(out), fallback, tokens)
             codex_runs += 1
+
+    def trees(self) -> list[Path]:
+        """Return what a sandboxed command may write: `reach`'s trees.
+
+        Why: 0108-converge-script design D1.
+        """
+        return reach(self.primary)
+
+    def sandboxed(
+        self, argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+    ) -> int:
+        """Run `argv` under the OS sandbox, as `sandboxed` does; return its exit.
+
+        Why: 0108-converge-script design D1, D6.
+        """
+        return sandboxed(argv, cwd, trees, out)
 
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
@@ -4775,8 +4657,6 @@ class Run:
         models: tuple[str, str | None, str | None],
         repo: Repo | None = None,
         brief: Path | None = None,
-        mailbox: Path | None = None,
-        between: Callable[[], None] | None = None,
         timeout: float | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker and log it and its denials; halt nothing.
@@ -4788,9 +4668,7 @@ class Run:
         executor, model, effort = models
         held = (repo or self.repo, self.lines)
         given = (executor, prompt, cwd, model, effort, *held)
-        if mailbox is not None:
-            command = argv(*given, mailbox=mailbox, station=station)
-        elif brief is not None:
+        if brief is not None:
             command = argv(*given, brief=brief, station=station)
         else:
             command = argv(*given, station=station)
@@ -4819,13 +4697,10 @@ class Run:
             os.write(sink, f"{json.dumps(line)}\n".encode())
         before = _windows(_rollout(None)) if executor == "codex" else {}
         started = time.monotonic()
-        claim = self.runs / "active"
         if timeout is not None:
-            code, killed = work(command, cwd, sink, claim, between, timeout=timeout)
-        elif between is not None:
-            code, killed = work(command, cwd, sink, claim, between)
+            code, killed = work(command, cwd, sink, self.claim, timeout=timeout)
         else:
-            code, killed = work(command, cwd, sink, claim)
+            code, killed = work(command, cwd, sink, self.claim)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         if executor == "codex":
@@ -4967,9 +4842,9 @@ class Run:
             or (
                 integrating
                 and (
-                    not stage_of(self.primary, version)[1].startswith(
-                        "semantic conflict"
-                    )
+                    not stage_of(self.primary, version, self.skips_of(version.change))[
+                        1
+                    ].startswith("semantic conflict")
                     or _merge_tried(
                         self.primary,
                         change,
@@ -5056,7 +4931,7 @@ class Run:
         0088-paydown-2 design D4; 0089-supervisor design D6.
         """
         change = version.change
-        stage, why = stage_of(self.primary, version)
+        stage, why = stage_of(self.primary, version, self.skips_of(version.change))
         if stage in HALTS:
             return False
         head = _git(tree, "rev-parse", "HEAD").strip()
@@ -5109,7 +4984,7 @@ class Run:
             found = _build_halt(self.primary / ".minions", tree, change)
             return found[0] if found else stage
         if stage in ("converge", "integrate"):
-            disk = stage_of(self.primary, version)[0]
+            disk = stage_of(self.primary, version, self.skips_of(version.change))[0]
             return disk if disk in RESCUED else None
         return None
 
@@ -5187,18 +5062,63 @@ class Run:
         self.log.event("run", "grant", f"{change}: automatic · {ids}")
         return True, ""
 
+    def skips_of(self, change: str) -> frozenset[str]:
+        """Return the converge stations the plan skips for `change`, read once.
+
+        A version the plan holds no skip for gets the empty set, never None: no stage
+        read of the run reads the models file. Why: 0108-converge-script design D8.
+        """
+        with self.guard:
+            return self.skipped.get(change, frozenset())
+
+    def workers(self, change: str) -> dict[str, object]:
+        """Return converge's workers as the plan holds them, for `converge.py`.
+
+        Each role's models, or `skip`; the fixer's; and `shadow`. A table changed
+        during the run halts. Why: 0108-converge-script design D1.
+        e.g. {"conformance": ("claude", "m", "high"), "adversarial": "skip", …}
+        """
+        skipped = self.skips_of(change)
+        workers: dict[str, object] = {}
+        for name in WORKERS:
+            models = self.planned_models(change, name)
+            workers[name.split(".", 1)[1]] = "skip" if name in skipped else models
+        workers["shadow"] = change in self.shadowed
+        return workers
+
+    def conducted(
+        self, change: str, tree: Path, workers: dict[str, object], grant: bool
+    ) -> list[str]:
+        """Run `converge.py` in this thread; return no denial: its halt is on disk.
+
+        It is logged as a spawn and a finish, so the run log keeps its pairs.
+        Why: 0108-converge-script design D1, D8.
+        """
+        self.log.event(change, "spawn", "converge · script")
+        started = time.monotonic()
+        code = self.converge(
+            self,
+            change,
+            tree,
+            workers=workers,
+            grant=grant,
+            deadline=started + TIMEOUT,
+        )
+        seconds = round(time.monotonic() - started)
+        self.log.event(change, "finish", f"converge · exit {code} · {seconds}s")
+        return []
+
     def stage(self, version: Version) -> tuple[str, str]:
         """Return `stage_of`'s read; a note the supervisor settled reads `integrate`.
 
         Why: 0090-supervisor-merge design D4.
         """
-        stage, why = stage_of(self.primary, version)
         change = version.change
+        skips = self.skips_of(change)
+        stage, why = stage_of(self.primary, version, skips)
         # Logged once, at the first stage past a skipped converge.
         # Why: 0105-converge-switches design D2.
-        if stage in ("integrate", "release") and "converge" in _skips(
-            self.primary / ".minions", change
-        ):
+        if stage in ("integrate", "release") and "converge" in skips:
             with self.guard:
                 first = change not in self.skip_logged
                 self.skip_logged.add(change)
@@ -5227,8 +5147,9 @@ class Run:
         0085-self-healing-ship design D1; 0089-supervisor design D1;
         0090-supervisor-merge design D4, its delta's *A supervisor answers what the
         rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
-        D1, D2, D3; 0105-converge-switches design D2, whose skipped checker takes
-        `<role>=skip` in the converge prompt and no mailbox.
+        D1, D2, D3; 0105-converge-switches design D2; 0108-converge-script design
+        D8, whose converge runs `converge.py` in this thread, a skipped checker given
+        `skip`.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -5280,14 +5201,14 @@ class Run:
                     self.halt(version.change, f"{version.change} has no worktree")
                     return
                 # The run's own grant takes no person's grant file.
-                clause = " and grant=yes" if auto else ""
+                grant = auto
                 person = not auto and stage == "converge"
                 auto = False
                 if person and _granted(minions, version.change, take=True):
                     # An answered halt gets one amend round:
                     # the grant goes unspent.
-                    clause = "" if why == AMENDED else " and grant=yes"
-                    if clause:
+                    grant = why != AMENDED
+                    if grant:
                         with self.guard:
                             self.capped.add(version.change)
                         self.log.event(
@@ -5298,27 +5219,7 @@ class Run:
                 with self.guard:
                     staged = self.settled.pop(version.change, None)
                 settled = "" if staged is None else " with settled=supervisor"
-                workers, mailbox = "", None
-                if stage == "converge":
-                    converge = self.planned_models(version.change, stage)[0]
-                    planned = [self.planned_models(change, name) for name in WORKERS]
-                    skipped = self.skipped.get(change, frozenset())
-                    workers = "".join(
-                        _worker_clause(name, models, converge, name in skipped)
-                        for name, models in zip(WORKERS, planned, strict=True)
-                    )
-                    shadowed = change in self.shadowed
-                    if shadowed:
-                        workers += " and shadow=yes"
-                    if shadowed or any(
-                        models[0] != converge
-                        for name, models in zip(WORKERS, planned, strict=True)
-                        if name not in skipped
-                    ):
-                        mailbox = _mailbox(self.primary, change)
-                        if refused := _open_mailbox(mailbox):
-                            self.halt(change, refused)
-                            return
+                workers = self.workers(change) if stage == "converge" else {}
                 phase, rating = None, "hard"
                 if stage == "build":
                     unticked = _unticked(cwd, change)
@@ -5327,12 +5228,8 @@ class Run:
                 numbered = phase not in (None, "close")
                 # A link at the notes halts here, before the spawn.
                 notes = _note_lines(self.primary, change) if numbered else 0
-                prompt = PROMPTS[stage].format(
-                    change=version.change,
-                    workers=workers,
-                    grant=clause,
-                    settled=settled,
-                    phase=phase,
+                prompt = PROMPTS.get(stage, "").format(
+                    change=version.change, settled=settled, phase=phase
                 )
                 models = self.planned_models(version.change, stage)
                 # A moderate phase builds on `[build.moderate]` when it names one,
@@ -5352,9 +5249,10 @@ class Run:
                     self.log.event(version.change, "ledger", f"{version.change} {head}")
                 if stage in ("converge", "release"):
                     _unstack(self.primary, change)
-                denied = self.spawn(
-                    version.change, stage, cwd, prompt, models, mailbox=mailbox
-                )
+                if stage == "converge":
+                    denied = self.conducted(change, cwd, workers, grant)
+                else:
+                    denied = self.spawn(version.change, stage, cwd, prompt, models)
                 # A phase that failed after its notes still has them cut.
                 if numbered:
                     self.trim_notes(change, str(phase), notes)
@@ -6189,7 +6087,7 @@ class Run:
         if answered is not None:
             self.log.event("run", "rejoin", f"{change}: still halted — {answered}")
             return False
-        stage, why = stage_of(self.primary, version)
+        stage, why = stage_of(self.primary, version, self.skips_of(version.change))
         if (stage, why) == ("converge", RERUN) and reran:
             self.log.event("run", "rejoin", f"{change}: still halted — {RERAN}")
             return False
@@ -6657,7 +6555,10 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         stages = {
-            version.change: stage_of(self.primary, version) for version in versions
+            version.change: stage_of(
+                self.primary, version, self.skips_of(version.change)
+            )
+            for version in versions
         }
         # A cap the run grants is not stuck. Why: 0070-cap-policy design D2, D3.
         takes = {
@@ -6891,20 +6792,9 @@ def _log_stop(runs: Path) -> Path | None:
 def _queue(primary: Path) -> Path:
     """Return the repo's queue in the home folder, where no worker writes.
 
-    Save each converge worker's own checker mailbox, `_mailbox`.
-    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2;
-    0097-cross-model design D4.
+    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
-
-
-def _mailbox(primary: Path, change: str) -> Path:
-    """Return a version's checker mailbox: only its converge worker may write it.
-
-    e.g. `~/.mf-ship-origin/<digest>.queue/checkers/0001-todo`.
-    Why: 0097-cross-model design D4.
-    """
-    return _queue(primary) / "checkers" / change
 
 
 def _brief_of(primary: Path, change: str) -> str | None:
@@ -7532,60 +7422,65 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
     return 1 if killed else code
 
 
-def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
-    """Send a checker's prompt through the version's mailbox; print its answer.
+def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) -> int:
+    """Run `converge.py` for `change` in its worktree; return its exit.
 
-    `wait` sends nothing. Return the answer's exit, 1 with none, 2 when nothing can be
-    sent, 3 past `CHECKER_WAIT`. Why: 0097-cross-model design D4; 0104-codex-limits
-    design D7.
+    The plan is `given` alone: `conformance=`, `adversarial=` and `fix=`, each
+    `<model>/<effort>` with `default` for none, a checker's `skip`, and `grant=yes`;
+    a role given none runs on `executor`'s default. No models file is read, and no
+    claim holds the workers. Why: 0108-converge-script design D1.
+    e.g. ["fix=claude-sonnet-5-5/medium"] → the fixer on that model and effort
     """
-    if not CHANGE_ID.fullmatch(change) or role not in CHECKERS:
-        print("checker: cannot run — not a change id and a checker role")
-        return 2
+    if _executor_missing(executor):
+        raise Stop(2, f"converge: cannot run — {executor} is not on PATH")
     primary = primary_of(cwd)
-    try:
-        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        fd = os.open(_mailbox(primary, change), flags)
-    except OSError:
-        print("checker: cannot run — this converge has no mailbox")
-        return 2
-    try:
-        if not wait:
-            prompt = _change_dir(primary, change) / f"{role}.prompt.md"
-            request = secrets.token_hex(8)
-            line = f"request {request}\n"
-            text = _bounded(prompt)
-            if text is None or len(f"{line}{text}".encode()) > REQUEST_BYTES:
-                print(f"checker: cannot run — {prompt} is a link, no file or too long")
-                return 2
-            with contextlib.suppress(OSError):
-                os.unlink(f"{role}.answer", dir_fd=fd)
-            _place(fd, f"{role}.request", f"{line}{text}")
-            _place(fd, f"{role}.sent", request)
-        deadline = time.monotonic() + CHECKER_WAIT
-        while True:
-            sent = _bounded(f"{role}.sent", fd)
-            answer = _bounded(f"{role}.answer", fd)
-            if sent is not None and answer is not None:
-                named = re.search(rf" · {REQUEST_ID.pattern}\s*$", answer)
-                if named and named[1] == sent.strip():
-                    break
-                with contextlib.suppress(OSError):
-                    os.unlink(f"{role}.answer", dir_fd=fd)
-            if time.monotonic() >= deadline:
-                print(
-                    f"checker: waiting — run conduct.py checker {change} {role} --wait"
-                )
-                return 3
-            time.sleep(MAILBOX_POLL)
-        for name in ("answer", "sent"):
-            with contextlib.suppress(OSError):
-                os.unlink(f"{role}.{name}", dir_fd=fd)
-    finally:
-        os.close(fd)
-    print(answer, end="")
-    found = re.match(r"exit (\d+)", answer)
-    return int(found[1]) if found else 1
+    version = find_version(primary, change)
+    if version is None or version.tree is None:
+        raise Stop(2, f"converge: cannot run — no version worktree holds {change}")
+    named: dict[str, tuple[str, str | None, str | None]] = {}
+    skipped: set[str] = set()
+    grant = False
+    for arg in given:
+        role, _, value = arg.partition("=")
+        model, slash, effort = value.partition("/")
+        if (role, value) == ("grant", "yes"):
+            grant = True
+        elif role in ROLES and value == "skip":
+            skipped.add(role)
+        elif (
+            role in (*ROLES, "fix")
+            and slash
+            and TOKEN.fullmatch(model)
+            and TOKEN.fullmatch(effort)
+        ):
+            named[role] = (
+                executor,
+                None if model == "default" else model,
+                None if effort == "default" else effort,
+            )
+        else:
+            raise Stop(
+                2,
+                f"converge: cannot run — {arg} is not <role>=<model>/<effort>,"
+                " <checker>=skip or grant=yes",
+            )
+    run = Run(primary, executor)
+    run.claim = None
+    run.lines = ship_lines(primary)
+    run.plan[change, "converge"] = (executor, None, None)
+    workers: dict[str, object] = {"shadow": False}
+    for role in (*ROLES, "fix"):
+        models = named.get(role, (executor, None, None))
+        run.plan[change, f"converge.{role}"] = models
+        workers[role] = "skip" if role in skipped else models
+    return run.converge(
+        run,
+        change,
+        version.tree,
+        workers=workers,
+        grant=grant,
+        deadline=time.monotonic() + TIMEOUT,
+    )
 
 
 def status(cwd: Path) -> str:
@@ -7803,10 +7698,16 @@ def main(argv_: list[str] | None = None) -> int:
     agenting = commands.add_parser("agent", help="one worker in the cwd")
     agenting.add_argument("--executor", required=True, choices=("claude", "codex"))
     agenting.add_argument("prompt")
-    sending = commands.add_parser("checker", help="send a checker on another host")
-    sending.add_argument("change_id", metavar="change-id")
-    sending.add_argument("role")
-    sending.add_argument("--wait", action="store_true")
+    converging = commands.add_parser(
+        "converge", help="converge one version by hand, in the cwd's repo"
+    )
+    converging.add_argument("change_id", metavar="change-id")
+    converging.add_argument(
+        "given",
+        metavar="[conformance=<m>/<e>] [adversarial=…] [fix=…] [grant=yes]",
+        nargs="*",
+    )
+    converging.add_argument("--executor", default="claude", choices=EXECUTORS)
     commands.add_parser("report", help="the last run's close-out lines")
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
@@ -7853,8 +7754,8 @@ def main(argv_: list[str] | None = None) -> int:
             print(rejoin(cwd, args.change_id, args.yes))
         elif args.command == "agent":
             return agent(cwd, args.executor, args.prompt)
-        elif args.command == "checker":
-            return checker(cwd, args.change_id, args.role, args.wait)
+        elif args.command == "converge":
+            return converge_by_hand(cwd, args.change_id, args.given, args.executor)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":

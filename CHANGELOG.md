@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `converge.py` writes the debt under its lock, running each card's **Still true?** command sandboxed: exit 1 is moot,
   prose goes unchecked. A failed worker gets one retry and a malformed findings file one rewrite worker, then a debt card,
   so a run goes on where a script can; it closes on a report read from disk (change `0108-converge-script`, phase 4).
+- `conduct.py` runs converge in the version's thread through `converge.py`, starting no conducting worker; each checker,
+  fixer and verify worker is its own spawn with its own log, and `conduct.py converge <id>` runs it by hand. The checker
+  mailbox, its `checker` command and `surfaces.py` are gone; a converge skip is read once, with the plan (`0105·S2`)
+  (change `0108-converge-script`, phase 5).
 
 ## [0.88.0] - 2026-11-09
 

@@ -7,9 +7,7 @@ Why: 0107-sandbox-runner design D5.
 
 import io
 import json
-import os
 import runpy
-import shlex
 import shutil
 import signal
 import socket
@@ -44,23 +42,6 @@ def _conduct() -> dict[str, Any]:
 
 def _python(code: str) -> list[str]:
     return [sys.executable, "-c", code]
-
-
-@pytest.fixture
-def fake_sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Put a fake `sandbox-exec` first on `PATH`; return the file its profile lands in.
-
-    The fake writes its profile argument, then runs the rest of its arguments.
-    """
-    folder = tmp_path / "fake-bin"
-    folder.mkdir()
-    profile = tmp_path / "profile.sb"
-    fake = folder / "sandbox-exec"
-    target = shlex.quote(str(profile))
-    fake.write_text(f'#!/bin/sh\nprintf \'%s\' "$2" > {target}\nshift 2\nexec "$@"\n')
-    fake.chmod(0o755)
-    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
-    return profile
 
 
 def _trees(tmp_path: Path) -> list[Path]:
@@ -106,7 +87,7 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
 
 def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     tmp_path: Path,
-    fake_sandbox: Path,
+    fake_sandbox_exec: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -135,7 +116,7 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     for pair in conduct["HOOKS_OFF"]:
         key, value = pair.split("=", 1)
         assert env[key] == value
-    assert fake_sandbox.read_text() == conduct["_profile"](trees, Path.home())
+    assert fake_sandbox_exec.read_text() == conduct["_profile"](trees, Path.home())
 
 
 @pytest.mark.parametrize(
@@ -148,7 +129,7 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     ],
 )
 def test_the_exit_passes_through(
-    tmp_path: Path, fake_sandbox: Path, code: str, exit_code: int
+    tmp_path: Path, fake_sandbox_exec: Path, code: str, exit_code: int
 ) -> None:
     trees = _trees(tmp_path)
     command = _python(f"import os, signal, sys; {code}")
@@ -186,7 +167,7 @@ def test_no_sandbox_exec_stops_with_2(
 )
 def test_a_denial_in_the_output_gets_a_line(
     tmp_path: Path,
-    fake_sandbox: Path,
+    fake_sandbox_exec: Path,
     capsys: pytest.CaptureFixture[str],
     exit_code: int,
     text: str,
@@ -206,7 +187,7 @@ def test_a_denial_in_the_output_gets_a_line(
 
 
 def test_the_output_goes_to_the_file_given(
-    tmp_path: Path, fake_sandbox: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, fake_sandbox_exec: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     trees = _trees(tmp_path)
     command = _python(
@@ -246,7 +227,7 @@ def _repo(tmp_path: Path) -> Path:
 
 def test_the_command_runs_a_command_in_the_cwd(
     tmp_path: Path,
-    fake_sandbox: Path,
+    fake_sandbox_exec: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -261,7 +242,7 @@ def test_the_command_runs_a_command_in_the_cwd(
     seen = capsys.readouterr()
     assert shown == 0
     assert Path(seen.out.strip()).resolve() == repo
-    assert fake_sandbox.read_text() == conduct["_profile"]([repo], Path.home())
+    assert fake_sandbox_exec.read_text() == conduct["_profile"]([repo], Path.home())
     assert conduct["main"](["sandboxed", "--", *_python("raise SystemExit(3)")]) == 3
     for argv in (["sandboxed"], ["sandboxed", "--"]):
         assert conduct["main"](argv) == 2

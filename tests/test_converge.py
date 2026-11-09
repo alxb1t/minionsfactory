@@ -306,7 +306,9 @@ def _changed(host: Host) -> None:
 
 def _verify(host: Host) -> None:
     host.exits["gate_check.py"] = 1
+    # `gate_check.py` prints its gate line first.
     host.printed["gate_check.py"] = (
+        "gate: no unplanned change\n"
         "verify: halt — a `Verify:` differs from the plan at 1a2b3c4; the build never"
         " amends one:\n  1.2\n  - a\n  + b\n  2.1 · uncommitted\n  - c\n  + d\n"
     )

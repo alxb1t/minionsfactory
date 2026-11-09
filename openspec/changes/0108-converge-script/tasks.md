@@ -11,7 +11,7 @@ only the phase's end is green.
 - [x] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
 - [x] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
 - [x] 4 — The debt, the halts and the report · hard
-- [ ] 5 — `conduct.py`: the in-process call and the retirements · hard
+- [x] 5 — `conduct.py`: the in-process call and the retirements · hard
 - [ ] 6 — The front, the record and the metrics · hard
 
 ## 1 — The fields
@@ -86,37 +86,37 @@ only the phase's end is green.
 
 ## 5 — `conduct.py`: the in-process call and the retirements
 
-- [ ] 5.1 Add `test_the_run_hands_converge_its_trees_and_sandbox`; bring `test_a_limited_checker_falls_back_to_claude` and the two
+- [x] 5.1 Add `test_the_run_hands_converge_its_trees_and_sandbox`; bring `test_a_limited_checker_falls_back_to_claude` and the two
   renamed tests of [the Tests table](design.md#tests) to the new call, the second extended with a spent deadline and a timeout kill;
   then make `Run.checker` take `(change, station, table, cwd, prompt, deadline, effort)` and return a frozen `Checked`, per
   [D4](design.md#d4): a checker whose table names no model runs on the plan's `converge` model, and on its effort when the
   table names none either (the delta's *The conductor's default*); and add `Run.trees` and `Run.sandboxed`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "hands_converge"` exits 0; `git grep -n -e '^class Checked' -e '    def trees(' -e '    def sandboxed(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 5.2 Add `test_a_skip_is_read_once`; then `CONVERGE` beside `INTEGRATE`, its load in `Run.__init__`, and in `Run.advance` the
+- [x] 5.2 Add `test_a_skip_is_read_once`; then `CONVERGE` beside `INTEGRATE`, its load in `Run.__init__`, and in `Run.advance` the
   call in place of the converge spawn and its mailbox, logging `spawn converge · script` and `finish converge`; drop converge's entry of
   `PROMPTS` and `_worker_clause`. Pass `Run.skipped.get(change, frozenset())`, never none, to `stage_of` and `_unjudged` as their new
   `skips` argument, per [D8](design.md#d8); `status` and `check` pass none.
   Verify: `uv run pytest -q tests/test_conduct.py -k "skip_is_read_once"` exits 0; `git grep -n -e '^CONVERGE = ' -e 'skips: frozenset' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 5.3 Delete the mailbox from `C` as [D8](design.md#d8) lists, the `between` parameter of `work`, `Run.worker` and `Run.spawn`
+- [x] 5.3 Delete the mailbox from `C` as [D8](design.md#d8) lists, the `between` parameter of `work`, `Run.worker` and `Run.spawn`
   included; `_entries`, `_bounded` and `_place` stay. Rename `CONDUCTOR` to `CHECKER_DEFAULT`, its branch in `_models` kept,
   so `[converge]` on Claude naming no model and no effort plans `claude-sonnet-5-5` · `high`, the checkers' default of the
   delta's *The conductor's default*; reword `_models`' docstring and the comment of its case in
   `test_the_supervisor_runs_on_its_own_table`, whose assertions stay. Delete the converge row of `STATION_TOOLS` and
   `"converge"` from `CACHE_HOUR`.
   Verify: `git grep -n -e 'def serve_requests' -e 'def _open_mailbox' -e '^def _worker_clause(' -e '^CONDUCTOR = ' -e '^    "converge": ("Bash"' -- skills/mf-ship/scripts/conduct.py` prints nothing; `git grep -n '^CHECKER_DEFAULT = ("claude-sonnet-5-5", "high")' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 5.4 Add `test_the_converge_command_runs_by_hand`; then the `converge` subparser, its branch in `main` and its line in the
+- [x] 5.4 Add `test_the_converge_command_runs_by_hand`; then the `converge` subparser, its branch in `main` and its line in the
   module docstring of `C`, per [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_conduct.py -k "by_hand"` exits 0; `git grep -n -e 'args.command == "converge"' -e 'conduct.py converge' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 5.5 Move the fake `sandbox-exec` fixture of `tests/test_sandboxed.py` to `tests/conftest.py` as `fake_sandbox_exec`, and give each fake repo of
+- [x] 5.5 Move the fake `sandbox-exec` fixture of `tests/test_sandboxed.py` to `tests/conftest.py` as `fake_sandbox_exec`, and give each fake repo of
   `tests/test_conduct.py` a `gate` recipe that succeeds, per [C5](design.md#c-rows). Rewrite `tests/fake_worker.py` to play one worker
   per role from the prompt's role line, keeping the retired whole-converge modes as per-role modes.
   Verify: `git grep -n -e 'fix-surfaces' -e 'surfaces' -- tests/fake_worker.py` prints nothing; `git grep -n 'def fake_sandbox_exec' -- tests/conftest.py` prints a line.
-- [ ] 5.6 Find each test of `tests/test_conduct.py` that names a converge station call, a `"checker"` call or the mailbox with
+- [x] 5.6 Find each test of `tests/test_conduct.py` that names a converge station call, a `"checker"` call or the mailbox with
   `git grep -n -e 'converge 0001' -e '"checker"' -e 'mailbox' -e 'surfaces' tests/test_conduct.py`; bring each to the new fake under its own
   name, and add `test_a_version_converges_with_no_conducting_worker` (slow), per the renames and removals of
   [the Tests table](design.md#tests).
   Verify: `uv run pytest -q tests/test_conduct.py` exits 0; `git grep -n -e 'converge 0001-todo and' -e 'mailbox' -- tests/test_conduct.py` prints nothing.
-- [ ] 5.7 Delete `skills/mf-converge/scripts/surfaces.py`, `tests/test_surfaces.py`, the `_METRICS_SCRIPTS` entry of
+- [x] 5.7 Delete `skills/mf-converge/scripts/surfaces.py`, `tests/test_surfaces.py`, the `_METRICS_SCRIPTS` entry of
   `tests/test_skills.py` naming `surfaces.py` and the two expected-list strings that name it; reword the lines of `docs/principles.md`
   that name `surfaces.py` and its test.
   Verify: `uv run pytest -q tests/test_skills.py` exits 0; `git ls-files skills/mf-converge/scripts/surfaces.py tests/test_surfaces.py` prints nothing; `git grep -n 'surfaces' -- docs/principles.md` prints nothing.

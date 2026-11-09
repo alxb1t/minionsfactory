@@ -4,6 +4,8 @@ Why: the suite runs on every core, so no test may share the operator's home or a
 test's state — 0065-gate-hardening design D1.
 """
 
+import os
+import shlex
 from pathlib import Path
 
 import pytest
@@ -27,3 +29,21 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # Why: 0100-worker-diet design D2 — `_plugins_off` reads the operator's otherwise.
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     return home
+
+
+@pytest.fixture
+def fake_sandbox_exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a fake `sandbox-exec` first on `PATH`; return the file its profile lands in.
+
+    The fake writes its profile argument, then runs the rest of its arguments
+    unconfined: a nested Seatbelt cannot apply one. Why: 0108-converge-script C5.
+    """
+    folder = tmp_path / "fake-bin"
+    folder.mkdir()
+    profile = tmp_path / "profile.sb"
+    fake = folder / "sandbox-exec"
+    target = shlex.quote(str(profile))
+    fake.write_text(f'#!/bin/sh\nprintf \'%s\' "$2" > {target}\nshift 2\nexec "$@"\n')
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    return profile
