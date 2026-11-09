@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` reads `skip = true` under `[converge]` or a checker's table: a skipped converge sends a built version to
   integrate and release, the run log saying `converge — skipped — plan`; a skipped checker takes `<role>=skip` in the
   converge prompt and is not probed (change `0105-converge-switches`, phase 2).
+- Converge dispatches the checker not skipped alone; `skip_stub.py` writes the skipped one's findings file clean at `HEAD`,
+  `mode: skipped`. `mf-release` states `converge: skipped — by plan` and `<role>: skipped`, and `review_metrics.py` books a
+  worker by the start of its description, a stub's `0` a gap (change `0105-converge-switches`, phase 3).
 
 ## [0.86.0] - 2026-11-09
 

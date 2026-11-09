@@ -859,6 +859,37 @@ def test_a_ready_version_ships_past_a_slow_one(
     ) in clean.log.path.read_text()
 
 
+@pytest.mark.slow
+def test_a_version_with_adversarial_skipped_ships_on_a_stub(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0105-converge-switches design D3. No existing ship test holds a stub, and
+    # `_unjudged` reads it only through the real stage loop.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text("[converge.adversarial]\nskip = true\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert "converge 0001-todo and adversarial=skip" in _calls(calls)
+    assert "release 0001-todo" in _calls(calls)
+    stub = (folder / "adversarial.md").read_text()
+    assert "\nmode: skipped\n" in stub
+    assert "\nverdict: clean\n" in stub
+    assert "\nverdict: clean\n" in (folder / "conformance.md").read_text()
+    assert "mode: skipped" not in (folder / "conformance.md").read_text()
+    lines = _log(root)
+    assert not any("converge — skipped" in line for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+
 def test_beside_waits_on_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2256,6 +2287,37 @@ def test_a_rescue_amends_at_amend_needed(
         card.replace("· adversarial · security — why.", "· adversarial")
     )
     assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+
+
+def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
+    # A stub is a clean findings file at `HEAD` with no card: no reader changed.
+    # Why: 0105-converge-switches design D2, D3.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    folder = minions / "changes" / "0001-todo"
+    head = _git(root, "rev-parse", "HEAD")
+    _findings(root, "0001-todo", head, roles=("conformance",))
+    stub = folder / "adversarial.md"
+    halt = "halt — amend needed — R1 · head a"
+    unjudged, blocks, held = (
+        conduct[name] for name in ("_unjudged", "_security_blocks", "_security_held")
+    )
+    assert unjudged(minions, root, "0001-todo") == "no adversarial findings file"
+    assert blocks(minions, "0001-todo", halt)
+    assert held(minions, "0001-todo", halt)
+
+    script = _REPO / "skills" / "mf-converge" / "scripts" / "skip_stub.py"
+    done = subprocess.run(
+        [sys.executable, str(script), str(stub), "1"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stdout
+    assert unjudged(minions, root, "0001-todo") is None
+    assert not blocks(minions, "0001-todo", halt)
+    assert not held(minions, "0001-todo", halt)
 
 
 @pytest.mark.slow

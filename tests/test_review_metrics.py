@@ -801,6 +801,25 @@ def _answered(tool: str, **last: int) -> object:
     }
 
 
+def test_review_metrics_books_a_worker_by_its_description() -> None:
+    # Why: 0105-converge-switches design D6, D3.
+    book = review_metrics.WORKER
+    for description, role, round_ in (
+        ("fix round 2 · adversarial cards", "fix", "2"),
+        ("Adversarial round 1: break it", "Adversarial", "1"),
+        ("verify conformance round 3", "verify", "3"),
+    ):
+        named = book.search(description)
+        assert named
+        assert (named[1], named[2]) == (role, round_)
+    assert book.search("Security station verify round 2") is None
+    assert book.search("Explore the parser") is None
+
+    # A stub's `workers: 0` is a gap, as a by-rule file's is.
+    assert review_metrics._workers({"mode": "skipped", "workers": "0"}) is None
+    assert review_metrics._workers({"mode": "parallel", "workers": "4"}) == 4
+
+
 def test_workers_are_priced_per_round_and_role(tmp_path: Path) -> None:
     # A round's record sums its own run's workers alone, never another run's of
     # the same round number; a worker placed in no run joins no record.

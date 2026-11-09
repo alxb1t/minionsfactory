@@ -48,8 +48,8 @@ reviewed: <YYYY-MM-DD>
 round: <int, bumped by each verify round, never by a pickup check>
 open_blocking: <int>
 verdict: clean | changes-requested
-mode: parallel | sequential | by-rule
-workers: <int, the workers this role used; 0 by rule>
+mode: parallel | sequential | by-rule | skipped
+workers: <int, the workers this role used; 0 by rule or skipped>
 model: <the model, as the host reports it, or unknown>
 executor: <claude | codex, the host you run on, from runtime evidence>
 packet: <the documents included; then `skipped:` and those skipped>

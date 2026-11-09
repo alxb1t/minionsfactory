@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The grammar · hard
 - [x] 2 — Conduct reads the switches · hard
-- [ ] 3 — Converge with one role, the stub and the release · hard
+- [x] 3 — Converge with one role, the stub and the release · hard
 - [ ] 4 — The repo default and the surfaces warning · moderate
 - [ ] 5 — The record · moderate
 
@@ -49,33 +49,33 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — Converge with one role, the stub and the release
 
-- [ ] 3.1 Add `tests/test_skip_stub.py` with `test_a_stub_is_written` and `test_a_stub_it_cannot_write_exits_2`, per the design's
+- [x] 3.1 Add `tests/test_skip_stub.py` with `test_a_stub_is_written` and `test_a_stub_it_cannot_write_exits_2`, per the design's
   `## Tests` rows.
   Verify: `grep -n "def test_a_stub_it_cannot_write_exits_2" tests/test_skip_stub.py` prints a line.
-- [ ] 3.2 Write `skills/mf-converge/scripts/skip_stub.py`, per [D3](design.md#d3), its docstring citing
+- [x] 3.2 Write `skills/mf-converge/scripts/skip_stub.py`, per [D3](design.md#d3), its docstring citing
   `0105-converge-switches design D3`.
   Verify: `uv run pytest -q tests/test_skip_stub.py` reports `2 passed`.
-- [ ] 3.3 Add `test_a_stub_bars_no_rescue` and `test_a_version_with_adversarial_skipped_ships_on_a_stub` to `tests/test_conduct.py`,
+- [x] 3.3 Add `test_a_stub_bars_no_rescue` and `test_a_version_with_adversarial_skipped_ships_on_a_stub` to `tests/test_conduct.py`,
   per the design's `## Tests` rows; the second goes red here, as the fake still writes a findings file for adversarial.
   Verify: `grep -n "def test_a_version_with_adversarial_skipped_ships_on_a_stub" tests/test_conduct.py` prints a line.
-- [ ] 3.4 In `tests/fake_worker.py`'s converge branch, run `skip_stub.py` for each role its prompt holds `=skip` for, in place of that
+- [x] 3.4 In `tests/fake_worker.py`'s converge branch, run `skip_stub.py` for each role its prompt holds `=skip` for, in place of that
   role's findings file, per the design's `## Tests` row.
   Verify: `uv run pytest -q tests/test_conduct.py -k "stub_bars_no_rescue or adversarial_skipped_ships"` reports `2 passed`.
-- [ ] 3.5 **CORPUS** `review-metrics` In `skills/mf-review-metrics/scripts/review_metrics.py`, anchor `WORKER` and read `mode: skipped` as a gap in
+- [x] 3.5 **CORPUS** `review-metrics` In `skills/mf-review-metrics/scripts/review_metrics.py`, anchor `WORKER` and read `mode: skipped` as a gap in
   `_workers`, per [D6](design.md#d6) and [D3](design.md#d3); add `test_review_metrics_books_a_worker_by_its_description` to
   `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k books_a_worker_by_its_description` reports `1 passed`.
-- [ ] 3.6 In `skills/mf-converge/SKILL.md`, add [D3](design.md#d3)'s `## A skipped checker` section after *Shadow round 1*.
+- [x] 3.6 In `skills/mf-converge/SKILL.md`, add [D3](design.md#d3)'s `## A skipped checker` section after *Shadow round 1*.
   Verify: `grep -n "skip_stub.py" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.7 In `skills/mf-converge/SKILL.md`, make [D3](design.md#d3)'s edits to Steps 3, 5, 6, 7 and 8, and [D6](design.md#d6)'s
+- [x] 3.7 In `skills/mf-converge/SKILL.md`, make [D3](design.md#d3)'s edits to Steps 3, 5, 6, 7 and 8, and [D6](design.md#d6)'s
   descriptions in Steps 3, 6 and 7.
   Verify: `grep -n "fix round <N>" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.8 In `skills/mf-converge/SKILL.md`, make [D3](design.md#d3)'s edits to *By rule*, *Never* and Step 10, and the halt on a
+- [x] 3.8 In `skills/mf-converge/SKILL.md`, make [D3](design.md#d3)'s edits to *By rule*, *Never* and Step 10, and the halt on a
   `shadow=yes` beside a skip.
   Verify: `grep -n "a skipped role" skills/mf-converge/SKILL.md` prints a line.
-- [ ] 3.9 In `skills/mf-converge/references/worker.md`, make [D3](design.md#d3)'s `mode` and `workers` edits.
+- [x] 3.9 In `skills/mf-converge/references/worker.md`, make [D3](design.md#d3)'s `mode` and `workers` edits.
   Verify: `grep -n "by-rule | skipped" skills/mf-converge/references/worker.md` prints a line.
-- [ ] 3.10 In `skills/mf-release/SKILL.md`, make [D4](design.md#d4)'s edits to precondition 4, Step 4.4's line and the report.
+- [x] 3.10 In `skills/mf-release/SKILL.md`, make [D4](design.md#d4)'s edits to precondition 4, Step 4.4's line and the report.
   Verify: `grep -n "skipped — by plan" skills/mf-release/SKILL.md` prints a line.
 
 ## 4 — The repo default and the surfaces warning
