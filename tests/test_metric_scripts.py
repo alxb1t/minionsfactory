@@ -857,6 +857,19 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     assert priced("cost-usd-converge") == 2.0 + 2 * 2.4
     assert priced("tokens-converge") == 500 + 2 * 1_100_000
     assert priced("codex-window-5h") == 10.0
+    # A Codex log that did work and then failed spent an unknown sum: a gap, no zero.
+    item = {"item": {"type": "command_execution"}}
+    limit = [{"type": "error"}, {"type": "turn.failed"}]
+    for events, spent in (
+        ([{"type": "item.started"} | item], f"gap: no result event in {checker_log}"),
+        ([{"type": "item.completed"} | item], f"gap: no result event in {checker_log}"),
+        # Twin: one limited before any item started spent nothing.
+        ([], 500 + 2 * 1_100_000),
+    ):
+        held = [{"type": "turn.started"}, *events, *limit]
+        log = stopped + "".join(json.dumps(event) + "\n" for event in held)
+        _write(tmp_path, {f".minions/changes/{checker_log}": log})
+        assert priced("tokens-converge") == spent
     # Twin: a Codex log with a turn and no `mf.quota` line is passed over, no gap.
     _write(tmp_path, {f".minions/changes/{checker_log}": stopped + json.dumps(turn)})
     assert priced("codex-window-week") == 2.0

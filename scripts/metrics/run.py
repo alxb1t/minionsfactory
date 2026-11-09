@@ -57,6 +57,8 @@ USAGE = (
 )
 # A Codex `turn.completed`'s tokens: its cached input is a part of its input.
 CODEX_USAGE = ("input_tokens", "output_tokens")
+# A Codex log holding one of these did work, so a missing `turn.completed` is a gap.
+CODEX_ITEMS = ("item.started", "item.completed")
 ROLE = re.compile(r"\b(conformance|adversarial)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
@@ -236,7 +238,7 @@ def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
 
     A Claude log's are its last result event's totals: `total_cost_usd` and
     `modelUsage` are cumulative, per 0076-context-cost D1. A Codex log's are its
-    `turn.completed` events', priced by `_priced`; one stopped before its first turn
+    `turn.completed` events', priced by `_priced`; one stopped before its first item
     spent none. Why: 0104-codex-limits design D5.
     """
     events = list(_json(path, '"type"')) if path.is_file() else []
@@ -245,7 +247,8 @@ def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
     if not results and turns:
         tokens = sum(_summed(t.get("usage"), CODEX_USAGE) for t in turns)
         return _priced(path, name, turns), tokens
-    if not results and path.is_file() and _spawn_line(path) is not None:
+    worked = any(e.get("type") in CODEX_ITEMS for e in events)
+    if not results and not worked and path.is_file() and _spawn_line(path):
         return 0.0, 0
     last = results[-1] if results else {}
     cost, models = last.get("total_cost_usd"), last.get("modelUsage")
@@ -527,10 +530,8 @@ class Version:
     def quota(self, window: str) -> float:
         """Return a window's share the version's Codex spawns used, from their logs.
 
-        Each spawn of `SPENT`'s stages and its checkers whose first line is an
-        `mf.spawn` has its `mf.quota` line's `window` summed to a tenth; a log with no
-        such line is passed over, and none holding one is a gap.
-        Why: 0104-codex-limits design D5.
+        Summed to a tenth; a log with no `mf.quota` line is passed over, and none
+        holding one is a gap. Why: 0104-codex-limits design D5.
         """
         logs = [
             self.log(spawn)[0]

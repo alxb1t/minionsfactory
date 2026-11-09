@@ -4783,6 +4783,7 @@ def test_a_checker_request_is_bounded(
     assert answered == f"exit 1 · refused: converge's time is spent · request {ident}"
 
 
+@pytest.mark.slow
 def test_a_limited_checker_falls_back_to_claude(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -4920,15 +4921,27 @@ def test_a_limited_checker_falls_back_to_claude(
     assert check("shadow-conformance") == stopped
     assert spawned() == (7, 4)
 
-    # Codex limited at the probe and unprobed: waited for, probed, then run on Codex.
+    # Codex limited at the probe and unprobed: waited for, probed, then run on Codex,
+    # the probe's workers too ending by converge's time.
     models(on_codex)
     run.limited.clear()
     run.probed.discard("codex")
     run.limited["codex"] = now[0] + 600
     fake_codex("", "")
     after[0] = ""
+    timeouts: list[object] = []
+    work = run.worker
+
+    def timed(*args: object, **kwargs: object) -> tuple[int, bool, Path, list[str]]:
+        timeouts.append(args[9] if len(args) > 9 else kwargs.get("timeout"))
+        return work(*args, **kwargs)
+
+    run.worker = timed
     assert check() == coded
     assert "codex" in run.probed and run.halts == []
+    assert len(timeouts) == 3
+    assert all(isinstance(t, float) and 0 < t <= 3000 for t in timeouts)
+    run.worker = work
     # A probe failing on anything but a limit halts the version; Claude checks.
     run.probed.discard("codex")
     run.limited["codex"] = now[0] + 600
@@ -10114,12 +10127,17 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     build = conduct["Version"]("0001-build", joined("0001-build", table))
     table = '[converge]\n[converge.conformance]\nexecutor = "codex"\n'
     check = conduct["Version"]("0002-check", joined("0002-check", table))
+    table = '[converge]\nexecutor = "codex"\nskip = true\n'
+    skip = conduct["Version"]("0005-skip", joined("0005-skip", table))
     run = conduct["Run"](root, "claude")
-    run.read_plan([build, check])
+    run.read_plan([build, check, skip])
     run.probed.add("claude")
     assert run.on_stations("0001-build") == ["codex", "claude"]
     assert run.on_stations("0002-check") == ["claude"]
     assert run.named("0002-check") == ["claude", "codex"]
+    # A skipped station runs on nothing: a skipped converge on Codex, its fixer
+    # among it, names no Codex.
+    assert run.on_stations("0005-skip") == ["claude"]
 
     # A limit holding probes nothing: the version with a station on Codex halts, a
     # checker-only version is passed over, and no refusal is kept.
@@ -10152,6 +10170,31 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run.probe_for("0001-build", ["codex"], ["codex"])
     assert run.refused == {} and _calls(calls) == ["probe"]
     assert run.halts[0][1].startswith("probe-codex — codex limited until ")
+    # A limit the probe records whose reset passes before it is read again still
+    # halts the version on Codex, naming that reset, and keeps no refusal.
+    run = conduct["Run"](root, "claude")
+    passed = time.time() - 1
+
+    def limited(executor: str, who: str, deadline: float | None) -> None:
+        run.limited[executor] = passed
+
+    run.probe = limited
+    run.probe_for("0002-check", ["codex"], [])
+    run.probe_for("0001-build", ["codex"], ["codex"])
+    why = f"probe-codex — codex limited until {until(passed)}"
+    assert run.halts == [("0001-build", why)] and run.refused == {}
+    # A reset that passes while `codex_ready` reads the rollout is no wait.
+    run.probed.add("codex")
+    clock = [time.time()]
+
+    def headroom(now: float) -> float:
+        clock[0] += 2
+        return now + 1
+
+    with monkeypatch.context() as patched:
+        patched.setattr(time, "time", lambda: clock[0])
+        patched.setitem(run.codex_ready.__globals__, "_headroom", headroom)
+        assert run.codex_ready("0002-check", time.monotonic() + 600)
 
     # A joining version goes through `probe_for` the same way.
     calls.unlink()
@@ -10169,11 +10212,12 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     _queued(conduct, root, "0003-a", brief, executor="codex")
     _queued(conduct, root, "0004-b", brief)
     run = conduct["Run"](root, "claude")
-    run.read_plan([build, check])
+    run.read_plan([build, check, skip])
     run.probed.add("claude")
-    assert run.hold_limited(["0001-build", "0002-check"], ["0003-a", "0004-b"]) == set()
+    changes = ["0001-build", "0002-check", "0005-skip"]
+    assert run.hold_limited(changes, ["0003-a", "0004-b"]) == set()
     run.limited["codex"] = hold
-    held = run.hold_limited(["0001-build", "0002-check"], ["0003-a", "0004-b"])
+    held = run.hold_limited(changes, ["0003-a", "0004-b"])
     assert held == {"0003-a"}
     why = f"probe-codex — codex limited until {until(hold)}"
     assert run.halts == [("0001-build", why), ("0003-a", f"cut-halted — {why}")]

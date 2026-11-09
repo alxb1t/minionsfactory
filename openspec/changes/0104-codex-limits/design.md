@@ -153,6 +153,8 @@ does, so no test reads the operator's sessions.
 - **`take`** — returns at once when `self.stopped(version.change)`, before `catch_up`: a version `hold_limited` halted
   merges nothing, and its dependants block as on any halt.
 
+Fix note (2026-11-09, R2): `on_stations` leaves out the stations the version's `self.skipped` names, as `named` does.
+
 ### D3
 
 - **Converge's time (`0097·S2`)** — `work` and `Run.worker` gain `timeout: float | None = None`, `None` read as the global
@@ -187,6 +189,8 @@ does, so no test reads the operator's sessions.
 - **`V`'s events table, `verdicts`** — "for a mailbox role, the executor, model and effort its answer names" becomes "for a
   mailbox role, the executor, model, effort and tokens its answer names, then ` · fallback: codex usage limit` when it
   names it".
+
+Fix note (2026-11-09, S2): `codex_ready` passes `deadline` through `probe_for` and `probe` to each probe spawn, which runs on what is left of it in place of `TIMEOUT`.
 
 ### D4
 
@@ -228,6 +232,8 @@ the same halt, in its first test. The version then halts for the person, as D53 
   `"claude-sonnet-5-5" = { input = 2.0, cached_input = 0.1, output = 10.0, cache_write = 2.5, cache_write_1h = 4.0 }`;
   the header's `Why:` gains `0104-codex-limits design D5`.
 
+Fix note (2026-11-09, S1): `_spent`'s `(0.0, 0)` also needs the log to hold no `item.started` or `item.completed`; a Codex log that did work and has no `turn.completed` raises `Gap`.
+
 ### D6
 
 - **The roots** — **`_gitdirs(common: Path) -> list[Path]`** returns each entry directly under `common / "worktrees"`
@@ -247,6 +253,8 @@ the same halt, in its first test. The version then halts for the person, as D53 
   `MF_REAL_CODEX=1` and `codex` is on `PATH`: a `tmp_path` repo with a linked worktree; the `-c sandbox_workspace_write.*`
   pairs `argv("codex", …)` gives for that worktree; then
   `codex sandbox -c 'sandbox_mode="workspace-write"' <those pairs> -C <the worktree> -- git write-tree` exits 0.
+
+Fix note (2026-11-09, R1): codex-cli 0.163's `codex sandbox` needs a permission profile and ignores `sandbox_mode` and `sandbox_workspace_write.*` under one, so the test runs `codex sandbox -P mf -c <profile>`, a `permissions.mf` profile extending `:workspace` that makes those roots writable, `:slash_tmp` and `:tmpdir` read-only.
 
 ### D7
 

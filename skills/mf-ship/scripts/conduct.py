@@ -3090,11 +3090,9 @@ def serve_requests(
 ) -> int:
     """Answer each checker request in `mailbox`; return the count `spawn` served.
 
-    `served` counts this converge spawn's checkers so far: past `CHECKER_SPAWNS`, or
-    for a request that is a link, no file or too long, or names no request, no checker
-    starts. A request's first line is `request <id>`; `spawn` gets its role, the rest
-    and the id, and a refusal that read the id names it. An entry named for no role is
-    left. Why: 0097-cross-model design D5; 0104-codex-limits design D7.
+    `served` counts this converge spawn's checkers so far; `spawn` gets a request's
+    role, its text and its id. Why: 0097-cross-model design D5; 0104-codex-limits
+    design D7.
     """
     names = _entries(mailbox, empty=False)
     try:
@@ -4434,9 +4432,10 @@ class Run:
     def on_stations(self, change: str) -> list[str]:
         """Return the executors of a version's planned stations, its checkers' left out.
 
-        Why: 0104-codex-limits design D2.
+        A skipped station names none. Why: 0104-codex-limits design D2.
         """
-        stations = (station for station in PLANNED if station not in WORKERS[:2])
+        left = {*WORKERS[:2], *self.skipped.get(change, frozenset())}
+        stations = (station for station in PLANNED if station not in left)
         named = (
             models[0]
             for station in stations
@@ -4555,25 +4554,27 @@ class Run:
         brief: Path | None = None,
         mailbox: Path | None = None,
         limits: bool = False,
+        deadline: float | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
         Return the denials, or None when a timeout, a tool its station lacks or a
         failed exit halted `who`. A cutter's `brief` goes to `argv`, and so does a
         converge's `mailbox`, which is served while it runs. With `limits`, a failed
-        exit while its executor is limited halts nothing and gives None too.
-        Why: 0097-cross-model design D5; 0100-worker-diet design D5; 0104-codex-limits
-        design D2.
+        exit while its executor is limited halts nothing and gives None too. A
+        `deadline` ends it in place of `TIMEOUT`. Why: 0097-cross-model design D5;
+        0100-worker-diet design D5; 0104-codex-limits design D2.
         """
-        deadline = time.monotonic() + TIMEOUT
+        timeout = None if deadline is None else deadline - time.monotonic()
+        if deadline is None:
+            deadline = time.monotonic() + TIMEOUT
         between = None if mailbox is None else self.server(who, cwd, mailbox, deadline)
         code, killed, out, denied = self.worker(
-            who, station, cwd, prompt, models, repo, brief, mailbox, between
+            who, station, cwd, prompt, models, repo, brief, mailbox, between, timeout
         )
         if killed:
-            self.halt(
-                who, f"{station} timed out after {TIMEOUT}s; its group was killed"
-            )
+            took = TIMEOUT if timeout is None else max(round(timeout), 0)
+            self.halt(who, f"{station} timed out after {took}s; its group was killed")
             return None
         # Why: 0100-worker-diet design D5.
         if missing := lacked(out):
@@ -4662,18 +4663,18 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        A reset, from a limit or a primary window at `HEADROOM`, at most `LIMIT_WAIT`
-        away and inside `deadline` is slept to; any other is no wait. Codex still
-        unprobed is then probed for `change`. Why: 0104-codex-limits design D3.
+        A reset at most `LIMIT_WAIT` away and inside `deadline` is slept to; Codex
+        still unprobed is then probed for `change` within `deadline`.
+        Why: 0104-codex-limits design D3.
         """
         resets = [self.limited_until("codex"), _headroom(time.time())]
         if reset := max((at for at in resets if at is not None), default=None):
             ahead = reset - time.time()
             if ahead > LIMIT_WAIT or time.monotonic() + ahead >= deadline:
                 return False
-            time.sleep(ahead)
+            time.sleep(max(ahead, 0))
         if "codex" not in self.probed:
-            self.probe_for(change, ["codex"], [])
+            self.probe_for(change, ["codex"], [], deadline)
         return "codex" in self.probed
 
     def worker(
@@ -6139,14 +6140,17 @@ class Run:
         self.probe_for(change, self.named(change), self.on_stations(change))
         return not self.stopped(change)
 
-    def probe_for(self, change: str, executors: list[str], stations: list[str]) -> None:
+    def probe_for(
+        self,
+        change: str,
+        executors: list[str],
+        stations: list[str],
+        deadline: float | None = None,
+    ) -> None:
         """Probe each executor the run has not, once; a refused one halts `change`.
 
-        An executor whose probe failed halts it with that probe's reason, probed no
-        second time. One with a limit holding is not probed: `change` halts on it when
-        it is among `stations`, else the executor is passed over, and a limit the probe
-        records counts the same. Two threads never probe one executor at once.
-        Why: 0104-codex-limits design D2.
+        A limited executor halts `change` only when among `stations`; a probe ends by
+        `deadline`, when given. Why: 0104-codex-limits design D2.
         """
         with self.probing:
             for executor in dict.fromkeys(executors):
@@ -6155,22 +6159,24 @@ class Run:
                 if (refused := self.refused.get(executor)) is not None:
                     self.halt(change, refused)
                     continue
-                limit = self.limited_until(executor)
-                if limit is None:
-                    self.probe(executor, change)
+                if self.limited_until(executor) is None:
+                    self.probe(executor, change, deadline)
                     if executor in self.probed:
                         continue
-                    limit = self.limited_until(executor)
-                if limit is not None:
-                    if executor in stations:
-                        self.halt(change, self.limited_reason(executor))
-                    continue
+                # A probe that failed and halted nothing met a limit `spawn` excused.
                 with self.guard:
-                    self.refused[executor] = next(
-                        reason for who, reason in reversed(self.halts) if who == change
+                    halts = (
+                        reason for who, reason in self.halts[::-1] if who == change
                     )
+                    refused = next(halts, None)
+                    if refused is not None:
+                        self.refused[executor] = refused
+                if refused is None and executor in stations:
+                    self.halt(change, self.limited_reason(executor))
 
-    def probe(self, executor: str, who: str = "run") -> None:
+    def probe(
+        self, executor: str, who: str = "run", deadline: float | None = None
+    ) -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
         Its log names no MCP server, and a Codex probe then passes `probe_checker`. A
@@ -6212,7 +6218,14 @@ class Run:
             repo = _repo(scratch)
             prompt = f"{PROBE} {TREE_PROBE}" if codex else PROBE
             denied = self.spawn(
-                who, station, scratch, prompt, models, repo, limits=True
+                who,
+                station,
+                scratch,
+                prompt,
+                models,
+                repo,
+                limits=True,
+                deadline=deadline,
             )
             with self.guard:
                 out = self.outs[who, station]
@@ -6227,16 +6240,19 @@ class Run:
                 denied,
                 shown,
             ):
-                if not codex or self.probe_checker(executor, who):
+                if not codex or self.probe_checker(executor, who, deadline):
                     self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
 
-    def probe_checker(self, executor: str, who: str) -> bool:
+    def probe_checker(
+        self, executor: str, who: str, deadline: float | None = None
+    ) -> bool:
         """Prove a checker writes a findings file to the contract; else halt `who`.
 
-        Its verdict is logged, never judged. Why: 0096-codex-ready design D9.
+        Its verdict is logged, never judged; it ends by `deadline`, when given. Why:
+        0096-codex-ready design D9.
         """
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-checker-")).resolve()
         station = "probe" if executor == self.executor else f"probe-{executor}"
@@ -6247,7 +6263,14 @@ class Run:
             models = (executor, None, None)
             repo = _repo(scratch)
             denied = self.spawn(
-                who, checker, scratch, prompt, models, repo, limits=True
+                who,
+                checker,
+                scratch,
+                prompt,
+                models,
+                repo,
+                limits=True,
+                deadline=deadline,
             )
             with self.guard:
                 out = self.outs[who, checker]
@@ -7423,11 +7446,9 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def checker(cwd: Path, change: str, role: str, wait: bool) -> int:
     """Send a checker's prompt through the version's mailbox; print its answer.
 
-    Converge's sandboxed conductor runs it; `wait` sends nothing. A send removes the
-    old answer, then places the request with an id line and the id as `<role>.sent`;
-    an answer naming no id, or another, is removed and waited past. Return the
-    answer's exit, 1 with none, 2 when nothing can be sent, 3 past `CHECKER_WAIT`.
-    Why: 0097-cross-model design D4; 0104-codex-limits design D7.
+    `wait` sends nothing. Return the answer's exit, 1 with none, 2 when nothing can be
+    sent, 3 past `CHECKER_WAIT`. Why: 0097-cross-model design D4; 0104-codex-limits
+    design D7.
     """
     if not CHANGE_ID.fullmatch(change) or role not in CHECKERS:
         print("checker: cannot run — not a change id and a checker role")
