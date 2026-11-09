@@ -94,7 +94,7 @@ The cut decided these under the brief's switch, each logged in the brief's `## D
 | [D5](#d5) | The record: answer, findings stamp, quota line, run metrics, Claude prices | C6, C7, C15, C16 | Codex dollars — F8 |
 | [D6](#d6) | The linked worktree's gitdir, `config.worktree`, the probe's `git write-tree` | C9, C13, C14 | the gitdir from the cwd's `.git` alone — C13 |
 | [D7](#d7) | An answer names its request | `0097·S3` | dropping a second request per role — a resend after a kill is the case |
-| [D8](#d8) | D72; D47, D51, D53, D67, D68; the threat model; the skills | C8, `0097·S6` | — |
+| [D8](#d8) | D76; D47, D51, D53, D67, D68; the threat model; the skills | C8, `0097·S6` | — |
 
 ### D1
 
@@ -266,9 +266,9 @@ the same halt, in its first test. The version then halts for the person, as D53 
 
 ### D8
 
-- **D72**, in `docs/decisions.md` after D70's block, and `D72` after `D70` on the map's *Repo conventions* line:
+- **D76**, in `docs/decisions.md` after D70's block, and `D76` after `D70` on the map's *Repo conventions* line:
 
-### D72 · A Codex usage limit falls back, and halts only what runs on Codex
+### D76 · A Codex usage limit falls back, and halts only what runs on Codex
 
 **A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>`, and only a version or cut with a
 station on Codex halts, alone, with no rescue. A mailbox checker on Codex that is limited — a limit recorded, or a primary
@@ -287,7 +287,7 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
 
 - **D47** — "a failed probe at the start halts the run, and one in a live run only the versions on its executor" gains
   "; a probe a usage limit stopped, only the versions with a station on its executor
-  ([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex))".
+  ([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex))".
 - **D51** — *Accepts*' "a Codex worker can read `~`, with its network off" gains " · a Codex worker writes each linked
   worktree's folder under the common directory, as a Claude worker does".
 - **D53** — "A timeout, a usage limit, a failed worker" becomes "A timeout, a usage limit, a converge halt naming one, a
@@ -297,7 +297,7 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
   `skills/mf-review-metrics/prices.toml`" gains ", which holds the fitted Claude rows and no Codex row".
 - **D68** — "`conduct.py` spawns the checker on the plan's model and effort" becomes "`conduct.py` spawns the checker on
   the plan's model and effort, within converge's remaining time, or on Claude while Codex is limited
-  ([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request".
+  ([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request".
 - **`THREAT_MODEL.md`** — *Trust boundaries*' "a forged event misstates a denial, a limit, a cost or the checker probe's
   usage and MCP checks" gains "; a forged `thread_id` reads another Codex rollout, misstating a reset or a quota share,
   which bounds a wait to `LIMIT_WAIT`"; after "as it reads a subagent's.", "`conduct.py` stamps a mailbox findings file's
@@ -354,7 +354,7 @@ None.
   back to the text, then to the run's end.
 - **[A wait blocks the version's thread up to `LIMIT_WAIT`]** → only inside converge's remaining time; the conductor's
   `--wait` re-runs cost turns for at most that long.
-- **[Headroom reads the operator's own sessions]** → that is the shared plan; D72 accepts it.
+- **[Headroom reads the operator's own sessions]** → that is the shared plan; D76 accepts it.
 - **[`codex sandbox`'s flags differ from the test's]** → the person runs it in the `**HUMAN` phase; a failure there is a
   plan amend, and every Codex run's probe writes a linked worktree's index anyway.
 - **[A gitdir root lets a Codex worker write another tree's index]** → each is inside `common`, which a worker already

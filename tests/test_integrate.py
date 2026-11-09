@@ -221,6 +221,49 @@ def test_changelog_keeps_the_branch_entries_above_the_released_sections(
     assert (tree / "CHANGELOG.md").read_text() == expected
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
 
+    # A stacked base: the branch keeps its entries past the base's.
+    root, tree = _stacked_merge(tmp_path / "stacked")
+    result = _run(root, "changelog", str(tree))
+    assert result.returncode == 0, result.stdout
+    expected = f"{_HEAD}\n- x1\n\n{_STACKED_RELEASE}\n{_OLD}"
+    assert (tree / "CHANGELOG.md").read_text() == expected
+    root, tree = _stacked_merge(tmp_path / "lacking", "- x1\n")
+    result = _run(root, "changelog", str(tree))
+    halted = (
+        "changelog: halt — the branch's [Unreleased] entries do not hold the base's\n"
+    )
+    assert (result.returncode, result.stdout) == (1, halted)
+
+
+_STACKED_RELEASE = "## [0.2.0] - 2026-02-02\n\n- d1\n"
+
+
+def _stacked_merge(base: Path, entries: str = "- d1\n- x1\n") -> tuple[Path, Path]:
+    """Return a primary and `0005-b`, stacked on `0004-a`, its merge of `main` open.
+
+    `main` released `0004-a`, whose `- d1` is the stacked base's `[Unreleased]`.
+    Why: 0099-stacked-builds design D4.
+    """
+    base.mkdir()
+    root = _primary(base, {"CHANGELOG.md": f"{_HEAD}\n{_OLD}"})
+    first = _version(root, "0004-a")
+    _commit(first, {"CHANGELOG.md": f"{_HEAD}\n- d1\n\n{_OLD}"}, "phase")
+    _git(root, "worktree", "remove", str(first))
+    tree = root.parent / "0005-b"
+    _git(root, "worktree", "add", "-q", "-b", "0005-b", str(tree), "0004-a")
+    files = {
+        "openspec/changes/0005-b/proposal.md": "---\nbump: minor\n---\n",
+        "CHANGELOG.md": f"{_HEAD}\n{entries}\n{_OLD}",
+    }
+    _commit(tree, files, "phase")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0004-a'", "0004-a")
+    (root / "openspec/changes/archive").mkdir()
+    _git(root, "mv", "openspec/changes/0004-a", "openspec/changes/archive/0004-a")
+    released = {"CHANGELOG.md": f"{_HEAD}\n{_STACKED_RELEASE}\n{_OLD}"}
+    _commit(root, released, "release")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
+    return root, tree
+
 
 _MAP = "Repo conventions D43, D44"
 
@@ -415,6 +458,15 @@ def test_replay_reproduces_a_rule_settled_merge(
     assert (result.returncode, result.stdout) == (0, "replay: by rule — CHANGELOG.md\n")
     assert _scratch_gone(root)
 
+    # A stacked branch's clean merge, settled by `changelog`, is the rules' too.
+    root, tree = _stacked_merge(tmp_path / "stacked")
+    assert _git(tree, "diff", "--name-only", "--diff-filter=U") == ""
+    assert _run(root, "changelog", str(tree)).returncode == 0
+    _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0005-b")
+    result = _run(tree, "replay", "HEAD")
+    assert (result.returncode, result.stdout) == (0, "replay: by rule — CHANGELOG.md\n")
+    assert _scratch_gone(root)
+
     # A merge git settles alone is the rules' too.
     clean = tmp_path / "clean"
     clean.mkdir()
@@ -543,8 +595,18 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
         "## MODIFIED Requirements\n\n### Requirement: First\n\nThe branch's.\n\n"
         "### Requirement: Second\n\nThe branch's.\n"
     )
-    _commit(tree, {"openspec/changes/0005-b/specs/sdd/spec.md": delta}, "phase")
-    _commit(root, {"openspec/specs/sdd/spec.md": _spec("Main's.")}, "release")
+    # A stacked branch holds its dependency's change until the release archives it.
+    # Why: 0099-stacked-builds design D2.
+    stacked = {
+        "openspec/changes/0005-b/specs/sdd/spec.md": delta,
+        "openspec/changes/0004-a/proposal.md": "# a\n",
+    }
+    _commit(tree, stacked, "phase")
+    released = {
+        "openspec/specs/sdd/spec.md": _spec("Main's."),
+        "openspec/changes/archive/0004-a/proposal.md": "# a\n",
+    }
+    _commit(root, released, "release")
     _git(tree, "merge", "-q", "--no-commit", "main")
 
     result = _run(root, "delta", str(tree))

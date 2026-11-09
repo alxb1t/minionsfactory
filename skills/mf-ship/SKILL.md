@@ -20,11 +20,11 @@ preconditions ─▶ status ─▶ every open version at a halt stage or waiting
                     │
   each queued cut: wait for its after: ─▶ branch and worktree ─▶ cut ─▶ check cut, else cut-halted
                     │  a cut that passes is a version
-  each version, in parallel: wait for its after: ─▶ build ─▶ converge
+  each version, in parallel: wait for its after:'s build ─▶ build, stacked on it, a worker a phase, then its close ─▶ wait for its release ─▶ converge (skipped when its models file says `[converge] skip = true`)
       a halt gets its rescue, under the switch its supervisor, then stops only its version, and blocks what names
       it; a crash stops the run
                     │  ready, one at a time
-  integrate ─▶ converge (catch-up) ─▶ release, by its stage
+  integrate ─▶ converge (catch-up, skipped with converge) ─▶ release, by its stage
                     │  every thread joined, no rejoin request left
                   done
 ```
@@ -115,7 +115,9 @@ out refused; a Codex probe then runs one checker on a fixture, and a usage limit
 with a station on Codex. `conduct.py` holds the push, and scans each push range for
 secrets first.
 Converge runs MF's method; a checker on another host than converge's runs through the checker mailbox `conduct.py`
-serves; while Codex is limited, a Codex checker runs on Claude. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
+serves; while Codex is limited, a Codex checker runs on Claude. A version whose models file says `[converge] skip = true` skips converge and its catch-up round: it goes from
+build to integrate and release, and the run log says `converge skipped — plan`. A checker table with `skip = true`
+takes the prompt clause `<role>=skip`, no probe and no mailbox. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop
 

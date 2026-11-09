@@ -127,7 +127,8 @@ fail on a worker with no end, a run that ends on neither `halt` nor `done`, or a
 
 A failed check SHALL halt its version alone: that version SHALL start no new worker but its rescue and, under its switch, its
 supervisor, and every other version SHALL go on
-to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
+to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker, save one
+stacked on it before the halt, which builds on and then blocks. A failed
 probe, save one a usage limit stopped, and a conductor crash SHALL stop the run. A run with every open version at a halt stage
 or `waiting` SHALL start
 no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
@@ -164,6 +165,10 @@ time named, save a mailbox checker, which falls back.
 #### Scenario: A halted dependency blocks a chain
 - **WHEN** a version halts, a second has it in `after:`, and a third has the second in `after:`
 - **THEN** neither starts a worker, each logs `blocked — by <id>`, and the closing line names both as blocked
+
+#### Scenario: A dependency halts after its dependent stacked
+- **WHEN** a dependent stacked on its dependency's built head, and the dependency then halts in converge
+- **THEN** the dependent's build runs to its end, and the dependent then logs `blocked — by <id>`
 
 #### Scenario: No open version can start
 - **WHEN** one version sits at a `**HUMAN` phase, and every other is `waiting`

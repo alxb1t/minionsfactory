@@ -65,7 +65,8 @@ each checker independently proves converge's non-empty merge-only catch-up has e
 conformance file without its stale-claim pass is not clean. The one clean no checker wrote is by recomputation: a
 catch-up over merges alone, whose every merge `integrate.py replay` rebuilds by the fixed rules alone. So is an
 adversarial head over a fix that touches no surface the threat model lists, with no adversarial card awaiting its
-checker: `surfaces.py` recomputes it.**
+checker: `surfaces.py` recomputes it. A skipped checker's stub is a clean the plan wrote, not a recomputation, and the
+release names it.**
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
@@ -74,7 +75,9 @@ checker: `surfaces.py` recomputes it.**
   `tests/test_integrate.py::test_replay_refuses_a_judged_merge`;
   `tests/test_surfaces.py::test_a_fix_that_reaches_no_surface_is_by_rule`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
-  ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)).
+  ([D14](decisions.md#d14--converge-is-optional-and-a-skip-is-stated)) · a skipped checker's stub reads clean with no
+  checker behind it, the release naming the skip
+  ([D75](decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
 
 ### Every edit opens a round
 

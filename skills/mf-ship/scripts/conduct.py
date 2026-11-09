@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["markdown-it-py>=3,<4"]
 # ///
 """Take every cut version to the default branch, one agent process per station.
 
@@ -24,8 +24,11 @@ Why: 0040-mf-ship design D2.
 
 import argparse
 import contextlib
+import errno
 import fcntl
+import functools
 import hashlib
+import html
 import itertools
 import json
 import math
@@ -46,7 +49,11 @@ import tomllib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+if TYPE_CHECKING:
+    from markdown_it import MarkdownIt
+    from markdown_it.token import Token
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -86,17 +93,22 @@ CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
+INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
-EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
+# why: the plan's skipped converge logs `converge skipped — plan`, the spec's words;
+# 0105-converge-switches design D2
+EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (converge skipped|\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise", "limited"),
+    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
+    "limited",
+    "converge skipped",
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -107,6 +119,13 @@ RERUN = "re-run: halted before round 1 at this head"
 RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
+# A stacked version's file: the built head it builds on, its build's base.
+# Why: 0099-stacked-builds design D2, D5.
+STACKED_ON = "stacked-on"
+# What a phase hands the next, and the lines of each phase's append the run keeps.
+# Why: 0102-build-per-phase design D3.
+NOTES_FILE = "build-notes.md"
+NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
@@ -115,10 +134,13 @@ OLD_WORKERS = {
     "converge.conformance": "converge.review",
     "converge.adversarial": "converge.security",
 }
-# The rescue, the supervisor and converge's workers are no stage: each is planned with
-# the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor design D2;
-# 0094-lighter-converge design D1.
-PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS)
+# A phase the cut rates moderate builds on this table.
+# Why: 0102-build-per-phase design D5.
+MODERATE = "build.moderate"
+# The rescue, the supervisor, converge's workers and the moderate build are no stage:
+# each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
+# design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
@@ -130,6 +152,9 @@ SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 CONDUCTOR = ("claude-sonnet-5-5", "high")
 AMENDS = ("tasks.md", "design.md")
+# A line the converge fixer appends to a decision's entry; the run reads it as no
+# decision change. Why: 0103-fewer-rounds design D3.
+FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
 # Each old-layout path of a change, by its name in the change's folder.
 # Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
@@ -228,8 +253,9 @@ TOKENS = (
 # Read-only by host: `upload.pypi.org` takes a package, and it is not here.
 NETWORK = ("pypi.org", "files.pythonhosted.org")
 DOMAIN = re.compile(r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+")
+# A build spawn builds one phase, or closes. Why: 0102-build-per-phase design D1, D2.
 PROMPTS = {
-    "build": "Run the mf-build skill for change {change}.",
+    "build": "Run the mf-build skill for change {change} with phase={phase}.",
     "converge": "Run the mf-converge skill for change {change}{workers}{grant}.",
     "integrate": "Run the mf-integrate skill for change {change}{settled}.",
     "release": "Run the mf-release skill for change {change} with merge=yes.",
@@ -550,14 +576,17 @@ def _worktrees(primary: Path) -> dict[str, Path]:
 
 def _tag_of(primary: Path, change: str) -> str | None:
     """Return the tag the branch's tip names, or None before a release."""
-    found = RELEASE.fullmatch(_subject(primary, change))
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    found = RELEASE.fullmatch(_subject(primary, f"refs/heads/{change}"))
     return found[1] if found else None
 
 
 def _holds(primary: Path, change: str) -> bool:
     """Return whether a branch holds its change, active or just released."""
     folder = f"openspec/changes/{change}"
-    active = _show(primary, change, f"{folder}/proposal.md") is not None
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    branch = f"refs/heads/{change}"
+    active = _show(primary, branch, f"{folder}/proposal.md") is not None
     return active or _tag_of(primary, change) is not None
 
 
@@ -615,6 +644,15 @@ def _unticked(tree: Path, change: str) -> tuple[str, str] | None:
         if mark != "x":
             return number, title
     return None
+
+
+def _rating(title: str) -> str:
+    """Return a `## Progress` title's rating: `moderate`, else `hard`.
+
+    e.g. "Two · moderate" → "moderate"; "Three" → "hard"
+    Why: 0102-build-per-phase design D5.
+    """
+    return "moderate" if title.endswith(" · moderate") else "hard"
 
 
 def _change_dir(primary: Path, change: str) -> Path:
@@ -676,6 +714,41 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
         os.close(fd)
 
 
+def _open_notes(primary: Path, change: str, flags: int) -> int | None:
+    """Return a descriptor on the change's `build-notes.md`; None with no file.
+
+    It follows no link: a link, a file it cannot open, or one that is not a regular
+    file of one name, a hard link, a folder or a pipe, halts the version.
+    Why: 0102-build-per-phase design D3.
+    """
+    fd = _folder_fd(primary / ".minions", "changes", change)
+    name = f".minions/changes/{change}/{NOTES_FILE}"
+    try:
+        file = os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        linked = error.errno == errno.ELOOP
+        why = "is a link" if linked else f"cannot be opened — {error.strerror}"
+        raise Stop(1, f"conduct: halt — {name} {why}") from None
+    finally:
+        os.close(fd)
+    found = os.fstat(file)
+    if not stat.S_ISREG(found.st_mode) or found.st_nlink != 1:
+        os.close(file)
+        raise Stop(1, f"conduct: halt — {name} is not a regular file of one name")
+    return file
+
+
+def _note_lines(primary: Path, change: str) -> int:
+    """Return the lines of the change's `build-notes.md`; 0 with no file."""
+    file = _open_notes(primary, change, os.O_RDONLY)
+    if file is None:
+        return 0
+    with os.fdopen(file, "rb") as notes:
+        return len(notes.read().splitlines())
+
+
 def _cutter_halt(primary: Path, change: str) -> str | None:
     """Return the cutter's `cut.halt` line, read through no link; None with none."""
     fd = _folder_fd(primary / ".minions", "changes", change)
@@ -710,7 +783,9 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     """
     if (halt := _cutter_halt(primary, change)) is not None:
         return halt
-    if _subject(primary, change) != f"docs({change}): land the change directory":
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    tip = _subject(primary, f"refs/heads/{change}")
+    if tip != f"docs({change}): land the change directory":
         return f"{change}: no cut commit at the branch's tip"
     if not _holds(primary, change):
         return f"{change}: the branch holds no openspec/changes/{change}/"
@@ -728,7 +803,9 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
     `_headed` refuses is out of shape, never no section.
     Why: 0091-cut-halts design D4.
     """
-    design = _show(primary, change, f"openspec/changes/{change}/design.md") or ""
+    # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
+    branch = f"refs/heads/{change}"
+    design = _show(primary, branch, f"openspec/changes/{change}/design.md") or ""
     rows = _rows(design, DEPENDENCIES)
     if (
         not _headed(design, DEPENDENCIES)
@@ -819,24 +896,137 @@ def _granted_run(runs: Path, change: str) -> bool:
     return _run_marked(runs, change, "grant")
 
 
-def _closed(runs: Path, tree: Path, change: str) -> bool:
-    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`.
+def _done_head(primary: Path, change: str) -> str | None:
+    """Return the word `build.done`'s `head:` names, or None.
 
-    A missing or unreadable file is not closed, nor is one that is no regular file.
+    A missing or unreadable file names none, nor does one that is no regular file.
     Why: 0055-build-resume design D2.
     """
-    done = _change_dir(runs.parent, change) / "build.done"
+    done = _change_dir(primary, change) / "build.done"
     if not done.is_file():
-        return False
+        return None
     try:
         text = done.read_text()
     except (OSError, UnicodeDecodeError):
-        return False
+        return None
     found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
-    if found is None:
+    return found[1] if found else None
+
+
+def _closed(runs: Path, tree: Path, change: str) -> bool:
+    """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`."""
+    if (done := _done_head(runs.parent, change)) is None:
         return False
-    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{done}^{{commit}}")
     return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
+
+
+def _built_head(primary: Path, change: str) -> str | None:
+    """Return the full sha `build.done` names while that build stands, else None.
+
+    It stands when that commit is the branch's tip or its ancestor, every
+    `## Progress` box is ticked at it, and no amend of the change directory past it
+    changes a decision. Why: 0099-stacked-builds design D1, D6.
+    """
+    done = _done_head(primary, change)
+    named = done and _maybe(
+        primary, "rev-parse", "-q", "--verify", f"{done}^{{commit}}"
+    )
+    if not named:
+        return None
+    head = named.strip()
+    if not _ancestor(primary, head, f"refs/heads/{change}"):
+        return None
+    tasks = _show(primary, head, f"openspec/changes/{change}/tasks.md") or ""
+    boxes = PROGRESS.findall(tasks)
+    if not boxes or any(mark != "x" for mark, _, _ in boxes):
+        return None
+    return None if _replanned(primary, change, head) else head
+
+
+def _replanned(primary: Path, change: str, since: str) -> bool:
+    """Return whether an amend of the change directory past `since` changes a decision.
+
+    The amends read are on the change's branch: one touching `proposal.md`, or one
+    changing `design.md`'s `_decisions`, changes a decision.
+    Why: 0099-stacked-builds design D6.
+    """
+    folder = f"openspec/changes/{change}"
+    subject = f"docs({change}): amend the change directory"
+    listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only")
+    span = f"{since}..refs/heads/{change}"
+    for sha in _git(primary, "rev-list", "--no-merges", span).split():
+        if _subject(primary, sha) != subject:
+            continue
+        if f"{folder}/proposal.md" in _git(primary, *listed, sha).split():
+            return True
+        design = f"{folder}/design.md"
+        was, now = (_decisions(_show(primary, rev, design)) for rev in (f"{sha}^", sha))
+        if was != now:
+            return True
+    return False
+
+
+def _stacked_on(
+    primary: Path, change: str, tree: Path, unreleased: list[str]
+) -> str | None:
+    """Return the full sha `stacked-on` names while it stands, else None.
+
+    It stands when its first word is 40 hex digits naming a commit, an ancestor of the
+    tree's `HEAD`, that holds each `unreleased` id's `tasks.md`. A file it cannot read
+    stands for none. Why: 0099-stacked-builds design D3.
+    """
+    file = _change_dir(primary, change) / STACKED_ON
+    try:
+        words = file.read_text().split() if file.is_file() else []
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not words or not re.fullmatch(r"[0-9a-f]{40}", words[0]):
+        return None
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{words[0]}^{{commit}}")
+    if not named or not _ancestor(tree, named.strip(), "HEAD"):
+        return None
+    sha = named.strip()
+    held = (f"{sha}:openspec/changes/{name}/tasks.md" for name in unreleased)
+    if any(_maybe(tree, "cat-file", "-e", path) is None for path in held):
+        return None
+    return sha
+
+
+def _merged_back(tree: Path, done: str, default: str) -> bool:
+    """Return whether `HEAD` merges the default branch into the head `build.done` names.
+
+    Such a merge has two parents, the first that head, the second on the default
+    branch. Why: 0099-stacked-builds design D3.
+    """
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{done}^{{commit}}")
+    parents = _git(tree, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    return (
+        named is not None
+        and len(parents) == 2
+        and parents[0] == named.strip()
+        and _ancestor(tree, parents[1], default)
+    )
+
+
+def _cut_commit(tree: Path, change: str) -> str | None:
+    """Return the newest first-parent commit that lands the change directory, or None.
+
+    Why: 0099-stacked-builds design D6.
+    """
+    landed = f"docs({change}): land the change directory"
+    log = _git(tree, "log", "--first-parent", "--format=%H %s", "HEAD")
+    for line in log.splitlines():
+        sha, _, subject = line.partition(" ")
+        if subject == landed:
+            return sha
+    return None
+
+
+def _unstack(primary: Path, change: str) -> None:
+    """Remove the change's `stacked-on` when one stands, through no link."""
+    if os.path.lexists(_change_dir(primary, change) / STACKED_ON):
+        _remove_in(primary / ".minions", "changes", change, name=STACKED_ON)
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
@@ -1053,7 +1243,12 @@ def _converge_done(runs: Path, change: str) -> bool:
 
 
 def _unjudged(runs: Path, tree: Path, change: str, rev: str = "HEAD") -> str | None:
-    """Return why converge is not clean at `rev`, or None when it is."""
+    """Return why converge is not clean at `rev`, or None when it is.
+
+    A converge the plan skips is None. Why: 0105-converge-switches design D2.
+    """
+    if "converge" in _skips(runs, change):
+        return None
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
         file = _change_dir(runs.parent, change) / f"{role}.md"
@@ -1253,12 +1448,10 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
     default = default_branch(primary)
     if tag is not None:
         return _release_tip(primary, tree, version.change, tag)
-    missing = [
-        name
-        for name in _dependencies(primary, change)
-        if not _shipped(primary, default, name)
-    ]
-    if missing:
+    after = _dependencies(primary, change)
+    missing = [name for name in after if not _shipped(primary, default, name)]
+    stacked = _stacked_on(primary, change, tree, missing)
+    if missing and stacked is None:
         return "waiting", f"after {' '.join(missing)}"
     if unticked := _unticked(tree, change):
         number, title = unticked
@@ -1266,9 +1459,22 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
     end = _run_end(runs, change)
-    if end is None and not _closed(runs, tree, change):
+    done = _done_head(primary, change)
+    if (
+        end is None
+        and not _closed(runs, tree, change)
+        and not (done and _merged_back(tree, done, default))
+    ):
         return "build", "closing steps left"
-    if halt := _converge_halt(runs, change):
+    lacking = [name for name in after if not _shipped(tree, "HEAD", name)]
+    if stacked is not None and lacking:
+        return (
+            "stacked",
+            f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
+        )
+    # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
+    skipped = "converge" in _skips(runs, change)
+    if halt := None if skipped else _converge_halt(runs, change):
         if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _rerun(runs, tree, change, halt):
@@ -1278,13 +1484,14 @@ def stage_of(primary: Path, version: Version) -> tuple[str, str]:
         if "cap reached" in halt and _granted(runs, change, take=False):
             return "converge", "granted"
         return "converge-halted", halt
-    if end is not None and not _converge_done(runs, change):
+    if end is not None and not skipped and not _converge_done(runs, change):
         return "converge", f"unfinished run: {end}"
     if why := _unjudged(runs, tree, change):
         return "converge", why
     if not _ancestor(tree, default, "HEAD"):
         return "integrate", f"{default} is not an ancestor of HEAD"
-    return "release", f"converge clean at HEAD; {default} is an ancestor"
+    verdict = "converge skipped by plan" if skipped else "converge clean at HEAD"
+    return "release", f"{verdict}; {default} is an ancestor"
 
 
 def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
@@ -1299,6 +1506,26 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     if not _closed(primary / ".minions", tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
     return None
+
+
+def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
+    """Return why a phase spawn's check fails, or None: phase ticked, tree clean.
+
+    The phase's line must stand, and it and every line before it must be ticked.
+    Why: 0102-build-per-phase design D2.
+    """
+    change = version.change
+    boxes = _progress(tree, change)
+    if all(number != phase for _, number, _ in boxes):
+        return f"phase {phase} gone from ## Progress"
+    for mark, number, _ in boxes:
+        if mark != "x":
+            held = _build_halt(primary / ".minions", tree, change)
+            named = f" · {held[0]}: {held[1]}" if held else ""
+            return f"phase {number} unticked{named}"
+        if number == phase:
+            break
+    return "the tree is not clean" if _dirty(tree) else None
 
 
 def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
@@ -2176,12 +2403,20 @@ def check(
     version: Version,
     first_read: bool = False,
     offline: bool = False,
+    *,
+    phase: str | None = None,
 ) -> str | None:
-    """Return why a station's check on disk fails, or None when it passes."""
+    """Return why a station's check on disk fails, or None when it passes.
+
+    A build `phase` number checks that phase's spawn alone; `close` or none, the
+    whole build. Why: 0102-build-per-phase design D2.
+    """
     if stage == "release":
         return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
+    if stage == "build" and phase is not None and phase != "close":
+        return _check_phase(primary, version, version.tree, phase)
     if stage == "build":
         return _check_build(primary, version, version.tree)
     if stage == "converge":
@@ -2306,10 +2541,11 @@ def _models(
     its own reads its `OLD_WORKERS` table, halting where converge's table does. A
     checker may name its executor, Codex-checked as a station; one naming none, and
     the fixer, which names none, run on converge's, with no Codex check of their own.
-    A table no executor can run halts the version.
+    `MODERATE` names no executor and runs on the build's, Codex-checked. A table no
+    executor can run halts the version.
     Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
     design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
-    0100-worker-diet design D8.
+    0100-worker-diet design D8; 0102-build-per-phase design D5.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2319,8 +2555,8 @@ def _models(
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
     own = "executor" in table
-    if station in WORKERS:
-        if own and station == FIXER:
+    if station in (*WORKERS, MODERATE):
+        if own and station in (FIXER, MODERATE):
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2329,6 +2565,9 @@ def _models(
                     f"conduct: halt — {file}: {station} {value!r}"
                     " is not a model or effort",
                 )
+    if station == MODERATE:
+        executor = _models(runs, change, "build", run)[0]
+    if station in WORKERS:
         converge = _models(runs, change, "converge", run)[0]
         executor = executor if own else converge
     model = model if isinstance(model, str) else None
@@ -2345,16 +2584,21 @@ def _models(
 
 
 def _worker_clause(
-    station: str, models: tuple[str, str | None, str | None], converge: str
+    station: str,
+    models: tuple[str, str | None, str | None],
+    converge: str,
+    skipped: bool = False,
 ) -> str:
     """Return a converge worker's prompt clause, `converge` its conductor's executor.
 
-    A checker on another host is a mailbox role; else "" on Codex or with neither
-    named. Why: 0094-lighter-converge design D1; 0097-cross-model design D3.
+    Skipped, `skip`; on another host, `mailbox`; else "" on Codex or with neither named.
+    Why: 0094-lighter-converge D1; 0097-cross-model D3; 0105-converge-switches D2.
     e.g. ("converge.fix", ("claude", "m", None), "claude") → " and fix=m/default"
     """
     executor, model, effort = models
     role = station.split(".", 1)[1]
+    if skipped:
+        return f" and {role}=skip"
     if executor != converge:
         return f" and {role}=mailbox"
     if converge == "codex" or (model is None and effort is None):
@@ -2385,6 +2629,27 @@ def _shadow(
     if converge[0] == executor:
         return converge
     return executor, None, None
+
+
+def _skips(runs: Path, change: str) -> frozenset[str]:
+    """Return the converge stations the cut's models file skips; none on a bad file.
+
+    Why: 0105-converge-switches design D2.
+    e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
+    """
+    checkers = [name for name in WORKERS if name != FIXER]
+    try:
+        tables = {name: _table(runs, change, name) for name in ("converge", *checkers)}
+    except (Stop, ValueError):
+        return frozenset()
+    skipping = {
+        name for name, table in tables.items() if table and table.get("skip") is True
+    }
+    return (
+        frozenset(("converge", *WORKERS))
+        if "converge" in skipping
+        else frozenset(skipping)
+    )
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -2540,13 +2805,31 @@ def _decisions(text: str | None) -> str:
     The section runs from the first line that starts `## Decisions` to the next `## `
     heading, CRLF lines or not. The headings make a section copied above the real
     one, added or renamed read as a change. Why: 0085-self-healing-ship design D4.
+    Each `### D<n>` entry loses its closing blank lines and `FIX_NOTE` lines, so a
+    note added or edited there changes nothing. Why: 0103-fewer-rounds design D3.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
     found = re.search(
         r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
     )
-    return "\n".join([*headings, found[1] if found else ""])
+    parts = re.split(r"^(?=### )", found[1] if found else "", flags=re.MULTILINE)
+    return "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+
+
+def _unnoted(part: str) -> str:
+    """Return a `### D<n>` entry without its closing blank lines and fix notes.
+
+    Any other part comes back as it is. Why: 0103-fewer-rounds design D3.
+    """
+    if not re.match(r"### D\d", part):
+        return part
+    lines = part.split("\n")
+    while lines and (
+        (line := lines[-1].removesuffix("\r")) == "" or FIX_NOTE.fullmatch(line)
+    ):
+        lines.pop()
+    return "\n".join(lines) + "\n"
 
 
 def _amend(
@@ -2558,7 +2841,8 @@ def _amend(
     touching the change's `amends` files alone; with no `amends` there is none. A
     decided amend touches `proposal.md` or changes `design.md`'s `## Decisions`: it
     stands with `proposal.md` in `amends`, the switch, and a `Decided-by: rescue`
-    trailer alone. No commit is (None, "", False).
+    trailer alone; a `FIX_NOTE` appended to a decision's entry is no decision change.
+    No commit is (None, "", False).
     Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
     """
     if not _ancestor(tree, before, "HEAD"):
@@ -4022,6 +4306,7 @@ class Run:
         """Load `integrate.py`, and open the run log in the primary's run directory."""
         integrate = runpy.run_path(str(INTEGRATE))
         self.delta = integrate["delta"]
+        self.unreleased = integrate["unreleased"]
         self.rules = {
             "CHANGELOG.md": integrate["changelog"],
             DECISIONS: integrate["decisions"],
@@ -4053,6 +4338,11 @@ class Run:
         self.skips: set[str] = set()
         self.decides: set[str] = set()
         self.shadowed: set[str] = set()
+        # Each version's skipped converge stations as the plan read them, and the
+        # versions whose skipped converge the log says. Why: 0105-converge-switches
+        # design D2.
+        self.skipped: dict[str, frozenset[str]] = {}
+        self.skip_logged: set[str] = set()
         self.decided: list[str] = []
         self.supervisions: dict[str, list[str]] = {}
         # Each settle `_settled` took, by change: the tree integrate must commit.
@@ -4070,6 +4360,11 @@ class Run:
         self.guard = threading.Lock()
         self.merging = threading.Lock()
         self.probing = threading.Lock()
+        # Notified when a version's thread reads its stage past the build, and when
+        # it ends. Why: 0099-stacked-builds design D1.
+        self.built = threading.Condition()
+        # The changes whose `take` has returned.
+        self.ended: set[str] = set()
 
     def halt(self, who: str, reason: str) -> None:
         """Record and log a halt; its version starts only its rescue and supervisor.
@@ -4740,6 +5035,25 @@ class Run:
             )
         return models
 
+    def trim_notes(self, change: str, phase: str, before: int) -> None:
+        """Keep `build-notes.md`'s first `before` lines and `NOTES` past them.
+
+        It reads and rewrites the file through one descriptor that follows no link,
+        and logs a cut. Why: 0102-build-per-phase design D3.
+        """
+        file = _open_notes(self.primary, change, os.O_RDWR)
+        if file is None:
+            return
+        with os.fdopen(file, "r+b") as notes:
+            lines = notes.read().splitlines(keepends=True)
+            added = len(lines) - before
+            if added > NOTES:
+                notes.seek(0)
+                notes.truncate()
+                notes.write(b"".join(lines[: before + NOTES]))
+                said = f"phase {phase}: kept {NOTES} of {added} lines"
+                self.log.event(change, "notes", said)
+
     def _would_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:
         """Return whether `halt` at `stage` is a cap the run grants, and the blockers.
 
@@ -4789,13 +5103,24 @@ class Run:
         Why: 0090-supervisor-merge design D4.
         """
         stage, why = stage_of(self.primary, version)
+        change = version.change
+        # Logged once, at the first stage past a skipped converge.
+        # Why: 0105-converge-switches design D2.
+        if stage in ("integrate", "release") and "converge" in _skips(
+            self.primary / ".minions", change
+        ):
+            with self.guard:
+                first = change not in self.skip_logged
+                self.skip_logged.add(change)
+            if first:
+                self.log.event(change, "converge skipped", "plan")
         with self.guard:
             settled = version.change in self.settled
         if settled and stage == "integrating" and why.startswith("semantic conflict"):
             return "integrate", SETTLED
         return stage, why
 
-    def advance(self, version: Version, stop_at: tuple[str, ...]) -> None:
+    def advance(self, version: Version, stop_at: tuple[str, ...]) -> str | None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
         A cap the run grants gets its round, spawned and checked as a person's
@@ -4804,19 +5129,35 @@ class Run:
         halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
         taken amend, at a halt met on entry or after a check, goes on. A supervisor's
         taken settle goes on to integrate, whose merge must hold the settled tree.
+        It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
+        it, or `waiting` after a reset; else None. Each stage read past the build wakes
+        the waiting versions. The build spawns a worker per unticked phase, each
+        checked alone, its `build-notes.md` append trimmed, then one for the close.
         Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
         0085-self-healing-ship design D1; 0089-supervisor design D1;
-        0090-supervisor-merge design D4, security S2.
+        0090-supervisor-merge design D4, its delta's *A supervisor answers what the
+        rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
+        D1, D2, D3; 0105-converge-switches design D2, whose skipped checker takes
+        `<role>=skip` in the converge prompt and no mailbox.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
         try:
-            auto = False
+            auto = close = False
             while not self.stopped(version.change):
+                if self.reset_stack(version):
+                    return "waiting"
                 if auto:
                     stage, why = "converge", "granted automatically"
+                elif close:
+                    stage, why = "build", "closing steps left"
                 else:
                     stage, why = self.stage(version)
+                close = False
+                if stage not in ("build", "human", "waiting"):
+                    self.notify_built()
+                if stage == "stacked":
+                    return stage
                 if stage in STUCK:
                     auto, refused = self.auto_grant(version, stage, why)
                     if auto:
@@ -4836,7 +5177,7 @@ class Run:
                             continue
                     return
                 if stage in stop_at:
-                    return
+                    return stage
                 if (stage, why) == ("converge", RERUN):
                     with self.guard:
                         self.reruns.add(version.change)
@@ -4871,42 +5212,76 @@ class Run:
                 if stage == "converge":
                     converge = self.planned_models(version.change, stage)[0]
                     planned = [self.planned_models(change, name) for name in WORKERS]
+                    skipped = self.skipped.get(change, frozenset())
                     workers = "".join(
-                        _worker_clause(name, models, converge)
+                        _worker_clause(name, models, converge, name in skipped)
                         for name, models in zip(WORKERS, planned, strict=True)
                     )
                     shadowed = change in self.shadowed
                     if shadowed:
                         workers += " and shadow=yes"
-                    if shadowed or any(models[0] != converge for models in planned):
+                    if shadowed or any(
+                        models[0] != converge
+                        for name, models in zip(WORKERS, planned, strict=True)
+                        if name not in skipped
+                    ):
                         mailbox = _mailbox(self.primary, change)
                         if refused := _open_mailbox(mailbox):
                             self.halt(change, refused)
                             return
+                phase, rating = None, "hard"
+                if stage == "build":
+                    unticked = _unticked(cwd, change)
+                    phase = unticked[0] if unticked else "close"
+                    rating = _rating(unticked[1]) if unticked else rating
+                numbered = phase not in (None, "close")
+                # A link at the notes halts here, before the spawn.
+                notes = _note_lines(self.primary, change) if numbered else 0
                 prompt = PROMPTS[stage].format(
                     change=version.change,
                     workers=workers,
                     grant=clause,
                     settled=settled,
+                    phase=phase,
                 )
                 models = self.planned_models(version.change, stage)
+                # A moderate phase builds on `[build.moderate]` when it names one,
+                # its missing model or effort `[build]`'s.
+                # Why: 0102-build-per-phase design D5.
+                if numbered and rating == "moderate":
+                    moderate = self.planned_models(change, MODERATE)
+                    if moderate[1] or moderate[2]:
+                        models = (
+                            moderate[0],
+                            moderate[1] or models[1],
+                            moderate[2] or models[2],
+                        )
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)
                     self.log.event(version.change, "ledger", f"{version.change} {head}")
+                if stage in ("converge", "release"):
+                    _unstack(self.primary, change)
                 denied = self.spawn(
                     version.change, stage, cwd, prompt, models, mailbox=mailbox
                 )
+                # A phase that failed after its notes still has them cut.
+                if numbered:
+                    self.trim_notes(change, str(phase), notes)
                 if denied is None:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 try:
-                    reason = check(self.primary, stage, version, True, self.offline)
+                    reason = check(
+                        self.primary, stage, version, True, self.offline, phase=phase
+                    )
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
-                    reason = check(self.primary, stage, version, True, True)
+                    reason = check(
+                        self.primary, stage, version, True, True, phase=phase
+                    )
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
@@ -4930,6 +5305,10 @@ class Run:
                     ):
                         continue
                     return
+                # A phase built last, an amend's after converge began, still closes.
+                # Why: 0102-build-per-phase design D1.
+                close = numbered and _unticked(cwd, change) is None
+                close = close and not _closed(minions, cwd, change)
                 if stage == "release":
                     if tag := _tag_of(self.primary, version.change):
                         self.released.append(tag)
@@ -4996,31 +5375,114 @@ class Run:
         paths = ", ".join(ignored.splitlines()) or "none"
         self.log.event(change, "removed", f"{tree}: ignored {paths}")
 
+    def notify_built(self) -> None:
+        """Wake each version waiting on another's build or end."""
+        with self.built:
+            self.built.notify_all()
+
+    def live(self, change: str, threads: dict[str, threading.Thread]) -> bool:
+        """Return whether `change`'s thread runs: in `threads`, alive, not ended.
+
+        Read under `self.built`. Why: 0099-stacked-builds design D1.
+        """
+        thread = threads.get(change)
+        return thread is not None and thread.is_alive() and change not in self.ended
+
+    def stackable(self, version: Version, unreleased: list[str]) -> str | None:
+        """Return the built head a version may stack on, else None.
+
+        Its one unreleased dependency is lower, has no halt, and has a built head
+        that holds the version's base. Why: 0099-stacked-builds design D1.
+        """
+        if len(unreleased) != 1:
+            return None
+        dependency = unreleased[0]
+        if _change_number(dependency) >= version.number or self.stopped(dependency):
+            return None
+        if (head := _built_head(self.primary, dependency)) is None:
+            return None
+        default = default_branch(self.primary)
+        base = _git(self.primary, "merge-base", default, version.change).strip()
+        return head if _ancestor(self.primary, base, head) else None
+
+    def until(
+        self,
+        version: Version,
+        dependency: str,
+        threads: dict[str, threading.Thread],
+        stack: bool,
+    ) -> None:
+        """Wait while the dependency's thread lives; with `stack`, until it may stack.
+
+        With `stack`, it returns once `stackable` names a head. It waits on
+        `self.built`, at most `REJOIN_POLL` a time, and logs `wait — after <id>` once.
+        Why: 0099-stacked-builds design D1.
+        """
+        logged = False
+        with self.built:
+            while self.live(dependency, threads):
+                if stack and self.stackable(version, [dependency]):
+                    return
+                if not logged:
+                    self.log.event(version.change, "wait", f"after {dependency}")
+                    logged = True
+                self.built.wait(REJOIN_POLL)
+
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
-        """Wait for the version's dependencies, then bring the default branch in."""
+        """Wait for the version's dependencies, then bring the default branch in.
+
+        A version stacks on a dependency's built head while that dependency has not
+        released, and builds on, waiting on no thread, once stacked. Once each
+        dependency released, a re-plan past the stacked-on head resets it, then the
+        default branch is merged in and `stacked-on` goes.
+        Why: 0099-stacked-builds design D1, D3, D6.
+        """
         change, default = version.change, default_branch(self.primary)
-        after = _dependencies(self.primary, change)
-        for dependency in after:
-            if dependency in threads and _change_number(dependency) < version.number:
-                threads[dependency].join()
+        after, tree = _dependencies(self.primary, change), version.tree
+
+        def unreleased() -> list[str]:
+            return [name for name in after if not _shipped(self.primary, default, name)]
+
+        left = unreleased()
+        stacked = tree and _stacked_on(self.primary, change, tree, left)
+        if not stacked:
+            for dependency in after:
+                if (
+                    dependency in threads
+                    and _change_number(dependency) < version.number
+                ):
+                    self.until(version, dependency, threads, left == [dependency])
+            left = unreleased()
         if self.stopped(change):
             return False
-        for dependency in after:
-            if not _shipped(self.primary, default, dependency):
-                self.block(change, dependency)
-                return False
-        tree = version.tree
-        if tree and not all(_shipped(tree, "HEAD", name) for name in after):
-            self.merge_in(tree, change, default)
-        return True
+        if not left:
+            if stacked:
+                self.reset_stack(version)
+            if tree and not all(_shipped(tree, "HEAD", name) for name in after):
+                self.merge_in(tree, change, default)
+            if tree and all(_shipped(tree, "HEAD", name) for name in after):
+                _unstack(self.primary, change)
+            return True
+        if stacked:
+            return True
+        if tree and (head := self.stackable(version, left)):
+            self.stack(tree, change, left[0], head)
+            return True
+        self.block(change, left[0])
+        return False
 
-    def merge_in(self, tree: Path, change: str, default: str) -> None:
-        """Merge the default branch into a branch, once the delta check passes.
+    def merge_in(
+        self, tree: Path, change: str, ref: str, stacked: str | None = None
+    ) -> None:
+        """Merge `ref` into a branch, once the delta check passes.
 
         Each merge it opens, conflicted or clean, goes to `settle`; one already open
         does not. A requirement both sides changed leaves the merge open with its
-        note, which `stage_of` reads as an `integrating` halt.
-        Why: 0086-ship-fixes-3 design D3.
+        note, which `stage_of` reads as an `integrating` halt. With `stacked`, the
+        dependency whose built head `ref` is, it runs no delta check and commits
+        `chore(stack)`. It checks the config again right before its commit (`0050·R5`):
+        a change leaves the merge open. Why: 0086-ship-fixes-3 design D3;
+        0099-stacked-builds design D2.
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
@@ -5029,10 +5491,10 @@ class Run:
         if opened and note.is_file():
             return
         _refuse_config_commands(tree)
-        merge = ("merge", "-q", "--no-ff", "--no-commit", default)
+        merge = ("merge", "-q", "--no-ff", "--no-commit", ref)
         if not opened and (_maybe(tree, *merge) is None or _merge_open(tree)):
-            self.settle(tree, change, default)
-        if moved := _delta(self.delta, tree):
+            self.settle(tree, change, ref)
+        if stacked is None and (moved := _delta(self.delta, tree)):
             text = _note(tree, change, moved)
             # A link at the change's folder raises: the version halts, nothing written.
             try:
@@ -5043,16 +5505,34 @@ class Run:
                     1, f"conduct: halt — cannot write {name} — {error.strerror}"
                 ) from None
             return
-        message = f"chore(integrate): merge {default} into {change}"
+        message = f"chore(integrate): merge {ref} into {change}"
+        if stacked is not None:
+            message = f"chore(stack): merge {stacked} at {ref[:7]} into {change}"
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(tree)
         _git(tree, "commit", "-q", "-m", message, "-m", f"Change: {change}")
+
+    def stack(self, tree: Path, change: str, dependency: str, head: str) -> None:
+        """Mark a version stacked, then merge its dependency's built head in.
+
+        A merge that halts leaves a file naming no ancestor of `HEAD`, which
+        `_stacked_on` reads as none. Why: 0099-stacked-builds design D2.
+        """
+        _write_in_change(self.primary, change, STACKED_ON, f"{head}\n")
+        if not _ancestor(tree, head, "HEAD"):
+            self.merge_in(tree, change, head, dependency)
+        self.log.event(change, "stacked", f"on {dependency} at {head[:7]}")
 
     def settle(self, tree: Path, change: str, default: str) -> None:
         """Settle a merge by `integrate.py`'s rules; else abort it, stop.
 
-        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md`, the
+        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md` and on any merge
+        whose base holds `[Unreleased]` entries, a stacked branch's; the
         `docs/decisions.md` rule on every merge: a planned id moves on a clean one.
         A clean merge whose rule halts names `merge --no-commit`, not `merge`.
-        Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3.
+        Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3;
+        0099-stacked-builds design D4.
         """
         at, branch = shlex.quote(str(tree)), shlex.quote(default)
         run = f"git -C {at} merge {branch}, then re-run"
@@ -5063,7 +5543,8 @@ class Run:
         first = _conflicts(tree)
         stopped = ""
         for path, rule in self.rules.items():
-            if (path in first or path == DECISIONS) and not stopped:
+            stacked = path == "CHANGELOG.md" and self.unreleased(tree)
+            if (path in first or path == DECISIONS or stacked) and not stopped:
                 try:
                     rule(tree)
                 except Exception as error:
@@ -5103,6 +5584,10 @@ class Run:
         )
         if tree is None or _ancestor(self.primary, default, change):
             return
+        # A gate merge would give the merge back two merge-bases.
+        # Why: 0099-stacked-builds design D3.
+        if _stacked_on(self.primary, change, tree, []) is not None:
+            return
         base = _git(self.primary, "merge-base", default, change).strip()
         span = f"{base}..{change}"
         held = _git(self.primary, "rev-list", "--count", "--no-merges", span).strip()
@@ -5130,29 +5615,120 @@ class Run:
         if _git(self.primary, *diff).split():
             self.merge_in(tree, change, default)
 
+    def landed(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
+        """Wait while a stacked version's dependency lives; True to be ready again.
+
+        A reset while it waits makes it ready again; its dependency ended unreleased
+        blocks it. Why: 0099-stacked-builds design D3, D6.
+        """
+        change, default = version.change, default_branch(self.primary)
+        after = _dependencies(self.primary, change)
+        left = [name for name in after if not _shipped(self.primary, default, name)]
+        if not left:
+            return True
+        dependency = left[0]
+        self.log.event(change, "wait", f"stacked on {dependency}")
+        with self.built:
+            while self.live(dependency, threads):
+                if self.reset_stack(version):
+                    return True
+                self.built.wait(REJOIN_POLL)
+        if _shipped(self.primary, default, dependency):
+            return True
+        self.block(change, dependency)
+        return False
+
+    def reset_stack(self, version: Version) -> bool:
+        """Reset a stacked version whose dependency re-planned past it; True if so.
+
+        A dependency whose branch left that head was itself reset, so a chain resets
+        with it. Released, the dependency is the one `after:` id whose kept branch
+        holds that head. The version goes back to its cut commit, `stacked-on`
+        and `build-notes.md` removed. Why: 0099-stacked-builds design D6;
+        0102-build-per-phase design D3.
+        """
+        change, tree = version.change, version.tree
+        if tree is None:
+            return False
+        default = default_branch(self.primary)
+        after = _dependencies(self.primary, change)
+        unreleased = [n for n in after if not _shipped(self.primary, default, n)]
+        if len(unreleased) > 1:
+            return False
+        if (head := _stacked_on(self.primary, change, tree, unreleased)) is None:
+            return False
+        if unreleased:
+            dependency = unreleased[0]
+            if not _replanned(self.primary, dependency, head) and _ancestor(
+                self.primary, head, f"refs/heads/{dependency}"
+            ):
+                return False
+        else:
+            holders = [
+                name
+                for name in after
+                if _ancestor(self.primary, head, f"refs/heads/{name}")
+            ]
+            if len(holders) != 1 or not _replanned(self.primary, holders[0], head):
+                return False
+            dependency = holders[0]
+        if (cut := _cut_commit(tree, change)) is None:
+            raise Stop(1, f"conduct: halt — {change}: no cut commit to reset to")
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(tree)
+        # The notes go first: a folder there halts the version before the branch moves.
+        try:
+            _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
+        except OSError as error:
+            name = f".minions/changes/{change}/{NOTES_FILE}"
+            raise Stop(
+                1, f"conduct: halt — {name} cannot be removed — {error.strerror}"
+            ) from None
+        left = _git(tree, "rev-parse", "HEAD").strip()
+        _git(tree, "reset", "-q", "--hard", cut)
+        _unstack(self.primary, change)
+        moved = f"{left[:7]} → {cut[:7]}"
+        said = f"{dependency} re-planned past {head[:7]}: {moved}"
+        self.log.event(change, "reset", said)
+        return True
+
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block.
 
-        A version a halt already names is taken no further.
+        A version a halt already names is taken no further. A stacked version waits
+        for its dependency's release, then is ready again. Its end wakes the versions
+        waiting on it.
+        Why: 0099-stacked-builds design D1, D3.
         """
         if self.stopped(version.change):
             return
+        with self.built:
+            self.ended.discard(version.change)
         try:
             for station in PLANNED:
                 _models(
                     self.primary / ".minions", version.change, station, self.executor
                 )
             self.catch_up(version)
-            if not self.ready(version, threads):
-                return
-            self.advance(version, ("integrate", "release"))
-            if not self.stopped(version.change):
+            reached: str | None = "waiting"
+            while reached in ("waiting", "stacked"):
+                if reached == "stacked" and not self.landed(version, threads):
+                    return
+                if not self.ready(version, threads):
+                    return
+                reached = self.advance(version, ("integrate", "release"))
+            if reached is not None and not self.stopped(version.change):
                 with self.merging:
                     self.advance(version, ())
         except Stop as stop:
             self.halt(version.change, str(stop))
         except Exception as error:
             self.halt("run", f"conduct.py failed: {error}")
+        finally:
+            with self.built:
+                self.ended.add(version.change)
+                self.built.notify_all()
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.
@@ -5271,11 +5847,11 @@ class Run:
 
         A worker can write them. A table `_models` refuses stays out of the plan: it
         halts in `take`. Converge's worker tables are read as stations are; the
-        rescue's skip, `[converge] auto_grant` and `shadow`, and the switch are read
-        with them.
+        rescue's skip, `[converge] auto_grant` and `shadow`, the converge skips, and
+        the switch are read with them.
         Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
         design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1;
-        0097-cross-model design D3.
+        0097-cross-model design D3; 0105-converge-switches design D2.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -5287,10 +5863,13 @@ class Run:
                 grants = _auto_grants(self.primary / ".minions", version.change)
                 decides = _decides(self.primary / ".minions", version.change)
                 shadows = _shadows(self.primary / ".minions", version.change)
+                skipped = _skips(self.primary / ".minions", version.change)
             except (Stop, ValueError):
                 continue
             with self.guard:
                 self.grants_auto[version.change] = grants
+                if skipped:
+                    self.skipped[version.change] = skipped
                 if skips:
                     self.skips.add(version.change)
                 if decides:
@@ -5310,9 +5889,15 @@ class Run:
     def named(self, change: str) -> list[str]:
         """Return each executor a version's plan names, a shadow's among them.
 
-        Why: 0097-cross-model design D3.
+        A skipped station and a skipped checker's shadow name none.
+        Why: 0097-cross-model design D3; 0105-converge-switches design D2.
         """
-        planned = [self.plan.get((change, station)) for station in PLANNED]
+        skipped = self.skipped.get(change, frozenset())
+        planned = [
+            self.plan.get((change, station))
+            for station in PLANNED
+            if station not in skipped
+        ]
         named = [models[0] for models in planned if models]
         converge = self.plan.get((change, "converge"))
         if change in self.shadowed and converge is not None:
@@ -5320,7 +5905,7 @@ class Run:
             named += [
                 _shadow(converge, models)[0]
                 for name, models in zip(WORKERS, checkers, strict=True)
-                if models and name != FIXER
+                if models and name != FIXER and name not in skipped
             ]
         return list(dict.fromkeys(named))
 
@@ -6290,79 +6875,151 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     return found
 
 
-def _fence(mark: str, line: str) -> str:
-    """Return the fence open after `line`, given `mark`, the one open before it.
+@functools.cache
+def _markdown() -> "MarkdownIt":
+    """Return the CommonMark parser, GFM tables on, imported on its first call.
 
-    "" is none. A fence opens on a line of three or more backticks or tildes, up to
-    three spaces in, and closes only on a line of its own character, as long or longer.
-    e.g. "", "~~~ md" → "~~~"; "~~~", "```" → "~~~"; "```", "````" → ""
-    Why: 0091-cut-halts design D3.
+    The import waits: `pin.py` and the escape drill load this script with no package
+    installed. Why: 0103-fewer-rounds design D6.
     """
-    if not mark:
-        opened = re.match(r" {0,3}(`{3,}|~{3,})", line)
-        return opened[1] if opened else ""
-    closed = re.fullmatch(rf" {{0,3}}{re.escape(mark[0])}{{{len(mark)},}} *", line)
-    return "" if closed else mark
+    from markdown_it import MarkdownIt
+
+    return MarkdownIt("commonmark").enable("table")
+
+
+def _read(text: str) -> tuple[list[str], list["Token"]]:
+    r"""Return a document's source lines and its tokens.
+
+    Lines split at `\r\n`, `\r` or `\n`, as CommonMark's do, so a token's `map` indexes
+    them. Why: 0103-fewer-rounds design D6.
+    """
+    return re.split(r"\r\n|\r|\n", text), _markdown().parse(text)
+
+
+def _span(token: "Token") -> range:
+    """Return the source lines a block token spans, none for a token with no map."""
+    start, end = token.map or (0, 0)
+    return range(start, end)
+
+
+def _fold(line: str) -> str:
+    """Return the letters and digits a line renders as, tags dropped, case-folded.
+
+    e.g. "<h2>D&#101;pendencies</h2>" → "dependencies"
+    """
+    text = html.unescape(re.sub(r"<[^>]*>", "", line))
+    return "".join(char for char in text if char.isalnum()).casefold()
 
 
 def _headed(text: str, heading: str) -> bool:
-    r"""Return whether `heading` stands at most once outside a fence, in no other form.
+    r"""Return whether `heading` stands at most once, as an ATX `h2` written so.
 
-    A line in another form keeps `heading`'s letters and digits, case-folded: a
-    trailing space or colon, a leading space, a CRLF end, a setext title. A fence left
-    open fails too.
+    Another form keeps `heading`'s letters and digits, case-folded: a trailing space or
+    colon, a leading space, a setext title, an HTML or inline `<h1>`…`<h6>` line. A
+    line inside a fence or an indented code block is none, and a fence left open fails
+    the document: what follows it is code, so a heading there is not found.
     e.g. "## D\nNone.\n## D\n", "## D" → False
-    Why: 0091-cut-halts design D4.
+    Why: 0103-fewer-rounds design D6.
     """
-
-    def fold(line: str) -> str:
-        return "".join(char for char in line if char.isalnum()).casefold()
-
-    fence = ""
-    seen = False
-    for line in text.split("\n"):
-        if not fence and fold(line) == fold(heading):
-            if line != heading or seen:
+    lines, tokens = _read(text)
+    code: set[int] = set()
+    checked: set[int] = set()
+    exact: set[int] = set()
+    for token in tokens:
+        span = _span(token)
+        if token.type in ("fence", "code_block"):
+            code.update(span)
+            # A closed fence spans its content and its two marker lines.
+            if token.type == "fence" and len(span) != token.content.count("\n") + 2:
                 return False
-            seen = True
-        fence = _fence(fence, line)
-    return not fence
+        elif token.type == "html_block":
+            checked.update(span)
+        elif token.type == "heading_open":
+            checked.add(span.start)
+            if token.tag == "h2" and token.markup == "##":
+                if lines[span.start] == heading:
+                    exact.add(span.start)
+    checked.update(n for n, line in enumerate(lines) if INLINE_HEADING.search(line))
+    other = [n for n in checked - code - exact if _fold(lines[n]) == _fold(heading)]
+    return len(exact) <= 1 and not other
+
+
+def _cells(line: str) -> int:
+    r"""Return how many cells a table row's source line holds, GFM's way.
+
+    A pipe splits unless a backslash comes right before it, and an outer pipe adds no
+    empty cell. The parser drops a cell past the header's, so a row is counted from
+    its source. Why: 0103-fewer-rounds design D6.
+    e.g. "| a | b \| c |" → 2
+    """
+    parts = re.split(r"(?<!\\)\|", line.strip())
+    return len(parts) - (parts[0] == "") - (len(parts) > 1 and parts[-1] == "")
+
+
+def _boundary(token: "Token") -> bool:
+    """Return whether a token ends a section: an `h1` or `h2`, or HTML opening one."""
+    if token.type == "heading_open":
+        return token.tag in ("h1", "h2")
+    return token.type == "html_block" and token.content.lstrip().lower().startswith(
+        ("<h1", "<h2")
+    )
 
 
 def _rows(text: str, heading: str) -> list[list[str]] | None:
     r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
 
-    Lines split at `\n` alone, as `brief_check.py` splits them. A line inside a fence,
-    as `_fence` reads one, is never the heading, so a quoted example is not read.
-    Blank lines are skipped. No such heading, or a section
-    reading `None.` alone, is []. A section with no other line, one holding a line
-    that is no `|`-bounded row, with no delimiter row second, or with a row whose cell
-    count differs from the header's, is None. The section runs from the first line
-    equal to `heading` to the next line opening `#`.
+    The section is the top-level blocks from the ATX `h2` written `heading` to the next
+    `h1` or `h2`, ATX or setext, or HTML of one; a fence or code block holds none. No
+    such heading, or one paragraph `None.`, is []. Exactly one table is its rows, as
+    GFM renders them, a row with a cell past the header's excepted; anything else, an
+    empty section too, is None.
     e.g. "## D\n| a | b |\n|---|---|\n| `x` | y |\n" → [["a", "b"], ["x", "y"]]
-    Why: 0091-cut-halts design D3.
+    Why: 0103-fewer-rounds design D6.
     """
-    lines: list[str] | None = None
-    fence = ""
-    for line in text.split("\n"):
-        if lines is not None:
-            if line.startswith("#"):
-                break
-            if line.strip():
-                lines.append(line.strip())
-        elif not fence and line == heading:
-            lines = []
-        else:
-            fence = _fence(fence, line)
-    if lines is None or lines == ["None."]:
+    lines, tokens = _read(text)
+    start = next(
+        (
+            i
+            for i, token in enumerate(tokens)
+            if token.type == "heading_open"
+            and token.level == 0
+            and token.tag == "h2"
+            and token.markup == "##"
+            and lines[_span(token).start] == heading
+        ),
+        None,
+    )
+    if start is None:
         return []
-    if not lines or not all(len(row) > 1 and row[0] == row[-1] == "|" for row in lines):
+    blocks: list[int] = []
+    for i, token in enumerate(tokens[start + 3 :], start + 3):
+        if token.level or token.nesting < 0:
+            continue
+        if _boundary(token):
+            break
+        blocks.append(i)
+    if len(blocks) != 1:
         return None
-    table = [[cell.strip(" `") for cell in row[1:-1].split("|")] for row in lines]
-    ruled = len(table) > 1 and all(re.fullmatch(r":?-+:?", cell) for cell in table[1])
-    if not ruled or any(len(row) != len(table[0]) for row in table):
+    first = tokens[blocks[0]]
+    if first.type == "paragraph_open":
+        return [] if tokens[blocks[0] + 1].content == "None." else None
+    if first.type != "table_open":
         return None
-    return [table[0], *table[2:]]
+    rows: list[list[str]] = []
+    starts: list[int] = []
+    for token in tokens[blocks[0] :]:
+        if token.type == "table_close":
+            break
+        if token.type == "tr_open":
+            rows.append([])
+            starts.append(_span(token).start)
+        elif token.type == "inline":
+            rows[-1].append(token.content.strip(" `"))
+    wide = any(
+        len(row) != len(rows[0]) or _cells(lines[at]) > len(rows[0])
+        for row, at in zip(rows, starts, strict=True)
+    )
+    return None if wide else rows
 
 
 def _approved(text: str, slug: str) -> list[list[str]] | None:

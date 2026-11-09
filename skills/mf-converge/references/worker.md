@@ -5,8 +5,10 @@ verify pass, the catch-up scope, the card and the rules for tests. The conductor
 
 ## Conformance and adversarial
 
-**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in `debt-cards.md` holds. The
-station names `repeat of <id>` in its **Related** field and grades it up one level: adversarial one step, a conformance
+**A repeat escalates.** A **repeat** is a finding that describes a defect a debt card in `debt-cards.md` holds. A finding
+whose mechanism a card holds in another form — the same code misreading the same kind of input — names `repeat of <id>` too,
+and keeps its grade: its **Priority** says it repeats that card's mechanism. The station names `repeat of <id>` in its
+**Related** field and grades a repeat up one level: adversarial one step, a conformance
 `nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing. No worker reads
 `.minions/debt.md`.
 
@@ -46,8 +48,8 @@ reviewed: <YYYY-MM-DD>
 round: <int, bumped by each verify round, never by a pickup check>
 open_blocking: <int>
 verdict: clean | changes-requested
-mode: parallel | sequential | by-rule
-workers: <int, the workers this role used; 0 by rule>
+mode: parallel | sequential | by-rule | skipped
+workers: <int, the workers this role used; 0 by rule or skipped>
 model: <the model, as the host reports it, or unknown; a mailbox checker's, `conduct.py` stamps>
 tokens: <int; a mailbox checker's alone, which conduct.py stamps from its log>
 executor: <claude | codex, the host you run on, from runtime evidence>
@@ -150,12 +152,12 @@ field — never a heading, since the debt's headings are its changes. This refer
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
 | **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran` |
 | **Verdict** | `confirmed`, or `plausible` and what would confirm it |
-| **Priority** | `<severity> · conformance · <category>`, the id `R<n>`, or `<severity> · adversarial · <category>`, the id `S<n>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level. A **security card** is an adversarial card of category `security` |
+| **Priority** | `<severity> · conformance · <category>`, the id `R<n>`, or `<severity> · adversarial · <category>`, the id `S<n>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level, a mechanism repeat that it kept its grade. A **security card** is an adversarial card of category `security` |
 | **Round** | the round the card was found |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
-| **Related** | the ids to fix together, `repeat of <id>` for a repeat, or `none` |
+| **Related** | the ids to fix together, `repeat of <id>` for a repeat or a mechanism repeat, or `none` |
 | **Status** | `open`, `fixed`, `verified` or `wontfix`, with the one-line note the fix or verify pass adds |
 
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
@@ -163,7 +165,7 @@ and name things rather than count them: "the conformance and adversarial files",
 
 **An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
 `design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose
-outside its `## Decisions` section, which the fixer corrects.
+outside its `## Decisions` section, which the fixer corrects, and a card whose fix a fix note records.
 The fixer never edits `tasks.md`, nor that section, a row of its table, a decision's D-id or a `## ` heading, and
 converge halts on such a card.
 

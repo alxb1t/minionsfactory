@@ -1,0 +1,28 @@
+# The readers of run data, each run over this checkout's run directory.
+# `make corpus` runs them; no gate does. Why: 0103-fewer-rounds design D5.
+
+[[case]]
+name = "review-metrics"
+reads = "the findings files, status logs, run logs and Codex sessions the metrics page draws"
+argv = [
+    "uv", "run", "--script", "skills/mf-review-metrics/scripts/review_metrics.py",
+    "--config", "{out}/none.toml", "--repo", "{primary}", "--out", "{out}/review-metrics.html",
+]
+
+[[case]]
+name = "open-cards"
+reads = "a findings file's cards, to the open cards a verify worker judges"
+each = ["changes/*/conformance.md", "changes/*/adversarial.md"]
+argv = [
+    "uv", "run", "--script", "skills/mf-converge/scripts/open_cards.py",
+    "{input}", "{out}/open.md",
+]
+
+[[case]]
+name = "debt-match"
+reads = "a frozen diff patch and the debt file, to the debt cards a worker reads"
+each = ["changes/*/diff.patch"]
+argv = [
+    "uv", "run", "--script", "skills/mf-converge/scripts/debt_match.py",
+    "{minions}/debt.md", "{input}", "{out}/debt-cards.md",
+]

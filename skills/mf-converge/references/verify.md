@@ -22,7 +22,8 @@ each open card of both files as below, and run conformance's passes over the dif
 file whose role would find it — a broken spec, plan, doc or test rule in conformance's, any other in adversarial's — on
 that file's scale. In each file rewrite `head`, `reviewed`, `open_blocking` and `verdict`, and never `round`:
 a pickup check is no round. In both files also write your own `model`, `executor`, `mode: sequential` and
-`workers: 1`, since no worker of the other role judged that head. Edit both files by the rule below.
+`workers: 1`, since no worker of the other role judged that head. Edit both files by the rule below. A role the plan
+skipped gives you neither file: its findings file is a stub, `mode: skipped`, which you leave as it is.
 
 ## What you do
 

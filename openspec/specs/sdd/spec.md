@@ -62,7 +62,9 @@ id sets SHALL be equal, non-empty, and numbered from `I1` with no gap.
 ### Requirement: A release may skip the check loop, and says so
 
 `skills/mf-release/SKILL.md` SHALL release a change for which no findings file and no diff patch exist, and SHALL
-state the skip as the line `converge: skipped — no findings files`. It SHALL halt when the diff patch exists
+state the skip as the line `converge: skipped — no findings files`, or `converge: skipped — by plan` when
+`.minions/changes/<change-id>/models.toml` says `[converge] skip = true`. It SHALL state `<role>: skipped` in the report and
+the release commit for each findings file whose frontmatter says `mode: skipped`. It SHALL halt when the diff patch exists
 without a findings file, and when one findings file exists without the other. It SHALL NOT carry the rule that a
 missing findings file is not clean; that rule SHALL stay in `skills/mf-converge/SKILL.md`, which judges its own
 stations by it.
@@ -71,6 +73,14 @@ stations by it.
 - **WHEN** `mf-release` finds no findings file and no diff patch for the change
 - **THEN** it releases, and states the skip as the line `converge: skipped — no findings files`
 - **AND** it does not judge a missing findings file itself; `mf-converge` holds that rule for its own stations
+
+#### Scenario: The release names a skip by plan
+- **WHEN** `mf-release` finds no findings file and no diff patch, and the models file says `[converge] skip = true`
+- **THEN** it releases, and states the line `converge: skipped — by plan` in the report and the release commit
+
+#### Scenario: The release names a skipped checker
+- **WHEN** `adversarial.md` says `mode: skipped` and `verdict: clean` at `HEAD`, and `conformance.md` is clean at `HEAD`
+- **THEN** `mf-release` releases, and states `adversarial: skipped` in the report and the release commit
 
 #### Scenario: The release names both halts
 - **WHEN** `mf-release` finds the diff patch without a findings file, or one findings file without the other
@@ -182,12 +192,19 @@ halts at Step 9. A spec scenario the code contradicts SHALL stay `blocking`. Adv
 
 Each station SHALL read the debt cards on the diff's files, `.minions/changes/<change-id>/debt-cards.md`. A finding that
 repeats a debt card SHALL name that card's id in its **Related** field as `repeat of <id>`, and SHALL go up one level:
-adversarial by one step, a conformance `nit` or `drift` to `blocking`.
+adversarial by one step, a conformance `nit` or `drift` to `blocking`. A finding whose mechanism a debt card holds in another
+form — the same code misreading the same kind of input — SHALL also name `repeat of <id>` in its **Related** field, and SHALL
+keep its grade, its **Priority** saying it is a repeat of that card's mechanism.
 
 #### Scenario: Converge names the repeat rule
 - **WHEN** a station's finding describes a defect a card in `debt-cards.md` already holds
 - **THEN** its **Related** field names `repeat of <id>`
 - **AND** it goes up one level: adversarial by one step, a conformance `nit` or `drift` to `blocking`
+
+#### Scenario: A repeat of a card's mechanism
+- **WHEN** a station finds that `_rows` misreads a new Markdown form, and `debt-cards.md` holds a card on `_rows` misreading
+  another form
+- **THEN** its **Related** field names `repeat of <that card's id>`, and its grade stays the one its harm earns
 
 ### Requirement: A fix's test fails without the fix
 
@@ -742,7 +759,8 @@ It SHALL suggest an effort setting only when that setting is supported. With no 
 needed capability without inventing model names; with no effort control it SHALL omit the effort setting.
 When the highest row of *Suggesting models* any phase of a change matches is the moderate row — fresh prose, moderate
 logic — the cut SHALL suggest Sonnet 5.5 · high for the whole build where the session offers it, and the strongest tier · medium where it
-does not; it SHALL suggest one model a change, never one per phase.
+does not; it SHALL suggest one build model a change. A `build-moderate` part the brief's models line names SHALL be written
+as `[build.moderate]`, for the phases the cut rates `moderate`.
 It SHALL write the suggestion to `.minions/changes/<change-id>/models.toml`, a table per station, as well as show it, and
 SHALL never write it into the change. When the brief's `## For the cut` item names models for the change, the cut SHALL write
 those instead, as the person's choice made at the plan's close. Authentication and provider configuration SHALL remain the
@@ -761,6 +779,8 @@ operator's responsibility.
 #### Scenario: The brief names the models
 - **WHEN** the brief's `## For the cut` item for the change names a model and effort per station
 - **THEN** `.minions/changes/<change-id>/models.toml` holds exactly those
+- **AND WHEN** the item's models line also names `build-moderate claude-sonnet-5-5 high`
+- **THEN** the file's `[build.moderate]` holds `model = "claude-sonnet-5-5"` and `effort = "high"`
 
 #### Scenario: A moderate build
 - **WHEN** the highest row of *Suggesting models* any phase matches is the moderate row, and the session offers Sonnet 5.5
@@ -1110,15 +1130,18 @@ the version as halted while that sha is `HEAD`, and as to integrate again once i
 
 ### Requirement: The integrate station resolves mechanical conflicts by fixed rules
 
-`skills/mf-integrate/scripts/integrate.py` SHALL keep the branch's `## [Unreleased]` entries of `CHANGELOG.md` above
-the default branch's released sections with their blank lines, renumber the branch's new decision to the next id free
+`skills/mf-integrate/scripts/integrate.py` SHALL keep the branch's own `## [Unreleased]` entries of `CHANGELOG.md` above
+the default branch's released sections with their blank lines — those past the base's entries, which a stacked branch's base
+holds and the default branch has released; a branch whose entries do not hold the base's SHALL halt the rule. It SHALL
+renumber the branch's new decision to the next id free
 on the default branch with its citations, and report each MODIFIED or REMOVED requirement title of the branch's delta
 that the default branch changed since the branch's base. `.gitattributes` SHALL NOT set `merge=union`.
 A **planned decision** — an id the branch's `openspec/changes/` files cite as `D<n> · <title>`, above the base's highest id and
 headed nowhere in the branch's `docs/decisions.md` — SHALL count as the branch's new decision, save when the default branch's
 `### D<n> · <title>` heading carries that title: then it is a dependency's, and stays. An id the plan cites with no title SHALL stay.
 `skills/mf-converge/scripts/gate_check.py` SHALL compute the same moves for a merge commit. `conduct.py` and `integrate.py replay`
-SHALL run the `decisions` rule on every merge they open, conflicted or clean.
+SHALL run the `decisions` rule on every merge they open, conflicted or clean, and the `changelog` rule on a conflicted
+`CHANGELOG.md` and on every merge whose base holds `## [Unreleased]` entries.
 A MODIFIED title whose delta block only inserts into the default branch's current block — every edit an insertion, whitespace
 ignored — and keeps nothing the default branch removed from the base's block SHALL NOT be reported. A delta that changes or
 removes a line of that block, one that keeps what the default branch removed, a title the default branch removed, and every
@@ -1131,6 +1154,13 @@ REMOVED title the default branch changed SHALL be reported.
 #### Scenario: Both sides changed a CHANGELOG
 - **WHEN** the default branch cut a release section and the branch holds `[Unreleased]` entries
 - **THEN** the entries stay above the release section, the blank lines intact
+
+#### Scenario: A stacked branch's CHANGELOG
+- **WHEN** a branch stacked on its dependency's built head holds that head's `[Unreleased]` entries and its own after them,
+  and the default branch released the dependency, git merging `CHANGELOG.md` cleanly
+- **THEN** the merge's `[Unreleased]` holds the branch's own entries alone, above the dependency's release section
+- **AND WHEN** the branch's entries do not hold the base's
+- **THEN** `changelog` halts
 
 #### Scenario: A planned decision taken while the version waits
 - **WHEN** the base's highest id is `D58`, the branch's plan cites `D59 · Branch rule` with no heading for it, and the default
@@ -1207,7 +1237,9 @@ never to a whole file unasked.
 `skills/mf-ship/SKILL.md`, run in the primary checkout of a repo whose `AGENTS.md` declares `Worktrees:`, SHALL take
 every open version to the default branch: build, then converge, for every open version at once; then, one version
 at a time, in the order they are ready, integrate when its base moved, converge's catch-up round, and release with
-`merge=yes`. Converge SHALL always run. Each station SHALL run as a fresh agent process of the executor the models
+`merge=yes`. Converge SHALL run for every version whose models file does not say `[converge] skip = true`. A version whose
+models file says it SHALL go from its build to integrate, when its base moved, and to release, with no converge worker and no
+catch-up round, and `conduct.py` SHALL log `converge skipped — plan` once for it. Each station SHALL run as a fresh agent process of the executor the models
 file names for it, or of the executor running `mf-ship`, in the version's worktree — integrate in the primary — with the model `.minions/changes/<change-id>/models.toml`
 names for it, or the executor's default. A worker SHALL run in an OS sandbox, Claude Code's or Codex's workspace-write, its writes reaching the primary and
 each open worktree and nothing outside them, under `conduct.py`'s allowlist on Claude Code, extended by `AGENTS.md`'s `Ship
@@ -1216,7 +1248,7 @@ not halt a version by itself: the station's check decides, and the report lists 
 merge and push of the run. `conduct.py` SHALL run its own git with hooks and `core.fsmonitor` off, so a hook a worker
 plants does not run at the conductor's rights. At a run's start, a version whose branch holds nothing past its cut commit,
 and whose base the default branch has passed, SHALL get the default branch merged in, as a dependent does; a version with
-more, an unticked phase and no merge open, whose base the default branch passed changing a gate makefile, `AGENTS.md`,
+more, an unticked phase, no merge open and no `stacked-on`, whose base the default branch passed changing a gate makefile, `AGENTS.md`,
 `CODING_STANDARDS.md` or `CONTRIBUTING.md`, SHALL get the default branch merged in when the merge is clean or its conflicts
 are all paths `integrate.py`'s `changelog`, `decisions` and `delta` rules settle, and SHALL else halt, naming the files and
 `git -C <tree> merge <default>`, or, when the merge is clean and its `decisions` rule halts, that halt and
@@ -1235,6 +1267,14 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 - **WHEN** two versions are cut, each in its own worktree, and `mf-ship` runs to the end
 - **THEN** both are released, merged and pushed, the first ready first, the other integrated and judged by a
   catch-up round first, and only the primary is left
+
+#### Scenario: A version whose plan skips converge
+- **WHEN** a version's models file says `[converge] skip = true`, and its build is done
+- **THEN** its stage is `integrate` while the default branch is not an ancestor of `HEAD`, else `release`, and no converge
+  worker starts for it
+- **AND** the run log holds `converge skipped — plan` for it once
+- **AND WHEN** integrate's merge moves `HEAD`
+- **THEN** the version goes on to release with no catch-up round
 
 #### Scenario: A ready version ships past a slow one
 - **WHEN** two versions run and the lower id is still building when the higher is ready
@@ -1267,6 +1307,8 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 - **THEN** that version halts before its next worker, naming `git -C <tree> commit` to finish the merge
 - **AND WHEN** the merge is open with its note
 - **THEN** that version halts as `integrating`, naming the note
+- **AND WHEN** the version's build has begun on its dependency's built head, `stacked-on` standing
+- **THEN** the run merges nothing into it until its dependency releases
 
 #### Scenario: A released worktree
 - **WHEN** a release's check passes under `mf-ship`
@@ -1274,10 +1316,6 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 - **AND WHEN** git's worktree entry names a path other than the `Worktrees:` path joined with the change id
 - **THEN** nothing is removed, and the run logs it
 - **AND WHEN** the worktree's ignored paths cannot be listed
-- **THEN** nothing is removed, and the run logs it
-- **AND WHEN** the repo's git config holds a key a run refuses, or changed since the run read it
-- **THEN** nothing is removed, and the run logs it
-- **AND WHEN** the `Worktrees:` path joined with the change id is a link
 - **THEN** nothing is removed, and the run logs it
 
 ### Requirement: The ship station judges every station from disk
@@ -1562,7 +1600,8 @@ tip, and SHALL hold no number before it.
 
 A failed check SHALL halt its version alone: that version SHALL start no new worker but its rescue and, under its switch, its
 supervisor, and every other version SHALL go on
-to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker. A failed
+to its release. A version whose `after:` names a halted or blocked version SHALL be blocked, starting no worker, save one
+stacked on it before the halt, which builds on and then blocks. A failed
 probe and a conductor crash SHALL stop the run. A run with every open version at a halt stage or `waiting` SHALL start
 no worker, the probe included. A `**HUMAN` phase, a dependency waiting for approval,
 converge's cap, an open integrate merge, a red gate, a release stopped before its merge, and a worker past its timeout
@@ -1599,6 +1638,10 @@ time named.
 - **WHEN** a version halts, a second has it in `after:`, and a third has the second in `after:`
 - **THEN** neither starts a worker, each logs `blocked — by <id>`, and the closing line names both as blocked
 
+#### Scenario: A dependency halts after its dependent stacked
+- **WHEN** a dependent stacked on its dependency's built head, and the dependency then halts in converge
+- **THEN** the dependent's build runs to its end, and the dependent then logs `blocked — by <id>`
+
 #### Scenario: No open version can start
 - **WHEN** one version sits at a `**HUMAN` phase, and every other is `waiting`
 - **THEN** the run starts no worker, and closes naming the first as halted and the others as blocked
@@ -1633,13 +1676,15 @@ time named.
 `skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open version with a lower
 number, and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
 change's design, and a MODIFIED title a delta takes from an `after:` change's delta, SHALL count as present at the cut.
-`conduct.py` SHALL start a dependent only once each id has released,
-and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta` on the open
-merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its note
-under `.minions/changes/<change-id>/`, and halt the version as `integrating`. `mf-build` and `mf-release` SHALL halt unless each id
-has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency
-has not released. An `after:` edited past the cut SHALL stop no other version: an unreleased id that is not lower SHALL
-block its version, and an edit that leaves a running version `waiting` SHALL halt it.
+`conduct.py` SHALL start a dependent once each id has released, or once it stacks, as *A dependent builds on its dependency's
+built head* says, and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta`
+on the open merge and committing it when the check passes. A requirement the check names SHALL leave the merge open, with its
+note under `.minions/changes/<change-id>/`, and halt the version as `integrating`. `mf-build` SHALL halt unless each id has
+`openspec/changes/archive/<id>/` in `HEAD`, or, while `.minions/changes/<change-id>/stacked-on` stands, the commit it names is
+an ancestor of `HEAD` and holds `openspec/changes/<id>/tasks.md`. `mf-release` and `mf-integrate`'s Ready SHALL halt unless each
+id has `openspec/changes/archive/<id>/` in `HEAD`. `conduct.py status` SHALL print `waiting` for a dependent whose dependency has
+not released and that has not stacked. An `after:` edited past the cut SHALL stop no other version: an unreleased id that is
+not lower SHALL block its version, and an edit that leaves a running version `waiting` SHALL halt it.
 
 #### Scenario: An edit makes a cycle
 - **WHEN** two versions name each other in `after:`, or one names itself, and a third is free
@@ -1651,22 +1696,31 @@ block its version, and an edit that leaves a running version `waiting` SHALL hal
 
 #### Scenario: A dependent waits
 - **WHEN** a version names a lower open version in `after:`, and `mf-ship` runs
-- **THEN** its build starts only after that version's release, on a tree that holds it
+- **THEN** its build starts only once that version's build check passes, on its built head, and its converge only after that
+  version's release, on a tree that holds it
 - **AND** unrelated versions run in parallel meanwhile
 
 #### Scenario: A dependent's delta edits what its dependency changed
-- **WHEN** a dependent's delta modifies a requirement the default branch changed since its base, and the run takes no
-  supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **WHEN** an unstacked dependent's delta modifies a requirement the default branch changed since its base, and the run
+  takes no supervisor settle — no switch, or a supervisor was spawned on that open merge before
 - **THEN** the merge stays open, the note names both changes, and the version halts with no build
 - **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
 - **THEN** a re-run of `mf-ship` builds the version
+
+#### Scenario: A stacked dependent's delta edits what its dependency released
+- **WHEN** a stacked dependent's build is done, its delta modifies a requirement its dependency's release changed, and the
+  run takes no supervisor settle — no switch, or a supervisor was spawned on that open merge before
+- **THEN** the merge back stays open, the note names both changes, `stacked-on` stands, and the version halts as
+  `integrating`, its build done
+- **AND WHEN** the person settles it and `/mf-integrate <change-id>` commits the merge
+- **THEN** a re-run of `mf-ship` removes `stacked-on`, builds nothing again, and runs converge from round 1
 
 #### Scenario: A cut names a dependency it cannot have
 - **WHEN** `after=` names an id that is merged, unknown, or not lower than the change's
 - **THEN** the cut halts, naming it
 
 #### Scenario: A dependent built by hand
-- **WHEN** `mf-build` starts on a change whose `after:` id is not in `HEAD`'s archive
+- **WHEN** `mf-build` starts on a change whose `after:` id is not in `HEAD`'s archive, and no `stacked-on` stands
 - **THEN** it halts, naming `I17`
 
 ### Requirement: Converge continues an unfinished run
@@ -2534,7 +2588,8 @@ it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting 
 
 After its self-check, `skills/mf-cut-change/SKILL.md` SHALL hand a fresh read-only worker the **review packet**: the change
 directory, `HEAD`, the cut's notes file and one question — whether each task can be built as written, each `Verify:` pass
-after it, and each the search script did not run fail before it, save a `**HALT CHECK**`, which should hold. The reviewer
+after it, and each the search script did not run fail before it, save a `**HALT CHECK**`, which should hold. Every plan
+reviewer SHALL run on Opus 5.5 at `high` effort where the host offers it, whatever model the cut runs on. The reviewer
 SHALL start from the packet, opening another file only at a `path:line` the change or the notes cite. Its prompt SHALL give
 it a budget of 40 turns; a review that reaches it SHALL return its doubts so far under a first line `budget reached`, and the
 cut SHALL take each of them as a doubt still standing after the second review. The cut SHALL fix a
@@ -2595,6 +2650,10 @@ SHALL read the target's `CODING_STANDARDS.md` and `CONTRIBUTING.md`, planning to
 - **THEN** it returns that doubt under a first line `budget reached`
 - **AND** the cut takes the doubt as one still standing after the second review: the person's, or under the switch the
   recommended option
+
+#### Scenario: A cut on another model
+- **WHEN** the cut runs on Sonnet 5.5 and the host offers Opus 5.5
+- **THEN** each plan review runs on Opus 5.5 at `high` effort
 
 ### Requirement: The build refuses an edited Verify:
 
@@ -2803,16 +2862,22 @@ count as cut-only.
 
 `skills/mf-converge/SKILL.md`'s fix pass SHALL NOT edit the change's `tasks.md`, nor its `design.md` save the prose a `drift` card
 names outside the `## Decisions` section, which it SHALL correct; it SHALL NOT edit that section, a row of its table, a decision's
-D-id or a `## ` heading. A card whose fix needs any of those SHALL be set `wontfix`, naming the amend the person commits by the
-file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md` by path, save a `drift`
-card's naming that prose. A blocking amend card SHALL halt the round `amend needed — <card ids>` after the fix
-pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds, and SHALL NOT turn it `accepted`; in an amend
+D-id or a `## ` heading, save one line it MAY append as the last line of a `### D<n>` entry of that section,
+`Fix note (<YYYY-MM-DD>, <card id>): <one line>`, recording how the code now implements that decision, the entry's other lines
+untouched. A card whose fix that line records SHALL be no amend card, and converge's close-out SHALL name each fix note the run
+appended, by its D-id and card. A card whose fix needs any other edit of those SHALL be set `wontfix`, naming the amend the
+person commits by the file's path: an **amend card**, as is any card whose **Fix** names the change's `tasks.md` or `design.md`
+by path, save a `drift` card's naming that prose or a fix note. A blocking amend card SHALL halt the round
+`amend needed — <card ids>` after the fix pass. The verify pass SHALL keep an amend card's `wontfix` whose justification holds,
+and SHALL NOT turn it `accepted`; in an amend
 round, it SHALL turn an amend card the amend settled, its **Still true?** check showing the defect gone, `verified`, its note
 naming the amend. At Step 9,
 before the debt lock, every non-blocking amend card left `wontfix`, or `open` and `drift`, whose **Still true?** check still shows
 the defect, SHALL halt the run `amend needed — <card ids>`, writing nothing to the debt, save one *Converge keeps deferred work
 in one repository debt file* lets go on. The person's amend answers either halt.
-Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1.6 does, after the gate.
+The fixer SHALL run `plan_check.py` after its gate, as *A plan check holds the plan to the built tree* says.
+Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1.6 does, after the gate; Step 7 SHALL then run
+`plan_check.py`.
 
 #### Scenario: A fix that needs a `Verify:` changed
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
@@ -2822,6 +2887,12 @@ Step 7's verify round, and the pickup check, SHALL run `gate_check.py` as Step 1
 - **WHEN** the pickup picks a `drift` card whose **Fix** names a line of the change's `design.md` outside its `## Decisions`
   section
 - **THEN** the fixer corrects that line and sets the card `fixed`; it is no amend card, and Step 9 halts on nothing for it
+
+#### Scenario: A fix that changes how a decision is built
+- **WHEN** a card's fix changes how the code implements the change's D3, and D3's own words still hold
+- **THEN** the fixer appends `Fix note (<date>, <card id>): <how the code now does it>` as the last line of D3's entry, edits no
+  other line of it, and sets the card `fixed`
+- **AND** converge's close-out names D3 and the card
 
 #### Scenario: Drift that needs the design amended
 - **WHEN** the pickup's fixer sets a `drift` card `wontfix`, naming an amend of a decision in the change's `design.md`
@@ -2872,8 +2943,9 @@ collected tests SHALL be a gap, never a zero.
 
 `metrics/catalogue.toml` SHALL declare the run metrics, each one script, `scripts/metrics/run.py <kind>`, which the release's
 `metrics.py collect` runs: minutes from the run logs for the lead (the cut commit to the release's spawn), each stage — build,
-converge, catch-up, integrate — and the person's waits (a halt until a rejoin, a person's grant or a later run's start names the
-version); converge's rounds outside catch-up and amend runs, the amend rounds, round 1's blockers and the grants; the halts by
+converge, catch-up, integrate — the person's waits (a halt until a rejoin, a person's grant or a later run's start names the
+version), and the time a dependent waits on its `after:` ids (each `wait` event of the version until its next event in
+the same run, a version with none 0); converge's rounds outside catch-up and amend runs, the amend rounds, round 1's blockers and the grants; the halts by
 station; the rescues fixed and diagnosed; build and
 fix commits, split at the build's `.done` head along the first parent; cost and tokens, all turns, total and per station, and the
 cost per changed line; per role — conformance and adversarial, each metric id named for its role — the confirmed and refuted
@@ -2891,6 +2963,12 @@ collector's station values.
 - **WHEN** a version's run log, status log, findings and station logs are on disk at its release's collect
 - **THEN** its data file holds the minutes per stage, the rounds, the cost per station and each checker's yield, under
   `conformance-confirmed` and `adversarial-confirmed`
+
+#### Scenario: A dependent's wait
+- **WHEN** a version's run log holds `wait — after 0001-x` at `09:08:30` and its build spawn at `09:09:00`
+- **THEN** `after-wait-minutes` reads `0.5`
+- **AND WHEN** a version's run log holds no `wait` event
+- **THEN** `after-wait-minutes` reads `0`
 
 #### Scenario: An amend round
 - **WHEN** a version's status log holds a run marked `· amend`
@@ -2929,12 +3007,15 @@ converge fixer leaves the plan to the person* says; an amend card whose id an an
 since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
 other card. After both verdicts are
 clean, and only while a round remains under the cap, it SHALL pick up this run's non-blocking cards whose fix is
-sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. One fresh worker, the **pickup
-check**, SHALL verify that fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
+sized `one line`, `a test` or `one line and a test`, and every `drift` card, and fix them. When round 1 of a run that is no
+catch-up run leaves a blocking card open, its fix pass SHALL take those same cards with the blocking ones — the **round-1
+pickup** — and round 2's verify round SHALL judge them all; pickup SHALL then not run again in that run. One fresh worker, the
+**pickup check**, SHALL verify a pickup's fix at `medium` effort, given both findings files' open cards and the fix's own diff: on
 adversarial's model when a picked card is adversarial's or `skills/mf-converge/scripts/surfaces.py` exits 1 over the fix's
 range — the fix touching a `## Surfaces` path of `THREAT_MODEL.md`, or an adversarial card not `verified` or `accepted` — else
 on conformance's. When the role whose model it needs is a mailbox role, converge SHALL instead verify the fix in a normal round,
-counted. The pickup check SHALL be no round: it SHALL set both findings files' `head:` and leave their
+counted. A pickup whose fixer commits nothing SHALL get no pickup check. The pickup check SHALL be no round: it SHALL set both
+findings files' `head:` and leave their
 `round:` as it stands, and a blocking card it leaves open SHALL go to a fix and a verify round counted against the cap. It
 SHALL NOT name a per-version debt file. It SHALL delete a debt card only when a verified repeat of
 it was fixed and the card's **Still true?** check shows the defect gone.
@@ -2966,6 +3047,16 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 - **AND WHEN** a catch-up run's Step 9 finds an amend card still true that no answered halt logged since the newest
   `round 1 · start` line named and the debt does not hold
 - **THEN** it halts `amend needed — <its id>`
+
+#### Scenario: A round-1 pickup
+- **WHEN** round 1 leaves one blocking card open and two non-blocking cards sized `one line`
+- **THEN** one fix pass takes all three, and round 2's verify round judges all three
+- **AND WHEN** round 2 reads both files clean
+- **THEN** no pickup runs, and converge goes on to the debt
+
+#### Scenario: A pickup that commits nothing
+- **WHEN** the pickup's fixer sets every picked card `wontfix` and commits nothing
+- **THEN** no pickup check runs, and converge goes on to the debt
 
 ### Requirement: The release does not read the debt
 
@@ -3062,10 +3153,14 @@ before, or that a request names. For each, `conduct.py` SHALL make the branch na
 default branch, as code, then run `mf-cut-change` with `unattended=yes` as a fresh sandboxed worker in that worktree, logged
 as the station `cut`. The cut SHALL pass when the branch's tip is the change's `docs(<id>): land the change directory` commit,
 the branch holds `openspec/changes/<id>/`, its tree is clean, `.minions/changes/<id>/models.toml` stands, and each row of the
-`## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written; a
-`## Dependencies` that is neither `None.` nor a table of package, constraint and why SHALL fail it, as SHALL a line outside a
-fence that reads as `## Dependencies` once every character but a letter or a digit is dropped and case is folded but is not
-it as written, a second `## Dependencies`, or a fence left open; a missing one adds no package. The run SHALL then
+`## Dependencies` of the branch's `design.md` names a package and constraint the queue entry holds, as written. The station
+SHALL read the branch's tip, its change directory and its `design.md` at `refs/heads/<id>`, never a tag of that name, and SHALL
+read `design.md` as CommonMark with GFM tables
+renders it: the section opens at the ATX heading written `## Dependencies` and runs to the next heading of level one or two, or
+HTML heading of those levels, and its rows are the cells of the table rendered there. A section that is neither `None.` nor
+one table of package, constraint and why SHALL fail the cut, as SHALL a heading or HTML heading that reads as `## Dependencies`
+once every character but a letter or a digit is dropped and case is folded but is not written so, or a second
+`## Dependencies`; a line inside a code block is no heading, and a missing section adds no package. The run SHALL then
 delete its queue entry and reservation, read its models file and probe a new executor, and take the version through its
 stations as any open version. A branch that already holds the change SHALL be checked, not cut again. A cut whose
 `after` names a queued cut SHALL wait until that cut passes, and halt when it halts. The cutter's executor SHALL be probed
@@ -3086,6 +3181,16 @@ before its first worker, as a version's is. The run SHALL never read the brief f
 #### Scenario: A cut that adds another package
 - **WHEN** the committed `design.md` lists a package the queue entry does not hold, or a constraint other than the one it holds
 - **THEN** the cut halts at `cut-halted`, naming each such package and constraint
+
+#### Scenario: A table a line splitter would miss
+- **WHEN** the committed `design.md`'s `## Dependencies` table lists `evil 1` after a line `` ```x` `` above the section, or
+  under lone carriage returns, or after a row `#- note`
+- **THEN** the cut halts at `cut-halted`, naming `evil 1`
+
+#### Scenario: A tag named after the change
+- **WHEN** a tag named the change id points at a commit whose `design.md` lists no package, and the branch's `design.md` lists
+  one the queue entry does not hold
+- **THEN** the station reads the branch, and the cut halts naming that package
 
 ### Requirement: The cutter reaches its worktree, the run directory and its brief
 
@@ -3202,22 +3307,30 @@ say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 
 `## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
 `## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
 variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one.
-Lines split at a newline alone. It SHALL also exit 1 when a line of `## For the cut` is none of: a blank line; a head, opening
+It SHALL read the brief as CommonMark does: a section opens at the ATX heading written `## Decisions`, `## Dependencies` or
+`## For the cut`, and runs to the next heading of level one or two, in any form, or HTML heading of those levels; a section's
+lines split at a newline. A carriage return not before a newline SHALL exit 1, naming its line. It SHALL also exit 1 when a
+line of `## For the cut` is none of: a blank line; a head, opening
 `<n>. ` and one space at the line's start; under a head, a `- models: ` or `- **Acceptance:** ` line indented three spaces or
 as far as its head's text; a line indented at least two spaces past its Acceptance line, after that line or its
 continuation; or the cut's `Cut <YYYY-MM-DD> as <id> at <sha>.` line. It SHALL also exit 1 when a head names a slug, an
 `after` entry or a `beside` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or
 more than one, or more than one `beside:`, or when an item has no `models:` line, more
-than one, or one not naming the build, converge, release and cut station in order, then any of the conformance, adversarial and
-fix parts in that order, each with a model and effort of `[A-Za-z0-9._-]` alone, then at most a last `shadow`. A head MAY
+than one, or one not naming the build, converge, release and cut station in order, then any of the build-moderate,
+conformance, adversarial and fix parts in that order, each with a model and effort of `[A-Za-z0-9._-]` alone, then at most a
+last `shadow`. The converge, conformance and adversarial part MAY instead be the word `skip` alone, in place of its model and
+effort. It SHALL exit 1, naming the item, on a skip beside `shadow`, on `converge skip` beside a conformance, adversarial or
+fix part, and on `conformance skip` and `adversarial skip` together. A head MAY
 omit `beside:`. A build,
 converge, release, conformance or adversarial model MAY open with a host, `claude/` or `codex/`; a host it does not know, or a
-host on the cut or fix model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
+host on the cut, fix or build-moderate model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
 `## For the cut` holds a character for which `str.isprintable()` is false, printing `brief: halt — <section> line <n>: a
-character isprintable() refuses`; when a line of the brief that is not `## Decisions`, `## Dependencies` or `## For the cut` as
-written reads as one of them once its `<h1>`…`<h6>` tags and every character but a letter or a digit are dropped and case is folded,
-a letter or digit outside ASCII standing for any one, and at least one ASCII letter left, or a second line is
-one of them as written; when the brief has no `## Dependencies`; and when that section is neither `None.` nor a table of item,
+character isprintable() refuses`; when a heading of any form, a line of an HTML block, or a line holding an inline `<h1>`…`<h6>`
+tag, that is not `## Decisions`, `## Dependencies` or `## For the cut` as written, reads as one of them once its `<h1>`…`<h6>`
+tags and every character but a letter or a digit are dropped and case is folded,
+a letter or digit outside ASCII standing for any one, and at least one ASCII letter left, or a second heading is
+one of them as written; a line inside a fenced or indented code block SHALL be none of these; when the brief has no
+`## Dependencies`; and when that section is neither `None.` nor a table of item,
 package, constraint and why whose every row names a `## For the cut` item's slug, a package and a constraint.
 It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
 be parsed. It SHALL run no command it reads.
@@ -3244,6 +3357,24 @@ be parsed. It SHALL run no command it reads.
 - **AND WHEN** a part names `gemini/x`, or the fix or cut model opens with a host
 - **THEN** `brief_check.py` exits 1, naming the item and the word
 
+#### Scenario: A models line naming a skip
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · conformance claude-opus-5-5 high · adversarial skip`, or its converge
+  part reads `converge skip` with no conformance, adversarial, fix or shadow part
+- **THEN** that line halts nothing
+- **AND WHEN** a skip stands beside `shadow`, `converge skip` beside a `fix` part, or `conformance skip` beside `adversarial
+  skip`
+- **THEN** `brief_check.py` exits 1, naming the item
+- **AND WHEN** a skip part names a model, as `adversarial skip claude-opus-5-5`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A models line naming a moderate build
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · build-moderate claude-sonnet-5-5 high`
+- **THEN** that line halts nothing
+- **AND WHEN** the `build-moderate` part comes after `conformance`, or its model opens with `claude/`
+- **THEN** `brief_check.py` exits 1, naming the item
+
 #### Scenario: A checked line holds other whitespace
 - **WHEN** a line of a brief's `## For the cut`, `## Dependencies` or `## Decisions` holds a no-break space, an ideographic
   space, a tab, a vertical tab, a form feed, U+200B or U+2060
@@ -3254,6 +3385,14 @@ be parsed. It SHALL run no command it reads.
   `For the cut` underlined `---`, `<h2>For the cut</h2>`, or `## For the cut` with a Cyrillic `о` for its `o`, besides its
   `## For the cut`, or that heading twice
 - **THEN** `brief_check.py` exits 1, naming each such line
+
+#### Scenario: A For the cut heading in a fenced block
+- **WHEN** a brief holds `## For the cut` inside a fenced code block, besides its own `## For the cut`
+- **THEN** that line halts nothing and opens no section, as CommonMark reads it
+
+#### Scenario: A lone carriage return
+- **WHEN** a brief's line holds a carriage return not before a newline
+- **THEN** `brief_check.py` exits 1, naming that line
 
 #### Scenario: A brief's packages
 - **WHEN** a hard brief has no `## Dependencies`, or one that is prose, or a row naming no `## For the cut` item
@@ -3300,7 +3439,9 @@ halt and an `amend needed` halt: it MAY edit `proposal.md` and `design.md`'s `##
 test, take a security card of `critical` or `high` severity, approve a gate makefile, settle an integrate conflict, release,
 merge or push, or answer a run-wide halt. `conduct.py` SHALL take an amend that touches `proposal.md` or changes `design.md`'s
 `## Decisions` section only under the switch and with that trailer, logging `rescue — <id>: decided · <sub-task> · <commit>`;
-without the switch it SHALL refuse it, naming the decision. The run's closing line, and its `done` line, SHALL name
+without the switch it SHALL refuse it, naming the decision. Lines of the form `Fix note (<YYYY-MM-DD>, <card id>): <text>` that
+end a `### D<n>` entry, added or edited, SHALL be no change to that section; any other edit of the entry SHALL be one. The
+run's closing line, and its `done` line, SHALL name
 ` · decided <ids>` when a rescue decided, `report` SHALL print a line for each decision, and the run's metrics SHALL count them as `rescues-decided`.
 
 #### Scenario: A decided amend
@@ -3311,6 +3452,12 @@ without the switch it SHALL refuse it, naming the decision. The run's closing li
 #### Scenario: No switch
 - **WHEN** the models file has no `decide`, and the rescue commits the same amend
 - **THEN** the run refuses it, naming the decision, and the version stays halted
+
+#### Scenario: An amend that appends a fix note
+- **WHEN** the models file has no `decide`, and the rescue's amend appends a `Fix note (…)` line as the last line of D2's entry
+- **THEN** the run takes it as an amend that decided nothing
+- **AND WHEN** the amend also edits a line of D2's own words
+- **THEN** the run refuses it, naming the decision
 
 #### Scenario: A worker writes the switch
 - **WHEN** a worker adds `decide = "recommended"` to the models file during the run
@@ -3505,23 +3652,30 @@ catch-up round again. A run marked `· grant` that resumes SHALL stay a granted 
 
 `.minions/changes/<change-id>/models.toml` MAY hold `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`,
 each with a `model` and an `effort`, and the conformance and adversarial tables an `executor`; `[converge]` stays the
-conductor's, and MAY say `shadow = true`. `conduct.py` SHALL read them once with the run's plan. A `[converge]` naming no
+conductor's, and MAY say `shadow = true`. `[converge]` MAY say `skip = true`, and a conformance or adversarial table MAY say
+`skip = true`, with no model, effort or executor: only the value `true` skips. `conduct.py` SHALL read them once with the run's plan, save `[converge] skip`, which it also reads from the file at each stage
+read. A `[converge]` naming no
 model or effort SHALL run its conductor on Claude as `claude-sonnet-5-5` at `high`. A checker table with no
 `executor` SHALL run on converge's. It SHALL halt a version, before its worker starts, on a fixer table that names an
 `executor`, an `executor` it does not know, a checker table naming `executor = "codex"` with a `claude-*` model, or a `model` or
 `effort` holding anything
 but letters, digits, `.`, `_` and `-`, and SHALL halt a version whose worker table later differs, as for any station's table.
 It SHALL pass in the converge prompt, before any grant clause, for conformance, adversarial and the fixer in that order:
+`and <role>=skip` for a checker whose table says `skip = true`, else
 `and <role>=mailbox` for a checker whose executor differs from converge's, else `and <role>=<model>/<effort>` for a table that
-names a model or an effort, `default` for the one absent, with converge on Claude; then `and shadow=yes` under `shadow = true`. Converge SHALL put each model on its worker's call,
-send each `mailbox` role through `conduct.py checker`, and SHALL NOT read the models file itself. A fixer sent any blocking card
-SHALL run on adversarial's model when adversarial runs on converge's host, and otherwise on the fixer's; the fixer SHALL run at
+names a model or an effort, `default` for the one absent, with converge on Claude; then `and shadow=yes` under `shadow = true`. Converge SHALL put each model on its
+worker's call,
+send each `mailbox` role through `conduct.py checker`, and SHALL NOT read the models file itself. A skipped checker SHALL name no
+executor to probe, SHALL open no mailbox for itself, and SHALL be no mailbox role; a version whose models file says `[converge]
+skip = true` SHALL name no executor of converge or of a worker table to probe. A fixer sent any blocking card
+SHALL run on adversarial's model when adversarial runs on converge's host and is not skipped, and otherwise on the fixer's; the fixer SHALL run at
 the fixer's effort, `medium` when `fix=` names none. A verify worker SHALL run on its role's model at `medium`. A role given
 none, or a host whose worker call takes no model, SHALL run its worker on the conductor's model. The cut SHALL write the worker
 tables from the brief's `conformance`, `adversarial` and `fix` parts, each host as `executor`, and else conformance on the mid
 tier · high, adversarial on the strongest tier · high, the fixer on the mid tier · medium; `[converge]` on Sonnet 5.5 · high,
 where the session offers it, unless the brief names converge's model; and `shadow = true` when the brief's line ends `shadow`,
-each mapped to the offered models.
+each mapped to the offered models. A brief's `skip` part SHALL be written as `skip = true` under that table, with no model or
+effort, and `converge skip` as `skip = true` under `[converge]`, with no worker table.
 
 #### Scenario: The converge prompt names each worker's model
 - **WHEN** a version's models file holds `[converge.adversarial]` with `model = "claude-opus-5-5"` and `effort = "high"`, and
@@ -3543,6 +3697,17 @@ each mapped to the offered models.
 - **WHEN** `[converge.conformance]` names `executor = "codex"` and converge runs on Claude
 - **THEN** its converge prompt holds `and conformance=mailbox`, and names no model for conformance
 
+#### Scenario: A skipped checker
+- **WHEN** `[converge.adversarial]` says `skip = true`, converge runs on Claude, and `[converge.conformance]` names
+  `executor = "codex"`
+- **THEN** its converge prompt holds `and conformance=mailbox and adversarial=skip`
+- **AND WHEN** `[converge.conformance]` names no executor and `[converge.adversarial]` names `executor = "codex"` beside its `skip = true`
+- **THEN** no Codex probe runs for the version, and its prompt opens no mailbox
+
+#### Scenario: A plan that skips converge
+- **WHEN** a version's `[converge]` says `skip = true` and its worker tables name `executor = "codex"`
+- **THEN** no executor of that version is probed beyond the build's and release's, and no converge worker starts
+
 #### Scenario: A worker table names an executor
 - **WHEN** `[converge.fix]` names `executor = "codex"`
 - **THEN** that version halts naming the table, and no worker starts for it
@@ -3555,6 +3720,8 @@ each mapped to the offered models.
 - **WHEN** converge dispatches a fixer sent a blocking card, adversarial running on converge's host
 - **THEN** the fixer runs on adversarial's model, at the fixer's effort
 - **AND WHEN** it dispatches a fixer sent only non-blocking cards
+- **THEN** the fixer runs on the fixer's model and effort
+- **AND WHEN** adversarial is skipped
 - **THEN** the fixer runs on the fixer's model and effort
 
 ### Requirement: Converge hands each worker a bundle of what the change cites
@@ -3586,7 +3753,7 @@ section; adversarial SHALL read no bundle. `bundle.py` SHALL refuse to write thr
 
 ### Requirement: Converge's checkers are conformance and adversarial
 
-Converge SHALL run two checkers. **Conformance** SHALL judge the code against the change's own spec delta, design, tasks and
+Converge SHALL run two checkers, save one a plan skips. **Conformance** SHALL judge the code against the change's own spec delta, design, tasks and
 the decisions it cites, write `.minions/changes/<change-id>/conformance.md`, and grade `blocking` · `drift` · `nit`, its card
 ids `R<n>`. **Adversarial** SHALL try to break the change — races, edge cases, exploits, security — write
 `.minions/changes/<change-id>/adversarial.md`, and grade `critical` · `high` · `medium` · `low`, `high` a bug that would block,
@@ -3603,6 +3770,10 @@ Priority's category is `security`.
 #### Scenario: A converge round
 - **WHEN** converge dispatches a round's checkers
 - **THEN** conformance writes `conformance.md` and adversarial writes `adversarial.md`, and the release reads both
+
+#### Scenario: A round with a skipped checker
+- **WHEN** converge is given `adversarial=skip`
+- **THEN** it dispatches conformance alone, and `adversarial.md` is its stub, written by `skip_stub.py`
 
 #### Scenario: The packets
 - **WHEN** the packet tables of the conformance and adversarial references are read
@@ -3872,3 +4043,280 @@ file. Its preconditions on the findings files — each file's `verdict`, every b
 - **WHEN** the adversarial file says `verdict: clean`, and a card whose Priority reads `high · adversarial · stability` has
   the Status `fixed`
 - **THEN** the release halts, naming that card
+
+### Requirement: A dependent builds on its dependency's built head
+
+`conduct.py` SHALL stack a dependent once its one unreleased `after:` dependency, lower than it, has a **built head** — the
+commit its `.minions/changes/<id>/build.done` names, the tip of its branch or an ancestor of it, with every `## Progress` box
+ticked — and the run records no halt for that dependency, and that head holds the dependent's merge-base with the default
+branch. To stack, it SHALL write the head's full sha to `.minions/changes/<change-id>/stacked-on`, merge the built head into
+the dependent's worktree with no agent, by `integrate.py`'s rules and with no `delta` check, commit it as
+`chore(stack): merge <id> at <sha7> into <change-id>`, and log `stacked — on <id> at <sha7>`; the dependent then builds. A
+dependency's thread that reads its stage past the build SHALL wake each dependent waiting on it. A dependent with two or more
+unreleased dependencies, a halted one, or a built head that lacks its base SHALL wait as an unstacked dependent does. Until its
+dependency's release is merged in, a stacked dependent whose build is done SHALL read as `stacked` in `conduct.py status` and
+start no converge; while the dependency has not released, it SHALL wait for the dependency's thread to end, and a dependency
+that ends unreleased SHALL block it. Once the dependency released — before or after the dependent's build ended — the run
+SHALL merge the default branch into it, as for any dependent, remove `stacked-on` once that merge is committed, read the
+build as closed past that merge, and run converge from round 1. `conduct.py` SHALL also remove a `stacked-on` that stands
+before it spawns converge or the release. A stacked dependent re-run before its build ends SHALL build on, waiting on no
+thread.
+
+While `stacked-on` stands, `mf-build`'s gate check and metrics, `mf-simplify`'s range and the gate's diff coverage SHALL take
+the sha it names as their base, in place of the merge-base with the default branch; the gate SHALL take only a line of 40
+hex digits from it, resolved through `git rev-parse --verify`, never as text in its recipe.
+
+An amend of the dependency's change directory past the stacked-on head that touches its `proposal.md` or changes its
+`design.md`'s `## Decisions` SHALL, while `stacked-on` stands — before the dependency's release or after it, until the merge
+back — reset the dependent's branch to its cut commit, past the config refusals, remove `stacked-on`, and log `reset`
+naming the head it left; so SHALL a stacked-on head that the branch of a dependency that has not released no longer holds.
+A dependent reset while its dependency has not released SHALL wait for a built head past that amend; one whose dependency
+released SHALL get the default branch merged in and build again. The reset SHALL be read before each of the dependent's
+stages, at each poll of its wait and before the merge back, never during a station's run.
+
+#### Scenario: A dependent builds while its dependency converges
+- **WHEN** `0002` names `0001` in `after:`, and `0001`'s build check passes while its converge is held
+- **THEN** `conduct.py` commits `chore(stack): merge 0001-todo at <sha7> into 0002-marks`, `stacked-on` holds `0001`'s built
+  head, and `0002` builds
+- **AND WHEN** `0002`'s build is done and `0001` has not released
+- **THEN** `conduct.py status` prints `0002-marks · stacked`, and no converge of `0002` starts
+- **AND WHEN** `0001` releases
+- **THEN** the run merges the default branch into `0002`, `stacked-on` is gone, and `0002`'s converge runs, then its release
+
+#### Scenario: A dependency re-plans
+- **WHEN** `0002` is stacked on `0001`'s built head, and an amend of `0001`'s change directory past that head touches its
+  `proposal.md`
+- **THEN** `0002`'s branch is back at its cut commit, `stacked-on` is gone, and the run log names the head it left
+- **AND WHEN** the amend touches `tasks.md` alone
+- **THEN** `0002` stays stacked
+
+#### Scenario: A dependency re-plans and releases during the dependent's build
+- **WHEN** `0002` is stacked on `0001`'s built head, an amend of `0001`'s change directory past that head touches its
+  `proposal.md`, and `0001` releases before `0002`'s merge back
+- **THEN** before the merge back `0002`'s branch is back at its cut commit, `stacked-on` is gone, and the run log names the
+  head it left
+- **AND** the run merges the default branch into `0002`, and `0002` builds again
+
+#### Scenario: Two unreleased dependencies
+- **WHEN** a version names two unreleased versions in `after:`, each with a built head
+- **THEN** it stacks on neither, and waits as before
+
+#### Scenario: A stacked base for diff coverage
+- **WHEN** `make -n gate` runs in a version's worktree while its `stacked-on` names a commit
+- **THEN** it prints `--compare-branch=<that sha>`
+- **AND WHEN** `stacked-on` holds text that is no commit, or a shell command
+- **THEN** it prints `--compare-branch=main`, and runs nothing the text names
+
+### Requirement: The build runs a fresh worker per phase
+
+Under `mf-ship`, `conduct.py` SHALL spawn one build worker for the first unticked `## Progress` phase that is not a
+`**HUMAN` one, its prompt naming `phase=<N>`, and, once every phase is ticked and no `.minions/changes/<change-id>/build.done`
+names `HEAD`, one build worker for the close, its prompt naming `phase=close` — right after the last phase's spawn passes, too,
+when converge has already run. A phase worker's check SHALL pass only when its
+phase is ticked at `HEAD` and the tree is clean; any other outcome SHALL halt the version as a build check does, so a phase is
+spawned again only after a rescue's or a supervisor's taken amend. The close worker's check SHALL stay the build check.
+`skills/mf-build/SKILL.md` SHALL build the named phase alone under `phase=<N>`, halting when it is not the first unticked one,
+SHALL run simplify, the metrics and `build.done` alone under `phase=close`, halting on an unticked phase, and SHALL build every
+phase and close when given neither. Each phase SHALL append what the next phase needs to
+`.minions/changes/<change-id>/build-notes.md`, under a `## <N> — <Title>` line, and SHALL read that file as evidence. After a
+phase worker exits 0, `conduct.py` SHALL keep at most 40 lines of what it appended, dropping the rest and logging it, and SHALL
+halt the version, writing nothing, when the file is a link. A stacked dependent's amend reset SHALL remove its
+`build-notes.md`.
+
+#### Scenario: A change of three phases
+- **WHEN** `mf-ship` builds a version whose `tasks.md` holds three unticked phases
+- **THEN** it spawns three build workers, naming `phase=1`, `phase=2` and `phase=3` in turn, then one naming `phase=close`
+- **AND** each spawn's worker log is its own under `.minions/changes/<change-id>/logs/`
+
+#### Scenario: An amend adds a phase after converge began
+- **WHEN** an amend at a converge halt adds a new unticked phase, and the run builds it
+- **THEN** a worker naming that phase, then one naming `phase=close`, run before converge's amend round
+
+#### Scenario: A phase writes long notes
+- **WHEN** a phase worker appends 50 lines to `build-notes.md`
+- **THEN** the file keeps the first 40 of them, and the run log names the cut
+
+#### Scenario: A halt in phase 2
+- **WHEN** the phase-2 worker halts and its rescue's amend is taken
+- **THEN** the next spawn is a fresh worker naming `phase=2`, and phase 1 is not built again
+
+#### Scenario: A phase worker that ticks nothing
+- **WHEN** a phase worker exits 0 and its phase is still unticked at `HEAD`
+- **THEN** the version halts on the build check, and no worker for that phase is spawned again without an amend
+
+#### Scenario: A stacked dependent is reset
+- **WHEN** a stacked dependent's dependency changes a decision, and the dependent is reset to its cut commit
+- **THEN** its `build-notes.md` is gone, and its build starts again at phase 1
+
+### Requirement: A moderate phase builds on its own model
+
+`skills/mf-cut-change/SKILL.md` SHALL end each `## Progress` line but a `**HUMAN` one with ` · moderate` or ` · hard`: `hard`
+when the phase matches the strongest-tier row of its *Suggesting models* table, `moderate` otherwise. `conduct.py` SHALL run a
+phase whose line ends ` · moderate` on the models file's `[build.moderate]` model and effort, on `[build]`'s executor, when
+that table names a model or an effort; every other phase, a phase with no rating among them, and the close SHALL run on
+`[build]`'s. A `[build.moderate]` naming an `executor`, a model or effort outside `[A-Za-z0-9._-]`, or a `claude-*` model on a
+Codex build SHALL halt the version before its worker starts. The run SHALL read `[build.moderate]` once with its plan.
+
+#### Scenario: A moderate and a hard phase
+- **WHEN** a version's models file holds `[build]` with `claude-opus-5-5` and `[build.moderate]` with `claude-sonnet-5-5` at
+  `high`, phase 1 ends ` · moderate` and phase 2 ` · hard`
+- **THEN** phase 1's worker runs on `claude-sonnet-5-5` at `high`, phase 2's and the close's on `claude-opus-5-5`
+
+#### Scenario: No moderate table
+- **WHEN** the models file holds no `[build.moderate]`
+- **THEN** every build worker runs on `[build]`'s model
+
+#### Scenario: A moderate table names a host
+- **WHEN** `[build.moderate]` names `executor = "codex"`
+- **THEN** the version halts naming the table, and no worker starts for it
+
+### Requirement: A plan check holds the plan to the built tree
+
+`skills/mf-converge/scripts/plan_check.py --change <id> --base <rev>` SHALL exit 1, printing one `plan: ` line per problem,
+when: the command of a ticked sub-task's `Verify:`, run again as argv with no shell from the repository root, exits non-zero,
+save a search whose `Verify:` says `prints nothing` or `` prints `0` ``, which passes on exit 1 printing nothing, or `0` alone
+for `` prints `0` ``; that command exits 0 printing anything where its `Verify:` says it `prints nothing`, or printing other
+than the number alone where it says it `` prints `<N>` `` or `` reports `<N>` ``; a
+`- [ ] N.M` box stands unticked under a ticked `## Progress` phase; a name the diff from the merge base of `<rev>` and `HEAD`
+removes — a Python `def` or `class` name, or an upper-case module-level name, that nothing outside `openspec/` names at
+`HEAD`, or the base name of a file the diff deletes — is still named, as a word, on a line of `openspec/specs/` or of the
+change directory outside `tasks.md` and `design.md`'s `## Tests` section, that line holding no word of removal; a `def test_`
+name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Tests` section does not name it; or a sub-task
+marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL NOT run again a `**HALT CHECK**` sub-task's
+command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
+exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
+`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, and SHALL halt on any
+other exit than 0, writing no `build.done`. Converge's fixer SHALL run it after its gate and before its commit, clearing each
+problem as a blocking card of the same pass, or setting it `wontfix` naming the amend; converge's Step 7 SHALL run it after
+`gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any verify worker, counting no round; a line
+the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the run `amend needed — plan check:
+<subjects>`, naming each line's sub-task, `path:line` or test name and never the command it quotes. `skills/mf-rescue/SKILL.md`
+SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and `design.md`'s prose.
+
+#### Scenario: A ticked check that no longer holds
+- **WHEN** at the build's close a ticked sub-task's `Verify:` command exits 1
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command, and the build halts with no `build.done`
+
+#### Scenario: A ticked check that exits 0 with other output
+- **WHEN** a ticked sub-task's `Verify:` says a search prints nothing and the search finds a match, or says `printf 1` prints
+  `2`
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command
+- **AND WHEN** its `Verify:` says `printf 1` prints `1`, or says a `grep -c` that finds nothing prints `0`
+- **THEN** that check halts nothing
+
+#### Scenario: An unticked box under a finished phase
+- **WHEN** `## Progress` ticks phase 2 and sub-task `2.3` stands unticked
+- **THEN** `plan_check.py` exits 1, naming `2.3`
+
+#### Scenario: A removed name still in the plan
+- **WHEN** the diff removes `def _fence`, nothing outside `openspec/` names `_fence` at `HEAD`, and a `design.md` line names it
+  with no word of removal
+- **THEN** `plan_check.py` exits 1, naming that line
+- **AND WHEN** the line says the change deletes `_fence`
+- **THEN** that line halts nothing
+
+#### Scenario: A test the base had
+- **WHEN** `def test_old` stands under `tests/` at the merge base and nowhere at `HEAD`
+- **THEN** `plan_check.py` exits 1, naming `test_old`
+- **AND WHEN** `design.md`'s `## Tests` section names `test_old`
+- **THEN** it halts nothing
+
+#### Scenario: A clean plan
+- **WHEN** every ticked `Verify:` passes, every box under a ticked phase is ticked, and no removed name or base test is missing
+- **THEN** `plan_check.py` exits 0 and prints `plan: clean`
+
+#### Scenario: A fix that breaks a ticked check
+- **WHEN** converge's fixer commits a fix and Step 7's `plan_check.py` exits 1
+- **THEN** the conductor sends its lines to the fix station before any verify worker, and the round count stays
+- **AND WHEN** the next Step 7's `plan_check.py` prints a line that fix pass was sent, naming sub-task `3.2`
+- **THEN** converge halts `amend needed — plan check: 3.2`, and the rescue amends `tasks.md` or `design.md` to clear it
+
+### Requirement: A reader of run data has a corpus case
+
+`make corpus` SHALL run `scripts/corpus.py`, which SHALL run each `[[case]]` of `scripts/corpus.toml` — a reader's argv, run
+with no shell from the repository root — once per file its `each` globs match under the run directory, or once when it has
+none, writing only under the run directory's `corpus/`. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
+file cannot be read or the run directory is a link, and 0 otherwise. `make gate` and `make check` SHALL NOT run it.
+`skills/mf-cut-change/SKILL.md` SHALL mark each sub-task that adds or alters code reading the run directory, run logs or Codex
+sessions `` **CORPUS** `<case>` `` in a repository whose root `Makefile` has a `corpus` target, and SHALL plan the case in
+`scripts/corpus.toml`. `skills/mf-build/SKILL.md` SHALL run `make corpus` after such a sub-task's `Verify:` passes and before
+its tick, halting on any other exit than 0. `plan_check.py` SHALL fail a marked sub-task whose case `scripts/corpus.toml` does
+not hold.
+
+#### Scenario: The corpus over this repository
+- **WHEN** `make corpus` runs in this repository
+- **THEN** each case runs over the run directory's own findings files, status logs, run logs and Codex sessions, and it exits 0
+
+#### Scenario: A reader that fails on real data
+- **WHEN** a case's reader exits 1 on one change's findings file
+- **THEN** `make corpus` exits 1, naming the case and that file
+
+#### Scenario: A marked sub-task with no case
+- **WHEN** a ticked sub-task is marked `` **CORPUS** `review-metrics` `` and `scripts/corpus.toml` holds no case of that name
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the case
+
+### Requirement: A converge conductor stubs a skipped checker
+
+`skills/mf-converge/scripts/skip_stub.py <findings-file> <round>` SHALL write the findings file of a checker a plan skips as a
+stub: the findings contract's frontmatter with `head:` the commit `git rev-parse HEAD` prints, `round:` as given, `reviewed:`
+today, `open_blocking: 0`, `verdict: clean`, `mode: skipped`, `workers: 0`, `model: none`, `executor: none` and `packet:
+skipped: all`, and no card. It SHALL print the line it wrote, exit 0, and exit 2 with `skip_stub: cannot stub — <why>` when the
+path is a link, is not of the form `changes/<change-id>/conformance.md` or `changes/<change-id>/adversarial.md`, or no repository holds the working
+directory. `skills/mf-converge/SKILL.md` SHALL dispatch no worker for a role it is given `<role>=skip` for, and SHALL run
+`skip_stub.py` for that role after the freeze of round 1, each re-freeze, a catch-up round's freeze and its by-rule write, and before
+its `done`, so that the stub's `head:` is `HEAD` whenever converge ends. Step 5 SHALL read a stub for `verdict: clean` and its
+`head:` alone, with no `verdicts` line. The adversarial head by rule SHALL run no `surfaces.py` when adversarial is skipped. A pickup
+check SHALL need the checker the plan did not skip. `conduct.py`'s readers of a findings file SHALL stay as they were: a
+stub is clean at `HEAD`, holds no card, and bars no rescue or supervisor.
+
+#### Scenario: A stub is written
+- **WHEN** `skip_stub.py .minions/changes/0001-a/adversarial.md 1` runs in a repository whose `HEAD` is `abc1234…`
+- **THEN** the file holds `head: abc1234…`, `verdict: clean`, `mode: skipped` and `workers: 0`, and the line it printed names the
+  path
+
+#### Scenario: A stub for a path it does not take
+- **WHEN** the findings path is a link, or ends `review.md`
+- **THEN** `skip_stub.py` exits 2, writes nothing, and prints `skip_stub: cannot stub — <why>`
+
+#### Scenario: A version with adversarial skipped
+- **WHEN** converge runs for a version whose prompt holds `adversarial=skip`, and conformance finds nothing
+- **THEN** `conformance.md` and the stub of `adversarial.md` are both clean at `HEAD`, `conduct.py` reads the version as
+  judged, and its rescue and supervisor are barred by no security card
+- **AND** the release states `adversarial: skipped`
+
+#### Scenario: A skipped converge writes no debt and no hand read
+- **WHEN** a version's plan says `converge skip`
+- **THEN** no findings file, no diff patch and no debt card is written for it, and no hand read is asked for
+
+### Requirement: The plan and the cut take a repo's converge default
+
+`skills/mf-plan/SKILL.md` SHALL, when root `AGENTS.md` holds a `**Converge:**` line whose value is `skip`, `conformance skip` or
+`adversarial skip`, pre-fill each version's suggested models line with `converge skip`, `conformance skip` or `adversarial
+skip` as the value says, for the person to confirm or change. `skills/mf-cut-change/SKILL.md` SHALL, when its source names no
+models for the change and root `AGENTS.md` holds that line, write the matching `skip = true` into the change's `models.toml`.
+Neither SHALL read the line for any other purpose, and `conduct.py` SHALL NOT read it: a run reads `models.toml` alone. The cut
+SHALL warn, in its show and in `cut-notes.md`, when a change's models skip adversarial or converge and a file its tasks name
+matches a glob of `THREAT_MODEL.md`'s `## Surfaces`. The release SHALL name the skip whether or not the cut warned.
+
+#### Scenario: A repo defaults to a skip
+- **WHEN** root `AGENTS.md` holds `**Converge:** skip` and `mf-plan` suggests models for a version
+- **THEN** the suggested line reads `converge skip`, and the person may change it
+
+#### Scenario: The cut warns
+- **WHEN** a change's models skip adversarial, and a task names a file a `## Surfaces` glob matches
+- **THEN** the cut's show and `cut-notes.md` carry a warning naming the file and the glob, and the cut commits as before
+
+### Requirement: A converge worker's description names its role and round
+
+`skills/mf-converge/SKILL.md` SHALL tell the conductor to give each Agent call a description opening with the worker's name:
+`<role> round <N>` for a checker, `fix round <N>` for the fixer, `verify <role> round <N>` for a verify worker and `verify round
+<N> · pickup` for a pickup check. `skills/mf-review-metrics/scripts/review_metrics.py`'s `WORKER` SHALL match a description
+only at its start.
+
+#### Scenario: A fixer is booked to the fixer
+- **WHEN** a subagent's description reads `fix round 2 · adversarial cards`
+- **THEN** `review_metrics.py` books it to the role `fix`, round 2
+
+#### Scenario: A description that opens with a station word
+- **WHEN** a subagent's description reads `Security station verify round 2`
+- **THEN** `review_metrics.py` books it to no role, as a gap

@@ -10,9 +10,9 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71
+     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72
+  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
 
 ## The shape
@@ -31,8 +31,8 @@ all about one thing.**
 
 **What MinionsFactory ships is a way of working — grill, cut, build, converge, release — as installable skills. It
 is not a framework. The stations install nothing into the repo they work on; `mf-bootstrap` writes a new
-repo's starting files, once. A skill may bundle a standard-library script, run from its own package and never
-copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
+repo's starting files, once. A skill may bundle a standard-library script, or one whose PEP 723
+header names a package the person approved, run from its own package and never copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
 
 - **Why:** a tool installed per repo is a copy of the contract in every target.
 
@@ -181,14 +181,13 @@ queue holds.**
 ### D65 · A lighter plan review and build
 
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
-decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker
+decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Opus 5.5 · high
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
-suggested Sonnet 5.5 · high for its whole build, where the session offers it: one model a change, and one build session.**
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
 
 - **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
   round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
-- **Rejected:** a second review after every fix · resuming a reviewer by a message · a build session per phase, which needs a
-  guard against re-spawning without end · a model per phase.
+- **Rejected:** a second review after every fix · resuming a reviewer by a message.
 
 ### D69 · A version names what it builds beside
 
@@ -236,7 +235,7 @@ Each is its own pass.**
 
 ### D13 · Simplify runs inside the build and blocks nothing
 
-**The build closes with a simplify pass that edits in place and re-runs the gate. Its edits are then inside the
+**The build closes with a simplify pass, its own worker under `mf-ship`, that edits in place and re-runs the gate. Its edits are then inside the
 frozen diff, so converge's checkers judge them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
 verdict.**
 
@@ -248,7 +247,8 @@ verdict.**
 
 **A change may be released without the check loop. The release then writes `converge: skipped` into its report and
 the release commit. The diff patch or either findings file means converge ran, and then both files must exist and
-be clean.**
+be clean. A plan may also skip converge, or one checker, on the models line; the release then states `converge: skipped —
+by plan` or `<role>: skipped`.**
 
 - **Why:** a prose-only change read by hand does not earn the check passes, and a silent skip would look like a
   pass.
@@ -323,7 +323,7 @@ starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-ano
 
 **Converge's conductor runs on Sonnet 5.5 · high, its conformance worker on the mid tier · high,
 its adversarial worker on the strongest tier · high, and its fixer on the mid tier · medium, on adversarial's model,
-adversarial running on converge's host, when a card it is sent blocks: the models file's `[converge]`,
+adversarial running on converge's host and not skipped, when a card it is sent blocks: the models file's `[converge]`,
 `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
 converge prompt. Verify runs at medium. Conformance reads `bundle.md` — the
 decisions the change cites, in full, an index of all, and each requirement the delta modifies or removes,
@@ -333,13 +333,14 @@ adversarial card awaiting its checker, takes its adversarial head by recomputati
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
 - **Accepts:** on Codex every worker on the conductor's host runs on the conductor's model; a decision the change does not
-  cite is read by its index line alone; the build keeps one model a change.
+  cite is read by its index line alone; the build's model is `[build]`'s, a moderate phase's `[build.moderate]`'s.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
   it · an adversarial verify skipped by the conductor's judgment.
 
 ### D66 · Two checkers: conformance and adversarial
 
-**Converge runs two checkers. Conformance judges the code against the change's own spec, design, tasks and the decisions it
+**Converge runs two checkers, save one a plan skips ([D75](#d75--a-person-may-skip-converge-or-a-checker-per-version)).
+Conformance judges the code against the change's own spec, design, tasks and the decisions it
 cites, from the change's artifacts, its bundle and the diff, reading no code beyond the diff's hunks; it grades `blocking` ·
 `drift` · `nit`, on the mid tier. Adversarial tries to break the change — races, edge cases, exploits, security — from the diff,
 the source and tests around it and the threat model; it grades `critical` · `high` · `medium` · `low`, `high` a bug that would
@@ -360,7 +361,7 @@ the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A v
 converge's runs through the checker mailbox, in the home folder's queue: the conductor writes the request, `conduct.py` spawns
 the checker on the plan's model and effort,
 within converge's remaining time, or on Claude while Codex is limited
-([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request,
+([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request,
 and the conductor reads its findings from disk. The fixer stays on converge's host.
 Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze, into shadow files that drive
 nothing, and `overlap.py` counts what each side alone caught. The review metrics read per role and executor.**
@@ -376,8 +377,8 @@ nothing, and `overlap.py` counts what each side alone caught. The review metrics
 
 **The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
 budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
-Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Once no blocker is open, a pickup's fix is checked
-by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
+Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Round 1's fix pass takes the pickup with its blockers; once no blocker
+is open, a pickup's fix is checked by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
 the diff's files have their own file, and the release reads the findings files' frontmatter and card lines alone.**
 
 - **Why:** 0097's plan reviews re-read everything, and its helpers, on the strongest model, re-read what another worker of
@@ -435,7 +436,7 @@ writes into no repo and is no station of the line.**
 change directory, the person's, the rescue's or the supervisor's — opens one amend round: a catch-up run marked `· amend` over
 `<judged head>..HEAD`, holding the amend, the build's code for a phase it added and converge's own unverified fix. Before its
 `start` it runs each `Verify:` the range adds to `tasks.md`; then one judge round and at most one fix round, a blocker left
-`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. The checkers keep the full plan, and the stale-claim pass
+`cap reached` ([D56](#d56--the-cap-policy)). No amend passes by rule. Conformance keeps the full plan, and the stale-claim pass
 searches the whole tree for each claim the amend changes.**
 
 - **Why:** an amended run restarted at round 1 over the whole change with a fresh cap of three: 24% of converge's spend, a
@@ -444,6 +445,52 @@ searches the whole tree for each claim the amend changes.**
 - **Accepts:** code an amend contradicts outside the range, which only the stale-claim pass searches · a decision or
   spec-delta amend judged in one round.
 - **Rejected:** a full reopen after a decision amend · a fresh cap of three per amend · by rule for the person's amends.
+
+### D73 · A build runs a fresh worker per phase
+
+**Under `mf-ship`, the build station spawns `mf-build` once per unticked phase, `phase=<N>`, and once for the close,
+`phase=close`: simplify, the metrics and `build.done`. A phase spawn passes only on its phase ticked at `HEAD` on a clean
+tree, so none runs twice without an amend between. Phases hand over through `.minions/changes/<id>/build-notes.md`, of
+which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` or `hard`; a moderate one runs on
+`[build.moderate]` when the models file names it.**
+
+- **Why:** one session carried every phase's reads to its end, most at the last phase; a fresh worker per phase
+  simulated cheaper on the largest build and level on the smaller, per the change's design Evidence table.
+- **Accepts:** each phase re-reads its base · a note the conductor cuts at 40 lines.
+- **Rejected:** a per-phase worker only on big changes — one behaviour is simpler · a tracked notes file — D6 keeps the
+  record to four artifacts · a host per phase.
+
+### D74 · Converge's rounds are cut at their causes
+
+**Round 1's fix pass takes the pickup with its blockers, and a pickup fix that commits nothing gets no check. The fixer
+records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
+`plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the base's
+tests gone, at the build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside
+the gate. The Markdown readers parse with `markdown-it-py`. Plan reviews run on Opus 5.5 · high; the cut's default model is
+Sonnet 5.5 · high.**
+
+- **Why:** across 0080–0100, most rounds past the first were a pickup alone or grew from one, an amend round over plan prose
+  a fix left stale, or a blocker a deterministic check could have found.
+- **Accepts:** a fix note the person reads after the run · a corpus that reads only what this machine's run directory holds ·
+  a header range `uv` resolves at run time.
+- **Rejected:** a pickup in every fix pass · grading a mechanism repeat up · `make corpus` in the gate · a hand-split reader
+  patched form by form.
+
+### D75 · A person may skip converge, or a checker, per version
+
+**A version's models line may say `converge skip`, `conformance skip` or `adversarial skip`; `models.toml` holds it as `skip =
+true` under `[converge]` or the checker's table. A skipped converge sends a built version from build to integrate and release,
+the run log naming `converge skipped — plan` and the release `converge: skipped — by plan`. A skipped checker's findings file
+is a clean stub at `HEAD`, `mode: skipped`, and the release names it. A repo's `**Converge:**` line in `AGENTS.md` only
+pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` alone.**
+
+- **Why:** a proof of concept does not earn converge's tokens, and the hand skip D14 allows lived in release alone: the run
+  sent such a version back to converge.
+- **Accepts:** no hand read and no debt for a skipped converge, the gate the only floor · no security reader under an
+  adversarial skip, the release naming it · a planted `skip` in the worker-writable `models.toml`, in the class *Out of scope*
+  accepts, as the `decide` switch is.
+- **Rejected:** a `**Converge:**` switch `conduct.py` reads — D56, D58 and D60 reject an `AGENTS.md` switch per version · a floor
+  under an adversarial skip · `_unjudged` learning a skipped role.
 
 ## The target repo
 
@@ -623,8 +670,9 @@ the bootstrap templates — never that a sentence exists.**
 **A repo that declares `Worktrees:` in `AGENTS.md` gets a linked worktree per version, made by the cut from the
 primary checkout, which stays on the default branch. Ids are reserved at the cut against every open version branch and
 every reservation `conduct.py cut` wrote under its lock ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).
-Every worktree shares the primary's `.minions/`, save the gate's own junit report, which sits in the checkout that ran
-it; the release merges in the primary.**
+A stacked dependent takes its dependency's built head by a merge
+([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)). Every worktree shares the primary's `.minions/`, save the
+gate's own junit report, which sits in the checkout that ran it; the release merges in the primary.**
 
 - **Why:** two writers in one checkout collide; git holds a branch in one worktree only; an open branch reserves its id
   once its change is committed, and a queued cut's reservation before.
@@ -640,7 +688,9 @@ the merge, its body naming every path it settled: a rule, the union, the person,
 the merge. Converge's catch-up judges the merge by its remerge-diff, unless
 `integrate.py replay` rebuilds it by the fixed rules alone: then it is clean by recomputation, with no worker. `conduct.py` alone merges it into a cut-only branch — a dependent's, or
 one the default branch passed before its first worker — and into a started one whose base the default branch passed changing
-its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
+its gate, save a stacked one; it also merges a dependency's built head into its stacked dependent
+([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)). It settles a conflict in `CHANGELOG.md` or
+`docs/decisions.md`, and a stacked branch's `CHANGELOG.md` on any merge, by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
 `integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
@@ -652,12 +702,13 @@ its gate. It settles a conflict in `CHANGELOG.md` or `docs/decisions.md` by `int
 ### D47 · `mf-ship` takes cut versions to the default branch unattended
 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
+a dependent building on its dependency's built head ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)),
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
 station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor;
 a probe a usage limit stopped, only the versions with a station on its executor
-([D72](#d72--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)). A run takes
+([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)). A run takes
 each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, and its close,
 under the queue lock, starts the next run on a request or a cut it never read. A live run takes a rejoin request, in the
 home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state,
@@ -695,6 +746,24 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
   version held until `origin` answers.
+
+### D72 · A dependent builds on its dependency's built head
+
+**Once a version's one unreleased `after:` dependency passes its build check, with no halt, and its built head holds the
+version's base, `conduct.py` merges that head into the version with no agent, writes its sha to
+`.minions/changes/<id>/stacked-on`, and the version builds. Built, it waits as `stacked`; once the dependency releases, the
+run merges the default branch in, removes `stacked-on`, and converge runs round 1. While `stacked-on` stands, the build's gate
+check and metrics, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
+change directory past that head that changes a decision resets the version to its cut commit, until the merge back, even
+once the dependency released; it stacks again on the dependency's next build, or, the dependency released, builds again on
+the default branch.**
+
+- **Why:** a dependent waited through its dependency's converge, about 45 minutes, which rarely changes the code it builds on.
+- **Accepts:** a dependent built on code its dependency's converge has not judged — it never converges or releases before
+  that converge and release · a reset that drops the dependent's build and any amend of its own · a forged `stacked-on`,
+  which narrows the build's gate check and diff coverage alone: the run removes it before converge and the release.
+- **Rejected:** rebasing the dependent onto the built head (D44, D45) · stacking on two dependencies, or on a head that lacks
+  the dependent's base · stopping a running build at a re-plan.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
@@ -749,7 +818,7 @@ converge conductor reads no mandatory context.**
   its index line alone.
 - **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.
 
-### D72 · A Codex usage limit falls back, and halts only what runs on Codex
+### D76 · A Codex usage limit falls back, and halts only what runs on Codex
 
 **A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>`, and only a version or cut with a
 station on Codex halts, alone, with no rescue. A mailbox checker on Codex that is limited — a limit recorded, or a primary
@@ -782,7 +851,8 @@ ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none f
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
-`## Decisions` section: a card whose fix needs any other plan edit halts `amend needed`. A
+`## Decisions` section and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
+fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
@@ -884,7 +954,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
-`build.{done,halt,closing,discarded.patch}`, `rescue.md`, `release.held`, `gate-check/` and
+`build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
 `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's

@@ -22,9 +22,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Each linked worktree's gitdir is a Codex writable root, the config guard reads each linked worktree's `config.worktree`,
   and the Codex probe writes a linked worktree's index with `git write-tree`; a skipped test runs Codex's own sandbox
   when `MF_REAL_CODEX=1` (change `0104-codex-limits`, phase 5).
-- A checker request carries an id line and its answer names it, so a leftover answer is waited past; D72 records the Codex
+- A checker request carries an id line and its answer names it, so a leftover answer is waited past; D76 records the Codex
   usage limit, D47, D51, D53, D67 and D68 follow it, and `THREAT_MODEL.md` and `skills/mf-ship/SKILL.md` say what a
   request can still do and what a limit halts (change `0104-codex-limits`, phase 6).
+
+## [0.87.0] - 2026-11-09
+
+Gate: local 2m12s · CI not read under mf-ship · 0.86.0: local 2m14s · CI not read under mf-ship
+
+- The models line takes `converge skip`, `conformance skip` and `adversarial skip`; `brief_check.py` refuses a skip beside
+  `shadow`, a model or effort, and both checkers skipped. `mf-cut-change` drops its dead `skip, read by hand` text and
+  writes a brief's skip as `skip = true` in `models.toml` (change `0105-converge-switches`, phase 1).
+- `conduct.py` reads `skip = true` under `[converge]` or a checker's table: a skipped converge sends a built version to
+  integrate and release, the run log saying `converge skipped — plan`; a skipped checker takes `<role>=skip` in the
+  converge prompt and is not probed (change `0105-converge-switches`, phase 2).
+- Converge dispatches the checker not skipped alone; `skip_stub.py` writes the skipped one's findings file clean at `HEAD`,
+  `mode: skipped`, and refuses a checker's file holding cards not cleared. `mf-release` states `converge: skipped — by plan` and `<role>: skipped`, and `review_metrics.py` books a
+  worker by the start of its description, a stub's `0` a gap (change `0105-converge-switches`, phase 3).
+- A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the models line in
+  `mf-plan` and the cut, and the cut warns when an adversarial skip's tasks name a `## Surfaces` file (change
+  `0105-converge-switches`, phase 4).
+- D75 records the skip switches and D14 names them; `THREAT_MODEL.md` accepts a planted `skip` in `models.toml` (change
+  `0105-converge-switches`, phase 5).
+
+## [0.86.0] - 2026-11-09
+
+Gate: local 2m14s · CI not read under mf-ship · 0.85.0: local 2m8s · CI not read under mf-ship
+
+- Converge's round-1 fix pass takes Step 8's pickup with its blockers, so round 2 verifies them all and Step 8 runs no
+  second pickup; a pickup whose fixer commits nothing gets no check. A finding whose mechanism a debt card holds names
+  `repeat of <card>` and keeps its grade (change `0103-fewer-rounds`, phase 1).
+- The converge fixer may append `Fix note (<date>, <card id>): <line>` to a `### D<n>` entry in `design.md`; `conduct.py`
+  reads an appended note as no decision change, and converge's close-out names each note (change `0103-fewer-rounds`,
+  phase 2).
+- `plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the
+  base's tests gone. The build runs it before `build.done`, the converge fixer after each fix and Step 7 after the gate,
+  halting `amend needed — plan check` on a line only the plan can clear, which `mf-rescue` amends (change
+  `0103-fewer-rounds`, phase 3).
+- `make corpus` runs `scripts/corpus.py` over `scripts/corpus.toml`'s cases, the repo's readers of run data over the run
+  directory, outside `make gate`. The cut marks a sub-task that adds such a reader `**CORPUS**`, the build runs
+  `make corpus` after it, and the plan check finds its case (change `0103-fewer-rounds`, phase 4).
+- `brief_check.py` and the cut station's `## Dependencies` check read Markdown with `markdown-it-py` as CommonMark does,
+  so a fenced heading holds no section and a table row GFM renders is read; a lone carriage return halts the brief, and
+  the cut reads the branch as `refs/heads/<id>`. A fuzz corpus compares both readers with the rendered page (change
+  `0103-fewer-rounds`, phase 5; closes `0091·R4`, `0091·S4`, `0091·S5`).
+- `mf-cut-change` runs its plan reviews on Opus 5.5 · high by name, whatever the cut's model; `mf-plan`'s default cut model
+  becomes Sonnet 5.5 · high (change `0103-fewer-rounds`, phase 6).
+- D74 records the cuts to converge's rounds; D2, D53, D65 and D71 follow it, and the coding standards, `AGENTS.md` and the
+  threat model name the `markdown-it-py` header, `make corpus`, the fix note and the plan check (change
+  `0103-fewer-rounds`, phase 7).
+- `plan_check.py` holds a re-run `Verify:` to the output it names: a command exiting 0 fails when it prints something where
+  the `Verify:` says `prints nothing`, or other than the number it names; a `grep -c` printing `0` on exit 1 passes
+  (change `0103-fewer-rounds`, phase 8).
+
+## [0.85.0] - 2026-11-09
+
+Gate: local 2m8s · CI not read under mf-ship · 0.84.0: local 2m13s · CI not read under mf-ship
+
+- Under `mf-ship`, the build spawns `mf-build` once per unticked phase, `phase=<N>`, then once for the close,
+  `phase=close`. A phase spawn passes only on its phase ticked at `HEAD` on a clean tree, so no phase runs twice
+  without an amend (change `0102-build-per-phase`, phase 1).
+- Phases hand over through `.minions/changes/<id>/build-notes.md`: `mf-build` reads it and appends a section a phase,
+  the conductor keeps 40 lines of each append, through a descriptor that follows no link, and a stacked reset removes
+  it (change `0102-build-per-phase`, phase 2).
+- The cut rates each phase ` · moderate` or ` · hard`; a moderate phase builds on `[build.moderate]` when the models
+  file names it, on `[build]`'s executor, and `brief_check.py` takes an optional, hostless `build-moderate` part
+  (change `0102-build-per-phase`, phase 3).
+- D73 records the build's worker per phase; D65, D64, D57 and D13 follow it, the threat model names `build-notes.md`,
+  and `mf-ship`'s flow shows a worker a phase (change `0102-build-per-phase`, phase 4).
+
+## [0.84.0] - 2026-11-08
+
+Gate: local 2m13s · CI not read under mf-ship · 0.83.0: local 2m10s · CI not read under mf-ship
+
+- A dependent stacks on its one unreleased dependency's built head once that build passes: `conduct.py` merges it in as
+  `chore(stack)`, writes `stacked-on`, builds the dependent, and holds it as `stacked` until the release is merged back;
+  `delta` skips a change the merge archived, and `merge_in` checks the git config again before its commit (`0050·R5`)
+  (change `0099-stacked-builds`, phase 1).
+- While `stacked-on` stands, the gate's diff coverage, the build's gate check and metrics, and `mf-simplify`'s range take
+  its sha as their base, and `I17` passes on that head holding the dependency's change (change `0099-stacked-builds`,
+  phase 2).
+- A decision-changing amend in the dependency past the stacked-on head resets the dependent to its cut commit; the
+  merge back runs `integrate.py`'s `changelog` rule, which keeps only the entries past a stacked base's, so the
+  dependency's are not carried twice (change `0099-stacked-builds`, phase 3).
+- The `after-wait-minutes` run metric measures a dependent's wait on its `after:` ids; D72 records the stacked build,
+  D44, D45, D47, D57 and D63 follow it, and the threat model names it and drops `0050·R5` (change
+  `0099-stacked-builds`, phase 4).
+- `after-wait-minutes` closes a wait only with a later event of its own run, so the time between a stopped run and the
+  next no longer counts as a dependency wait (change `0099-stacked-builds`, converge fix S2).
+- The reset holds past the dependency's release: a decision-changing amend the dependency made before releasing
+  resets the stacked dependent before the merge back, so it builds again on the default branch rather than on a
+  superseded decision (change `0099-stacked-builds`, phase 5).
 
 ## [0.83.0] - 2026-11-08
 

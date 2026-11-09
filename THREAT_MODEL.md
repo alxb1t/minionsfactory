@@ -36,6 +36,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   starts on another host writes its findings file, which the conductor reads as evidence,
   as it reads a subagent's. `conduct.py` stamps a mailbox findings file's `model:` and `tokens:`
   and appends a Codex log's `mf.quota` line, following no link.
+- **A stacked build runs on code no converge has judged**
+  ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its dependency's
+  built head, and never converges or releases before that dependency's converge and release. A worker can write
+  `stacked-on`, which narrows the build's gate check and diff coverage: the gate reads it through `git rev-parse` alone, and
+  the conductor removes it before converge and the release, which judge against the default branch.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
   scratch repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps
   `origin`'s URLs in the home folder before its first worker: while `origin` differs from them, no remote call of
@@ -70,7 +75,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
-  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)).
+  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). Among them `build-notes.md`, which any worker of
+  the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
+  follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
+  version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change: a note
+  can misstate the code, and the verify round and the person read it.
 - Rejoin requests, in the home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`: the person's session writes
   them and no worker can, so a file in `.minions/runs/rejoin/` is no request. A request has the live run read a version's
   stage from disk again, which it already trusts, and the models file of a version cut since its start. A version the
@@ -92,6 +101,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   widens that list. A passed cut's brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and
   `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
   worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
+- `tasks.md`'s `Verify:` commands, which `plan_check.py` runs again at the build's close and after each converge fix, argv
+  with no shell, as the build ran them; and `make corpus`, an operator target outside the gate, which runs the readers
+  over the run directory and the operator's Codex sessions and writes only under `.minions/corpus/`.
 
 ## Surfaces
 
@@ -171,10 +183,13 @@ picked card is adversarial's.
   one a version a run. So is the adversarial head by rule: it reads the adversarial file's cards, which a worker writes, so
   a forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
   cannot drop the glob its own edit matches.
+- **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
+  table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
+  Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.
 
 ## Known gaps
 
-Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0034·R9`. D47 accepts `Ship tools:`.
+Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts `Ship tools:`.
 
 - A Codex worker can read `~`.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
@@ -183,8 +198,9 @@ Carded in `.minions/debt.md`, accepted until paid down: `0050·R5`, `0034·R9`. 
   that worker's roots: whether Codex resolves a root once or per command is unproven (`0050·S7`, `0050·R11`). A Claude
   worker can still make, in its own temp folder, the folder a forged worktree entry names, so that folder becomes a
   Codex root it can swap in the same window.
-- The config race, what is left, `0050·R5` among it: a run's remote calls are out of the race, and its local `status`, `merge` and `commit`
-  still read the repo's config after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
+- The config race, what is left: a run's remote calls are out of the race, and `merge_in`
+  compares the config again right before its commit; its local `status`, `merge` and `commit` still read the repo's config
+  after the refusal. `integrate.py`'s `delta`, `changelog`, `decisions` and `replay` start their
   own git there, with no hook and no lazy fetch, so a filter or merge driver set in that race can still run.
 - A cutter is given `.minions` by name, and the primary, its parent, is every other worker's: the station refuses a link
   there as it builds the cutter's command, so a worker that swaps one in between that check and the cutter's sandbox

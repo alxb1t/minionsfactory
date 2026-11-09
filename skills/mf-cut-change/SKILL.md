@@ -178,9 +178,15 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
   leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
+- Each `## Progress` line but a `**HUMAN` one ends ` · moderate` or ` · hard`: `hard` when the phase matches
+  [*Suggesting models*](#suggesting-models)' strongest-tier row, else `moderate`. `mf-ship` builds a `moderate` phase
+  on `[build.moderate]` when the models file names it.
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
   `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
   unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
+- A sub-task that adds or alters code reading the run directory (`.minions/`), run logs or Codex sessions, in a repo whose
+  root `Makefile` has a `corpus` target, carries `` **CORPUS** `<case>` ``, `<case>` a case of `scripts/corpus.toml` it or
+  an earlier sub-task adds. `plan_check.py` fails a marked sub-task whose case is missing.
 
 ## Step 7 — Validate
 
@@ -216,8 +222,9 @@ This self-check is a declared exception to *no station verifies its own work*. T
 
 ## Step 8.5 — Plan review
 
-A fresh read-only worker reads the plan before the commit: the host's subagent, on the session's model. Give
-it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md` and one
+A fresh read-only worker reads the plan before the commit: the host's subagent, on Opus 5.5 · high where the host offers
+it, whatever the session's model — on Claude Code the Agent tool's `model: opus` and `effort: high` — else the session's
+model. Give it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md` and one
 question: can each task be built as written, each `Verify:` pass after it, and each the search script did not run — a
 test, a command — fail before it, save a `**HALT CHECK**`, which should hold? It starts from the packet, opening
 another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the
@@ -261,8 +268,12 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
 | a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
+A **surfaces warning** shows too when the change's models skip adversarial or converge: for each file a task names that a
+`## Surfaces` glob of `THREAT_MODEL.md` matches, `surfaces warning — <path> matches <glob>: adversarial is skipped`. It waits
+for nothing; the commit goes on.
+
 Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
-change, which commits.
+change, which commits. Each surfaces warning is a line of `.minions/changes/<change-id>/cut-notes.md` instead.
 
 On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
 edit the human asks for after the commit is a further commit on the branch,
@@ -302,7 +313,7 @@ after the brief's `## For the cut` list. The last line: `Next: the run builds it
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
 | **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | Steps 7 and 8 |
-| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
+| **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
@@ -315,7 +326,7 @@ after the brief's `## For the cut` list. The last line: `Next: the run builds it
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked; reading each sub-task for its commands |
 | **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | reading `tasks.md` |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, or to a decision in force at the base that retires it (`retired by Dn`) | reading each task that deletes or merges a test, and finding the test in the table |
-| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build | Step 1, for each `after` id; reading `proposal.md` |
+| **I17** | name in `after:` only open versions with a lower id, each one's archive folder in `HEAD` before its build, or its change in the head `stacked-on` names | Step 1, for each `after` id; reading `proposal.md` |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | `gate_check.py --tasks openspec/changes/<change-id>/tasks.md` exits 0 |
 | **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | `verify_check.py` in Step 8 |
 
@@ -387,7 +398,12 @@ session's menu; with no menu, describe the capability needed — never invent mo
 When the brief's `## For the cut` item for this change names models, write exactly those, each host as its table's
 `executor`: the person chose them at the plan's close. Write `[converge.conformance]`, `[converge.adversarial]` or
 `[converge.fix]` from the Converge bullet when the brief's line lacks its part. A last `shadow` is `shadow = true` under
-`[converge]`. Write `decide = "recommended"` before the tables when that item says `decide: recommended`.
+`[converge]`. When the source names no models for the change, a root `AGENTS.md` line `**Converge:** skip`, `conformance skip`
+or `adversarial skip` pre-fills the suggestion with that part; the person confirms or changes it. Read the line for nothing
+else. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
+skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
+`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
+`decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
 selected model, authenticate or configure a provider: those are the operator's. Show the suggestion in chat, then
@@ -402,19 +418,19 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
-a change, never one per phase.
+a change for `[build]`.
 
-- **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
-  path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it: the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
+- **Converge** — the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
   conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · medium.
-  Say which you found.
+  A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
+  wrong output — calls for the tiers named. Say which you found. A `skip` is the person's: it stands in the
+  brief's models line, and you suggest none.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
 Suggested models
   build     <offered model or capability>   <reason from the phases>
-  converge  <offered model or capability | skip, read by hand>   <reason>
+  converge  <offered model or capability | skip, from the brief's models line>   <reason>
   release   <offered model or capability>   <reason>
   effort    <include a supported setting per station when available>
 ```
@@ -423,10 +439,14 @@ Suggested models
 [build]
 model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
+# [build.moderate]  # optional, from the brief's build-moderate: the phases rated moderate
+# model = "<offered model>"
+# effort = "<effort>"
 [converge]
-model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
+model = "<offered model>"
 # executor = "codex"  # optional, per table, from the brief's host; absent, the run's, and converge's for a checker
 # shadow = true  # from the brief's shadow
+# skip = true  # from the brief's converge skip: no model, no worker tables
 [converge.conformance]
 model = "<offered model>"
 effort = "<effort>"

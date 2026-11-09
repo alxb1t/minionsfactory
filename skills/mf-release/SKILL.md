@@ -124,10 +124,13 @@ leaves never halts.
 
    | on disk | converge | then |
    |---|---|---|
-   | no findings file and no diff patch | **skipped** | preconditions 2, 3 and 7 pass; state the line `converge: skipped — no findings files` in the report and the release commit (Step 4.4) |
+   | no findings file and no diff patch | **skipped** | preconditions 2, 3 and 7 pass; state the line `converge: skipped — by plan` when `.minions/changes/<change-id>/models.toml` says `skip = true` under `[converge]`, else `converge: skipped — no findings files`, in the report and the release commit (Step 4.4) |
    | the diff patch, no findings file | froze its diff and stopped | halt |
    | one findings file without the other | ran | halt |
    | both findings files | **ran** | preconditions 2, 3 and 7 apply in full |
+
+   A findings file whose `mode:` is `skipped` is a checker the plan skipped: it is clean at `HEAD` like the other, and
+   the report and the release commit state `<role>: skipped` (Step 4.4).
 
    A checkout that lost `.minions/` reads as skipped; the skip line is its only record. **Simplify is excluded
    here, by name**: it runs inside `mf-build`, fixing in place, **produces no findings file by design**, and the
@@ -236,11 +239,11 @@ binding check covers it, and a gate without one gives a separate step nothing to
    hold exactly the tree item 3 gated. After it, `git status --porcelain` prints nothing. The message ends with
    the trailer block, `Co-Authored-By:` and `Change: <change-id>` **contiguous**: a blank line between them
    silently breaks it. **When converge was skipped** (precondition 4), the skip line is its own body paragraph
-   before the trailer block — the durable record of the skip:
+   before the trailer block — the durable record of the skip. A skipped checker's `<role>: skipped` is a line of it:
 
        chore(release): <tag>
 
-       converge: skipped — no findings files
+       converge: skipped — by plan
 
        Co-Authored-By: <the attribution line this session uses>
        Change: <change-id>
@@ -304,7 +307,8 @@ authorizes nothing.
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
 Your sentences: the release commit and the tag, with the Step 4.3 gate's exit code, and the `Gate:` line;
-`converge ran`, or `converge: skipped — no findings files`; each `inconclusive` section, from
+`converge ran`, or `converge: skipped — by plan` or `converge: skipped — no findings files`, and each skipped checker as
+`<role>: skipped`; each `inconclusive` section, from
 the `grep`'s `inconclusive` lines; the paid-down cards, or `debt: none`; the metrics
 data file, or `metrics: none — no catalogue`; and the merge
 and the push — under `merge=yes`, that `conduct.py` pushes — or that there is no `origin`; and the worktree removed, kept or refused — under `merge=yes`, that `conduct.py` removes it. A preamble flagged for a

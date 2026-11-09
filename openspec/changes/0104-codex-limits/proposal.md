@@ -35,7 +35,7 @@ D53 says needs the person (F3). Nothing records what a Codex spawn costs in quot
   worktree's `config.worktree`; the Codex probe runs `git write-tree` in a scratch linked worktree.
 - **The debt** — a served checker gets only what is left of converge's time (`0097·S2`); an answer names the request it
   answers (`0097·S3`); the threat model's mailbox entry says what a request can still do (`0097·S6`).
-- **The record of decisions** — D72; D47, D51, D67 and D68 amended; `THREAT_MODEL.md`; `skills/mf-ship/SKILL.md` and
+- **The record of decisions** — D76; D47, D51, D67 and D68 amended; `THREAT_MODEL.md`; `skills/mf-ship/SKILL.md` and
   `skills/mf-converge/SKILL.md`.
 
 ## Capabilities

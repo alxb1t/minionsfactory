@@ -133,6 +133,64 @@ def _done(root: Path, change: str, head: str) -> None:
     (folder / "build.done").write_text(f"head: {head}\nsimplify: lean already\n")
 
 
+def _closed(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
+    """Write `build.done` at `HEAD`, then commit or plant as `modes` say."""
+    _done(primary, change, _git(tree, "rev-parse", "HEAD"))
+    if "person-commits" in modes:
+        _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
+    if "plant-network" in modes:
+        agents = primary / "AGENTS.md"
+        line = "- **Ship network:** `later.example`\n"
+        agents.write_text(agents.read_text() + line)
+
+
+def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) -> None:
+    """Tick one phase's boxes in one commit, or close; halt, idle, die or note as told.
+
+    Why: 0102-build-per-phase design *The fake host*.
+    """
+    if phase == "close":
+        if "dies-simplify" in modes:
+            sys.exit(1)
+        _closed(tree, primary, change, modes)
+        return
+    if f"idle-phase-{phase}" in modes:
+        return
+    if modes & {f"halt-{change}", f"halt-phase-{phase}"} and not _amended(tree, change):
+        folder = _folder(primary, change)
+        folder.mkdir(parents=True, exist_ok=True)
+        head = _git(tree, "rev-parse", "HEAD")
+        (folder / "build.halt").write_text(
+            f"sub-task: {phase}.1\nstop: 3\nevidence: two readings\nhead: {head}\n"
+        )
+        return
+    tasks = tree / "openspec" / "changes" / change / "tasks.md"
+    text = tasks.read_text()
+    box = rf"^- \[ \] ({re.escape(phase)}(?:\.\d+)? )"
+    files = {str(tasks): re.sub(box, r"- [x] \1", text, flags=re.MULTILINE)}
+    if f"after-self-{change}" in modes:
+        proposal = f"---\nbump: minor\nafter: [{change}]\n---\n"
+        files[str(tasks.with_name("proposal.md"))] = proposal
+    if files[str(tasks)] != text:
+        _commit(tree, files, "build")
+    notes = _folder(primary, change) / "build-notes.md"
+    if f"notes-{change}" in modes:
+        line = rf"^- \[[ x]\] {re.escape(phase)} — (.*?)(?: · (?:moderate|hard))?$"
+        found = re.search(line, text, re.MULTILINE)
+        notes.parent.mkdir(parents=True, exist_ok=True)
+        with notes.open("a") as out:
+            out.write(f"## {phase} — {found[1] if found else ''}\n")
+            out.write("".join(f"note {n}\n" for n in range(49)))
+    if f"notes-link-{change}" in modes:
+        beside = notes.with_name("notes-beside.md")
+        notes.parent.mkdir(parents=True, exist_ok=True)
+        beside.write_text("x\n")
+        notes.unlink(missing_ok=True)
+        notes.symlink_to(beside)
+    if f"dies-phase-{phase}" in modes:
+        sys.exit(1)
+
+
 def _by_rule(tree: Path, folder: Path) -> list[str] | None:
     """Return a line per merge when a catch-up selects merges alone, each replaying."""
     conformance = folder / "conformance.md"
@@ -172,6 +230,24 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
         "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
         f"10:00:00 · round 2 · by rule — clean, {paths}\n"
     )
+
+
+def _stubbed(tree: Path, primary: Path, change: str, roles: list[str]) -> None:
+    """Write each skipped role's findings file with `skip_stub.py`, as converge does.
+
+    Why: 0105-converge-switches design D3.
+    """
+    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
+    folder = _folder(primary, change)
+    for role in roles:
+        subprocess.run(
+            [sys.executable, str(script / "scripts" / "skip_stub.py")]
+            + [str(folder / f"{role}.md"), "1"],
+            cwd=tree,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
 
 def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
@@ -495,7 +571,8 @@ def _fake(prompt: str) -> None:
     if station == "checker":
         _checker(here, str(role), str(change), modes)
         return
-    if station == "build" and "deny" in modes:
+    phase = re.search(r" with phase=(\w+)", prompt) if station == "build" else None
+    if station == "build" and "deny" in modes and not (phase and phase[1] == "close"):
         use = {
             "type": "tool_use",
             "id": "t1",
@@ -540,7 +617,8 @@ def _fake(prompt: str) -> None:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
         time.sleep(2)
-    if station == "build" and f"hold-{change}" in modes:
+    holds = {"build": f"hold-{change}", "converge": f"hold-converge-{change}"}
+    if holds.get(station) in modes:
         hold, deadline = Path(os.environ["FAKE_HOLD"]), time.monotonic() + 60
         while not hold.exists() and time.monotonic() < deadline:
             time.sleep(0.05)
@@ -602,6 +680,8 @@ def _fake(prompt: str) -> None:
         _supervise(here, primary, str(change), modes)
     elif station == "cut-change":
         _cut(here, primary, str(change), prompt, modes)
+    elif phase is not None:
+        _phase(here, primary, str(change), phase[1], modes)
     elif (
         station == "build" and f"halt-{change}" in modes and not _amended(here, change)
     ):
@@ -628,13 +708,7 @@ def _fake(prompt: str) -> None:
             return
         if "dies-simplify" in modes:
             sys.exit(1)
-        _done(primary, str(change), _git(here, "rev-parse", "HEAD"))
-        if "person-commits" in modes:
-            _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
-        if "plant-network" in modes:
-            agents = primary / "AGENTS.md"
-            line = "- **Ship network:** `later.example`\n"
-            agents.write_text(agents.read_text() + line)
+        _closed(here, primary, str(change), modes)
     elif station == "converge":
         if "plant-executor" in modes:
             table = _folder(primary, str(change)) / "models.toml"
@@ -713,8 +787,10 @@ def _fake(prompt: str) -> None:
             mailed = re.findall(r" and (\w+)=mailbox\b", prompt)
             _mailed(here, primary, str(change), mailed)
             roles = ("conformance", "adversarial")
-            alone = tuple(role for role in roles if role not in mailed)
+            skipped = re.findall(r" and (\w+)=skip\b", prompt)
+            alone = tuple(r for r in roles if r not in mailed and r not in skipped)
             _findings(primary, str(change), head, roles=alone)
+            _stubbed(here, primary, str(change), skipped)
             if " and shadow=yes" in prompt:
                 _mailed(here, primary, str(change), [f"shadow-{r}" for r in roles])
         if "dies-converge" in modes:

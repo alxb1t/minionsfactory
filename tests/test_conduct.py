@@ -232,7 +232,12 @@ def _codex_argvs(tmp_path: Path) -> list[list[str]]:
 
 
 def _calls(path: Path) -> list[str]:
-    return path.read_text().splitlines() if path.is_file() else []
+    """Return the fake's calls, a phase spawn's ` with phase=<digits>` dropped.
+
+    Why: 0102-build-per-phase design *The fake host*.
+    """
+    lines = path.read_text().splitlines() if path.is_file() else []
+    return [re.sub(r" with phase=\d+\b", "", line) for line in lines]
 
 
 def _log(root: Path) -> list[str]:
@@ -422,6 +427,10 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("build") == (0, "check: build · pass")
     (tree / "stray.txt").write_text("x\n")
     assert check("build") == (1, "check: build · fail — the tree is not clean")
+    # A phase spawn's check passes on its phase ticked at HEAD, on a clean tree alone.
+    version = conduct["find_version"](root, "0001-todo")
+    on_phase = conduct["check"](root, "build", version, phase="1")
+    assert on_phase == "the tree is not clean"
     (tree / "stray.txt").unlink()
     ran = tmp_path / "ran.txt"
     planted = tmp_path / "planted.sh"
@@ -628,9 +637,10 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     spawn = "10:00:01 · 0001-todo · spawn — build · model default"
     finish = "10:00:09 · 0001-todo · finish — build · exit 0 · 8s"
     denied = "10:00:09 · 0001-todo · denied — build · Bash(rm -rf build)"
+    skipped = "10:00:09 · 0002-marks · converge skipped — plan"
     done = "10:00:10 · run · done — released v0.1.0"
     cases = {
-        "complete": ([start, spawn, finish, denied, done], 0, "log: complete"),
+        "complete": ([start, spawn, finish, denied, skipped, done], 0, "log: complete"),
         "unpaired": (
             [start, spawn, done],
             1,
@@ -678,6 +688,9 @@ def test_a_ready_version_ships_past_a_slow_one(
     root = _primary(tmp_path)
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    marks = root / ".minions" / "changes" / "0002-marks"
+    marks.mkdir(parents=True)
+    (marks / "models.toml").write_text("[converge]\nskip = true\n")
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -687,6 +700,11 @@ def test_a_ready_version_ships_past_a_slow_one(
     seen = _calls(calls)
     assert seen[0] == "probe"
     assert seen.index("build 0001-todo") < seen.index("converge 0001-todo")
+    # A converge skipped by the plan sends the built version to its release.
+    assert "converge 0002-marks" not in seen
+    assert seen.index("build 0002-marks") < seen.index("release 0002-marks")
+    assert not (marks / "conformance.md").exists()
+    assert not (marks / "adversarial.md").exists()
     between = seen[
         seen.index("release 0002-marks") + 1 : seen.index("release 0001-todo")
     ]
@@ -705,6 +723,11 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
+    # The run log says "converge skipped — plan" once, as the spec words it.
+    skipped = [line for line in lines if " · converge " in line]
+    assert [line.split(" · ", 1)[1] for line in skipped] == [
+        "0002-marks · converge skipped — plan"
+    ]
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
     log = conduct["last_log"](root / ".minions" / "runs")
@@ -843,6 +866,37 @@ def test_a_ready_version_ships_past_a_slow_one(
     ) in clean.log.path.read_text()
 
 
+@pytest.mark.slow
+def test_a_version_with_adversarial_skipped_ships_on_a_stub(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0105-converge-switches design D3. No existing ship test holds a stub, and
+    # `_unjudged` reads it only through the real stage loop.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text("[converge.adversarial]\nskip = true\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert "converge 0001-todo and adversarial=skip" in _calls(calls)
+    assert "release 0001-todo" in _calls(calls)
+    stub = (folder / "adversarial.md").read_text()
+    assert "\nmode: skipped\n" in stub
+    assert "\nverdict: clean\n" in stub
+    assert "\nverdict: clean\n" in (folder / "conformance.md").read_text()
+    assert "mode: skipped" not in (folder / "conformance.md").read_text()
+    lines = _log(root)
+    assert not any("converge skipped" in line for line in lines)
+    assert lines[-1].endswith(" · run · done — released v0.1.0")
+
+
 def test_beside_waits_on_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -866,7 +920,9 @@ def test_after_waits_for_its_dependency(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake()
+    hold = tmp_path / "hold"
+    monkeypatch.setenv("FAKE_HOLD", str(hold))
+    calls = fake("hold-converge-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
@@ -880,19 +936,52 @@ def test_after_waits_for_its_dependency(
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert "0002-marks · waiting" in capsys.readouterr().out.splitlines()
 
+    # The dependent builds on the built head while its dependency converges.
+    # Why: 0099-stacked-builds design D1, D3.
+    marks = root / ".minions" / "changes" / "0002-marks"
+    built = root / ".minions" / "changes" / "0001-todo" / "build.done"
+    held: list[str] = []
+
+    def stacked() -> None:
+        assert "0002-marks · stacked" in conduct["status"](root).splitlines()
+        held.append(built.read_text().split()[1])
+        assert (marks / "stacked-on").read_text() == f"{held[0]}\n"
+        assert "release 0001-todo" not in _calls(calls)
+
+    said = (" · 0002-marks · wait — stacked on 0001-todo",)
+    join = _when_logged(root, said, stacked, hold)
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
+    join()
 
     seen = _calls(calls)
-    assert seen.index("release 0001-todo") < seen.index("build 0002-marks")
-    assert "chore(integrate): merge main into 0002-marks" in _git(
-        root, "log", "--format=%s", "0002-marks"
+    order = [
+        seen.index(call)
+        for call in (
+            "build 0001-todo",
+            "build 0002-marks",
+            "release 0001-todo",
+            "converge 0002-marks",
+        )
+    ]
+    assert order == sorted(order)
+    assert seen.count("build 0002-marks") == 1
+    subjects = _git(root, "log", "--format=%s", "0002-marks").splitlines()
+    merges = (
+        f"chore(stack): merge 0001-todo at {held[0][:7]} into 0002-marks",
+        "chore(integrate): merge main into 0002-marks",
+    )
+    assert all(merge in subjects for merge in merges)
+    assert not (marks / "stacked-on").exists()
+    assert any(
+        line.endswith(f" · 0002-marks · stacked — on 0001-todo at {held[0][:7]}")
+        for line in _log(root)
     )
     planted = fired.read_text().splitlines()
     assert "build" in planted
-    assert "chore(integrate): merge main into 0002-marks" not in planted
+    assert not set(merges) & set(planted)
     assert "Change: 0002-marks" in _git(root, "log", "--format=%B", "0002-marks")
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
 
@@ -909,6 +998,8 @@ def test_a_dependents_delta_halts_as_integrating(
     first = _version(second, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(second, {"main.txt": "x\n"}, "main moves")
     tree = _version(second, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -975,12 +1066,16 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     calls = fake()
     module = conduct["main"].__globals__
     crashed = _primary(tmp_path)
-    _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    first = _version(crashed, "0001-todo", "- [ ] 1 — Todo\n")
+    _commit(first, {"todo.txt": "x\n"}, "build: a first part")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(crashed, {"main.txt": "x\n"}, "main moves")
     dependent = _version(crashed, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     crash = tmp_path / "crash.py"
     crash.write_text(
         "def delta(tree):\n    raise OSError('no fork')\n\n"
         "def decisions(tree):\n    return 'decisions: none'\n\n"
+        "def unreleased(tree):\n    return False\n\n"
         "changelog = delta\n"
     )
     script = module["INTEGRATE"]
@@ -1019,6 +1114,196 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+
+    # A key planted while the merge is open halts it before its commit: 0050·R5.
+    _git(hooked, "config", "--unset", "hook.probe.event")
+    _git(hooked, "config", "--unset", "hook.probe.command")
+    held_run.git_state = conduct["_git_state"](hooked)
+
+    def planted(tree: Path) -> str:
+        _git(hooked, "config", "mf.race", "x")
+        return "delta: the default branch changed no requirement the delta edits"
+
+    held_run.delta = planted
+    changed = "the local git config changed during the run: .git/config differs"
+    with pytest.raises(conduct["Stop"], match=re.escape(changed)):
+        held_run.merge_in(waiting, "0002-marks", "main")
+    assert _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
+    assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
+
+
+def test_a_stacked_dependent_resets_and_merges_back(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    # Why: 0099-stacked-builds design D1, D4, D6.
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _commit(root, {"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"}, "changelog")
+    first = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    entries = "# Changelog\n\n## [Unreleased]\n\n- d1\n"
+    _commit(first, {"CHANGELOG.md": entries}, "build: d1")
+    built = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", built)
+    marks = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    landed = "docs(0002-marks): land the change directory"
+    _git(marks, "commit", "-q", "--amend", "-m", landed)
+    cut = _git(marks, "rev-parse", "HEAD")
+    more = _version(
+        root, "0003-more", "- [ ] 1 — More\n", after="0001-todo, 0002-marks"
+    )
+    _commit(root, {"main.txt": "x\n"}, "main moves")
+    late = _version(root, "0004-late", "- [ ] 1 — Late\n", after="0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0002-marks", marks)
+    stacked_on = root / ".minions" / "changes" / "0002-marks" / "stacked-on"
+
+    # One unreleased, built dependency holding the version's base: it stacks.
+    assert run.ready(version, {})
+    assert stacked_on.read_text() == f"{built}\n"
+    stack = f"chore(stack): merge 0001-todo at {built[:7]} into 0002-marks"
+    assert _git(marks, "log", "-1", "--format=%s") == stack
+    stacked = _git(marks, "rev-parse", "HEAD")
+    for change, tree in (("0003-more", more), ("0004-late", late)):
+        assert not run.ready(conduct["Version"](change, tree), {})
+    assert run.blocked == ["0003-more", "0004-late"]
+
+    # Stacked, it is ready again and gets no gate merge.
+    assert run.ready(version, {})
+    run.catch_up(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+
+    # A head off its branch or unticked, or a file that does not stand, is none.
+    _done(root, "0003-more", _git(root, "rev-parse", "main"))
+    assert conduct["_built_head"](root, "0003-more") is None
+    _done(root, "0002-marks", cut)
+    assert conduct["_built_head"](root, "0002-marks") is None
+    (stacked_on.parent / "build.done").unlink()
+    standing = conduct["_stacked_on"]
+    for text in (b"\xff\n", f"{_git(late, 'rev-parse', 'HEAD')}\n".encode()):
+        stacked_on.write_bytes(text)
+        assert standing(root, "0002-marks", marks, []) is None
+    stacked_on.write_text(f"{cut}\n")
+    assert standing(root, "0002-marks", marks, ["0001-todo"]) is None
+    stacked_on.write_text(f"{built}\n")
+    assert conduct["_cut_commit"](more, "0003-more") is None
+
+    # An amend that changes no decision leaves it; one touching the proposal resets it.
+    amend = "docs(0001-todo): amend the change directory"
+    tasks = "openspec/changes/0001-todo/tasks.md"
+    noted = {tasks: (first / tasks).read_text() + "\nA note.\n"}
+    _commit(first, noted, amend)
+    assert not run.reset_stack(version)
+    assert not run.reset_stack(conduct["Version"]("0002-marks", None))
+    assert not run.reset_stack(conduct["Version"]("0003-more", more))
+    assert stacked_on.is_file()
+    replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: patch\n---\n"}
+    _commit(first, replanned, amend)
+    uncut = conduct["Version"]("0002-marks", first)
+    with pytest.raises(conduct["Stop"], match="0002-marks: no cut commit to reset to"):
+        run.reset_stack(uncut)
+    _git(root, "config", "mf.race", "x")
+    with pytest.raises(conduct["Stop"], match="the local git config changed"):
+        run.reset_stack(version)
+    _git(root, "config", "--unset", "mf.race")
+    run.git_state = conduct["_git_state"](root)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+    # The reset drops the notes of the build it throws away.
+    notes = stacked_on.with_name("build-notes.md")
+    # A folder at the notes halts the version before the reset moves its branch.
+    notes.mkdir()
+    with pytest.raises(conduct["Stop"], match=r"build-notes\.md cannot be removed"):
+        run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+    notes.rmdir()
+    notes.write_text("## 1 — Marks\n")
+    assert run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == cut
+    assert not stacked_on.exists()
+    assert not notes.exists()
+    reset = f"0001-todo re-planned past {built[:7]}: {stacked[:7]} → {cut[:7]}"
+    assert any(line.endswith(f" · 0002-marks · reset — {reset}") for line in _log(root))
+    assert conduct["_built_head"](root, "0001-todo") is None
+
+    # The dependency's next build restacks it.
+    tip = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", tip)
+    assert run.ready(version, {})
+    assert stacked_on.read_text() == f"{tip}\n"
+
+    # A re-plan read while it waits stacked, or by `advance`, sends it back too.
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait)
+    live.start()
+    replanned = {"openspec/changes/0001-todo/proposal.md": "---\nbump: minor\n---\n"}
+    _commit(first, replanned, amend)
+    assert run.landed(version, {"0001-todo": live})
+    gate.set()
+    live.join()
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
+    decided = {"openspec/changes/0001-todo/design.md": "## Decisions\n\n- D1\n"}
+    _commit(first, decided, amend)
+    assert run.advance(version, ("integrate", "release")) == "waiting"
+    assert not stacked_on.exists()
+    _done(root, "0001-todo", _git(first, "rev-parse", "HEAD"))
+    assert run.ready(version, {})
+    _commit(marks, {"CHANGELOG.md": f"{entries}- x1\n"}, "build: x1")
+
+    # Built, it waits stacked; its dependency ended unreleased blocks it.
+    ticked = {
+        "openspec/changes/0002-marks/tasks.md": "## Progress\n\n- [x] 1 — Marks\n"
+    }
+    _commit(marks, ticked, "build: marks")
+    _done(root, "0002-marks", _git(marks, "rev-parse", "HEAD"))
+    run.take(version, {})
+    assert run.blocked[-1] == "0002-marks"
+    assert not run.stopped("0002-marks")
+
+    # The release merged back keeps the dependent's entries alone in [Unreleased].
+    (first / "openspec/changes/archive").mkdir()
+    folder = "openspec/changes/0001-todo"
+    _git(first, "mv", folder, "openspec/changes/archive/0001-todo")
+    release = "# Changelog\n\n## [Unreleased]\n\n## [0.1.0]\n\n- d1\n"
+    _commit(first, {"CHANGELOG.md": release}, "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0001-todo'", "0001-todo")
+    assert run.ready(version, {})
+    merged = _git(marks, "log", "-1", "--format=%s")
+    assert merged == "chore(integrate): merge main into 0002-marks"
+    assert not stacked_on.exists()
+    assert (marks / "CHANGELOG.md").read_text() == (
+        "# Changelog\n\n## [Unreleased]\n\n- x1\n\n## [0.1.0]\n\n- d1\n"
+    )
+
+    # A re-plan its dependency released past it still resets it, before the merge back.
+    redo = _version(root, "0005-redo", "- [x] 1 — Redo\n")
+    _commit(redo, {"redo.txt": "x\n"}, "build: redo")
+    head = _git(redo, "rev-parse", "HEAD")
+    _done(root, "0005-redo", head)
+    race = _version(root, "0006-race", "- [ ] 1 — Race\n", after="0005-redo")
+    landed = "docs(0006-race): land the change directory"
+    _git(race, "commit", "-q", "--amend", "-m", landed)
+    race_cut = _git(race, "rev-parse", "HEAD")
+    racing = conduct["Version"]("0006-race", race)
+    assert run.ready(racing, {})
+    race_on = root / ".minions" / "changes" / "0006-race" / "stacked-on"
+    assert race_on.read_text() == f"{head}\n"
+    race_left = _git(race, "rev-parse", "HEAD")
+    redone = {"openspec/changes/0005-redo/proposal.md": "---\nbump: patch\n---\n"}
+    _commit(redo, redone, "docs(0005-redo): amend the change directory")
+    _git(redo, "mv", "openspec/changes/0005-redo", "openspec/changes/archive/0005-redo")
+    _commit(redo, {}, "chore(release): v0.2.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0005-redo'", "0005-redo")
+    assert run.ready(racing, {})
+    said = f"0005-redo re-planned past {head[:7]}: {race_left[:7]} → {race_cut[:7]}"
+    assert any(line.endswith(f" · 0006-race · reset — {said}") for line in _log(root))
+    assert not race_on.exists()
+    assert _git(race, "log", "-1", "--format=%s") == (
+        "chore(integrate): merge main into 0006-race"
+    )
+    assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
 def test_a_merge_in_renumbers_a_planned_decision(
@@ -1126,6 +1411,7 @@ def test_a_cut_only_version_merges_in_before_its_first_worker(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -1481,7 +1767,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == []
 
-    # A build that stops at a HUMAN phase gets no rescue: the phase needs the person.
+    # A build that reaches a HUMAN phase gets no rescue: the phase needs the person.
     stops = tmp_path / "stops"
     stops.mkdir()
     built = _primary(stops)
@@ -1493,7 +1779,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == ["probe", "build 0001-todo"]
     assert _log(built)[-2].endswith(
-        " · 0001-todo · halt — build check fail — phase 2 unticked"
+        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
     )
 
     # A HUMAN phase whose title names a cap, over small open blockers, gets no grant.
@@ -1642,6 +1928,7 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
         "build 0001-todo",
         "rescue 0001-todo",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -1664,6 +1951,225 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     said = capsys.readouterr().out.splitlines()
     halt = next(i for i, line in enumerate(said) if " · 0001-todo · halt — " in line)
     assert said.index(f"0001-todo · rescued 1.1 · {amend}") > halt
+
+
+def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    notes = folder / "build-notes.md"
+    outside = tmp_path / "operator.md"
+    outside.write_text("line\n" * 60)
+
+    def plant_link() -> None:
+        os.link(outside, notes)
+
+    def plant_pipe() -> None:
+        os.mkfifo(notes)
+
+    # A hard link, a folder and a pipe halt the version at the count and at the trim.
+    for plant in (plant_link, notes.mkdir, plant_pipe):
+        plant()
+        for flags in (os.O_RDONLY, os.O_RDWR):
+            with pytest.raises(
+                conduct["Stop"], match=r"build-notes\.md (is not|cannot)"
+            ):
+                conduct["_open_notes"](root, "0001-todo", flags)
+        with pytest.raises(conduct["Stop"], match=r"build-notes\.md (is not|cannot)"):
+            conduct["_note_lines"](root, "0001-todo")
+        if notes.is_dir():
+            notes.rmdir()
+        else:
+            notes.unlink()
+    assert outside.read_text() == "line\n" * 60
+
+    notes.write_text("a\nb\n")
+    assert conduct["_note_lines"](root, "0001-todo") == 2
+
+
+def test_a_phase_check_wants_its_line_ticked_and_none_before_it_unticked(
+    tmp_path: Path,
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
+    version = conduct["Version"]("0001-todo", tree)
+    tasks = "openspec/changes/0001-todo/tasks.md"
+
+    def check(progress: str, phase: str) -> str | None:
+        _commit(tree, {tasks: f"## Progress\n\n{progress}"}, "build")
+        return conduct["_check_phase"](root, version, tree, phase)
+
+    one, two, three = "- [x] 1 — One\n", "- [x] 2 — Two\n", "- [ ] 3 — Three\n"
+    assert check(one + two + three, "2") is None
+    assert check(one + two.replace("x", " ") + three, "2") == "phase 2 unticked"
+    # An earlier phase unticked, or the phase's own line gone, fails too.
+    assert check(one + three, "2") == "phase 2 gone from ## Progress"
+    assert check(one.replace("x", " ") + two + three, "2") == "phase 1 unticked"
+
+
+@pytest.mark.slow
+def test_a_build_runs_a_worker_per_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("notes-0001-todo")
+    root = _primary(tmp_path)
+    progress = "- [ ] 1 — One · moderate\n- [ ] 2 — Two · hard\n- [ ] 3 — Three\n"
+    _version(root, "0001-todo", progress)
+    opus = '[build]\nmodel = "claude-opus-5-5"\n'
+    sonnet = '[build.moderate]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text(opus + sonnet)
+
+    def run(at: Path, code: int) -> list[str]:
+        assert (
+            _main(conduct, at, "run", "--executor", "claude", monkeypatch=monkeypatch)
+            == code
+        )
+        return _log(at)
+
+    lines = run(root, 0)
+
+    build = "build 0001-todo with phase="
+    assert calls.read_text().splitlines() == [
+        "probe",
+        *(f"{build}{phase}" for phase in ("1", "2", "3", "close")),
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+
+    # The moderate phase builds on `[build.moderate]`; the hard, the unrated and the
+    # close on `[build]`'s model.
+    def spawned(lines: list[str]) -> list[str]:
+        return [
+            line.split(" · spawn — build · ")[1]
+            for line in lines
+            if " · spawn — build · " in line
+        ]
+
+    on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
+    assert spawned(lines) == [on[0], on[1], on[1], on[1]]
+    # Each phase appends 50 lines; the conductor keeps 40 of each.
+    notes = (folder / "build-notes.md").read_text().splitlines()
+    sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
+    assert sections == [0, 40, 80]
+    assert len(notes) == 120
+    assert [notes[i] for i in sections] == ["## 1 — One", "## 2 — Two", "## 3 — Three"]
+    kept = " · 0001-todo · notes — phase 1: kept 40 of 50 lines"
+    assert any(line.endswith(kept) for line in lines)
+
+    # With no `[build.moderate]`, every phase builds on `[build]`'s model.
+    (tmp_path / "plain").mkdir()
+    plain = _primary(tmp_path / "plain")
+    _version(plain, "0001-todo", progress)
+    models = plain / ".minions" / "changes" / "0001-todo" / "models.toml"
+    models.parent.mkdir(parents=True)
+    models.write_text(opus)
+    calls.unlink()
+    fake()
+    assert spawned(run(plain, 0)) == [on[1]] * 4
+
+    # A `[build.moderate]` naming an effort alone keeps `[build]`'s model.
+    (tmp_path / "effort").mkdir()
+    effort = _primary(tmp_path / "effort")
+    _version(effort, "0001-todo", "- [ ] 1 — One · moderate\n")
+    models = effort / ".minions" / "changes" / "0001-todo" / "models.toml"
+    models.parent.mkdir(parents=True)
+    models.write_text(opus + '[build.moderate]\neffort = "medium"\n')
+    calls.unlink()
+    fake()
+    assert spawned(run(effort, 0)) == [f"{on[1]} · effort medium", on[1]]
+
+    # A phase that dies after its notes still has them cut.
+    (tmp_path / "died").mkdir()
+    died = _primary(tmp_path / "died")
+    _version(died, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("notes-0001-todo", "dies-phase-1")
+    lines = run(died, 1)
+    trimmed = died / ".minions" / "changes" / "0001-todo" / "build-notes.md"
+    assert len(trimmed.read_text().splitlines()) == 40
+    assert any(
+        line.endswith(" · notes — phase 1: kept 40 of 50 lines") for line in lines
+    )
+
+    # A link at the notes halts the version before a phase spawn, writing nothing.
+    (tmp_path / "linked").mkdir()
+    linked = _primary(tmp_path / "linked")
+    _version(linked, "0001-todo", "- [ ] 1 — One\n")
+    planted = linked / ".minions" / "changes" / "0001-todo"
+    planted.mkdir(parents=True)
+    (planted / "elsewhere.md").write_text("x\n")
+    (planted / "build-notes.md").symlink_to(planted / "elsewhere.md")
+    calls.unlink()
+    fake()
+    lines = run(linked, 1)
+    assert not any(call.startswith("build") for call in _calls(calls))
+    assert any(
+        " · 0001-todo · halt — " in line and "build-notes.md is a link" in line
+        for line in lines
+    )
+    assert (planted / "elsewhere.md").read_text() == "x\n"
+
+    # A phase that leaves a link there halts the version at the trim.
+    (tmp_path / "left").mkdir()
+    left = _primary(tmp_path / "left")
+    _version(left, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("notes-link-0001-todo")
+    lines = run(left, 1)
+    assert calls.read_text().splitlines() == ["probe", f"{build}1"]
+    assert any(
+        " · 0001-todo · halt — " in line and "build-notes.md is a link" in line
+        for line in lines
+    )
+
+
+@pytest.mark.slow
+def test_a_halt_in_a_phase_resumes_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake("halt-phase-2", "rescue-fix")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n- [ ] 2 — Two\n")
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    build = "build 0001-todo with phase="
+    assert calls.read_text().splitlines() == [
+        "probe",
+        f"{build}1",
+        f"{build}2",
+        "rescue 0001-todo",
+        f"{build}2",
+        f"{build}close",
+        "converge 0001-todo",
+        "release 0001-todo",
+    ]
+
+    # A phase spawn that ticks nothing halts: no phase runs twice without an amend.
+    idle = tmp_path / "idle"
+    idle.mkdir()
+    lone = _primary(idle)
+    _version(lone, "0001-todo", "- [ ] 1 — One\n")
+    calls.unlink()
+    fake("idle-phase-1")
+    assert (
+        _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert calls.read_text().splitlines().count(f"{build}1") == 1
+    assert any(
+        line.endswith(" · 0001-todo · halt — build check fail — phase 1 unticked")
+        for line in _log(lone)
+    )
 
 
 @pytest.mark.slow
@@ -1698,6 +2204,7 @@ def test_a_rescue_amends_at_amend_needed(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "rescue 0001-todo",
         "converge 0001-todo",
@@ -1789,6 +2296,37 @@ def test_a_rescue_amends_at_amend_needed(
     assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
 
 
+def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
+    # A stub is a clean findings file at `HEAD` with no card: no reader changed.
+    # Why: 0105-converge-switches design D2, D3.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    folder = minions / "changes" / "0001-todo"
+    head = _git(root, "rev-parse", "HEAD")
+    _findings(root, "0001-todo", head, roles=("conformance",))
+    stub = folder / "adversarial.md"
+    halt = "halt — amend needed — R1 · head a"
+    unjudged, blocks, held = (
+        conduct[name] for name in ("_unjudged", "_security_blocks", "_security_held")
+    )
+    assert unjudged(minions, root, "0001-todo") == "no adversarial findings file"
+    assert blocks(minions, "0001-todo", halt)
+    assert held(minions, "0001-todo", halt)
+
+    script = _REPO / "skills" / "mf-converge" / "scripts" / "skip_stub.py"
+    done = subprocess.run(
+        [sys.executable, str(script), str(stub), "1"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stdout
+    assert unjudged(minions, root, "0001-todo") is None
+    assert not blocks(minions, "0001-todo", halt)
+    assert not held(minions, "0001-todo", halt)
+
+
 @pytest.mark.slow
 def test_a_rescue_decides_under_the_switch(
     tmp_path: Path,
@@ -1878,6 +2416,32 @@ def test_a_rescue_decides_under_the_switch(
     spaced = real.replace("## Decisions", "## Decisions ")
     assert decisions(spaced) != decisions(spaced.replace("a fix", "another fix"))
 
+    # A fix note closing an entry is no decision change, CRLF lines too; an edit of the
+    # entry's words, or a note followed by a line of words, still is.
+    entry = "## Decisions\n\n### D1\n\nRead the branch.\n\n## Tests\n"
+    noted = entry.replace(
+        "branch.\n", "branch.\n\nFix note (2026-11-08, R2): reads refs/heads.\n"
+    )
+    assert decisions(entry) == decisions(noted)
+    assert decisions(entry.replace("\n", "\r\n")) == decisions(
+        noted.replace("\n", "\r\n")
+    )
+    assert decisions(noted) != decisions(noted.replace("branch", "tag"))
+    assert decisions(entry) != decisions(
+        noted.replace("heads.\n", "heads.\nMore words.\n")
+    )
+
+    # An amend without the switch that appends a note is no decision change.
+    _commit(tree, {design: entry}, "build")
+    built = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {design: noted}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0002-marks", built, ("tasks.md", "design.md")) == (
+        head,
+        "",
+        False,
+    )
+
 
 def test_an_amend_during_a_rescue_goes_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -1908,6 +2472,7 @@ def test_an_amend_during_a_rescue_goes_on(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "rescue 0001-todo",
         "converge 0001-todo",
@@ -2232,6 +2797,17 @@ def test_rescue_skip_runs_none(
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", "m", None)
     table.write_text('[build]\nmodel = "m"\n[rescue]\n')
     assert models(minions, "0001-todo", "rescue", "claude") == ("claude", None, None)
+    # A moderate phase's table runs on the build's executor, naming none of its own.
+    # Why: 0102-build-per-phase design D5.
+    table.write_text('[build]\nexecutor = "codex"\n[build.moderate]\nmodel = "m"\n')
+    moderate = models(minions, "0001-todo", "build.moderate", "claude")
+    assert moderate == ("codex", "m", None)
+    table.write_text('[build.moderate]\nexecutor = "codex"\n')
+    with pytest.raises(conduct["Stop"], match="build.moderate names an executor"):
+        models(minions, "0001-todo", "build.moderate", "claude")
+    table.write_text('[build.moderate]\nmodel = "a;b"\n')
+    with pytest.raises(conduct["Stop"], match="'a;b' is not a model or effort"):
+        models(minions, "0001-todo", "build.moderate", "claude")
     # A table TOML cannot read halts, naming the file in the change's folder.
     table.write_text("[build\n")
     with pytest.raises(
@@ -2302,6 +2878,7 @@ def test_a_supervisor_answers_a_diagnosed_halt(
         "rescue 0001-todo with decide=recommended",
         "supervise 0001-todo with decide=recommended",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -2509,6 +3086,8 @@ def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
     first = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     fold = {living: "### Requirement: First\n\nThe dependency's.\n"}
     _commit(first, fold, "fold\n\nChange: 0001-todo")
+    # `main` moves past the dependency's base: the dependent waits unstacked.
+    _commit(root, {"main.txt": "x\n"}, "main moves")
     tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     delta = "## MODIFIED Requirements\n\n### Requirement: First\n\nThe dependent's.\n"
     _commit(tree, {"openspec/changes/0002-marks/specs/sdd/spec.md": delta}, "delta")
@@ -2532,6 +3111,7 @@ def test_a_supervisor_settles_an_integrate_note(
         "supervise 0002-marks with decide=recommended",
         "integrate 0002-marks with settled=supervisor",
         "build 0002-marks",
+        "build 0002-marks with phase=close",
         "converge 0002-marks",
         "release 0002-marks",
     ]
@@ -3368,7 +3948,12 @@ def test_a_queued_cut_is_cut_then_built(
 
     assert status() == ["0001-a · cut"]
     assert _run_claude(conduct, root, monkeypatch) == 0
-    made = ["cut-change 0001-a", *(f"{s} 0001-a" for s in ("build", "converge"))]
+    made = [
+        "cut-change 0001-a",
+        "build 0001-a",
+        "build 0001-a with phase=close",
+        "converge 0001-a",
+    ]
     assert _calls(calls) == ["probe", *made, "release 0001-a"]
     lines = _log(root)
     assert " · versions none · cuts 0001-a" in lines[0]
@@ -3453,6 +4038,7 @@ def test_a_cut_brief_reaches_the_supervisor(
         "rescue 0001-a with decide=recommended",
         "supervise 0001-a with decide=recommended and brief=brief.md",
         "build 0001-a",
+        "build 0001-a with phase=close",
         "converge 0001-a",
         "release 0001-a",
     ]
@@ -3606,22 +4192,33 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
             mode == "dies-cut"
         )
     # A heading in another form, or a fence left open or closed by another mark,
-    # fails closed rather than reading as no section.
+    # fails closed rather than reading as no section; a table as CommonMark and GFM
+    # render it is read, CRLF and lone CR line ends and a backtick info string included.
     neither = conduct["_cuts"](root)["0022-t"]["halt"]
     table = "## Dependencies\n| package | constraint | why |\n|---|---|---|\n"
     table += "| evil | 1 | x |\n"
+    evil = f"{conduct['UNAPPROVED']}: evil 1"
     show = names["_show"]
     for text, line in (
         (table.replace("s\n", "s \n", 1), neither),
         (table.replace("s\n", "s:\n", 1), neither),
         (f" {table}", neither),
         (table.replace("## Dependencies", "Dependencies\n---"), neither),
-        (table.replace("\n", "\r\n"), neither),
+        (table.replace("\n", "\r\n"), evil),
+        (table.replace("\n", "\r"), evil),
         (f"```\n{table}", neither),
-        (f"```\n~~~\n```\n{table}", f"{conduct['UNAPPROVED']}: evil 1"),
+        (f"```\n~~~\n```\n{table}", evil),
+        (f"```x`\n{table}", evil),
+        ("## Dependencies\n- left-pad\n", neither),
     ):
         names["_show"] = lambda cwd, rev, path, text=text: text
         assert conduct["_unapproved"](root, "0022-t", []) == line
+    # A line a GFM table takes for a row, though it opens like a heading, is a row.
+    names["_show"] = lambda cwd, rev, path: table.replace("| evil", "#- note\n| evil")
+    noted = conduct["_unapproved"](root, "0022-t", [])
+    assert noted is not None
+    assert noted.startswith(f"{conduct['UNAPPROVED']}: ")
+    assert noted.endswith("evil 1")
     names["_show"] = show
 
     # A package the entry does not approve halts the cut, naming it.
@@ -3636,6 +4233,13 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     logged = f" · 0020-p · halt — cut-halted — {unapproved}"
     assert any(entry.endswith(logged) for entry in _log(root))
+    # A tag of the branch's name at the default branch's tip is not the branch.
+    rows = conduct["_unapproved"](root, "0020-p", [])
+    assert rows is not None
+    assert rows.endswith("right-pad ^2")
+    _git(root, "tag", "0020-p", conduct["default_branch"](root))
+    assert conduct["_unapproved"](root, "0020-p", []) == rows
+    _git(root, "tag", "-d", "0020-p")
     # A rejoin reads the brief's rows; one it cannot read keeps the halt.
     names["_start_run"] = lambda primary, executor: 4242
     packages.unlink()
@@ -3875,6 +4479,15 @@ def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
         clause("converge.adversarial", ("claude", None, None), "codex")
         == " and adversarial=mailbox"
     )
+    # A skipped checker takes no model and no mailbox, on either host.
+    assert (
+        clause("converge.adversarial", ("claude", None, None), "claude", True)
+        == " and adversarial=skip"
+    )
+    assert (
+        clause("converge.conformance", ("codex", "gpt-6.1-sol", "high"), "claude", True)
+        == " and conformance=skip"
+    )
 
     minions = tmp_path / ".minions"
     table = minions / "changes" / "0001-todo" / "models.toml"
@@ -3984,6 +4597,38 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     run.read_plan([version])
     assert not conduct["_shadows"](minions, "0001-todo")
     assert (run.shadowed, run.executors()) == (set(), ["claude"])
+
+    # A skipped checker's table stays in the plan, but its host is not probed.
+    names = conduct["WORKERS"]
+    table.write_text(
+        '[converge.conformance]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        "skip = true\n"
+    )
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert run.skipped == {"0001-todo": frozenset({"converge.conformance"})}
+    assert ("0001-todo", "converge.conformance") in run.plan
+    assert (run.named("0001-todo"), run.executors()) == (["claude"], ["claude"])
+    # Converge skipped skips every worker, and a shadow of a skipped checker is none.
+    table.write_text(
+        "[converge]\nskip = true\nshadow = true\n"
+        '[converge.conformance]\nexecutor = "codex"\n'
+    )
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert run.skipped == {"0001-todo": frozenset(("converge", *names))}
+    assert (run.named("0001-todo"), run.executors()) == (["claude"], ["claude"])
+    skips = conduct["_skips"]
+    for text, held in (
+        ("[converge]\nskip = false\n", frozenset()),
+        ('[converge]\nskip = "true"\n', frozenset()),
+        ("[converge.adversarial]\nskip = 1\n", frozenset()),
+        ("[converge\n", frozenset()),
+        ("[rescue]\nskip = true\n", frozenset()),
+        ("[converge.adversarial]\nskip = true\n", {"converge.adversarial"}),
+    ):
+        table.write_text(text)
+        assert skips(minions, "0001-todo") == held, text
 
 
 def test_a_checker_request_is_bounded(
@@ -4584,6 +5229,7 @@ def test_a_codex_checker_runs_through_the_mailbox(
         "probe",
         "checker",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=mailbox",
         "checker 0001-todo conformance",
         "release 0001-todo",
@@ -4733,6 +5379,7 @@ def test_a_shadow_round_drives_no_fix(
     # Round 1 sends each checker, then the other host's shadow of each.
     assert _calls(calls)[3:] == [
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=mailbox and adversarial=mailbox"
         " and shadow=yes",
         "checker 0001-todo conformance",
@@ -4822,6 +5469,7 @@ def test_a_station_runs_on_its_executor(
         ("probe", "claude"),
         ("probe", "codex"),
         ("probe", "codex"),
+        ("build", "claude"),
         ("build", "claude"),
         ("converge", "codex"),
         ("release", "claude"),
@@ -4953,15 +5601,21 @@ def test_a_changed_git_config_halts_a_merge_in(
             _git(root, "push", "-q", "origin", "main")
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
-        calls = fake(mode)
+        hold = scratch / "hold"
+        monkeypatch.setenv("FAKE_HOLD", str(hold))
+        calls = fake(mode, "hold-converge-0001-todo")
+        # The release plants its key after the dependent's build.
+        said_stacked = (" · 0002-marks · wait — stacked on 0001-todo",)
+        join = _when_logged(root, said_stacked, lambda: None, hold)
 
         assert (
             _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
             == 1
         )
+        join()
 
         assert "release 0001-todo" in _calls(calls)
-        assert "build 0002-marks" not in _calls(calls)
+        assert "converge 0002-marks" not in _calls(calls)
         assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
@@ -5059,7 +5713,11 @@ def test_a_build_dead_in_simplify_resumes_at_it(
         == 1
     )
 
-    assert _calls(calls) == ["probe", "build 0001-todo"]
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "build 0001-todo with phase=close",
+    ]
     assert not marker.exists()
     tasks = tree / "openspec/changes/0001-todo/tasks.md"
     assert tasks.read_text() == "## Progress\n\n- [x] 1 — Todo\n"
@@ -5100,7 +5758,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
 
     assert _calls(calls) == [
         "probe",
-        "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -7033,11 +7691,21 @@ def test_a_run_goes_on_while_origin_is_down(
     # A release made offline passes as released locally; its dependent merges it.
     held = _git(away, "rev-parse", "main")
     lines = run(0)
-    assert _calls(calls) == [
-        "probe",
-        *(f"{station} 0001-todo" for station in ("build", "converge", "release")),
-        *(f"{station} 0002-marks" for station in ("build", "converge", "release")),
-    ]
+    seen = _calls(calls)
+    assert seen[0] == "probe"
+    assert set(seen[1:]) == {
+        f"{station} {change}{clause}"
+        for station, clause in (
+            ("build", ""),
+            ("build", " with phase=close"),
+            ("converge", ""),
+            ("release", ""),
+        )
+        for change in ("0001-todo", "0002-marks")
+    }
+    assert len(seen) == 9
+    assert seen.index("build 0001-todo") < seen.index("build 0002-marks")
+    assert seen.index("release 0001-todo") < seen.index("converge 0002-marks")
     for change in ("0001-todo", "0002-marks"):
         assert f"{change} · check — release · pass" in lines
         assert not (root.parent / change).exists()
@@ -7204,6 +7872,7 @@ def test_the_plan_is_read_once(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo and conformance=claude and fix=claude",
     ]
     assert any(
@@ -8217,6 +8886,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -9274,6 +9944,7 @@ def test_a_probe_halts_on_a_write_out(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo",
+        "build 0001-todo with phase=close",
         "converge 0001-todo",
         "release 0001-todo",
     ]
@@ -9529,7 +10200,7 @@ def test_a_codex_worker_starts_on_mf_settings_alone(
         'model = "o3"\n[mcp_servers.pencil]\ncommand = "pencil"\n'
         "[plugins.notes]\nenabled = true\n"
     )
-    prompt = "Run the mf-build skill for change 0001-todo."
+    prompt = "Run the mf-build skill for change 0001-todo with phase=1."
     code = _main(
         conduct, tree, "agent", "--executor", "codex", prompt, monkeypatch=monkeypatch
     )

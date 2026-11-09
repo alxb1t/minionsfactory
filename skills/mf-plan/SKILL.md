@@ -189,20 +189,24 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
   ## For the cut
   <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · beside: <ids, or the slug of an earlier item> · debt: [<ids>] or none · decide: recommended
-     - models: build <model> <effort> · converge <model> <effort> · release <model> <effort> · cut <model> <effort> · conformance <host/model> <effort> · adversarial <host/model> <effort> · fix <model> <effort> · shadow
+     - models: build <model> <effort> · converge <model> <effort> | converge skip · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · conformance <host/model> <effort> | conformance skip · adversarial <host/model> <effort> | adversarial skip · fix <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
 
 `## For the cut` is filled when the frontier is empty: one item per change, in cut order. The models come from the
 session's menu, by `mf-cut-change`'s *Suggesting models* table —
-Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's own
-is the strongest tier · high by default. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
+Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's
+own is Sonnet 5.5 · high by default, where the session offers it, else the strongest tier · high: the plan holds the
+judgment, and the cut's plan reviews run on Opus 5.5 · high whatever the cut runs on. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
 proposed fix. The cut station writes `models.toml` from the `models:` line. `beside:` is optional: the versions this one only
-shares files with, which nothing waits on (D69).
+shares files with, which nothing waits on (D69). A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the suggested line with that
+part; the person confirms or changes it. Read the line for nothing else.
 
-The `conformance`, `adversarial`, `fix` and `shadow` parts are optional. A host prefix, `claude/` or `codex/`, names a
-part's executor: `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker;
-`cut` and `fix` take none. `shadow` turns on the shadow round 1, the person's choice at each close.
+The `build-moderate`, `conformance`, `adversarial`, `fix` and `shadow` parts are optional. `build-moderate` builds the
+phases the cut rates `moderate`. A host prefix, `claude/` or `codex/`, names a part's executor:
+`converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker; `cut`, `fix` and
+`build-moderate` take none. `shadow` turns on the shadow round 1, the person's choice at each close. `skip` takes no
+model, no effort and no `shadow`; both checkers skipped is `converge skip`.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its
 `## For the cut` slug, the exact package, its version constraint, and why. `conduct.py cut` copies the item's rows into
