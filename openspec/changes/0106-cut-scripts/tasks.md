@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — facts.py · hard
 - [x] 3 — cut_pre.py and cut_check.py · hard
 - [x] 4 — The queue writes the models file · hard
-- [ ] 5 — The skills and the record · hard
+- [x] 5 — The skills and the record · hard
 
 ## 1 — The brief's parser
 
@@ -98,26 +98,26 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — The skills and the record
 
-- [ ] 5.1 In `tests/test_skills.py`, add the pairs [D9](design.md#d9) lists to `_METRICS_SCRIPTS`, and their `not named` lines to
+- [x] 5.1 In `tests/test_skills.py`, add the pairs [D9](design.md#d9) lists to `_METRICS_SCRIPTS`, and their `not named` lines to
   each expected list of the missing-script scan.
   Verify: `grep -n "scripts/cut_check.py" tests/test_skills.py` prints a line.
-- [ ] 5.2 In `docs/decisions.md`, place the text of D77 from [D9](design.md#d9) after `### D69`, and add `D77` to the Planning
+- [x] 5.2 In `docs/decisions.md`, place the text of D77 from [D9](design.md#d9) after `### D69`, and add `D77` to the Planning
   group's index line.
   Verify: `grep -n "^### D77 · A mechanical step is a script" docs/decisions.md` prints a line.
-- [ ] 5.3 In `docs/decisions.md`, make the edits [D9](design.md#d9) lists to `### D7`, `### D40` and `### D41`.
+- [x] 5.3 In `docs/decisions.md`, make the edits [D9](design.md#d9) lists to `### D7`, `### D40` and `### D41`.
   Verify: `grep -n "facts.py" docs/decisions.md` prints a line.
-- [ ] 5.4 In `skills/mf-cut-change/SKILL.md`, rewrite Step 1 to run `cut_pre.py`, keeping the hold, the run directory and
+- [x] 5.4 In `skills/mf-cut-change/SKILL.md`, rewrite Step 1 to run `cut_pre.py`, keeping the hold, the run directory and
   `Workspace setup:`, per [D5](design.md#d5) and [D9](design.md#d9).
   Verify: `git grep -l scripts/cut_pre.py -- skills/mf-cut-change/SKILL.md` lists the file.
-- [ ] 5.5 In `skills/mf-cut-change/SKILL.md`, rewrite Step 2's moved facts, helpers and notes to `facts.py place`, helpers for
+- [x] 5.5 In `skills/mf-cut-change/SKILL.md`, rewrite Step 2's moved facts, helpers and notes to `facts.py place`, helpers for
   unplaced facts only, and Step 3's readers to `facts.py readers`, per [D4](design.md#d4).
   Verify: `git grep -l scripts/facts.py -- skills/mf-cut-change/SKILL.md` lists the file.
-- [ ] 5.6 In `skills/mf-cut-change/SKILL.md`, rewrite Step 8 to run `cut_check.py` and hold its summary line and judgment rows
+- [x] 5.6 In `skills/mf-cut-change/SKILL.md`, rewrite Step 8 to run `cut_check.py` and hold its summary line and judgment rows
   alone, add its output to Step 8.5's packet, and call `gate_check.py --tasks` the gate-edit check, per [D6](design.md#d6).
   Verify: `git grep -l scripts/cut_check.py -- skills/mf-cut-change/SKILL.md` lists the file.
-- [ ] 5.7 In `skills/mf-cut-change/SKILL.md`, edit Step 11 and *Suggesting models*: `conduct.py` wrote the unattended file, and a
+- [x] 5.7 In `skills/mf-cut-change/SKILL.md`, edit Step 11 and *Suggesting models*: `conduct.py` wrote the unattended file, and a
   cut by hand writes what `brief_check.py --models` prints, per [D7](design.md#d7).
   Verify: `git grep -n -e "--models" -- skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 5.8 In `skills/mf-plan/SKILL.md`, make the `## Facts` line of the brief's template the grammar of [D1](design.md#d1), the
+- [x] 5.8 In `skills/mf-plan/SKILL.md`, make the `## Facts` line of the brief's template the grammar of [D1](design.md#d1), the
   re-measure row run `../mf-cut-change/scripts/facts.py`, and the models-file sentence name `conduct.py`.
   Verify: `uv run pytest -q tests/test_skills.py` passes.

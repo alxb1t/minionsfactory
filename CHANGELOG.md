@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py cut` writes the item's `models.toml` from `brief_check.py --models` when it queues the cut and keeps its text
   in the entry; the run writes it again before each cutter, and the cut halts on a file the cutter changed. A tag that
   only starts like a heading ends no section in `conduct.py` either (change `0106-cut-scripts`, phase 4).
+- `mf-cut-change` runs `cut_pre.py`, `facts.py` and `cut_check.py` in place of its hand steps, and `mf-plan` writes the
+  facts grammar and re-measures with `facts.py`; `tests/test_skills.py` lists the scripts each skill names. D77 records
+  it, amending D7, D40 and D41 (change `0106-cut-scripts`, phase 5).
 
 ## [0.88.0] - 2026-11-09
 

@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75
+     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -87,8 +87,9 @@ is kept beside them. `design.md` carries the measurement behind each decision, n
 ### D7 · The cut writes to the build's input contract
 
 **`mf-build` owns the list of what a change must meet (`I1…`) and the prose rules (`P1…`); `mf-cut-change` carries
-the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). It
-re-checks the facts whose files moved since the brief's `At` line, and its helpers read them. It runs each `Verify:`
+the same ids and checks them before it commits the change ([D38](#d38--the-cut-commits-without-waiting)). `facts.py`
+places the brief's facts at `HEAD`, its helpers read the unplaced ones, and `cut_check.py` decides the self-check's
+mechanical rows ([D77](#d77--a-mechanical-step-is-a-script)). It runs each `Verify:`
 search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
 built as written, a second review only after a fix that changes a decision or a task
 ([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate.**
@@ -203,6 +204,19 @@ moved base.**
 - **Rejected:** `after:` for overlap — a wait the merge makes needless · a run-time reader of `beside:` — nothing it would
   order.
 
+### D77 · A mechanical step is a script
+
+**The cut's preconditions, the placing of the brief's facts, the readers of a deleted name, the self-check's mechanical rows
+and the models file are scripts; the cut's LLM writes the plan and judges what no script can check. `conduct.py cut` writes
+`models.toml` from `brief_check.py --models` when it queues the cut, and a cut halts on a changed file.**
+
+- **Why:** the cut's main session was $3.39 of a $6.99 cut, most of it turns that ran a rule: the preconditions, a fact's
+  moved state, the self-check table. A script holds a rule the same way each run.
+- **Accepts:** the file is checked at the cut alone; a later plant stays the class the threat model accepts.
+- **Rejected:** a checker that judges the deterministic rows ([D66](#d66--two-checkers-conformance-and-adversarial)) · the
+  cut's LLM writing the models file, which a worker can edit.
+- **Amends:** D7, D40 and D41, each edited where it lives.
+
 ## The check loop and the release
 
 What happens between the last phase and the tag.
@@ -310,8 +324,8 @@ receiving explicit task inputs, without the producer's transcript. The conductor
 from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
 freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
 Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
-workers, as its plan reviewer is, answering in the cut's thread and writing no file:
-the cut writes their answers to its notes. A checker on another host than its
+workers, as its plan reviewer is, answering in the cut's thread and writing no file, and read only a fact `facts.py`
+left unplaced: the cut writes their answers to its notes. A checker on another host than its
 conductor's is a fresh agent process `conduct.py`
 starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it)).**
 
@@ -645,8 +659,9 @@ required capability; it suggests effort only when the host exposes that setting.
 writes it to `.minions/changes/<change-id>/models.toml`, converge's worker tables on
 [D64](#d64--converge-spends-where-judgment-is)'s tiers among it, each host the brief names as its `executor`, never into
 the change, for `mf-ship`; model selection
-and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close: the cut
-writes those ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)).**
+and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close:
+`conduct.py` writes those when it queues the cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and a cut
+by hand writes what `brief_check.py --models` prints.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
