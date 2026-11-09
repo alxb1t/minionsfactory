@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threat model and `mf-ship` lose the mailbox. Review metrics book a converge worker by its log name, and `run.py` counts
   each worker's log in the converge stage's cost and tokens. A status log that cannot be stamped now exits 2, not raising
   (change `0108-converge-script`, phase 6).
+- `plan_check.py` skips a line of a living spec inside a requirement the change's delta lists under `## REMOVED
+  Requirements`: a change that removes a requirement naming the code it deletes no longer halts its close
+  (change `0108-converge-script`, phase 7).
 
 ## [0.88.0] - 2026-11-09
 

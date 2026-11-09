@@ -13,7 +13,7 @@ only the phase's end is green.
 - [x] 4 — The debt, the halts and the report · hard
 - [x] 5 — `conduct.py`: the in-process call and the retirements · hard
 - [x] 6 — The front, the record and the metrics · hard
-- [ ] 7 — The plan check skips a requirement the delta removes · moderate
+- [x] 7 — The plan check skips a requirement the delta removes · moderate
 
 ## 1 — The fields
 
@@ -149,7 +149,7 @@ only the phase's end is green.
 
 ## 7 — The plan check skips a requirement the delta removes
 
-- [ ] 7.1 Extend `test_a_plan_check_finds_what_the_plan_left` in `tests/test_plan_check.py` as [the Tests table](design.md#tests) says:
+- [x] 7.1 Extend `test_a_plan_check_finds_what_the_plan_left` in `tests/test_plan_check.py` as [the Tests table](design.md#tests) says:
   a removed name on a line of `openspec/specs/cap/spec.md` inside a requirement the change's `specs/cap/spec.md` lists under
   `## REMOVED Requirements` halts nothing, and the same name in the next requirement, which the delta keeps, exits 1 naming its
   line. Then skip such a line in `check_names` of `skills/mf-converge/scripts/plan_check.py`, per [C8](design.md#c-rows) and the
