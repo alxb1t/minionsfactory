@@ -105,14 +105,15 @@ moved      the cited lines moved intact: the line prints its new range
 unplaced   a cited line changed, or the sha is no commit
 ```
 
-Exit 0 → every fact is placed; read none. Exit 1 → each `unplaced` fact is yours to read, by a helper or yourself. Exit
+Exit 0 → every fact is placed; read none. Exit 1 → each `unplaced` fact is yours to read, by a helper or yourself; `--at <rev>` places at a revision, `HEAD` by
+default. Exit
 2, or `uv` missing → **halt**, naming it. No `brief`, or the conversation as the source → every fact is unplaced.
 
 **Helpers.** Where the host starts fresh workers, dispatch at once at most four read-only helpers in all, each
 on Sonnet 5.5 · medium where the host offers it — on Claude Code the Agent tool's `model: sonnet` and
-`effort: medium` — the areas grouped to fit: one per top-level directory of the unplaced facts' paths, and one per
-question the source's phases raise for the design — the file a phase edits, a symbol it calls, a test it extends. A fact
-the script placed gets no helper. Give each `<sha>`, `HEAD`, its facts or question, and the allowed list of
+`effort: medium` — the areas grouped to fit: one per top-level directory of the unplaced facts' paths. A fact the script placed gets no
+helper, and a design question — the file a phase edits, a symbol it calls, a test it extends — is your own read. Give
+each `<sha>`, `HEAD`, its facts, and the allowed list of
 [`mf-plan`](../mf-plan/SKILL.md)'s Step 2. Each answers each fact `stands`, `moved to <path:line>` or
 `wrong: <evidence>`, never file contents. A helper not back in five minutes: read its facts yourself, and ignore its
 late answer. With no fresh workers, read every unplaced fact yourself, by the same list.

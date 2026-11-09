@@ -184,9 +184,7 @@ def items(lines: list[str]) -> list[str]:
 def facts(lines: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
     """Return the `## Facts` items as facts, and a halt for each out of grammar.
 
-    A fact is its text, each cite's path (a leading `./` dropped) and lines, its sha.
-    Why: 0106-cut-scripts design D1.
-    e.g. ["- a (`./b.py:1-2` at `f349aa8`)"] → a, b.py, lines 1 to 2, f349aa8
+    A fact is its text, its cites (`./` dropped) and its sha. Why: 0106 design D1.
     """
     found: list[dict[str, Any]] = []
     halted: list[str] = []
@@ -339,8 +337,7 @@ def modelled(line: str, column: int) -> bool:
 def chosen(lines: list[str], name: str) -> tuple[re.Match[str], list[str]] | None:
     """Return the head and lines of the `## For the cut` item `name` heads, or None.
 
-    The item runs from its head to the next one. Why: 0106-cut-scripts design D2.
-    e.g. ["1. **a** · minor", "2. **b** · minor", "   - x"], "b" → (head 2, [2 · 3])
+    The item runs from its head to the next one. Why: 0106 design D2.
     """
     heads = [
         (number, opened)
@@ -359,10 +356,7 @@ def chosen(lines: list[str], name: str) -> tuple[re.Match[str], list[str]] | Non
 def models_toml(opened: re.Match[str], item: list[str]) -> str:
     """Return the models file of a checked `## For the cut` item, as TOML.
 
-    The tables of `TABLES` in order, each `model` and `effort`, and `executor` when the
-    model names a host; a skip is `skip = true`, a last `shadow` goes under `[converge]`
-    and `decide: recommended` leads. Why: 0106-cut-scripts design D2.
-    e.g. "build codex/b high · …" → `[build]`: model b, effort high, executor codex
+    One table per stage of `TABLES`, in order; its shape is in 0106 design D2.
     """
     line = next(line for line in item if modelled(line, len(opened[1]) + 2))
     parts = [part.split() for part in line.lstrip(" ")[len("- models:") :].split(" · ")]

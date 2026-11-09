@@ -4425,9 +4425,15 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     names["_start_run"] = lambda primary, executor: 4242
     conduct["rejoin"](root, "0030-h")
     names["_start_run"] = start
+    # A models file hard-linked to another file is replaced, not written through.
+    precious = tmp_path / "precious.md"
+    precious.write_text("keep me\n")
+    models.unlink()
+    os.link(precious, models)
     calls.unlink()
     fake()
     assert _run_claude(conduct, root, monkeypatch) == 1
+    assert precious.read_text() == "keep me\n"
     assert models.read_text() == _MODELS
     assert "cut-change 0030-h" not in _calls(calls)
     assert "release 0030-h" in _calls(calls)

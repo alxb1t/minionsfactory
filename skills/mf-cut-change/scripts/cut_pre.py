@@ -5,10 +5,7 @@
 """Run every precondition of the cut, one line a check.
 
     cut_pre.py <id> [--unattended] [--after <id>[,<id>]]
-
-Each check prints `cut_pre: ok — <check>` or `cut_pre: halt — <check>: <why>`. Run from
-the repository root, or the unattended cut's worktree. Exit 0 no halt · 1 a halt · 2 git
-is missing or the id is not `<digits>-<slug>`. Why: 0106-cut-scripts design D5.
+Exit 0 no halt · 1 a halt · 2 unrunnable. Why: 0106-cut-scripts design D5.
 """
 
 import argparse

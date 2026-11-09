@@ -2,17 +2,10 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Place the brief's facts at HEAD, and find the readers of a name, for the cut.
+"""Place the brief's facts, and find the readers of a name, for the cut.
 
-    facts.py place <brief> [--notes <file>]
-    facts.py readers <name>... [--notes <file>]
-
-`place` takes the facts from `brief_check.py --facts`, and prints one line a fact:
-`<state> · <fact> · <path:line…>`, its state **stands**, **moved** or **unplaced**.
-`readers` prints each `git grep -nw` hit of a name at HEAD. Exit 0 no fact unplaced · 1
-one is · 2 the brief or git cannot be read. Run from the repository root; `--notes`
-writes the cut's notes afresh (`place`) or appends to them (`readers`).
-Why: 0106-cut-scripts design D4.
+    facts.py place <brief> [--at <rev>] [--notes <f>] | readers <name>... [--notes <f>]
+Exit 0 none unplaced · 1 one is · 2 unreadable. Why: 0106-cut-scripts design D4.
 """
 
 import argparse
@@ -113,8 +106,8 @@ def brief_facts(brief: Path) -> list[Fact]:
     ]
 
 
-def shift(line: int, hunks: list[tuple[int, int, int]]) -> int | None:
-    """Return where an old line is after the hunks, or None when a hunk holds it.
+def shift(line: int, hunks: list[tuple[int, int, int]]) -> int:
+    """Return where an old line is after the hunks, none of which holds it.
 
     A hunk is its old start, old count and new count; an old count of 0 inserts after
     the old start. e.g. 5, [(1, 0, 2)] → 7
@@ -122,33 +115,47 @@ def shift(line: int, hunks: list[tuple[int, int, int]]) -> int | None:
     offset = 0
     for start, old, new in hunks:
         last = start + old - 1 if old else start
-        if old and start <= line <= last:
-            return None
         if last < line:
             offset += new - old
     return line + offset
 
 
-def moved(cite: Cite, sha: str) -> Cite | None:
-    """Return a cite of a touched path where it stands at HEAD, or None when unplaced.
+def moved(cite: Cite, sha: str, at: str = "HEAD") -> Cite | None:
+    """Return a cite of a touched path where it stands at `at`, or None when unplaced.
 
-    Both ends map through the hunks of `git diff -U0 <sha>..HEAD`; a length that
-    changes (an insertion inside the range) is unplaced too.
+    A hunk over a cited line, or a changed length, is unplaced. Why: design D4.
     """
-    diff = _git("diff", "-U0", "--no-renames", f"{sha}..HEAD", "--", cite.path).stdout
+    diff = _git("diff", "-U0", "--no-renames", f"{sha}..{at}", "--", cite.path).stdout
     hunks = [
         (int(hunk[1]), int(hunk[2] or 1), int(hunk[3] or 1))
         for line in diff.splitlines()
         if (hunk := HUNK.match(line))
     ]
+    if any(
+        old and first <= cite.end and cite.start < first + old
+        for first, old, _ in hunks
+    ):
+        return None
     start, end = shift(cite.start, hunks), shift(cite.end, hunks)
-    if start is None or end is None or end - start != cite.end - cite.start:
+    if end - start != cite.end - cite.start:
         return None
     return Cite(cite.path, start, end)
 
 
-def place(fact: Fact) -> Placed:
-    """Return a fact's state at HEAD, by its own sha.
+def resolve(rev: str) -> str:
+    """Return the commit `rev` names, as a full sha; a rev that names none stops."""
+    done = (
+        None
+        if rev.startswith("-")
+        else _git("rev-parse", "-q", "--verify", f"{rev}^{{commit}}")
+    )
+    if done is None or done.returncode:
+        raise Stop(2, f"facts: cannot place — --at {rev} names no commit")
+    return done.stdout.strip()
+
+
+def place(fact: Fact, at: str = "HEAD") -> Placed:
+    """Return a fact's state at `at`, by its own sha.
 
     A sha that is not 7 to 40 hex or names no commit is unplaced: no git command takes
     it. A cite on a path the diff leaves alone stands. Why: 0106-cut-scripts design D4.
@@ -158,18 +165,18 @@ def place(fact: Fact) -> Placed:
         return unplaced
     if _git("rev-parse", "-q", "--verify", f"{fact.sha}^{{commit}}").returncode:
         return unplaced
-    names = _git("diff", "--name-only", "-z", "--no-renames", f"{fact.sha}..HEAD")
+    names = _git("diff", "--name-only", "-z", "--no-renames", f"{fact.sha}..{at}")
     touched = set(names.stdout.split("\0"))
-    found = [moved(c, fact.sha) if c.path in touched else c for c in fact.cites]
+    found = [moved(c, fact.sha, at) if c.path in touched else c for c in fact.cites]
     placed = [cite for cite in found if cite is not None]
     if len(placed) < len(found):
         return unplaced
     return Placed(fact, "stands" if placed == fact.cites else "moved", placed)
 
 
-def place_all(facts: list[Fact]) -> list[Placed]:
-    """Return each fact placed, in order."""
-    return [place(fact) for fact in facts]
+def place_all(facts: list[Fact], at: str = "HEAD") -> list[Placed]:
+    """Return each fact placed at `at`, in order."""
+    return [place(fact, at) for fact in facts]
 
 
 def where(cite: Cite) -> str:
@@ -217,9 +224,9 @@ def run_readers(names: list[str], notes: Path | None) -> int:
     return 0
 
 
-def run_place(brief: Path, notes: Path | None) -> int:
-    """Print each fact's placing, write `notes` afresh, and return the exit code."""
-    placed = place_all(brief_facts(brief))
+def run_place(brief: Path, notes: Path | None, at: str | None = None) -> int:
+    """Print each fact placed at `at` (HEAD), write `notes` afresh; return the code."""
+    placed = place_all(brief_facts(brief), resolve(at) if at else "HEAD")
     lines = [
         f"{one.fact.text} — {one.state} · {', '.join(map(where, one.cites))}"
         for one in placed
@@ -239,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     placing = commands.add_parser("place", help="place each fact of a brief")
     placing.add_argument("brief", type=Path, help="the brief")
+    placing.add_argument("--at", help="the revision to place at, HEAD by default")
     finding = commands.add_parser("readers", help="find the hits of each name")
     finding.add_argument("names", nargs="+", help="a deleted or renamed name")
     for sub in (placing, finding):
@@ -247,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "readers":
             return run_readers(args.names, args.notes)
-        return run_place(args.brief, args.notes)
+        return run_place(args.brief, args.notes, args.at)
     except Stop as stop:
         print(stop)
         return stop.code

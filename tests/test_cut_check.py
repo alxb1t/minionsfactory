@@ -365,6 +365,7 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     assert why
     text = " ".join(why)
     assert "no `## 1 — …` section" in text
+    assert "section 3 is not listed in `## Progress`" in text
     assert "1.1 has no Verify:" in text
     assert "`## Progress` does not follow the title and its line" in text
 

@@ -149,6 +149,8 @@ def test_a_fact_on_a_changed_line_is_unplaced(
     assert edited.state == "unplaced"
     on_an_end = _placed(root, _fact(sha, ("src/a.py", 3, 5)), monkeypatch)
     assert on_an_end.state == "unplaced"
+    inside = _placed(root, _fact(sha, ("src/a.py", 2, 4)), monkeypatch)
+    assert (inside.state, inside.cites) == ("unplaced", [facts.Cite("src/a.py", 2, 4)])
     deleted = _placed(root, _fact(sha, ("src/b.py", 2, 4)), monkeypatch)
     assert deleted.state == "unplaced"
     one_of_two = _placed(
@@ -236,6 +238,11 @@ def test_the_notes_file_is_written_and_appended(
     assert notes.read_text().endswith("· src/b.py:10\n")
     assert "- readers of line — line 1 · src/a.py:2\n" in notes.read_text()
     capsys.readouterr()
+    assert facts.main(["place", str(brief), "--at", sha]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "stands · a is here · src/a.py:3-4",
+        "stands · b is there · src/b.py:2",
+    ]
 
 
 def test_what_cannot_be_read_exits_2(
@@ -266,6 +273,8 @@ def test_what_cannot_be_read_exits_2(
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     (outside / "brief.md").write_text(good.read_text())
+    assert "no-such-rev" in exits_2("place", str(good), "--at", "no-such-rev")
+    assert "--at" in exits_2("place", str(good), "--at=--output=x")
     monkeypatch.chdir(outside)
     assert "git rev-parse failed" in exits_2("place", "brief.md")
     monkeypatch.chdir(root)

@@ -5,12 +5,7 @@
 """Decide the self-check rows a script can, and list the rest for the cut to judge.
 
     cut_check.py <id> [--bump <bump>]
-
-Run from the repository root; it reads `openspec/changes/<id>/`. It prints
-`cut_check: halt — <row> — <why>` per failed row, `cut_check: match — <line>` per match
-the search script prints, `cut_check: judge — <row> — <what to read>` per row left to
-judgment, then a last line. Exit 0 ready · 1 a row failed · 2 `openspec` or a script
-cannot run. Why: 0106-cut-scripts design D6.
+Exit 0 ready · 1 a row failed · 2 unrunnable. Why: 0106-cut-scripts design D6.
 """
 
 import argparse
@@ -269,6 +264,15 @@ def row_i4(change: Change, plan: dict[str, Any]) -> str | None:
             problems.append(f"phase {phase[1]} lacks ` · moderate` or ` · hard`")
         if int(phase[1]) not in sections:
             problems.append(f"phase {phase[1]} has no `## {phase[1]} — …` section")
+    ids = [int(phase[1]) for phase in phases]
+    problems.extend(
+        f"section {number} is not listed in `## Progress`"
+        for number in sorted(sections - set(ids))
+    )
+    problems.extend(
+        f"phase {number} is listed twice in `## Progress`"
+        for number in sorted({n for n in ids if ids.count(n) > 1})
+    )
     for task in plan["subtasks"](change.tasks):
         if plan["verify_of"](task.text) is None:
             problems.append(f"{task.name} has no Verify:")

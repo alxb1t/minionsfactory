@@ -82,7 +82,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 | the bump | `minor` or `patch`, a patch against what root `AGENTS.md` says one may hold; a mismatch goes to the person |
 | decisions touched | `docs/decisions.md` at `<ref>`, when present: each decision the version adds or overturns, named |
 | a split | a version whose one diff would be too large for review is proposed as two |
-| re-measure | with `from=`: run `uv run --script ../mf-cut-change/scripts/facts.py place <brief>`, `../mf-cut-change/` resolved from this skill's package; a fact it prints `moved` is rewritten with its range and `<sha>`, an `unplaced` one is read again at `<sha>` |
+| re-measure | with `from=`: run `uv run --script ../mf-cut-change/scripts/facts.py place <brief> --at <ref>`, `../mf-cut-change/` resolved from this skill's package; a fact it prints `moved` is rewritten with its range and `<sha>`, an `unplaced` one is read again at `<sha>` |
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
 | parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file; `after:` is proposed only when one needs a symbol, decision or requirement the other adds, else `beside:`, the default (D69) |
 | packages | each package the phases would add, by exact name and version constraint, read from the target's manifests at `<ref>` |

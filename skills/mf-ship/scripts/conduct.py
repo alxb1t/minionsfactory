@@ -784,8 +784,7 @@ def _cut_answer(change: str, brief: str) -> str:
 def _models_hash(primary: Path, change: str) -> str | None:
     """Return the sha256 of the change's `models.toml`, read through no link.
 
-    None when the file is missing, a link, or its folder is one.
-    Why: 0106-cut-scripts design D7.
+    None when the file is missing, a link, or its folder is one. Why: 0106 design D7.
     """
     try:
         fd = _folder_fd(primary / ".minions", "changes", change)
@@ -7109,8 +7108,7 @@ def _rows_hash(rows: list[list[str]]) -> str:
 def _models_text(brief: Path, slug: str) -> str:
     """Return the models file `brief_check.py --models` prints for `slug`.
 
-    A failed run, a timeout or text `tomllib` refuses stops with 2.
-    Why: 0106-cut-scripts design D7.
+    A failed run, a timeout or text `tomllib` refuses stops with 2. Why: 0106 design D7.
     """
     command = [*UV_RUN, str(BRIEF_CHECK), "--models", str(brief), slug]
     try:
@@ -7146,6 +7144,8 @@ def _write_models(primary: Path, change: str, text: str) -> None:
     Why: 0106-cut-scripts design D7.
     """
     try:
+        # A fresh file: truncating the old one would write through a hard link.
+        _remove_in(primary / ".minions", "changes", change, name="models.toml")
         _write_in_change(primary, change, "models.toml", text)
     except OSError as error:
         raise Stop(

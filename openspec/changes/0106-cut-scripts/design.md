@@ -130,6 +130,8 @@ else map both ends through the hunks of git diff -U0 --no-renames <sha>..HEAD --
   `readers of <name> — <text> · <path>:<line>`, or `readers of <name> — none · HEAD`, and with `--notes` appends them.
 - The cut starts a helper only for a fact left unplaced, up to four; a design question is the cut's own read.
 
+Fix note (2026-11-09, S3): `place` takes `--at <rev>`, `HEAD` by default, and planning passes its `<ref>`; the diffs and the printed ranges use that commit.
+
 ### D5
 
 **The preconditions.** Each check prints `cut_pre: ok — <check>` or `cut_pre: halt — <check>: <why>`; the exit is 0 with no
