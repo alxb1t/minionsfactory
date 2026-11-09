@@ -82,7 +82,7 @@ Before the first round, report each as a fact. The checks are independent: with 
 | the bump | `minor` or `patch`, a patch against what root `AGENTS.md` says one may hold; a mismatch goes to the person |
 | decisions touched | `docs/decisions.md` at `<ref>`, when present: each decision the version adds or overturns, named |
 | a split | a version whose one diff would be too large for review is proposed as two |
-| re-measure | with `from=`: a fact citing a commit other than `<sha>` is checked again at `<sha>` |
+| re-measure | with `from=`: run `uv run --script ../mf-cut-change/scripts/facts.py place <brief> --at <ref>`, `../mf-cut-change/` resolved from this skill's package; a fact it prints `moved` is rewritten with its range and `<sha>`, an `unplaced` one is read again at `<sha>` |
 | metrics | with `metrics/catalogue.toml` at `<ref>`: the metrics past their `watch` in the tracked data file of the highest version, read with `git show`, no collection run |
 | parallel with | when the person names versions to run side by side: their briefs' `## Facts` paths and `## Phases` files compared; a pair touching a file in common is warned of, naming the file; `after:` is proposed only when one needs a symbol, decision or requirement the other adds, else `beside:`, the default (D69) |
 | packages | each package the phases would add, by exact name and version constraint, read from the target's manifests at `<ref>` |
@@ -129,7 +129,7 @@ A hard close then queues the cut:
 1. **The models and the switch** are rows of the settled table the person confirms: per change, a model and effort
    for the build, converge, release and cut station, and `decide: recommended`, per [the brief](#the-brief).
 2. **The check:** run `uv run --script scripts/brief_check.py <brief>`, `scripts/` resolved from this skill's
-   package; it holds the commands, each item's slug, bump, `after`, `beside` and models, `## For the cut`'s grammar and the
+   package; it holds the `## Facts` citations, the commands, each item's slug, bump, `after`, `beside` and models, `## For the cut`'s grammar and the
    `## Dependencies` table. Exit 1 → fix each line it prints
    in the brief and run it again; exit 2 → **halt**, naming it.
 3. **The question,** once, unless `then=ship` was given. First run `uv run --script ../mf-ship/scripts/conduct.py status`
@@ -168,7 +168,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
   At <sha>, <YYYY-MM-DD>.
 
   ## Facts
-  - <a fact> (`path:line` at `<sha>`)
+  - <a fact> (`<path>:<line>[-<line>]`[, `<path>:<line>`…] at `<sha>`)
 
   ## Decisions
   | # | decision | the reason that settled it |
@@ -198,7 +198,7 @@ session's menu, by `mf-cut-change`'s *Suggesting models* table —
 Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's
 own is Sonnet 5.5 · high by default, where the session offers it, else the strongest tier · high: the plan holds the
 judgment, and the cut's plan reviews run on Opus 5.5 · high whatever the cut runs on. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
-proposed fix. The cut station writes `models.toml` from the `models:` line. `beside:` is optional: the versions this one only
+proposed fix. `conduct.py cut` writes `models.toml` from the `models:` line when it queues the cut. `beside:` is optional: the versions this one only
 shares files with, which nothing waits on (D69). A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the suggested line with that
 part; the person confirms or changes it. Read the line for nothing else.
 

@@ -4,8 +4,10 @@ Each brief written under `tmp_path`. Why: 0083-plan-queues design D1.
 """
 
 import importlib.util
+import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 
@@ -70,6 +72,219 @@ def _write(tmp_path: Path, text: str) -> Path:
     brief = tmp_path / "brief.md"
     brief.write_text(text)
     return brief
+
+
+def _with_facts(facts: str) -> str:
+    return _READY.replace("## Decisions\n", f"## Facts\n{facts}\n## Decisions\n", 1)
+
+
+def test_a_fact_citing_a_path_and_a_line_is_ready(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    long_sha = "0123456789abcdef0123456789abcdef01234567"
+    brief = _write(
+        tmp_path,
+        _with_facts(
+            "- one cite (`skills/x.py:12` at `f349aa8`)\n"
+            "- a range, two cites (`tests/a.py:3-9`, `.github/ci.yml:4` at"
+            " `f349aa8abc`)\n"
+            "- a root file (`./AGENTS.md:1-5` at `f349aa8`)\n"
+            "- a wrapped fact whose text\n"
+            f"  runs on (`a-b/c_d.e:7` at `{long_sha}`)\n"
+        ),
+    )
+    assert brief_check.main([str(brief)]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    assert brief_check.main(["--facts", str(brief)]) == 0
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            "fact": "one cite",
+            "cites": [{"path": "skills/x.py", "start": 12, "end": 12}],
+            "sha": "f349aa8",
+        },
+        {
+            "fact": "a range, two cites",
+            "cites": [
+                {"path": "tests/a.py", "start": 3, "end": 9},
+                {"path": ".github/ci.yml", "start": 4, "end": 4},
+            ],
+            "sha": "f349aa8abc",
+        },
+        {
+            "fact": "a root file",
+            "cites": [{"path": "AGENTS.md", "start": 1, "end": 5}],
+            "sha": "f349aa8",
+        },
+        {
+            "fact": "a wrapped fact whose text runs on",
+            "cites": [{"path": "a-b/c_d.e", "start": 7, "end": 7}],
+            "sha": long_sha,
+        },
+    ]
+    # No `## Facts` section holds no fact.
+    assert brief_check.main(["--facts", str(_write(tmp_path, _READY))]) == 0
+    assert capsys.readouterr().out == "[]\n"
+
+
+def test_a_fact_out_of_grammar_halts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = (
+        "a basename (`AGENTS.md:1` at `f349aa8`)",
+        "a bare line (`:12` at `f349aa8`)",
+        "a legend (`C:4357-4406` at `f349aa8`)",
+        "a parent (`../x/y.py:1` at `f349aa8`)",
+        "a dot (`x/./y.py:1` at `f349aa8`)",
+        "an absolute path (`/etc/passwd:1` at `f349aa8`)",
+        "no sha (`x/y.py:1`)",
+        "no at (`x/y.py:1` `f349aa8`)",
+        "a short sha (`x/y.py:1` at `f349a`)",
+        f"a long sha (`x/y.py:1` at `{'a' * 41}`)",
+        "an upper sha (`x/y.py:1` at `F349AA8`)",
+        "a trailing sentence (`x/y.py:1` at `f349aa8`) and more.",
+        "a bare cite (x/y.py:1 at `f349aa8`)",
+        "(`x/y.py:1` at `f349aa8`)",
+    )
+    for case in cases:
+        brief = _write(tmp_path, _with_facts(f"- {case}\n"))
+        halt = f"brief: halt — ## Facts: fact 1 — {case}\n"
+        for argv in ([str(brief)], ["--facts", str(brief)]):
+            assert brief_check.main(argv) == 1
+            assert capsys.readouterr().out == halt
+    # The fact is named by its number, and the one in grammar prints nothing.
+    second = _write(
+        tmp_path,
+        _with_facts("- ok (`x/y.py:1` at `f349aa8`)\n- no (`y.py:2` at `f349aa8`)\n"),
+    )
+    assert brief_check.main(["--facts", str(second)]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — ## Facts: fact 2 — no (`y.py:2` at `f349aa8`)\n"
+    )
+    # The brief still needs its `At` line.
+    unplaced = _with_facts("- ok (`x/y.py:1` at `f349aa8`)\n").replace(
+        "At f349aa8, 2026-11-06.\n", ""
+    )
+    assert brief_check.main([str(_write(tmp_path, unplaced))]) == 1
+    assert capsys.readouterr().out == "brief: halt — no At <sha>, <YYYY-MM-DD>. line\n"
+
+
+def test_models_prints_the_items_toml(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def printed(brief: str, slug: str) -> dict[str, object]:
+        assert brief_check.main(["--models", str(_write(tmp_path, brief)), slug]) == 0
+        return tomllib.loads(capsys.readouterr().out)
+
+    assert (
+        brief_check.main(
+            ["--models", str(_write(tmp_path, _READY)), "0083-plan-queues"]
+        )
+        == 0
+    )
+    assert capsys.readouterr().out == (
+        'decide = "recommended"\n\n'
+        '[build]\nmodel = "opus"\neffort = "high"\n\n'
+        '[converge]\nmodel = "opus"\neffort = "high"\n\n'
+        '[release]\nmodel = "opus"\neffort = "high"\n'
+    )
+    # Every part, a host on a model, a last shadow; the cut part is written nowhere.
+    full = _READY + (
+        "2. **full** · minor · after: none · debt: none\n"
+        "   - models: build codex/gpt-6.1-sol high · converge claude-opus-5-5 high"
+        " · release claude-sonnet-5-5 medium · cut claude-opus-5-5 high"
+        " · build-moderate claude-sonnet-5-5 high · conformance codex/gpt-6.1-sol"
+        " high · adversarial claude/claude-opus-5-5 high · fix claude-opus-5-5"
+        " medium · shadow\n"
+    )
+    assert printed(full, "full") == {
+        "build": {
+            "model": "gpt-6.1-sol",
+            "effort": "high",
+            "executor": "codex",
+            "moderate": {"model": "claude-sonnet-5-5", "effort": "high"},
+        },
+        "converge": {
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "shadow": True,
+            "conformance": {
+                "model": "gpt-6.1-sol",
+                "effort": "high",
+                "executor": "codex",
+            },
+            "adversarial": {
+                "model": "claude-opus-5-5",
+                "effort": "high",
+                "executor": "claude",
+            },
+            "fix": {"model": "claude-opus-5-5", "effort": "medium"},
+        },
+        "release": {"model": "claude-sonnet-5-5", "effort": "medium"},
+    }
+    # `converge skip` writes no worker table; a checker's skip is `skip = true` alone.
+    stations = "build a b · converge a b · release a b · cut a b"
+    skipped = _READY + (
+        "2. **skipped** · patch · after: none · decide: recommended\n"
+        "   - models: build a b · converge skip · release a b · cut a b\n"
+        "3. **checked** · patch · after: none\n"
+        f"   - models: {stations} · conformance skip · adversarial a b · fix a b\n"
+    )
+    assert printed(skipped, "skipped") == {
+        "decide": "recommended",
+        "build": {"model": "a", "effort": "b"},
+        "converge": {"skip": True},
+        "release": {"model": "a", "effort": "b"},
+    }
+    assert printed(skipped, "checked") == {
+        "build": {"model": "a", "effort": "b"},
+        "converge": {
+            "model": "a",
+            "effort": "b",
+            "conformance": {"skip": True},
+            "adversarial": {"model": "a", "effort": "b"},
+            "fix": {"model": "a", "effort": "b"},
+        },
+        "release": {"model": "a", "effort": "b"},
+    }
+    # A line out of shape prints the item's halts and no file.
+    bad = _READY + (
+        "2. **bad** · major · after: none\n"
+        "   - models: build a b · converge a b · release a b · cut a b;c\n"
+    )
+    assert brief_check.main(["--models", str(_write(tmp_path, bad)), "bad"]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: item 2 — not a bump: `major`",
+        "brief: halt — ## For the cut: item 2 — not a model or effort: `b;c`",
+    ]
+    # No item of that slug cannot be checked.
+    assert brief_check.main(["--models", str(_write(tmp_path, bad)), "nope"]) == 2
+    assert capsys.readouterr().out == (
+        "brief: cannot check — no item named `nope` in ## For the cut\n"
+    )
+    # The flag takes a slug, and the slug takes the flag; the two flags exclude.
+    brief = str(_write(tmp_path, _READY))
+    for argv in (
+        ["--models", brief],
+        [brief, "0083-plan-queues"],
+        ["--facts", "--models", brief, "x"],
+    ):
+        with pytest.raises(SystemExit) as stop:
+            brief_check.main(argv)
+        assert stop.value.code == 2
+        capsys.readouterr()
+
+
+def test_a_custom_tag_opens_no_section() -> None:
+    plain = [heading for heading, _ in brief_check.headed(_READY)]
+    # A tag that only starts like a heading ends no section.
+    for tag in ("<h12>", "<h2-widget>"):
+        text = _READY.replace("\n## Dependencies\n", f"\n{tag}\n\n## Dependencies\n")
+        assert [heading for heading, _ in brief_check.headed(text)] == plain
+    # A real one does, whatever its case or form.
+    for tag in ('<h2 id="x">', "<H1/>"):
+        text = _READY.replace("\n## Dependencies\n", f"\n{tag}\n\n## Dependencies\n")
+        keys = [heading for heading, _ in brief_check.headed(text)]
+        assert keys == [*plain[:2], tag, *plain[2:]]
 
 
 def test_a_hard_brief_is_ready_for_the_cut(

@@ -85,6 +85,10 @@ LIMIT_WAIT = 900
 HEADROOM = 90
 FALLBACK = "fallback: codex usage limit"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
+# The brief's checker, and the runner of its `--models`.
+# Why: 0106-cut-scripts design D7.
+BRIEF_CHECK = Path(__file__).resolve().parents[2] / "mf-plan/scripts/brief_check.py"
+UV_RUN = ("uv", "run", "--script")
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
 DECISIONS = "docs/decisions.md"
@@ -95,6 +99,7 @@ SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
+BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
@@ -777,10 +782,28 @@ def _cut_answer(change: str, brief: str) -> str:
     )
 
 
+def _models_hash(primary: Path, change: str) -> str | None:
+    """Return the sha256 of the change's `models.toml`, read through no link.
+
+    None when the file is missing, a link, or its folder is one. Why: 0106 design D7.
+    """
+    try:
+        fd = _folder_fd(primary / ".minions", "changes", change)
+        try:
+            file = os.open("models.toml", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        return None
+    with os.fdopen(file, "rb") as models:
+        return hashlib.sha256(models.read()).hexdigest()
+
+
 def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
 
-    Why: 0082-cut-station design D4.
+    A queued entry that holds `models` fails a file whose bytes differ from its text.
+    Why: 0082-cut-station design D4; 0106-cut-scripts design D7.
     """
     if (halt := _cutter_halt(primary, change)) is not None:
         return halt
@@ -794,6 +817,10 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
         return "the tree is not clean"
     if not (_change_dir(primary, change) / "models.toml").is_file():
         return f"no .minions/changes/{change}/models.toml"
+    queued = _cuts(primary).get(change, {}).get("models")
+    if queued is not None:
+        if _models_hash(primary, change) != hashlib.sha256(queued.encode()).hexdigest():
+            return f"changes/{change}/models.toml changed since the cut was queued"
     return None
 
 
@@ -5849,7 +5876,9 @@ class Run:
         runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
         waited for. None on a pass, its brief recorded, its queue entry and
         reservation deleted. The cutter's own halt, and a package the entry does not
-        approve, end in `_cut_answer`. Why: 0091-cut-halts design D4, D5.
+        approve, end in `_cut_answer`. An entry's `models` is written again first, so a
+        rejoin restores a file the cutter changed.
+        Why: 0091-cut-halts design D4, D5; 0106-cut-scripts design D7.
         """
         entry = _cuts(self.primary)[change]
         for named in entry["after"]:
@@ -5859,6 +5888,8 @@ class Run:
                 time.sleep(REJOIN_POLL)
         primary = self.primary
         tree = (self.worktrees / change).resolve()
+        if (queued := entry.get("models")) is not None:
+            _write_models(primary, change, queued)
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
         _remove_in(primary / ".minions", "changes", change, name="cut.halt")
         if not (branch and _holds(primary, change)):
@@ -7021,14 +7052,9 @@ def _fold(line: str) -> str:
 
 
 def _headed(text: str, heading: str) -> bool:
-    r"""Return whether `heading` stands at most once, as an ATX `h2` written so.
+    """Return whether `heading` stands at most once, as an ATX `h2` written so.
 
-    Another form keeps `heading`'s letters and digits, case-folded: a trailing space or
-    colon, a leading space, a setext title, an HTML or inline `<h1>`…`<h6>` line. A
-    line inside a fence or an indented code block is none, and a fence left open fails
-    the document: what follows it is code, so a heading there is not found.
-    e.g. "## D\nNone.\n## D\n", "## D" → False
-    Why: 0103-fewer-rounds design D6.
+    A look-alike or an open fence fails it. Why: 0103-fewer-rounds design D6.
     """
     lines, tokens = _read(text)
     code: set[int] = set()
@@ -7069,21 +7095,15 @@ def _boundary(token: "Token") -> bool:
     """Return whether a token ends a section: an `h1` or `h2`, or HTML opening one."""
     if token.type == "heading_open":
         return token.tag in ("h1", "h2")
-    return token.type == "html_block" and token.content.lstrip().lower().startswith(
-        ("<h1", "<h2")
+    return token.type == "html_block" and bool(
+        BLOCK_HEADING.match(token.content.lstrip())
     )
 
 
 def _rows(text: str, heading: str) -> list[list[str]] | None:
-    r"""Return `heading`'s table, header first, cells stripped of spaces and backticks.
+    """Return `heading`'s table, header first; [] for no section or one `None.`.
 
-    The section is the top-level blocks from the ATX `h2` written `heading` to the next
-    `h1` or `h2`, ATX or setext, or HTML of one; a fence or code block holds none. No
-    such heading, or one paragraph `None.`, is []. Exactly one table is its rows, as
-    GFM renders them, a row with a cell past the header's excepted; anything else, an
-    empty section too, is None.
-    e.g. "## D\n| a | b |\n|---|---|\n| `x` | y |\n" → [["a", "b"], ["x", "y"]]
-    Why: 0103-fewer-rounds design D6.
+    Anything else, an empty section too, is None. Why: 0103-fewer-rounds design D6.
     """
     lines, tokens = _read(text)
     start = next(
@@ -7171,6 +7191,56 @@ def _rows_hash(rows: list[list[str]]) -> str:
     return hashlib.sha256(json.dumps(rows).encode()).hexdigest()
 
 
+def _models_text(brief: Path, slug: str) -> str:
+    """Return the models file `brief_check.py --models` prints for `slug`.
+
+    A failed run, a timeout or text `tomllib` refuses stops with 2. Why: 0106 design D7.
+    """
+    command = [*UV_RUN, str(BRIEF_CHECK), "--models", str(brief), slug]
+    try:
+        done = subprocess.run(
+            command,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        raise Stop(2, "cut: cannot run — brief_check.py timed out") from None
+    except OSError as error:
+        raise Stop(2, f"cut: cannot run — {error.strerror}") from None
+    if done.returncode != 0:
+        lines = (done.stdout.strip() or done.stderr).splitlines()
+        first = next(
+            (line for line in lines if line.strip()), f"exit {done.returncode}"
+        )
+        raise Stop(2, f"cut: cannot run — the brief's models for {slug}: {first}")
+    try:
+        tomllib.loads(done.stdout)
+    except tomllib.TOMLDecodeError as error:
+        raise Stop(
+            2, f"cut: cannot run — the brief's models for {slug} are not TOML: {error}"
+        ) from None
+    return done.stdout
+
+
+def _write_models(primary: Path, change: str, text: str) -> None:
+    """Write the change's `models.toml` from `text`; a refused write stops with 2.
+
+    Why: 0106-cut-scripts design D7.
+    """
+    try:
+        # A fresh file: truncating the old one would write through a hard link.
+        _remove_in(primary / ".minions", "changes", change, name="models.toml")
+        _write_in_change(primary, change, "models.toml", text)
+    except OSError as error:
+        raise Stop(
+            2,
+            f"cut: cannot run — changes/{change}/models.toml cannot be written:"
+            f" {error.strerror}",
+        ) from None
+
+
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
     """Write a queued cut's entry whole: to a temporary name, then moved in."""
     folder = _queue(primary) / "cuts"
@@ -7212,8 +7282,9 @@ def cut(
 
     `links` are `after=<ids>` and `beside=<ids>`, each at most once. The entry holds
     the packages the brief approves for `slug`, and `beside` only when given. The
-    live run takes it; with none live, a run starts. Why: 0082-cut-station design D1;
-    0091-cut-halts design D3; 0098-beside design D3.
+    live run takes it; with none live, a run starts. It writes the item's models file,
+    and the entry keeps its text. Why: 0082-cut-station design D1; 0091-cut-halts
+    design D3; 0098-beside design D3; 0106-cut-scripts design D7.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
@@ -7237,6 +7308,7 @@ def cut(
     if why := _brief_refused(path.resolve(), executor, moved):
         raise Stop(2, f"cut: cannot run — {why}")
     approved = _approval(path.resolve(), slug, "cut")
+    models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
     with _queue_lock(primary):
@@ -7253,6 +7325,7 @@ def cut(
         if not live:
             preconditions(cwd, executor)
         change = f"{_next_id(primary):04d}-{slug}"
+        _write_models(primary, change, models)
         fd = _folder_fd(primary / ".minions", "cuts")
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
@@ -7268,6 +7341,7 @@ def cut(
             "effort": effort,
             "halt": None,
             "dependencies": approved,
+            "models": models,
         }
         if "beside" in linked:
             entry["beside"] = linked["beside"]

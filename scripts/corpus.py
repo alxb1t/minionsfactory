@@ -4,15 +4,7 @@
 # ///
 """Run this repo's readers of run data over the run directory, one case at a time.
 
-    corpus.py [--cases <toml>] [--minions <dir>]
-
-Run from inside the repository. The cases default to `scripts/corpus.toml`, the run
-directory to the `.minions/` beside the primary checkout. A case is a `[[case]]` with
-`name`, `reads`, `argv` and an optional `each`, a list of globs under the run
-directory: its argv runs once, or once per match, with `{minions}`, `{primary}`,
-`{input}` and `{out}` filled. Exit 0 `corpus: <name> · <k> runs · pass` per case · 1 a
-run failed · 2 the cases or the run directory cannot be read. Why: 0103-fewer-rounds
-design D5.
+Exit 0 pass · 1 a run failed · 2 unreadable. Why: 0103-fewer-rounds design D5.
 """
 
 import argparse
