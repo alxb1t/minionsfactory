@@ -1,7 +1,8 @@
 # Cut scripts — design
 
 The cut's preconditions, fact placement, reader search, self-check rows and models file become scripts; the cut's LLM writes
-the plan and judges the rest. Five scripts or edits, then the record. Verdict at the end: ready to build.
+the plan and judges the rest: `brief_check.py`, `facts.py`, `cut_pre.py`, `cut_check.py` and `conduct.py`'s models write, then
+the record. Verdict at the end: ready to build.
 
 ## Context
 
@@ -255,8 +256,15 @@ No end-to-end browser test: the repository has none, and each step is a unit or 
 fail (`T1`). The new test files are the scripts' own, as no test reaches a new script (`T2`); every other step extends a test
 that reaches its state. The slow ship tests run on the fake hosts and are skipped by `make check`.
 
-Counts at `HEAD`: `git grep -c "^def test_" -- tests/test_brief_check.py tests/test_conduct.py tests/test_skills.py` prints 4, 160
-and 21. The rows marked new below are the added unit tests, each file's count the same command run over it once built; no
+The tests at `HEAD`, before the build:
+
+| file | `def test_` lines | command |
+|---|---|---|
+| `tests/test_brief_check.py` | 4 | `git grep -c "^def test_" -- tests/test_brief_check.py` |
+| `tests/test_conduct.py` | 160 | `git grep -c "^def test_" -- tests/test_conduct.py` |
+| `tests/test_skills.py` | 21 | `git grep -c "^def test_" -- tests/test_skills.py` |
+
+The rows marked new below are the added unit tests, each file's count the same command run over it once built; no
 end-to-end run is added, and no test is removed.
 
 | test | gains |
