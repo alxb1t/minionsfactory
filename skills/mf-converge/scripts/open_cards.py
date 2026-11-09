@@ -109,6 +109,19 @@ def write(path: Path, text: str) -> None:
         raise Stop(f"{path}: {error.strerror}") from error
 
 
+def open_page(findings: Path, out: Path) -> int:
+    """Write the cards of `findings` a verify judges to `out`; return how many.
+
+    Raises `Stop` as `main` exits 2.
+    """
+    text = _read(findings)
+    strays(text)
+    found = [card for card in cards(text) if judged(card)]
+    body = "".join(found) or "None.\n"
+    write(out, f"# {findings.name} — the cards a verify judges\n\n{body}")
+    return len(found)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Write the cards a verify judges; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -117,17 +130,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("findings", type=Path, help="the findings file")
     parser.add_argument("out", type=Path, help="the open cards file to write")
     args = parser.parse_args(argv)
-    name = args.findings.name
     try:
-        text = _read(args.findings)
-        strays(text)
-        found = [card for card in cards(text) if judged(card)]
-        body = "".join(found) or "None.\n"
-        write(args.out, f"# {name} — the cards a verify judges\n\n{body}")
+        found = open_page(args.findings, args.out)
     except Stop as stop:
         print(f"open cards: cannot read — {stop}")
         return 2
-    print(f"open cards: {len(found)} of {name}")
+    print(f"open cards: {found} of {args.findings.name}")
     return 0
 
 

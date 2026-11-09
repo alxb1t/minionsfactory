@@ -9,7 +9,7 @@ only the phase's end is green.
 
 - [x] 1 — The fields · hard
 - [x] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
-- [ ] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
+- [x] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
 - [ ] 4 — The debt, the halts and the report · hard
 - [ ] 5 — `conduct.py`: the in-process call and the retirements · hard
 - [ ] 6 — The front, the record and the metrics · hard
@@ -56,17 +56,17 @@ only the phase's end is green.
 
 ## 3 — The loop: fix, verify, pickup, grant, catch-up, resume
 
-- [ ] 3.1 Add `test_a_blocker_is_fixed_verified_and_cleared`, `test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap`,
+- [x] 3.1 Add `test_a_blocker_is_fixed_verified_and_cleared`, `test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap`,
   `test_the_cap_halts_with_the_open_blockers` and `test_plan_check_left_halts_amend_needed`; then `fix` (the fixer on `fix=` always,
   one more pass on a red gate or dirty tree, the re-freeze, `fix.md`), `verify` and `cap`.
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def fix(' -e '^def verify(' -e '^def cap(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 3.2 Add `test_round_one_pickup_rides_with_the_fix`, `test_a_pickup_check_runs_on_the_needed_role` and
+- [x] 3.2 Add `test_round_one_pickup_rides_with_the_fix`, `test_a_pickup_check_runs_on_the_needed_role` and
   `test_a_granted_round_goes_one_past_the_cap`; then `pickup` and `grant`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def pickup(' -e '^def grant(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 3.3 Add `test_a_catch_up_judges_the_new_commits` and `test_a_merge_only_catch_up_is_by_rule`; then `catch_up` and `by_rule`
+- [x] 3.3 Add `test_a_catch_up_judges_the_new_commits` and `test_a_merge_only_catch_up_is_by_rule`; then `catch_up` and `by_rule`
   (`replay` called as a function, per [D1](design.md#d1); a failure of it a worker round).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def catch_up(' -e '^def by_rule(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 3.4 Add `test_a_run_resumes_from_its_status_log` (parametrized by the latest event) and
+- [x] 3.4 Add `test_a_run_resumes_from_its_status_log` (parametrized by the latest event) and
   `test_a_shadow_round_runs_the_other_host_and_drives_nothing`; then `resume`, `open_run` and `shadow`.
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def resume(' -e '^def shadow(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
 

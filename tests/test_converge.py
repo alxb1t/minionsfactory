@@ -22,6 +22,8 @@ _WORKERS = {
     "adversarial": ("claude", None, None),
     "fix": ("claude", "claude-sonnet-5-5", "medium"),
 }
+# A fake checker's scope: as wide as any freeze a test makes.
+_WIDE = {"files": 99, "commits": 99}
 
 
 def _converge() -> dict[str, Any]:
@@ -109,25 +111,39 @@ def findings(role: str, head: str, **keys: object) -> str:
     return f"---\n{lines}---\n\n{body}\n## Resolution log\n"
 
 
+def _round_of(station: str) -> int:
+    """Return the round a station's name ends on, e.g. "converge-fix-r2" → 2."""
+    return int(station.rpartition("-r")[2])
+
+
 class Host:
-    """A fake of the run `converge` is handed: its sandbox and its workers."""
+    """A fake of the run `converge` is handed: its sandbox and its workers.
+
+    A checker writes `<table>.md` clean at `HEAD`, unless `answers` holds its
+    station; a fixer commits one file and reports, unless `fixers` holds one.
+    `exits` holds an exit per command, or a list taken one a call, its last kept.
+    """
 
     def __init__(self, primary: Path, tree: Path) -> None:
         self.primary = primary
         self.tree = tree
         self.plan: dict[tuple[str, str], tuple[str, str | None, str | None]] = {}
-        self.exits: dict[str, int] = {}
+        self.exits: dict[str, int | list[int]] = {}
         self.printed = {"make": "uv run ruff check .\n"}
         self.ran: list[list[str]] = []
         self.checks: list[tuple[str, str, str | None, str]] = []
+        self.answers: dict[str, Callable[[str], None]] = {}
+        self.results: dict[str, Checked] = {}
+        self.fixers: list[Callable[[Host], int | None]] = []
+        self.fixed: list[tuple[str, tuple[str, str | None, str | None], str]] = []
         self.sandbox = True
-        self.judge: Callable[[str, str], str] = self.clean
 
     def folder(self) -> Path:
         return self.primary / ".minions" / "changes" / _CHANGE
 
-    def clean(self, role: str, head: str) -> str:
-        return findings(role, head)
+    def write(self, role: str, text: str) -> None:
+        self.folder().mkdir(parents=True, exist_ok=True)
+        (self.folder() / f"{role}.md").write_text(text)
 
     def trees(self) -> list[Path]:
         return [self.primary, self.tree]
@@ -142,7 +158,10 @@ class Host:
         self.ran.append(argv)
         name = Path(argv[3]).name if argv[0] == "uv" else argv[0]
         print(self.printed.get(name, ""), end="", file=out)
-        return self.exits.get(name, 0)
+        code = self.exits.get(name, 0)
+        if isinstance(code, list):
+            return code.pop(0) if len(code) > 1 else code[0]
+        return code
 
     def checker(
         self,
@@ -158,9 +177,43 @@ class Host:
         assert deadline > time.monotonic()
         self.checks.append((station, table, effort, prompt))
         head = _git(self.tree, "rev-parse", "HEAD")
-        self.folder().mkdir(parents=True, exist_ok=True)
-        (self.folder() / f"{table}.md").write_text(self.judge(table, head))
-        return Checked(0, False, _WORKERS[table], "", False, 1200)
+        if answer := self.answers.get(station):
+            answer(head)
+        else:
+            self.write(table, findings(table, head, round=_round_of(station), **_WIDE))
+        models = _WORKERS.get(table.removeprefix("shadow-"), ("codex", None, None))
+        return self.results.get(station, Checked(0, False, models, "", False, 1200))
+
+    def worker(
+        self,
+        who: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        timeout: float | None = None,
+    ) -> tuple[int, bool, Path, list[str]]:
+        assert (who, cwd) == (_CHANGE, self.tree)
+        assert timeout is not None and timeout > 0
+        self.fixed.append((station, models, prompt))
+        code = (self.fixers.pop(0) if self.fixers else fixing)(self)
+        return code or 0, False, self.folder() / "logs" / f"x-{station}.log", []
+
+
+def fixing(host: Host, left: str = "none") -> None:
+    """Commit one fix and write the fixer's report, `plan check left: <left>`."""
+    count = len(host.fixed)
+    _commit(host.tree, {f"src/fix{count}.py": f"F = {count}\n"}, "fix(0001-a): it")
+    (host.folder() / "fix.md").write_text(
+        f"fixed: R1\nwontfix: none\ncommit: x\nplan check left: {left}\n"
+    )
+
+
+def idle(host: Host) -> None:
+    """Commit nothing: every card the fixer took is `wontfix`."""
+    (host.folder() / "fix.md").write_text(
+        "fixed: none\nwontfix: R2\ncommit: nothing committed\nplan check left: none\n"
+    )
 
 
 @pytest.fixture
@@ -191,11 +244,22 @@ def host(tmp_path: Path) -> Host:
     return Host(primary.resolve(), tree.resolve())
 
 
-def run(host: Host, workers: Mapping[str, object] | None = None) -> int:
+def run(
+    host: Host,
+    workers: Mapping[str, object] | None = None,
+    *,
+    grant: bool = False,
+    module: dict[str, Any] | None = None,
+) -> int:
     """Return `converge`'s exit over the fake host, on `_WORKERS` unless given."""
     deadline = time.monotonic() + 3600
-    return _converge()["converge"](
-        host, _CHANGE, host.tree, workers=workers or _WORKERS, deadline=deadline
+    return (module or _converge())["converge"](
+        host,
+        _CHANGE,
+        host.tree,
+        workers=workers or _WORKERS,
+        grant=grant,
+        deadline=deadline,
     )
 
 
@@ -372,16 +436,23 @@ def test_each_worker_prompt_is_filled_from_its_reference() -> None:
         converge["prompt"]("verify.md", **values)
 
 
-def _card(card: str, *, amend: str | None = "no", status: str = "open") -> str:
+def _card(
+    card: str,
+    *,
+    amend: str | None = "no",
+    status: str = "open",
+    size: str = "one line",
+    category: str = "functional correctness",
+) -> str:
     """Return a card `<id> <severity>`, e.g. "R1 blocking", with its fields."""
     ident, severity = card.split()
     role = "conformance" if ident.startswith("R") else "adversarial"
     fields = [
         ("Why it's a problem:", "it breaks."),
         ("What it affects:", "`src/a.py:1`."),
-        ("Priority:", f"{severity} · {role} · functional correctness — it breaks."),
+        ("Priority:", f"{severity} · {role} · {category} — it breaks."),
         ("Round:", "1"),
-        ("Fix:", "fix it · size: one line."),
+        ("Fix:", f"fix it · size: {size}."),
         ("Amend:", amend),
         ("Still true?", "`grep -n A src/a.py`"),
         ("Related:", "none."),
@@ -486,11 +557,14 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     ]
 
 
-def _verdicts(role: str) -> str:
+def _verdicts(
+    role: str, round_: int = 1, verdict: str = "clean", blocking: int = 0
+) -> str:
     executor, model, effort = _WORKERS[role]
     return (
-        f"round 1 · verdicts — {role} clean · open_blocking 0 · executor {executor}"
-        f" · model {model or 'default'} · effort {effort or 'default'} · tokens 1200"
+        f"round {round_} · verdicts — {role} {verdict} · open_blocking {blocking}"
+        f" · executor {executor} · model {model or 'default'}"
+        f" · effort {effort or 'default'} · tokens 1200"
     )
 
 
@@ -562,3 +636,815 @@ def test_a_skipped_checker_is_a_stub(host: Host) -> None:
         "round 1 · halt — both checkers are skipped: a plan that skips both runs no"
         f" converge · head {head}"
     ]
+
+
+def answer(
+    host: Host, role: str, *cards: str, blocking: int = 0, **keys: object
+) -> Callable[[str], None]:
+    """Return a checker's answer: `role`'s file at the head given, with `cards`."""
+
+    def write(head: str) -> None:
+        verdict = "changes-requested" if blocking else "clean"
+        body = "## Summary\n\nJudged.\n\n" + "".join(cards)
+        fields = {"verdict": verdict, "open_blocking": blocking, **_WIDE, **keys}
+        host.write(role, findings(role, head, body=body, **fields))
+
+    return write
+
+
+def _head(host: Host) -> str:
+    return _git(host.tree, "rev-parse", "HEAD")
+
+
+def _ran(host: Host) -> list[str]:
+    return [Path(argv[3]).name if argv[0] == "uv" else argv[0] for argv in host.ran]
+
+
+def _stations(host: Host) -> list[tuple[str, str, str | None]]:
+    return sorted((station, table, effort) for station, table, effort, _ in host.checks)
+
+
+def _fan_out(round_: int, span: str) -> str:
+    return (
+        f"round {round_} · fan-out — conformance and adversarial dispatched · {span}"
+        " · 2 workers"
+    )
+
+
+def heading(host: Host) -> str:
+    log = (host.folder() / "status_log.md").read_text().splitlines()
+    return next(line for line in log if line.startswith("## Run"))
+
+
+def test_a_blocker_is_fixed_verified_and_cleared(host: Host) -> None:
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    first = _head(host)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    workers = {**_WORKERS, "fix": ("claude", "claude-sonnet-5-5", None)}
+
+    assert run(host, workers) == 0
+
+    fixed = _head(host)
+    span = f"{first[:7]}..{fixed[:7]}"
+    assert [(station, models) for station, models, _ in host.fixed] == [
+        ("converge-fix-r1", ("claude", "claude-sonnet-5-5", "medium"))
+    ]
+    told = host.fixed[0][2]
+    assert told.startswith(f"role: fix\nchange: {_CHANGE}\nround: 1\n")
+    assert "- The cards to clear, by id: R1\n" in told
+    assert f"- The base for the plan check: {base}\n" in told
+    assert events(host)[3:] == [
+        _verdicts("conformance", verdict="changes-requested", blocking=1),
+        _verdicts("adversarial"),
+        "round 1 · fix — sent R1",
+        f"round 1 · fix — commit {fixed[:7]} · gate green",
+        f"round 1 · freeze — {span} · 1 commit · 1 file",
+        f"round 1 · verify — round 2 · {span} · gate green",
+        _fan_out(2, span),
+        _verdicts("conformance", 2),
+        _verdicts("adversarial", 2),
+        "round 2 · done — converged in 2 rounds · 0 cards to debt",
+    ]
+    assert _stations(host)[2:] == [
+        ("converge-verify-adversarial-r2", "adversarial", "medium"),
+        ("converge-verify-conformance-r2", "conformance", "medium"),
+    ]
+    verify = next(text for station, _, _, text in host.checks if "verify-c" in station)
+    assert verify.startswith(f"role: conformance\nchange: {_CHANGE}\nround: 2\n")
+    assert f"{first}..{fixed}: {host.folder() / 'diff.patch'}" in verify
+    assert str(host.folder() / "conformance.open.md") in verify
+    assert "- **R1 — It breaks**" in (host.folder() / "conformance.open.md").read_text()
+    assert _ran(host) == [
+        *("make", "gate_run.py", "gate_check.py"),
+        *("gate_run.py", "gate_run.py", "gate_check.py", "plan_check.py"),
+    ]
+
+    for case, why in (
+        ("failed", "converge-fix-r1 worker exit 1"),
+        ("no card", "changes requested with no blocking card open"),
+        ("status", "open cards: cannot read — card R1: Status maybe"),
+    ):
+        card = _card("R1 blocking", status="maybe" if case == "status" else "open")
+        host.answers["converge-conformance-r1"] = (
+            answer(host, "conformance", verdict="changes-requested")
+            if case == "no card"
+            else answer(host, "conformance", card, blocking=1)
+        )
+        host.fixers = [lambda host: 1] if case == "failed" else []
+
+        assert run(host) == 1
+
+        assert events(host)[-1].endswith(f" · halt — {why} · head {_head(host)}")
+
+    host.answers.clear()
+    host.results["converge-conformance-r1"] = Checked(
+        0, True, _WORKERS["conformance"], "", False, None
+    )
+
+    assert run(host) == 1
+
+    last = events(host)[-1]
+    assert last.startswith("round 1 · halt — converge-conformance-r1 timed out after ")
+    assert last.endswith(f"s; its group was killed · head {_head(host)}")
+
+
+def test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    host.exits["gate_run.py"] = [0, 2, 0]
+    host.printed["gate_run.py"] = "FAILED tests/test_a.py::test_one\n"
+
+    assert run(host) == 0
+
+    assert [station for station, *_ in host.fixed] == ["converge-fix-r1"] * 2
+    assert host.fixed[1][2].count(
+        "R1; and the gate is red, exit 2: FAILED tests/test_a.py::test_one"
+    )
+    written = events(host)
+    sent = written.index("round 1 · fix — sent R1")
+    assert written[sent + 1].endswith(" · the gate is red, exit 2")
+    assert written[sent + 2] == "round 1 · fix — sent R1 · one more pass"
+    assert written[sent + 3].endswith(" · gate green")
+    assert written[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+
+    def dirty(host: Host) -> None:
+        fixing(host)
+        (host.tree / "stray.txt").write_text("x\n")
+
+    host.fixers = [dirty, dirty]
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 1 · halt — cap reached — the tree is dirty: stray.txt after one more"
+        f" fix pass · head {_head(host)}"
+    )
+
+
+def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:
+    security = _card("S1 high", category="security")
+    for station in (
+        "converge-conformance-r1",
+        *(f"converge-verify-conformance-r{n}" for n in (2, 3)),
+    ):
+        host.answers[station] = answer(
+            host,
+            "conformance",
+            _card("R1 blocking"),
+            blocking=1,
+            round=_round_of(station),
+        )
+    for station in (
+        "converge-adversarial-r1",
+        *(f"converge-verify-adversarial-r{n}" for n in (2, 3)),
+    ):
+        host.answers[station] = answer(
+            host, "adversarial", security, blocking=1, round=_round_of(station)
+        )
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), _card("R2 nit"), blocking=1
+    )
+
+    assert run(host) == 1
+
+    assert [station for station, *_ in host.fixed] == [
+        "converge-fix-r1",
+        "converge-fix-r2",
+    ]
+    assert "by id: R1, S1, R2\n" in host.fixed[0][2]
+    assert "by id: R1, S1\n" in host.fixed[1][2]
+    written = events(host)
+    assert "round 1 · pickup — R2 · with the fix" in written
+    assert written[-1] == (
+        f"round 3 · halt — cap reached, R1, S1 open · security S1 · pickup R2"
+        f" · head {_head(host)}"
+    )
+    assert not any(" · done — " in line for line in written)
+    assert "round: 3\n" in (host.folder() / "conformance.md").read_text()
+
+
+def test_plan_check_left_halts_amend_needed(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    host.fixers = [lambda host: fixing(host, left="2.3")]
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = "plan: 2.3 — `git grep -n x` exited 1\n  | x\n"
+
+    assert run(host) == 1
+
+    written = events(host)
+    assert written[-2].startswith("round 1 · verify — round 2 · ")
+    assert written[-1] == (
+        f"round 1 · halt — amend needed — plan check: 2.3 · head {_head(host)}"
+    )
+    assert not any("-r2" in station for station, *_ in host.checks)
+
+    host.fixers = [fixing, fixing]
+    host.printed["plan_check.py"] = (
+        "plan: tests/test_a.py:4 names gone, which the diff removes\n"
+    )
+
+    assert run(host) == 1
+
+    assert "by id: plan check: tests/test_a.py:4\n" in host.fixed[-1][2]
+    written = events(host)
+    assert "round 1 · fix — sent plan check: tests/test_a.py:4" in written
+    assert written[-1] == (
+        "round 1 · halt — amend needed — plan check: tests/test_a.py:4"
+        f" · head {_head(host)}"
+    )
+
+    def amending(host: Host) -> None:
+        card = _card("R1 blocking", amend="yes", status="wontfix")
+        answer(host, "conformance", card, blocking=1)(_head(host))
+        idle(host)
+
+    host.fixers = [amending]
+    host.exits["plan_check.py"] = 0
+
+    assert run(host) == 1
+
+    written = events(host)
+    assert written[-2] == "round 1 · fix — nothing committed · gate green"
+    assert written[-1] == f"round 1 · halt — amend needed — R1 · head {_head(host)}"
+
+    _amend(host)
+
+    assert run(host) == 0
+
+    assert heading(host).endswith(" · amend")
+    assert (
+        events(host)[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    )
+
+    host.exits["plan_check.py"] = 2
+    host.printed["plan_check.py"] = "plan: cannot check — tasks.md: gone\n"
+    host.fixers = []
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 1 · halt — plan check: cannot check — tasks.md: gone"
+        f" · head {_head(host)}"
+    )
+
+
+def test_round_one_pickup_rides_with_the_fix(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host,
+        "conformance",
+        _card("R1 blocking"),
+        _card("R2 nit"),
+        _card("R3 drift", size="a design change"),
+        _card("R4 nit", size="a design change"),
+        _card("R5 nit", status="fixed"),
+        blocking=1,
+    )
+    host.answers["converge-adversarial-r1"] = answer(
+        host,
+        "adversarial",
+        _card("S1 low", size="a test"),
+        _card("S2 medium", size="a design change"),
+    )
+
+    assert run(host) == 0
+
+    assert "by id: R1, R2, R3, S1\n" in host.fixed[0][2]
+    written = events(host)
+    assert written[5:7] == [
+        "round 1 · pickup — R2, R3, S1 · with the fix",
+        "round 1 · fix — sent R1, R2, R3, S1",
+    ]
+    assert written[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    assert not any("pickup" in station for station, *_ in host.checks)
+
+    host.answers = {
+        "converge-conformance-r1": answer(host, "conformance", _card("R2 nit"))
+    }
+    host.fixers = [idle]
+    host.ran.clear()
+
+    assert run(host) == 0
+
+    assert events(host)[5:] == [
+        "round 1 · pickup — R2",
+        "round 1 · fix — sent R2",
+        "round 1 · fix — nothing committed · gate green",
+        "round 1 · pickup — checked — nothing committed",
+        "round 1 · done — converged in 1 round · 0 cards to debt",
+    ]
+    assert _ran(host)[3:] == ["gate_run.py"]
+
+
+def test_a_pickup_check_runs_on_the_needed_role(host: Host) -> None:
+    first = _head(host)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R2 nit")
+    )
+
+    assert run(host) == 0
+
+    fixed = _head(host)
+    span = f"{first[:7]}..{fixed[:7]}"
+    assert events(host)[5:] == [
+        "round 1 · pickup — R2",
+        "round 1 · fix — sent R2",
+        f"round 1 · fix — commit {fixed[:7]} · gate green",
+        f"round 1 · freeze — {span} · 1 commit · 1 file",
+        f"round 1 · verify — pickup check · {span} · gate green",
+        "round 1 · pickup — checked · conformance clean · open_blocking 0"
+        " · adversarial clean · open_blocking 0 · executor claude"
+        " · model claude-opus-5-5 · effort high · tokens 1200",
+        "round 1 · done — converged in 1 round · 0 cards to debt",
+    ]
+    station, table, effort, told = host.checks[-1]
+    assert (station, table, effort) == (
+        "converge-verify-pickup-r1",
+        "conformance",
+        "medium",
+    )
+    assert told.startswith(f"role: pickup\nchange: {_CHANGE}\nround: 1\n")
+    for role in ("conformance", "adversarial"):
+        assert str(host.folder() / f"{role}.open.md") in told
+    assert _ran(host)[3:] == ["gate_run.py", "gate_run.py", "gate_check.py"]
+
+    host.answers = {
+        "converge-adversarial-r1": answer(
+            host, "adversarial", _card("S1 low", size="a test")
+        )
+    }
+
+    assert run(host) == 0
+
+    assert host.checks[-1][:2] == ("converge-verify-pickup-r1", "adversarial")
+
+    host.answers = {
+        "converge-conformance-r1": answer(host, "conformance", _card("R2 nit")),
+        "converge-verify-pickup-r1": answer(
+            host, "conformance", _card("R5 blocking"), blocking=1
+        ),
+    }
+
+    assert run(host) == 0
+
+    written = events(host)
+    checked = next(i for i, line in enumerate(written) if "pickup — checked" in line)
+    assert " · conformance changes-requested · open_blocking 1 · " in written[checked]
+    assert written[checked + 1] == "round 1 · fix — sent R5"
+    assert written[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    assert sum("pickup — " in line for line in written) == 2
+
+    host.answers = {
+        "converge-conformance-r1": answer(host, "conformance", _card("R2 nit"))
+    }
+    host.results["converge-verify-pickup-r1"] = Checked(
+        1, False, _WORKERS["conformance"], "", False, None
+    )
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        f"round 1 · halt — converge-verify-pickup-r1 worker exit 1 · head {_head(host)}"
+    )
+
+
+def _plant(host: Host, *lines: str, mark: str | None = None) -> None:
+    """Write a status log whose one run holds `lines`, oldest first."""
+    title = f"## Run 1 — 2026-11-09 10:00{f' · {mark}' if mark else ''}"
+    stamped = [f"10:00:{n:02d} · {line}" for n, line in enumerate(lines)]
+    host.folder().mkdir(parents=True, exist_ok=True)
+    (host.folder() / "status_log.md").write_text(
+        f"# {_CHANGE} — converge status\n\n{title}\n" + "\n".join(stamped[::-1]) + "\n"
+    )
+
+
+def test_a_granted_round_goes_one_past_the_cap(host: Host) -> None:
+    first = _head(host)
+    blocker = answer(host, "conformance", _card("R1 blocking"), blocking=1, round=3)
+    blocker(first)
+    answer(host, "adversarial", round=3)(first)
+    _plant(host, f"round 3 · halt — cap reached, R1 open · head {first}")
+    host.answers["converge-verify-conformance-r4"] = answer(
+        host, "conformance", _card("R9 nit"), round=4
+    )
+
+    assert run(host, grant=True) == 0
+
+    fixed = _head(host)
+    span = f"{first[:7]}..{fixed[:7]}"
+    assert heading(host).endswith(" · grant")
+    assert [station for station, *_ in host.fixed] == ["converge-fix-r3"]
+    assert events(host) == [
+        "round 3 · fix — sent R1 · grant",
+        f"round 3 · fix — commit {fixed[:7]} · gate green",
+        f"round 3 · freeze — {span} · 1 commit · 1 file",
+        f"round 3 · verify — round 4 · {span} · gate green",
+        _fan_out(4, span),
+        _verdicts("conformance", 4),
+        _verdicts("adversarial", 4),
+        "round 4 · done — converged in 4 rounds · 0 cards to debt",
+    ]
+
+    answer(host, "conformance", _card("R1 blocking"), blocking=1, round=4)(fixed)
+    host.answers["converge-verify-conformance-r5"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1, round=5
+    )
+
+    assert run(host, grant=True) == 1
+
+    assert (
+        events(host)[-1]
+        == f"round 5 · halt — cap reached, R1 open · head {_head(host)}"
+    )
+
+    answer(host, "conformance", round=5)(_head(host))
+
+    assert run(host, grant=True) == 1
+
+    assert events(host)[-1].endswith(
+        f" · halt — a granted round needs a blocking card open · head {_head(host)}"
+    )
+
+
+def _amend(host: Host, text: str = "# A — design, amended\n") -> str:
+    return _commit(
+        host.tree,
+        {f"openspec/changes/{_CHANGE}/design.md": text},
+        f"docs({_CHANGE}): amend the change directory",
+    )
+
+
+def _merge_main(host: Host, name: str) -> str:
+    _commit(host.primary, {f"src/{name}.txt": f"{name}\n"}, f"main: {name}")
+    _git(host.tree, "merge", "-q", "--no-ff", "-m", f"Merge main: {name}", "main")
+    return _head(host)
+
+
+def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    assert run(host) == 0
+    judged = _head(host)
+    late = _commit(host.tree, {"src/late.py": "L = 1\n"}, "feat(0001-a): late")
+    host.answers["converge-adversarial-r2"] = answer(
+        host, "adversarial", _card("S1 low", size="a test"), round=2
+    )
+    host.checks.clear()
+
+    assert run(host) == 0
+
+    span = f"{judged[:7]}..{late[:7]}"
+    assert heading(host).endswith(" · catch-up")
+    assert events(host) == [
+        f"round 1 · catch-up — judged head {judged[:7]} · HEAD {late[:7]} · counted",
+        f"round 1 · start — base {base[:7]} · head {late[:7]} · 2 commits · 2 files",
+        f"round 1 · freeze — {span} · 1 commit · 1 file",
+        f"round 1 · verify — round 2 · {span} · gate green",
+        _fan_out(2, span),
+        _verdicts("conformance", 2),
+        _verdicts("adversarial", 2),
+        "round 2 · done — converged in 2 rounds · 0 cards to debt",
+    ]
+    assert _stations(host) == [
+        ("converge-adversarial-r2", "adversarial", None),
+        ("converge-conformance-r2", "conformance", None),
+    ]
+    assert f"{judged}..{late}" in host.checks[0][3]
+
+    tasks = _TASKS + "\n- [x] 1.1 One.\n  Verify: `git grep -n nope` prints a line.\n"
+    _commit(
+        host.tree,
+        {f"openspec/changes/{_CHANGE}/tasks.md": tasks},
+        f"docs({_CHANGE}): amend the change directory",
+    )
+    host.exits["git"] = 1
+
+    assert run(host) == 1
+
+    assert (
+        events(host)[-1] == f"round 2 · halt — verify failed — 1.1 · head {_head(host)}"
+    )
+
+    host.exits["git"] = 0
+    host.exits["plan_check.py"] = [1, 0]
+    host.printed["plan_check.py"] = "plan: 1.1 — `git grep -n nope` exited 1\n"
+
+    assert run(host) == 0
+
+    written = events(host)
+    assert written[0].endswith(" · its own count")
+    assert "round 2 · fix — sent plan check: 1.1" in written
+    assert written[-1] == "round 3 · done — converged in 3 rounds · 0 cards to debt"
+
+    merged = _merge_main(host, "moved")
+    amended = _amend(host)
+    host.checks.clear()
+
+    assert run(host) == 0
+
+    patch = (host.folder() / "diff.patch").read_text()
+    assert patch.startswith(f"commit {merged}\nMerge: ")
+    assert f"commit {amended}\n" in patch
+    assert "src/moved.txt" not in patch
+    written = events(host)
+    assert written[0].endswith(f"HEAD {amended[:7]} · its own count")
+    assert written[2].endswith(" · 2 commits · 1 file")
+    assert written[-1] == "round 4 · done — converged in 4 rounds · 0 cards to debt"
+
+    _commit(host.tree, {"src/later.py": "L = 2\n"}, "feat(0001-a): later")
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 4 · halt — the files judged round 4, the cap: revert the late commits,"
+        f" or re-converge from round 1 · head {_head(host)}"
+    )
+
+    _git(host.tree, "checkout", "-q", "-b", "side", "main")
+    _commit(host.tree, {"src/side.py": "S = 1\n"}, "side")
+    _git(host.tree, "checkout", "-q", _CHANGE)
+    _git(host.tree, "merge", "-q", "--no-ff", "-m", "Merge side", "side")
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        f"round 4 · halt — {_head(host)[:7]} is no merge of main: catch-up scope"
+        f" cannot judge it · head {_head(host)}"
+    )
+
+    _git(host.tree, "reset", "-q", "--hard", "main")
+    _commit(host.tree, {"src/b.py": "B = 1\n"}, "feat(0001-a): again")
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        f"round 4 · halt — history rewritten: {amended[:7]} is not on HEAD's"
+        f" first-parent chain — re-converge from round 1 · head {_head(host)}"
+    )
+
+
+def test_a_merge_only_catch_up_is_by_rule(host: Host) -> None:
+    assert run(host) == 0
+    judged = _head(host)
+    merged = _merge_main(host, "moved")
+    parents = _git(host.tree, "rev-list", "--parents", "-n", "1", merged).split()[1:]
+    host.checks.clear()
+
+    assert run(host) == 0
+
+    assert events(host)[2:] == [
+        "round 2 · by rule — clean, no conflict",
+        "round 2 · done — converged in 2 rounds · 0 cards to debt",
+    ]
+    assert events(host)[0] == (
+        f"round 1 · catch-up — judged head {judged[:7]} · HEAD {merged[:7]}"
+        " · its own count"
+    )
+    assert host.checks == []
+    today = time.strftime("%Y-%m-%d")
+    for role in ("conformance", "adversarial"):
+        text = (host.folder() / f"{role}.md").read_text()
+        for line in (f"head: {merged}", "round: 2", f"reviewed: {today}"):
+            assert f"\n{line}\n" in text
+        for line in ("mode: by-rule", "workers: 0", "verdict: clean"):
+            assert f"\n{line}\n" in text
+        assert (
+            f"## By rule\n\n- {merged} ({' '.join(parents)}): no conflict\n\n"
+            "## Resolution log\n"
+        ) in text
+        assert text.endswith(f"\n{today} · round 2 · by rule — clean\n")
+
+    module = _converge()
+    stop = module["INTEGRATE"]["Stop"]
+
+    def refuse(cwd: Path, merge: str) -> str:
+        raise stop(2, "integrate: cannot run — git merge failed")
+
+    module["INTEGRATE"]["replay"] = refuse
+    _merge_main(host, "again")
+
+    assert run(host, module=module) == 0
+
+    written = events(host)
+    assert not any(" · by rule — " in line for line in written)
+    assert written[3].startswith("round 2 · verify — round 3 · ")
+    assert _stations(host) == [
+        ("converge-adversarial-r3", "adversarial", None),
+        ("converge-conformance-r3", "conformance", None),
+    ]
+
+
+def test_a_shadow_round_runs_the_other_host_and_drives_nothing(host: Host) -> None:
+    shadowed = {**_WORKERS, "shadow": True}
+    host.answers["converge-shadow-conformance-r1"] = answer(
+        host, "shadow-conformance", _card("R1 blocking"), blocking=1
+    )
+
+    assert run(host, shadowed) == 0
+
+    assert _stations(host) == [
+        ("converge-adversarial-r1", "adversarial", None),
+        ("converge-conformance-r1", "conformance", None),
+        ("converge-shadow-adversarial-r1", "shadow-adversarial", None),
+        ("converge-shadow-conformance-r1", "shadow-conformance", None),
+    ]
+    assert events(host)[5:] == [
+        "round 1 · shadow — conformance shared 0 · primary (claude) alone 0"
+        " · shadow (claude) alone 1 · blockers shared 0 · primary 0 · shadow 1;"
+        " adversarial shared 0 · primary (claude) alone 0 · shadow (claude) alone 0"
+        " · blockers shared 0 · primary 0 · shadow 0",
+        "round 1 · done — converged in 1 round · 0 cards to debt",
+    ]
+    assert host.fixed == []
+
+    host.checks.clear()
+    host.results["converge-shadow-adversarial-r1"] = Checked(
+        1, False, ("codex", None, None), "", False, None
+    )
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    assert run(host, shadowed) == 0
+
+    written = events(host)
+    assert (
+        written[5] == "round 1 · shadow — converge-shadow-adversarial-r1 worker exit 1"
+    )
+    assert written[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    assert sorted(station for station, *_ in host.checks if "shadow" in station) == [
+        "converge-shadow-adversarial-r1",
+        "converge-shadow-conformance-r1",
+    ]
+
+    assert run(host, {**shadowed, "adversarial": "skip"}) == 1
+
+    assert events(host)[-1].startswith(
+        "round 1 · halt — a shadow round beside a skipped checker"
+    )
+
+    gone = host.folder() / "shadow-conformance.md"
+    host.results.clear()
+    host.answers = {"converge-shadow-conformance-r1": lambda head: gone.unlink()}
+
+    assert run(host, shadowed) == 0
+
+    assert events(host)[5] == f"round 1 · shadow — overlap: cannot read — {gone}"
+
+
+def _resumed(host: Host, case: str) -> list[str]:
+    """Plant a run whose newest event is `case`'s; return the events planted."""
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    head = _head(host)
+    span = f"{base[:7]}..{head[:7]}"
+    start = f"round 1 · start — base {base[:7]} · head {head[:7]} · 1 commit · 1 file"
+    frozen = f"round 1 · freeze — {span} · 1 commit · 1 file"
+    fanned = _fan_out(1, span)
+    judged = [start, frozen, fanned, _verdicts("conformance"), _verdicts("adversarial")]
+    blocker, nit = _card("R1 blocking"), _card("R2 nit")
+    cards = {
+        "fix, a commit since": (blocker,),
+        "fix, none since": (blocker,),
+        "verify": (blocker,),
+        "pickup with the fix": (blocker, nit),
+        "pickup ids": (nit,),
+        "pickup checked": (nit,),
+        "pickup fix": (nit,),
+        "pickup verify": (nit,),
+    }.get(case, ())
+    if case not in ("start", "freeze"):
+        answer(host, "conformance", *cards, blocking=int(blocker in cards))(head)
+        if case != "fan-out":
+            answer(host, "adversarial")(head)
+    planted = {
+        "start": [start],
+        "freeze": [start, frozen],
+        "fan-out": [start, frozen, fanned],
+        "verdicts": judged,
+        "shadow": [*judged, "round 1 · shadow — conformance shared 0"],
+        "fix, a commit since": [*judged, "round 1 · fix — sent R1"],
+        "fix, none since": [*judged, "round 1 · fix — sent R1"],
+        "pickup none": [*judged, "round 1 · pickup — none"],
+        "pickup ids": [*judged, "round 1 · pickup — R2"],
+        "pickup checked": [
+            *judged,
+            "round 1 · pickup — R2",
+            "round 1 · pickup — checked",
+        ],
+        "pickup with the fix": [*judged, "round 1 · pickup — R2 · with the fix"],
+        "debt": [*judged, "round 1 · debt — none"],
+        "pickup fix": [*judged, "round 1 · pickup — R2", "round 1 · fix — sent R2"],
+    }
+    if case in ("verify", "pickup verify"):
+        fixed = _commit(host.tree, {"src/fix.py": "F = 1\n"}, "fix(0001-a): it")
+        span = f"{head[:7]}..{fixed[:7]}"
+        picked = case == "pickup verify"
+        lines = [
+            *judged,
+            *(["round 1 · pickup — R2"] if picked else []),
+            f"round 1 · fix — sent {'R2' if picked else 'R1'}",
+            f"round 1 · fix — commit {fixed[:7]} · gate green",
+            f"round 1 · freeze — {span} · 1 commit · 1 file",
+            f"round 1 · verify — {'pickup check' if picked else 'round 2'} · {span}"
+            " · gate green",
+        ]
+        _plant(host, *lines)
+        return lines
+    if case in ("fix, a commit since", "grant", "pickup fix"):
+        _commit(host.tree, {"src/fix.py": "F = 1\n"}, "fix(0001-a): it")
+    if case == "grant":
+        answer(host, "conformance", blocker, blocking=1, round=3)(head)
+        answer(host, "adversarial", round=3)(head)
+        _plant(host, "round 3 · fix — sent R1 · grant", mark="grant")
+        return ["round 3 · fix — sent R1 · grant"]
+    if case in ("catch-up", "by rule"):
+        moved = _merge_main(host, "moved")
+        lines = [
+            f"round 1 · catch-up — judged head {head[:7]} · HEAD {moved[:7]}"
+            " · its own count"
+        ]
+        if case == "by rule":
+            lines += [
+                f"round 1 · start — base {base[:7]} · head {moved[:7]}",
+                "round 2 · by rule — clean, no conflict",
+            ]
+        _plant(host, *lines, mark="catch-up")
+        return lines
+    _plant(host, *planted[case])
+    return planted[case]
+
+
+_RESUMED: dict[str, tuple[list[str], list[str]]] = {
+    "start": (
+        ["freeze", "fan-out", "verdicts", "verdicts", "done"],
+        ["conformance-r1", "adversarial-r1"],
+    ),
+    "freeze": (
+        ["fan-out", "verdicts", "verdicts", "done"],
+        ["conformance-r1", "adversarial-r1"],
+    ),
+    "fan-out": (["fan-out", "verdicts", "done"], ["adversarial-r1"]),
+    "verdicts": (["done"], []),
+    "shadow": (["done"], []),
+    "fix, a commit since": (
+        ["freeze", "verify", "fan-out", "verdicts", "verdicts", "done"],
+        ["verify-conformance-r2", "verify-adversarial-r2"],
+    ),
+    "fix, none since": (
+        ["fix", "fix", "freeze", "verify", "fan-out", "verdicts", "verdicts", "done"],
+        ["verify-conformance-r2", "verify-adversarial-r2"],
+    ),
+    "verify": (
+        ["verify", "fan-out", "verdicts", "verdicts", "done"],
+        ["verify-conformance-r2", "verify-adversarial-r2"],
+    ),
+    "pickup none": (["done"], []),
+    "pickup ids": (
+        ["fix", "fix", "freeze", "verify", "pickup", "done"],
+        ["verify-pickup-r1"],
+    ),
+    "pickup checked": (["done"], []),
+    "pickup fix": (["freeze", "verify", "pickup", "done"], ["verify-pickup-r1"]),
+    "pickup verify": (["verify", "pickup", "done"], ["verify-pickup-r1"]),
+    "pickup with the fix": (
+        ["fix", "fix", "freeze", "verify", "fan-out", "verdicts", "verdicts", "done"],
+        ["verify-conformance-r2", "verify-adversarial-r2"],
+    ),
+    "debt": (["done"], []),
+    "catch-up": (
+        ["catch-up", "start", "by rule", "done"],
+        [],
+    ),
+    "by rule": (["done"], []),
+    "grant": (
+        ["freeze", "verify", "fan-out", "verdicts", "verdicts", "done"],
+        ["verify-conformance-r4", "verify-adversarial-r4"],
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_RESUMED))
+def test_a_run_resumes_from_its_status_log(host: Host, case: str) -> None:
+    planted = _resumed(host, case)
+    names, stations = _RESUMED[case]
+
+    assert run(host) == 0
+
+    log = (host.folder() / "status_log.md").read_text()
+    assert log.count("\n## Run") == 1
+    written = events(host)
+    assert written[: len(planted)] == planted
+    new = written[len(planted) :]
+    assert [line.split(" · ", 1)[1].split(" — ")[0] for line in new] == names
+    assert sorted(
+        station.removeprefix("converge-") for station, *_ in host.checks
+    ) == sorted(stations)
+    if case == "fix, none since":
+        assert "by id: R1\n" in host.fixed[0][2]
+    if case == "pickup with the fix":
+        assert "by id: R1, R2\n" in host.fixed[0][2]
+    if case == "pickup ids":
+        assert "by id: R2\n" in host.fixed[0][2]

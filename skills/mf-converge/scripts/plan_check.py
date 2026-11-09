@@ -178,10 +178,6 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
     0103-fewer-rounds design D4.
     """
     argv = tokens(command.text)
-    search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
-    wanted = (
-        "" if command.nothing else None if command.count is None else str(command.count)
-    )
     try:
         done = subprocess.run(
             argv,
@@ -197,16 +193,28 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
         return [f"plan: {name} — `{command.text}` timed out"]
     except OSError as error:
         code, stdout = 127, str(error.strerror)
-    output = stdout.splitlines()
+    if passed(command, code, stdout):
+        return []
+    shown = [f"  | {line}" for line in stdout.splitlines()[:SHOWN]]
+    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    return [f"plan: {name} — `{command.text}` {result}", *shown]
+
+
+def passed(command: Command, code: int, stdout: str) -> bool:
+    """Return whether a command's exit and output are what its `Verify:` says.
+
+    The rule is `rerun`'s.
+    """
+    argv = tokens(command.text)
+    search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
+    wanted = (
+        "" if command.nothing else None if command.count is None else str(command.count)
+    )
     # Nothing is no byte at all, blank lines included; a count is read stripped.
     printed = stdout if command.nothing else stdout.strip()
     if code == 0 and wanted in (None, printed):
-        return []
-    if code == 1 and search and wanted in ("", "0") and printed in ("", wanted):
-        return []
-    shown = [f"  | {line}" for line in output[:SHOWN]]
-    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
-    return [f"plan: {name} — `{command.text}` {result}", *shown]
+        return True
+    return code == 1 and search and wanted in ("", "0") and printed in ("", wanted)
 
 
 def phases(tasks: str) -> tuple[set[int], set[int]]:
