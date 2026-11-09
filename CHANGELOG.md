@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   heading, `<h12>` or `<h2-widget>`, ends no section (change `0106-cut-scripts`, phase 1).
 - `facts.py place <brief>` places each brief fact at `HEAD` as stands, moved or unplaced, and `facts.py readers <name>…`
   prints a name's `git grep -nw` hits; each writes the cut's notes with `--notes` (change `0106-cut-scripts`, phase 2).
+- `cut_pre.py <id>` runs every precondition of the cut, one line a check; `cut_check.py <id>` decides the self-check's
+  mechanical rows, folds in `openspec validate`, the gate-edit check, the search script and the corpus check, and prints
+  the rows left to judgment. The docstrings of `corpus.py` and `plan_check.py` are cut to the limit (change
+  `0106-cut-scripts`, phase 3).
 
 ## [0.88.0] - 2026-11-09
 

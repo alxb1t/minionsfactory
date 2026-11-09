@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The brief's parser · hard
 - [x] 2 — facts.py · hard
-- [ ] 3 — cut_pre.py and cut_check.py · hard
+- [x] 3 — cut_pre.py and cut_check.py · hard
 - [ ] 4 — The queue writes the models file · hard
 - [ ] 5 — The skills and the record · hard
 
@@ -52,23 +52,23 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — cut_pre.py and cut_check.py
 
-- [ ] 3.1 Add `tests/test_cut_pre.py` with the `## Tests` rows of [D5](design.md#d5), in a scratch repository with a
+- [x] 3.1 Add `tests/test_cut_pre.py` with the `## Tests` rows of [D5](design.md#d5), in a scratch repository with a
   `gate` target and a fake `openspec` first on `PATH`.
   Verify: `grep -n "def test_unattended_preconditions" tests/test_cut_pre.py` prints a line.
-- [ ] 3.2 Write `skills/mf-cut-change/scripts/cut_pre.py` per [D5](design.md#d5): one function a check, `main`, exits 0, 1 and 2.
+- [x] 3.2 Write `skills/mf-cut-change/scripts/cut_pre.py` per [D5](design.md#d5): one function a check, `main`, exits 0, 1 and 2.
   Verify: `uv run pytest -q tests/test_cut_pre.py` passes.
-- [ ] 3.3 Add `tests/test_cut_check.py` with the `## Tests` rows of [D6](design.md#d6), under a fake `openspec` on `PATH`.
+- [x] 3.3 Add `tests/test_cut_check.py` with the `## Tests` rows of [D6](design.md#d6), under a fake `openspec` on `PATH`.
   Verify: `grep -n "def test_each_mechanical_row_fails_by_name" tests/test_cut_check.py` prints a line.
-- [ ] 3.4 Write `skills/mf-cut-change/scripts/cut_check.py` with the rows `I2`, `I4`, `I11`, `I12`, `I13` and `I14` of
+- [x] 3.4 Write `skills/mf-cut-change/scripts/cut_check.py` with the rows `I2`, `I4`, `I11`, `I12`, `I13` and `I14` of
   [D6](design.md#d6), and `main` with its printed forms and exits.
   Verify: `uv run pytest -q tests/test_cut_check.py -k "mechanical and (I2 or I4 or I11 or I12 or I13 or I14)"` passes.
-- [ ] 3.5 In `cut_check.py`, add the rows `I17`, `A1`, `A2`, `P9` and `P13`, and the judgment rows with the `P12` and `P13`
+- [x] 3.5 In `cut_check.py`, add the rows `I17`, `A1`, `A2`, `P9` and `P13`, and the judgment rows with the `P12` and `P13`
   candidates, per [D6](design.md#d6); `cut_pre.py` loads by `runpy` for the open versions.
   Verify: `uv run pytest -q tests/test_cut_check.py -k "mechanical and (I17 or A1 or A2 or P9 or P13)"` passes.
-- [ ] 3.6 In `cut_check.py`, fold in `openspec validate`, `gate_check.py --tasks`, `verify_check.py` and the corpus check of
+- [x] 3.6 In `cut_check.py`, fold in `openspec validate`, `gate_check.py --tasks`, `verify_check.py` and the corpus check of
   `plan_check.py`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_cut_check.py` passes.
-- [ ] 3.7 Cut the module docstrings of `scripts/corpus.py` and `skills/mf-converge/scripts/plan_check.py` to 3 lines each, keeping each
+- [x] 3.7 Cut the module docstrings of `scripts/corpus.py` and `skills/mf-converge/scripts/plan_check.py` to 3 lines each, keeping each
   `Why:` citation, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_corpus.py tests/test_plan_check.py` passes.
 
