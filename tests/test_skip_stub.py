@@ -142,12 +142,13 @@ def test_a_stub_it_cannot_write_exits_2(
         front.format("clean") + card.format("open"),
         front.format("clean") + card.format("fixed — a test"),
         front.format("clean") + card.format("wontfix — the card is wrong"),
+        front.format("clean") + card.format("verified") + card.format("accepted"),
     ):
         stub.write_text(text)
         refused([str(stub), "1"], held)
         assert stub.read_text() == text
     for text in (
-        front.format("clean") + card.format("verified") + card.format("accepted"),
+        front.format("clean") + card.format("verified") + card.format("verified"),
         "---\nmode: skipped\nverdict: changes-requested\n---\n",
     ):
         stub.write_text(text)

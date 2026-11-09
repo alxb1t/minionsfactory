@@ -21,7 +21,6 @@ from pathlib import Path
 ROLES = ("conformance", "adversarial")
 BODY = "Skipped by the plan: no worker judged this round."
 STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\w+)", re.MULTILINE)
-UNCLEARED = ("open", "fixed", "wontfix")
 
 
 class Stop(Exception):
@@ -93,7 +92,8 @@ def stub(path: Path, role: str, round_: int, head: str) -> str:
 def uncleared(text: str) -> bool:
     r"""Return whether a findings file holds a checker's round not yet cleared.
 
-    A stub never does; another does when not clean or a card is open, fixed or wontfix.
+    A stub never does; another does when not clean or a card is other than verified,
+    since Step 9 has yet to write an accepted card to the debt.
     e.g. "---\nmode: parallel\nverdict: clean\n---\n" → False
     """
     lines = text.split("\n---", 1)[0].splitlines()
@@ -102,7 +102,7 @@ def uncleared(text: str) -> bool:
     if front.get("mode") == "skipped":
         return False
     statuses = STATUS.findall(text)
-    return front.get("verdict") != "clean" or any(s in UNCLEARED for s in statuses)
+    return front.get("verdict") != "clean" or any(s != "verified" for s in statuses)
 
 
 def write(path: Path, text: str) -> None:

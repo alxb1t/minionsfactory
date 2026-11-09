@@ -163,8 +163,8 @@ Step 5 reads no shadow file, and no fixer, pickup, debt card or `done` counts on
 
 `<role>=skip` names a checker the plan skips; `mf-ship` passes it. Dispatch no worker for that role. Its findings file is a
 **stub**, written by `uv run --script <this package>/scripts/skip_stub.py .minions/changes/<change-id>/<role>.md <round>`:
-clean at `HEAD`, `mode: skipped`, no card. It refuses a checker's file that is not clean or holds a card `open`, `fixed` or
-`wontfix`: clearing that is the person's act. Exit 2, or `uv` missing → **halt**, naming what it printed.
+clean at `HEAD`, `mode: skipped`, no card. It refuses a checker's file that is not clean or holds a card other than `verified`,
+`accepted` included: clearing that is the person's act. Exit 2, or `uv` missing → **halt**, naming what it printed.
 
 - **When:** after Step 2's freeze, Step 6's re-freeze, the catch-up's freeze and its [By rule](#by-rule) write, and before
   Step 10's `done` when the stub's `head:` is not `HEAD`, as after a pickup's commit. `<round>` is the one that freeze judges.

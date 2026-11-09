@@ -156,6 +156,8 @@ Fix note (2026-11-09, R1): `Run.stage` logs the event `converge skipped` with th
 
 Fix note (2026-11-09, S1): `skip_stub.py` also exits 2 on an existing file that is no stub and is not clean or holds a card `open`, `fixed` or `wontfix`, so a skip added after a round never erases its cards.
 
+Fix note (2026-11-09, S3): the refusal covers every card whose Status is other than `verified`, `accepted` included, since Step 9 has yet to write an accepted card to the debt.
+
 ### D4
 
 - **`R:122-130`** — the first row's line reads `converge: skipped — no findings files`, or `converge: skipped — by plan` when the
