@@ -10,7 +10,7 @@ only the phase's end is green.
 - [x] 1 — The fields · hard
 - [x] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
 - [x] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
-- [ ] 4 — The debt, the halts and the report · hard
+- [x] 4 — The debt, the halts and the report · hard
 - [ ] 5 — `conduct.py`: the in-process call and the retirements · hard
 - [ ] 6 — The front, the record and the metrics · hard
 
@@ -72,15 +72,15 @@ only the phase's end is green.
 
 ## 4 — The debt, the halts and the report
 
-- [ ] 4.1 Add `test_the_debt_is_written_once_under_its_lock`, `test_a_still_true_command_runs_sandboxed_and_a_prose_card_goes_unchecked`,
+- [x] 4.1 Add `test_the_debt_is_written_once_under_its_lock`, `test_a_still_true_command_runs_sandboxed_and_a_prose_card_goes_unchecked`,
   `test_an_amend_card_halts_the_debt` and `test_a_fixed_repeats_old_card_is_cleared`; then `debt` and `still_true` per
   [D7](design.md#d7), each command through `host.sandboxed`.
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def debt(' -e '^def still_true(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 4.2 Add `test_a_failed_worker_gets_one_retry`, `test_a_malformed_file_gets_a_rewrite_then_a_debt_card` and the exit-2 cases of
+- [x] 4.2 Add `test_a_failed_worker_gets_one_retry`, `test_a_malformed_file_gets_a_rewrite_then_a_debt_card` and the exit-2 cases of
   `debt_match.py` and `replay`; then `retried` (the one retry) and `rewrite` (the rewrite worker, then the debt card) per
   [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def retried(' -e '^def rewrite(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 4.3 Add `test_the_report_names_the_verdicts`; then `report`, and the module docstring that names each script `converge.py`
+- [x] 4.3 Add `test_the_report_names_the_verdicts`; then `report`, and the module docstring that names each script `converge.py`
   loads or runs and the hand command of [D1](design.md#d1).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n 'conduct.py converge' -- skills/mf-converge/scripts/converge.py` prints a line.
 

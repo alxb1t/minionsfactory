@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `converge.py` runs the loop: the fixer on `fix=` always, one more pass on a red gate or a dirty tree, verify rounds to
   the cap, the pickup and its check on the needed role, a granted round, the catch-up and by-rule rounds, round 1's
   shadow, and a resume from the status log's latest event (change `0108-converge-script`, phase 3).
+- `converge.py` writes the debt under its lock, running each card's **Still true?** command sandboxed: exit 1 is moot,
+  prose goes unchecked. A failed worker gets one retry and a malformed findings file one rewrite worker, then a debt card,
+  so a run goes on where a script can; it closes on a report read from disk (change `0108-converge-script`, phase 4).
 
 ## [0.88.0] - 2026-11-09
 

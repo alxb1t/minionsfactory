@@ -2,14 +2,21 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Conduct converge: the preconditions, the freeze, the rounds, the pickup and resume.
+"""Conduct converge: the preconditions, the freeze, the rounds, the debt and the report.
 
     converge(host, change, tree, *, workers, grant=False, deadline) -> int
 
 `conduct.py` loads this file by `runpy` and calls `converge` in a version's thread;
-exit 0 done · 1 halted · 2 cannot run. Each event goes to the status log through
-`stamp.py`'s `main`; each command on the builder's code runs under `host.sandboxed`.
-Why: 0108-converge-script design D1, D3, D6.
+by hand, `conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…]
+[grant=yes]` calls it. Exit 0 done · 1 halted · 2 cannot run; the report, or the
+halt, is printed.
+
+It loads, from this folder, `stamp.py`, which writes each status-log event,
+`bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`, `plan_check.py` and
+`overlap.py`, and `../../mf-integrate/scripts/integrate.py` for `replay`. It runs
+`gate_run.py`, `gate_check.py`, `plan_check.py`, `make -n gate`, each `Verify:` a
+catch-up's range adds and each card's **Still true?** command under
+`host.sandboxed`. Why: 0108-converge-script design D1, D3, D6.
 """
 
 import errno
@@ -21,7 +28,9 @@ import shlex
 import stat
 import subprocess
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -71,6 +80,26 @@ INTEGERS = ("round", "open_blocking", "files", "commits")
 LISTS = ("passes", "inconclusive")
 VERDICTS = ("clean", "changes-requested")
 FALLBACK = "fallback: codex usage limit"
+REWRITE = (
+    "role: {role}\nchange: {change}\nround: {round}\n\n"
+    "Your findings file {findings} breaks the findings file contract of"
+    " `references/worker.md` of the installed `mf-converge` skill: {why}.\n"
+    "Rewrite that file to the contract. Keep its verdict, each card's id, grade,"
+    " fields and Status; judge nothing anew. Edit no other file.\n"
+)
+# The debt lock's poll and wait, in seconds. Why: design D5.
+LOCK_POLL = 5
+LOCK_WAIT = 600
+LOCKED = re.compile(r"\.minions/(?:debt|backlog)\.lock")
+COMMAND = re.compile(r"`([^`]+)`")
+REPEAT = re.compile(r"repeat of `?([\w·]+)")
+NOTE = re.compile(r"^Fix note \(\d{4}-\d\d-\d\d, ([^)]+)\):")
+DECISION = re.compile(r"^### (D\d+)\b")
+DEBT_TITLE = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
+DEBT_PREAMBLE = (
+    "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
+    " lists the ids it closes under `debt:`.*\n"
+)
 
 
 class Halt(Exception):
@@ -169,11 +198,12 @@ class SendBack(Exception):
 
 @dataclass(frozen=True)
 class Card:
-    """One finding of a findings file: its id, its role and its fields by name."""
+    """One finding of a findings file: its id, its role, its fields and its lines."""
 
     id: str
     role: str
     fields: dict[str, str]
+    lines: list[str] = field(default_factory=list)
 
     def word(self, field: str) -> str:
         """Return the field's first word, case folded, its backticks and bold dropped.
@@ -240,7 +270,8 @@ class Context:
     """One converge run: the host, the change, its worktree, workers and round.
 
     `mark` is the run heading's; `cap` the round past which a blocker halts;
-    `picked` this run's pickup; `sent` the plan-check subjects Step 7 sent back.
+    `picked` this run's pickup; `sent` the plan-check subjects Step 7 sent back;
+    `stations` each table's last station and effort, which a rewrite repeats.
     """
 
     host: Host
@@ -254,6 +285,7 @@ class Context:
     cap: int = CAP
     picked: list[str] = field(default_factory=list)
     sent: set[str] = field(default_factory=set)
+    stations: dict[str, tuple[str, str | None]] = field(default_factory=dict)
 
     @property
     def folder(self) -> Path:
@@ -499,13 +531,17 @@ def _text(path: Path) -> str | None:
 def _cards(body: str, role: str) -> list[Card]:
     """Return the cards of a findings file's body, each with its fields."""
     cards: list[Card] = []
+    current: Card | None = None
     for line in body.splitlines():
         if title := TITLE.match(line):
-            cards.append(Card(title[1], role, {}))
-        elif not line.startswith((" ", "\t")):
-            continue
-        elif cards and (field := FIELD.match(line)):
-            cards[-1].fields.setdefault(field[1], field[2].strip())
+            current = Card(title[1], role, {}, [line])
+            cards.append(current)
+        elif current is None or not line.startswith((" ", "\t")):
+            current = None
+        else:
+            current.lines.append(line)
+            if found := FIELD.match(line):
+                current.fields.setdefault(found[1], found[2].strip())
     return cards
 
 
@@ -636,22 +672,56 @@ def _spent(result: Checked) -> str:
     return spent + (f" · {FALLBACK}" if result.fallback else "")
 
 
-def held(read: dict[str, Verdict | None]) -> dict[str, Verdict]:
-    """Return each role's verdict; a file missing, malformed or not clean halts."""
+def held(
+    context: Context, read: dict[str, Verdict | None], frozen: Freeze
+) -> dict[str, Verdict]:
+    """Return each role's verdict; a malformed file gets one rewrite worker first.
+
+    A file missing, or not clean, halts. Why: design D5.
+    """
+    kept: dict[str, Verdict] = {}
     for role in ROLES:
         verdict = read[role]
+        if verdict is not None and verdict.malformed is not None:
+            verdict = rewrite(context, role, frozen, verdict.malformed)
         if verdict is None:
             raise Halt(f"{role}.md is missing: its checker left no findings file")
-        if fault := verdict.malformed or verdict.unclean:
-            raise Halt(fault)
-    return {role: verdict for role, verdict in read.items() if verdict is not None}
+        if verdict.unclean is not None:
+            raise Halt(verdict.unclean)
+        kept[role] = verdict
+    return kept
 
 
 def verdicts(
     context: Context, frozen: Freeze, checked: dict[str, Checked]
 ) -> dict[str, Verdict]:
     """Read the verdicts under Step 5's table, halting on a file it refuses."""
-    return held(read_verdicts(context, frozen, checked))
+    return held(context, read_verdicts(context, frozen, checked), frozen)
+
+
+def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | None:
+    """Run one rewrite worker on `role`'s malformed file; return the file read again.
+
+    It repeats the role's last station. Still malformed, the role reads clean at
+    `HEAD` with no card, and the debt write cards the file. Why: design D5.
+    """
+    station, effort = context.stations.get(
+        role, (f"converge-{role}-r{context.round}", None)
+    )
+    path = context.folder / f"{role}.md"
+    stamp(context, f"fan-out — rewrite — {role}: {why}")
+    told = REWRITE.format(
+        role=role, change=context.change, round=context.round, findings=path, why=why
+    )
+    seconds = remaining(context)
+    result = run_checkers(context, {role: (station, role, told)}, effort)[role]
+    fault = failure(station, seconds, result.code, result.killed, result.limit)
+    if fault and (result.killed or result.limit):
+        raise Halt(fault)
+    again = read_findings(path, role, frozen)
+    if again is not None and again.malformed is not None:
+        return Verdict(role, "clean", head(context), context.round)
+    return again
 
 
 def converge(
@@ -679,6 +749,7 @@ def converge(
         return 2
     except Halt as halted:
         halt(context, str(halted))
+        print(f"converge: halt — {halted}")
         return 1
 
 
@@ -724,6 +795,8 @@ def resume(context: Context, granting: bool) -> int:
     top = run.events[0] if run.events else None
     if top is not None and top.name not in ("halt", "done"):
         return go_on(context, run)
+    if top is not None and top.name == "halt" and LOCKED.search(top.detail):
+        return unlocked(context, run)
     if granting:
         begin(context, "grant")
         return grant(context)
@@ -735,6 +808,21 @@ def resume(context: Context, granting: bool) -> int:
         return catch_up(context, judged)
     begin(context, None)
     return fresh(context)
+
+
+def unlocked(context: Context, run: Run) -> int:
+    """Go on at Step 9 with a run the debt lock halted, both files clean at `HEAD`.
+
+    Else halt, naming the file. Why: design D3, D5.
+    """
+    context.mark, context.round = run.mark, run.events[0].round
+    now = head(context)
+    files = {verdict.role: verdict for verdict in _files(context)}
+    for role in ROLES:
+        verdict = files.get(role)
+        if verdict is None or verdict.verdict != "clean" or verdict.head != now:
+            raise Halt(f"{role}.md is not clean at HEAD: the debt write cannot go on")
+    return finish(context)
 
 
 def begin(context: Context, mark: str | None) -> None:
@@ -775,7 +863,7 @@ def judge(
     read = read_verdicts(context, frozen, dispatch(context, frozen))
     if shadowed:
         shadow(context, frozen)
-    return held(read)
+    return held(context, read, frozen)
 
 
 def _files(context: Context) -> list[Verdict]:
@@ -894,13 +982,13 @@ def failure(
 
 
 def fixer(context: Context, ids: str) -> None:
-    """Run one fixer through `host.worker`, on `fix=`'s model; a failure halts.
+    """Run one fixer through `host.worker`, on `fix=`'s model, retried once.
 
-    Its effort is `fix=`'s, `medium` when it names none. Why: design D4.
+    Its effort is `fix=`'s, `medium` when it names none. A timeout kill, or a second
+    failure, halts. Why: design D4, D5.
     """
     executor, model, effort = context.workers["fix"]
     station = f"converge-fix-r{context.round}"
-    (context.folder / "fix.md").unlink(missing_ok=True)
     told = prompt(
         "fix.md",
         role="fix",
@@ -910,13 +998,19 @@ def fixer(context: Context, ids: str) -> None:
         findings=" and ".join(str(context.folder / f"{r}.md") for r in ROLES),
         base=context.base,
     )
-    seconds = remaining(context)
     models = (executor, model, effort or "medium")
-    code, killed, _, _ = context.host.worker(
-        context.change, station, context.tree, told, models, timeout=seconds
-    )
-    if why := failure(station, seconds, code, killed):
-        raise Halt(why)
+    for last in (False, True):
+        (context.folder / "fix.md").unlink(missing_ok=True)
+        seconds = remaining(context)
+        code, killed, _, _ = context.host.worker(
+            context.change, station, context.tree, told, models, timeout=seconds
+        )
+        why = failure(station, seconds, code, killed)
+        if why is None:
+            return
+        if killed or last:
+            raise Halt(why)
+        stamp(context, f"fan-out — retry — fix: {why}")
 
 
 def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
@@ -1058,10 +1152,7 @@ def check(context: Context, frozen: Freeze) -> dict[str, Verdict]:
     )
     station = f"converge-verify-pickup-r{context.round}"
     told = verify_prompt(context, frozen, "pickup", roles)
-    seconds = remaining(context)
-    result = run_checkers(context, {needed: (station, needed, told)}, "medium")[needed]
-    if why := failure(station, seconds, result.code, result.killed, result.limit):
-        raise Halt(why)
+    result = retried(context, {needed: (station, needed, told)}, "medium")[needed]
     read = verdicts(context, frozen, {})
     files = " · ".join(
         f"{role} {verdict.verdict} · open_blocking {verdict.open_blocking}"
@@ -1071,12 +1162,385 @@ def check(context: Context, frozen: Freeze) -> dict[str, Verdict]:
     return read
 
 
-def finish(context: Context) -> int:
-    """Run Steps 9 and 10: each skipped role's stub at `HEAD`, then `done`."""
+def finish(context: Context, owed: bool = True) -> int:
+    """Run Steps 9 and 10: the stubs at `HEAD`, the debt, the gate, `done`, the report.
+
+    `owed` is false when the run's `debt` event stands: the debt is not written again.
+    """
     stubs(context)
+    paid = debt(context) if owed else debted(context)
+    gate = sandboxed(context, script("gate_run.py"))
     rounds_ = _plural(context.round, "round")
-    stamp(context, f"done — converged in {rounds_} · 0 cards to debt")
+    cards = _plural(len(paid.written), "card")
+    stamp(context, f"done — converged in {rounds_} · {cards} to debt")
+    print(report(context, paid, gate))
     return 0
+
+
+class Debt(NamedTuple):
+    """What a debt write did: the ids written, moot and cleared, and the debt's size.
+
+    `checks` holds the command that judged each moot or cleared id.
+    """
+
+    written: list[str]
+    moot: list[str]
+    cleared: list[str]
+    total: int
+    checks: dict[str, str]
+
+
+def still_true(context: Context, value: str) -> tuple[int | None, str]:
+    """Return a card's **Still true?** command's exit, run sandboxed, and the command.
+
+    The command is the backtick-quoted span the value opens with; with none, or one
+    that cannot be split, the exit is None. Why: design D6, D7.
+    e.g. "`grep -n x a.py` prints a line" → (0, "grep -n x a.py")
+    """
+    found = COMMAND.match(value.strip())
+    if found is None:
+        return None, ""
+    try:
+        argv = shlex.split(found[1])
+    except ValueError:
+        return None, found[1]
+    return (_captured(context, argv)[0] if argv else None), found[1]
+
+
+@contextmanager
+def debt_lock(minions: Path) -> Iterator[None]:
+    """Hold `.minions/debt.lock` while the body runs; wait for it, then halt.
+
+    An old `.minions/backlog.md` takes no lock. Why: design D5, D7.
+    """
+    if os.path.lexists(minions / "backlog.md"):
+        raise Halt(
+            ".minions/debt.lock not taken — an old .minions/backlog.md stands;"
+            " /mf-ship moves it at a run's start"
+        )
+    lock, waited = minions / "debt.lock", 0
+    while True:
+        try:
+            lock.mkdir()
+            break
+        except FileExistsError:
+            if waited >= LOCK_WAIT:
+                raise Halt(
+                    f".minions/debt.lock held for {LOCK_WAIT // 60} minutes"
+                ) from None
+            time.sleep(LOCK_POLL)
+            waited += LOCK_POLL
+    try:
+        yield
+    finally:
+        lock.rmdir()
+
+
+def _debt_text(path: Path) -> str:
+    """Return the debt's text, "" when missing; one that cannot be read halts."""
+    try:
+        return _text(path) or ""
+    except OSError as error:
+        why = "it is a link" if error.errno == errno.ELOOP else error.strerror
+        raise Halt(f".minions/debt.md cannot be read: {why}") from error
+
+
+def answered_amends(context: Context) -> set[str]:
+    """Return the ids each `amend needed` halt named since this converge began.
+
+    It began at the newest `round 1 · start` of a run with no mark: a catch-up or
+    amend run goes on with it. Why: design D3, D7.
+    """
+    ids: set[str] = set()
+    mark = None
+    for line in STAMP["read"](context.log).splitlines():
+        if line.startswith("## Run"):
+            mark = line.partition(" · ")[2] or None
+        elif found := EVENT.match(line):
+            round_, name, detail = found.groups()
+            if (name, round_, mark) == ("start", "1", None):
+                break
+            if name == "halt" and detail.startswith("amend needed — "):
+                named = HALTED.sub("", detail).removeprefix("amend needed — ")
+                ids.update(each.strip() for each in named.split(","))
+    return ids
+
+
+def amends(context: Context, cards: list[Card], holds: set[str]) -> dict[str, str]:
+    """Run each amend card's check before the debt; return the moot ones' commands.
+
+    An amend card is `Amend: yes`, `wontfix` or an `open` `drift`. One whose check is
+    not exit 1 halts `amend needed`, unless an answered halt named it or the debt holds
+    it. Why: design D7.
+    """
+    number = context.change.partition("-")[0]
+    answered = answered_amends(context)
+    moot, left = {}, []
+    for card in cards:
+        due = card.status == "wontfix" or (
+            card.status == "open" and card.severity == "drift"
+        )
+        if not card.amend or not due or card.id in answered:
+            continue
+        if f"{number}·{card.id}" in holds:
+            continue
+        code, command = still_true(context, card.fields.get("Still true?", ""))
+        if code == 1:
+            moot[card.id] = command
+        else:
+            left.append(card.id)
+    if left:
+        raise Halt(f"amend needed — {', '.join(left)}")
+    return moot
+
+
+def spoiled(context: Context) -> list[str]:
+    """Return a debt card for each role's file still malformed after its rewrite.
+
+    Why: design D5.
+    """
+    number, unscoped = context.change.partition("-")[0], Freeze("", "", 0, 0)
+    found = []
+    for role in dispatched(context):
+        read = read_findings(context.folder / f"{role}.md", role, unscoped)
+        if read is None or read.malformed is None:
+            continue
+        where = f".minions/changes/{context.change}/{role}.md"
+        found.append(
+            f"- **{number}·M{len(found) + 1} — {role}'s findings file was malformed"
+            " after a rewrite**\n"
+            "  - **Why it's a problem:** converge read the role as clean at HEAD with"
+            " no card, so a finding in the file went unjudged.\n"
+            "  - **When you'd hit it:** the release reads the file's own verdict.\n"
+            f"  - **What it affects:** `{where}`.\n"
+            f"  - **Evidence:** {read.malformed} · read.\n"
+            "  - **Verdict:** confirmed.\n"
+            "  - **Priority:** medium · conformance · maintainability — the role's"
+            " verdict this run is the script's, not its checker's.\n"
+            f"  - **Round:** {context.round}\n"
+            "  - **Fix:** rewrite the file to the findings file contract, then converge"
+            " again · size: a design change.\n"
+            "  - **Amend:** no\n"
+            f"  - **Trigger:** the release of {context.change}.\n"
+            f"  - **Still true?** read `{where}` against the contract.\n"
+            "  - **Related:** none.\n"
+            "  - **Status:** open\n"
+        )
+    return found
+
+
+def _filed(text: str, change: str, cards: list[str]) -> str:
+    """Return the debt with `cards` at the end of `## <change>`, made if missing."""
+    if not cards:
+        return text
+    lines = [line if line.endswith("\n") else f"{line}\n" for line in text.splitlines()]
+    heading = f"## {change}\n"
+    if heading not in lines:
+        return f"{''.join(lines).rstrip()}\n\n{heading}\n{''.join(cards)}"
+    at = lines.index(heading) + 1
+    end = _section_end(lines, at)
+    while end > at and not lines[end - 1].strip():
+        end -= 1
+    gap = ["\n"] if end < len(lines) and lines[end].startswith("## ") else []
+    return "".join([*lines[:end], *cards, *gap, *lines[end:]])
+
+
+def _section_end(lines: list[str], at: int) -> int:
+    """Return the index of the first `## ` heading at or past `at`, else the end."""
+    return next(
+        (i for i in range(at, len(lines)) if lines[i].startswith("## ")), len(lines)
+    )
+
+
+def _unfiled(text: str, ident: str) -> str:
+    """Return the debt without the card `ident`, and its heading when left empty."""
+    lines = text.splitlines(keepends=True)
+    start = next(
+        i for i, line in enumerate(lines) if line.startswith(f"- **{ident} — ")
+    )
+    end = start + 1
+    while end < len(lines) and lines[end].startswith((" ", "\t")):
+        end += 1
+    del lines[start:end]
+    tops = [i for i in range(start) if lines[i].startswith("## ")]
+    if tops and not "".join(lines[tops[-1] + 1 : _section_end(lines, start)]).strip():
+        del lines[tops[-1] : _section_end(lines, start)]
+    return "".join(lines)
+
+
+def debt(context: Context) -> Debt:
+    """Write Step 9's debt once, under its lock; return what it did.
+
+    Amend cards first; then each non-blocking card not `verified` and not moot, its
+    id qualified, an id the debt holds skipped; then each fixed repeat's old card
+    cleared when its check exits 1. Writes `debt`. Why: design D7.
+    """
+    minions = Path(context.host.primary) / ".minions"
+    path = minions / "debt.md"
+    number = context.change.partition("-")[0]
+    files = _files(context)
+    cards = [
+        card
+        for verdict in files
+        for card in verdict.cards
+        if not card.blocking and card.status != "verified"
+    ]
+    checks = amends(context, cards, set(DEBT_TITLE.findall(_debt_text(path))))
+    moot, written, cleared = list(checks), [], []
+    with debt_lock(minions):
+        text = _debt_text(path) or DEBT_PREAMBLE
+        holds = set(DEBT_TITLE.findall(text))
+        filed = []
+        for card in cards:
+            qualified = f"{number}·{card.id}"
+            if card.id in checks or qualified in holds:
+                continue
+            code, command = still_true(context, card.fields.get("Still true?", ""))
+            if code == 1:
+                moot.append(card.id)
+                checks[card.id] = command
+                continue
+            title = card.lines[0].replace(f"- **{card.id} — ", f"- **{qualified} — ")
+            filed.append("".join(f"{line}\n" for line in [title, *card.lines[1:]]))
+            written.append(qualified)
+        for spoilt in spoiled(context):
+            qualified = DEBT_TITLE.findall(spoilt)[0]
+            if qualified not in holds:
+                filed.append(spoilt)
+                written.append(qualified)
+        text = _filed(text, context.change, filed)
+        for card in (c for v in files for c in v.cards if c.status == "verified"):
+            repeat = REPEAT.search(card.fields.get("Related", ""))
+            old = next(
+                (c for c in _cards(text, "") if repeat and c.id == repeat[1]), None
+            )
+            if old is None:
+                continue
+            code, command = still_true(context, old.fields.get("Still true?", ""))
+            if code == 1:
+                text = _unfiled(text, old.id)
+                cleared.append(old.id)
+                checks[old.id] = command
+        try:
+            DEBT_MATCH["write"](path, text)
+        except DEBT_MATCH["Stop"] as stop:
+            raise Halt(f".minions/debt.md cannot be written — {stop}") from stop
+    paid = Debt(written, moot, cleared, len(DEBT_TITLE.findall(text)), checks)
+    stamp(context, f"debt — {_debt_detail(paid)}")
+    return paid
+
+
+def _debt_detail(paid: Debt) -> str:
+    """Return the `debt` event's detail.
+
+    e.g. "written 0001·R2 · moot R3 · cleared 0000·R1", or "none"
+    """
+    parts = [
+        f"{word} {', '.join(ids)}"
+        for word, ids in (
+            ("written", paid.written),
+            ("moot", paid.moot),
+            ("cleared", paid.cleared),
+        )
+        if ids
+    ]
+    return " · ".join(parts) or "none"
+
+
+def debted(context: Context) -> Debt:
+    """Return the run's written debt, read back from its `debt` event."""
+    detail = next(e.detail for e in latest(context).events if e.name == "debt")
+    named = {
+        part.partition(" ")[0]: part.partition(" ")[2].split(", ")
+        for part in detail.split(" · ")
+    }
+    text = _debt_text(Path(context.host.primary) / ".minions" / "debt.md")
+    return Debt(
+        named.get("written", []),
+        named.get("moot", []),
+        named.get("cleared", []),
+        len(DEBT_TITLE.findall(text)),
+        {},
+    )
+
+
+def fix_notes(context: Context) -> list[str]:
+    """Return each fix note this run's fixers appended, as its decision and card.
+
+    A fix's diff is the re-freeze that follows its `fix — commit` event.
+    e.g. ["D3 (R1)"]
+    """
+    path = f"openspec/changes/{context.change}/design.md"
+    added: set[str] = set()
+    fixed = False
+    for event in reversed(latest(context).events):
+        if event.name == "fix":
+            fixed = event.detail.startswith("commit ")
+        elif event.name == "freeze" and fixed and (span := SPAN.search(event.detail)):
+            ends = resolve(context, span[1]), resolve(context, span[2])
+            diff = git(context.tree, "diff", "-U0", *ends, "--", path)
+            added.update(line[1:] for line in diff.splitlines() if line[:1] == "+")
+            fixed = False
+    notes, decision = [], "a decision"
+    design = context.tree / path
+    for line in design.read_text().splitlines() if design.is_file() else []:
+        if heading := DECISION.match(line):
+            decision = heading[1]
+        elif line in added and (note := NOTE.match(line)):
+            notes.append(f"{decision} ({note[1]})")
+    return notes
+
+
+def _sentence(parts: list[str]) -> str:
+    """Return `parts` as one sentence, its first letter upper case."""
+    said = "; ".join(parts)
+    return f"{said[:1].upper()}{said[1:]}."
+
+
+def report(context: Context, paid: Debt, gate: int) -> str:
+    """Return Step 10's close-out, read from disk, then its `Next:` line.
+
+    The verdicts, the rounds and each skipped role; each blocking card's end state,
+    each `inconclusive` section and fix note; the debt and the gate. Why: design D3.
+    """
+    files = _files(context)
+    judged = ", ".join(
+        f"{v.role} skipped, the loop judged without it"
+        if v.stub
+        else f"{v.role} {v.verdict}"
+        for v in files
+    )
+    first = (
+        f"Converged in {_plural(context.round, 'round')}"
+        f" at {head(context)[:7]}: {judged}."
+    )
+    found = []
+    if blocking := [f"{c.id} {c.status}" for v in files for c in v.cards if c.blocking]:
+        found.append(f"blocking {', '.join(blocking)}")
+    if unsure := [
+        f"{v.role} {', '.join(v.inconclusive)}" for v in files if v.inconclusive
+    ]:
+        found.append(f"inconclusive: {', '.join(unsure)}")
+    if notes := fix_notes(context):
+        found.append(f"fix notes to read: {', '.join(notes)}")
+    second = _sentence(found or ["no blocking card, inconclusive section or fix note"])
+
+    def checked(ids: list[str]) -> str:
+        return ", ".join(
+            f"{i} (`{paid.checks[i]}` exited 1)" if i in paid.checks else i for i in ids
+        )
+
+    owed = [
+        f"to the debt {', '.join(paid.written)}"
+        if paid.written
+        else "no card to the debt"
+    ]
+    owed += [f"moot {checked(paid.moot)}"] if paid.moot else []
+    owed += [f"cleared {checked(paid.cleared)}"] if paid.cleared else []
+    owed += [f"the debt holds {_plural(paid.total, 'card')}", f"the gate exits {gate}"]
+    return "\n".join(
+        [first, second, _sentence(owed), "Next: /mf-release, in a fresh session."]
+    )
 
 
 def base_of(context: Context) -> str:
@@ -1383,7 +1847,9 @@ def go_on(context: Context, run: Run) -> int:
     if caught and name in ("catch-up", "start"):
         judged = re.search(r"judged head (\w+)", events[-1].detail)
         return catch_up(context, resolve(context, judged[1] if judged else "HEAD"))
-    if name == "debt" or name == "by rule" and caught or top.detail == "none":
+    if name == "debt":
+        return finish(context, owed=False)
+    if name == "by rule" and caught or top.detail == "none":
         return finish(context)
     if name == "start":
         frozen = freeze(context, context.base, head(context))
@@ -1520,8 +1986,7 @@ def dispatch(
     """Run a round's checkers, or its verify workers, through `host.checker`.
 
     Writes `fan-out` first; returns each result by role. A verify worker runs at
-    medium. A worker killed, or one that exits non-zero, halts with `Run.spawn`'s
-    words. Why: design D4.
+    medium. Each worker is retried once, as `retried` says. Why: design D4.
     """
     roles = dispatched(context) if roles is None else roles
     mode = "parallel" if len(roles) > 1 else "sequential"
@@ -1539,11 +2004,50 @@ def dispatch(
         )
         for role in roles
     }
+    return retried(context, jobs, "medium" if verify else None)
+
+
+def _failed(
+    context: Context, job: tuple[str, str, str], result: Checked, seconds: float
+) -> str | None:
+    """Return why a worker failed, in `Run.spawn`'s words, or that it left no file.
+
+    A timeout kill, or a usage limit, halts at once. Why: design D5.
+    """
+    station, table, _ = job
+    why = failure(station, seconds, result.code, result.killed, result.limit)
+    if why and (result.killed or result.limit):
+        raise Halt(why)
+    if why is None and not os.path.lexists(context.folder / f"{table}.md"):
+        why = f"{table}.md is missing: its checker left no findings file"
+    return why
+
+
+def retried(
+    context: Context, jobs: dict[str, tuple[str, str, str]], effort: str | None
+) -> dict[str, Checked]:
+    """Run each job, `(station, table, prompt)`, in a thread; a failed one runs again.
+
+    The retry's prompt is the same, and its failure is logged as a `fan-out` detail;
+    a second failure halts. Why: design D5.
+    """
+    for station, table, _ in jobs.values():
+        context.stations[table] = (station, effort)
     seconds = remaining(context)
-    checked = run_checkers(context, jobs, "medium" if verify else None)
-    for role, result in checked.items():
-        station = jobs[role][0]
-        if why := failure(station, seconds, result.code, result.killed, result.limit):
+    checked = run_checkers(context, jobs, effort)
+    faults = {
+        key: why
+        for key, job in jobs.items()
+        if (why := _failed(context, job, checked[key], seconds))
+    }
+    if not faults:
+        return checked
+    stamp(context, *(f"fan-out — retry — {key}: {why}" for key, why in faults.items()))
+    again = {key: jobs[key] for key in faults}
+    seconds = remaining(context)
+    checked.update(run_checkers(context, again, effort))
+    for key, job in again.items():
+        if why := _failed(context, job, checked[key], seconds):
             raise Halt(why)
     return checked
 
