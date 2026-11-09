@@ -156,21 +156,26 @@ def decisions_text(plan: list[str], decisions: str | None) -> tuple[str, int]:
     return text, len(ids)
 
 
-def _decisions() -> str | None:
+def _decisions(root: Path = Path()) -> str | None:
     """Return the repo's decisions file's text, None when it has none."""
-    return _read(DECISIONS) if DECISIONS.exists() else None
+    path = root / DECISIONS
+    return _read(path) if path.exists() else None
 
 
-def bundle(change: str) -> tuple[str, int, int]:
-    """Return the bundle's text, its cited decisions and its listed requirements."""
-    folder = Path("openspec/changes") / change
+def bundle(change: str, root: Path = Path()) -> tuple[str, int, int]:
+    """Return the bundle's text, its cited decisions and its listed requirements.
+
+    `root` is the worktree's: a version's thread never changes the process's
+    directory. Why: 0108-converge-script design D3.
+    """
+    folder = root / "openspec/changes" / change
     deltas = sorted((folder / "specs").glob("**/spec.md"))
     names = ("proposal.md", "design.md", "tasks.md")
     plan = [_read(folder / name) for name in names] + [_read(d) for d in deltas]
-    cites, count = decisions_text(plan, _decisions())
+    cites, count = decisions_text(plan, _decisions(root))
     required = []
     for delta, text in zip(deltas, plan[len(names) :], strict=True):
-        living = Path("openspec/specs") / delta.parent.relative_to(folder / "specs")
+        living = root / "openspec/specs" / delta.parent.relative_to(folder / "specs")
         spec = _read(living / "spec.md") if (living / "spec.md").exists() else None
         modified, removed = (_requirements(text, (name,)) for name in SECTIONS)
         required += [diffed(spec, _requirement(text, t) or "", t) for t in modified]

@@ -50,7 +50,7 @@ import tomllib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, TextIO
 
 if TYPE_CHECKING:
     from markdown_it import MarkdownIt
@@ -3331,14 +3331,17 @@ def _profile(trees: list[Path], home: Path) -> str:
     )
 
 
-def sandboxed(argv: list[str], cwd: Path, trees: list[Path]) -> int:
+def sandboxed(
+    argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+) -> int:
     """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
 
     It writes inside `trees` alone, reads no secret and has no network. No
     `sandbox-exec` stops with 2: the command never runs bare. A signal's exit is
     128 plus its number; a refusal in the output of a failed command gets a line.
+    Given `out`, the output and that line go to it, not to stdout and stderr.
     e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`.
-    Why: 0107-sandbox-runner design D2.
+    Why: 0107-sandbox-runner design D2; `out`, 0108-converge-script design D6.
     """
     sandbox_exec = shutil.which("sandbox-exec")
     if sandbox_exec is None:
@@ -3370,14 +3373,14 @@ def sandboxed(argv: list[str], cwd: Path, trees: list[Path]) -> int:
         errors="replace",
     ) as process:
         for line in process.stdout or ():
-            print(line, end="", flush=True)
+            print(line, end="", file=out or sys.stdout, flush=True)
             denied = denied or CODEX_DENIAL in line
         code = process.wait()
     if code != 0 and denied:
         print(
             "sandboxed: denied — the OS sandbox refused a call:"
             " writes stay in the trees, no network",
-            file=sys.stderr,
+            file=out or sys.stderr,
         )
     return code if code >= 0 else 128 - code
 

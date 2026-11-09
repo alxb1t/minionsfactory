@@ -8,7 +8,7 @@ only the phase's end is green.
 ## Progress
 
 - [x] 1 — The fields · hard
-- [ ] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
+- [x] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
 - [ ] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
 - [ ] 4 — The debt, the halts and the report · hard
 - [ ] 5 — `conduct.py`: the in-process call and the retirements · hard
@@ -37,20 +37,20 @@ only the phase's end is green.
 
 ## 2 — The script's start: preconditions, freeze, dispatch, verdicts
 
-- [ ] 2.1 Add `test_the_output_goes_to_the_file_given` to `tests/test_sandboxed.py`; then the parameter `out=None` of `sandboxed` in
+- [x] 2.1 Add `test_the_output_goes_to_the_file_given` to `tests/test_sandboxed.py`; then the parameter `out=None` of `sandboxed` in
   `C`, annotated `out: TextIO | None = None`, per [D6](design.md#d6): each output line and the denial line to `out`, else to
   `sys.stdout` and `sys.stderr`.
   Verify: `uv run pytest -q tests/test_sandboxed.py` exits 0; `git grep -n 'out: TextIO | None = None' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 Add `tests/test_converge.py` with a fake `host` fixture (`primary`, `trees`, `plan`, `worker`, `checker`, `sandboxed`) and
+- [x] 2.2 Add `tests/test_converge.py` with a fake `host` fixture (`primary`, `trees`, `plan`, `worker`, `checker`, `sandboxed`) and
   `test_a_converge_refuses_what_it_cannot_start` and `test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards`, per
   [the Tests table](design.md#tests); then `skills/mf-converge/scripts/converge.py`, a module docstring and a docstring on each
   function (the gate's `D` rules), with `converge`, `preconditions`, `freeze` and
   the status log through `stamp.py`'s `main`, per [D1](design.md#d1) and [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def converge(' -e '^def preconditions(' -e '^def freeze(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 2.3 Add `test_each_worker_prompt_is_filled_from_its_reference` and `test_a_findings_file_is_read_by_its_fields`; then
+- [x] 2.3 Add `test_each_worker_prompt_is_filled_from_its_reference` and `test_a_findings_file_is_read_by_its_fields`; then
   `prompt` (each `## Prompt` filled, no placeholder left) and `read_verdicts` ([D2](design.md#d2)'s fields, one `verdicts` line per role).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def prompt(' -e '^def read_verdicts(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 2.4 Add `test_a_clean_round_converges_with_no_fix` and `test_a_skipped_checker_is_a_stub`; then `dispatch` (a round's
+- [x] 2.4 Add `test_a_clean_round_converges_with_no_fix` and `test_a_skipped_checker_is_a_stub`; then `dispatch` (a round's
   checkers in threads through `host.checker`) and `stubs` (`skip_stub.py` after each freeze), per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def dispatch(' -e '^def stubs(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
 

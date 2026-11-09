@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under no card exits 2 naming it (`0095·S1`). A findings file gains `files`, `commits`, `passes` and `inconclusive`, a
   card `Amend:`, so a script reads fields, not prose; the fixer gets its own reference, `references/fix.md`, its report
   ending on `plan check left:`, and each reference gains a `## Prompt` (change `0108-converge-script`, phase 1).
+- `skills/mf-converge/scripts/converge.py` starts converge as code: the preconditions, the freeze, the stubs, the
+  checkers in threads with prompts filled from each `## Prompt`, and the verdicts read by their fields. `sandboxed()`
+  takes `out`, so a version's thread keeps its commands' output apart (change `0108-converge-script`, phase 2).
 
 ## [0.88.0] - 2026-11-09
 

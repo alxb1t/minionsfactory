@@ -5,6 +5,7 @@ halt; the tests that apply the real one skip where it cannot nest.
 Why: 0107-sandbox-runner design D5.
 """
 
+import io
 import json
 import os
 import runpy
@@ -202,6 +203,32 @@ def test_a_denial_in_the_output_gets_a_line(
     assert code == exit_code
     assert text in seen.out
     assert (_DENIAL in seen.err) is denied
+
+
+def test_the_output_goes_to_the_file_given(
+    tmp_path: Path, fake_sandbox: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    trees = _trees(tmp_path)
+    command = _python(
+        "import sys; print('one', flush=True);"
+        " print('touch: x: Operation not permitted',"
+        " file=sys.stderr); sys.exit(1)"
+    )
+    out = io.StringIO()
+
+    code = _conduct()["sandboxed"](command, trees[0], trees, out)
+
+    seen = capsys.readouterr()
+    assert code == 1
+    assert out.getvalue().splitlines() == [
+        "one",
+        "touch: x: Operation not permitted",
+        _DENIAL,
+    ]
+    assert seen.out == ""
+    assert seen.err == ""
+    assert _conduct()["sandboxed"](_python("print('two')"), trees[0], trees) == 0
+    assert capsys.readouterr().out == "two\n"
 
 
 def _repo(tmp_path: Path) -> Path:
