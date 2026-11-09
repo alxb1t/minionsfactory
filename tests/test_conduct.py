@@ -2658,7 +2658,10 @@ def test_a_halt_answered_on_disk_comes_back(
         sleep(seconds)
 
     conductor.on_disk = on_disk
-    monkeypatch.setattr(time, "sleep", wait)
+    # The conductor's own sleeps alone: a git run's reap on a loaded machine sleeps too.
+    clock = types.SimpleNamespace(**vars(time))
+    clock.sleep = wait
+    monkeypatch.setitem(globals_, "time", clock)
     conductor.halt("0003-late", "build timed out")
     taken: list[object] = []
 
@@ -8685,7 +8688,12 @@ def test_a_grant_buys_one_round(
     calls.unlink()
     log.unlink()
     fake("grant-halts", "rescue-answers")
+    # A poll while the rescue's thread lives deletes its request unread (0063-rejoin
+    # D2): the run's one poll outlasts the thread, so the request is read after it.
+    polls = conduct["main"].__globals__["REJOIN_POLL"]
+    conduct["main"].__globals__["REJOIN_POLL"] = 600
     run()
+    conduct["main"].__globals__["REJOIN_POLL"] = polls
     assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
     answered = "rescue answered its halt — converge: granted"
     lines = _log(root)
