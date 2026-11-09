@@ -232,6 +232,24 @@ def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
     )
 
 
+def _stubbed(tree: Path, primary: Path, change: str, roles: list[str]) -> None:
+    """Write each skipped role's findings file with `skip_stub.py`, as converge does.
+
+    Why: 0105-converge-switches design D3.
+    """
+    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
+    folder = _folder(primary, change)
+    for role in roles:
+        subprocess.run(
+            [sys.executable, str(script / "scripts" / "skip_stub.py")]
+            + [str(folder / f"{role}.md"), "1"],
+            cwd=tree,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+
 def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
     """Judge the head clean, commit a fix at `FAKE_FIX`, then judge it as Step 7 does.
 
@@ -759,8 +777,10 @@ def _fake(prompt: str) -> None:
             mailed = re.findall(r" and (\w+)=mailbox\b", prompt)
             _mailed(here, primary, str(change), mailed)
             roles = ("conformance", "adversarial")
-            alone = tuple(role for role in roles if role not in mailed)
+            skipped = re.findall(r" and (\w+)=skip\b", prompt)
+            alone = tuple(r for r in roles if r not in mailed and r not in skipped)
             _findings(primary, str(change), head, roles=alone)
+            _stubbed(here, primary, str(change), skipped)
             if " and shadow=yes" in prompt:
                 _mailed(here, primary, str(change), [f"shadow-{r}" for r in roles])
         if "dies-converge" in modes:

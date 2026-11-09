@@ -62,12 +62,13 @@ CHECKS = ("conformance", "adversarial", "fix")
 PARTS = ("build-moderate", *CHECKS)
 HOSTS = ("claude", "codex")
 HOSTLESS = ("cut", "fix", "build-moderate")
+SKIPPABLE = ("converge", "conformance", "adversarial")
 SHADOW = ["shadow"]
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"
 MODELS = (
     "the models line is not build · converge · release · cut, then any of"
     " build-moderate · conformance · adversarial · fix, each <model> <effort>,"
-    " then shadow"
+    " or skip for converge, conformance and adversarial, then shadow"
 )
 NEITHER = (
     "## Dependencies is neither None. nor a table of item · package · constraint · why"
@@ -220,21 +221,37 @@ def models(number: str, text: str) -> list[str]:
     """Return a halt for each word of an item's `models:` line out of shape.
 
     The stations, then an ordered subset of `PARTS`. A model may open `<host>/`,
-    save on `HOSTLESS`.
+    save on `HOSTLESS`. `converge`, `conformance` and `adversarial` may read `skip`
+    for their model and effort.
     e.g. "1", " build a b · converge a b · release a b · cut a b;c" →
     ["item 1 — not a model or effort: `b;c`"]
     """
     parts = [part.split() for part in text.split(" · ")]
-    if parts[-1:] == [SHADOW]:
+    shadowed = parts[-1:] == [SHADOW]
+    if shadowed:
         parts.pop()
-    names = [part[0] if len(part) == 3 else None for part in parts]
+    # A part's name is read from three words, or from a skip of a checker or converge.
+    # Why: 0105-converge-switches design D1.
+    names = [
+        part[0]
+        if len(part) == 3 or (part[1:] == ["skip"] and part[0] in SKIPPABLE)
+        else None
+        for part in parts
+    ]
     optional = names[len(STATIONS) :]
     if names[: len(STATIONS)] != list(STATIONS) or optional != [
         part for part in PARTS if part in optional
     ]:
         return [f"item {number} — {MODELS}"]
     found: list[str] = []
-    for name, model, effort in parts:
+    skipped = {part[0] for part in parts if part[1:] == ["skip"]}
+    for name, *rest in parts:
+        if rest == ["skip"]:
+            continue
+        model, effort = rest
+        if model == "skip":
+            found.append(f"item {number} — a skip takes no model or effort")
+            continue
         host, slash, word = model.rpartition("/")
         if slash and name in HOSTLESS:
             found.append(f"item {number} — {name} takes no host: `{model}`")
@@ -245,6 +262,18 @@ def models(number: str, text: str) -> list[str]:
             for token in (word, effort)
             if not TOKEN.fullmatch(token)
         ]
+    if shadowed and skipped:
+        found.append(f"item {number} — a skip is not beside shadow")
+    if "converge" in skipped and any(part[0] in CHECKS for part in parts):
+        found.append(
+            f"item {number} — converge skip takes no conformance, adversarial or fix"
+            " part"
+        )
+    elif {"conformance", "adversarial"} <= skipped:
+        found.append(
+            f"item {number} — conformance skip and adversarial skip together:"
+            " write converge skip"
+        )
     return found
 
 

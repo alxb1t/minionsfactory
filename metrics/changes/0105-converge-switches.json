@@ -1,0 +1,223 @@
+{
+  "change": "0105-converge-switches",
+  "version": "0.87",
+  "base": "10a84f3",
+  "analyzed": "8c27b56",
+  "measured_on": "local",
+  "collected_at": "2026-11-09T04:41:04+02:00",
+  "mf_version": "v0.86.0",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 10157
+    },
+    "converge-conformance-reading-set": {
+      "value": 5400
+    },
+    "converge-adversarial-reading-set": {
+      "value": 7886
+    },
+    "shared-context": {
+      "value": 14315
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 306
+    },
+    "gate-seconds": {
+      "value": 132
+    },
+    "largest-module-lines": {
+      "value": 9885
+    },
+    "modules-over-1000-lines": {
+      "value": 4
+    },
+    "complex-functions": {
+      "value": 26
+    },
+    "suppressions": {
+      "value": 1
+    },
+    "test-to-code-lines": {
+      "value": 1.28
+    },
+    "python-lines": {
+      "value": 36154
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 8
+    },
+    "test-seconds": {
+      "value": 130.33
+    },
+    "slowest-test-seconds": {
+      "value": 49.29
+    },
+    "test-seconds-summed": {
+      "value": 1196.14
+    },
+    "slow-tests": {
+      "value": 87
+    },
+    "total-coverage": {
+      "value": 98.22
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 122
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 61
+    },
+    "diff-lines": {
+      "value": 1673
+    },
+    "diff-files": {
+      "value": 25
+    },
+    "lead-minutes": {
+      "value": 64.7
+    },
+    "build-minutes": {
+      "value": 27.6
+    },
+    "converge-minutes": {
+      "value": 36.8
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "after-wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 3
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 6
+    },
+    "fix-commits": {
+      "value": 2
+    },
+    "cost-usd": {
+      "value": 16.62
+    },
+    "cost-usd-build": {
+      "value": 4.58
+    },
+    "cost-usd-converge": {
+      "value": 12.04
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 39891849
+    },
+    "tokens-build": {
+      "value": 19617357
+    },
+    "tokens-converge": {
+      "value": 20274492
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "cost-per-changed-line": {
+      "value": 0.0099
+    },
+    "conformance-confirmed": {
+      "value": 5
+    },
+    "adversarial-confirmed": {
+      "value": 3
+    },
+    "conformance-refuted": {
+      "value": 4
+    },
+    "adversarial-refuted": {
+      "value": 7
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 796328
+    },
+    "adversarial-tokens-per-confirmed": {
+      "value": 1330060
+    },
+    "escapes": {
+      "value": 1
+    },
+    "debt-added": {
+      "value": 3
+    },
+    "debt-paid": {
+      "value": 1
+    }
+  }
+}

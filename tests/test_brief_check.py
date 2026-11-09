@@ -195,7 +195,8 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 3 — no after:",
         "brief: halt — ## For the cut: item 3 — the models line is not"
         " build · converge · release · cut, then any of build-moderate · conformance"
-        " · adversarial · fix, each <model> <effort>, then shadow",
+        " · adversarial · fix, each <model> <effort>, or skip for converge,"
+        " conformance and adversarial, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
     # A host it does not know, a host on fix, cut or build-moderate, shadow before
@@ -223,7 +224,8 @@ def test_a_brief_out_of_shape_halts(
         *(
             f"brief: halt — ## For the cut: item {n} — the models line is not"
             " build · converge · release · cut, then any of build-moderate ·"
-            " conformance · adversarial · fix, each <model> <effort>, then shadow"
+            " conformance · adversarial · fix, each <model> <effort>, or skip for"
+            " converge, conformance and adversarial, then shadow"
             for n in (5, 6, 7, 8, 9)
         ),
         "brief: halt — ## For the cut: item 10 — build-moderate takes no host:"
@@ -513,6 +515,53 @@ def test_a_brief_out_of_shape_halts(
     assert capsys.readouterr().out == (
         "brief: halt — line 22: a second `## For the cut`\n"
     )
+
+
+def test_a_models_line_naming_a_skip(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stations = "build a b · converge a b · release a b · cut a b"
+    skipped = "build a b · converge skip · release a b · cut a b"
+    ready = _READY + "".join(
+        f"{n}. **ok** · minor · after: none\n   - models: {line}\n"
+        for n, line in (
+            (2, skipped),
+            (3, f"{stations} · conformance skip · adversarial a b · fix a b"),
+            (4, f"{stations} · conformance a b · adversarial skip · fix a b"),
+        )
+    )
+    assert brief_check.main([str(_write(tmp_path, ready))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    refused = _READY + "".join(
+        f"{n}. **ok** · minor · after: none\n   - models: {line}\n"
+        for n, line in (
+            (2, f"{stations} · adversarial skip claude-opus-5-5"),
+            (3, f"{stations} · conformance skip high"),
+            (4, f"{stations} · conformance skip · shadow"),
+            (5, f"{skipped} · shadow"),
+            (6, f"{skipped} · fix a b"),
+            (7, f"{skipped} · conformance skip"),
+            (8, f"{stations} · conformance skip · adversarial skip"),
+            (9, f"{stations} · fix skip"),
+        )
+    )
+    assert brief_check.main([str(_write(tmp_path, refused))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "brief: halt — ## For the cut: item 2 — a skip takes no model or effort",
+        "brief: halt — ## For the cut: item 3 — a skip takes no model or effort",
+        "brief: halt — ## For the cut: item 4 — a skip is not beside shadow",
+        "brief: halt — ## For the cut: item 5 — a skip is not beside shadow",
+        "brief: halt — ## For the cut: item 6 — converge skip takes no conformance,"
+        " adversarial or fix part",
+        "brief: halt — ## For the cut: item 7 — converge skip takes no conformance,"
+        " adversarial or fix part",
+        "brief: halt — ## For the cut: item 8 — conformance skip and adversarial"
+        " skip together: write converge skip",
+        "brief: halt — ## For the cut: item 9 — the models line is not"
+        " build · converge · release · cut, then any of build-moderate · conformance"
+        " · adversarial · fix, each <model> <effort>, or skip for converge,"
+        " conformance and adversarial, then shadow",
+    ]
 
 
 def test_what_cannot_be_checked_exits_2(

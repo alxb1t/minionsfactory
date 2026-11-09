@@ -268,8 +268,12 @@ Step 10 and commit **without waiting** — except for these, which wait for the 
 | a self-check item the cut cannot meet (Step 8) | the item and its evidence |
 | a plan-review doubt Step 8.5 leaves to the person | the doubt and its `path:line` |
 
+A **surfaces warning** shows too when the change's models skip adversarial or converge: for each file a task names that a
+`## Surfaces` glob of `THREAT_MODEL.md` matches, `surfaces warning — <path> matches <glob>: adversarial is skipped`. It waits
+for nothing; the commit goes on.
+
 Unattended, show nothing: each waiting row is a halt, save a `## Dependencies` whose every row the brief lists for this
-change, which commits.
+change, which commits. Each surfaces warning is a line of `.minions/changes/<change-id>/cut-notes.md` instead.
 
 On edits, go back to Step 7; Step 8.5 then runs only the **second** review, and only when the edit meets its row. An
 edit the human asks for after the commit is a further commit on the branch,
@@ -394,8 +398,11 @@ session's menu; with no menu, describe the capability needed — never invent mo
 When the brief's `## For the cut` item for this change names models, write exactly those, each host as its table's
 `executor`: the person chose them at the plan's close. Write `[converge.conformance]`, `[converge.adversarial]` or
 `[converge.fix]` from the Converge bullet when the brief's line lacks its part. A last `shadow` is `shadow = true` under
-`[converge]`. A `build-moderate` part is `[build.moderate]`, its `model` and `effort` and no `executor`: the phases
-rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
+`[converge]`. When the source names no models for the change, a root `AGENTS.md` line `**Converge:** skip`, `conformance skip`
+or `adversarial skip` pre-fills the suggestion with that part; the person confirms or changes it. Read the line for nothing
+else. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
+skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
+`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -413,17 +420,17 @@ The highest row any phase matches decides the capability; map it to the offered 
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
 a change for `[build]`.
 
-- **Converge** — `skip, read by hand` only when every phase is prose, skill text or a scan over text. A new code
-  path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent wrong
-  output — means run it: the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
+- **Converge** — the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
   conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · medium.
-  Say which you found.
+  A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
+  wrong output — calls for the tiers named. Say which you found. A `skip` is the person's: it stands in the
+  brief's models line, and you suggest none.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
 Suggested models
   build     <offered model or capability>   <reason from the phases>
-  converge  <offered model or capability | skip, read by hand>   <reason>
+  converge  <offered model or capability | skip, from the brief's models line>   <reason>
   release   <offered model or capability>   <reason>
   effort    <include a supported setting per station when available>
 ```
@@ -436,9 +443,10 @@ effort = "<effort>"        # only where the host exposes it
 # model = "<offered model>"
 # effort = "<effort>"
 [converge]
-model = "<offered model>"  # skip = true for "skip, read by hand"; mf-ship runs converge anyway
+model = "<offered model>"
 # executor = "codex"  # optional, per table, from the brief's host; absent, the run's, and converge's for a checker
 # shadow = true  # from the brief's shadow
+# skip = true  # from the brief's converge skip: no model, no worker tables
 [converge.conformance]
 model = "<offered model>"
 effort = "<effort>"

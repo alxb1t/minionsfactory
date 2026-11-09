@@ -179,6 +179,9 @@ picked card is adversarial's.
   one a version a run. So is the adversarial head by rule: it reads the adversarial file's cards, which a worker writes, so
   a forged Status skips one verify; it reads `## Surfaces` at the head the last round judged, never the fixed tree, so a fix
   cannot drop the glob its own edit matches.
+- **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
+  table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
+  Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.
 
 ## Known gaps
 

@@ -92,8 +92,8 @@ SPENT = ("result", "turn.completed")
 # A turn's context: what it read before it wrote. Why: 0100-worker-diet design C2.
 CONTEXT = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 # A converge subagent's role and round, from the description converge gives it.
-# Why: 0100-worker-diet design C6, D12.
-WORKER = re.compile(r"\b(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)
+# Why: 0100-worker-diet design C6, D12; 0105-converge-switches design D6.
+WORKER = re.compile(r"^(conformance|adversarial|fix|verify)\b.*?\bround (\d+)\b", re.I)
 # The events a worker's tokens are read from.
 WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.spawn"')
 DAY_SECONDS = 86400
@@ -1052,11 +1052,12 @@ def _integer(text: str | None) -> int | None:
 
 
 def _workers(front: dict[str, str]) -> int | None:
-    """Return a file's workers; a by-rule catch-up's `0` is a gap.
+    """Return a file's workers; a by-rule catch-up's or a stub's `0` is a gap.
 
-    Why: by rule overwrites the judged round's count and keeps its `model:`.
+    Why: by rule overwrites the judged round's count and keeps its `model:`; a stub
+    judged nothing, 0105-converge-switches design D3.
     """
-    if front.get("mode") == "by-rule":
+    if front.get("mode") in ("by-rule", "skipped"):
         return None
     return _integer(front.get("workers"))
 
