@@ -7,7 +7,7 @@ only the phase's end is green.
 
 ## Progress
 
-- [ ] 1 — The fields · hard
+- [x] 1 — The fields · hard
 - [ ] 2 — The script's start: preconditions, freeze, dispatch, verdicts · hard
 - [ ] 3 — The loop: fix, verify, pickup, grant, catch-up, resume · hard
 - [ ] 4 — The debt, the halts and the report · hard
@@ -16,22 +16,22 @@ only the phase's end is green.
 
 ## 1 — The fields
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def stage_of(' -e '^def _check_converge(' -e '^    def checker(' -e '^def serve_requests(' -e '^INTEGRATE = ' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 1.2 **HALT CHECK** [0107-sandbox-runner](../0107-sandbox-runner/design.md) is built under this branch: `sandboxed` stands.
+- [x] 1.2 **HALT CHECK** [0107-sandbox-runner](../0107-sandbox-runner/design.md) is built under this branch: `sandboxed` stands.
   Verify: `git grep -n -e '^def sandboxed(' -e '^def _profile(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 1.3 Extend `test_open_cards_refuse_what_they_cannot_read` in `tests/test_open_cards.py` as [the Tests table](design.md#tests)
+- [x] 1.3 Extend `test_open_cards_refuse_what_they_cannot_read` in `tests/test_open_cards.py` as [the Tests table](design.md#tests)
   says: a Status in another case is judged folded; a word outside `open`, `fixed`, `wontfix`, `verified` and `accepted`, and a
   Status line under no title, exit 2 naming the card. Then fail closed in `open_cards.py`.
   Verify: `uv run pytest -q tests/test_open_cards.py` exits 0; `git grep -n 'casefold' -- skills/mf-converge/scripts/open_cards.py` prints a line.
-- [ ] 1.4 Edit `W` as [D2](design.md#d2) says: the frontmatter block gains `files`, `commits`, `passes` and `inconclusive`; the
+- [x] 1.4 Edit `W` as [D2](design.md#d2) says: the frontmatter block gains `files`, `commits`, `passes` and `inconclusive`; the
   card table gains an **Amend** row after **Fix**; the amend-card paragraph keys on it, adds the fix-note exception and `## Tests`
   and `## Dependencies` to the sections the fixer never edits.
   Verify: `git grep -n -e '^files: <' -e '^commits: <' -e '^passes: \[' -e '^inconclusive: \[' -e '^| \*\*Amend\*\* |' -- skills/mf-converge/references/worker.md` prints a line for each.
-- [ ] 1.5 Write `skills/mf-converge/references/fix.md`: the fixer's rules moved from `K`'s Step 6 bullets, the `fix.md` report
+- [x] 1.5 Write `skills/mf-converge/references/fix.md`: the fixer's rules moved from `K`'s Step 6 bullets, the `fix.md` report
   ending `plan check left: <subjects>` or `plan check left: none`, and a `## Prompt` block per [D2](design.md#d2).
   Verify: `git grep -n -e '^## Prompt' -e 'plan check left:' -- skills/mf-converge/references/fix.md` prints a line for each.
-- [ ] 1.6 Add a `## Prompt` block, with [D2](design.md#d2)'s placeholders, to `skills/mf-converge/references/generic-conformance.md`,
+- [x] 1.6 Add a `## Prompt` block, with [D2](design.md#d2)'s placeholders, to `skills/mf-converge/references/generic-conformance.md`,
   `generic-adversarial.md` and `verify.md`, below `## The packet` where there is one.
   Verify: `git grep -l '^## Prompt' -- skills/mf-converge/references/` prints each reference named in this task and `fix.md`.
 

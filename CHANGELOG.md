@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py sandboxed -- <cmd>` runs a command under `sandboxed()` over the version's trees, and exits 2 with `no OS
   sandbox` or `no command`; `mf-ship`'s command table lists it and D51 states the rule (change `0107-sandbox-runner`,
   phase 2).
+- `open_cards.py` fails closed: a Status is judged case folded, and an unknown word, a card with no Status or a Status
+  under no card exits 2 naming it (`0095·S1`). A findings file gains `files`, `commits`, `passes` and `inconclusive`, a
+  card `Amend:`, so a script reads fields, not prose; the fixer gets its own reference, `references/fix.md`, its report
+  ending on `plan check left:`, and each reference gains a `## Prompt` (change `0108-converge-script`, phase 1).
 
 ## [0.88.0] - 2026-11-09
 

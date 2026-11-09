@@ -12,7 +12,7 @@ and keeps its grade: its **Priority** says it repeats that card's mechanism. The
 `nit` or `drift` to `blocking`. The station judges the match; the conductor judges nothing. No worker reads
 `.minions/debt.md`.
 
-**Conformance runs these passes after its sections**, and its Summary says each ran:
+**Conformance runs these passes after its sections**, and its Summary and its `passes` say each ran:
 
 | pass | runs | cards |
 |---|---|---|
@@ -35,7 +35,7 @@ a verdict.
 
 Each station writes **exactly one** file, `.minions/changes/<change-id>/<role>.md`, and nothing else; a shadow checker
 writes `shadow-<role>.md`, to the same contract. Something parses it, and it opens with this frontmatter, every key
-below:
+below, `passes` conformance's alone:
 
 ```yaml
 ---
@@ -50,6 +50,10 @@ open_blocking: <int>
 verdict: clean | changes-requested
 mode: parallel | sequential | by-rule | skipped
 workers: <int, the workers this role used; 0 by rule or skipped>
+files: <int, the files this round's scope resolved>
+commits: <int, the commits this round's scope resolved>
+passes: [<each conformance pass that ran: stale-claim, test-cost, and coverage-trace or no-removed-test>]
+inconclusive: [<each document whose section you judged inconclusive; [] for none>]
 model: <the model, as the host reports it, or unknown; a mailbox checker's, `conduct.py` stamps>
 tokens: <int; a mailbox checker's alone, which conduct.py stamps from its log>
 executor: <claude | codex, the host you run on, from runtime evidence>
@@ -57,8 +61,14 @@ packet: <the documents included; then `skipped:` and those skipped>
 ---
 ```
 
+**The fields converge reads.** `files` and `commits` are checked against [this round's freeze](#not-clean). `passes` names
+`no-removed-test` when the freeze removed no test. A file is **malformed** when it lacks a key above, holds one of the
+wrong type, or holds a card with no **Amend** line; a stub, `mode: skipped`, needs no `files`, `commits`, `passes` or
+`inconclusive`.
+
 **The body is a list of cards**, one per finding, in the shape [`## The card`](#the-card) fixes. The fix and
-verify passes change a card's **Status** field and leave its other fields as the station wrote them.
+verify passes change a card's **Status** field and leave its other fields as the station wrote them, save
+**Amend**, which a fixer setting an [amend card](#the-card)'s `wontfix` sets `yes`.
 
 **Each station grades on its own scale:**
 
@@ -155,6 +165,7 @@ field — never a heading, since the debt's headings are its changes. This refer
 | **Priority** | `<severity> · conformance · <category>`, the id `R<n>`, or `<severity> · adversarial · <category>`, the id `S<n>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level, a mechanism repeat that it kept its grade. A **security card** is an adversarial card of category `security` |
 | **Round** | the round the card was found |
 | **Fix** | the suggested fix, then its size, one of: `one line` · `a test` · `one line and a test` · `a design change` |
+| **Amend** | `yes` for an amend card, below; else `no` |
 | **Trigger** | when it becomes real; a blocking finding says `blocks this release` |
 | **Still true?** | a command, or the section to read, that shows the defect is still there |
 | **Related** | the ids to fix together, `repeat of <id>` for a repeat or a mechanism repeat, or `none` |
@@ -163,11 +174,13 @@ field — never a heading, since the debt's headings are its changes. This refer
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
 and name things rather than count them: "the conformance and adversarial files", not "the two files".
 
-**An amend card** is one whose **Fix**, or whose `wontfix` **Status** note, names the change's `tasks.md` or
-`design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose
-outside its `## Decisions` section, which the fixer corrects, and a card whose fix a fix note records.
-The fixer never edits `tasks.md`, nor that section, a row of its table, a decision's D-id or a `## ` heading, and
-converge halts on such a card.
+**An amend card** reads `Amend: yes`. The checker marks it so when its **Fix** names the change's `tasks.md` or
+`design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose outside
+its `## Decisions`, `## Tests` and `## Dependencies` sections, which the fixer corrects, and a card whose fix a fix note
+records; the fixer marks it so when it sets the card `wontfix` naming the amend by that path. The fixer never edits
+`tasks.md`, nor those sections, a row of their tables, a decision's D-id or a `## ` heading, save a **fix note**: one line,
+`Fix note (<YYYY-MM-DD>, <card id>): <one line>`, appended as the last line of a `### D<n>` entry whose words still hold.
+Converge halts on an amend card.
 
 ```
 - **S1 — The upload reads a file of any size into memory**
@@ -179,6 +192,7 @@ converge halts on such a card.
   - **Priority:** medium · adversarial · stability — one request can exhaust memory.
   - **Round:** 1
   - **Fix:** check `Content-Length` before reading the body · size: one line and a test.
+  - **Amend:** no
   - **Trigger:** the next change that opens `src/upload.py`.
   - **Still true?** `grep -n 'request.body.read()' src/upload.py`
   - **Related:** none.

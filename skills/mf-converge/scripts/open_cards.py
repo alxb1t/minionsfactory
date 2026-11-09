@@ -6,10 +6,12 @@
 
     open_cards.py <findings.md> <out.md>
 
-A card is judged when its Status reads `open`, `fixed` or `wontfix`, backticks
-dropped; it is copied verbatim. Prints `open cards: <n> of <findings name>` and exits
-0, or `open cards: cannot read — <why>` and exits 2, writing nothing; an out path
-that is a link is refused. Why: 0095-converge-roles design D10.
+A card is judged when its Status reads `open`, `fixed` or `wontfix`, case folded,
+backticks and bold dropped; it is copied verbatim. Prints `open cards: <n> of
+<findings name>` and exits 0, or `open cards: cannot read — <why>` and exits 2,
+writing nothing: on a Status word none of `KNOWN`, a card with no Status, a Status
+line under no card, or an out path that is a link. Why: 0095-converge-roles design
+D10, 0108-converge-script design D11.
 """
 
 import argparse
@@ -20,8 +22,12 @@ import sys
 from pathlib import Path
 
 JUDGED = ("open", "fixed", "wontfix")
-TITLE = re.compile(r"^- \*\*\S+ — ")
-STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*`?(\w*)", re.MULTILINE)
+KNOWN = (*JUDGED, "verified", "accepted")
+TITLE = re.compile(r"^- \*\*(\S+) — ")
+# Any top-level bold line, off the card's form or not: names a stray Status's card.
+NAMED = re.compile(r"^[-*] \*\*([^\s*:]+)")
+STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\S*)", re.MULTILINE)
+WORD_END = re.compile(r"\W")
 
 
 class Stop(Exception):
@@ -53,13 +59,36 @@ def cards(text: str) -> list[str]:
     return ["\n".join(card).rstrip() + "\n" for card in found]
 
 
+def strays(text: str) -> None:
+    """Stop on a Status line under no card title, naming the bold line above it."""
+    name, inside = "unnamed", False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            name, inside = "unnamed", False
+        elif bold := NAMED.match(line):
+            name, inside = bold[1], TITLE.match(line) is not None
+        elif STATUS.match(line) and not inside:
+            raise Stop(f"a Status under no card: {name}")
+
+
 def judged(card: str) -> bool:
     """Return whether a card's Status asks a verify for its verdict.
 
-    e.g. "  - **Status:** `fixed` — a note" → True; "verified — held" → False
+    e.g. "  - **Status:** `Fixed` — a note" → True; "verified — held" → False.
+    A Status word none of `KNOWN`, or none at all, stops the run, naming the card.
     """
-    status = STATUS.search(card)
-    return status is not None and status[1] in JUDGED
+    title = TITLE.match(card)
+    name = title[1] if title else "unnamed"
+    said = [status[1] for status in STATUS.finditer(card)]
+    if not said:
+        raise Stop(f"card {name}: no Status")
+    words = [
+        WORD_END.split(each.lstrip("`*_"), maxsplit=1)[0].casefold() for each in said
+    ]
+    for each, word in zip(said, words, strict=True):
+        if word not in KNOWN:
+            raise Stop(f"card {name}: Status {each or 'empty'}")
+    return words[0] in JUDGED
 
 
 # `bundle.py`'s `write`.
@@ -90,7 +119,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     name = args.findings.name
     try:
-        found = [card for card in cards(_read(args.findings)) if judged(card)]
+        text = _read(args.findings)
+        strays(text)
+        found = [card for card in cards(text) if judged(card)]
         body = "".join(found) or "None.\n"
         write(args.out, f"# {name} — the cards a verify judges\n\n{body}")
     except Stop as stop:

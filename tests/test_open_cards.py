@@ -103,3 +103,30 @@ def test_open_cards_refuse_what_they_cannot_read(
     code, said = _run(capsys, findings, out)
     assert code == 2 and said.startswith(f"open cards: cannot read — {out}: ")
     assert not out.exists()
+    (tmp_path / "adversarial.open.md.tmp").rmdir()
+
+    # A Status in another case, or in bold, is judged as its folded word.
+    folded = _card("S1", "`Fixed` — guarded the path") + _card(
+        "S2", "**WONTFIX** — why"
+    )
+    findings.write_text(_FRONT + folded + _card("S3", "Verified — held"))
+    assert _run(capsys, findings, out) == (0, "open cards: 2 of adversarial.md\n")
+    assert (
+        out.read_text() == f"# adversarial.md — the cards a verify judges\n\n{folded}"
+    )
+    out.unlink()
+
+    # Any other Status, none at all, or a Status line under no card fails closed.
+    for card, why in (
+        (_card("S4", "reopened — the guard is gone"), "card S4: Status reopened"),
+        (_card("S5", "won't fix — by design"), "card S5: Status won't"),
+        ("- **S6 — a finding**\n  - **Round:** 1\n", "card S6: no Status"),
+        (
+            "- **S7: off the form**\n  - **Status:** fixed\n",
+            "a Status under no card: S7",
+        ),
+        ("## Findings\n\n  - **Status:** fixed\n", "a Status under no card: unnamed"),
+    ):
+        findings.write_text(_FRONT + _OPEN + card)
+        assert _run(capsys, findings, out) == (2, f"open cards: cannot read — {why}\n")
+        assert not out.exists()
