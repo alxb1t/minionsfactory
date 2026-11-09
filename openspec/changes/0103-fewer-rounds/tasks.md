@@ -12,7 +12,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 5 — CommonMark readers
 - [x] 6 — The plan review's model
 - [x] 7 — The record
-- [ ] 8 — A Verify's output
+- [x] 8 — A Verify's output
 
 ## 1 — The round-1 pickup and the mechanism repeat
 
@@ -138,11 +138,11 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 8 — A Verify's output
 
-- [ ] 8.1 Add [D4](design.md#d4)'s Check 1 output steps to `test_a_plan_check_finds_what_the_plan_left` in
+- [x] 8.1 Add [D4](design.md#d4)'s Check 1 output steps to `test_a_plan_check_finds_what_the_plan_left` in
   `tests/test_plan_check.py`, per the design's `## Tests` row: a `prints nothing` search that finds a match fails; a ticked
   sub-task whose `Verify:` says `printf 1` prints `2` fails, and one saying it prints `1` passes; a `grep -c` that finds
   nothing passes where its `Verify:` says it prints `0`.
   Verify: `grep -n "printf 1" tests/test_plan_check.py` prints a line.
-- [ ] 8.2 In `skills/mf-converge/scripts/plan_check.py`, hold each re-run command to the output its `Verify:` names, in
+- [x] 8.2 In `skills/mf-converge/scripts/plan_check.py`, hold each re-run command to the output its `Verify:` names, in
   `commands()`, `rerun()` and `check_verifies()`, per [D4](design.md#d4)'s Check 1, `rerun()`'s docstring saying so.
   Verify: `uv run pytest -q tests/test_plan_check.py` reports `2 passed`.

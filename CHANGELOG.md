@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D74 records the cuts to converge's rounds; D2, D53, D65 and D71 follow it, and the coding standards, `AGENTS.md` and the
   threat model name the `markdown-it-py` header, `make corpus`, the fix note and the plan check (change
   `0103-fewer-rounds`, phase 7).
+- `plan_check.py` holds a re-run `Verify:` to the output it names: a command exiting 0 fails when it prints something where
+  the `Verify:` says `prints nothing`, or other than the number it names; a `grep -c` printing `0` on exit 1 passes
+  (change `0103-fewer-rounds`, phase 8).
 
 ## [0.85.0] - 2026-11-09
 

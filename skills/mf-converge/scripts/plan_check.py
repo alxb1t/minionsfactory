@@ -46,7 +46,7 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
-NOTHING = re.compile(r"prints nothing|prints `0`")
+NOTHING = re.compile(r"\bprints nothing\b")
 DEFINED = re.compile(r"-\s*(?:async\s+)?(?:def|class) (\w+)")
 CONSTANT = re.compile(r"-(_?[A-Z][A-Z0-9_]*)\s*[=:]")
 REMOVAL = re.compile(
@@ -75,10 +75,15 @@ class Task(NamedTuple):
 
 
 class Command(NamedTuple):
-    """One backticked command of a `Verify:`, and the count its output names."""
+    """One backticked command of a `Verify:`, and what its words say it prints.
+
+    `nothing` is set when the words after it say `prints nothing`; `count` is the
+    number it prints alone.
+    """
 
     text: str
     count: int | None
+    nothing: bool = False
 
 
 def _git(
@@ -127,6 +132,8 @@ def commands(verify: str) -> list[Command]:
     end, output = 0, False
     for match in SPAN.finditer(verify):
         before = verify[end : match.start()]
+        if found and not output and NOTHING.search(before):
+            found[-1] = found[-1]._replace(nothing=True)
         words = before.split()
         output = (bool(words) and words[-1] in OUTPUT_VERBS) or (
             output and before.strip() in ("and", "or")
@@ -139,6 +146,8 @@ def commands(verify: str) -> list[Command]:
         elif words[-1:] in (["prints"], ["reports"]) and text.isdigit() and found:
             found[-1] = found[-1]._replace(count=int(text))
         end = match.end()
+    if found and not output and NOTHING.search(verify[end:]):
+        found[-1] = found[-1]._replace(nothing=True)
     return found
 
 
@@ -159,14 +168,19 @@ def verify_of(text: str) -> str | None:
     return None if at < 0 else text[at + len("Verify:") :]
 
 
-def rerun(name: str, command: str, verify: str, root: Path) -> list[str]:
+def rerun(name: str, command: Command, root: Path) -> list[str]:
     """Return the lines a command that fails prints, none when it passes.
 
-    A command passes on exit 0. A `grep` or `git grep` also passes on exit 1 with no
-    output when its `Verify:` says it prints nothing.
+    A command passes on exit 0 printing what its `Verify:` says: nothing, the number
+    alone, or anything when it says neither. A `grep` or `git grep` also passes on
+    exit 1 printing nothing when its `Verify:` says it prints nothing or `0`, or
+    printing `0` alone when it says `0`. Why: 0103-fewer-rounds design D4.
     """
-    argv = tokens(command)
+    argv = tokens(command.text)
     search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
+    wanted = (
+        "" if command.nothing else None if command.count is None else str(command.count)
+    )
     try:
         done = subprocess.run(
             argv,
@@ -179,13 +193,17 @@ def rerun(name: str, command: str, verify: str, root: Path) -> list[str]:
         )
         code, output = done.returncode, done.stdout.splitlines()
     except subprocess.TimeoutExpired:
-        return [f"plan: {name} — `{command}` timed out"]
+        return [f"plan: {name} — `{command.text}` timed out"]
     except OSError as error:
         code, output = 127, [str(error.strerror)]
-    if code == 0 or (code == 1 and not output and search and NOTHING.search(verify)):
+    printed = "\n".join(output).strip()
+    if code == 0 and wanted in (None, printed):
+        return []
+    if code == 1 and search and wanted in ("", "0") and printed in ("", wanted):
         return []
     shown = [f"  | {line}" for line in output[:SHOWN]]
-    return [f"plan: {name} — `{command}` exited {code}", *shown]
+    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    return [f"plan: {name} — `{command.text}` {result}", *shown]
 
 
 def phases(tasks: str) -> tuple[set[int], set[int]]:
@@ -214,7 +232,7 @@ def check_verifies(tasks: list[Task], human: set[int], root: Path) -> list[str]:
         try:
             for command in commands(verify):
                 if "plan_check.py" not in command.text:
-                    problems += rerun(task.name, command.text, verify, root)
+                    problems += rerun(task.name, command, root)
         except Unparsed as error:
             raise Stop(f"{task.name}: {error}") from None
     return problems

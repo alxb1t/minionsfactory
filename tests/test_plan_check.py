@@ -124,6 +124,46 @@ def test_a_plan_check_finds_what_the_plan_left(
     _tasks(root, _ONE, f"- [x] 1.1 Absent.\n  Verify: `{search}` prints a line.\n")
     assert check() == (1, [f"plan: 1.1 — `{search}` exited 1"])
 
+    # A command that exits 0 must print what its `Verify:` says: a `prints nothing`
+    # search that finds a match fails, showing the match.
+    found = "git grep -n -e Old -- src"
+    other = "printed other than its Verify: says"
+    _tasks(root, _ONE, f"- [x] 1.1 Present.\n  Verify: `{found}` prints nothing.\n")
+    assert check() == (
+        1,
+        [f"plan: 1.1 — `{found}` {other}", "  | src/mod.py:9:class Old:"],
+    )
+    # A count a `Verify:` names is the whole output: `printf 1` is not `2`, is `1`.
+    _tasks(root, _ONE, "- [x] 1.1 Wrong.\n  Verify: `printf 1` prints `2`.\n")
+    assert check() == (1, [f"plan: 1.1 — `printf 1` {other}", "  | 1"])
+    _tasks(
+        root,
+        _ONE,
+        "- [x] 1.1 Right.\n  Verify: `printf 1` prints `1`.\n",
+        "- [x] 1.2 Reported.\n"
+        "  Verify: `printf 1` prints `1`, then `printf 2` reports `1`.\n",
+    )
+    assert check() == (1, [f"plan: 1.2 — `printf 2` {other}", "  | 2"])
+    # A `grep -c` that finds nothing exits 1 printing `0`, which `prints `0`` passes.
+    counted = "grep -c zzz src/mod.py"
+    _tasks(root, _ONE, f"- [x] 1.1 Zero.\n  Verify: `{counted}` prints `0`.\n")
+    assert check() == (0, ["plan: clean"])
+    _tasks(root, _ONE, f"- [x] 1.1 One.\n  Verify: `{counted}` prints `1`.\n")
+    assert check() == (1, [f"plan: 1.1 — `{counted}` exited 1", "  | 0"])
+    # Each command is held to the words after its own span.
+    _tasks(
+        root,
+        _ONE,
+        "- [x] 1.1 Both.\n"
+        f"  Verify: `{search}` prints nothing, then `printf 1` prints `1`.\n",
+        "- [x] 1.2 Order.\n"
+        f"  Verify: `{found}` prints nothing, then `printf 1` prints `1`.\n",
+    )
+    assert check() == (
+        1,
+        [f"plan: 1.2 — `{found}` {other}", "  | src/mod.py:9:class Old:"],
+    )
+
     # A HALT CHECK, a HUMAN phase's sub-task and a command naming `plan_check.py` are
     # not run.
     _tasks(
