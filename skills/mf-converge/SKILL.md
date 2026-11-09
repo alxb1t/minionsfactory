@@ -163,10 +163,11 @@ Step 5 reads no shadow file, and no fixer, pickup, debt card or `done` counts on
 
 `<role>=skip` names a checker the plan skips; `mf-ship` passes it. Dispatch no worker for that role. Its findings file is a
 **stub**, written by `uv run --script <this package>/scripts/skip_stub.py .minions/changes/<change-id>/<role>.md <round>`:
-clean at `HEAD`, `mode: skipped`, no card. Exit 2, or `uv` missing → **halt**, naming what it printed.
+clean at `HEAD`, `mode: skipped`, no card. It refuses a checker's file that is not clean or holds a card `open`, `fixed` or
+`wontfix`: clearing that is the person's act. Exit 2, or `uv` missing → **halt**, naming what it printed.
 
 - **When:** after Step 2's freeze, Step 6's re-freeze, the catch-up's freeze and its [By rule](#by-rule) write, and before
-  Step 10's `done` when the stub's `head:` is not `HEAD`. `<round>` is the one that freeze judges.
+  Step 10's `done` when the stub's `head:` is not `HEAD`, as after a pickup's commit. `<round>` is the one that freeze judges.
 - **Read:** Step 5 reads a stub for `verdict: clean` and its `head:` alone, with no `verdicts` line.
 - **The other role:** Steps 3, 6, 7 and 8 dispatch the role not skipped alone.
 - **Halt:** `shadow=yes` beside a skip, or both roles `skip` — a plan that skips both is `converge skip`, which runs no
@@ -489,8 +490,9 @@ tier are on the card — and no human confirms it.
    check, as Step 6 says. `surfaces.py` runs only when adversarial is not skipped. The check **needs** adversarial when a picked card is
    adversarial's or `surfaces.py` exits 1, else conformance; a skipped role is never the one needed, the role not skipped is. A role it needs is a mailbox role → write `pickup` with
    `checked — round <N+1>` and verify in a normal Step 7 round instead, counted. Else dispatch one fresh worker, its description `verify round <N> · pickup`, `<N>`
-   the last judged round, on the needed role's model at effort `medium`. Give it [verify](references/verify.md), both
-   `<role>.open.md`, `diff.patch`, both findings paths and the design's `## Tests` section.
+   the last judged round, on the needed role's model at effort `medium`. Give it [verify](references/verify.md), the
+   `<role>.open.md` and findings path of each role not skipped, `diff.patch` and the design's `## Tests` section; a
+   skipped role's stub stays as `skip_stub.py` wrote it.
 6. **Read both files** under Step 5's table, writing no `verdicts` line, and write `pickup` with `checked`. Both
    `clean` → Step 9. A blocking card open → Step 6 with it, then a Step 7 round, counted. A card first found in the
    check is not picked: one pickup per run.

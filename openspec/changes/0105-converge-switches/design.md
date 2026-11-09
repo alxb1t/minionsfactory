@@ -128,6 +128,8 @@ The cutter's readings of the brief's decisions, each named where it is built:
 - **Unchanged:** `_amendable`, `_security_blocks`, `_security_held`, `_check_converge`. A stub is clean at `HEAD` and holds
   no card, so none bars a rescue or supervisor.
 
+Fix note (2026-11-09, R1): `Run.stage` logs the event `converge skipped` with the detail `plan`, so the line reads the spec's `converge skipped — plan`; `EVENT` and `EVENTS` take the two-word event.
+
 ### D3
 
 `skills/mf-converge/scripts/skip_stub.py <findings-file> <round>`, a `uv` script, `dependencies = []`:
@@ -151,6 +153,8 @@ The cutter's readings of the brief's decisions, each named where it is built:
   name each skipped role.
 - **`W:51-52`** — `mode: parallel | sequential | by-rule | skipped`, `workers: … 0 by rule or skipped`.
 - **`M`'s `_workers`** — reads `mode: skipped` as it reads `by-rule`: a gap.
+
+Fix note (2026-11-09, S1): `skip_stub.py` also exits 2 on an existing file that is no stub and is not clean or holds a card `open`, `fixed` or `wontfix`, so a skip added after a round never erases its cards.
 
 ### D4
 

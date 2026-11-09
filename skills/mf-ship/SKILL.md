@@ -114,7 +114,7 @@ out refused; a Codex probe then runs one checker on a fixture. `conduct.py` hold
 secrets first.
 Converge runs MF's method; a checker on another host than converge's runs through the checker mailbox `conduct.py`
 serves. A version whose models file says `[converge] skip = true` skips converge and its catch-up round: it goes from
-build to integrate and release, and the run log says `converge — skipped — plan`. A checker table with `skip = true`
+build to integrate and release, and the run log says `converge skipped — plan`. A checker table with `skip = true`
 takes the prompt clause `<role>=skip`, no probe and no mailbox. A closed lid sleeps the Mac whatever the run holds, unless it is in clamshell mode.
 
 ## Step 4 — Report, then stop

@@ -6,19 +6,13 @@
 
     skip_stub.py <findings-file> <round>
 
-The file is `.minions/changes/<change-id>/conformance.md` or `adversarial.md`; the role
-comes from its name, the plan from its folder. Run from the version's checkout: `head`
-and `branch` are that checkout's. The stub holds every key of the findings contract,
-`verdict: clean`, `mode: skipped`, `workers: 0`, and no card.
-Prints `skip_stub: <path> at <short head> · round <round>`. Exit 0, or 2 with
-`skip_stub: cannot stub — …` for a path that is a link or not of that form, a round
-that is no positive integer, a directory with no repository, or an unwritable file.
-e.g. `…/changes/0001-a/adversarial.md 2` → that file at `HEAD`, round 2
-Why: 0105-converge-switches design D3.
+e.g. `…/changes/0001-a/adversarial.md 2` → that file at `HEAD`, round 2; exit 0, or 2.
+Its keys, line and refusals: 0105-converge-switches design D3.
 """
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from datetime import date
@@ -26,6 +20,8 @@ from pathlib import Path
 
 ROLES = ("conformance", "adversarial")
 BODY = "Skipped by the plan: no worker judged this round."
+STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\w+)", re.MULTILINE)
+UNCLEARED = ("open", "fixed", "wontfix")
 
 
 class Stop(Exception):
@@ -94,6 +90,21 @@ def stub(path: Path, role: str, round_: int, head: str) -> str:
     return f"---\n{front}---\n\n{BODY}\n"
 
 
+def uncleared(text: str) -> bool:
+    r"""Return whether a findings file holds a checker's round not yet cleared.
+
+    A stub never does; another does when not clean or a card is open, fixed or wontfix.
+    e.g. "---\nmode: parallel\nverdict: clean\n---\n" → False
+    """
+    lines = text.split("\n---", 1)[0].splitlines()
+    pairs = (line.partition(":") for line in lines)
+    front = {key.strip(): value.strip() for key, _, value in pairs}
+    if front.get("mode") == "skipped":
+        return False
+    statuses = STATUS.findall(text)
+    return front.get("verdict") != "clean" or any(s in UNCLEARED for s in statuses)
+
+
 def write(path: Path, text: str) -> None:
     """Replace the file with `text`, through a staged file that refuses a link.
 
@@ -103,6 +114,12 @@ def write(path: Path, text: str) -> None:
     staged = path.with_name(f"{path.name}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:
+        # why: a skip added after a round keeps its cards; 0105-converge-switches D3
+        if path.is_file() and uncleared(path.read_text(errors="replace")):
+            raise Stop(
+                f"{path} holds a checker's round not cleared:"
+                " clearing it is the person's act"
+            )
         staged.unlink(missing_ok=True)
         with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
             file.write(text)

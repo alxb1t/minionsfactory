@@ -323,7 +323,7 @@ starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-ano
 
 **Converge's conductor runs on Sonnet 5.5 · high, its conformance worker on the mid tier · high,
 its adversarial worker on the strongest tier · high, and its fixer on the mid tier · medium, on adversarial's model,
-adversarial running on converge's host, when a card it is sent blocks: the models file's `[converge]`,
+adversarial running on converge's host and not skipped, when a card it is sent blocks: the models file's `[converge]`,
 `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
 converge prompt. Verify runs at medium. Conformance reads `bundle.md` — the
 decisions the change cites, in full, an index of all, and each requirement the delta modifies or removes,
@@ -339,7 +339,8 @@ adversarial card awaiting its checker, takes its adversarial head by recomputati
 
 ### D66 · Two checkers: conformance and adversarial
 
-**Converge runs two checkers. Conformance judges the code against the change's own spec, design, tasks and the decisions it
+**Converge runs two checkers, save one a plan skips ([D75](#d75--a-person-may-skip-converge-or-a-checker-per-version)).
+Conformance judges the code against the change's own spec, design, tasks and the decisions it
 cites, from the change's artifacts, its bundle and the diff, reading no code beyond the diff's hunks; it grades `blocking` ·
 `drift` · `nit`, on the mid tier. Adversarial tries to break the change — races, edge cases, exploits, security — from the diff,
 the source and tests around it and the threat model; it grades `critical` · `high` · `medium` · `low`, `high` a bug that would

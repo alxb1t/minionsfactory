@@ -11,10 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `shadow`, a model or effort, and both checkers skipped. `mf-cut-change` drops its dead `skip, read by hand` text and
   writes a brief's skip as `skip = true` in `models.toml` (change `0105-converge-switches`, phase 1).
 - `conduct.py` reads `skip = true` under `[converge]` or a checker's table: a skipped converge sends a built version to
-  integrate and release, the run log saying `converge — skipped — plan`; a skipped checker takes `<role>=skip` in the
+  integrate and release, the run log saying `converge skipped — plan`; a skipped checker takes `<role>=skip` in the
   converge prompt and is not probed (change `0105-converge-switches`, phase 2).
 - Converge dispatches the checker not skipped alone; `skip_stub.py` writes the skipped one's findings file clean at `HEAD`,
-  `mode: skipped`. `mf-release` states `converge: skipped — by plan` and `<role>: skipped`, and `review_metrics.py` books a
+  `mode: skipped`, and refuses a checker's file holding cards not cleared. `mf-release` states `converge: skipped — by plan` and `<role>: skipped`, and `review_metrics.py` books a
   worker by the start of its description, a stub's `0` a gap (change `0105-converge-switches`, phase 3).
 - A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the models line in
   `mf-plan` and the cut, and the cut warns when an adversarial skip's tasks name a `## Surfaces` file (change

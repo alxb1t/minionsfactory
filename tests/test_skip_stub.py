@@ -131,6 +131,31 @@ def test_a_stub_it_cannot_write_exits_2(
         refused([str(stub), bad], f"round {bad} is not a positive integer")
     assert not stub.exists()
 
+    # A checker's file holding a round not yet cleared is kept: the person clears it.
+    front = "---\ntype: adversarial\nmode: parallel\nverdict: {}\n---\n\n"
+    card = "- **S1 — a finding**\n  - **Status:** {}\n"
+    held = (
+        f"{stub} holds a checker's round not cleared: clearing it is the person's act"
+    )
+    for text in (
+        front.format("changes-requested"),
+        front.format("clean") + card.format("open"),
+        front.format("clean") + card.format("fixed — a test"),
+        front.format("clean") + card.format("wontfix — the card is wrong"),
+    ):
+        stub.write_text(text)
+        refused([str(stub), "1"], held)
+        assert stub.read_text() == text
+    for text in (
+        front.format("clean") + card.format("verified") + card.format("accepted"),
+        "---\nmode: skipped\nverdict: changes-requested\n---\n",
+    ):
+        stub.write_text(text)
+        assert skip_stub.main([str(stub), "1"]) == 0
+        assert "\nmode: skipped\n" in stub.read_text()
+        capsys.readouterr()
+    stub.unlink()
+
     missing = folder.parent / "0002-b" / "adversarial.md"
     refused([str(missing), "1"], "adversarial.md could not be written")
 

@@ -90,13 +90,14 @@ CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
-EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (\S+) — ")
+# why: the plan's skipped converge logs `converge skipped — plan`, the spec's words;
+# 0105-converge-switches design D2
+EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (converge skipped|\S+) — ")
 EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
     *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
-    # why: the plan's skipped converge is logged, 0105-converge-switches design D2
-    "converge",
+    "converge skipped",
 )
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
@@ -2546,10 +2547,8 @@ def _worker_clause(
 ) -> str:
     """Return a converge worker's prompt clause, `converge` its conductor's executor.
 
-    A skipped checker is `skip`, on any host. A checker on another host is a
-    mailbox role; else "" on Codex or with neither named.
-    Why: 0094-lighter-converge design D1; 0097-cross-model design D3;
-    0105-converge-switches design D2.
+    Skipped, `skip`; on another host, `mailbox`; else "" on Codex or with neither named.
+    Why: 0094-lighter-converge D1; 0097-cross-model D3; 0105-converge-switches D2.
     e.g. ("converge.fix", ("claude", "m", None), "claude") → " and fix=m/default"
     """
     executor, model, effort = models
@@ -2591,8 +2590,6 @@ def _shadow(
 def _skips(runs: Path, change: str) -> frozenset[str]:
     """Return the converge stations the cut's models file skips; none on a bad file.
 
-    `[converge] skip = true` skips converge and each worker; else each checker's
-    table that says it. Only the value `true` skips.
     Why: 0105-converge-switches design D2.
     e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
     """
@@ -4624,7 +4621,7 @@ class Run:
                 first = change not in self.skip_logged
                 self.skip_logged.add(change)
             if first:
-                self.log.event(change, "converge", "skipped — plan")
+                self.log.event(change, "converge skipped", "plan")
         with self.guard:
             settled = version.change in self.settled
         if settled and stage == "integrating" and why.startswith("semantic conflict"):

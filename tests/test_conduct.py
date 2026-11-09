@@ -631,9 +631,10 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     spawn = "10:00:01 · 0001-todo · spawn — build · model default"
     finish = "10:00:09 · 0001-todo · finish — build · exit 0 · 8s"
     denied = "10:00:09 · 0001-todo · denied — build · Bash(rm -rf build)"
+    skipped = "10:00:09 · 0002-marks · converge skipped — plan"
     done = "10:00:10 · run · done — released v0.1.0"
     cases = {
-        "complete": ([start, spawn, finish, denied, done], 0, "log: complete"),
+        "complete": ([start, spawn, finish, denied, skipped, done], 0, "log: complete"),
         "unpaired": (
             [start, spawn, done],
             1,
@@ -716,10 +717,10 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert " · by rule — clean, " in (findings / "status_log.md").read_text()
     lines = _log(root)
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
-    # The run log says "converge skipped — plan", as the event `converge`, once.
-    skipped = [line for line in lines if " · converge — " in line]
+    # The run log says "converge skipped — plan" once, as the spec words it.
+    skipped = [line for line in lines if " · converge " in line]
     assert [line.split(" · ", 1)[1] for line in skipped] == [
-        "0002-marks · converge — skipped — plan"
+        "0002-marks · converge skipped — plan"
     ]
     assert any(line.endswith(" · spawn — build · model default") for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
@@ -886,7 +887,7 @@ def test_a_version_with_adversarial_skipped_ships_on_a_stub(
     assert "\nverdict: clean\n" in (folder / "conformance.md").read_text()
     assert "mode: skipped" not in (folder / "conformance.md").read_text()
     lines = _log(root)
-    assert not any("converge — skipped" in line for line in lines)
+    assert not any("converge skipped" in line for line in lines)
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
 
