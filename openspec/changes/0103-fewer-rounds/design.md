@@ -162,11 +162,15 @@ exit 0 "plan: clean" · 1 one "plan: …" line per problem · 2 cannot read task
 
 - **The tasks** — `openspec/changes/<id>/tasks.md` from disk. `## Progress` lines `- [x] N — …`; sub-tasks by `SUBTASK` and
   `subtasks()`, copied from `verify_check.py` with `commands()` and `tokens()`, the commands those read in a `Verify:`.
-- **Check 1** — a ticked sub-task's commands run in order. A command exits 0 to pass; a search — `grep`, or `git grep` — also
-  passes on exit 1 with no output when its `Verify:` says `prints nothing` or `` prints `0` ``. Not run: a `**HALT CHECK**`
-  sub-task, a sub-task of a `**HUMAN` phase, and a command naming `plan_check.py`. A failure prints
-  `plan: <N.M> — `<command>` exited <code>`, then at most 5 lines of its output, each `  | <line>`; a timeout reads `timed out`.
-  A span `tokens()` cannot split exits 2.
+- **Check 1** — a ticked sub-task's commands run in order. A command passes when it exits 0 and prints what its `Verify:`
+  names of its output: nothing, when the words after its span, up to the next span, say `prints nothing`; the number `N`
+  alone, its output stripped, when they say `` prints `N` `` or `` reports `N` ``, `N` digits — `commands()`'s `count`;
+  anything, when they name neither. A search — `grep`, or `git grep` — also passes on exit 1 printing nothing when the words
+  after its span say `prints nothing` or `` prints `0` ``, or printing `0` alone when they say `` prints `0` ``. Not run: a
+  `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a command naming `plan_check.py`. A failure prints
+  `plan: <N.M> — `<command>` exited <code>`, a passing exit with other output
+  `plan: <N.M> — `<command>` printed other than its Verify: says`, each then at most 5 lines of its output, each
+  `  | <line>`; a timeout reads `timed out`. A span `tokens()` cannot split exits 2.
 - **Check 2** — `plan: <N.M> — unticked under the ticked phase <N>`.
 - **Check 3** — removed names: from `git diff --unified=0 --no-renames <merge base> -- '*.py'`, each `-` line's `def <name>`
   or `class <name>`, indented or not, and each unindented `<UPPER_NAME> =` or `<UPPER_NAME>:`; and the base name of each file
@@ -342,7 +346,7 @@ end-to-end test: the repo has no browser layer. Phase 1 adds none ([C3](#c-rows)
 | test | gains |
 |---|---|
 | `test_a_rescue_decides_under_the_switch` (`T`) | after its `_decisions` steps: `## Decisions\n\n### D1\n\nRead the branch.\n\n## Tests\n` and the same with `\nFix note (2026-11-08, R2): reads refs/heads.\n` after its words read equal through `_decisions`, CRLF too; the note with `Read the branch` → `Read the tag` reads unequal; a note followed by a line of words reads unequal; and an amend without the switch that appends a note, through `_amend`, is `(sha, "", False)` ([D3](#d3)) |
-| `test_a_plan_check_finds_what_the_plan_left` (new, `tests/test_plan_check.py`) | a repo under `tmp_path` with a change directory and a merge base: a ticked `Verify:` exiting 1 → exit 1 naming it; a `prints nothing` search exiting 1 → passes; a `**HALT CHECK**`, a `**HUMAN` phase's and a `plan_check.py` command are not run; a command past a lowered timeout reads `timed out`; an unticked box under a ticked phase; a removed `def _gone` named in `openspec/specs/` → exit 1, on a line saying it is removed → passes, in `tasks.md` → passes; a removed file's base name; a base test gone → exit 1, named in `## Tests` → passes; a clean plan → `plan: clean` ([D4](#d4)); a `**CORPUS**` case missing and present ([D5](#d5)) |
+| `test_a_plan_check_finds_what_the_plan_left` (new, `tests/test_plan_check.py`) | a repo under `tmp_path` with a change directory and a merge base: a ticked `Verify:` exiting 1 → exit 1 naming it; a `prints nothing` search exiting 1 → passes; a `prints nothing` search that finds a match → exit 1; `printf 1` that a `Verify:` says prints `2` → exit 1, prints `1` → passes; a `grep -c` that finds nothing, exiting 1 printing `0`, where its `Verify:` says it prints `0` → passes; a `**HALT CHECK**`, a `**HUMAN` phase's and a `plan_check.py` command are not run; a command past a lowered timeout reads `timed out`; an unticked box under a ticked phase; a removed `def _gone` named in `openspec/specs/` → exit 1, on a line saying it is removed → passes, in `tasks.md` → passes; a removed file's base name; a base test gone → exit 1, named in `## Tests` → passes; a clean plan → `plan: clean` ([D4](#d4)); a `**CORPUS**` case missing and present ([D5](#d5)) |
 | `test_what_the_plan_check_cannot_read_exits_2` (new, `tests/test_plan_check.py`) | no `tasks.md`; a `--base` naming no commit; a span `tokens()` cannot split ([D4](#d4)) |
 | `test_the_corpus_runs_each_case` (new, `tests/test_corpus.py`) | a run directory under `tmp_path`, cases running `sys.executable -c` readers: a pass per input, `no input`, a reader exiting 1 → exit 1 naming the case and input, a timeout, `{out}` under `corpus/`; a run with no `--minions` from a repo under `tmp_path` finds its run directory from git ([D5](#d5)) |
 | `test_a_corpus_it_cannot_read_exits_2` (new, `tests/test_corpus.py`) | a cases file that does not parse, a case with no `argv`, an `each` holding `..`, a run directory that is a link ([D5](#d5)) |

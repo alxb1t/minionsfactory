@@ -4,7 +4,9 @@
 
 `skills/mf-converge/scripts/plan_check.py --change <id> --base <rev>` SHALL exit 1, printing one `plan: ` line per problem,
 when: the command of a ticked sub-task's `Verify:`, run again as argv with no shell from the repository root, exits non-zero,
-save a search whose `Verify:` says `prints nothing` or `` prints `0` ``, which passes on exit 1 with no other output; a
+save a search whose `Verify:` says `prints nothing` or `` prints `0` ``, which passes on exit 1 printing nothing, or `0` alone
+for `` prints `0` ``; that command exits 0 printing anything where its `Verify:` says it `prints nothing`, or printing other
+than the number alone where it says it `` prints `<N>` `` or `` reports `<N>` ``; a
 `- [ ] N.M` box stands unticked under a ticked `## Progress` phase; a name the diff from the merge base of `<rev>` and `HEAD`
 removes — a Python `def` or `class` name, or an upper-case module-level name, that nothing outside `openspec/` names at
 `HEAD`, or the base name of a file the diff deletes — is still named, as a word, on a line of `openspec/specs/` or of the
@@ -24,6 +26,13 @@ SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md`
 #### Scenario: A ticked check that no longer holds
 - **WHEN** at the build's close a ticked sub-task's `Verify:` command exits 1
 - **THEN** `plan_check.py` exits 1, naming the sub-task and the command, and the build halts with no `build.done`
+
+#### Scenario: A ticked check that exits 0 with other output
+- **WHEN** a ticked sub-task's `Verify:` says a search prints nothing and the search finds a match, or says `printf 1` prints
+  `2`
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command
+- **AND WHEN** its `Verify:` says `printf 1` prints `1`, or says a `grep -c` that finds nothing prints `0`
+- **THEN** that check halts nothing
 
 #### Scenario: An unticked box under a finished phase
 - **WHEN** `## Progress` ticks phase 2 and sub-task `2.3` stands unticked
