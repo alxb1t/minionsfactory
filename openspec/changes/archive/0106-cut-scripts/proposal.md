@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.90
 debt: [0085·S2, 0103·S3, 0103·R3]
 ---
 
