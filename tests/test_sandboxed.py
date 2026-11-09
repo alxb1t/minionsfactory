@@ -204,6 +204,64 @@ def test_a_denial_in_the_output_gets_a_line(
     assert (_DENIAL in seen.err) is denied
 
 
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    identity = ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=0"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", *identity, "commit", "-q", "--allow-empty", "-m", "base"],
+        cwd=repo,
+        check=True,
+    )
+    return repo.resolve()
+
+
+def test_the_command_runs_a_command_in_the_cwd(
+    tmp_path: Path,
+    fake_sandbox: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    conduct = _conduct()
+    repo = _repo(tmp_path)
+    monkeypatch.chdir(repo)
+
+    shown = conduct["main"](
+        ["sandboxed", "--", *_python("import os; print(os.getcwd())")]
+    )
+
+    seen = capsys.readouterr()
+    assert shown == 0
+    assert Path(seen.out.strip()).resolve() == repo
+    assert fake_sandbox.read_text() == conduct["_profile"]([repo], Path.home())
+    assert conduct["main"](["sandboxed", "--", *_python("raise SystemExit(3)")]) == 3
+    for argv in (["sandboxed"], ["sandboxed", "--"]):
+        assert conduct["main"](argv) == 2
+        assert "sandboxed: cannot run — no command" in capsys.readouterr().out
+
+
+def test_the_command_exits_2_with_no_os_sandbox(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    conduct = _conduct()
+    repo = _repo(tmp_path)
+    git = shutil.which("git")
+    assert git is not None
+    bare = tmp_path / "git-only"
+    bare.mkdir()
+    (bare / "git").symlink_to(git)
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("PATH", str(bare))
+
+    code = conduct["main"](["sandboxed", "--", "/usr/bin/true"])
+
+    assert code == 2
+    assert "no OS sandbox" in capsys.readouterr().out
+
+
 def _seatbelt() -> bool:
     """Return whether the real `sandbox-exec` applies a trivial profile here.
 

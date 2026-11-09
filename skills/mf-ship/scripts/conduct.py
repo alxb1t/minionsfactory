@@ -16,6 +16,7 @@
     conduct.py agent --executor claude|codex <prompt>
     conduct.py report
     conduct.py approve-gate <change-id> --yes <hash>
+    conduct.py sandboxed -- <cmd>
 
 Exit 0 done · 1 halt · 2 cannot run. Every stage and check is read from git and
 the run directory, so a re-run derives them again.
@@ -7811,6 +7812,10 @@ def main(argv_: list[str] | None = None) -> int:
         "anchor", help="a person seeds the first offline base"
     )
     anchoring.add_argument("--yes", metavar="sha")
+    boxing = commands.add_parser(
+        "sandboxed", help="run a command under the OS sandbox, over the version's trees"
+    )
+    boxing.add_argument("argv", metavar="cmd", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv_)
     cwd = Path.cwd()
     try:
@@ -7851,6 +7856,11 @@ def main(argv_: list[str] | None = None) -> int:
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
             print(anchor(cwd, args.yes))
+        elif args.command == "sandboxed":
+            command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+            if not command:
+                raise Stop(2, "sandboxed: cannot run — no command")
+            return sandboxed(command, cwd, reach(primary_of(cwd)))
         else:
             print(report(cwd))
     except Stop as stop:

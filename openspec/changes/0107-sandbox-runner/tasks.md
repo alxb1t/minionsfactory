@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The sandboxed function · hard
-- [ ] 2 — The command and the record · hard
+- [x] 2 — The command and the record · hard
 
 ## 1 — The sandboxed function
 
@@ -26,14 +26,14 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The command and the record
 
-- [ ] 2.1 Add `test_the_command_runs_a_command_in_the_cwd` and `test_the_command_exits_2_with_no_os_sandbox` to
+- [x] 2.1 Add `test_the_command_runs_a_command_in_the_cwd` and `test_the_command_exits_2_with_no_os_sandbox` to
   `tests/test_sandboxed.py`, the second with `PATH` set as [the Tests section](design.md#tests) says; then the `sandboxed` subparser, its branch in `main` and the line
   `conduct.py sandboxed -- <cmd>` in the module docstring of `skills/mf-ship/scripts/conduct.py`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_sandboxed.py` exits 0; `git grep -n -e 'conduct.py sandboxed -- <cmd>' -e 'args.command == "sandboxed"' -- skills/mf-ship/scripts/conduct.py` prints a line for each; `git grep -c '^def test_' -- tests/test_sandboxed.py` prints `tests/test_sandboxed.py:10`.
-- [ ] 2.2 Add the `sandboxed -- <cmd>` row after the `anchor` row of the command table in `skills/mf-ship/SKILL.md`: what it
+- [x] 2.2 Add the `sandboxed -- <cmd>` row after the `anchor` row of the command table in `skills/mf-ship/SKILL.md`: what it
   runs, its trees, no credential read, no network, its exit, the `sandboxed: denied —` line, and exit 2 with `no OS
   sandbox`, per [D3](design.md#d3).
   Verify: `git grep -n -e '^| .sandboxed -- <cmd>. |' -e 'no OS sandbox' -- skills/mf-ship/SKILL.md` prints a line for each.
-- [ ] 2.3 Edit D51 in `docs/decisions.md` as [D4](design.md#d4) says: its headline, its **Accepts** list and its **Rejected**
+- [x] 2.3 Edit D51 in `docs/decisions.md` as [D4](design.md#d4) says: its headline, its **Accepts** list and its **Rejected**
   list.
   Verify: `git grep -n -e 'runs under .sandboxed().' -e 'a plain command run bare where no OS sandbox stands' -- docs/decisions.md` prints a line for each.
