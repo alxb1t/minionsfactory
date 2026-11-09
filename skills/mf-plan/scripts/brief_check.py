@@ -5,10 +5,16 @@
 """Check a hard brief has the shape the cut station needs, before its cut is queued.
 
     brief_check.py <brief>
+    brief_check.py --facts <brief>
+    brief_check.py --models <brief> <slug>
 
 Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prints
-`brief: halt — …`. A command is a span of an Acceptance or `Verify:` item that holds a
-space, held to `verify_check.py`'s shell rules; none runs. Each `## For the cut` item's
+`brief: halt — …`. Each `## Facts` item ends ``(`<path>:<line>[-<line>]`[, …] at
+`<sha>`)``, a path of two components or more or one led by `./`; `--facts` prints the
+facts as JSON, and `--models` prints the models file of the `## For the cut` item
+`<slug>` as TOML, the cut part written nowhere. A command is a span of an Acceptance or
+`Verify:` item that holds a space, held to `verify_check.py`'s shell rules; none runs.
+Each `## For the cut` item's
 slug, bump, `after`, `beside` and models, which the close pastes into `conduct.py cut`,
 are held to their shape; a models line may add checker and fixer parts, a host on a
 model, and a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. ` at
@@ -19,11 +25,13 @@ heading is written one way, once. Sections and headings are read as CommonMark r
 them, so a fence holds none; a carriage return not before a newline halts its line.
 Why: 0083-plan-queues design D1; 0088-paydown-2
 design D5; 0091-cut-halts design D2; 0097-cross-model design D1;
-0098-beside design D1, D2; 0098-beside security S1; 0103-fewer-rounds design D6.
+0098-beside design D1, D2; 0098-beside security S1; 0103-fewer-rounds design D6;
+0106-cut-scripts design D1, D2, D3.
 """
 
 import argparse
 import html
+import json
 import re
 import runpy
 import sys
@@ -50,6 +58,28 @@ TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 TAG = re.compile(r"<[^>]*>")
 LONE = re.compile(r"\r(?!\n)")
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
+BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
+# A path is components of `[A-Za-z0-9._-]`, none `.` or `..`, with a `/` or a leading
+# `./`: a basename is no path. Why: 0106-cut-scripts design D1.
+COMPONENT = r"(?!\.{1,2}(?=[/:]))[A-Za-z0-9._-]+"
+PATH = rf"(?:\./{COMPONENT}(?:/{COMPONENT})*|{COMPONENT}(?:/{COMPONENT})+)"
+LINES = r"\d+(?:-\d+)?"
+FACT = re.compile(
+    rf" \((?P<cites>`{PATH}:{LINES}`(?:, `{PATH}:{LINES}`)*)"
+    r" at `(?P<sha>[0-9a-f]{7,40})`\)$"
+)
+CITE = re.compile(rf"`(?P<path>{PATH}):(?P<start>\d+)(?:-(?P<end>\d+))?`")
+# The tables of a models file, by the part that names each.
+# Why: 0106-cut-scripts design D2.
+TABLES = {
+    "build": "build",
+    "build-moderate": "build.moderate",
+    "converge": "converge",
+    "conformance": "converge.conformance",
+    "adversarial": "converge.adversarial",
+    "fix": "converge.fix",
+    "release": "release",
+}
 # The parser the brief is read with: CommonMark, and GFM's tables.
 # Why: 0103-fewer-rounds design D6.
 MARKDOWN = MarkdownIt("commonmark").enable("table")
@@ -98,10 +128,7 @@ def parsed(brief: str) -> tuple[list[str], list[Any]]:
 def headed(brief: str) -> list[tuple[str, list[str]]]:
     """Return each section's key and the lines under it, in order.
 
-    A section opens on a heading token of level one or two, ATX or setext, or an HTML
-    block opening `<h1` or `<h2`, a fence or code block holding none; it keys by its
-    line as written and holds the lines to the next such line.
-    Why: 0103-fewer-rounds design D6.
+    An `h1` or `h2` heading or HTML block opens one. Why: 0103-fewer-rounds design D6.
     """
     lines, tokens = parsed(brief)
     starts = sorted(
@@ -111,7 +138,7 @@ def headed(brief: str) -> list[tuple[str, list[str]]]:
             if (token.type == "heading_open" and token.tag in ("h1", "h2"))
             or (
                 token.type == "html_block"
-                and token.content.lstrip().lower().startswith(("<h1", "<h2"))
+                and BLOCK_HEADING.match(token.content.lstrip())
             )
         }
     )
@@ -152,6 +179,30 @@ def items(lines: list[str]) -> list[str]:
         else:
             indent = None
     return found
+
+
+def facts(lines: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
+    """Return the `## Facts` items as facts, and a halt for each out of grammar.
+
+    A fact is its text, its cites (`./` dropped) and its sha. Why: 0106 design D1.
+    """
+    found: list[dict[str, Any]] = []
+    halted: list[str] = []
+    for number, item in enumerate(items(lines), 1):
+        text = ITEM.sub("", item, count=1)
+        if (tail := FACT.search(text)) is None:
+            halted.append(f"## Facts: fact {number} — {text}")
+            continue
+        cites = [
+            {
+                "path": cite["path"].removeprefix("./"),
+                "start": int(cite["start"]),
+                "end": int(cite["end"] or cite["start"]),
+            }
+            for cite in CITE.finditer(tail["cites"])
+        ]
+        found.append({"fact": text[: tail.start()], "cites": cites, "sha": tail["sha"]})
+    return found, halted
 
 
 def halts(heading: str, lines: list[str], rules: dict[str, Any]) -> list[str]:
@@ -277,6 +328,57 @@ def models(number: str, text: str) -> list[str]:
     return found
 
 
+def modelled(line: str, column: int) -> bool:
+    """Return whether a line is an item's `- models: ` line, as `grammar` places one."""
+    text = line.lstrip(" ")
+    return len(line) - len(text) in (3, column) and text.startswith("- models: ")
+
+
+def chosen(lines: list[str], name: str) -> tuple[re.Match[str], list[str]] | None:
+    """Return the head and lines of the `## For the cut` item `name` heads, or None.
+
+    The item runs from its head to the next one. Why: 0106 design D2.
+    """
+    heads = [
+        (number, opened)
+        for number, line in enumerate(lines)
+        if (opened := HEAD.match(line))
+        and opened[2].split(" · ")[0].strip("*` ") == name
+    ]
+    if not heads:
+        return None
+    start, opened = heads[0]
+    rest = lines[start + 1 :]
+    stop = next((n for n, line in enumerate(rest) if HEAD.match(line)), len(rest))
+    return opened, lines[start : start + 1 + stop]
+
+
+def models_toml(opened: re.Match[str], item: list[str]) -> str:
+    """Return the models file of a checked `## For the cut` item, as TOML.
+
+    One table per stage of `TABLES`, in order; its shape is in 0106 design D2.
+    """
+    line = next(line for line in item if modelled(line, len(opened[1]) + 2))
+    parts = [part.split() for part in line.lstrip(" ")[len("- models:") :].split(" · ")]
+    named = {name: rest for name, *rest in parts}
+    shadowed = parts[-1:] == [SHADOW]
+    decided = "decide: recommended" in opened[2].rstrip().split(" · ")
+    blocks = ['decide = "recommended"'] if decided else []
+    for name, table in TABLES.items():
+        if (rest := named.get(name)) is None:
+            continue
+        lines = [f"[{table}]"]
+        if rest == ["skip"]:
+            lines.append("skip = true")
+        else:
+            host, slash, model = rest[0].rpartition("/")
+            lines += [f'model = "{model}"', f'effort = "{rest[1]}"']
+            lines += [f'executor = "{host}"'] if slash else []
+        lines += ["shadow = true"] if name == "converge" and shadowed else []
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks) + "\n"
+
+
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
     """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
 
@@ -294,11 +396,7 @@ def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
             numbers.append(opened[1])
             column = len(opened[1]) + 2
             found += head(opened[1], opened[2].split(" · "), slug)
-        elif (
-            numbers
-            and len(line) - len(text) in (3, column)
-            and text.startswith("- models: ")
-        ):
+        elif numbers and modelled(line, column):
             if numbers[-1] in named:
                 found.append(f"item {numbers[-1]} — more than one models line")
             named.add(numbers[-1])
@@ -476,7 +574,16 @@ def main(argv: list[str] | None = None) -> int:
         description="Check a hard brief before its cut is queued."
     )
     parser.add_argument("brief", type=Path, help="the brief to check")
-    path = parser.parse_args(argv).brief
+    parser.add_argument("slug", nargs="?", help="the item `--models` prints")
+    form = parser.add_mutually_exclusive_group()
+    form.add_argument("--facts", action="store_true", help="print the facts as JSON")
+    form.add_argument(
+        "--models", action="store_true", help="print the item's models file as TOML"
+    )
+    args = parser.parse_args(argv)
+    if args.models != (args.slug is not None):
+        parser.error("--models takes a brief and a slug, and a slug only --models")
+    path = args.brief
     try:
         with path.open(newline="") as handle:
             raw = handle.read()
@@ -484,6 +591,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"brief: cannot check — {path}: {error.strerror}")
         return 2
     brief = re.sub(r"\r\n?", lambda end: "\n" if end[0] == "\r\n" else " ", raw)
+    if args.facts:
+        found, halted = facts(sections(brief).get("## Facts", []))
+        for line in halted:
+            print(f"brief: halt — {line}")
+        if not halted:
+            print(json.dumps(found))
+        return 1 if halted else 0
     for script in (VERIFY_CHECK, CONDUCT):
         if not script.is_file():
             print(f"brief: cannot check — no {script.name} beside this skill")
@@ -492,6 +606,17 @@ def main(argv: list[str] | None = None) -> int:
     conduct = runpy.run_path(str(CONDUCT))
     slug = conduct["SLUG"]
     parts = sections(brief)
+    if args.models:
+        if (item := chosen(parts.get("## For the cut", []), args.slug)) is None:
+            print(
+                f"brief: cannot check — no item named `{args.slug}` in ## For the cut"
+            )
+            return 2
+        for line in (broken := fields(item[1], slug)):
+            print(f"brief: halt — {line}")
+        if not broken:
+            print(models_toml(*item), end="")
+        return 1 if broken else 0
     found: list[str] = []
     if title := depth(brief):
         found.append(title)
@@ -501,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
         found.append("## For the cut is empty")
     found += carriage(raw)
     found += headings(brief)
+    found += facts(parts.get("## Facts", []))[1]
     if "## Dependencies" not in parts:
         found.append("no ## Dependencies section")
     else:

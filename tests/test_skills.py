@@ -499,7 +499,7 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
 # 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7;
 # 0094-lighter-converge design D5, D8; 0095-converge-roles design D8, D10;
-# 0097-cross-model design D8; 0100-worker-diet design D7;
+# 0097-cross-model design D8; 0100-worker-diet design D7; 0106-cut-scripts design D9;
 # 0108-converge-script design D10.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
@@ -519,10 +519,22 @@ _METRICS_SCRIPTS = [
     ("mf-converge", "../mf-ship/scripts/conduct.py"),
     ("mf-build", "../mf-converge/scripts/bundle.py"),
     ("mf-cut-change", "../mf-converge/scripts/bundle.py"),
+    ("mf-cut-change", "../mf-converge/scripts/gate_check.py"),
+    ("mf-cut-change", "scripts/cut_pre.py"),
+    ("mf-cut-change", "scripts/cut_check.py"),
+    ("mf-cut-change", "scripts/facts.py"),
+    ("mf-plan", "../mf-cut-change/scripts/facts.py"),
 ]
 _BUNDLE_UNNAMED = [
     "skills/mf-build/SKILL.md: ../mf-converge/scripts/bundle.py: not named",
     "skills/mf-cut-change/SKILL.md: ../mf-converge/scripts/bundle.py: not named",
+]
+_CUT_UNNAMED = [
+    "skills/mf-cut-change/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
+    "skills/mf-cut-change/SKILL.md: scripts/cut_pre.py: not named",
+    "skills/mf-cut-change/SKILL.md: scripts/cut_check.py: not named",
+    "skills/mf-cut-change/SKILL.md: scripts/facts.py: not named",
+    "skills/mf-plan/SKILL.md: ../mf-cut-change/scripts/facts.py: not named",
 ]
 
 
@@ -576,6 +588,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         *_BUNDLE_UNNAMED,
+        *_CUT_UNNAMED,
     ]
 
     script = tmp_path / "skills" / "mf-build" / "scripts" / "metrics.py"
@@ -597,6 +610,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
         *_BUNDLE_UNNAMED,
+        *_CUT_UNNAMED,
     ]
 
 

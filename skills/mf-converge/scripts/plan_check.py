@@ -4,16 +4,9 @@
 # ///
 """Hold a change's plan to the tree built from it, and print each place they differ.
 
-    plan_check.py --change <id> --base <rev>
-
-Run from inside the repository; it reads the working tree, so it runs before or after
-a commit. The checks, in order: each ticked `Verify:` run again, argv and no shell;
-each sub-task unticked under a ticked phase; each name the diff removes that the
-change directory or `openspec/specs/` still names, outside a living requirement the
-change's delta lists under `## REMOVED Requirements`; each test of the base gone from
-`tests/`; each `**CORPUS**` case that `scripts/corpus.toml` lacks. Exit 0
-`plan: clean` · 1 one `plan: …` line per problem · 2 `tasks.md`, the base or git
-cannot be read. Why: 0103-fewer-rounds design D4, D5.
+Exit 0 clean · 1 a problem · 2 unreadable. A name inside a living requirement
+the change's delta removes is skipped. Why: 0103-fewer-rounds design D4, D5;
+the skip, 0108-converge-script.
 """
 
 import argparse

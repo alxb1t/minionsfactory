@@ -1,0 +1,549 @@
+"""The cut's self-check rows: a scratch repository, a fake `openspec` on PATH.
+
+Why: 0106-cut-scripts design D6.
+"""
+
+import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+from collections.abc import Callable
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
+_REPO = Path(__file__).resolve().parent.parent
+_SCRIPT = _REPO / "skills" / "mf-cut-change" / "scripts" / "cut_check.py"
+_ID = "0003-new"
+_FOLDER = f"openspec/changes/{_ID}"
+_FAKE = (
+    "#!/bin/sh\n"
+    '[ -z "$FAKE_OPENSPEC_FAIL" ] || { echo "Change is invalid" >&2; exit 1; }\n'
+    "echo valid\n"
+)
+_JUDGED = ["I5", "I6", "I7", "I8", "I9", "I10", "I15", "I16", "P12", "P13"]
+
+_PROPOSAL = """---
+bump: minor
+---
+
+# Thing
+
+One line.
+
+## Why
+
+Because.
+
+## What Changes
+
+- A thing.
+
+## Capabilities
+
+None.
+
+## Impact
+
+A file.
+
+## Not in this change
+
+- A thing.
+"""
+
+_DESIGN = """# Thing — design
+
+One line.
+
+## Context
+
+Read at `HEAD`.
+
+## Goals / Non-Goals
+
+Goals.
+
+## Decisions
+
+| id | decision |
+|---|---|
+| [D1](#d1) | a thing |
+
+### D1
+
+The thing.
+
+## Tests
+
+None.
+
+## Dependencies
+
+None.
+
+## Risks / Trade-offs
+
+None.
+
+## Verdict
+
+Ready.
+"""
+
+_TASKS = """# Thing — tasks
+
+Build it.
+
+## Progress
+
+- [ ] 1 — First · hard
+- [ ] 2 — Second **HUMAN**
+
+## 1 — First
+
+- [ ] 1.1 Edit `a.py` per [D1](design.md#d1).
+  Verify: `grep -n x a.py` prints a line.
+
+## 2 — Second
+
+- [ ] 2.1 Run `make gate`.
+  Verify: `git tag` prints v1.
+"""
+
+_SPEC = "## ADDED Requirements\n"
+
+
+def _load(path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location("cut_check", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+cut_check = _load(_SCRIPT)
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-c", "user.name=mf", "-c", "user.email=mf@example.invalid"]
+        + ["-c", "commit.gpgsign=false", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _put(root: Path, name: str, text: str) -> None:
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_text(text)
+
+
+def _edit(root: Path, name: str, old: str, new: str) -> None:
+    path = root / _FOLDER / name
+    text = path.read_text()
+    assert old in text
+    path.write_text(text.replace(old, new, 1))
+
+
+def _repo(tmp_path: Path) -> Path:
+    """Commit `a.py` in a repository on `main`, and write a clean change beside it."""
+    root = tmp_path / "primary"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    _put(root, "a.py", "x\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "base")
+    _put(root, f"{_FOLDER}/proposal.md", _PROPOSAL)
+    _put(root, f"{_FOLDER}/design.md", _DESIGN)
+    _put(root, f"{_FOLDER}/tasks.md", _TASKS)
+    _put(root, f"{_FOLDER}/.openspec.yaml", "schema: spec-driven\n")
+    _put(root, f"{_FOLDER}/specs/thing/spec.md", _SPEC)
+    return root
+
+
+def _tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Put a fake `openspec` first on PATH."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "openspec"
+    fake.write_text(_FAKE)
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+
+def _run(
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    *argv: str,
+) -> tuple[int, list[str]]:
+    monkeypatch.chdir(root)
+    code = cut_check.main([_ID, *argv])
+    return code, capsys.readouterr().out.splitlines()
+
+
+def _halted(lines: list[str]) -> list[str]:
+    heads = [line.split(" — ") for line in lines if line.startswith("cut_check: halt")]
+    return [head[1] for head in heads if len(head) > 2]
+
+
+def test_a_clean_change_prints_its_judgment_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _git(root, "checkout", "-q", "-b", "0002-open")
+    _put(root, "b.py", "x\n")
+    _git(root, "add", "b.py")
+    _git(root, "commit", "-q", "-m", "open")
+    _git(root, "checkout", "-q", "main")
+    _edit(root, "proposal.md", "bump: minor\n", "bump: minor\nafter: [0002-open]\n")
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys, "--bump", "minor")
+    assert code == 0
+    judged = [
+        line.split(" — ")[1] for line in lines if line.startswith("cut_check: judge")
+    ]
+    assert [row for row in judged if row in _JUDGED] == _JUDGED
+    assert lines[-1].startswith("cut_check: ready — ")
+    assert "cut_check: match — 1.1: a.py:1: x" in lines
+    assert not _halted(lines)
+
+
+def _no_spec(root: Path) -> None:
+    (root / _FOLDER / "specs" / "thing" / "spec.md").unlink()
+
+
+def _no_suffix(root: Path) -> None:
+    _edit(root, "tasks.md", "- [ ] 1 — First · hard", "- [ ] 1 — First")
+
+
+def _prose_dependencies(root: Path) -> None:
+    _edit(root, "design.md", "## Dependencies\n\nNone.", "## Dependencies\n\nA lib.")
+
+
+def _ritual(root: Path) -> None:
+    _edit(root, "tasks.md", "1.1 Edit `a.py`", "1.1 Run `make gate` on `a.py`")
+
+
+def _bad_bump(root: Path) -> None:
+    _edit(root, "proposal.md", "bump: minor", "bump: major")
+
+
+def _human_without_tasks(root: Path) -> None:
+    text = "- [ ] 2.1 Run `make gate`.\n  Verify: `git tag` prints v1.\n"
+    _edit(root, "tasks.md", text, "")
+
+
+def _after_not_open(root: Path) -> None:
+    _edit(root, "proposal.md", "bump: minor\n", "bump: minor\nafter: [0002-gone]\n")
+
+
+def _headings_out_of_order(root: Path) -> None:
+    _edit(root, "design.md", "## Context", "## Background")
+
+
+def _proposal_ends_elsewhere(root: Path) -> None:
+    (root / _FOLDER / "proposal.md").write_text(_PROPOSAL + "\n## Extra\n\nA.\n")
+
+
+def _id_outside_a_link(root: Path) -> None:
+    _edit(root, "tasks.md", "per [D1](design.md#d1)", "per D1")
+
+
+def _four_lines(root: Path) -> None:
+    _edit(root, "tasks.md", "Edit `a.py`", "Edit `a.py`\n  a\n  b\n  c")
+
+
+@pytest.mark.parametrize(
+    ("row", "defect"),
+    [
+        ("I2", _no_spec),
+        ("I4", _no_suffix),
+        ("I11", _prose_dependencies),
+        ("I12", _ritual),
+        ("I13", _bad_bump),
+        ("I14", _human_without_tasks),
+        ("I17", _after_not_open),
+        ("A1", _headings_out_of_order),
+        ("A2", _proposal_ends_elsewhere),
+        ("P9", _id_outside_a_link),
+        ("P13", _four_lines),
+    ],
+)
+def test_each_mechanical_row_fails_by_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    row: str,
+    defect: Callable[[Path], None],
+) -> None:
+    root = _repo(tmp_path)
+    defect(root)
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == [row]
+    assert code == 1
+    assert lines[-1] == "cut_check: halt — 1 rows failed"
+
+
+def test_a_bump_that_differs_from_the_given_one_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys, "--bump", "patch")
+    assert _halted(lines) == ["I13"]
+    assert code == 1
+
+
+def test_a_change_with_no_delta_holds_skip_specs_and_a_keep_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _no_spec(root)
+    _put(root, f"{_FOLDER}/.openspec.yaml", "schema: spec-driven\nskip_specs: true\n")
+    _tools(tmp_path, monkeypatch)
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I2"]
+    _put(root, f"{_FOLDER}/specs/.gitkeep", "")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+    _put(root, f"{_FOLDER}/specs/thing/spec.md", _SPEC)
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I2"]
+
+
+def test_a_missing_artifact_fails_i2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    (root / _FOLDER / "tasks.md").unlink()
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys)
+    assert "cut_check: halt — I2 — tasks.md is missing" in lines
+    assert code == 1
+
+
+def test_a_dependencies_table_is_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    table = "| package | constraint | why |\n|---|---|---|\n| `x` | `>=1` | y |\n"
+    _edit(root, "design.md", "## Dependencies\n\nNone.", f"## Dependencies\n\n{table}")
+    _tools(tmp_path, monkeypatch)
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+    _edit(root, "design.md", "| package |", "| name |")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I11"]
+    _edit(root, "design.md", "## Dependencies", "## Needs")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I11", "A1"]
+
+
+def test_i4_names_each_defect_of_the_tasks_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _edit(root, "tasks.md", "## 1 — First", "## 3 — First")
+    _edit(root, "tasks.md", "Verify: `grep -n x a.py` prints a line.", "")
+    _edit(root, "tasks.md", "Build it.\n\n", "")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = [line for line in lines if line.startswith("cut_check: halt — I4 — ")]
+    assert why
+    text = " ".join(why)
+    assert "no `## 1 — …` section" in text
+    assert "section 3 is not listed in `## Progress`" in text
+    assert "1.1 has no Verify:" in text
+    assert "`## Progress` does not follow the title and its line" in text
+    # An unlisted phase's sub-task under a listed phase's section, then in its own.
+    _edit(root, "tasks.md", "## 3 — First", "## 1 — First")
+    _edit(root, "tasks.md", "- [ ] 2 — Second **HUMAN**\n", "")
+    _edit(root, "tasks.md", "## 2 — Second\n\n", "")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "sub-task 2.1 is not of a listed phase" in why
+    assert "sub-task 2.1 sits in section 1" not in why
+    _edit(root, "tasks.md", "- [ ] 2.1 Run", "## 2 — Second\n\n- [ ] 2.1 Run")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "sub-task 2.1 is not of a listed phase" in why
+    assert "section 2 is not listed in `## Progress`" in why
+
+
+def test_a_ritual_is_each_station_the_build_owns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    for opening in (
+        "Run `make check`",
+        "Run `mf-simplify`",
+        "Add a CHANGELOG entry",
+        "Tick the box",
+        "Commit the phase",
+        "Tag the release",
+        "Archive the change",
+        "Release it",
+    ):
+        _edit(root, "tasks.md", "Edit `a.py`", opening)
+        assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I12"], opening
+        _edit(root, "tasks.md", opening, "Edit `a.py`")
+    _edit(root, "tasks.md", "Edit `a.py`", "**HALT CHECK** Commit it")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I12"]
+
+
+def test_the_folded_checks_report_their_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    monkeypatch.setenv("FAKE_OPENSPEC_FAIL", "1")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["I3"]
+    assert "  Change is invalid" in lines
+    assert code == 1
+    monkeypatch.delenv("FAKE_OPENSPEC_FAIL")
+    _edit(root, "tasks.md", "1.1 Edit `a.py`", "1.1 Edit `Makefile`")
+    _, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["I18"]
+    assert any(line.startswith("  ") and "1.1" in line for line in lines)
+    _edit(root, "tasks.md", "1.1 Edit `Makefile`", "1.1 Edit `a.py`")
+    _edit(root, "tasks.md", "`git tag` prints v1", "`cd x` prints a")
+    _, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["I19"]
+    assert any(line.startswith("  2.1: I19") for line in lines)
+    _edit(root, "tasks.md", "`cd x` prints a", "`git tag` prints v1")
+    _edit(root, "tasks.md", "1.1 Edit `a.py`", "1.1 **CORPUS** `nope` Edit `a.py`")
+    _, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["corpus"]
+    assert (
+        "cut_check: halt — corpus — 1.1 — no case nope in scripts/corpus.toml" in lines
+    )
+
+
+def test_the_candidates_of_p12_and_p13_are_listed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _edit(root, "design.md", "Goals.", "It adds three files and 12 tests.")
+    _edit(root, "design.md", "The thing.", "A. B. C. D.\n\n```\nfive files.\n```\n")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 0
+    judge = [line for line in lines if line.startswith("cut_check: judge")]
+    assert (
+        "cut_check: judge — P12 — design.md:11: It adds three files and 12 tests."
+        in judge
+    )
+    assert any(line.startswith("cut_check: judge — P13 — design.md:") for line in judge)
+    assert not any("five files" in line for line in judge)
+
+
+def test_what_cannot_be_checked_exits_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    held = root / _FOLDER
+    held.rename(root / "held")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines == [f"cut_check: cannot check — no {_FOLDER}/"]
+    assert cut_check.main(["bad_id"]) == 2
+    assert "is not <digits>-<slug>" in capsys.readouterr().out
+    (root / "held").rename(held)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    found = shutil.which("git")
+    assert found
+    (tools / "git").symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines == ["cut_check: cannot check — openspec is not on PATH"]
+
+
+def test_a_script_that_cannot_run_exits_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    real = cut_check.GATE_CHECK
+    stub = tmp_path / "stub.py"
+    stub.write_text("print('gate: cannot check — x')\nraise SystemExit(2)\n")
+    monkeypatch.setattr(cut_check, "GATE_CHECK", stub)
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines == ["cut_check: cannot check — gate: cannot check — x"]
+    monkeypatch.setattr(cut_check, "GATE_CHECK", tmp_path / "missing.py")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines[0].startswith("cut_check: cannot check — ")
+    monkeypatch.setattr(cut_check, "GATE_CHECK", real)
+    _edit(root, "tasks.md", "1.1 Edit `a.py`", "1.1 **CORPUS** `x` Edit `a.py`")
+    _put(root, "scripts/corpus.toml", "not toml [\n")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines[0].startswith("cut_check: cannot check — scripts/corpus.toml: ")
+
+
+def test_a_fenced_block_does_not_count_toward_the_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    block = "Edit `Makefile`'s `gate` recipe.\n  ```diff\n  + a\n  - b\n  ```"
+    _edit(root, "tasks.md", "Edit `a.py` per [D1](design.md#d1).", block)
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == []
+    assert code == 0
+
+
+def test_the_script_runs_as_a_program(tmp_path: Path) -> None:
+    done = subprocess.run(
+        [sys.executable, str(_SCRIPT), "bad_id"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode == 2
+    assert done.stdout == "cut_check: cannot check — `bad_id` is not <digits>-<slug>\n"
+
+
+def test_a_proposal_with_no_frontmatter_fails_i13(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _edit(root, "proposal.md", "---\nbump: minor\n---\n\n", "")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["I13"]
+    assert code == 1

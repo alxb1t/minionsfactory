@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.89
 beside: [0106-cut-scripts]
 ---
 

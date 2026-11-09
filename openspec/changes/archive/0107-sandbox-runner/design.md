@@ -140,8 +140,7 @@ All tests land in `tests/test_sandboxed.py`, which loads `conduct.py` as `tests/
 | `test_a_secret_read_is_denied` | integration, real Seatbelt | a read of a file under the home's `.ssh` fails | T1 |
 | `test_a_network_connect_is_denied` | integration, real Seatbelt | a connect to a local listener fails, and the listener sees none | T1 |
 
-- Counts: the file holds 10 tests, 7 unit and 3 integration, by `grep -c '^def test_' tests/test_sandboxed.py`, which prints `10`;
-  the end-to-end runs it adds are none.
+- The tests are the ones the table above names, in `tests/test_sandboxed.py`; the end-to-end runs it adds are none.
 - The fake `sandbox-exec` is a fixture the unit tests ask for by name, never an autouse one: the real-Seatbelt tests run on
   the unchanged `PATH`. `_seatbelt()` finds `sandbox-exec` with `shutil.which`, is false when it is missing, and is true only
   when the probe below exits 0.

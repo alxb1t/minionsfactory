@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- `conduct.py` gains `sandboxed()`: it runs a plain command under macOS Seatbelt, writing only to the version's trees, reading
-  no credential, with no network, and stops with exit 2 where `sandbox-exec` is missing (change `0107-sandbox-runner`,
-  phase 1).
-- `conduct.py sandboxed -- <cmd>` runs a command under `sandboxed()` over the version's trees, and exits 2 with `no OS
-  sandbox` or `no command`; `mf-ship`'s command table lists it and D51 states the rule (change `0107-sandbox-runner`,
-  phase 2).
 - `open_cards.py` fails closed: a Status is judged case folded, and an unknown word, a card with no Status or a Status
   under no card exits 2 naming it (`0095·S1`). A findings file gains `files`, `commits`, `passes` and `inconclusive`, a
   card `Amend:`, so a script reads fields, not prose; the fixer gets its own reference, `references/fix.md`, its report
@@ -37,6 +31,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` skips a line of a living spec inside a requirement the change's delta lists under `## REMOVED
   Requirements`: a change that removes a requirement naming the code it deletes no longer halts its close
   (change `0108-converge-script`, phase 7).
+
+## [0.90.0] - 2026-11-09
+
+Gate: local 4m43s · CI not read under mf-ship · 0.89.0: local 4m37s · CI not read under mf-ship
+
+- `brief_check.py` reads a brief's facts and models: a `## Facts` item must end `` (`<path>:<line>[-<line>]` at `<sha>`) ``,
+  `--facts` prints them as JSON, and `--models <brief> <slug>` prints the item's models file; a tag that only starts like a
+  heading, `<h12>` or `<h2-widget>`, ends no section (change `0106-cut-scripts`, phase 1).
+- `facts.py place <brief>` places each brief fact at `HEAD` as stands, moved or unplaced, and `facts.py readers <name>…`
+  prints a name's `git grep -nw` hits; each writes the cut's notes with `--notes` (change `0106-cut-scripts`, phase 2).
+- `cut_pre.py <id>` runs every precondition of the cut, one line a check; `cut_check.py <id>` decides the self-check's
+  mechanical rows, folds in `openspec validate`, the gate-edit check, the search script and the corpus check, and prints
+  the rows left to judgment. The docstrings of `corpus.py` and `plan_check.py` are cut to the limit (change
+  `0106-cut-scripts`, phase 3).
+- `conduct.py cut` writes the item's `models.toml` from `brief_check.py --models` when it queues the cut and keeps its text
+  in the entry; the run writes it again before each cutter, and the cut halts on a file the cutter changed. A tag that
+  only starts like a heading ends no section in `conduct.py` either (change `0106-cut-scripts`, phase 4).
+- `mf-cut-change` runs `cut_pre.py`, `facts.py` and `cut_check.py` in place of its hand steps, and `mf-plan` writes the
+  facts grammar and re-measures with `facts.py`; `tests/test_skills.py` lists the scripts each skill names. D77 records
+  it, amending D7, D40 and D41 (change `0106-cut-scripts`, phase 5).
+
+## [0.89.0] - 2026-11-09
+
+Gate: local 4m37s · CI not read under mf-ship · 0.88.0: local 2m51s · CI not read under mf-ship
+
+- `conduct.py` gains `sandboxed()`: it runs a plain command under macOS Seatbelt, writing only to the version's trees, reading
+  no credential, with no network, and stops with exit 2 where `sandbox-exec` is missing (change `0107-sandbox-runner`,
+  phase 1).
+- `conduct.py sandboxed -- <cmd>` runs a command under `sandboxed()` over the version's trees, and exits 2 with `no OS
+  sandbox` or `no command`; `mf-ship`'s command table lists it and D51 states the rule (change `0107-sandbox-runner`,
+  phase 2).
 
 ## [0.88.0] - 2026-11-09
 
