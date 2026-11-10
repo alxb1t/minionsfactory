@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge starts `gate_run.py`, `gate_check.py` and `plan_check.py` by the conductor's Python, not `uv run --script`, so
   versions converging at once build no shared script environment. A test holds that each script it starts declares
   `dependencies = []` (change `0112-uv-race`, phase 1).
+- A run builds each pinned script's environment once, by `uv sync --script`, in sequence, before any version thread starts and
+  after a re-pin, so a worker or a thread only reuses it. A failed build halts the run at its start (change `0112-uv-race`,
+  phase 2).
 
 ## [0.92.0] - 2026-11-11
 

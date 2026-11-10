@@ -161,6 +161,59 @@ def _sandbox(fake_sandbox_exec: Path) -> None:
     """
 
 
+_FAKE_UV_SYNC = """
+import json
+import os
+import sys
+import time
+
+real = os.environ["FAKE_UV_REAL"]
+if sys.argv[1:3] != ["sync", "--script"]:
+    os.execv(real, [real, *sys.argv[1:]])
+calls = os.environ.get("FAKE_CALLS", "")
+size = os.path.getsize(calls) if os.path.isfile(calls) else 0
+start = time.time_ns()
+time.sleep(float(os.environ.get("FAKE_UV_SLEEP", "0.005")))
+if message := os.environ.get("FAKE_UV_STDERR"):
+    print(message, file=sys.stderr)
+record = {"argv": sys.argv[1:], "start": start, "end": time.time_ns(), "calls": size}
+with open(os.environ["FAKE_UV_LOG"], "a") as log:
+    log.write(json.dumps(record) + "\\n")
+sys.exit(int(os.environ.get("FAKE_UV_EXIT", "0")))
+"""
+
+
+@pytest.fixture(autouse=True)
+def _uv_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Put a fake `uv` first on `PATH` that logs each `sync --script`.
+
+    The real `uv` runs any other argument. Why: 0112-uv-race design D2.
+    """
+    real = shutil.which("uv")
+    assert real
+    folder = tmp_path / "uv-sync-bin"
+    folder.mkdir()
+    fake = folder / "uv"
+    fake.write_text(f"#!{sys.executable} -S\n{_FAKE_UV_SYNC}")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_UV_REAL", real)
+    monkeypatch.setenv("FAKE_UV_LOG", str(tmp_path / "uv-sync.jsonl"))
+
+
+def _synced() -> list[dict[str, Any]]:
+    """Return each `sync --script` the fake `uv` saw, in order."""
+    log = Path(os.environ["FAKE_UV_LOG"])
+    lines = log.read_text().splitlines() if log.is_file() else []
+    return [json.loads(line) for line in lines]
+
+
+def _pinned(skills: Path) -> list[Path]:
+    """Return the scripts under `skills` that open with a PEP 723 header, sorted."""
+    scripts = skills.glob("*/scripts/*.py")
+    return sorted(s for s in scripts if s.read_text().startswith("# /// script"))
+
+
 def _register(pid: int, comm: str, lstart: str) -> None:
     """Have the fake `ps` answer `comm` and `lstart` for `pid`."""
     registry = Path(os.environ["FAKE_PS_REGISTRY"])
@@ -9702,6 +9755,109 @@ def test_the_last_run_moves_the_links(
         str(data / "v0.2.0" / "skills" / "mf-build")
     ] * 2
     assert not (Path.home() / ".mf-ship-origin" / "pending").exists()
+
+
+@pytest.mark.slow
+def test_a_run_builds_each_pinned_scripts_environment_before_its_first_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0112-uv-race design D2. No lower layer reaches `Run.ship()`'s order.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    records = _synced()
+    scripts = _pinned(_REPO / "skills")
+    assert [record["argv"] for record in records] == [
+        ["sync", "--script", str(script)] for script in scripts
+    ]
+    assert [record["calls"] for record in records] == [0] * len(scripts)
+    assert all(a["end"] <= b["start"] for a, b in itertools.pairwise(records))
+    assert "release 0001-todo" in _calls(calls)
+
+
+def test_a_failed_environment_build_halts_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0112-uv-race design D2.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    skills = _REPO / "skills"
+    first = _pinned(skills)[0].name
+    monkeypatch.setenv("FAKE_UV_EXIT", "1")
+    monkeypatch.setenv("FAKE_UV_STDERR", "\nerror: no environment")
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    halt = f" · run · halt — uv sync --script {first} failed: error: no environment\n"
+    assert halt in log
+    assert len(_synced()) == 1
+    assert _calls(calls) == []
+
+    # A silent failure names its exit; a hung build, its timeout; no `uv`, its error.
+    sync = conduct["_sync_scripts"]
+    monkeypatch.delenv("FAKE_UV_STDERR")
+    assert sync(root, [skills]) == f"uv sync --script {first} failed: exit 1"
+    monkeypatch.setenv("FAKE_UV_SLEEP", "5")
+    sync.__globals__["SYNC_SECONDS"] = 0.2
+    assert sync(root, [skills]) == f"uv sync --script {first} failed: timed out"
+    monkeypatch.setenv("PATH", str(tmp_path / "no-uv"))
+    why = sync(root, [skills])
+    assert why == f"uv sync --script {first} failed: No such file or directory"
+
+
+def test_a_re_pin_builds_the_new_releases_environments(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    # Why: 0112-uv-race design D2, the seam of the re-pin.
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    skills = tmp_path / "v9.9.9" / "skills"
+    (skills / "mf-new" / "scripts").mkdir(parents=True)
+    for name in ("a.py", "b.py"):
+        (skills / "mf-new" / "scripts" / name).write_text("# /// script\n# ///\n")
+    (skills / "mf-new" / "scripts" / "plain.py").write_text("print(1)\n")
+    moves: list[int] = []
+
+    def move(mine: Path | None) -> str:
+        moves.append(time.time_ns())
+        return "pin: moved to v9.9.9"
+
+    def trees() -> dict[Path, list[str]]:
+        return {skills: []} if moves else {}
+
+    stub = {**conduct["_pin"](), "move": move, "trees": trees}
+    conduct["run"].__globals__["_pin"] = lambda: stub
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    new = [str(script) for script in _pinned(skills)]
+    records = _synced()
+    built = [record for record in records if record["argv"][2] in new]
+    assert [record["argv"][2] for record in built] == new
+    assert all(record["start"] >= moves[0] for record in built)
+    assert len(records) > len(built)
+
+    # A build that fails after the move prints why and changes no exit.
+    def failing(mine: Path | None) -> str:
+        monkeypatch.setenv("FAKE_UV_EXIT", "1")
+        monkeypatch.setenv("FAKE_UV_STDERR", "error: gone")
+        return move(mine)
+
+    stub["move"] = failing
+    capsys.readouterr()
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert "run: uv sync --script a.py failed: error: gone" in capsys.readouterr().out
 
 
 def test_a_stale_claim_is_cleared(

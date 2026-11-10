@@ -30,7 +30,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, TextIO
@@ -172,6 +172,9 @@ SMALL = ("one line", "a test", "one line and a test")
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
+SKILLS_DIR = Path(__file__).resolve().parents[2]
+# The longest one script's environment takes to build. Why: 0112-uv-race design D2.
+SYNC_SECONDS = 600
 STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
@@ -1083,6 +1086,53 @@ def _fresh_tmp(primary: Path) -> str | None:
         os.mkdir("tmp", dir_fd=fd)
     finally:
         os.close(fd)
+    return None
+
+
+def _pinned_scripts(skills: Path) -> list[Path]:
+    """Return the scripts under `skills` that open with a PEP 723 header, sorted.
+
+    e.g. Path("skills") → [Path("skills/mf-build/scripts/metrics.py"), …]
+    """
+    found = []
+    for script in sorted(skills.glob("*/scripts/*.py")):
+        with script.open("rb") as file:
+            if file.readline().rstrip() == b"# /// script":
+                found.append(script)
+    return found
+
+
+def _sync_scripts(primary: Path, roots: Iterable[Path]) -> str | None:
+    """Build each pinned script's environment, one at a time; return why one failed.
+
+    Why: 0112-uv-race design D2. e.g. [Path("skills")] → None
+    """
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("UV_", "PIP_")) and name != "VIRTUAL_ENV"
+    }
+    env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
+    for script in (s for root in dict.fromkeys(roots) for s in _pinned_scripts(root)):
+        failed = f"uv sync --script {script.name} failed: "
+        try:
+            done = subprocess.run(
+                ["uv", "sync", "--script", str(script)],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                timeout=SYNC_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return failed + "timed out"
+        except OSError as error:
+            return failed + (error.strerror or str(error))
+        if done.returncode != 0:
+            lines = (line.strip() for line in done.stderr.splitlines())
+            return failed + next(
+                (line for line in lines if line), f"exit {done.returncode}"
+            )
     return None
 
 
@@ -6411,7 +6461,8 @@ class Run:
             self.log.event("run", "halt", self.closing())
             return 1
         self.unlock(DEBT_LOCK)
-        if why := _fresh_tmp(self.primary):
+        roots = [SKILLS_DIR, *_pin()["trees"]()]
+        if why := _fresh_tmp(self.primary) or _sync_scripts(self.primary, roots):
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
@@ -6553,6 +6604,10 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         try:
             if moved := pin["move"](mark):
                 print(moved)
+                if moved.startswith("pin: moved to") and (
+                    why := _sync_scripts(primary, pin["trees"]())
+                ):
+                    print(f"run: {why}")
         finally:
             _unmark(pin, mark)
             _close(primary, active, executor, seen)

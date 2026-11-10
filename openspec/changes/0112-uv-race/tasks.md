@@ -7,7 +7,7 @@ its own; only the phase's end is green.
 ## Progress
 
 - [x] 1 — Converge starts its scripts by the conductor's Python · moderate
-- [ ] 2 — A run builds each pinned script's environment once · hard
+- [x] 2 — A run builds each pinned script's environment once · hard
 - [ ] 3 — The corpus lock and the stress test · hard
 
 ## 1 — Converge starts its scripts by the conductor's Python
@@ -28,21 +28,21 @@ its own; only the phase's end is green.
 
 ## 2 — A run builds each pinned script's environment once
 
-- [ ] 2.1 **HALT CHECK** The base holds the seams of [D2](design.md#d2): the pin helper, the temp-folder step and the run's finish (F8, F9).
+- [x] 2.1 **HALT CHECK** The base holds the seams of [D2](design.md#d2): the pin helper, the temp-folder step and the run's finish (F8, F9).
   Verify: `git grep -n -e '^def _pin(' -e '^def _fresh_tmp(' -e '^def run(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.2 **HALT CHECK** The installed uv builds a script's environment by `uv sync --script` (F6).
+- [x] 2.2 **HALT CHECK** The installed uv builds a script's environment by `uv sync --script` (F6).
   Verify: `uv sync --script skills/mf-converge/scripts/gate_check.py` exits 0.
-- [ ] 2.3 Add the autouse fixture `_uv_sync` to `tests/test_conduct.py` ([Tests](design.md#tests)): a fake `uv` first on `PATH` records each `sync --script` argv with its start and end time and the size of the `FAKE_CALLS` file,
+- [x] 2.3 Add the autouse fixture `_uv_sync` to `tests/test_conduct.py` ([Tests](design.md#tests)): a fake `uv` first on `PATH` records each `sync --script` argv with its start and end time and the size of the `FAKE_CALLS` file,
   exits as `FAKE_UV_EXIT` says, prints `FAKE_UV_STDERR` to stderr, and runs the real `uv`, found by `shutil.which` when the fixture runs, for any other argument.
   Verify: `git grep -n 'def _uv_sync' -- tests/test_conduct.py` prints a line.
-- [ ] 2.4 Add `test_a_run_builds_each_pinned_scripts_environment_before_its_first_thread`, `test_a_failed_environment_build_halts_the_run` and `test_a_re_pin_builds_the_new_releases_environments`
+- [x] 2.4 Add `test_a_run_builds_each_pinned_scripts_environment_before_its_first_thread`, `test_a_failed_environment_build_halts_the_run` and `test_a_re_pin_builds_the_new_releases_environments`
   to `tests/test_conduct.py` as [the Tests table](design.md#tests) says.
   Verify: `git grep -n -e 'def test_a_run_builds_each_pinned_scripts_environment_before_its_first_thread' -e 'def test_a_failed_environment_build_halts_the_run' -e 'def test_a_re_pin_builds_the_new_releases_environments' -- tests/test_conduct.py` prints a line for each.
-- [ ] 2.5 In `C` add `SKILLS_DIR = Path(__file__).resolve().parents[2]`, beside the existing `SKILLS` table of host folders, which stays, `SYNC_SECONDS = 600`, `_pinned_scripts(skills)` and `_sync_scripts(primary, roots)` to [D2](design.md#d2); the run of `uv` takes `timeout=SYNC_SECONDS`.
+- [x] 2.5 In `C` add `SKILLS_DIR = Path(__file__).resolve().parents[2]`, beside the existing `SKILLS` table of host folders, which stays, `SYNC_SECONDS = 600`, `_pinned_scripts(skills)` and `_sync_scripts(primary, roots)` to [D2](design.md#d2); the run of `uv` takes `timeout=SYNC_SECONDS`.
   Verify: `git grep -n -e '^SYNC_SECONDS = ' -e '^def _pinned_scripts(' -e '^def _sync_scripts(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.6 In `Run.ship()` of `C` call `_sync_scripts` right after the `_fresh_tmp` step, its roots `SKILLS_DIR` and each key of `_pin()["trees"]()`, and halt on a reason as the `_fresh_tmp` step does.
+- [x] 2.6 In `Run.ship()` of `C` call `_sync_scripts` right after the `_fresh_tmp` step, its roots `SKILLS_DIR` and each key of `_pin()["trees"]()`, and halt on a reason as the `_fresh_tmp` step does.
   Verify: `uv run pytest -q tests/test_conduct.py -k "builds_each_pinned or failed_environment_build"` exits 0.
-- [ ] 2.7 In `run()` of `C`, in its `finally`, call `_sync_scripts` when `pin["move"](mark)` returns a line that starts `pin: moved to`, its roots each key of `pin["trees"]()`; print `run: <why>` on a reason and change no exit.
+- [x] 2.7 In `run()` of `C`, in its `finally`, call `_sync_scripts` when `pin["move"](mark)` returns a line that starts `pin: moved to`, its roots each key of `pin["trees"]()`; print `run: <why>` on a reason and change no exit.
   Verify: `uv run pytest -q tests/test_conduct.py -k re_pin_builds` exits 0.
 
 ## 3 — The corpus lock and the stress test
