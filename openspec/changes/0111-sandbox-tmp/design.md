@@ -78,7 +78,7 @@ None.
 | a Codex folder leaks when the conductor dies between `argv()` and `work()` | the folder is empty, under the system temp, and the OS clears it; the name prefix lets a later `_temp_gone` find none |
 | the planted-key test's own repository is what the scan needs, a premise the brief measured only for the ceiling | the acceptance run of 1.6 holds it in phase 1, before any code moves |
 | the escape drill calls `argv()` for Codex and removes nothing | its folder is empty, outside the gate, and the OS clears it |
-| a test's `TMPDIR` under the base temp hides a test that relied on the system one | `tests/test_guardrails.py` holds the fixture's variables, and the acceptance run sets `TMPDIR` inside the primary |
+| a test's `TMPDIR` under the base temp hides a test that relied on the system one | `tests/test_guardrails.py` holds the fixture's variables, and the acceptance run puts pytest's base temp (`--basetemp`) inside the primary |
 | this version's own converge runs the pinned `sandboxed()` | phase 1 alone makes its gate green; phases 2 and 3 are green there through D4 ([F7](#context)) |
 | 0110-gate-hardening meets the new rule when it integrates | its tests run under the same fixture; its round-1 fixes stand (the brief's Q5) |
 
