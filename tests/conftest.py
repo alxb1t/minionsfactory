@@ -28,6 +28,7 @@ def isolated_home(
     home.mkdir()
     # Why: 0111-sandbox-tmp design D1
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path_factory.getbasetemp()))
+    monkeypatch.setenv("TMPDIR", str(tmp_path_factory.mktemp("tmp")))
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(home / ".gitconfig"))
     for name, folder in ISOLATED.items():

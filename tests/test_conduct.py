@@ -5234,11 +5234,16 @@ def test_the_run_hands_converge_its_trees_and_sandbox(
 
     assert run.trees() == conduct["reach"](root) == [root, tree]
     out = io.StringIO()
-    shown = [sys.executable, "-c", "import os; print(os.getcwd())"]
+    shown = [
+        sys.executable,
+        "-c",
+        'import os; print(os.getcwd()); print(os.environ["TMPDIR"])',
+    ]
     assert run.sandboxed(shown, tree, run.trees(), out) == 0
-    assert Path(out.getvalue().strip()).resolve() == tree
+    cwd, temp = out.getvalue().splitlines()
+    assert Path(cwd).resolve() == tree
     assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        run.trees(), Path.home()
+        [*run.trees(), Path(temp)], Path.home()
     )
     assert (
         run.sandboxed([sys.executable, "-c", "raise SystemExit(3)"], tree, [tree]) == 3

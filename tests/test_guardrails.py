@@ -54,6 +54,10 @@ def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None
     assert Path.home().is_relative_to(tmp_path)
     assert all(Path(os.environ[name]).is_relative_to(tmp_path) for name in names)
     assert os.environ["GIT_CEILING_DIRECTORIES"] == str(tmp_path.parent)
+    temp = Path(os.environ["TMPDIR"])
+    assert temp.is_dir()
+    assert temp.is_relative_to(tmp_path.parent)
+    assert not temp.is_relative_to(tmp_path)
 
     subprocess.run(["git", "config", "--global", "mf.probe", "yes"], check=True)
 

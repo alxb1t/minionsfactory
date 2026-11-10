@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The tests stop depending on where tmp lies · moderate
-- [ ] 2 — `sandboxed()` gives each command its own `TMPDIR` · hard
+- [x] 2 — `sandboxed()` gives each command its own `TMPDIR` · hard
 - [ ] 3 — A Codex worker's own `TMPDIR`, the shell rules and the release text · hard
 
 ## 1 — The tests stop depending on where tmp lies
@@ -27,19 +27,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — `sandboxed()` gives each command its own `TMPDIR`
 
-- [ ] 2.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 2.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def sandboxed(' -e '^def _profile(' -e '^def _folder_fd(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.2 In `K`'s `isolated_home` also set `TMPDIR` to `str(tmp_path_factory.mktemp("tmp"))`, per [D4](design.md#d4); extend the same `G` test: `TMPDIR` names a folder under `tmp_path.parent` and not under `tmp_path`.
+- [x] 2.2 In `K`'s `isolated_home` also set `TMPDIR` to `str(tmp_path_factory.mktemp("tmp"))`, per [D4](design.md#d4); extend the same `G` test: `TMPDIR` names a folder under `tmp_path.parent` and not under `tmp_path`.
   Verify: `git grep -n -F -e 'mktemp("tmp")' -- tests/conftest.py` prints a line.
-- [ ] 2.3 In `S` add `test_a_command_gets_a_fresh_tmpdir_outside_every_repository` and `test_a_tmpdir_in_a_repository_runs_nothing`, on `fake_sandbox_exec`, as [the Tests table](design.md#tests) says.
+- [x] 2.3 In `S` add `test_a_command_gets_a_fresh_tmpdir_outside_every_repository` and `test_a_tmpdir_in_a_repository_runs_nothing`, on `fake_sandbox_exec`, as [the Tests table](design.md#tests) says.
   Verify: `git grep -n -e 'def test_a_command_gets_a_fresh_tmpdir_outside_every_repository' -e 'def test_a_tmpdir_in_a_repository_runs_nothing' -- tests/test_sandboxed.py` prints a line for each.
-- [ ] 2.4 In `S` extend the scrubbed-environment test, `test_the_command_runs_a_command_in_the_cwd` and `test_a_write_outside_the_trees_is_denied` as the table says; the profile assertions build `_profile([*trees, Path(env["TMPDIR"])], …)`.
+- [x] 2.4 In `S` extend the scrubbed-environment test, `test_the_command_runs_a_command_in_the_cwd` and `test_a_write_outside_the_trees_is_denied` as the table says; the profile assertions build `_profile([*trees, Path(env["TMPDIR"])], …)`.
   Verify: `git grep -n -F -e '[*trees, Path(env["TMPDIR"])]' -- tests/test_sandboxed.py` prints a line.
-- [ ] 2.5 In `X` extend `test_the_run_hands_converge_its_trees_and_sandbox`: its command prints `os.environ["TMPDIR"]` after the cwd, and the profile it reads is `_profile` of the trees and that folder.
+- [x] 2.5 In `X` extend `test_the_run_hands_converge_its_trees_and_sandbox`: its command prints `os.environ["TMPDIR"]` after the cwd, and the profile it reads is `_profile` of the trees and that folder.
   Verify: `git grep -n -F -e 'os.environ["TMPDIR"]' -- tests/test_conduct.py` prints a line.
-- [ ] 2.6 Add `_temp_folder(prefix)` to `C` before `_profile`, as [D2](design.md#d2) says: `dir=os.environ.get("TMPDIR") or "/tmp"`, and both stops of the design, each exit 2.
+- [x] 2.6 Add `_temp_folder(prefix)` to `C` before `_profile`, as [D2](design.md#d2) says: `dir=os.environ.get("TMPDIR") or "/tmp"`, and both stops of the design, each exit 2.
   Verify: `git grep -n '^def _temp_folder(' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.7 In `sandboxed()` keep the link guard as `_folder_fd(trees[0], ".minions")`; after it make `_temp_folder("mf-sandbox-")`, write it in the profile's trees, set `TMPDIR` to it and remove it in a `finally` around the spawn, per [D3](design.md#d3); add `0111-sandbox-tmp design D3` to its `Why:`.
+- [x] 2.7 In `sandboxed()` keep the link guard as `_folder_fd(trees[0], ".minions")`; after it make `_temp_folder("mf-sandbox-")`, write it in the profile's trees, set `TMPDIR` to it and remove it in a `finally` around the spawn, per [D3](design.md#d3); add `0111-sandbox-tmp design D3` to its `Why:`.
   Verify: `uv run pytest -q tests/test_sandboxed.py` exits 0.
 
 ## 3 — A Codex worker's own `TMPDIR`, the shell rules and the release text

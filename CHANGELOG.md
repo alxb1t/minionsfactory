@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/conftest.py` sets `GIT_CEILING_DIRECTORIES` at pytest's base temp for every test, and the planted-key test scans
   a folder that is its own repository, so a gate run with `TMPDIR` inside the primary agrees with a bare one (change
   `0111-sandbox-tmp`, phase 1).
+- `sandboxed()` gives each command a fresh `TMPDIR` outside every repository, writable and removed after it; a conductor
+  whose `TMPDIR` lies in a repository stops with 2. The tests' `TMPDIR` is a folder beside `tmp_path` (change
+  `0111-sandbox-tmp`, phase 2).
 
 ## [0.91.0] - 2026-11-10
 

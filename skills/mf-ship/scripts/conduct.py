@@ -3254,6 +3254,29 @@ def _plugins_off() -> dict[str, bool]:
     return dict.fromkeys(plugins, False) if isinstance(plugins, dict) else {}
 
 
+def _temp_folder(prefix: str) -> Path:
+    """Return a fresh folder under `TMPDIR`, which lies in no git repository.
+
+    e.g. `_temp_folder("mf-sandbox-")` → `<TMPDIR>/mf-sandbox-k3j9x2`; a `TMPDIR` in a
+    repository, or one that cannot hold the folder, stops with 2.
+    Why: 0111-sandbox-tmp design D2.
+    """
+    parent = Path(os.environ.get("TMPDIR") or "/tmp")  # noqa: S108
+    inside = subprocess.run(
+        ["git", "-C", str(parent), "rev-parse", "--git-dir"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+    )
+    if inside.returncode == 0:
+        raise Stop(
+            2, f"conduct: cannot run — TMPDIR {parent} lies inside a git repository"
+        )
+    try:
+        return Path(tempfile.mkdtemp(prefix=prefix, dir=parent)).resolve()
+    except OSError as error:
+        raise Stop(2, f"conduct: cannot run — TMPDIR {parent}: {error}") from error
+
+
 def _profile(trees: list[Path], home: Path) -> str:
     """Return the Seatbelt profile: writes in `trees`, no secret read, no network.
 
@@ -3295,18 +3318,19 @@ def sandboxed(
 
     e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`; no sandbox stops with 2;
     given `out`, the output goes to it. Why: 0107-sandbox-runner design D2; `out`,
-    0108-converge-script design D6.
+    0108-converge-script design D6; the `TMPDIR`, 0111-sandbox-tmp design D3.
     """
     sandbox_exec = shutil.which("sandbox-exec")
     if sandbox_exec is None:
         raise Stop(
             2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
         )
-    tmp = trees[0] / ".minions" / "tmp"
+    minions = trees[0] / ".minions"
     try:
-        os.close(_folder_fd(trees[0], ".minions", "tmp"))
+        os.close(_folder_fd(trees[0], ".minions"))
     except OSError as error:
-        raise Stop(2, f"conduct: cannot run — scratch folder {tmp}: {error}") from error
+        raise Stop(2, f"conduct: cannot run — run folder {minions}: {error}") from error
+    tmp = _temp_folder("mf-sandbox-")
     env = {
         name: value
         for name, value in os.environ.items()
@@ -3319,20 +3343,23 @@ def sandboxed(
     env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
     env["TMPDIR"] = str(tmp)
     denied = False
-    with subprocess.Popen(
-        [sandbox_exec, "-p", _profile(trees, Path.home()), *argv],
-        cwd=cwd,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
-        errors="replace",
-    ) as process:
-        for line in process.stdout or ():
-            print(line, end="", file=out or sys.stdout, flush=True)
-            denied = denied or CODEX_DENIAL in line
-        code = process.wait()
+    try:
+        with subprocess.Popen(
+            [sandbox_exec, "-p", _profile([*trees, tmp], Path.home()), *argv],
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+        ) as process:
+            for line in process.stdout or ():
+                print(line, end="", file=out or sys.stdout, flush=True)
+                denied = denied or CODEX_DENIAL in line
+            code = process.wait()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     if code != 0 and denied:
         print(
             "sandboxed: denied — the OS sandbox refused a call:"
