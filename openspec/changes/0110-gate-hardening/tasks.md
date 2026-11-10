@@ -107,19 +107,20 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 5 — `gate_integrity.py`
 
-- [ ] 5.1 **HALT CHECK** The base holds the converge scripts folder and `gate_check.py`'s stated reach.
+- [x] 5.1 **HALT CHECK** The base holds the converge scripts folder and `gate_check.py`'s stated reach.
   Verify: `git grep -n -e 'makefiles or dry run' -- skills/mf-converge/scripts/gate_check.py` prints a line.
-- [ ] 5.2 Add `tests/test_gate_integrity.py`: one test for each kind of [D5](design.md#d5) over patch text, `test_a_moved_line_is_no_line`,
+- [x] 5.2 Add `tests/test_gate_integrity.py`: one test for each kind of [D5](design.md#d5) over patch text, `test_a_moved_line_is_no_line`,
   and `main` on a patch file and on a missing one (exit 2).
   Verify: `git grep -n 'def test_a_moved_line_is_no_line' -- tests/test_gate_integrity.py` prints a line.
-- [ ] 5.3 Add the case `gate-integrity` to `scripts/corpus.toml`, in the form of its `debt-match` case: `each = ["changes/*/diff.patch"]`, `argv` the
+- [x] 5.3 Add the case `gate-integrity` to `scripts/corpus.toml`, in the form of its `debt-match` case: `each = ["changes/*/diff.patch"]`, `argv` the
   script of 5.4 on `{input}`, `reads` saying it reads a frozen diff patch to the lines a worker starts from.
   Verify: `git grep -n 'name = "gate-integrity"' -- scripts/corpus.toml` prints a line.
-- [ ] 5.4 Add `skills/mf-converge/scripts/gate_integrity.py` to [D5](design.md#d5): a `uv` script with `lines(patch)`, the kinds and the line form
+- [x] 5.4 Add `skills/mf-converge/scripts/gate_integrity.py` to [D5](design.md#d5): a `uv` script with `lines(patch)`, the kinds and the line form
   of the design, a moved line dropped.
   Verify: `git grep -n '^def lines(' -- skills/mf-converge/scripts/gate_integrity.py` prints a line.
 - [ ] 5.5 Add `main(argv)` to it: print each line, or `None.` for a patch that holds nothing; exit 0 for any readable patch, 2 for an unreadable one.
-  Verify: `uv run pytest -q tests/test_gate_integrity.py` exits 0; `make corpus` exits 0.
+  Verify: `uv run pytest -q tests/test_gate_integrity.py` exits 0; `make corpus` prints a `corpus: gate-integrity` line ending `runs · pass`,
+  whatever its other cases print: the `open-cards` case reads old findings files of the run directory this change never touches.
 
 ## 6 — The evidence at every freeze
 
