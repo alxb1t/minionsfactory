@@ -1,9 +1,6 @@
 """The fake `codex` the `fake_codex` fixture puts on `PATH`: a worker's `--json` events.
 
-It records its argv, acts on the prompt as `fake_worker.py` does, `FAKE_HOST` naming
-it, and prints the events `FAKE_CODEX_MODE` names. With `FAKE_CODEX_ROLLOUT` it appends
-a `token_count` event to that file: the primary window at `FAKE_CODEX_USED` percent,
-the secondary a fifth of it, both resetting at `_RESETS`. Why: 0096-codex-ready
+Why: 0096-codex-ready
 design D2; 0097-cross-model design D7; 0104-codex-limits design D5.
 """
 

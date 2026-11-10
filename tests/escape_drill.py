@@ -6,9 +6,6 @@
 
     escape_drill.py
 
-Works in `../mf_escape_probe/`, deleted when every line holds; a failure keeps it to
-read. No gate runs this: it spends Claude and Codex tokens.
-Prints one line per label. Exit 0 every label held · 1 one failed.
 Why: 0052-security-hardening design D8.
 """
 

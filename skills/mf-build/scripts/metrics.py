@@ -4,10 +4,6 @@
 # ///
 """Collect a repository's declared metrics into a data file, and render its page.
 
-    metrics.py collect --change <id> --base <rev> --out <path> [--value <id>=<n> …]
-    metrics.py page <id> [--data <path>] [--out <path>]
-
-Exit 0 written · 2 the catalogue is broken · 3 no catalogue · any other a crash.
 Why: 0030-change-impact design D2…D5.
 """
 

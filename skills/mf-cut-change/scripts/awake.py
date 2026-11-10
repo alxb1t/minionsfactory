@@ -4,14 +4,6 @@
 # ///
 """Hold the Mac awake while a cut runs by hand, and release the hold.
 
-    awake.py start <change-id>
-    awake.py stop <change-id>
-
-Run from the repository root. `start` holds `caffeinate` for two hours at most, or until
-the session's host process exits; its pid is recorded in `.minions/awake/<change-id>`
-beside the primary checkout. `stop` kills that pid only while `ps` names it
-`caffeinate`. Exit 0, or 2 for an id that is no change id, a directory outside a repo,
-or a git that fails.
 Why: 0081-cut-awake design D1.
 """
 

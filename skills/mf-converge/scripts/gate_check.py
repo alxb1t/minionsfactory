@@ -4,18 +4,8 @@
 # ///
 """Halt on a change to the gate's makefiles or dry run that the cut did not plan.
 
-    gate_check.py --change <id> --base <rev> [--head <tree-ish>] [--digest]
-    gate_check.py --verify --change <id>
-    gate_check.py --tasks <tasks.md>
-
-Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read. A halt names the
-hash a person approves; `--digest` prints it alone.
-`--verify` compares each `Verify:` with the cut's and its amends', with the decision
-ids an integrate merge renumbered; `--change` does too, after its gate check.
-Why: 0066-plan-halts design D3.
-`--tasks` reads the file alone: each task naming a gate makefile quotes its lines.
-It reads makefiles and dry runs; a file read at parse time, or a program the
-recipe calls, is out of its reach. Why: 0034-gate-recipe-hardening design D1…D4, D7.
+Exit 0 no unplanned change · 1 halt · 2 the gate cannot be read.
+Why: 0066-plan-halts design D3; 0034-gate-recipe-hardening design D1…D4, D7.
 """
 
 import argparse
@@ -251,9 +241,6 @@ def _ids(text: str) -> set[int]:
 def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
     """Return the ids the plan cites with a title, above the base's, headed nowhere.
 
-    An id `theirs` heads with a title a citation matches is a dependency's. A title
-    matches when one starts with the other: a grep needle cuts a title short.
-    e.g. base D58, plan "D59 · Branch rule", theirs "### D59 · Main rule" → {59}
     Why: 0086-ship-fixes-3 design D1.
     """
     top, taken = max(_ids(base), default=0), _ids(ours)
@@ -277,9 +264,6 @@ def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
 def renumbered(merge: str) -> dict[int, int]:
     """Return the decision ids `integrate.py decisions` moves in a merge, by its rule.
 
-    The first parent's new ids, headed or planned, move past the second parent's
-    highest, when the lowest collides. e.g. base none, ours D2, theirs D2 → {2: 3};
-    base D58, ours plans `D59 · x`, theirs heads `D59 · y` → {59: 60}
     Why: 0066-plan-halts design D3; 0086-ship-fixes-3 design D2.
     """
     ours, theirs = _git("rev-list", "--parents", "-n", "1", merge).split()[1:]
@@ -303,12 +287,7 @@ def renumbered(merge: str) -> dict[int, int]:
 
 
 def check_verify(change: str) -> str:
-    """Return the passing verdict; a `Verify:` edited since the cut raises `Stop`.
-
-    The plan is `tasks.md` at the cut, then at each later commit titled
-    `docs(<id>): amend the change directory` that touches it; a merge of two
-    parents that touches it moves the plan's decision citations as integrate does.
-    """
+    """Return the passing verdict; a `Verify:` edited since the cut raises `Stop`."""
     cut = cut_commit(change)
     path = f"openspec/changes/{change}/tasks.md"
     amend = f"docs({change}): amend the change directory"
@@ -380,14 +359,7 @@ def export(rev: str, dest: Path, side: str) -> None:
 
 
 def gate_makefiles(root: Path, trace: str) -> dict[str, set[str]]:
-    """Map each makefile inside `root` to the paths its resolution depends on.
-
-    Names come from make's `Reading makefile` lines and each `MAKEFILE_LIST`. A makefile
-    can reassign the list or print a directory line, so each name is tried against every
-    directory the trace enters, and kept where `root` holds that file. Keep the
-    lexical name and every followed link beside the target: Git tracks the links.
-    e.g. "Reading makefile `gate.mk' (search path)..." → {"gate.mk": {"gate.mk"}}
-    """
+    """Map each makefile inside `root` to the paths its resolution depends on."""
     top = root.resolve()
     directories = {top}
     names: set[str] = set()
@@ -448,14 +420,7 @@ def _resolution_paths(path: Path) -> set[Path]:
 def changed_lines(
     base: Path, head: Path, files: list[str]
 ) -> list[tuple[str, str, str]]:
-    """Return each non-blank line of `files` that the `head` export adds or removes.
-
-    Any added line may hide a failure — a `-` prefix, `.IGNORE`, a `SHELL`, `-i` in
-    `MAKEFLAGS` — through forms no pattern list keeps up with: a continued line,
-    `define`, a computed name, `$(eval)`. A removed one may too: a `SHELL` with
-    `pipefail`, which no dry run prints. So every one needs the task's quote.
-    e.g. "SHELL := /bin/bash -o pipefail" in base only → ("removed", "Makefile", …)
-    """
+    """Return each non-blank line of `files` that the `head` export adds or removes."""
     changed: list[tuple[str, str, str]] = []
     for name in files:
         old, new = (_lines(side / name) for side in (base, head))

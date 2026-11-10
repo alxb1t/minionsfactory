@@ -4,15 +4,6 @@
 # ///
 """Merge the default branch into the next version by fixed rules.
 
-    integrate.py next [<change-id>]
-    integrate.py changelog <worktree>
-    integrate.py decisions <worktree>
-    integrate.py delta <worktree>
-    integrate.py replay <merge>
-
-Exit 0 done · 1 halt: not ready, or a conflict the rules do not cover · 2 cannot run.
-The worktree commands read an open merge; `changelog` and `decisions` stage
-what they write. `replay` rebuilds a merge commit by the rules alone.
 Why: 0037-serial-integration design D2; 0064-lighter-catch-up design D3.
 """
 
@@ -67,8 +58,6 @@ class Stop(Exception):
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2.
 
-    A worker can write the common directory: no git here runs a hook or fetches a
-    missing object from a promisor it planted, as `conduct.py`'s own git does not.
     Why: 0064-lighter-catch-up design D3.
     """
     try:
@@ -251,14 +240,7 @@ def _holds(cwd: Path, change: str) -> bool:
 
 
 def next_version(cwd: Path, change: str | None = None) -> str:
-    """Return the named or the lowest-id ready version, its worktree and readiness.
-
-    A version is a branch named by a change id that holds its change. A named
-    version whose merge is open with its note is ready: a cut-only branch's — a
-    dependent's, or one the default branch passed before its first worker — before
-    its build, or a started one's behind a gate change, opens with its note. With
-    none ready, stop on the lowest id's line.
-    """
+    """Return the named or the lowest-id ready version, its worktree and readiness."""
     default = default_branch(cwd)
     listing = _git(
         cwd,
@@ -526,9 +508,6 @@ def _ids(text: str) -> set[int]:
 def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
     """Return the ids the plan cites with a title, above the base's, headed nowhere.
 
-    An id `theirs` heads with a title a citation matches is a dependency's. A title
-    matches when one starts with the other: a grep needle cuts a title short.
-    e.g. base D58, plan "D59 · Branch rule", theirs "### D59 · Main rule" → {59}
     Why: 0086-ship-fixes-3 design D1.
     """
     top, taken = max(_ids(base), default=0), _ids(ours)
@@ -658,8 +637,6 @@ def _requirement(spec: str | None, title: str) -> str | None:
 def _inserts_only(base: str, main: str, side: str | None) -> bool:
     """Return whether `side` only inserts into `main`, keeping nothing `main` removed.
 
-    Whitespace is no token: a rewrapped line inserts nothing.
-    e.g. "a.", "a. b.", "a, c. b." → True; "a. b.", "a.", "a, c. b." → False
     Why: 0086-ship-fixes-3 design D4.
     """
 
@@ -679,9 +656,6 @@ def _inserts_only(base: str, main: str, side: str | None) -> bool:
 def delta(tree: Path) -> str:
     """Return the check that the default branch changed no requirement the delta edits.
 
-    Stops with exit 1, naming each MODIFIED or REMOVED title it changed since the base,
-    save a MODIFIED one whose delta only inserts into the default branch's block. A
-    change `MERGE_HEAD` archived is no active one: a stacked branch's dependency.
     Why: 0099-stacked-builds design D2.
     """
     base = _merge_base(tree)
@@ -725,16 +699,7 @@ def _drop(cwd: Path, scratch: Path) -> None:
 
 
 def replay(cwd: Path, merge: str) -> str:
-    """Return the paths the rules settled when they rebuild `merge`'s tree exactly.
-
-    The merge is redone from its parents in a scratch worktree under the run
-    directory: `changelog` settles a conflicted CHANGELOG.md, or any whose base holds
-    `[Unreleased]` entries, and `decisions` runs on every merge. A requirement
-    `delta` names, a path left unmerged, or another tree, stops with exit 1; a
-    commit without two parents, or whose second parent the default branch does not
-    hold, with exit 2.
-    e.g. a merge settled in CHANGELOG.md → "replay: by rule — CHANGELOG.md"
-    """
+    """Return the paths the rules settled when they rebuild `merge`'s tree exactly."""
     if merge.startswith("-"):
         raise Stop(2, f"integrate: cannot run — not a commit: {merge}")
     sha = _git(cwd, "rev-parse", "--verify", f"{merge}^{{commit}}").strip()

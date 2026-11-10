@@ -4,10 +4,7 @@
 # ///
 """Write a skipped checker's findings file as a clean stub at `HEAD`.
 
-    skip_stub.py <findings-file> <round>
-
-e.g. `…/changes/0001-a/adversarial.md 2` → that file at `HEAD`, round 2; exit 0, or 2.
-Its keys, line and refusals: 0105-converge-switches design D3.
+skip_stub.py <findings-file> <round>
 """
 
 import argparse
@@ -92,12 +89,7 @@ def stub(path: Path, role: str, round_: int, head: str, cwd: Path | None = None)
 
 
 def uncleared(text: str) -> bool:
-    r"""Return whether a findings file holds a checker's round not yet cleared.
-
-    A stub never does; another does when not clean or a card is other than verified,
-    since Step 9 has yet to write an accepted card to the debt.
-    e.g. "---\nmode: parallel\nverdict: clean\n---\n" → False
-    """
+    r"""Return whether a findings file holds a checker's round not yet cleared."""
     lines = text.split("\n---", 1)[0].splitlines()
     pairs = (line.partition(":") for line in lines)
     front = {key.strip(): value.strip() for key, _, value in pairs}

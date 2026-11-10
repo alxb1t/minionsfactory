@@ -4,24 +4,6 @@
 # ///
 """Take every cut version to the default branch, one agent process per station.
 
-    conduct.py status
-    conduct.py check <stage> <change-id>
-    conduct.py log --verify <run-log>
-    conduct.py run --executor claude|codex [--detach]
-    conduct.py cut <slug> <bump> brief=<path> [after=<id>[,<id>]] [beside=<id>[,<id>]]
-        --executor claude|codex [--model <m>] [--effort <e>]
-    conduct.py stop
-    conduct.py grant <change-id> --executor claude|codex
-    conduct.py rejoin [<change-id>] [--yes <hash>]
-    conduct.py agent --executor claude|codex <prompt>
-    conduct.py converge <change-id> [conformance=…] [adversarial=…] [fix=…] [grant=yes]
-        [--executor claude|codex]
-    conduct.py report
-    conduct.py approve-gate <change-id> --yes <hash>
-    conduct.py sandboxed -- <cmd>
-
-Exit 0 done · 1 halt · 2 cannot run. Every stage and check is read from git and
-the run directory, so a re-run derives them again.
 Why: 0040-mf-ship design D2.
 """
 
@@ -373,8 +355,6 @@ def _run(
 ) -> subprocess.CompletedProcess[str]:
     """Return a finished git command run in `cwd`; a missing git stops with exit 2.
 
-    No local git reaches a network: a missing object read here would otherwise fetch
-    from a promisor remote a worker planted, past every refusal.
     Why: 0052-security-hardening design D9.
     """
     try:
@@ -450,9 +430,6 @@ def _common_dir(cwd: Path) -> Path | None:
 def primary_of(cwd: Path) -> Path:
     """Return the primary checkout of the repo holding `cwd`; outside one, exit 2.
 
-    A worker can write `commondir` and `.git`, so git can name a repo `_refuse_origin`
-    has no kept URLs for: past that repo's own folder, kept URLs must stand, or stop
-    with 1. A git that fails otherwise names its own error.
     Why: 0052-security-hardening design D9; 0086-ship-fixes-3 design D6.
     """
     done = _run(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -714,8 +691,6 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
 def _open_notes(primary: Path, change: str, flags: int) -> int | None:
     """Return a descriptor on the change's `build-notes.md`; None with no file.
 
-    It follows no link: a link, a file it cannot open, or one that is not a regular
-    file of one name, a hard link, a folder or a pipe, halts the version.
     Why: 0102-build-per-phase design D3.
     """
     fd = _folder_fd(primary / ".minions", "changes", change)
@@ -820,8 +795,6 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
 def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | None:
     """Return why the cut's `design.md` lists a package `approved` does not hold.
 
-    None when it lists none. A constraint is approved as written. A section
-    `_headed` refuses is out of shape, never no section.
     Why: 0091-cut-halts design D4.
     """
     # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
@@ -844,11 +817,6 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
     """Return each change's old-layout files, each with its path in the change's folder.
 
-    A file `OLD_LAYOUT` or `OLD_ROLES` does not name stays out, prefix matches and
-    strays alike.
-    e.g. `findings/0001-x_review.md` → {"0001-x": [(…, "conformance.md")]}
-    e.g. `changes/0001-x/review.md` → conformance.md
-    e.g. `runs/<stamp>/0001-x_converge-2.log` → `logs/<stamp>-converge-2.log`
     Why: 0080-minions-layout design D4; 0095-converge-roles design D2.
     """
     minions = primary / ".minions"
@@ -945,9 +913,7 @@ def _closed(runs: Path, tree: Path, change: str) -> bool:
 def _built_head(primary: Path, change: str) -> str | None:
     """Return the full sha `build.done` names while that build stands, else None.
 
-    It stands when that commit is the branch's tip or its ancestor, every
-    `## Progress` box is ticked at it, and no amend of the change directory past it
-    changes a decision. Why: 0099-stacked-builds design D1, D6.
+    Why: 0099-stacked-builds design D1, D6.
     """
     done = _done_head(primary, change)
     named = done and _maybe(
@@ -968,8 +934,6 @@ def _built_head(primary: Path, change: str) -> str | None:
 def _replanned(primary: Path, change: str, since: str) -> bool:
     """Return whether an amend of the change directory past `since` changes a decision.
 
-    The amends read are on the change's branch: one touching `proposal.md`, or one
-    changing `design.md`'s `_decisions`, changes a decision.
     Why: 0099-stacked-builds design D6.
     """
     folder = f"openspec/changes/{change}"
@@ -993,9 +957,7 @@ def _stacked_on(
 ) -> str | None:
     """Return the full sha `stacked-on` names while it stands, else None.
 
-    It stands when its first word is 40 hex digits naming a commit, an ancestor of the
-    tree's `HEAD`, that holds each `unreleased` id's `tasks.md`. A file it cannot read
-    stands for none. Why: 0099-stacked-builds design D3.
+    Why: 0099-stacked-builds design D3.
     """
     file = _change_dir(primary, change) / STACKED_ON
     try:
@@ -1099,8 +1061,6 @@ def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
 def _fresh_tmp(primary: Path) -> str | None:
     """Leave `.minions/tmp/`, the workers' `TMPDIR`, empty; return why to halt.
 
-    A link or a file there is unlinked, never followed. A link at `.minions` halts
-    with nothing removed: the delete runs through a descriptor on the folder itself.
     Why: 0084-ship-fixes-2 design D6, its delta's *A worker makes a scratch file*.
     """
     if (primary / ".minions").is_symlink():
@@ -1172,8 +1132,7 @@ def _rerun(runs: Path, tree: Path, change: str, halt: str) -> bool:
 def _amendable(runs: Path, change: str, halt: str) -> bool:
     """Return whether the person's amend during a rescue answers a halt of this kind.
 
-    The kinds: a halt in a catch-up or amend run with both findings files still
-    clean, a `verify: halt`, and an `amend needed`. Why: 0071-ship-fixes design D5;
+    Why: 0071-ship-fixes design D5;
     0092-amend-round design D7.
     """
     if "verify: halt" in halt or "amend needed" in halt:
@@ -1192,9 +1151,7 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
 def _amends(tree: Path, change: str, halted: str) -> list[bool]:
     """Return, per commit past `halted`, whether it is an amend of the change directory.
 
-    An amend has one parent, the amend's subject, and paths under
-    `openspec/changes/<change>/` alone. None is listed unless `halted` is an ancestor
-    of `HEAD` and not it. Why: 0071-ship-fixes design D5; 0092-amend-round design D2.
+    Why: 0071-ship-fixes design D5; 0092-amend-round design D2.
     """
     head = _git(tree, "rev-parse", "HEAD").strip()
     if halted == head or not _ancestor(tree, halted, "HEAD"):
@@ -1226,13 +1183,8 @@ def _amended_only(tree: Path, change: str, halted: str) -> bool:
 def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     """Return whether a commit answered a converge halt.
 
-    The halt names the head it stopped at, `HEAD` descends from it and is not it,
-    and both findings files judged that head, or an amend of the change directory
-    follows it: converge judges the range from the files' head in one amend round. A
-    rewritten history leaves no descendant, and a halt before round 1 is answered
-    by any commit. Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1;
+    Why: 0071-ship-fixes design D5; 0084-ship-fixes-2 design D1;
     0092-amend-round design D2.
-    e.g. "… · halt — cap reached · head 7ee2179", `HEAD` a fix past 7ee2179 → True
     """
     found = HALT_HEAD.search(halt)
     halted = found and _maybe(
@@ -1453,13 +1405,7 @@ def _release_tip(
     tag: str,
     skips: frozenset[str] | None = None,
 ) -> tuple[str, str]:
-    """Return the stage of a tip that says it is released; only a death re-enters.
-
-    The re-entry merges unasked, so it takes no person's no, a tag on `HEAD`
-    or none, the converge clean at the parent, an unmoved base and a release worker
-    that died. Every other reason names the person's way out, per `mf-release` Step 5.1.
-    `skips` is `stage_of`'s.
-    """
+    """Return the stage of a tip that says it is released; only a death re-enters."""
     runs = primary / ".minions"
     if (_change_dir(primary, change) / "release.held").is_file():
         return "released", (
@@ -1634,9 +1580,7 @@ def _check_converge(
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the integrate check fails, or None; an open merge names its note.
 
-    A `.red` with a `head:` fails it until a green gate deletes it. The subject
-    read is the newest first-parent merge's, so the person's fix commit after it
-    passes. Why: 0071-ship-fixes design D2.
+    Why: 0071-ship-fixes design D2.
     """
     note = f".minions/changes/{version.change}/integrate"
     red = _red(primary, tree, version.change)
@@ -1663,9 +1607,7 @@ def _check_release(
 ) -> str | None:
     """Return why the release check fails, or None.
 
-    Offline, a tag origin cannot list is released locally: the next good read
-    pushes it. A run's read of the tag that fails is `Unreachable`, and the run
-    goes offline. Why: 0062-offline-origin design D2, D4.
+    Why: 0062-offline-origin design D2, D4.
     """
     default = default_branch(primary)
     if not _ancestor(primary, version.change, default):
@@ -1812,10 +1754,7 @@ def _kept_origin(primary: Path) -> Urls | None:
 def _keep_origin(primary: Path) -> str | None:
     """Keep `origin`'s URLs before a repo's first worker; return why it could not.
 
-    A file that stands stays. Owner-only: a URL can hold a key. Where the home folder
-    refuses it, this process is itself in a sandbox, and nothing is kept. Beside the
-    URLs it keeps the branch origin's own HEAD names, once, read through a kept URL;
-    a repo kept before gains it here. Why: 0053-sandbox-patch design D2.
+    Why: 0053-sandbox-patch design D2.
     """
     file = _kept_file(primary)
     urls = _urls(primary)
@@ -1905,8 +1844,6 @@ def _origin_head(primary: Path, url: str) -> str | None:
 def _push_default(primary: Path, url: str) -> str:
     """Return the default branch a push judges and pushes: the one origin's HEAD names.
 
-    Never the local `refs/remotes/origin/HEAD`, which a worker writes. Once a run kept
-    the name, origin's HEAD naming another halts, for a person to decide.
     Why: 0053-sandbox-patch design D2.
     """
     name = _origin_head(primary, url)
@@ -1929,13 +1866,7 @@ def _push_default(primary: Path, url: str) -> str:
 
 
 def _refuse_origin(primary: Path) -> Urls:
-    """Return `_urls`; stop with 1 unless a remote call can run only its own git.
-
-    The URLs returned are the ones a run kept, once a run has: the comparison is on
-    the value the caller uses, so a worker's toggle steers nothing. A fake worker's
-    fixtures use a local `origin`, and a worker cannot set the conductor's
-    environment. A halt names no URL: it can hold a key.
-    """
+    """Return `_urls`; stop with 1 unless a remote call can run only its own git."""
     _refuse_config_commands(primary)
     fetch, push = _urls(primary)
     if _kept_origin(primary) not in (None, (fetch, push)):
@@ -1960,8 +1891,6 @@ def _refuse_origin(primary: Path) -> Urls:
 def _read_url(primary: Path, first_read: bool) -> str | None:
     """Return the URL a remote read goes to; None with no `origin`, or none it may read.
 
-    A first read is a run's alone: `status`, `check` and `report` take the repo from
-    git, which a worker steers, and a repo it puts inside a worktree no run kept.
     Why: 0052-security-hardening design D9.
     """
     fetch, _ = _refuse_origin(primary)
@@ -1987,10 +1916,6 @@ def _outside(
 ) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
-    It reads the operator's config, and what that includes, and no repo's, so a key
-    a worker sets after the refusal starts nothing. The caller passes a URL, not a
-    remote's name, behind `--`. With no ssh command the operator set, ssh neither
-    hangs nor prompts.
     Why: 0052-security-hardening design D9; 0062-offline-origin design D3.
     """
     with _scratch() as scratch:
@@ -2012,12 +1937,7 @@ def _outside(
 def _scan(primary: Path, base: str | None, sha: str) -> None:
     """Stop with 1 when a commit in `base..sha` holds a secret; with no base, in `sha`.
 
-    Betterleaks reads a scratch repo with `primary`'s objects, no system config and no
-    attributes, so no worker-written filter or `textconv` runs; its report is redacted.
-    It reads no ignore file and no allow comment, which a worker can write. `git log -p`
-    prints no merge's diff, so a two-parent merge is read by what it adds to the
-    automatic merge of its parents; git shows an octopus merge's not at all, so one
-    stops the scan. Why: 0065-gate-hardening design D7.
+    Why: 0065-gate-hardening design D7.
     """
     commits = f"{base}..{sha}" if base else sha
     span = f"--remerge-diff {commits}"
@@ -2210,8 +2130,6 @@ def _foreign_commit(
 ) -> list[str]:
     """Return the `default` branch's first-parent release merges past raw `base`.
 
-    Each release's parent must be a ledger head not yet reachable from `base`.
-    Only ref snapshots come from the primary; all history comes from scratch.
     Why: 0053-sandbox-patch design D2.
     """
     base = _git(primary, "rev-parse", "--verify", base).strip()
@@ -2244,10 +2162,6 @@ def _local_releases(primary: Path, base: str, default: str) -> list[str]:
 def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push.
 
-    Judge history in scratch against origin's listed default sha. A run's read takes
-    the default's name from origin's own HEAD; `status` takes it from git. With no
-    read allowed, use the local remote ref and no tags. Cleanup has no security
-    weight: landed ledger heads never authorize another release, however they landed.
     Why: 0053-sandbox-patch design D2.
     """
     url = _read_url(primary, first_read)
@@ -2307,8 +2221,7 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
 def _unread(primary: Path) -> bool:
     """Return whether `origin` could lack a merged tag only a run may read for.
 
-    Nothing kept, so `status` read no `origin`. A merged tag makes a run worth starting,
-    and that run keeps the URLs, so this holds once. Why: 0052-security-hardening
+    Why: 0052-security-hardening
     design D9.
     """
     return (
@@ -2626,19 +2539,7 @@ def _models(
     """Return the station's executor, model and effort from the cut's models file.
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
-    An absent executor is the run's, `run`; an absent model or effort is None, save
-    the supervisor's on Claude, `SUPERVISOR`, and converge's on Claude when its table
-    names neither, `CHECKER_DEFAULT`: the checkers' default, for no converge model
-    starts a conductor. A worker of `WORKERS` with no table of
-    its own reads its `OLD_WORKERS` table, halting where converge's table does. A
-    checker may name its executor, Codex-checked as a station; one naming none, and
-    the fixer, which names none, run on converge's, with no Codex check of their own.
-    `MODERATE` names no executor and runs on the build's, Codex-checked. A table no
-    executor can run halts the version.
-    Why: 0067-rescue design D5; 0089-supervisor design D2; 0094-lighter-converge
-    design D1; 0095-converge-roles design D2; 0097-cross-model design D3;
-    0100-worker-diet design D8; 0102-build-per-phase design D5; 0108-converge-script
-    design D8.
+    Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8.
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2691,9 +2592,7 @@ def _shadow(
 ) -> tuple[str, str | None, str | None]:
     """Return a shadow checker's models: the executor `checker` does not run on.
 
-    It takes converge's model and effort where converge runs, else that host's
-    default. Why: 0097-cross-model design D3.
-    e.g. (("claude", "m", "e"), ("codex", "x", "y")) → ("claude", "m", "e")
+    Why: 0097-cross-model design D3.
     """
     executor = next(name for name in EXECUTORS if name != checker[0])
     if converge[0] == executor:
@@ -2809,10 +2708,8 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
 def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     """Return whether a card an `amend needed` halt names is a blocking security one.
 
-    A security card is an `adversarial.md` card of category `security`, or of none
-    read; an unread `adversarial.md` blocks. Why: 0085-self-healing-ship design D2;
+    Why: 0085-self-healing-ship design D2;
     0095-converge-roles design D2.
-    e.g. "… · halt — amend needed — R1 S2 · head 7ee2179", S2 `high` → True
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
@@ -2836,10 +2733,8 @@ def _security_card(card: str) -> bool:
 def _security_held(runs: Path, change: str, halt: str) -> bool:
     """Return whether a blocking security card bars the supervisor at a converge halt.
 
-    A card bars it when the halt's `amend needed` ids name it or it is open; an
-    unread `adversarial.md` bars it. Why: 0089-supervisor design D6;
+    Why: 0089-supervisor design D6;
     0095-converge-roles design D2.
-    e.g. "… · halt — cap reached · head abc1234", S1 `high` and open → True
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
@@ -2857,8 +2752,6 @@ def _rescue_amends(
 ) -> tuple[str, ...]:
     """Return the change's files a rescue of `station`'s halt may amend; () for none.
 
-    A build halt gets `AMENDS`, and a converge `amend needed` halt too, save one
-    naming a blocking security card; under the switch, `proposal.md` besides.
     Why: 0085-self-healing-ship design D1, D2.
     """
     halt = _converge_halt(runs, change) or ""
@@ -2872,11 +2765,7 @@ def _rescue_amends(
 def _decisions(text: str | None) -> str:
     """Return a design's `## ` headings and its `## Decisions` section, or "".
 
-    The section runs from the first line that starts `## Decisions` to the next `## `
-    heading, CRLF lines or not. The headings make a section copied above the real
-    one, added or renamed read as a change. Why: 0085-self-healing-ship design D4.
-    Each `### D<n>` entry loses its closing blank lines and `FIX_NOTE` lines, so a
-    note added or edited there changes nothing. Why: 0103-fewer-rounds design D3.
+    Why: 0085-self-healing-ship design D4; 0103-fewer-rounds design D3.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
@@ -2907,12 +2796,6 @@ def _amend(
 ) -> tuple[str | None, str, bool]:
     """Return the rescue's amend past `before`, or None and why; and if it decided.
 
-    An amend is one commit, its subject the amend's, with a `Rescue:` trailer,
-    touching the change's `amends` files alone; with no `amends` there is none. A
-    decided amend touches `proposal.md` or changes `design.md`'s `## Decisions`: it
-    stands with `proposal.md` in `amends`, the switch, and a `Decided-by: rescue`
-    trailer alone; a `FIX_NOTE` appended to a decision's entry is no decision change.
-    No commit is (None, "", False).
     Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
     """
     if not _ancestor(tree, before, "HEAD"):
@@ -2952,9 +2835,6 @@ def _amend(
 def _supervised(tree: Path, change: str, before: str) -> tuple[str | None, str]:
     """Return the supervisor's amend past `before`, or None and why.
 
-    An amend is one commit of one parent, its subject the amend's, carrying a
-    `Supervisor:` trailer and `Decided-by: supervisor`, touching paths under
-    `openspec/changes/<change>/` alone. No commit is (None, "").
     Why: 0089-supervisor design D3.
     """
     if not _ancestor(tree, before, "HEAD"):
@@ -2995,9 +2875,7 @@ def _settled(
 ) -> tuple[str | None, str]:
     """Return the tree the supervisor staged in the open merge, or None and why.
 
-    It takes Markdown under `openspec/` and `docs/` alone, with `HEAD`, the merge and
-    the note as they stood, nothing unstaged or unmerged, and `integrate.settled`
-    written since `start`. No mark is (None, ""). Why: 0090-supervisor-merge design D3.
+    Why: 0090-supervisor-merge design D3.
     """
     if _git(tree, "rev-parse", "HEAD").strip() != start.head:
         return None, f"supervisor moved HEAD off {start.head[:7]}"
@@ -3032,9 +2910,7 @@ def _settled(
 def _settle_kept(tree: Path, staged: str) -> str | None:
     """Return why integrate's merge holds more than the settled tree, or None.
 
-    The newest first-parent merge may differ from `staged` only by the tests its
-    body names `test fixed`: `_settled` checks the index once, before integrate
-    commits it. Why: 0090-supervisor-merge security S2.
+    Why: 0090-supervisor-merge security S2.
     """
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
     body = _git(tree, "log", "-1", "--format=%b", merge).splitlines()
@@ -3059,9 +2935,7 @@ def _mtime(path: Path) -> int | None:
 def _entries(folder: Path, empty: bool) -> list[str]:
     """Return the names in `folder`, deleting each when `empty`; none through a link.
 
-    The folder is opened once, following no link, and read and emptied through that
-    descriptor, so a link swapped in after the listing deletes nothing. An entry
-    `unlink` refuses, a folder say, is left and not named. Why: 0067-rescue design D7.
+    Why: 0067-rescue design D7.
     """
     try:
         fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -3123,9 +2997,7 @@ def _place(fd: int, name: str, text: str) -> None:
 def _granted(runs: Path, change: str, take: bool) -> bool:
     """Return whether `runs/grants` holds `change`'s grant, deleting it when `take`.
 
-    The folder is opened following no link, and the grant read and deleted through
-    that descriptor, so a link at the folder holds no grant and loses no file. Only a
-    regular file is a grant. Why: 0067-rescue design D7.
+    Why: 0067-rescue design D7.
     """
     try:
         fd = os.open(runs / "grants", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -3145,9 +3017,7 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
 def reach(primary: Path) -> list[Path]:
     """Return what a worker may edit: the primary and each open worktree.
 
-    An open worktree is an open version's or a queued cut's. A path inside another
-    stays covered and unlisted. A listed path a worker swaps for a link halts the
-    next Codex spawn. Why: 0050-codex-review design D5; 0096-codex-ready design D7;
+    Why: 0050-codex-review design D5; 0096-codex-ready design D7;
     0100-worker-diet design D4.
     """
     root = primary.resolve()
@@ -3164,8 +3034,7 @@ def reach(primary: Path) -> list[Path]:
 def ship_lines(primary: Path) -> ShipLines:
     """Return `AGENTS.md`'s `Ship tools:` and `Ship network:` lines.
 
-    A `Ship network:` value that is not a plain domain stops with 1, and so does a
-    `Ship loopback:` line of any value. Why: 0052-security-hardening design D2;
+    Why: 0052-security-hardening design D2;
     0056-loopback-removal design D2.
     """
     network = _agents_values(primary, "Ship network") or []
@@ -3214,10 +3083,8 @@ def worker_settings(
 ) -> str:
     """Return the Claude worker's settings, as JSON: its sandbox, the operator's off.
 
-    A sandbox that cannot start ends the worker. The operator's plugins, output style
-    and auto-memory start nothing. Why: 0052-security-hardening design D1,
-    0053-sandbox-patch design D1, 0056-loopback-removal design D1 and
-    0100-worker-diet design D2.
+    Why: 0052-security-hardening D1; 0053-sandbox-patch D1; 0056-loopback-removal D1;
+    0100-worker-diet D2.
     """
     writes = [*(str(tree) for tree in trees), *([str(common)] if common else [])]
     sandbox = {
@@ -3294,8 +3161,7 @@ def sandboxed(
 ) -> int:
     """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
 
-    e.g. `sandboxed(["make", "gate"], cwd, reach(primary))`; no sandbox stops with 2;
-    given `out`, the output goes to it. Why: 0107-sandbox-runner design D2; `out`,
+    Why: 0107-sandbox-runner design D2; `out`,
     0108-converge-script design D6.
     """
     sandbox_exec = shutil.which("sandbox-exec")
@@ -3357,9 +3223,7 @@ def tools_for(station: str) -> tuple[str, ...]:
 def _brief_refused(brief: Path, executor: str, remedy: str) -> str | None:
     """Return why a cutter may not be given `brief`, else None.
 
-    The brief is a file, not a link a worker swapped in. A Codex cutter's root is the
-    brief's folder, so that folder holds the brief alone; else the caller's `remedy`
-    follows, since a queued brief cannot move. Why: 0082-cut-station design D5.
+    Why: 0082-cut-station design D5.
     """
     try:
         regular = stat.S_ISREG(os.lstat(brief).st_mode)
@@ -3414,10 +3278,7 @@ def _unswapped(paths: list[Path]) -> None:
 def _gitdirs(common: Path) -> list[Path]:
     """Return each linked worktree's gitdir under `common`, sorted: folders, no link.
 
-    Codex's sandbox leaves a gitdir a `.git` pointer names read-only, even inside a
-    writable root, so each is a root of its own. A `worktrees/` that is a link, or
-    absent, holds none. Why: 0104-codex-limits design D6.
-    e.g. `<common>/worktrees/0001-todo` → [that]
+    Why: 0104-codex-limits design D6.
     """
     folder = common / "worktrees"
     try:
@@ -3448,13 +3309,7 @@ def argv(
 ) -> list[str]:
     """Return the worker's command line, the shell rules appended to the prompt.
 
-    `MF_SHIP_AGENT` replaces the executor. A Codex worker halts when the primary's
-    `.git` no longer resolves to the common directory in `repo`, or when a writable
-    root or `cwd` is a link `_unswapped` names. A run passes its
-    `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
-    reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
-    or a `.minions` that is a link, stops with 1. A Claude worker of a `station` starts
-    with its tools and cache lifetime; with none, the host's. Why: 0082-cut-station
+    Why: 0082-cut-station
     design D5; 0100-worker-diet design D1–D4.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
@@ -3556,9 +3411,6 @@ def codex_trust(paths: list[Path], level: str) -> list[str]:
 def _free_log(root: Path, parts: tuple[str, ...], name: str) -> tuple[Path, int]:
     """Return the first free of `<name>.log`, `<name>-2.log`, … in `root`'s `parts`.
 
-    And a descriptor open on it for writing, made through the folders' own, so a
-    link a worker swaps in at any of them names no place outside the run directory.
-    e.g. a converge's second spawn in a stamp → `<stamp>-converge-2.log`.
     Why: 0077-run-metrics design D2; 0071-ship-fixes design D8;
     0080-minions-layout design D3, D6.
     """
@@ -3736,9 +3588,7 @@ def lacked(log: Path) -> list[str]:
 def first_turn(log: Path) -> int | None:
     """Return the context a worker's first turn read: its input and cache tokens.
 
-    e.g. a first `assistant` usage of 3 input, 15000 cache-read and 4000 cache-write
-    tokens → 19003. A Codex log gives its first `turn.completed` input tokens; else
-    None. Why: 0100-worker-diet design D6.
+    Why: 0100-worker-diet design D6.
     """
     kinds = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
     codex = None
@@ -3945,8 +3795,6 @@ def _headroom(now: float) -> float | None:
 def tokens_of(log: Path) -> int | None:
     """Return a worker log's tokens, or None when it holds no usage.
 
-    A Codex log's `turn.completed` input and output tokens summed; else a Claude log's
-    last `result` event's `modelUsage`, as `scripts/metrics/run.py` sums it.
     Why: 0104-codex-limits design D5.
     """
     codex: int | None = None
@@ -4032,8 +3880,6 @@ def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> No
 def _quota(log: Path, before: dict[str, Window]) -> None:
     """Append a Codex log's `mf.quota` line: the shares its windows moved.
 
-    The rollout is the one the log's thread names. A share is the rise in `used`
-    when `before` names the same reset, else `used` itself, never below 0.
     Why: 0104-codex-limits design D5.
     """
     thread = _thread_id(log)
@@ -4068,8 +3914,6 @@ def _until(reset: float) -> str:
 def mcp_started(executor: str, log: Path) -> str | None:
     """Return why a worker's start fails the probe, or None when no MCP server started.
 
-    e.g. an `init` event's `"mcp_servers": [{"name": "runpod"}]` → "claude started an
-    MCP server: runpod"; a Codex `mcp_tool_call` item names its `server`.
     Why: D51; 0096-codex-ready design D3.
     """
     names: list[str] = []
@@ -4119,12 +3963,7 @@ def _hold_awake(pid: int) -> str:
 
 
 def _ps(pid: int, field: str) -> str:
-    """Return the `ps` field for `pid`, or "" when it cannot.
-
-    A claim compares start times across processes, and `lstart` follows the caller's
-    zone and locale, so both are fixed here.
-    e.g. 501, "comm=" → "claude"
-    """
+    """Return the `ps` field for `pid`, or "" when it cannot."""
     command = ["ps", "-o", field, "-p", str(pid)]
     try:
         done = subprocess.run(
@@ -4178,13 +4017,7 @@ def _claim(active: Path) -> str:
 
 
 def _clear(active: Path) -> None:
-    """Kill the stale claim's worker groups, then remove it.
-
-    A group goes only while its leader keeps the start time the entry holds and is
-    an executor: after a reboot its number can name any process. A group that keeps
-    its start time and names no executor, or refuses the kill, stops the run and
-    leaves the claim, so no worker races the next one.
-    """
+    """Kill the stale claim's worker groups, then remove it."""
     foreign = []
     for entry in active.iterdir():
         # A worker can write the claim, and group 0 is this process's own.
@@ -4225,8 +4058,6 @@ def _pin() -> dict[str, Any]:
 def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
     """Write this run's live mark, holding its pid; return it, or None if not written.
 
-    A mark another live run holds stays: the parent that detached this run is not
-    another. Where the home folder refuses it, none is written.
     Why: 0068-pinned-release design D2.
     """
     mark = Path.home() / KEPT_ORIGINS / "live" / _digest(primary)
@@ -4416,8 +4247,7 @@ class Run:
     def halt(self, who: str, reason: str) -> None:
         """Record and log a halt; its version starts only its rescue and supervisor.
 
-        The supervisor runs under the version's switch alone. A version's read on
-        disk then is the re-check's baseline. Why: 0085-self-healing-ship design D6;
+        Why: 0085-self-healing-ship design D6;
         0089-supervisor design D1.
         """
         seen = None if who == "run" else self.on_disk(who)
@@ -4610,10 +4440,7 @@ class Run:
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Return the denials, or None when a timeout, a tool its station lacks or a
-        failed exit halted `who`. A cutter's `brief` goes to `argv`. With `limits`, a
-        failed exit while its executor is limited halts nothing and gives None too. A
-        `deadline` ends it in place of `TIMEOUT`. Why: 0100-worker-diet design D5;
+        Why: 0100-worker-diet design D5;
         0104-codex-limits design D2.
         """
         timeout = None if deadline is None else deadline - time.monotonic()
@@ -4721,8 +4548,6 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        A reset at most `LIMIT_WAIT` away and inside `deadline` is slept to; Codex
-        still unprobed is then probed for `change` within `deadline`.
         Why: 0104-codex-limits design D3.
         """
         resets = [self.limited_until("codex"), _headroom(time.time())]
@@ -4833,12 +4658,7 @@ class Run:
     def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
         """Run a halted version's rescue on `held`; True when the version goes on.
 
-        It goes on on an amend that may touch the change's `amends` files alone, as
-        `_rescue_amends` names them. Any other outcome halts the version again, naming
-        what the rescue left, and one at a converge or integrate halt is then checked
-        for an answer on disk: the person's amends alone go on. A halted run, a skip or
-        a spent rescue starts none. A converge `verify: halt` the run diagnoses itself,
-        with no worker. Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
+        Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
         0085-self-healing-ship design D1, D5.
         """
         change, tree = version.change, version.tree
@@ -4901,12 +4721,7 @@ class Run:
     def supervise(self, version: Version, held: str, spent: bool) -> bool:
         """Run a version's supervisor on `held`; True when the version goes on.
 
-        It runs under the switch, at a build, `converge-halted` or semantic-conflict
-        `integrating` halt its rescue diagnosed or was `spent` on, once a halt and once
-        an open merge, while the rescue answered nothing on disk and no blocking
-        security card bars it. It goes on on an amend `_supervised` takes, or a settle
-        `_settled` takes, which goes on to integrate; any other outcome halts the
-        version again, held as the rescue's is. Why: 0089-supervisor design D1, D4,
+        Why: 0089-supervisor design D1, D4,
         D5, D6; 0090-supervisor-merge design D2, D4.
         """
         change, tree = version.change, version.tree
@@ -4983,8 +4798,6 @@ class Run:
     def diagnose(self, change: str, halt: str) -> None:
         """Write the run's diagnosis of a verify halt, through no link, and halt on it.
 
-        The folders are opened following no link, and the file created through their
-        descriptor, so a link at any names no place outside the run directory.
         Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
         """
         name = f".minions/changes/{change}/rescue.md"
@@ -5009,12 +4822,7 @@ class Run:
     ) -> bool:
         """Keep a version halted for the run when its rescue answered its halt on disk.
 
-        A rescue at a cap or integrate halt may only diagnose, yet a commit past
-        the halted head, a settled merge, a removed note or a grant it writes reads as
-        no halt, and its rejoin request would take the version back. The halt names
-        the stage on disk and a moved `HEAD`, for the person. The person's amends
-        alone go on, the diagnosis dropped: True. `who` is the station, `rescue` or
-        `supervise`. Why: 0067-rescue design D3; 0085-self-healing-ship design D5;
+        Why: 0067-rescue design D3; 0085-self-healing-ship design D5;
         0088-paydown-2 design D4; 0089-supervisor design D6.
         """
         change = version.change
@@ -5039,9 +4847,7 @@ class Run:
     def _amended_alone(self, tree: Path, change: str, before: str) -> bool:
         """Return whether the person's amends alone answer the converge halt rescued.
 
-        The halt is one the person's amend answers, only amends follow its head, and
-        none since the rescue began carries a `Rescue:` or `Supervisor:` trailer: a
-        refused rescue or supervisor amend carries one. Why: 0085-self-healing-ship
+        Why: 0085-self-healing-ship
         design D5; 0089-supervisor design D6.
         """
         runs = self.primary / ".minions"
@@ -5059,9 +4865,7 @@ class Run:
     def held(self, version: Version, stage: str, tree: Path) -> str | None:
         """Return what a failed check at `stage` is rescued on, or None for no rescue.
 
-        A build halt is held on its sub-task, else `build`; one at a `**HUMAN` phase
-        gets none, as it needs the person. A converge or integrate halt is held on its
-        stage on disk, when that is in `RESCUED`. Why: 0067-rescue design D3.
+        Why: 0067-rescue design D3.
         """
         change = version.change
         if stage == "build":
@@ -5109,10 +4913,6 @@ class Run:
     def _would_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:
         """Return whether `halt` at `stage` is a cap the run grants, and the blockers.
 
-        It grants a version's first cap in the run, when no granted round, in this
-        run or an earlier one, reached it, every open blocker is small and the models
-        file allows it; the ids are "" at no cap. A cap is `converge-halted` alone:
-        another stage's text may name one. It changes nothing.
         Why: 0070-cap-policy design D2.
         """
         change = version.change
@@ -5132,9 +4932,6 @@ class Run:
     def auto_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:
         """Take one round past a cap `_would_grant` takes; True if it did.
 
-        Else the refused ids, "" at no cap. Every cap counts towards the first; the
-        grant writes no grant file and starts no rescue. `advance` spawns the round
-        on the path a person's grant takes, so its check judges it.
         Why: 0070-cap-policy design D2.
         """
         change = version.change
@@ -5161,9 +4958,7 @@ class Run:
     def workers(self, change: str) -> dict[str, object]:
         """Return converge's workers as the plan holds them, for `converge.py`.
 
-        Each role's models, or `skip`; the fixer's; and `shadow`. A table changed
-        during the run halts. Why: 0108-converge-script design D1.
-        e.g. {"conformance": ("claude", "m", "high"), "adversarial": "skip", …}
+        Why: 0108-converge-script design D1.
         """
         skipped = self.skips_of(change)
         workers: dict[str, object] = {}
@@ -5220,23 +5015,8 @@ class Run:
     def advance(self, version: Version, stop_at: tuple[str, ...]) -> str | None:
         """Run the version's stations to a stage in `stop_at`, a release or a halt.
 
-        A cap the run grants gets its round, spawned and checked as a person's
-        grant's is, and one it refuses a `re-plan` halt line; a build check,
-        converge or integrate halt then gets its rescue, and its supervisor after it. A
-        halt before round 1 it runs again joins `reruns`. A rescue's or a supervisor's
-        taken amend, at a halt met on entry or after a check, goes on. A supervisor's
-        taken settle goes on to integrate, whose merge must hold the settled tree.
-        It returns the stage of `stop_at` it stopped at, `stacked` whenever it reads
-        it, or `waiting` after a reset; else None. Each stage read past the build wakes
-        the waiting versions. The build spawns a worker per unticked phase, each
-        checked alone, its `build-notes.md` append trimmed, then one for the close.
-        Why: 0070-cap-policy design D2, D3; 0084-ship-fixes-2 design D1;
-        0085-self-healing-ship design D1; 0089-supervisor design D1;
-        0090-supervisor-merge design D4, its delta's *A supervisor answers what the
-        rescue leaves*; 0099-stacked-builds design D3; 0102-build-per-phase design
-        D1, D2, D3; 0105-converge-switches design D2; 0108-converge-script design
-        D8, whose converge runs `converge.py` in this thread, a skipped checker given
-        `skip`.
+        Why: 0070 D2, D3; 0084 D1; 0085 D1; 0089 D1; 0090 D4; 0099 D3; 0102 D1, D2, D3;
+        0105 D2; 0108 D8.
         """
         minions, change = self.primary / ".minions", version.change
         decide = change in self.decides
@@ -5401,8 +5181,6 @@ class Run:
     def _keeps(self, tree: Path, change: str) -> str | None:
         """Return why `remove_tree` keeps `tree`, or None to remove it.
 
-        A changed or refused config, a link at the cut's path, or another path keeps
-        it. e.g. a link at the cut's path → "a link at the cut's path"
         Why: 0072-paydown design D2.
         """
         try:
@@ -5420,12 +5198,6 @@ class Run:
     def remove_tree(self, version: Version) -> None:
         """Remove a released version's worktree at the cut's path; else log it kept.
 
-        The branch stays. A worker can write the worktree entry, so its path is checked
-        against `Worktrees:`, read before the first worker. The removal deletes the
-        tree's ignored paths, so they are listed first and logged; a failed listing
-        keeps the tree. A changed or refused config and a link at the cut's path keep it
-        too, checked before the listing and again after it, which a worker can
-        lengthen, so only the gap before git's own call is left.
         Why: 0057-run-fixes design D3; 0072-paydown design D2.
         """
         tree, change = version.tree, version.change
@@ -5491,8 +5263,6 @@ class Run:
     ) -> None:
         """Wait while the dependency's thread lives; with `stack`, until it may stack.
 
-        With `stack`, it returns once `stackable` names a head. It waits on
-        `self.built`, at most `REJOIN_POLL` a time, and logs `wait — after <id>` once.
         Why: 0099-stacked-builds design D1.
         """
         logged = False
@@ -5508,10 +5278,6 @@ class Run:
     def ready(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Wait for the version's dependencies, then bring the default branch in.
 
-        A version stacks on a dependency's built head while that dependency has not
-        released, and builds on, waiting on no thread, once stacked. Once each
-        dependency released, a re-plan past the stacked-on head resets it, then the
-        default branch is merged in and `stacked-on` goes.
         Why: 0099-stacked-builds design D1, D3, D6.
         """
         change, default = version.change, default_branch(self.primary)
@@ -5553,12 +5319,7 @@ class Run:
     ) -> None:
         """Merge `ref` into a branch, once the delta check passes.
 
-        Each merge it opens, conflicted or clean, goes to `settle`; one already open
-        does not. A requirement both sides changed leaves the merge open with its
-        note, which `stage_of` reads as an `integrating` halt. With `stacked`, the
-        dependency whose built head `ref` is, it runs no delta check and commits
-        `chore(stack)`. It checks the config again right before its commit (`0050·R5`):
-        a change leaves the merge open. Why: 0086-ship-fixes-3 design D3;
+        Why: 0086-ship-fixes-3 design D3;
         0099-stacked-builds design D2.
         """
         if changed := _config_changed(self.primary, self.git_state):
@@ -5604,10 +5365,6 @@ class Run:
     def settle(self, tree: Path, change: str, default: str) -> None:
         """Settle a merge by `integrate.py`'s rules; else abort it, stop.
 
-        The `CHANGELOG.md` rule runs on a conflicted `CHANGELOG.md` and on any merge
-        whose base holds `[Unreleased]` entries, a stacked branch's; the
-        `docs/decisions.md` rule on every merge: a planned id moves on a clean one.
-        A clean merge whose rule halts names `merge --no-commit`, not `merge`.
         Why: 0063-rejoin design D6; 0086-ship-fixes-3 design D3;
         0099-stacked-builds design D4.
         """
@@ -5648,12 +5405,7 @@ class Run:
     def catch_up(self, version: Version) -> None:
         """Merge the default branch into a version behind it.
 
-        A cut-only version, its merges aside, gets it merged in by `merge_in`, and so
-        does a started one with an unticked phase and no open merge, behind a default
-        branch that changed `GATE_FILES`. One with an unticked phase and a merge open
-        with no note stops with 1, naming the commit that finishes it, unless its `HEAD`
-        lacks an `after:` id, a merge `ready` finishes. Any other goes on from its
-        stage. Why: 0057-run-fixes design D2; 0071-ship-fixes design D4.
+        Why: 0057-run-fixes design D2; 0071-ship-fixes design D4.
         """
         change, default, tree = (
             version.change,
@@ -5719,10 +5471,7 @@ class Run:
     def reset_stack(self, version: Version) -> bool:
         """Reset a stacked version whose dependency re-planned past it; True if so.
 
-        A dependency whose branch left that head was itself reset, so a chain resets
-        with it. Released, the dependency is the one `after:` id whose kept branch
-        holds that head. The version goes back to its cut commit, `stacked-on`
-        and `build-notes.md` removed. Why: 0099-stacked-builds design D6;
+        Why: 0099-stacked-builds design D6;
         0102-build-per-phase design D3.
         """
         change, tree = version.change, version.tree
@@ -5774,9 +5523,6 @@ class Run:
     def take(self, version: Version, threads: dict[str, threading.Thread]) -> None:
         """Take one version to its release, a halt or a block.
 
-        A version a halt already names is taken no further. A stacked version waits
-        for its dependency's release, then is ready again. Its end wakes the versions
-        waiting on it.
         Why: 0099-stacked-builds design D1, D3.
         """
         if self.stopped(version.change):
@@ -5838,13 +5584,6 @@ class Run:
     def cutting(self, change: str) -> tuple[str, bool] | None:
         """Run the cutter and its check; return why it halts and if that is logged.
 
-        A branch that holds its change is checked, not cut again; one that holds
-        none is dropped with its worktree first, past the config refusals `merge_in`
-        runs, and halts when `_keeps` keeps that worktree. A dependency still queued is
-        waited for. None on a pass, its brief recorded, its queue entry and
-        reservation deleted. The cutter's own halt, and a package the entry does not
-        approve, end in `_cut_answer`. An entry's `models` is written again first, so a
-        rejoin restores a file the cutter changed.
         Why: 0091-cut-halts design D4, D5; 0106-cut-scripts design D7.
         """
         entry = _cuts(self.primary)[change]
@@ -5930,13 +5669,7 @@ class Run:
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models, once per version: at the start, or as it joins.
 
-        A worker can write them. A table `_models` refuses stays out of the plan: it
-        halts in `take`. Converge's worker tables are read as stations are; the
-        rescue's skip, `[converge] auto_grant` and `shadow`, the converge skips, and
-        the switch are read with them.
-        Why: 0052-security-hardening design D4; 0067-rescue design D5; 0070-cap-policy
-        design D4; 0085-self-healing-ship design D3; 0094-lighter-converge design D1;
-        0097-cross-model design D3; 0105-converge-switches design D2.
+        Why: 0052 D4; 0067 D5; 0070 D4; 0085 D3; 0094 D1; 0097 D3; 0105 D2.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -6009,12 +5742,6 @@ class Run:
     def take_requests(self, threads: dict[str, threading.Thread]) -> bool:
         """Start `take` for each requested open version no thread runs; True if any.
 
-        The requests are read and deleted. A version whose stage is a halt stays out,
-        logged; a taken one has its halts and blocks cleared, its models read and its
-        new executors probed first. The blocked versions come back after them. It
-        raises nothing: it runs beside live threads, so a failure skips the request
-        or halts that version. A queued cut the run has not read, or one a request
-        names, is taken first; a version the queue holds joins through its cut alone.
         Why: 0063-rejoin design D2; 0071-ship-fixes design D4; 0082-cut-station
         design D4.
         """
@@ -6076,9 +5803,7 @@ class Run:
     def _unblock(self, threads: dict[str, threading.Thread]) -> None:
         """Take back each blocked version one of whose dependencies has a live thread.
 
-        Once per dependency thread, so a refused take-back logs once; in change-id
-        order, so a chain comes back in one pass. It raises nothing, as
-        `take_requests` does not. Why: 0071-ship-fixes design D4.
+        Why: 0071-ship-fixes design D4.
         """
         with self.guard:
             waiting = bool(self.blocked)
@@ -6110,10 +5835,6 @@ class Run:
     def recheck(self, threads: dict[str, threading.Thread]) -> bool:
         """Take back each halted version answered on disk, with no request; True if any.
 
-        One with a live thread, a block, its rescue's answer or a queued cut stays
-        out. A read at its stage, not stuck, that differs from the halt's baseline is
-        a candidate, taken when the next poll reads it the same. It raises nothing, as
-        `take_requests` does not: a listing that fails is logged `rejoin — skipped`.
         Why: 0085-self-healing-ship design D6.
         """
         with self.guard:
@@ -6175,11 +5896,7 @@ class Run:
     def take_back(self, version: Version, threads: dict[str, threading.Thread]) -> bool:
         """Start `take` for a requested version whose stage is no halt; True if so.
 
-        One the run's plan holds stays out while its models file differs: a worker can
-        write it, and so does one whose rescue answered its halt; only one the plan
-        lacks has its models read. An executor whose probe failed halts it with that
-        probe's reason, probed no second time. A halt before round 1 the run ran
-        again stays out. Why: 0063-rejoin design D2, D3; 0067-rescue design D3;
+        Why: 0063-rejoin design D2, D3; 0067-rescue design D3;
         0071-ship-fixes design D4; 0084-ship-fixes-2 design D1.
         """
         change = version.change
@@ -6215,8 +5932,7 @@ class Run:
     def admit(self, version: Version) -> bool:
         """Clear a joining version's halts, read its plan, probe its new executors.
 
-        Its diagnosis is cleared too: a later halt is not the one it answered. Return
-        whether it may go on. Why: 0063-rejoin design D2, D3; 0082-cut-station design
+        Why: 0063-rejoin design D2, D3; 0082-cut-station design
         D4; 0085-self-healing-ship design D7.
         """
         change = version.change
@@ -6268,9 +5984,7 @@ class Run:
     ) -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
-        Its log names no MCP server, and a Codex probe then passes `probe_checker`. A
-        failure halts `who`; a pass adds `executor` to `probed`, its check line naming
-        the first turn's context. Why: 0063-rejoin design D3; D51; 0096-codex-ready
+        Why: 0063-rejoin design D3; D51; 0096-codex-ready
         design D9; 0100-worker-diet design D6.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
@@ -6382,14 +6096,6 @@ class Run:
     def push_left(self, tries: tuple[int, ...]) -> bool:
         """Push what a release merged and left; return False when that halted the run.
 
-        A refusal or a rejection halts it, and so does a changed config, before any
-        remote call: the URLs are the ones read before the first worker, so a worker
-        steers none. A held key is refused first, so the halt names it. The default
-        branch is the one origin's HEAD names, and the one a run kept. Its push
-        keeps the offline base and removes entries whose heads are now on it; a head
-        already there authorizes nothing even when cleanup did not run. A failed read
-        is tried again after each of `tries`' delays; past the last, the run is
-        offline and judged against the offline base.
         Why: 0052-security-hardening design D9; 0053-sandbox-patch design D2;
         0062-offline-origin design D2.
         """
@@ -6427,12 +6133,7 @@ class Run:
         return True
 
     def push(self, unpushed: list[tuple[str, str]]) -> bool | None:
-        """Push each `(ref, sha)`; return False when a refusal halted the run.
-
-        None when a push failed and a re-read of `origin` fails too: a wait. Each heads
-        ref's range from the offline base, origin's sha the read just kept, is scanned
-        first, so a secret halts the run before any push.
-        """
+        """Push each `(ref, sha)`; return False when a refusal halted the run."""
         try:
             for ref, sha in unpushed:
                 if ref.startswith("refs/heads/"):
@@ -6467,10 +6168,7 @@ class Run:
     def join(self, threads: dict[str, threading.Thread]) -> None:
         """Wait for every thread, taking requests, blocked and answered versions.
 
-        A poll is one `REJOIN_POLL` window, whatever the threads. With none alive, the
-        requests are read once more, and a candidate the re-check read holds the run
-        one more poll: the disk is re-read at the next poll's top alone, so a
-        candidate's two reads are a wait apart. Why: 0063-rejoin design D1;
+        Why: 0063-rejoin design D1;
         0071-ship-fixes design D4; 0085-self-healing-ship design D6, D7.
         """
         while True:
@@ -6499,10 +6197,7 @@ class Run:
     def migrate_debt(self) -> str | None:
         """Move an old `backlog.md` to `debt.md`; return why the run must halt.
 
-        A stale `backlog.lock` is removed. Both files, an old file that is a link,
-        or beside the old file a lock still standing or a file at `debt.lock`, halt:
-        a person or a hand-run writer holds them. The move holds `debt.lock`, as
-        every writer of `debt.md` does. Why: 0079-debt-rename design D3;
+        Why: 0079-debt-rename design D3;
         0088-paydown-2 design D1.
         """
         old, new = self.primary / OLD_DEBT, self.primary / DEBT
@@ -6542,10 +6237,7 @@ class Run:
     def migrate_layout(self) -> str | None:
         """Move each change's old-layout files into its folder; return why to halt.
 
-        Every file is checked before any moves: one beside its new path, two naming
-        one new path, or a link at an old file, an old folder, `changes/` or a
-        change's folder, halts with nothing moved. A move links the file in and
-        unlinks the old, so it never replaces one. Why: 0080-minions-layout design
+        Why: 0080-minions-layout design
         D4, D6; 0095-converge-roles design D2.
         """
         found = _old_files(self.primary)
@@ -6595,9 +6287,7 @@ class Run:
     def ship(self) -> int:
         """Run the loop; return 0 when every version shipped, else 1.
 
-        A request standing at the start is deleted: the run takes every open version.
-        Every queued cut is read first; a version the queue holds goes through its
-        cut, and a halted cut starts no thread. Why: 0082-cut-station design D4.
+        Why: 0082-cut-station design D4.
         """
         self.seen = set()
         _requests(self.queue)
@@ -6737,9 +6427,6 @@ class Run:
 def run(cwd: Path, executor: str, detach: bool) -> int:
     """Start the loop, claimed by `.minions/runs/active`; detached, return at once.
 
-    A stale claim is cleared before the detach, so what stops that reaches the caller.
-    The live mark comes first, and a stop before the claim removes it; the last run to
-    end moves the links before it goes, then `_close` removes the claim.
     Why: 0068-pinned-release design D2 and D3; 0082-cut-station design D2.
     """
     pin = _pin()
@@ -6808,8 +6495,7 @@ def _detach(primary: Path, executor: str) -> subprocess.Popen[bytes]:
 def _start_run(primary: Path, executor: str) -> int:
     """Detach a run and wait until it holds its claim or has ended; return its pid.
 
-    A run that ended said `run: done` or `run: halt` in the log; a pin move may print
-    after it. Else stop with 2, naming the log's last line. Why: 0082-cut-station
+    Why: 0082-cut-station
     design D2.
     """
     runs = primary / ".minions" / "runs"
@@ -6834,9 +6520,6 @@ def _start_run(primary: Path, executor: str) -> int:
 def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) -> None:
     """Remove the claim under the queue lock, then start the next run when one waits.
 
-    A run waits on a rejoin request, or a queued cut with no halt the run never read
-    in `seen`; a run that never read the queue, `seen` None, starts none. A lock the
-    home folder refuses removes the claim and starts none.
     Why: 0082-cut-station design D2.
     """
     try:
@@ -6862,9 +6545,7 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
 def stop_run(cwd: Path) -> str:
     """End the live run: the conductor first, so it spawns nothing more.
 
-    The claim's groups go next, then a last line in the newest run log. Return that
-    log. A group `_clear` cannot end stops with its exit, the claim kept and the line
-    written: with the conductor dead, a second stop could not write it. Why:
+    Why:
     0051-reliability-paydown design D5.
     """
     runs = primary_of(cwd) / ".minions" / "runs"
@@ -7053,10 +6734,7 @@ def _headed(text: str, heading: str) -> bool:
 def _cells(line: str) -> int:
     r"""Return how many cells a table row's source line holds, GFM's way.
 
-    A pipe splits unless a backslash comes right before it, and an outer pipe adds no
-    empty cell. The parser drops a cell past the header's, so a row is counted from
-    its source. Why: 0103-fewer-rounds design D6.
-    e.g. "| a | b \| c |" → 2
+    Why: 0103-fewer-rounds design D6.
     """
     parts = re.split(r"(?<!\\)\|", line.strip())
     return len(parts) - (parts[0] == "") - (len(parts) > 1 and parts[-1] == "")
@@ -7251,10 +6929,7 @@ def cut(
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    `links` are `after=<ids>` and `beside=<ids>`, each at most once. The entry holds
-    the packages the brief approves for `slug`, and `beside` only when given. The
-    live run takes it; with none live, a run starts. It writes the item's models file,
-    and the entry keeps its text. Why: 0082-cut-station design D1; 0091-cut-halts
+    Why: 0082-cut-station design D1; 0091-cut-halts
     design D3; 0098-beside design D3; 0106-cut-scripts design D7.
     """
     if not SLUG.fullmatch(slug):
@@ -7329,10 +7004,7 @@ def cut(
 def _requests(queue: Path) -> set[str]:
     """Delete the rejoin requests in `queue`; return their names.
 
-    An entry `unlink` refuses, a folder say, is no request, and an unreadable folder
-    holds none: the poll runs beside live threads. A folder that is a link holds
-    none, and deletes nothing through it. Why: 0063-rejoin design D2.
-    e.g. `<queue>/rejoin/0001-todo` and `…/all` → {"0001-todo", "all"}
+    Why: 0063-rejoin design D2.
     """
     return set(_entries(queue / "rejoin", empty=True))
 
@@ -7359,10 +7031,7 @@ def _requested(queue: Path) -> bool:
 def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
-    A queued cut's halt is cleared first, its queued packages kept; a brief row they
-    lack is taken only when `yes` is `_rows_hash` of the new rows, else it stops with
-    1, kept. With no run live, one starts for it. An unreadable entry or brief stops
-    with 2, kept. Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
+    Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
     0091-cut-halts design D3.
     """
     primary = primary_of(cwd)
@@ -7438,9 +7107,6 @@ def _rescuing(runs: Path, change: str) -> bool:
 def grant(cwd: Path, change: str, executor: str) -> int:
     """Record one more round for a version halted at the cap, then start a run.
 
-    With a run live, the grant goes with a rejoin request instead, and none while
-    that version's rescue or supervisor runs: `Run.hold` takes a grant then for
-    theirs. The queue lock is held from the claim read to the request or the start.
     Why: 0063-rejoin design D5; 0067-rescue design D3; 0082-cut-station design D3;
     0089-supervisor design D6.
     """
@@ -7484,9 +7150,6 @@ def grant(cwd: Path, change: str, executor: str) -> int:
 def approve_gate(cwd: Path, change: str, hashed: str) -> str:
     """Record the hash a gate check's halt named, as a person's yes to that diff.
 
-    The record is the person's, in the home folder, where no worker writes. It runs
-    no make: this process is outside the sandbox, and a branch's makefile is code a
-    worker wrote. A hash no check reads approves nothing.
     Why: 0060-gate-planning design D4.
     """
     primary = primary_of(cwd)
@@ -7515,9 +7178,7 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
 def anchor(cwd: Path, yes: str | None) -> str:
     """Seed the first offline base from the default branch's tracking ref, checked.
 
-    A person's session alone: no worker can write the home folder, and the tracking
-    ref is one a worker writes, so it writes only the sha the person names with
-    `yes` after seeing it. Why: 0062-offline-origin design D6.
+    Why: 0062-offline-origin design D6.
     """
     primary = primary_of(cwd)
     _refuse_config_commands(primary)
@@ -7577,11 +7238,7 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) -> int:
     """Run `converge.py` for `change` in its worktree; return its exit.
 
-    The plan is `given` alone: `conformance=`, `adversarial=` and `fix=`, each
-    `<model>/<effort>` with `default` for none, a checker's `skip`, and `grant=yes`;
-    a role given none runs on `executor`'s default. No models file is read, and no
-    claim holds the workers. Why: 0108-converge-script design D1.
-    e.g. ["fix=claude-sonnet-5-5/medium"] → the fixer on that model and effort
+    Why: 0108-converge-script design D1.
     """
     if _executor_missing(executor):
         raise Stop(2, f"converge: cannot run — {executor} is not on PATH")
@@ -7726,10 +7383,7 @@ def _change_number(change: str) -> int:
 def report(cwd: Path) -> str:
     """Return the last run's close-out: its waits, each version, the halts, the end.
 
-    A version that rejoined has a `rejoined` line after the halts before it, and one
-    rescued a `rescued <sub-task> · <sha>`, `decided <sub-task> · <sha>` or
-    `diagnosed <file>` line; a skipped request, which names no version, keeps its line
-    as it stands. Why: 0067-rescue design D6; 0085-self-healing-ship design D4.
+    Why: 0067-rescue design D6; 0085-self-healing-ship design D4.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions"

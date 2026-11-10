@@ -109,7 +109,10 @@ class Freeze(NamedTuple):
 
 
 class Checked(Protocol):
-    """What `host.checker` returns of one checker's run. Why: design D4."""
+    """What `host.checker` returns of one checker's run.
+
+    Why: design D4.
+    """
 
     @property
     def code(self) -> int:
@@ -259,12 +262,7 @@ class Verdict(NamedTuple):
 
 @dataclass
 class Context:
-    """One converge run: the host, the change, its worktree, workers and round.
-
-    `mark` is the run heading's; `cap` the round past which a blocker halts;
-    `picked` this run's pickup; `sent` the plan-check subjects Step 7 sent back;
-    `stations` each table's last station and effort, which a rewrite repeats.
-    """
+    """One converge run: the host, the change, its worktree, workers and round."""
 
     host: Host
     change: str
@@ -402,7 +400,10 @@ def preconditions(context: Context) -> str:
 
 
 def gated(context: Context, when: str) -> None:
-    """Run the gate, then `gate_check.py`, halting on either. Why: design D6."""
+    """Run the gate, then `gate_check.py`, halting on either.
+
+    Why: design D6.
+    """
     if code := sandboxed(context, script("gate_run.py")):
         raise Halt(f"the gate is red {when}: gate_run.py exit {code}")
     argv = script("gate_check.py", "--change", context.change, "--base", context.base)
@@ -1016,9 +1017,6 @@ def fixer(context: Context, ids: str) -> None:
 def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
     """Run Step 6's fixer on `ids`; return the freeze Step 7 judges.
 
-    A red gate or a dirty tree gets one more pass, with its lines as the cards, then
-    `cap reached`; a blocking amend card halts `amend needed`. The re-freeze is
-    `judged.head..HEAD`, and a fixer that committed nothing leaves `judged`.
     Why: design D3, D4, D5.
     """
     sent, why = ids, ""
@@ -1194,9 +1192,7 @@ class Debt(NamedTuple):
 def still_true(context: Context, value: str) -> tuple[int | None, str]:
     """Return a card's **Still true?** command's exit, run sandboxed, and the command.
 
-    The command is the backtick-quoted span the value opens with; with none, or one
-    that cannot be split, the exit is None. Why: design D6, D7.
-    e.g. "`grep -n x a.py` prints a line" → (0, "grep -n x a.py")
+    Why: design D6, D7.
     """
     found = COMMAND.match(value.strip())
     if found is None:
@@ -1371,9 +1367,7 @@ def _unfiled(text: str, ident: str) -> str:
 def debt(context: Context) -> Debt:
     """Write Step 9's debt once, under its lock; return what it did.
 
-    Amend cards first; then each non-blocking card not `verified` and not moot, its
-    id qualified, an id the debt holds skipped; then each fixed repeat's old card
-    cleared when its check exits 1. Writes `debt`. Why: design D7.
+    Why: design D7.
     """
     minions = Path(context.host.primary) / ".minions"
     path = minions / "debt.md"

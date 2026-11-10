@@ -6,14 +6,7 @@
 
     gate_run.py [--fresh] [--tree <path>]
 
-Run from the repository root, or name a worktree with `--tree`. A worktree with no
-unstaged edit and no untracked file is settled; its key is `git write-tree`, so a
-staged merge and its commit share one.
-A settled tree whose `.minions/gate/<tree>` holds the same `make -n gate` hash is
-reused; else `make gate` runs. `--fresh` runs it whatever stands. Exit 0 green,
-else `make`'s code; a red run records nothing. `make` and its dry run see no
-`VIRTUAL_ENV`, and a green run prints its summary line alone; a red one, make's
-output first. Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
+Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
 """
 
 import argparse
@@ -98,12 +91,7 @@ def read_record(path: Path) -> dict[str, str]:
 
 
 def write_record(path: Path, dry: str, seconds: int) -> str | None:
-    """Write the record of a green run, replacing any record of the same tree.
-
-    A worker can write the run directory, so nothing is written through a link: a
-    linked `.minions/gate` takes no record, and a staged `.tmp` is removed first and
-    then created anew, refusing a link. Return why nothing was written, else None.
-    """
+    """Write the record of a green run, replacing any record of the same tree."""
     if path.parent.is_symlink():
         return ".minions/gate is a link"
     path.parent.mkdir(parents=True, exist_ok=True)

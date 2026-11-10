@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — The wider lint, its sites cleaned · moderate
-- [ ] 2 — The docstring check, its sites fixed · moderate
+- [x] 2 — The docstring check, its sites fixed · moderate
 - [ ] 3 — The timeout rule, its sites fixed · hard
 - [ ] 4 — `conduct.py cut` prefetches the approved wheels · hard
 - [ ] 5 — `gate_integrity.py` · hard
@@ -39,24 +39,24 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The docstring check, its sites fixed
 
-- [ ] 2.1 **HALT CHECK** The base holds the scripts' folder and the standards file the check reads.
+- [x] 2.1 **HALT CHECK** The base holds the scripts' folder and the standards file the check reads.
   Verify: `git grep -n -e '^TIMEOUT_SECONDS = ' -- scripts/corpus.py` prints a line; `git grep -n -e '^## Project rules' -- CODING_STANDARDS.md` prints a line.
-- [ ] 2.2 Add `tests/test_docstrings.py` with the tests of [the Tests table](design.md#tests), loading the script by `importlib.util`
+- [x] 2.2 Add `tests/test_docstrings.py` with the tests of [the Tests table](design.md#tests), loading the script by `importlib.util`
   as `tests/test_corpus.py` does.
   Verify: `git grep -n 'def test_a_docstring_over_three_non_blank_lines_is_flagged' -- tests/test_docstrings.py` prints a line.
-- [ ] 2.3 Add `scripts/docstrings.py` to [D2](design.md#d2): a `uv` script (PEP 723 header, `dependencies = []`) with `check(source, name)`
+- [x] 2.3 Add `scripts/docstrings.py` to [D2](design.md#d2): a `uv` script (PEP 723 header, `dependencies = []`) with `check(source, name)`
   returning `<path>:<line>: <what>` lines.
   Verify: `git grep -n '^def check(' -- scripts/docstrings.py` prints a line.
-- [ ] 2.4 Add `main(argv)` to it: the files from `git ls-files --cached --others --exclude-standard -- '*.py'`, run with `timeout=TIMEOUT_SECONDS`,
+- [x] 2.4 Add `main(argv)` to it: the files from `git ls-files --cached --others --exclude-standard -- '*.py'`, run with `timeout=TIMEOUT_SECONDS`,
   its own constant `TIMEOUT_SECONDS = 600`; exit 1 on any line, 0 on none.
   Verify: `uv run pytest -q tests/test_docstrings.py` exits 0.
-- [ ] 2.5 In `CODING_STANDARDS.md`, under *Project rules*, add one bullet: `scripts/docstrings.py` holds `C7` and `C3` for every
+- [x] 2.5 In `CODING_STANDARDS.md`, under *Project rules*, add one bullet: `scripts/docstrings.py` holds `C7` and `C3` for every
   docstring of a Python file, counting non-blank lines, so a blank line is no line.
   Verify: `git grep -n 'scripts/docstrings.py' -- CODING_STANDARDS.md` prints a line.
-- [ ] 2.6 Fix each site `uv run --script scripts/docstrings.py` prints, in every file it names: cut the docstring to at most 3 non-blank lines, keeping
+- [x] 2.6 Fix each site `uv run --script scripts/docstrings.py` prints, in every file it names: cut the docstring to at most 3 non-blank lines, keeping
   its summary and its `Why:` line when it has one, and cut a first line of two sentences to its first sentence.
   Verify: `uv run --script scripts/docstrings.py` exits 0.
-- [ ] 2.7 Edit the `gate` and `check` recipes of `Makefile`: add the docstring check after the lint line of each; its lines
+- [x] 2.7 Edit the `gate` and `check` recipes of `Makefile`: add the docstring check after the lint line of each; its lines
   are quoted below for `gate_check.py`.
   ```diff
   + 	uv run --script scripts/docstrings.py

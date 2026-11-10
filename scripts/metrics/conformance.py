@@ -4,9 +4,7 @@
 # ///
 """Print a conformance count: `trailer`, `minions` or `amends`.
 
-`trailer` — commits in base..head whose `Change` trailer is not the change id.
-`minions` — files tracked under `.minions/`. `amends` — the cut's amend commits
-in base..head. Why: 0030-change-impact design D7.
+Why: 0030-change-impact design D7.
 """
 
 import os

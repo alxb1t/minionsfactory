@@ -1,7 +1,5 @@
 """`converge.py`, the converge conductor, driven over a fake host.
 
-A real repository under `tmp_path`, its version in a worktree; the host fakes the
-sandbox, the checkers and the fixer, so no worker process runs.
 Why: 0108-converge-script design D1, its `## Tests` table.
 """
 
@@ -118,12 +116,7 @@ def _round_of(station: str) -> int:
 
 
 class Host:
-    """A fake of the run `converge` is handed: its sandbox and its workers.
-
-    A checker writes `<table>.md` clean at `HEAD`, unless `answers` holds its
-    station; a fixer commits one file and reports, unless `fixers` holds one.
-    `exits` holds an exit per command, or a list taken one a call, its last kept.
-    """
+    """A fake of the run `converge` is handed: its sandbox and its workers."""
 
     def __init__(self, primary: Path, tree: Path) -> None:
         self.primary = primary

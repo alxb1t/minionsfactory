@@ -4,12 +4,6 @@
 # ///
 """Draw one page and its data from the repos named and the operator's Codex sessions.
 
-The repos' findings, status logs and run logs are read, none written.
-
-    review_metrics.py [--config <path>] [--repo <path> …] [--out <path>]
-
-The data is `review-metrics.json`, beside the page.
-Exit 0 written · 2 cannot run · any other a crash.
 Why: 0045-review-metrics design D1…D4 and D7; 0077-run-metrics design D5;
 0097-cross-model design D12; 0100-worker-diet design D12.
 """
@@ -192,8 +186,6 @@ def settings(
 ) -> tuple[list[Path], Path]:
     """Return the repos and the page's path; flags win over the config.
 
-    The config's relative paths are against its directory, a flag's against the cwd.
-    With no `--repo`, every repo a run started in follows the config's, each once.
     Why: 0100-worker-diet design D12.
     """
     path = config or config_path()
@@ -269,12 +261,7 @@ def _section(body: str, heading: str) -> str | None:
 
 
 def _priority(text: str) -> tuple[str, str | None]:
-    """Return a `Priority:` value's severity and category.
-
-    e.g. "medium · security · stability — why" → ("medium", "stability"),
-    "medium · security (integrity)" → ("medium", "integrity"),
-    'nit · review · "a quoted clause"' → ("nit", None)
-    """
+    """Return a `Priority:` value's severity and category."""
     fields = [field.strip() for field in text.partition(" — ")[0].split("·")]
     bracket = re.search(r"\(([a-zA-Z]+)\)", fields[1]) if len(fields) > 1 else None
     third = fields[2].lower() if len(fields) > 2 else None
@@ -334,8 +321,6 @@ def _resolutions(body: str) -> Record:
 def _first_verifies(body: str) -> Record:
     """Return the cards whose first verify after `fixed` read `verified`, or `open`.
 
-    Each a gap when the log holds no line in verify's form.
-    e.g. "- 2026-11-08 · R1 fixed → open", then "… R1 fixed → verified" → 0, 1
     Why: 0097-cross-model design D12.
     """
     lines = _LOGGED.findall(_section(body, "Resolution log") or "")
@@ -416,9 +401,7 @@ def _run_seconds(run: str) -> int | None:
 def _role_tokens(detail: str) -> list[tuple[str, int | None]]:
     """Return a `verdicts` line's tokens per role; `both` takes a shared figure.
 
-    e.g. "conformance clean · tokens 9" → [("conformance", 9)],
-    "review clean · security clean · tokens unavailable" →
-    [("review", None), ("security", None)]. Why: 0077-run-metrics design D5;
+    Why: 0077-run-metrics design D5;
     0095-converge-roles design D4.
     """
     for pattern, scale in _TWO_ROLES:
@@ -442,12 +425,7 @@ def _utc(local: datetime) -> datetime:
 
 
 def _windows(heading: str, body: str) -> dict[str, tuple[datetime, datetime]]:
-    """Return each round's window in UTC; a heading with no date has none.
-
-    A window runs from the last freeze before the round's fan-out to its verdicts
-    plus a minute. e.g. a round 1 frozen at 16:02:32, its verdicts at 16:13:13 →
-    {"1": (16:02:32, 16:14:13)}, each in UTC.
-    """
+    """Return each round's window in UTC; a heading with no date has none."""
     dated = re.match(r"## Run \d+ — (\d{4}-\d\d-\d\d \d\d:\d\d)", heading)
     if not dated:
         return {}
@@ -579,9 +557,7 @@ def _git_lines(repo: Path, *args: str) -> list[str]:
 def _codex_sessions(repo: Path) -> list[Record]:
     """Return the Codex checker workers of `repo`, each with its `tree`.
 
-    A worker's repo URL is `origin`'s, or its parent ran in one of the repo's
-    worktrees; `tree` is where its parent ran, else None; a guardian or fix worker
-    is none. Why: 0077-run-metrics design D5.
+    Why: 0077-run-metrics design D5.
     """
     home = os.environ.get("CODEX_HOME") or Path.home() / ".codex"
     everything = _all_sessions(Path(home) / "sessions")
@@ -614,9 +590,7 @@ def _filled(
 ) -> Record:
     """Return a round's record, its gap filled from its change's Codex workers.
 
-    A worker is the change's when its parent ran in the change's worktree, or in
-    `primary`, None when another change's round overlaps; never for a round run on
-    `claude`. Why: 0077-run-metrics design D5.
+    Why: 0077-run-metrics design D5.
     """
     window = record["window"]
     if (
@@ -674,8 +648,6 @@ def _status_log(path: Path) -> Record:
 def _results(path: Path) -> list[dict[str, Any]]:
     """Return a worker log's `result` events, or a Codex log's spawn line and turns.
 
-    And its first `assistant` event holding a usage object. A line that is not JSON
-    is none, and a log with neither result nor turn none.
     Why: 0096-codex-ready design D6; 0100-worker-diet design D12.
     """
     events: list[dict[str, Any]] = []
@@ -701,12 +673,7 @@ def _results(path: Path) -> list[dict[str, Any]]:
 
 
 def first_turn(events: list[dict[str, Any]]) -> int | None:
-    """Return a log's first-turn context: what its first turn read.
-
-    The first `assistant` event's input, cache-read and cache-write tokens, else a
-    Codex log's first `turn.completed` input tokens, else None.
-    e.g. a first usage of 3 input, 15000 cache-read and 4000 cache-write → 19003
-    """
+    """Return a log's first-turn context: what its first turn read."""
     for event in events:
         usage = _dig(event, "message", "usage")
         if event.get("type") == "assistant" and isinstance(usage, dict):
@@ -808,8 +775,7 @@ def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
 def _cost_logs(repo: Path, change: str) -> Record:
     """Return a change's cost, turns, tokens and seconds per station, over every run.
 
-    Each spawn's log counts; a field one read log lacks is the station's gap. Its
-    first-turn context is its first read log's. Why: 0076-context-cost design D1;
+    Why: 0076-context-cost design D1;
     0096-codex-ready design D6; 0100-worker-diet design D12.
     """
     runs = repo / RUNS
@@ -905,15 +871,7 @@ def _new_worker(role: str | None, round_: int | None) -> Record:
 
 
 def _log_workers(path: Path, own: Record | None) -> list[Record]:
-    """Return an older converge log's subagents, or the log as the one worker `own`.
-
-    A subagent is what a `task_started` event names, its role and round from its
-    description. A worker's `assistant` events give its model, first-turn context
-    and start alone: the CLI writes each with the usage its message's stream opened
-    with, the output a placeholder. Its tokens are a log's totals: a Claude
-    worker log's last `result`, a Codex one's turns; a subagent's, which no event
-    holds — its Agent result's are its last turn's — are a gap.
-    """
+    """Return an older converge log's subagents, or the log as the one worker `own`."""
     tasks: dict[str, Record] = {}
     with path.open(encoding="utf-8", errors="replace") as lines:
         for n, line in enumerate(lines):
@@ -948,12 +906,7 @@ def _log_workers(path: Path, own: Record | None) -> list[Record]:
 
 
 def _named_workers(repo: Path, change: str) -> list[Record]:
-    """Return a worker per converge log a run named `<stamp>-converge-<role>-r<N>`.
-
-    A name of another form is a worker of no role and round, a gap; an older converge
-    log and a mailbox checker's are left to `_station_logs`.
-    e.g. `<stamp>-converge-fix-r2.log` → role "fix", round 2
-    """
+    """Return a worker per converge log a run named `<stamp>-converge-<role>-r<N>`."""
     folder = _change_dir(repo, change) / "logs"
     logs = sorted(folder.glob("*-converge-*.log")) if _moved(repo, change) else []
     named = [
@@ -985,11 +938,7 @@ def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
 def _converge_workers(repo: Path, change: str) -> list[Record]:
     """Return a record per converge worker, priced.
 
-    A worker is a log named by its role and round, an older converge log's subagent,
-    or an older mailbox checker's log. Each holds its repo, change, role, round, run,
-    model, tokens, first-turn context, dollars and source, `log`, `subagent` or
-    `mailbox`; a gap is None. Its run is the status log's run whose window of its
-    round holds its first event. Why: 0100-worker-diet design D12;
+    Why: 0100-worker-diet design D12;
     0108-converge-script design D10.
     """
     status = _file(repo, change, "status_log.md")
@@ -1203,8 +1152,7 @@ def _round_one(log: Path, role: str) -> str | None:
 def _role(found: Record, role: str, log: Path, status: Record) -> Record:
     """Return a role's record: its file's counts, executor and model.
 
-    Its executor is the file's `executor:`, else its round 1 `verdicts` line's; its
-    change's duration and tokens are the change's `status`. Why: 0097-cross-model
+    Why: 0097-cross-model
     design D12; 0100-worker-diet design D12.
     """
     front = found["front"]
@@ -1264,8 +1212,7 @@ def _shadows(repo: Path, change: str) -> list[Record]:
 def read_change(repo: Path, change: str) -> Record:
     """Return a change's record, each field parsed on its own, None when unreadable.
 
-    A checker's file is read by its name, else by its old one; each is a role
-    record, named as its file is. Why: 0095-converge-roles design D4;
+    Why: 0095-converge-roles design D4;
     0097-cross-model design D12.
     """
     log = _file(repo, change, "status_log.md")
@@ -1354,8 +1301,6 @@ def _ordinal(change: str) -> int:
 def escapes(records: list[Record]) -> list[Record]:
     """Return each card repeating an earlier change's card, traced to that change.
 
-    The earlier change's file is the repeated card's role's, `R` conformance and `S`
-    adversarial; its executor is a gap when that change was not read.
     Why: 0097-cross-model design C5, D12.
     """
     numbered = {(r["repo"], _ordinal(r["change"])): r for r in records}
@@ -1540,12 +1485,7 @@ def _severity_table(records: list[Record]) -> Table:
 
 
 def _cost_cell(record: Record, station: str) -> str:
-    """Return a station's spend; e.g. "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3".
-
-    `first <n>`, its first-turn context, follows the seconds; `<read> of <spawns>`
-    ends it when the run logs name more spawns than logs read, a log with neither
-    result nor `turn.completed` event unread.
-    """
+    """Return a station's spend: "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3"."""
     cost, turns, tokens, seconds = (
         record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
     )

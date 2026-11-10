@@ -6,9 +6,6 @@
 
     drill_resume.py
 
-Works in `../mf_resume_probe/`, deleted when both drills pass; a failure keeps it to
-read. No gate runs this: it spends Claude tokens on two short converges.
-Prints one line per drill. Exit 0 both done · 1 a drill failed.
 Why: 0051-reliability-paydown design D10.
 """
 

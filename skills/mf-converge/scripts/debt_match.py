@@ -6,11 +6,7 @@
 
     debt_match.py <debt.md> <diff.patch> <debt-cards.md>
 
-Run from the repository root. A card matches when a backticked span of its
-`What it affects` line, a `:<line>` or `:<from>-<to>` suffix dropped, is a path the
-patch changes. Prints `debt: <n> cards on the diff's files` and exits 0, or
-`debt: cannot match — <why>` and exits 2, writing nothing; a cards path that is a
-link is refused. Why: 0095-converge-roles design D8; 0101-cut-converge-diet design D4.
+Why: 0095-converge-roles design D8; 0101-cut-converge-diet design D4.
 """
 
 import argparse
@@ -80,12 +76,7 @@ def page(found: list[str]) -> str:
 
 
 def write(path: Path, text: str) -> None:
-    """Replace `path` with `text` through a staged file; a link is refused.
-
-    As `bundle.py`'s `write`: the staged `.tmp` is created anew with `O_NOFOLLOW`,
-    then renamed over the cards file; a failure removes it and leaves the cards file
-    as it stood.
-    """
+    """Replace `path` with `text` through a staged file; a link is refused."""
     if path.is_symlink():
         raise Stop(f"{path} is a link")
     staged = path.with_name(f"{path.name}.tmp")
