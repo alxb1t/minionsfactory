@@ -6,23 +6,23 @@ its own; only the phase's end is green.
 
 ## Progress
 
-- [ ] 1 — Converge starts its scripts by the conductor's Python · moderate
+- [x] 1 — Converge starts its scripts by the conductor's Python · moderate
 - [ ] 2 — A run builds each pinned script's environment once · hard
 - [ ] 3 — The corpus lock and the stress test · hard
 
 ## 1 — Converge starts its scripts by the conductor's Python
 
-- [ ] 1.1 **HALT CHECK** The base starts converge's scripts by `uv`, as the design's [Context](design.md#context) reads it (F1).
+- [x] 1.1 **HALT CHECK** The base starts converge's scripts by `uv`, as the design's [Context](design.md#context) reads it (F1).
   Verify: `git grep -n -F '"uv", "run", "--script"' -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 1.2 Add `test_a_converge_script_runs_by_the_conductors_python` and `test_each_script_converge_starts_declares_no_dependencies`
+- [x] 1.2 Add `test_a_converge_script_runs_by_the_conductors_python` and `test_each_script_converge_starts_declares_no_dependencies`
   to `tests/test_converge.py` ([Tests](design.md#tests)); the second reads each name `K` passes to `script()` from `K`'s source.
   Verify: `git grep -n -e 'def test_a_converge_script_runs_by_the_conductors_python' -e 'def test_each_script_converge_starts_declares_no_dependencies' -- tests/test_converge.py` prints a line for each.
-- [ ] 1.3 Add `test_two_converges_start_gate_check_at_once` to `tests/test_converge.py`: parallel threads released by one `threading.Barrier`
+- [x] 1.3 Add `test_two_converges_start_gate_check_at_once` to `tests/test_converge.py`: parallel threads released by one `threading.Barrier`
   run `script("gate_check.py", "--help")` with an empty `UV_CACHE_DIR` under `tmp_path`; both exit 0, and `environments-v2` is absent from it.
   Verify: `git grep -n 'def test_two_converges_start_gate_check_at_once' -- tests/test_converge.py` prints a line.
-- [ ] 1.4 In `K` change `script()` to [D1](design.md#d1): it returns `[sys.executable, str(HERE / name), *args]`, and its docstring says it runs a converge script by the conductor's Python.
+- [x] 1.4 In `K` change `script()` to [D1](design.md#d1): it returns `[sys.executable, str(HERE / name), *args]`, and its docstring says it runs a converge script by the conductor's Python.
   Verify: `uv run pytest -q tests/test_converge.py -k "conductors_python or declares_no_dependencies or two_converges"` exits 0.
-- [ ] 1.5 In `tests/test_converge.py` change the fake host's `sandboxed` and the helpers that list the commands it ran, each reading a script's name as
+- [x] 1.5 In `tests/test_converge.py` change the fake host's `sandboxed` and the helpers that list the commands it ran, each reading a script's name as
   `Path(argv[3]).name if argv[0] == "uv" else argv[0]`, to read it as `Path(argv[1]).name if argv[0] == sys.executable else argv[0]` (F11).
   Verify: `uv run pytest -q -m "not slow" tests/test_converge.py` exits 0.
 

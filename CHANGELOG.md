@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Converge starts `gate_run.py`, `gate_check.py` and `plan_check.py` by the conductor's Python, not `uv run --script`, so
+  versions converging at once build no shared script environment. A test holds that each script it starts declares
+  `dependencies = []` (change `0112-uv-race`, phase 1).
+
 ## [0.92.0] - 2026-11-11
 
 Gate: local 4m9s · CI not read under mf-ship · 0.91.1: local 4m40s · CI not read under mf-ship
