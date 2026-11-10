@@ -1594,10 +1594,8 @@ def select(context: Context, judged: str) -> list[tuple[str, list[str]]]:
         )
     default = INTEGRATE["default_branch"](context.tree)
     for sha, parents in chosen:
-        if (
-            len(parents) > 2
-            or len(parents) == 2
-            and not ancestor(context, parents[1], default)
+        if len(parents) > 2 or (
+            len(parents) == 2 and not ancestor(context, parents[1], default)
         ):
             raise Halt(
                 f"{sha[:7]} is no merge of {default}: catch-up scope cannot judge it"
@@ -1863,7 +1861,7 @@ def go_on(context: Context, run: Run) -> int:
         return catch_up(context, resolve(context, judged[1] if judged else "HEAD"))
     if name == "debt":
         return finish(context, owed=False)
-    if name == "by rule" and caught or top.detail == "none":
+    if (name == "by rule" and caught) or top.detail == "none":
         return finish(context)
     if name == "start":
         frozen = freeze(context, context.base, head(context))

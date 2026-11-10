@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — The wider lint, its sites cleaned · moderate
+- [x] 1 — The wider lint, its sites cleaned · moderate
 - [ ] 2 — The docstring check, its sites fixed · moderate
 - [ ] 3 — The timeout rule, its sites fixed · hard
 - [ ] 4 — `conduct.py cut` prefetches the approved wheels · hard
@@ -16,24 +16,24 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 1 — The wider lint, its sites cleaned
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^select = ' -e '"S603"' -e '"tests/\*\*"' -- pyproject.toml` prints a line for each.
-- [ ] 1.2 In `pyproject.toml`, under `[tool.ruff.lint]`, add `extend-select` as [D1](design.md#d1) lists it; in `per-file-ignores`
+- [x] 1.2 In `pyproject.toml`, under `[tool.ruff.lint]`, add `extend-select` as [D1](design.md#d1) lists it; in `per-file-ignores`
   add the ignores of D1 to `"**"` and `PT018` to `"tests/**"`, each beside the comment style the file keeps.
   Verify: `git grep -n -e '^extend-select = ' -e '"PLW1510"' -e '"PT018"' -- pyproject.toml` prints a line for each.
-- [ ] 1.3 Run `uv run ruff check --fix .`, then clear by hand each site it leaves in `skills/` and `scripts/`, `C` aside:
+- [x] 1.3 Run `uv run ruff check --fix .`, then clear by hand each site it leaves in `skills/` and `scripts/`, `C` aside:
   `RUF007`, `RUF021`, `PLC0207`, `SIM102`, `PLW2901`, `SIM109`, `PLR1714`, each as ruff's message says.
   Verify: `uv run ruff check skills scripts --exclude skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.4 Clear each site in `C` that is no `BLE001`: `SIM105`, `SIM102`, `PLC0207`, `RET502`, `SIM300`; the `PLC0415` site is the lazy import in `_markdown`,
+- [x] 1.4 Clear each site in `C` that is no `BLE001`: `SIM105`, `SIM102`, `PLC0207`, `RET502`, `SIM300`; the `PLC0415` site is the lazy import in `_markdown`,
   which stays: add `# noqa: PLC0415` to its import line, the docstring above it being the reason.
   Verify: `uv run ruff check skills/mf-ship/scripts/conduct.py --ignore BLE001` exits 0.
-- [ ] 1.5 For each `BLE001` site in `C`, add `# noqa: BLE001` on its `except` line and `# why: <the reason the code goes on past any
+- [x] 1.5 For each `BLE001` site in `C`, add `# noqa: BLE001` on its `except` line and `# why: <the reason the code goes on past any
   failure>` on the line above; the reasons are the docstring or the lines around each site.
   Verify: `uv run ruff check skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.6 Clear each site in `tests/`: `RUF043` by a raw string in each `match=` with each literal metacharacter escaped, `\.` for a dot, `PLE2515` by the escape the message names, `RUF007`, `PERF401`,
+- [x] 1.6 Clear each site in `tests/`: `RUF043` by a raw string in each `match=` with each literal metacharacter escaped, `\.` for a dot, `PLE2515` by the escape the message names, `RUF007`, `PERF401`,
   `PLC0207`, each as ruff's message says; `RUF059` at `built` in `tests/test_conduct.py` by naming it `_built`; `BLE001` at `except BaseException` in `tests/test_conduct.py` as 1.5 says.
   Verify: `uv run ruff check tests` exits 0.
-- [ ] 1.7 In `CODING_STANDARDS.md`, under *Project rules*, add one bullet: the lint families of D1 hold, and a blind `except`
+- [x] 1.7 In `CODING_STANDARDS.md`, under *Project rules*, add one bullet: the lint families of D1 hold, and a blind `except`
   carries `# noqa: BLE001` and its reason.
   Verify: `git grep -n 'BLE001' -- CODING_STANDARDS.md` prints a line.
 

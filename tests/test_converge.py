@@ -503,10 +503,10 @@ def test_each_worker_prompt_is_filled_from_its_reference(tmp_path: Path) -> None
     with pytest.raises(ValueError, match="unknown placeholder: colour"):
         converge["prompt"]("verify.md", colour="red", **values)
     del values["findings"]
-    with pytest.raises(ValueError, match="verify.md: findings is not filled"):
+    with pytest.raises(ValueError, match=r"verify\.md: findings is not filled"):
         converge["prompt"]("verify.md", **values)
     # A reference with no `## Prompt`, or one naming no placeholder, is refused.
-    with pytest.raises(ValueError, match="worker.md has no ## Prompt block"):
+    with pytest.raises(ValueError, match=r"worker\.md has no ## Prompt block"):
         converge["prompt"]("worker.md", **values)
     odd = tmp_path / "odd.md"
     odd.write_text("## Prompt\n\n```text\nrole: {colour}\n```\n")
@@ -640,7 +640,7 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     ]
     # A file missing, or one not clean, halts the round naming it.
     halt = converge["Halt"]
-    with pytest.raises(halt, match="conformance.md is missing: its checker left no"):
+    with pytest.raises(halt, match=r"conformance\.md is missing: its checker left no"):
         converge["held"](context, read | {"conformance": None}, frozen)
     narrow = folder / "conformance.md"
     narrow.write_text(findings("conformance", head, files=0, commits=0))

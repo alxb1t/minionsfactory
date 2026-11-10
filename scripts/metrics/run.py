@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -396,7 +397,7 @@ class Version:
         events = self.events
         total = sum(
             (later.at - event.at).total_seconds()
-            for event, later in zip(events, events[1:], strict=False)
+            for event, later in pairwise(events)
             if event.who == self.change
             and event.name == "wait"
             and later.stamp == event.stamp

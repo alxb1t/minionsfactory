@@ -655,13 +655,13 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 2 — more than one models line",
     ]
     # R10: a head led by U+200B, and a `## For the cut` heading ending in it.
-    zero = _READY + "​2. **ok** · minor · after: none\n## For the cut​\n"
+    zero = _READY + "\u200b2. **ok** · minor · after: none\n## For the cut\u200b\n"
     assert brief_check.main([str(_write(tmp_path, zero))]) == 1
     assert capsys.readouterr().out.splitlines() == [
         "brief: halt — line 22 reads as `## For the cut` but is not written so",
         "brief: halt — ## For the cut line 5: a character isprintable() refuses",
         "brief: halt — ## For the cut line 5: outside the item grammar:"
-        " `​2. **ok** · minor · after: none`",
+        " `\u200b2. **ok** · minor · after: none`",
     ]
     # S7: a `| ` line under a head, and after a models line, splits off no item.
     split = _READY + (

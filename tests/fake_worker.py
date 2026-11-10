@@ -569,7 +569,7 @@ def _fix(here: Path, primary: Path, change: str, round_: str, ids: str) -> None:
     if "grant-unfinished" in modes and int(round_) > 2:
         sys.exit(1)
     folder = _folder(primary, change)
-    sent = [each.strip() for each in ids.split(";")[0].split(",")]
+    sent = [each.strip() for each in ids.split(";", maxsplit=1)[0].split(",")]
     fixed, wontfix, commit = "none", "none", "nothing committed"
     if "amend-halts" in modes and not _prose(here, change):
         conformance = folder / "conformance.md"

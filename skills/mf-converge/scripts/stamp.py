@@ -39,7 +39,7 @@ def _ends(line: str) -> str | None:
 
     e.g. "10:00:00 · round 1 · done — ok" → "done"
     """
-    name = line.split(" — ")[0]
+    name = line.split(" — ", maxsplit=1)[0]
     return next((e for e in ("done", "halt") if name.endswith(f" · {e}")), None)
 
 

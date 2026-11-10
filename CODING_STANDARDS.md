@@ -15,3 +15,5 @@ markdown doc and CHANGELOG entry: terse, answer first, things named rather than 
 - **A skill's script is a `uv` script** — a PEP 723 header with `requires-python = ">=3.12"` and
   `dependencies = []`, save the CommonMark parser `markdown-it-py>=3,<4` in the scripts that read Markdown,
   `brief_check.py` and `conduct.py`; run with `uv run --script`.
+- **The wider lint holds** — the families `pyproject.toml` lists under `extend-select` are the gate's. A blind
+  `except` carries `# noqa: BLE001` on its line and `# why: <reason>` on the line above.

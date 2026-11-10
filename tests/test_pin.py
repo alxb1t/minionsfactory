@@ -146,7 +146,7 @@ def test_an_install_names_what_stops_it(
     pin["_fetch"].__globals__["_remote"] = lambda cwd, *args: (
         subprocess.CompletedProcess(args, 128, "", "fatal: refused\n")
     )
-    with pytest.raises(pin["Refused"], match="cannot clone v0.2.0 from origin"):
+    with pytest.raises(pin["Refused"], match=r"cannot clone v0\.2\.0 from origin"):
         pin["_fetch"]("file:///nowhere", "v0.2.0")
 
     done = subprocess.run(
@@ -256,7 +256,7 @@ def test_a_non_link_is_refused_and_left_untouched(
     real.mkdir(parents=True)
     (real / "SKILL.md").write_text("mine\n")
 
-    with pytest.raises(pin["Refused"], match="~/.agents/skills/mf-ship exists"):
+    with pytest.raises(pin["Refused"], match=r"~/\.agents/skills/mf-ship exists"):
         pin["install"](root, "v0.1.0")
 
     assert _links(isolated_home) == {}

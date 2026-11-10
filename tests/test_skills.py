@@ -193,11 +193,11 @@ def _card_owner_problems(base: Path) -> list[str]:
         problems.append(f"skills/{_CARD_OWNER}: does not exist")
     elif not _section_labels(owner, _CARD_HEADING):
         problems.append(f"skills/{_CARD_OWNER}: no labels in `{_CARD_HEADING}`")
-    for path in sorted((base / "skills").glob("*/SKILL.md")):
-        if path != owner and _CARD_HEADING in path.read_text().splitlines():
-            problems.append(
-                f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
-            )
+    problems.extend(
+        f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
+        for path in sorted((base / "skills").glob("*/SKILL.md"))
+        if path != owner and _CARD_HEADING in path.read_text().splitlines()
+    )
     return problems
 
 

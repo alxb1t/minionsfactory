@@ -368,8 +368,9 @@ def check_command(subtask: str, command: Command, head: Head) -> bool:
         )
         return True
     matches = 0
-    for line in head.run(query):
-        if match := MATCH.fullmatch(line):
+    for found in head.run(query):
+        line = found
+        if match := MATCH.fullmatch(found):
             matches += 1
             line = f"{match[1]}:{match[2]}: {match[3]}"
         print(f"{subtask}: {line}")

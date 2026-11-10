@@ -467,7 +467,7 @@ def _resolve(
     One side alone edited → its edit. New decision sections → theirs, then ours.
     Group map lines accept added ids. Overlapping prose goes to the person.
     """
-    if ours == base or ours == theirs:
+    if ours in (base, theirs):
         return theirs
     if theirs == base:
         return ours

@@ -324,7 +324,8 @@ def _when_logged(
             time.sleep(0.05)
         try:
             act()
-        except BaseException as error:
+        # why: the thread keeps whatever `act` raises, SystemExit included.
+        except BaseException as error:  # noqa: BLE001
             raised.append(error)
         finally:
             hold.touch()
@@ -401,7 +402,7 @@ def test_status_reads_each_stage_from_disk(
     (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
     _git(root, "config", "filter.probe.clean", str(planted))
     os.utime(tree / "AGENTS.md", (1, 1))
-    with pytest.raises(conduct["Stop"], match="filter.probe.clean"):
+    with pytest.raises(conduct["Stop"], match=r"filter\.probe\.clean"):
         stage_of(root, version)
     assert not ran.exists()
     _git(root, "config", "--unset", "filter.probe.clean")
@@ -1162,7 +1163,7 @@ def test_a_merge_in_refuses_a_planted_hook(
     _git(hooked, "config", "hook.probe.command", f"touch {shlex.quote(str(ran))}")
     held_run = conduct["Run"](hooked, "claude")
     held_run.git_state = conduct["_git_state"](hooked)
-    with pytest.raises(conduct["Stop"], match="hook.probe.event"):
+    with pytest.raises(conduct["Stop"], match=r"hook\.probe\.event"):
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
@@ -2873,7 +2874,7 @@ def test_rescue_skip_runs_none(
     moderate = models(minions, "0001-todo", "build.moderate", "claude")
     assert moderate == ("codex", "m", None)
     table.write_text('[build.moderate]\nexecutor = "codex"\n')
-    with pytest.raises(conduct["Stop"], match="build.moderate names an executor"):
+    with pytest.raises(conduct["Stop"], match=r"build\.moderate names an executor"):
         models(minions, "0001-todo", "build.moderate", "claude")
     table.write_text('[build.moderate]\nmodel = "a;b"\n')
     with pytest.raises(conduct["Stop"], match="'a;b' is not a model or effort"):
@@ -3455,7 +3456,7 @@ def test_a_fixed_version_rejoins_a_live_run(
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0003-hand", "- [ ] 1 — Hand **HUMAN**\n")
     rejoin, stop = conduct["rejoin"], conduct["Stop"]
-    with pytest.raises(stop, match="^rejoin: no run is live — run /mf-ship$"):
+    with pytest.raises(stop, match=r"^rejoin: no run is live — run /mf-ship$"):
         rejoin(root, None)
 
     def fix() -> None:
@@ -3868,7 +3869,7 @@ def test_a_cut_queues_its_models_file(
     names["GIT_TIMEOUT"] = 60
     brief.write_text(f"# brief\n\n{_items('a', 'b')}")
     (root / ".minions" / "changes" / "0002-b").symlink_to(tmp_path)
-    with pytest.raises(conduct["Stop"], match="models.toml cannot be written"):
+    with pytest.raises(conduct["Stop"], match=r"models\.toml cannot be written"):
         conduct["cut"](root, "b", "minor", f"brief={brief}", [], "claude", None, None)
     assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
 
@@ -3919,7 +3920,7 @@ def test_a_started_run_is_seen_by_its_claim_or_its_end(
         [sys.executable, "-c", "pass"]
     )
     with pytest.raises(
-        stop, match="^the run did not start — no line in .minions/runs/detached.log$"
+        stop, match=r"^the run did not start — no line in \.minions/runs/detached\.log$"
     ):
         start(root, "claude")
 
@@ -3928,7 +3929,7 @@ def test_a_started_run_is_seen_by_its_claim_or_its_end(
     (root / "dirty.txt").write_text("x\n")
     with pytest.raises(
         stop,
-        match="^the run did not start — run: cannot run — the primary's tree is not"
+        match=r"^the run did not start — run: cannot run — the primary's tree is not"
         " clean$",
     ):
         start(root, "claude")
@@ -6170,7 +6171,7 @@ def test_a_run_moves_an_old_layout(
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path)
-    built, halted = _old_layout(root)
+    _built, halted = _old_layout(root)
     minions = root / ".minions"
     find, stage_of = conduct["find_version"], conduct["stage_of"]
 
@@ -6300,7 +6301,7 @@ def test_status_names_an_old_layout(
     assert report(root).splitlines()[0] == old
     with pytest.raises(
         conduct["Stop"],
-        match="grant: cannot run — .minions/build/0001-todo.done is the old layout:"
+        match=r"grant: cannot run — \.minions/build/0001-todo\.done is the old layout:"
         " /mf-ship moves it",
     ):
         conduct["grant"](root, "0001-todo", "claude")
@@ -8165,7 +8166,7 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
     # LFS's own key, naming a program LFS never wrote.
     _git(root, "config", "--unset", "lfs.repositoryformatversion")
     _git(root, "config", "filter.lfs.clean", "./planted.sh %f")
-    with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
+    with pytest.raises(conduct["Stop"], match=r"filter\.lfs\.clean") as held:
         conduct["_refuse_config_commands"](root)
     assert str(held.value).endswith("move it to the global config or remove it")
 
@@ -8182,7 +8183,7 @@ def test_a_program_key_in_a_worktree_config_halts(tmp_path: Path) -> None:
     config.write_text("[core]\n\tsshCommand = planted\n[user]\n\tname = kept\n")
     assert "core.sshcommand" not in _git(root, "config", "--list", "--name-only")
     assert held(root) == ["core.sshcommand"] and held(tree) == ["core.sshcommand"]
-    with pytest.raises(conduct["Stop"], match="core.sshcommand") as stop:
+    with pytest.raises(conduct["Stop"], match=r"core\.sshcommand") as stop:
         conduct["_refuse_config_commands"](root)
     assert str(stop.value).endswith("move it to the global config or remove it")
     # Twin: plain keys alone, an empty file and no file hold none.
@@ -8250,13 +8251,13 @@ def test_no_hook_runs_in_a_worker(
     assert fires({})
 
     _git(root, "config", "lfs.repositoryformatversion", "0")
-    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion") as held:
+    with pytest.raises(conduct["Stop"], match=r"lfs\.repositoryformatversion") as held:
         conduct["_refuse_config_commands"](root)
     assert "a run cannot upload LFS objects" in str(held.value)
     assert "remove it" not in str(held.value)
     _git(root, "config", "--unset", "lfs.repositoryformatversion")
     _git(root, "config", "filter.lfs.clean", "git-lfs clean -- %f")
-    with pytest.raises(conduct["Stop"], match="filter.lfs.clean.*cannot upload LFS"):
+    with pytest.raises(conduct["Stop"], match=r"filter\.lfs\.clean.*cannot upload LFS"):
         conduct["_refuse_config_commands"](root)
 
 
@@ -10565,7 +10566,7 @@ def test_a_linked_tree_writes_under_the_codex_sandbox(
     prefix = "sandbox_workspace_write.writable_roots="
     (roots,) = [
         json.loads(pair.removeprefix(prefix))
-        for flag, pair in zip(command, command[1:], strict=False)
+        for flag, pair in itertools.pairwise(command)
         if flag == "-c" and pair.startswith(prefix)
     ]
     # codex-cli 0.163's `codex sandbox` requires a permission profile and ignores

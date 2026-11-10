@@ -673,10 +673,8 @@ def _folder_fd(root: Path, *parts: str) -> int:
     fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
     try:
         for part in parts:
-            try:
+            with contextlib.suppress(FileExistsError):
                 os.mkdir(part, dir_fd=fd)
-            except FileExistsError:
-                pass
             inner = os.open(
                 part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
             )
@@ -811,9 +809,11 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     if not (_change_dir(primary, change) / "models.toml").is_file():
         return f"no .minions/changes/{change}/models.toml"
     queued = _cuts(primary).get(change, {}).get("models")
-    if queued is not None:
-        if _models_hash(primary, change) != hashlib.sha256(queued.encode()).hexdigest():
-            return f"changes/{change}/models.toml changed since the cut was queued"
+    if (
+        queued is not None
+        and _models_hash(primary, change) != hashlib.sha256(queued.encode()).hexdigest()
+    ):
+        return f"changes/{change}/models.toml changed since the cut was queued"
     return None
 
 
@@ -1075,7 +1075,7 @@ def _is_event(line: str, event: str) -> bool:
 
     e.g. "10:00:00 · round 1 · done — ok", "done" → True
     """
-    return line.split(" — ")[0].endswith(f" · {event}")
+    return line.split(" — ", maxsplit=1)[0].endswith(f" · {event}")
 
 
 def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
@@ -1370,7 +1370,8 @@ def _delta(delta: Callable[[Path], str], tree: Path) -> list[str]:
     """Return the lines `integrate.py`'s `delta` names; a crash stops with exit 2."""
     try:
         delta(tree)
-    except Exception as error:
+    # why: `delta` may fail any way; a crash stops with exit 2, naming it.
+    except Exception as error:  # noqa: BLE001
         code = getattr(error, "code", None)
         said = str(error).splitlines() if code else [f"{type(error).__name__}: {error}"]
         moved = [line for line in said if line.startswith(MOVED)]
@@ -4434,7 +4435,8 @@ class Run:
                 return None
             stage, why = stage_of(self.primary, version, self.skips_of(version.change))
             return stage, why, _git(version.tree, "rev-parse", "HEAD").strip()
-        except Exception:
+        # why: a read of the disk may fail any way; None says the version is unread.
+        except Exception:  # noqa: BLE001
             return None
 
     def block(self, change: str, dependency: str) -> None:
@@ -4544,9 +4546,12 @@ class Run:
                 return "rescue.md"
         entry = _cuts(self.primary).get(change, {})
         halt, brief = entry.get("halt"), entry.get("brief")
-        if isinstance(halt, str) and isinstance(brief, str):
-            if halt.endswith(answer := _cut_answer(change, brief)):
-                return answer
+        if (
+            isinstance(halt, str)
+            and isinstance(brief, str)
+            and halt.endswith(answer := _cut_answer(change, brief))
+        ):
+            return answer
         stage, why, _ = self.on_disk(change) or ("", "", "")
         if _is_cap(stage, why):
             return "a grant or a re-plan"
@@ -5268,7 +5273,7 @@ class Run:
                             version, stage, bool(spent)
                         ):
                             continue
-                    return
+                    return None
                 if stage in stop_at:
                     return stage
                 if (stage, why) == ("converge", RERUN):
@@ -5281,7 +5286,7 @@ class Run:
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
-                    return
+                    return None
                 # The run's own grant takes no person's grant file.
                 grant = auto
                 person = not auto and stage == "converge"
@@ -5339,9 +5344,9 @@ class Run:
                 if numbered:
                     self.trim_notes(change, str(phase), notes)
                 if denied is None:
-                    return
+                    return None
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
-                    return
+                    return None
                 restamped: list[str] = []
                 ask = functools.partial(
                     check, self.primary, stage, version, phase=phase, notes=restamped
@@ -5362,7 +5367,7 @@ class Run:
                 shown = "".join(f" · {note}" for note in restamped)
                 if not self.judge(version.change, stage, reason, denied, shown):
                     if held is None:
-                        return
+                        return None
                     amends = _rescue_amends(minions, change, stage, decide)
                     # Only a failed converge check meets a cap here.
                     cap = held if stage == "converge" else stage
@@ -5375,7 +5380,7 @@ class Run:
                         or self.supervise(version, held, bool(spent))
                     ):
                         continue
-                    return
+                    return None
                 # A phase built last, an amend's after converge began, still closes.
                 # Why: 0102-build-per-phase design D1.
                 close = numbered and _unticked(cwd, change) is None
@@ -5386,10 +5391,11 @@ class Run:
                         if self.offline:
                             self.waited(f"{tag} released locally")
                     self.remove_tree(version)
-                    return
+                    return None
         except Stop as stop:
             self.halt(version.change, str(stop))
-        except Exception as error:
+        # why: a version's thread ends in a halt line, never a traceback.
+        except Exception as error:  # noqa: BLE001
             self.halt("run", f"conduct.py failed: {error}")
 
     def _keeps(self, tree: Path, change: str) -> str | None:
@@ -5618,7 +5624,8 @@ class Run:
             if (path in first or path == DECISIONS or stacked) and not stopped:
                 try:
                     rule(tree)
-                except Exception as error:
+                # why: a rule may fail any way; the merge aborts and the halt names it.
+                except Exception as error:  # noqa: BLE001
                     stopped = f" — {error}"
         if not (left := _conflicts(tree)) and not stopped:
             return
@@ -5794,7 +5801,8 @@ class Run:
                     self.advance(version, ())
         except Stop as stop:
             self.halt(version.change, str(stop))
-        except Exception as error:
+        # why: a version's thread ends in a halt line, never a traceback.
+        except Exception as error:  # noqa: BLE001
             self.halt("run", f"conduct.py failed: {error}")
         finally:
             with self.built:
@@ -5811,7 +5819,8 @@ class Run:
             failed = self.cutting(change)
         except Stop as stop:
             failed = str(stop), False
-        except Exception as error:
+        # why: a cut's thread ends in a halt line, never a traceback.
+        except Exception as error:  # noqa: BLE001
             failed = f"conduct.py failed: {error}", False
         if failed is not None:
             self.cut_halted(change, *failed)
@@ -5822,7 +5831,8 @@ class Run:
                 self.take(version, threads)
         except Stop as stop:
             self.halt(change, str(stop))
-        except Exception as error:
+        # why: a cut's thread ends in a halt line, never a traceback.
+        except Exception as error:  # noqa: BLE001
             self.halt(change, f"conduct.py failed: {error}")
 
     def cutting(self, change: str) -> tuple[str, bool] | None:
@@ -6024,13 +6034,15 @@ class Run:
                 continue
             try:
                 started = self.take_cut(change, entry, threads) or started
-            except Exception as error:
+            # why: one cut's failure halts it and leaves the other versions running.
+            except Exception as error:  # noqa: BLE001
                 self.halt(change, f"conduct.py failed: {error}")
         if not names:
             return started
         try:
             versions = open_versions(self.primary)
-        except Exception as error:
+        # why: a failed listing is logged and skipped; the poll raises nothing.
+        except Exception as error:  # noqa: BLE001
             self.log.event("run", "rejoin", f"skipped — {error}")
             return started
         for version in versions:
@@ -6074,7 +6086,8 @@ class Run:
             return
         try:
             versions = open_versions(self.primary)
-        except Exception as error:
+        # why: a failed listing is logged and skipped; the poll raises nothing.
+        except Exception as error:  # noqa: BLE001
             self.log.event("run", "rejoin", f"skipped — {error}")
             return
         for version in versions:
@@ -6111,7 +6124,8 @@ class Run:
         if halted and not self.stopped("run"):
             try:
                 cuts, versions = _cuts(self.primary), open_versions(self.primary)
-            except Exception as error:
+            # why: a failed listing is logged and skipped; the poll raises nothing.
+            except Exception as error:  # noqa: BLE001
                 self.log.event("run", "rejoin", f"skipped — {error}")
         live = {change for change, thread in threads.items() if thread.is_alive()}
         versions = [
@@ -6153,7 +6167,8 @@ class Run:
             return self.take_back(version, threads)
         except Stop as stop:
             self.halt(version.change, str(stop))
-        except Exception as error:
+        # why: a take-back failure halts the version and raises nothing.
+        except Exception as error:  # noqa: BLE001
             self.halt(version.change, f"conduct.py failed: {error}")
         return False
 
@@ -6307,15 +6322,18 @@ class Run:
             turn = first_turn(out)
             shown = "" if turn is None else f" · first turn {turn} tokens"
             tree = check_tree(scratch / "tree") if codex else None
-            if denied is not None and self.judge(
-                who,
-                station,
-                check_probe(scratch, mark) or tree or mcp_started(executor, out),
-                denied,
-                shown,
+            if (
+                denied is not None
+                and self.judge(
+                    who,
+                    station,
+                    check_probe(scratch, mark) or tree or mcp_started(executor, out),
+                    denied,
+                    shown,
+                )
+                and (not codex or self.probe_checker(executor, who, deadline))
             ):
-                if not codex or self.probe_checker(executor, who, deadline):
-                    self.probed.add(executor)
+                self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
             mark.unlink(missing_ok=True)
@@ -6756,7 +6774,8 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         conductor = Run(primary, executor)
         try:
             code = conductor.ship()
-        except Exception as error:
+        # why: a conductor failure is logged as the run's halt, never a traceback.
+        except Exception as error:  # noqa: BLE001
             conductor.log.event("run", "halt", f"conduct.py failed: {error}")
             code = 1
         seen = conductor.seen
@@ -6958,7 +6977,7 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
             entry = json.loads((folder / name).read_text())
         except (OSError, ValueError):
             entry = None
-        if not isinstance(entry, dict) or not CUT_KEYS <= entry.keys():
+        if not isinstance(entry, dict) or not entry.keys() >= CUT_KEYS:
             entry = {"halt": "the queue entry is unreadable"}
         found[name] = entry
     return found
@@ -6971,7 +6990,7 @@ def _markdown() -> "MarkdownIt":
     The import waits: `pin.py` and the escape drill load this script with no package
     installed. Why: 0103-fewer-rounds design D6.
     """
-    from markdown_it import MarkdownIt
+    from markdown_it import MarkdownIt  # noqa: PLC0415
 
     return MarkdownIt("commonmark").enable("table")
 
@@ -7020,9 +7039,12 @@ def _headed(text: str, heading: str) -> bool:
             checked.update(span)
         elif token.type == "heading_open":
             checked.add(span.start)
-            if token.tag == "h2" and token.markup == "##":
-                if lines[span.start] == heading:
-                    exact.add(span.start)
+            if (
+                token.tag == "h2"
+                and token.markup == "##"
+                and lines[span.start] == heading
+            ):
+                exact.add(span.start)
     checked.update(n for n, line in enumerate(lines) if INLINE_HEADING.search(line))
     other = [n for n in checked - code - exact if _fold(lines[n]) == _fold(heading)]
     return len(exact) <= 1 and not other
@@ -7348,7 +7370,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     with _queue_lock(primary):
         live = _claim(runs / "active") == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
-            if not CUT_KEYS <= entry.keys():
+            if not entry.keys() >= CUT_KEYS:
                 name = _queue(primary) / "cuts" / change
                 raise Stop(
                     2,
@@ -7698,7 +7720,7 @@ def _change_number(change: str) -> int:
 
     e.g. "0002-marks" → 2
     """
-    return int(change.split("-")[0])
+    return int(change.split("-", maxsplit=1)[0])
 
 
 def report(cwd: Path) -> str:

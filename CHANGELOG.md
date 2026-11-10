@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Ruff selects the wider families (`UP`, `ERA`, `PERF`, `SIM`, `RET`, `PT`, `RUF`, `PLE`, `PLC`, `PLR`, `PLW`, `BLE`) and
+  the gate holds them: each site is cleaned, and each deliberate blind `except` of `conduct.py` carries
+  `# noqa: BLE001` and a `# why:` line. `CODING_STANDARDS.md` states the rule (change `0110-gate-hardening`, phase 1).
+
 ## [0.91.0] - 2026-11-10
 
 Gate: local 4m37s · CI not read under mf-ship · 0.90.1: local 2m49s · CI not read under mf-ship
