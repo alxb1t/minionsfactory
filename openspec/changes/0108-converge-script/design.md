@@ -308,7 +308,7 @@ The edits, before → after:
 
 - `K` becomes a front of ~40 lines: the parameters, `conduct.py converge <id> [conformance=…] [adversarial=…] [fix=…] [grant=yes]`,
   what it prints, and the catalogue of each script `converge.py` loads or runs. `tests/test_skills.py`'s converge rows name
-  `converge.py` and the scripts that catalogue lists, and no longer `surfaces.py`.
+  `scripts/converge.py` and `../mf-ship/scripts/conduct.py`, and no longer `surfaces.py`.
 - `metrics/catalogue.toml`'s `converge-reading-set` becomes the fixer's set: `AGENTS.md`, `W` and `fix.md`; `reading_set.py`'s
   `converge` kind and its test follow.
 - `review_metrics.py` books a worker by its log name ([the delta](specs/sdd/spec.md)); the Agent-description path stays for old logs.
