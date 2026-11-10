@@ -8937,6 +8937,111 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     assert _git(base, "tag", "-l") == "v0.1.0"
 
 
+def test_a_done_under_the_top_line_is_stamped_again(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Why: 0109-converge-done-order design D2, D3.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _findings(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    buried = "10:00:00 · round 2 · done — ok"
+    held = (
+        "# t\n\n## Run 1 — d\n10:01:00 · round 2 · debt — d\n"
+        f"{buried}\n10:00:00 · round 2 · start — b\n"
+    )
+    log.write_text(held)
+    version = conduct["find_version"](root, "0001-todo")
+    check, buried_done = conduct["check"], conduct["_buried_done"]
+    runs = root / ".minions"
+    assert buried_done(runs, "0001-todo") == buried
+
+    # Each case stamps nothing: the log stays as it was.
+    capsys.readouterr()
+    notes: list[str] = []
+    _findings(root, "0001-todo", head, "blocking")
+    log.write_text(held)
+    unjudged = "conformance: verdict blocking"
+    assert check(root, "converge", version, notes=notes) == unjudged
+    _findings(root, "0001-todo", head)
+    log.write_text(held)
+    (tree / "stray.txt").write_text("x\n")
+    assert check(root, "converge", version, notes=notes) == "the tree is not clean"
+    (tree / "stray.txt").unlink()
+    halt = f"10:02:00 · round 2 · halt — red · head {head}"
+    halted = held.replace("## Run 1 — d\n", f"## Run 1 — d\n{halt}\n")
+    log.write_text(halted)
+    assert buried_done(runs, "0001-todo") is None
+    assert check(root, "converge", version, notes=notes) == (
+        f"the status log halts: {halt}"
+    )
+    log.write_text("# t\n\n## Run 1 — d\n10:01:00 · round 2 · debt — d\n")
+    assert buried_done(runs, "0001-todo") is None
+    assert check(root, "converge", version, notes=notes) == "the status log has no done"
+    assert not notes
+    assert log.read_text().endswith("debt — d\n")
+    assert capsys.readouterr().out == ""
+
+    # A stamp that exits 2 leaves the log and says why on stdout.
+    log.write_text(held)
+    (log.parent / "status_log.md.tmp").mkdir()
+    assert check(root, "converge", version, notes=notes) == "the status log has no done"
+    assert log.read_text() == held
+    assert not notes
+    refused = "stamp: cannot stamp — status_log.md.tmp could not be created\n"
+    assert capsys.readouterr().out == refused
+    (log.parent / "status_log.md.tmp").rmdir()
+
+    # A pass puts `done` on top as the run's own, and says so in `notes`.
+    assert check(root, "converge", version, notes=notes) is None
+    assert notes == ["re-stamped done"]
+    stamped = log.read_text().splitlines()
+    assert stamped[3].endswith(" · round 2 · done — re-stamped by the run")
+    assert stamped[4:] == held.splitlines()[3:]
+    assert capsys.readouterr().out.strip() == stamped[3]
+    assert check(root, "converge", version, notes=notes) is None
+    assert notes == ["re-stamped done"]
+
+    # A run: its converge leaves `debt` over `done`; the check heals it.
+    for name in ("status_log.md", "conformance.md", "adversarial.md"):
+        (log.parent / name).unlink()
+    run_class = conduct["Run"]
+    conducted = run_class.conducted
+
+    def buries_done(
+        self: object, change: str, tree: Path, workers: object, grant: bool
+    ) -> list[str]:
+        denied = conducted(self, change, tree, workers, grant)
+        lines = log.read_text().splitlines(keepends=True)
+        assert " · done — " in lines[3] and " · debt — " in lines[4]
+        lines[3:5] = lines[4], lines[3]
+        log.write_text("".join(lines))
+        return denied
+
+    monkeypatch.setattr(run_class, "conducted", buries_done)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+    roles = ["converge-adversarial-r1 0001-todo", "converge-conformance-r1 0001-todo"]
+    assert _calls(calls) == ["probe", *roles, "release 0001-todo"]
+    assert any(
+        line.endswith(" · 0001-todo · spawn — converge · script") for line in _log(root)
+    )
+    assert any(
+        line.endswith(" · 0001-todo · check — converge · pass · re-stamped done")
+        for line in _log(root)
+    )
+    assert _git(root, "tag", "-l") == "v0.1.0"
+
+
 @pytest.mark.slow
 def test_an_amend_past_the_judged_head_gets_one_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]

@@ -344,7 +344,7 @@ wheels = [
 
 [[package]]
 name = "minions-factory"
-version = "0.90.0"
+version = "0.90.1"
 source = { virtual = "." }
 
 [package.dev-dependencies]

@@ -31,6 +31,11 @@ _TITLE = "# 0001-a — converge status\n"
 _RUN_1 = "## Run 1 — 2026-11-06 09:00\n09:00:01 · round 1 · start — base x\n"
 
 
+def _ended(event: str) -> str:
+    head, rest = _RUN_1.split("\n", 1)
+    return f"{head}\n09:00:09 · round 1 · {event}\n{rest}"
+
+
 def test_a_stamp_writes_the_clock_time_under_the_latest_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -67,6 +72,24 @@ def test_a_stamp_writes_the_clock_time_under_the_latest_run(
     head, rest = _RUN_1.split("\n", 1)
     assert log.read_text() == f"{_TITLE}\n{head}\n{second}\n{first}\n{rest}"
 
+    # `done` goes last in a call, so it is on top; a run ends on its `done` or `halt`,
+    # save a `halt` naming a lock, under which converge resumes.
+    # Why: 0109-converge-done-order design D1.
+    log.write_text(f"{_TITLE}\n{_RUN_1}")
+    debt, done = (f"10:02:03 · round 1 · {e} — x" for e in ("debt", "done"))
+    assert stamp.main([str(log), "round 1 · debt — x", "round 1 · done — x"]) == 0
+    assert capsys.readouterr().out == f"{debt}\n{done}\n"
+    assert log.read_text() == f"{_TITLE}\n{head}\n{done}\n{debt}\n{rest}"
+    for lock in (".minions/debt.lock", ".minions/backlog.lock"):
+        log.write_text(f"{_TITLE}\n{_ended(f'halt — {lock} not taken')}")
+        assert stamp.main([str(log), "round 1 · debt — x"]) == 0
+        assert capsys.readouterr().out == f"{debt}\n"
+        assert log.read_text().splitlines()[3] == debt
+    log.write_text(f"{_TITLE}\n{_ended('done — clean')}")
+    assert stamp.main([str(log), "--run", "2"]) == 0
+    assert capsys.readouterr().out == "## Run 2 — 2026-11-07 10:02\n"
+    assert log.read_text().splitlines()[2] == "## Run 2 — 2026-11-07 10:02"
+
 
 def test_a_log_out_of_shape_is_not_stamped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
@@ -79,6 +102,13 @@ def test_a_log_out_of_shape_is_not_stamped(
     assert not missing.exists()
 
     usage = "give events, or --run with an optional --mark\n"
+
+    def last(event: str) -> str:
+        return f"{event} goes last in a call\n"
+
+    def ends(event: str) -> str:
+        return f"the run ends on {event}: open a ## Run for a new event\n"
+
     log = tmp_path / "status_log.md"
     for text, argv, said in (
         (_TITLE, ["round 1 · start — base a"], "no ## Run heading\n"),
@@ -87,6 +117,10 @@ def test_a_log_out_of_shape_is_not_stamped(
         (_TITLE + _RUN_1, ["round 1 · x", "round 1 · y", "--run", "2"], usage),
         (_TITLE + _RUN_1, [], usage),
         (_TITLE + _RUN_1, ["round 1 · x", "--mark", "catch-up"], usage),
+        (_TITLE + _RUN_1, ["round 1 · done — x", "round 1 · debt — x"], last("done")),
+        (_TITLE + _RUN_1, ["round 1 · halt — x", "round 1 · debt — x"], last("halt")),
+        (_TITLE + _ended("done — x"), ["round 1 · debt — x"], ends("done")),
+        (_TITLE + _ended("halt — red"), ["round 1 · debt — x"], ends("halt")),
     ):
         log.write_text(text)
         assert stamp.main([str(log), *argv]) == 2

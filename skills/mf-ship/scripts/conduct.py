@@ -78,6 +78,7 @@ LIMIT_WAIT = 900
 HEADROOM = 90
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
+STAMP_SCRIPT = Path(__file__).resolve().parents[2] / "mf-converge/scripts/stamp.py"
 # The brief's checker, and the runner of its `--models`.
 # Why: 0106-cut-scripts design D7.
 BRIEF_CHECK = Path(__file__).resolve().parents[2] / "mf-plan/scripts/brief_check.py"
@@ -1262,6 +1263,39 @@ def _converge_done(runs: Path, change: str) -> bool:
     return _is_event(_run_end(runs, change) or "", "done")
 
 
+def _buried_done(runs: Path, change: str) -> str | None:
+    """Return the newest run's `done` line under a top line that ends no run, else None.
+
+    e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
+    """
+    log = _change_dir(runs.parent, change) / "status_log.md"
+    lines = log.read_text().splitlines() if log.is_file() else []
+    heading = next(
+        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
+    )
+    run = [
+        line
+        for line in itertools.takewhile(
+            lambda line: not line.startswith("## Run"), lines[heading + 1 :]
+        )
+        if line.strip()
+    ]
+    if not run or _is_event(run[0], "halt") or _is_event(run[0], "done"):
+        return None
+    return next((line for line in run if _is_event(line, "done")), None)
+
+
+def _restamp(runs: Path, change: str, buried: str) -> int:
+    """Stamp `done` on top of the status log, as the run's own; return the exit code.
+
+    e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
+    """
+    log = _change_dir(runs.parent, change) / "status_log.md"
+    found = re.search(r"· (round \d+) · done\b", buried)
+    event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
+    return int(runpy.run_path(str(STAMP_SCRIPT))["main"]([str(log), event]))
+
+
 def _unjudged(
     runs: Path,
     tree: Path,
@@ -1568,17 +1602,32 @@ def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str
     return "the tree is not clean" if _dirty(tree) else None
 
 
-def _check_converge(primary: Path, version: Version, tree: Path) -> str | None:
-    """Return why the converge check fails, or None."""
+def _check_converge(
+    primary: Path, version: Version, tree: Path, *, notes: list[str] | None = None
+) -> str | None:
+    """Return why the converge check fails, or None.
+
+    A buried `done` is stamped on top again, `notes` gets `re-stamped done`. Why:
+    0109-converge-done-order design D2, D3.
+    """
     runs = primary / ".minions"
     halt = _converge_halt(runs, version.change)
     if halt and not _answered(runs, tree, version.change, halt):
         return f"the status log halts: {halt}"
-    if not _converge_done(runs, version.change):
+    done = _converge_done(runs, version.change)
+    buried = None if done else _buried_done(runs, version.change)
+    if not done and buried is None:
         return "the status log has no done"
     if why := _unjudged(runs, tree, version.change):
         return why
-    return "the tree is not clean" if _dirty(tree) else None
+    if _dirty(tree):
+        return "the tree is not clean"
+    if buried is not None:
+        if _restamp(runs, version.change, buried) != 0:
+            return "the status log has no done"
+        if notes is not None:
+            notes.append("re-stamped done")
+    return None
 
 
 def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
@@ -2445,11 +2494,12 @@ def check(
     offline: bool = False,
     *,
     phase: str | None = None,
+    notes: list[str] | None = None,
 ) -> str | None:
     """Return why a station's check on disk fails, or None when it passes.
 
-    A build `phase` number checks that phase's spawn alone; `close` or none, the
-    whole build. Why: 0102-build-per-phase design D2.
+    A build `phase` number checks that phase alone; `close` or none, the whole build.
+    Why: 0102-build-per-phase design D2; 0109-converge-done-order design D3.
     """
     if stage == "release":
         return _check_release(primary, version, first_read, offline)
@@ -2460,7 +2510,7 @@ def check(
     if stage == "build":
         return _check_build(primary, version, version.tree)
     if stage == "converge":
-        return _check_converge(primary, version, version.tree)
+        return _check_converge(primary, version, version.tree, notes=notes)
     return _check_integrate(primary, version, version.tree)
 
 
@@ -5292,16 +5342,16 @@ class Run:
                     return
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
+                restamped: list[str] = []
+                ask = functools.partial(
+                    check, self.primary, stage, version, phase=phase, notes=restamped
+                )
                 try:
-                    reason = check(
-                        self.primary, stage, version, True, self.offline, phase=phase
-                    )
+                    reason = ask(True, self.offline)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
-                    reason = check(
-                        self.primary, stage, version, True, True, phase=phase
-                    )
+                    reason = ask(True, True)
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
@@ -5309,7 +5359,8 @@ class Run:
                 spent = "" if held is None else self.rescued(version.change, held)
                 if held is not None:
                     reason = f"{reason}{spent}{self.supervised(version.change, held)}"
-                if not self.judge(version.change, stage, reason, denied):
+                shown = "".join(f" · {note}" for note in restamped)
+                if not self.judge(version.change, stage, reason, denied, shown):
                     if held is None:
                         return
                     amends = _rescue_amends(minions, change, stage, decide)

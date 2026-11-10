@@ -790,8 +790,9 @@ def resume(context: Context, granting: bool) -> int:
         begin(context, "catch-up")
         return catch_up(context, judged)
     if top is not None and top.name == "halt" and unanswered(context, run):
-        context.round = top.round
-        raise Halt(HALTED.sub("", top.detail))
+        # why: the cap's halt stands on top; `stamp.py` takes no event after it
+        print(f"converge: halt — {HALTED.sub('', top.detail)}")
+        return 1
     begin(context, None)
     return fresh(context)
 

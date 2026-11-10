@@ -70,7 +70,9 @@ of another form SHALL be booked to no role, as a gap.
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, each line and run heading written by
 `skills/mf-converge/scripts/stamp.py`, which takes the clock's time. One `stamp.py` call MAY write several events, each its
 own line, inserted so the last given is on top; the script SHALL write in one call the events it has with no command
-between them. Each run SHALL open
+between them. `stamp.py` SHALL exit 2, writing nothing, on a call that gives `done` or `halt` before another event, and on any
+event for a run whose top line is `done`, or `halt` naming neither `.minions/debt.lock` nor `.minions/backlog.lock`: an event after
+one needs a new `## Run` heading. A `halt` naming a lock takes the events of the converge that resumes it. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
 `start`, `freeze`, `fan-out`, `verdicts`, `shadow`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
@@ -102,6 +104,22 @@ it and no release reads it.
 #### Scenario: A converge run stops
 - **WHEN** the run halts or finishes
 - **THEN** its last event is `halt`, with the reason, or `done`
+
+#### Scenario: A debt and a done in one call
+- **WHEN** `stamp.py` is given the events `round 1 · debt — …` and then `round 1 · done — …`
+- **THEN** the log holds both lines under the latest heading, `done` on top
+
+#### Scenario: A done given before another event
+- **WHEN** `stamp.py` is given the events `round 1 · done — …` and then `round 1 · debt — …`
+- **THEN** it exits 2 with `stamp: cannot stamp — done goes last in a call`, and the log is unchanged
+
+#### Scenario: An event after a run's end
+- **WHEN** the latest run's top line is a `done`, or a `halt` naming no lock, and `stamp.py` is given an event
+- **THEN** it exits 2 with `stamp: cannot stamp — the run ends on <event>: open a ## Run for a new event`, and the log is unchanged
+
+#### Scenario: An event under a lock halt
+- **WHEN** the latest run's top line is a `halt` naming `.minions/debt.lock`, and `stamp.py` is given the event `round 2 · debt — …`
+- **THEN** the log holds the line under the latest heading, above the `halt`
 
 #### Scenario: A catch-up by rule
 - **WHEN** every merge of a catch-up replays by the fixed rules

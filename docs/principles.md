@@ -106,8 +106,9 @@ integrate and release gate through `gate_run.py`: a recorded run of this exact t
 
 **No deleted or skipped test, no blanket suppression, no loosened config. A gate that can only pass weakened is a
 plan problem: halt and say so. A test deleted or merged as the change's `## Tests` table names it, its proofs
-carried by a named remaining test or retired by a decision in force at the base, is consolidation, not
-weakening.**
+carried by a named remaining test, retired by a decision in force at the base, or, when they cover only
+a requirement the change's delta removes, retired by that requirement removed with the code under test, is
+consolidation, not weakening.**
 
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; converge's fix reference and `mf-converge`'s *Never* list;
