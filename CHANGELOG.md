@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge writes `evidence.md` at every freeze, from `gate_integrity.py`, `plan_check.py`, one `git grep` for the names
   the patch removes and the junit report, and gives its path to each worker as `{evidence}`. The checkers start from facts
   a tool found (change `0110-gate-hardening`, phase 6).
+- D79, *A tool finds, a checker judges*, extends D66, D77 and D78. The worker references start from `evidence.md`, never
+  re-derive a line it holds and judge its judgment half; `CONTRIBUTING.md` states that a rule a tool can hold goes to the
+  gate (change `0110-gate-hardening`, phase 7).
 
 ## [0.91.0] - 2026-11-10
 

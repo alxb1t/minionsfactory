@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78
+     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -512,6 +512,20 @@ pass; only the environment, a loop outcome, a red gate and a security card halt.
   moot · a macOS-only converge until Linux has a runner.
 - **Rejected:** a runner that reimplements stations inside `conduct.py` · a python claim leader · a conducting LLM for a hand converge.
 - **Amends:** D3, D40, D47, D51, D53, D64, D68, D70, D71 and D76, each edited where it lives.
+
+### D79 · A tool finds, a checker judges
+
+**What a tool can find goes to the gate or to `evidence.md`; the checkers judge the rest. A rule a tool can hold — a lint
+family, a docstring limit, a call with no timeout — is a line of `make gate`, its sites cleaned in the change that adds it.
+Converge writes `evidence.md` in the change's run folder at every freeze: the suppressions, skips, removed tests and
+gate-config edits of the diff, the plan check, the names the diff removes and where the tree still holds them, and the cost
+of each added test. Each checker starts from it, never re-derives a line it holds, and judges its judgment half.**
+
+- **Why:** the checkers spent tokens on facts a script finds, and the same syntactic classes came back as debt cards.
+- **Accepts:** a line the evidence lists that is no defect, a move between files among them — the checker judges it ·
+  coverage-trace stays the worker's, as a removed test's proofs need judging.
+- **Rejected:** folding the passes into the gate — it cannot judge a retired proof · an LLM step to gather the facts.
+- **Extends:** D66, D77 and D78.
 
 ## The target repo
 

@@ -9,10 +9,12 @@ verify pass, the catch-up scope, the card and the rules for tests. `converge.py`
 whose mechanism a card holds in another form — the same code misreading the same kind of input — names `repeat of <id>` too,
 and keeps its grade: its **Priority** says it repeats that card's mechanism. The station names `repeat of <id>` in its
 **Related** field and grades a repeat up one level: adversarial one step, a conformance
-`nit` or `drift` to `blocking`. The station judges the match; `converge.py` judges nothing. No worker reads
+`nit` or `drift` to `blocking`. The station judges the match; `converge.py` judges nothing: `evidence.md` holds facts a tool found, never a verdict. No worker reads
 `.minions/debt.md`.
 
-**Conformance runs these passes after its sections**, and its Summary and its `passes` say each ran:
+**Conformance runs these passes after its sections**, and its Summary and its `passes` say each ran. The stale-claim and
+test-cost passes start from `evidence.md`'s *Stale-claim candidates* and *Test cost* sections and judge their lines;
+coverage-trace stays the worker's:
 
 | pass | runs | cards |
 |---|---|---|

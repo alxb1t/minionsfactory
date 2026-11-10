@@ -66,7 +66,9 @@ review skill and start no workers of your own.
    **unsafe permissions and external effects** — a widened allowlist, sandbox or file mode, whatever the input, the
    change itself being the source. A security finding is the tuple source → control → sink → boundary →
    counterevidence: where untrusted input enters, the closest control, where it lands, the boundary it crosses, and
-   what you checked that could defeat it. Its Priority's category is `security`.
+   what you checked that could defeat it. Its Priority's category is `security`. Start from `evidence.md`'s *Gate
+   integrity* section, never re-derive a line it holds, and judge its judgment half: whether an allowlist, suppression or
+   swallowed error it lists opens a route.
 
 ## The bar a finding clears
 

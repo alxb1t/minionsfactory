@@ -12,7 +12,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 4 — `conduct.py cut` prefetches the approved wheels · hard
 - [x] 5 — `gate_integrity.py` · hard
 - [x] 6 — The evidence at every freeze · hard
-- [ ] 7 — The references, the ratchet and D79 · hard
+- [x] 7 — The references, the ratchet and D79 · hard
 
 ## 1 — The wider lint, its sites cleaned
 
@@ -149,18 +149,18 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 7 — The references, the ratchet and D79
 
-- [ ] 7.1 **HALT CHECK** The base holds the decision group and the worker reference's line the decision amends.
+- [x] 7.1 **HALT CHECK** The base holds the decision group and the worker reference's line the decision amends.
   Verify: `git grep -n -e '^### D78 · ' -e 'converge.py. judges nothing' -- docs/decisions.md skills/mf-converge/references/worker.md` prints a line for each.
-- [ ] 7.2 In `docs/decisions.md` add `### D79 · A tool finds, a checker judges` after D78, in the form of its neighbours (a bold decision, **Why:**, **Accepts:**,
+- [x] 7.2 In `docs/decisions.md` add `### D79 · A tool finds, a checker judges` after D78, in the form of its neighbours (a bold decision, **Why:**, **Accepts:**,
   **Rejected:**), with a new **Extends:** line naming D66, D77 and D78, edited nowhere else, and add D79 to the ids of *The check loop and the release* in the header diagram, as [D8](design.md#d8) says.
   Verify: `git grep -n 'A tool finds, a checker judges' -- docs/decisions.md` prints its heading.
-- [ ] 7.3 In `W` add to the sentence that says `converge.py` judges nothing: `evidence.md` holds facts a tool found, never a verdict.
+- [x] 7.3 In `W` add to the sentence that says `converge.py` judges nothing: `evidence.md` holds facts a tool found, never a verdict.
   Verify: `git grep -n -F 'never a verdict' -- skills/mf-converge/references/worker.md` prints a line.
-- [ ] 7.4 In `W`'s passes table, say that the stale-claim and test-cost passes start from `evidence.md`'s sections and judge their lines, and that coverage-trace stays the worker's.
+- [x] 7.4 In `W`'s passes table, say that the stale-claim and test-cost passes start from `evidence.md`'s sections and judge their lines, and that coverage-trace stays the worker's.
   Verify: `git grep -n -e 'start from .evidence.md' -- skills/mf-converge/references/worker.md` prints a line.
-- [ ] 7.5 In `generic-conformance.md` section 5 (*Gate integrity*), `generic-adversarial.md` section 3 and `verify.md`, tell the worker to start from `evidence.md`,
+- [x] 7.5 In `generic-conformance.md` section 5 (*Gate integrity*), `generic-adversarial.md` section 3 and `verify.md`, tell the worker to start from `evidence.md`,
   never re-derive a line it holds, and judge its judgment half; the words `never re-derive` stand in each.
   Verify: `git grep -l 'never re-derive' -- skills/mf-converge/references/` prints each of the three.
-- [ ] 7.6 In `CONTRIBUTING.md`, under *The evidence a change carries*, add one bullet: **`evidence.md`**, in `.minions/changes/<change-id>/`, holds the facts a tool found;
+- [x] 7.6 In `CONTRIBUTING.md`, under *The evidence a change carries*, add one bullet: **`evidence.md`**, in `.minions/changes/<change-id>/`, holds the facts a tool found;
   a rule a tool can hold goes to the gate, as D79 says.
   Verify: `git grep -n 'evidence.md' -- CONTRIBUTING.md` prints a line.

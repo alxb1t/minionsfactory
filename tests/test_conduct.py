@@ -8753,6 +8753,44 @@ def test_auto_grant_false_grants_none(
     assert auto(minions, "0001-todo")
 
 
+def test_a_missing_worktree_or_a_crash_ends_in_a_halt_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0002-marks")
+    conductor.read_plan([conduct["find_version"](root, "0001-todo"), version])
+
+    # A stage with no worktree to run in halts the version.
+    monkeypatch.setattr(conduct["Run"], "stage", lambda *_: ("build", "go"))
+    conductor.advance(conduct["Version"]("0001-todo", None), ())
+    assert conductor.halts == [("0001-todo", "0001-todo has no worktree")]
+
+    # Any other crash in a version's pass ends it in a halt line.
+    def broken(*_: object) -> tuple[str, str]:
+        raise ValueError("broken")
+
+    monkeypatch.setattr(conduct["Run"], "stage", broken)
+    conductor.advance(version, ())
+    assert conductor.halts[-1] == ("run", "conduct.py failed: broken")
+    conductor.log.path.unlink()
+
+    # A crash of the run itself is its halt line, and exit 1.
+    def sunk(*_: object) -> int:
+        raise ValueError("sunk")
+
+    monkeypatch.setattr(conduct["Run"], "ship", sunk)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert any(" · run · halt — conduct.py failed: sunk" in line for line in _log(root))
+
+
 @pytest.mark.slow
 def test_a_grant_buys_one_round(
     tmp_path: Path,
