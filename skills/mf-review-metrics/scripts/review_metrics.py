@@ -262,7 +262,10 @@ def _section(body: str, heading: str) -> str | None:
 
 
 def _priority(text: str) -> tuple[str, str | None]:
-    """Return a `Priority:` value's severity and category."""
+    """Return a `Priority:` value's severity and category.
+
+    e.g. "medium · security · stability — why" → ("medium", "stability")
+    """
     fields = [field.strip() for field in text.partition(" — ")[0].split("·")]
     bracket = re.search(r"\(([a-zA-Z]+)\)", fields[1]) if len(fields) > 1 else None
     third = fields[2].lower() if len(fields) > 2 else None
@@ -426,7 +429,11 @@ def _utc(local: datetime) -> datetime:
 
 
 def _windows(heading: str, body: str) -> dict[str, tuple[datetime, datetime]]:
-    """Return each round's window in UTC; a heading with no date has none."""
+    """Return each round's window in UTC; a heading with no date has none.
+
+    e.g. a round 1 frozen at 16:02:32, its verdicts at 16:13:13 →
+    {"1": (16:02:32, 16:14:13)}
+    """
     dated = re.match(r"## Run \d+ — (\d{4}-\d\d-\d\d \d\d:\d\d)", heading)
     if not dated:
         return {}

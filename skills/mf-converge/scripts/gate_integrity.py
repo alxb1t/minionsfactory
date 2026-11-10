@@ -119,7 +119,7 @@ def _files(patch: str) -> list[tuple[str, list[Entry]]]:
     """
     files: list[tuple[str, list[Entry]]] = []
     for block in OPEN.split(patch)[1:]:
-        lines = block.splitlines()
+        lines = block.removesuffix("\n").split("\n")  # LF alone: U+2028 is text
         cut = next((n for n, line in enumerate(lines) if HUNK.match(line)), len(lines))
         if path := _named(lines[0], lines[1:cut]):
             files.append((path, _entries(lines[cut:])))

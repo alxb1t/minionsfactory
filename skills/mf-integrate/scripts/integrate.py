@@ -508,6 +508,7 @@ def _ids(text: str) -> set[int]:
 def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
     """Return the ids the plan cites with a title, above the base's, headed nowhere.
 
+    e.g. base D58, plan "D59 · Branch rule", theirs "### D59 · Main rule" → {59}
     Why: 0086-ship-fixes-3 design D1.
     """
     top, taken = max(_ids(base), default=0), _ids(ours)
@@ -637,6 +638,7 @@ def _requirement(spec: str | None, title: str) -> str | None:
 def _inserts_only(base: str, main: str, side: str | None) -> bool:
     """Return whether `side` only inserts into `main`, keeping nothing `main` removed.
 
+    e.g. "a.", "a. b.", "a, c. b." → True; "a. b.", "a.", "a, c. b." → False
     Why: 0086-ship-fixes-3 design D4.
     """
 

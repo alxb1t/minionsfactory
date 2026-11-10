@@ -230,7 +230,10 @@ def plain(words: list[str], shell: list[str]) -> list[str]:
 
 
 def search(words: list[str]) -> Search | None:
-    """Return how a search's plain words run, printing its lines; None for no search."""
+    """Return how a search's plain words run, printing its lines; None for no search.
+
+    e.g. ["grep", "-c", "x", "a"] → (["grep", "-H", "-n", "x", "a"], [], ["a"], None)
+    """
     if words[:1] == ["grep"]:
         head, rest = ["grep", "-H", "-n"], words[1:]
     elif words[:2] == ["git", "grep"]:

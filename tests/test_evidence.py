@@ -131,6 +131,13 @@ def test_a_test_is_read_with_its_seconds() -> None:
         "added · tests/t.py:10 · test_e · no time in the report"
     ]
     assert evidence.test_cost(_patch("a.py", "+x = 1"), "", "") == []
+    # A Unicode line separator inside an added line does not end its patch line.
+    held = _patch(
+        "tests/t.py", f'+x = "a{chr(0x2028)}+def test_f(): ..."', "+def test_e(): ..."
+    )
+    assert evidence.test_cost(held, "", "") == [
+        "added · tests/t.py:11 · test_e · no time in the report"
+    ]
 
 
 def _git(path: str, *body: str) -> str:
@@ -261,6 +268,40 @@ def test_a_removed_test_is_read_against_the_design() -> None:
     last = design.replace("## Dependencies\n\nNone; test_z.\n", "")
     assert (
         evidence.test_cost(patch, "", last)[0] == "removed · test_a · named in ## Tests"
+    )
+    # An unrelated test of the same name in another module or class is both facts.
+    report = '<testcase classname="tests.test_new" name="test_main" time="12"/>'
+    other = _patch("tests/test_old.py", "-def test_main(): ...") + _patch(
+        "tests/test_new.py", "+def test_main(): ..."
+    )
+    assert evidence.test_cost(other, report, "") == [
+        "added · tests/test_new.py:10 · test_main · 12.00 s",
+        "removed · test_main · not named in ## Tests",
+    ]
+    classes = _patch(
+        "tests/test_a.py",
+        "-class TestOld:",
+        "-    def test_main(self): ...",
+        "+class TestNew:",
+        "+    def test_main(self): ...",
+    )
+    assert evidence.test_cost(classes, "", "") == [
+        "added · tests/test_a.py:11 · test_main · no time in the report",
+        "removed · test_main · not named in ## Tests",
+    ]
+    # The same test moved inside its class is neither.
+    assert (
+        evidence.test_cost(
+            _patch(
+                "tests/test_a.py",
+                " class TestX:",
+                "-    def test_main(self): ...",
+                "+    def test_main(self): ...",
+            ),
+            "",
+            "",
+        )
+        == []
     )
 
 

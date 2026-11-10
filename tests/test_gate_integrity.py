@@ -67,6 +67,15 @@ def test_a_path_with_a_space_or_quotes_keeps_its_own_lines() -> None:
     ]
     only_header = f'diff --git "a/{name}" "b/{name}"\n{_HUNK}+z = 1  # noqa: C\n'
     assert gate_integrity.lines(only_header) == ["noqa · café.py:10 · z = 1  # noqa: C"]
+    # A Unicode line separator is a character of a Python line, not a patch line end.
+    for separator in (chr(0x2028), chr(0x2029), "\x85", "\x0c", "\x1c"):
+        held = _patch(
+            "a.py", f'+x = "a{separator}b"  # noqa: F821', "+y = 1  # noqa: B"
+        )
+        assert gate_integrity.lines(held) == [
+            f'noqa · a.py:10 · x = "a{separator}b"  # noqa: F821',
+            "noqa · a.py:11 · y = 1  # noqa: B",
+        ]
 
 
 def test_a_quoted_name_is_unquoted_as_git_quotes_it() -> None:

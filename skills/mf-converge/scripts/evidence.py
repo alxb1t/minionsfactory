@@ -117,7 +117,7 @@ def _files(patch: str) -> list[File]:
     """
     files: list[File] = []
     for block in OPEN.split(patch)[1:]:
-        lines = block.splitlines()
+        lines = block.removesuffix("\n").split("\n")  # LF alone: U+2028 is text
         cut = next((n for n, line in enumerate(lines) if HUNK.match(line)), len(lines))
         path, deleted = _named(lines[0], lines[1:cut])
         if path:
@@ -211,10 +211,11 @@ def _owner(lines: list[Line], index: int, header: str) -> str | None:
 
     e.g. "    def test_a" under the line "class TestX:" → "TestX"
     """
+    other = "+" if lines[index][0] == "-" else "-"
     indent = _indent(lines[index][2])
     if not indent:
         return ""
-    above = [line for sign, _, line in lines[:index] if sign != "-" and line.strip()]
+    above = [line for sign, _, line in lines[:index] if sign != other and line.strip()]
     nearest = next(
         (line for line in [*reversed(above), header] if _indent(line) < indent), ""
     )
@@ -258,23 +259,41 @@ def _naming(name: str, section: str) -> str:
     return "named" if re.search(rf"\b{re.escape(name)}\b", section) else "not named"
 
 
+def _again(
+    entry: tuple[str, str, str | None], others: list[tuple[str, str, str | None]]
+) -> bool:
+    """Return whether `others` holds the test `(path, name, owner)`; no class fits any.
+
+    e.g. ("a.py", "t", "X") against ("a.py", "t", "Y") → False
+    """
+    path, name, owner = entry
+    return any(
+        (path, name) == (other[0], other[1])
+        and (owner is None or other[2] is None or owner == other[2])
+        for other in others
+    )
+
+
 def test_cost(patch: str, report: str, design: str) -> list[str]:
     """Return the cost lines of the tests a patch adds, slows, boots or removes.
 
     A test removed and added again is neither; a removal reads against `## Tests`.
     """
     plus: list[tuple[str, int, str, str | None]] = []
-    minus: list[str] = []
+    minus: list[tuple[str, str, str | None]] = []
     code = [file for file in _files(patch) if file[0][-3:] == ".py"]
     for path, _, hunks in code:
         for header, lines in hunks:
             for index, (sign, number, text) in enumerate(lines):
+                owner = _owner(lines, index, header) if _tests([text]) else None
                 if sign == "+":
-                    owner = _owner(lines, index, header) if _tests([text]) else None
                     plus.append((path, number, text, owner))
                 elif sign == "-":
-                    minus.append(text)
-    made, lost = _tests(text for _, _, text, _ in plus), _tests(minus)
+                    minus.extend((path, name, owner) for name in _tests([text]))
+    made = [
+        (path, name, owner) for path, _, text, owner in plus for name in _tests([text])
+    ]
+    lost = [entry for entry in minus if not _again(entry, made)]
     seconds, section = _seconds(report), TESTS.search(design)
     held = section[0] if section else ""
     return [
@@ -282,7 +301,7 @@ def test_cost(patch: str, report: str, design: str) -> list[str]:
             f"added · {path}:{number} · {name} · {_time(seconds, path, name, owner)}"
             for path, number, text, owner in plus
             for name in _tests([text])
-            if name not in lost
+            if not _again((path, name, owner), minus)
         ),
         *(
             f"slow · {path}:{number} · {text.strip()[:WIDTH]}"
@@ -296,8 +315,7 @@ def test_cost(patch: str, report: str, design: str) -> list[str]:
         ),
         *(
             f"removed · {name} · {_naming(name, held)} in ## Tests"
-            for name in dict.fromkeys(lost)
-            if name not in made
+            for name in dict.fromkeys(name for _, name, _ in lost)
         ),
     ]
 
