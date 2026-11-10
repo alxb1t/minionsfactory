@@ -790,6 +790,8 @@ def _fake(prompt: str) -> None:
             skipped = re.findall(r" and (\w+)=skip\b", prompt)
             alone = tuple(r for r in roles if r not in mailed and r not in skipped)
             _findings(primary, str(change), head, roles=alone)
+            if "keep-log" in modes:
+                log.write_text(held)
             _stubbed(here, primary, str(change), skipped)
             if " and shadow=yes" in prompt:
                 _mailed(here, primary, str(change), [f"shadow-{r}" for r in roles])

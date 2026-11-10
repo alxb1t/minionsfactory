@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## Progress
 
 - [x] 1 — `stamp.py` refuses a misordered call · moderate
-- [ ] 2 — The converge check stamps a buried `done` again · hard
+- [x] 2 — The converge check stamps a buried `done` again · hard
 - [ ] 3 — D39's third way, in the decision and its copies · moderate
 
 ## 1 — `stamp.py` refuses a misordered call
@@ -27,19 +27,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 2 — The converge check stamps a buried `done` again
 
-- [ ] 2.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 2.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def _check_converge(' -e '^def _converge_done(' -e '^def _run_end(' -e '^INTEGRATE = ' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.2 Add the mode `keep-log` to the converge branch of `tests/fake_worker.py`: after the branch's `_findings` call, in its default case, write back the `held` log text.
+- [x] 2.2 Add the mode `keep-log` to the converge branch of `tests/fake_worker.py`: after the branch's `_findings` call, in its default case, write back the `held` log text.
   Verify: `git grep -n '"keep-log" in modes' -- tests/fake_worker.py` prints a line.
-- [ ] 2.3 Add `test_a_done_under_the_top_line_is_stamped_again` to `tests/test_conduct.py`, its cases as [the Tests table](design.md#tests)
+- [x] 2.3 Add `test_a_done_under_the_top_line_is_stamped_again` to `tests/test_conduct.py`, its cases as [the Tests table](design.md#tests)
   says; the helpers and the closing `run` of `test_a_fix_after_a_cap_halt_gets_one_round` are its model, the fake host in mode `keep-log`, the log written after `_findings`.
   Verify: `git grep -n 'def test_a_done_under_the_top_line_is_stamped_again' -- tests/test_conduct.py` prints a line.
-- [ ] 2.4 In `C` add `STAMP_SCRIPT` beside `INTEGRATE`, and `_buried_done`: the newest run's `done` line under a top line that is neither `halt` nor `done`, else None.
+- [x] 2.4 In `C` add `STAMP_SCRIPT` beside `INTEGRATE`, and `_buried_done`: the newest run's `done` line under a top line that is neither `halt` nor `done`, else None.
   Verify: `git grep -n -e '^STAMP_SCRIPT = ' -e '^def _buried_done(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.5 In `C` add `_restamp`: `S`'s `main`, loaded by `runpy` from `STAMP_SCRIPT`, given `<the buried line's round> · done — re-stamped by the run`.
+- [x] 2.5 In `C` add `_restamp`: `S`'s `main`, loaded by `runpy` from `STAMP_SCRIPT`, given `<the buried line's round> · done — re-stamped by the run`.
   Then make `_check_converge` follow [D2](design.md#d2): both findings files and the tree are read before the stamp, and a stamp that exits 2 fails `the status log has no done`.
   Verify: `git grep -n '^def _restamp(' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.6 Per [D3](design.md#d3): give `check` and `_check_converge` the keyword `notes: list[str] | None = None`, which the re-stamp appends `re-stamped done` to;
+- [x] 2.6 Per [D3](design.md#d3): give `check` and `_check_converge` the keyword `notes: list[str] | None = None`, which the re-stamp appends `re-stamped done` to;
   in `Run.advance` pass a list named `restamped` to both `check` calls and show it after the pass in `judge`'s `shown`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "done_under_the_top_line"` exits 0; `git grep -n 'restamped' -- skills/mf-ship/scripts/conduct.py` prints a line.
 

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `stamp.py` exits 2 on a `done` or `halt` given before another event, and on an event under a run whose top line is a
   `done` or `halt`, save a `halt` naming a debt or backlog lock; a converge's `done` stays its run's top line (change
   `0109-converge-done-order`, phase 1).
+- The converge check of `conduct.py` stamps a `done` under the newest run's top line on top again, once both findings files
+  and the tree read clean, and the run log shows `check — converge · pass · re-stamped done`; a log that `debt` buried it in
+  passes with no hand step (change `0109-converge-done-order`, phase 2).
 
 ## [0.90.0] - 2026-11-09
 
