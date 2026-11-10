@@ -20,7 +20,8 @@ this. A Codex worker has no temporary folder at all, and its checker once halted
 ## What Changes
 
 - **The tests' layer** — `tests/conftest.py` sets `GIT_CEILING_DIRECTORIES` at pytest's base temp for every test; the planted-key
-  test scans a folder that is its own repository. This phase alone makes the gate green under the pinned `sandboxed()`.
+  test scans a folder that is its own repository, from inside it, so the gate's `.minions/` allowlist never reads the path above
+  it. This layer alone makes the gate green under the pinned `sandboxed()`.
 - **The runner's layer** — `sandboxed()` gives each command a fresh `TMPDIR` outside every repository, writable, removed after it;
   `tests/conftest.py` also sets `TMPDIR` to a folder beside each test's `tmp_path`, so a test's fresh folder lies under the ceiling.
 - **The Codex worker** — `argv()` gives each Codex worker a fresh `TMPDIR` outside every repository as its own writable root,
