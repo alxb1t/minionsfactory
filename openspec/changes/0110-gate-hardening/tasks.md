@@ -108,7 +108,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 ## 5 — `gate_integrity.py`
 
 - [ ] 5.1 **HALT CHECK** The base holds the converge scripts folder and `gate_check.py`'s stated reach.
-  Verify: `git grep -n -e 'reads makefiles and dry runs' -- skills/mf-converge/scripts/gate_check.py` prints a line.
+  Verify: `git grep -n -e 'makefiles or dry run' -- skills/mf-converge/scripts/gate_check.py` prints a line.
 - [ ] 5.2 Add `tests/test_gate_integrity.py`: one test for each kind of [D5](design.md#d5) over patch text, `test_a_moved_line_is_no_line`,
   and `main` on a patch file and on a missing one (exit 2).
   Verify: `git grep -n 'def test_a_moved_line_is_no_line' -- tests/test_gate_integrity.py` prints a line.
