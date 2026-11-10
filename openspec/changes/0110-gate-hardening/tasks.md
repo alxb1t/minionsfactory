@@ -13,6 +13,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 5 — `gate_integrity.py` · hard
 - [x] 6 — The evidence at every freeze · hard
 - [x] 7 — The references, the ratchet and D79 · hard
+- [ ] 8 — A file and a test read by their whole identity · hard
 
 ## 1 — The wider lint, its sites cleaned
 
@@ -163,3 +164,20 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 7.6 In `CONTRIBUTING.md`, under *The evidence a change carries*, add one bullet: **`evidence.md`**, in `.minions/changes/<change-id>/`, holds the facts a tool found;
   a rule a tool can hold goes to the gate, as D79 says.
   Verify: `git grep -n 'evidence.md' -- CONTRIBUTING.md` prints a line.
+
+## 8 — A file and a test read by their whole identity
+
+Converge round 2 left S1 and S3 open; this phase answers them by [D10](design.md#d10) and [D11](design.md#d11).
+
+- [ ] 8.1 **HALT CHECK** The base holds the header expressions and the module-wide sum the cards name.
+  Verify: `git grep -n -e '^FILE = ' -- skills/mf-converge/scripts/gate_integrity.py` prints a line; `git grep -n -e '^HEADER = ' -e '^def _time(' -- skills/mf-converge/scripts/evidence.py` prints a line for each.
+- [ ] 8.2 Extend `test_a_path_with_a_space_or_quotes_keeps_its_own_lines` in `tests/test_gate_integrity.py` as [the Tests table](design.md#tests) says, each header in Git's form of [F12](design.md#context), and read its quoted name as `café.py`.
+  Verify: `git grep -n -F 'tests/a b/x.py' -- tests/test_gate_integrity.py` prints a line.
+- [ ] 8.3 Extend `test_a_path_with_a_space_is_read_as_its_own_file` in `tests/test_evidence.py`, and add `test_a_test_is_identified_by_its_module_class_and_name`, as [the Tests table](design.md#tests) says.
+  Verify: `git grep -n -e 'tests/a b/' -e 'def test_a_test_is_identified_by_its_module_class_and_name' -- tests/test_evidence.py` prints a line for each.
+- [ ] 8.4 In `gate_integrity.py` read each file's path by [D10](design.md#d10) in `_files()`: `FILE` goes, each `diff --git ` line opens a file with no path, its header lines set the path until its first `@@`, a name is unquoted by `_unquote(name)`, and a hunk of a file with no path is skipped.
+  Verify: `uv run pytest -q tests/test_gate_integrity.py` exits 0.
+- [ ] 8.5 In `evidence.py` read files by the same rule through one reader, `_files(patch)`, giving each file's path, whether it is deleted, and its hunk lines, each hunk header's text kept; `_changes()`, `touched()` and `candidates()`'s deleted files read from it, and `HEADER`, `FILE` and `DELETED` go.
+  Verify: `uv run pytest -q tests/test_evidence.py -k "path_with_a_space or candidates"` exits 0.
+- [ ] 8.6 In `evidence.py` key `_seconds()` by the whole `classname` and the name cut at `[`, read each added test's class from its file's hunk lines by [D11](design.md#d11), and make `_time()` match that identity alone, each class's time when the patch shows none.
+  Verify: `uv run pytest -q tests/test_evidence.py` exits 0; `uv run pytest -q -m "not slow"` exits 0.

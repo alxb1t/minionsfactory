@@ -42,7 +42,8 @@ configuration or swallowed error the frozen patch holds, by `skills/mf-converge/
 the whole output of `plan_check.py` for the freeze; **Stale-claim candidates** — each name the patch renames or deletes with
 its `git grep` mentions outside the patch; **Test cost** — each test the patch adds with its seconds from the gate's junit
 report, each `slow` marker and end-to-end `run` boot it adds, and each test it removes against the design's `## Tests`
-section. Converge SHALL judge nothing in it, and SHALL run each command under the sandbox runner.
+section. Each line SHALL name a file by its path as Git names it, unquoted, and SHALL time a test by its module, its class
+and its name. Converge SHALL judge nothing in it, and SHALL run each command under the sandbox runner.
 
 #### Scenario: Round 1 writes the evidence
 - **WHEN** converge freezes a range in round 1
@@ -59,6 +60,14 @@ section. Converge SHALL judge nothing in it, and SHALL run each command under th
 #### Scenario: A removed test the design names
 - **WHEN** the patch removes `def test_a` and the design's `## Tests` section names `test_a`
 - **THEN** the Test cost section says the removed test is named in it
+
+#### Scenario: A path Git spaces or quotes
+- **WHEN** the frozen patch changes `tests/a b/x.py`, or `café.py`, which Git quotes
+- **THEN** each line names the file by that path, whichever file comes before it in the patch
+
+#### Scenario: One test name in two classes
+- **WHEN** the patch adds `TestFast.test_main`, 0.1 s in the report, and the report holds `TestSlow.test_main` of the same module at 9.0 s
+- **THEN** the Test cost section gives the added test 0.10 s
 
 #### Scenario: Nothing found
 - **WHEN** a tool finds nothing for a section
