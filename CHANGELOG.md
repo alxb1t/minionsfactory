@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `argv()` gives a Codex worker its own `TMPDIR` and `TMPPREFIX` in a fresh folder outside every repository, its one extra
   writable root, which `conduct.py` removes when the worker ends; `SHELL_RULES` forbids a here-document; `mf-release` says
   where a worker's scratch folder lies (change `0111-sandbox-tmp`, phase 3).
+- The planted-key test scans `.` from inside a folder under a `.minions` of its own, so the gate's `.minions/` allowlist
+  never matches the path above the scanned folder and the scan reads the keys wherever `tmp_path` lies (change
+  `0111-sandbox-tmp`, phase 4).
 
 ## [0.91.0] - 2026-11-10
 

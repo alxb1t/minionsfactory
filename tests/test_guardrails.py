@@ -104,8 +104,9 @@ def test_betterleaks_finds_a_planted_key(tmp_path: Path) -> None:
             "PRIVATE KEY-----",
         ),
     ]
-    scanned = tmp_path / "scanned"
-    scanned.mkdir()
+    # Why: 0111-sandbox-tmp design D9
+    scanned = tmp_path / ".minions" / "scanned"
+    scanned.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(scanned)], check=True)
     for number, (rule, key) in enumerate(planted):
         (scanned / f"{number}-{rule}.txt").write_text(f"value: {key}\n")
@@ -113,9 +114,10 @@ def test_betterleaks_finds_a_planted_key(tmp_path: Path) -> None:
 
     # The gate's own config, so a rule it drops fails here.
     done = subprocess.run(
-        ["betterleaks", "dir", str(scanned), "--no-banner", "--redact"]
+        ["betterleaks", "dir", ".", "--no-banner", "--redact"]
         + ["--config", str(_REPO / ".betterleaks.toml")]
         + ["--report-format", "json", "--report-path", str(report)],
+        cwd=scanned,
         capture_output=True,
         text=True,
     )
