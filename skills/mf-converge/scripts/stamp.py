@@ -11,7 +11,11 @@ Each event goes directly under the first `## Run` line, in order, so the last gi
 on top; a run heading directly under the `# ` title, a blank line before the older
 runs. Prints each line written. Exit 0, or 2 with `stamp: cannot stamp — …` and the
 log unchanged; a log that is a link is refused, as `gate_run.py` refuses one.
-Why: 0088-paydown-2 design D7; 0100-worker-diet design D9.
+A `done` or `halt` goes last in a call, and an event is refused under a run whose top
+line is a `done` or a `halt`, save a `halt` naming `.minions/debt.lock` or
+`.minions/backlog.lock`; a `--run` heading is never refused.
+Why: 0088-paydown-2 design D7; 0100-worker-diet design D9;
+0109-converge-done-order design D1.
 """
 
 import argparse
@@ -23,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 USAGE = "give events, or --run with an optional --mark"
+LOCKS = (".minions/debt.lock", ".minions/backlog.lock")
 
 
 class Stop(Exception):
@@ -34,6 +39,15 @@ def _now() -> datetime:
     return datetime.now()
 
 
+def _ends(line: str) -> str | None:
+    """Return `done` or `halt` for an event line that ends a run, else None.
+
+    e.g. "10:00:00 · round 1 · done — ok" → "done"
+    """
+    name = line.split(" — ")[0]
+    return next((e for e in ("done", "halt") if name.endswith(f" · {e}")), None)
+
+
 def stamp(
     text: str, events: list[str], run: int | None, mark: str | None
 ) -> tuple[list[str], list[str]]:
@@ -42,6 +56,9 @@ def stamp(
     e.g. the lines "# t", "", "## Run 1 — d" and the events "round 1 · go" and
     "round 1 · on" → "10:02:03 · round 1 · on" then "10:02:03 · round 1 · go",
     inserted after "## Run 1 — d"
+
+    A `done` or `halt` before another event, and an event under a run whose top line is
+    a `done` or a `halt` but for one naming a lock, raise `Stop`.
     """
     lines = text.splitlines()
     now = _now()
@@ -58,6 +75,11 @@ def stamp(
     at = next((i for i, line in enumerate(lines) if line.startswith("## Run")), None)
     if at is None:
         raise Stop("no ## Run heading")
+    if ended := next((e for e in map(_ends, events[:-1]) if e), None):
+        raise Stop(f"{ended} goes last in a call")
+    top = next((line for line in lines[at + 1 :] if line.strip()), "")
+    if (ended := _ends(top)) and not (ended == "halt" and any(k in top for k in LOCKS)):
+        raise Stop(f"the run ends on {ended}: open a ## Run for a new event")
     written = [f"{now:%H:%M:%S} · {event}" for event in events]
     return [*lines[: at + 1], *reversed(written), *lines[at + 1 :]], written
 

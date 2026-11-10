@@ -6,23 +6,23 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## Progress
 
-- [ ] 1 — `stamp.py` refuses a misordered call · moderate
+- [x] 1 — `stamp.py` refuses a misordered call · moderate
 - [ ] 2 — The converge check stamps a buried `done` again · hard
 - [ ] 3 — D39's third way, in the decision and its copies · moderate
 
 ## 1 — `stamp.py` refuses a misordered call
 
-- [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def stamp(' -e '^def main(' -- skills/mf-converge/scripts/stamp.py` prints a line for each.
-- [ ] 1.2 Extend `test_a_stamp_writes_the_clock_time_under_the_latest_run` and `test_a_log_out_of_shape_is_not_stamped` in
+- [x] 1.2 Extend `test_a_stamp_writes_the_clock_time_under_the_latest_run` and `test_a_log_out_of_shape_is_not_stamped` in
   `tests/test_stamp.py` as [the Tests table](design.md#tests) says, a step after a log reset: `debt` then `done` puts `done` on top; each refusal case of [D1](design.md#d1) exits 2, says its message, leaves the log.
   Verify: `git grep -n -e 'goes last in a call' -e 'the run ends on' -- tests/test_stamp.py` prints a line for each.
-- [ ] 1.3 Add `_ends` to `S`: it returns `done`, `halt` or None for an event line, by the test `_is_event` of `C` makes.
+- [x] 1.3 Add `_ends` to `S`: it returns `done`, `halt` or None for an event line, by the test `_is_event` of `C` makes.
   Verify: `git grep -n '^def _ends(' -- skills/mf-converge/scripts/stamp.py` prints a line.
-- [ ] 1.4 In `stamp` of `S` refuse, per [D1](design.md#d1), a `done` or `halt` before another event (`<event> goes last in a call`)
+- [x] 1.4 In `stamp` of `S` refuse, per [D1](design.md#d1), a `done` or `halt` before another event (`<event> goes last in a call`)
   and an event under a run whose first non-blank line `_ends` names (`the run ends on <event>: open a ## Run for a new event`), save a `halt` naming `.minions/debt.lock` or `.minions/backlog.lock`. A `--run` heading is never refused.
   Verify: `uv run pytest -q tests/test_stamp.py` exits 0; `git grep -n -e 'goes last in a call' -e 'the run ends on' -- skills/mf-converge/scripts/stamp.py` prints a line for each.
-- [ ] 1.5 Say the refusals in `S`'s module docstring, and add `; 0109-converge-done-order design D1` before the final period of its existing `Why:` line.
+- [x] 1.5 Say the refusals in `S`'s module docstring, and add `; 0109-converge-done-order design D1` before the final period of its existing `Why:` line.
   Verify: `git grep -n '0109-converge-done-order design D1' -- skills/mf-converge/scripts/stamp.py` prints a line.
 
 ## 2 — The converge check stamps a buried `done` again
