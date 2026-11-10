@@ -10575,6 +10575,11 @@ def test_a_codex_temp_folder_is_removed(
     folder = conduct["_temp_of"](codex)
     assert folder.is_dir()
     (folder / "zsh1234").write_text("a here-document's file\n")
+    locked = folder / "locked" / "inner"
+    locked.mkdir(parents=True)
+    (locked / "file").write_text("held\n")
+    locked.chmod(0)
+    locked.parent.chmod(0)
     conduct["_temp_gone"](codex)
     assert not folder.exists()
     conduct["_temp_gone"](codex)

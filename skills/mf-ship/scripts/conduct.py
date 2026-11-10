@@ -3256,10 +3256,9 @@ def _plugins_off() -> dict[str, bool]:
 
 
 def _temp_folder(prefix: str) -> Path:
-    """Return a fresh folder under `TMPDIR`, which lies in no git repository.
+    """Return a fresh folder under `TMPDIR`, else stop with 2.
 
-    e.g. `_temp_folder("mf-sandbox-")` → `<TMPDIR>/mf-sandbox-k3j9x2`; a `TMPDIR` in a
-    repository, or one that cannot hold the folder, stops with 2.
+    e.g. `_temp_folder("mf-sandbox-")` → `<TMPDIR>/mf-sandbox-k3j9x2`.
     Why: 0111-sandbox-tmp design D2.
     """
     parent = Path(os.environ.get("TMPDIR") or "/tmp")  # noqa: S108
@@ -3360,7 +3359,7 @@ def sandboxed(
                 denied = denied or CODEX_DENIAL in line
             code = process.wait()
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        _remove_temp(tmp, out)
     if code != 0 and denied:
         print(
             "sandboxed: denied — the OS sandbox refused a call:"
@@ -3573,10 +3572,31 @@ def argv(
     ]
 
 
+def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
+    """Remove `folder`, unlocking what a worker left unreadable; say so if it stays.
+
+    e.g. a `000` subfolder is made `700`, then removed; a link is left.
+    Why: 0111-sandbox-tmp design D3.
+    """
+    seen: set[str] = set()
+
+    def unlock(_function: object, path: str, error: BaseException) -> None:
+        if isinstance(error, PermissionError) and not os.path.islink(path):
+            seen.add(path)
+            os.chmod(path, 0o700)
+            os.chmod(os.path.dirname(path), 0o700)
+
+    previous: set[str] | None = None
+    while os.path.lexists(folder) and seen != previous:
+        previous = set(seen)
+        shutil.rmtree(folder, onexc=unlock)
+    if os.path.lexists(folder):
+        print(f"conduct: could not remove {folder}", file=err or sys.stderr)
+
+
 def _temp_of(command: list[str]) -> Path | None:
     """Return the folder `argv` made for a Codex `command`, else None.
 
-    e.g. `["env", "TMPDIR=/t/mf-codex-k3j9x2", "codex"]` → `/t/mf-codex-k3j9x2`.
     Why: 0111-sandbox-tmp design D6.
     """
     for element in command:
@@ -3589,7 +3609,7 @@ def _temp_of(command: list[str]) -> Path | None:
 def _temp_gone(command: list[str]) -> None:
     """Remove the folder `_temp_of` names; a link is left, its target untouched."""
     if folder := _temp_of(command):
-        shutil.rmtree(folder, ignore_errors=True)
+        _remove_temp(folder)
 
 
 def codex_trust(paths: list[Path], level: str) -> list[str]:
