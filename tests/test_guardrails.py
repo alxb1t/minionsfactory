@@ -53,6 +53,7 @@ def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None
     names = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "GIT_CONFIG_GLOBAL")
     assert Path.home().is_relative_to(tmp_path)
     assert all(Path(os.environ[name]).is_relative_to(tmp_path) for name in names)
+    assert os.environ["GIT_CEILING_DIRECTORIES"] == str(tmp_path.parent)
 
     subprocess.run(["git", "config", "--global", "mf.probe", "yes"], check=True)
 
@@ -101,6 +102,7 @@ def test_betterleaks_finds_a_planted_key(tmp_path: Path) -> None:
     ]
     scanned = tmp_path / "scanned"
     scanned.mkdir()
+    subprocess.run(["git", "init", "-q", str(scanned)], check=True)
     for number, (rule, key) in enumerate(planted):
         (scanned / f"{number}-{rule}.txt").write_text(f"value: {key}\n")
     report = tmp_path / "report.json"

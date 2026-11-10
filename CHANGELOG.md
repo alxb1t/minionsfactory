@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `tests/conftest.py` sets `GIT_CEILING_DIRECTORIES` at pytest's base temp for every test, and the planted-key test scans
+  a folder that is its own repository, so a gate run with `TMPDIR` inside the primary agrees with a bare one (change
+  `0111-sandbox-tmp`, phase 1).
+
 ## [0.91.0] - 2026-11-10
 
 Gate: local 4m37s · CI not read under mf-ship · 0.90.1: local 2m49s · CI not read under mf-ship
