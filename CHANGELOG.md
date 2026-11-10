@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The converge check of `conduct.py` stamps a `done` under the newest run's top line on top again, once both findings files
   and the tree read clean, and the run log shows `check — converge · pass · re-stamped done`; a log that `debt` buried it in
   passes with no hand step (change `0109-converge-done-order`, phase 2).
+- D39, the principle *Never weaken the gate to pass*, `I16` and `T5` of `mf-build` and `mf-cut-change`, the coverage-trace
+  pass and `T5` of the worker reference, and the bootstrap template gain a third way: a test whose proofs cover only a
+  requirement the change's delta removes is retired by that removal (change `0109-converge-done-order`, phase 3).
 
 ## [0.90.0] - 2026-11-09
 

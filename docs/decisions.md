@@ -644,8 +644,9 @@ retired names.**
 
 **A test goes to the lowest layer that can fail for it, as a step in an existing test before a new one, on the
 engines its outcome depends on — `mf-build`'s `T1`…`T6`. A test is deleted or merged only as the change's
-`## Tests` table names it, its proofs carried by a remaining test or retired by a decision in force at the base.
-Conformance judges each new test's cost and traces each removed one's proofs.**
+`## Tests` table names it, its proofs carried by a remaining test, retired by a decision in force at the base, or,
+when they cover only a requirement the change's delta removes, retired by that requirement removed with the code
+under test. Conformance judges each new test's cost and traces each removed one's proofs.**
 
 - **Why:** one browser test per scenario, on every engine, plus one per fix, took a target's CI from minutes to
   most of an hour, unseen; most runs proved nothing another test or a lower layer did not.

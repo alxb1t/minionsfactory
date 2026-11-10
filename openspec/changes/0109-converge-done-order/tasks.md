@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — `stamp.py` refuses a misordered call · moderate
 - [x] 2 — The converge check stamps a buried `done` again · hard
-- [ ] 3 — D39's third way, in the decision and its copies · moderate
+- [x] 3 — D39's third way, in the decision and its copies · moderate
 
 ## 1 — `stamp.py` refuses a misordered call
 
@@ -45,16 +45,16 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — D39's third way, in the decision and its copies
 
-- [ ] 3.1 **HALT CHECK** The rule stands where the design's [Context](design.md#context) reads it.
+- [x] 3.1 **HALT CHECK** The rule stands where the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^### D39 · ' -e 'Never weaken the gate to pass' -- docs/decisions.md docs/principles.md` prints a line for each.
-- [ ] 3.2 Edit D39 in `docs/decisions.md` and *Never weaken the gate to pass* in `docs/principles.md` with the wording of
+- [x] 3.2 Edit D39 in `docs/decisions.md` and *Never weaken the gate to pass* in `docs/principles.md` with the wording of
   [D4](design.md#d4), the phrase `a requirement the change's delta removes` whole on one line in each.
   Verify: `git grep -n -e "requirement the change.s delta removes" -- docs/decisions.md docs/principles.md` prints a line for each.
-- [ ] 3.3 Edit the `I16` row and the `T5` row in `skills/mf-build/SKILL.md` and in `skills/mf-cut-change/SKILL.md` with that wording, the same text in both files;
+- [x] 3.3 Edit the `I16` row and the `T5` row in `skills/mf-build/SKILL.md` and in `skills/mf-cut-change/SKILL.md` with that wording, the same text in both files;
   `I16` adds `(retired by removing <requirement title>)`.
   Verify: `git grep -c -e "requirement the change.s delta removes" -- skills/mf-build/SKILL.md skills/mf-cut-change/SKILL.md` prints `skills/mf-build/SKILL.md:2` and `skills/mf-cut-change/SKILL.md:2`.
-- [ ] 3.4 Edit `W`'s coverage-trace row and its `T5`: a removed assertion or scenario id is `blocking` unless a requirement the
+- [x] 3.4 Edit `W`'s coverage-trace row and its `T5`: a removed assertion or scenario id is `blocking` unless a requirement the
   change's delta removes, with the code under test, retires it as the table names.
   Verify: `uv run pytest -q tests/test_skills.py` exits 0; `git grep -c -e "requirement the change.s delta removes" -- skills/mf-converge/references/worker.md` prints `skills/mf-converge/references/worker.md:2`.
-- [ ] 3.5 Edit the bullet of `skills/mf-bootstrap/templates/AGENTS.md.tmpl` that names the `## Tests` table with that wording, the phrase `a requirement the change's delta removes` whole on one line.
+- [x] 3.5 Edit the bullet of `skills/mf-bootstrap/templates/AGENTS.md.tmpl` that names the `## Tests` table with that wording, the phrase `a requirement the change's delta removes` whole on one line.
   Verify: `git grep -c -e "requirement the change.s delta removes" -- skills/mf-bootstrap/templates/AGENTS.md.tmpl` prints `skills/mf-bootstrap/templates/AGENTS.md.tmpl:1`.
