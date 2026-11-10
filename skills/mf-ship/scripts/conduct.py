@@ -1272,9 +1272,8 @@ def _converge_done(runs: Path, change: str) -> bool:
 
 
 def _buried_done(runs: Path, change: str) -> str | None:
-    """Return the newest run's `done` line under a top line that is no `halt` or `done`.
+    """Return the newest run's `done` line under a top line that ends no run, else None.
 
-    Else None. Why: 0109-converge-done-order design D2.
     e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
     """
     log = _change_dir(runs.parent, change) / "status_log.md"
@@ -1297,8 +1296,6 @@ def _buried_done(runs: Path, change: str) -> str | None:
 def _restamp(runs: Path, change: str, buried: str) -> int:
     """Stamp `done` on top of the status log, as the run's own; return the exit code.
 
-    `stamp.py`'s `main` prints its line, or its error. Why: 0109-converge-done-order
-    design D2.
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
     """
     log = _change_dir(runs.parent, change) / "status_log.md"
@@ -1598,9 +1595,8 @@ def _check_converge(
 ) -> str | None:
     """Return why the converge check fails, or None.
 
-    A `done` under the newest run's top line is stamped on top again once both
-    findings files and the tree are read clean; `notes` gets `re-stamped done`.
-    Why: 0109-converge-done-order design D2, D3.
+    A buried `done` is stamped on top again, `notes` gets `re-stamped done`. Why:
+    0109-converge-done-order design D2, D3.
     """
     runs = primary / ".minions"
     halt = _converge_halt(runs, version.change)
@@ -2490,8 +2486,7 @@ def check(
 ) -> str | None:
     """Return why a station's check on disk fails, or None when it passes.
 
-    A build `phase` number checks that phase's spawn alone; `close` or none, the
-    whole build. A converge check appends to `notes` what it did on a pass.
+    A build `phase` number checks that phase alone; `close` or none, the whole build.
     Why: 0102-build-per-phase design D2; 0109-converge-done-order design D3.
     """
     if stage == "release":

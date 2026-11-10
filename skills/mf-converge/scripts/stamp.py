@@ -7,13 +7,8 @@
     stamp.py <log> '<round N · event — detail>' ['<event>' …]
     stamp.py <log> --run <N> [--mark <mark>]
 
-Each event goes directly under the first `## Run` line, in order, so the last given is
-on top; a run heading directly under the `# ` title, a blank line before the older
-runs. Prints each line written. Exit 0, or 2 with `stamp: cannot stamp — …` and the
-log unchanged; a log that is a link is refused, as `gate_run.py` refuses one.
-A `done` or `halt` goes last in a call, and an event is refused under a run whose top
-line is a `done` or a `halt`, save a `halt` naming `.minions/debt.lock` or
-`.minions/backlog.lock`; a `--run` heading is never refused.
+Events go under the first `## Run`, the last given on top. Exit 0, or 2 with
+`stamp: cannot stamp — …`, the log unchanged: a link, a misordered `done` or `halt`.
 Why: 0088-paydown-2 design D7; 0100-worker-diet design D9;
 0109-converge-done-order design D1.
 """
@@ -55,10 +50,7 @@ def stamp(
 
     e.g. the lines "# t", "", "## Run 1 — d" and the events "round 1 · go" and
     "round 1 · on" → "10:02:03 · round 1 · on" then "10:02:03 · round 1 · go",
-    inserted after "## Run 1 — d"
-
-    A `done` or `halt` before another event, and an event under a run whose top line is
-    a `done` or a `halt` but for one naming a lock, raise `Stop`.
+    inserted after "## Run 1 — d"; a misordered `done` or `halt` raises `Stop`
     """
     lines = text.splitlines()
     now = _now()

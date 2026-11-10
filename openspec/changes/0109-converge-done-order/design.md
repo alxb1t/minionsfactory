@@ -51,8 +51,7 @@ after:   … to a decision in force at the base that retires it, or, when its pr
 
 ## Tests
 
-The change adds `test_a_done_under_the_top_line_is_stamped_again` and the fake mode `keep-log` of `tests/fake_worker.py`, and extends the tests of `tests/test_stamp.py`; it removes none. Counts at `HEAD`, from `git grep -c '^def test_' -- <file>`:
-`tests/test_stamp.py` 2, `tests/test_conduct.py` 161, `tests/test_skills.py` 21.
+The change adds `test_a_done_under_the_top_line_is_stamped_again` and the fake mode `keep-log` of `tests/fake_worker.py`, and extends the tests of `tests/test_stamp.py`; it removes none.
 
 | layer | file | test | does | why here |
 |---|---|---|---|---|
