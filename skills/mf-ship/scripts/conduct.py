@@ -5442,28 +5442,15 @@ class Run:
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return
                 restamped: list[str] = []
+                ask = functools.partial(
+                    check, self.primary, stage, version, phase=phase, notes=restamped
+                )
                 try:
-                    reason = check(
-                        self.primary,
-                        stage,
-                        version,
-                        True,
-                        self.offline,
-                        phase=phase,
-                        notes=restamped,
-                    )
+                    reason = ask(True, self.offline)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
-                    reason = check(
-                        self.primary,
-                        stage,
-                        version,
-                        True,
-                        True,
-                        phase=phase,
-                        notes=restamped,
-                    )
+                    reason = ask(True, True)
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
