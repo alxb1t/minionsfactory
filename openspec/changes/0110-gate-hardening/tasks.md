@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The wider lint, its sites cleaned · moderate
 - [x] 2 — The docstring check, its sites fixed · moderate
-- [ ] 3 — The timeout rule, its sites fixed · hard
+- [x] 3 — The timeout rule, its sites fixed · hard
 - [ ] 4 — `conduct.py cut` prefetches the approved wheels · hard
 - [ ] 5 — `gate_integrity.py` · hard
 - [ ] 6 — The evidence at every freeze · hard
@@ -65,27 +65,27 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — The timeout rule, its sites fixed
 
-- [ ] 3.1 **HALT CHECK** The base holds the calls the rule reads, and no `ast-grep` file.
+- [x] 3.1 **HALT CHECK** The base holds the calls the rule reads, and no `ast-grep` file.
   Verify: `git grep -n 'subprocess.run(' -- skills/mf-converge/scripts/gate_run.py` prints a line; `git ls-files -- sgconfig.yml sg-rules` prints nothing.
-- [ ] 3.2 Add the dependency of [the design](design.md#dependencies): run `uv add --dev --offline 'ast-grep-cli>=0.51.1,<0.52'`,
+- [x] 3.2 Add the dependency of [the design](design.md#dependencies): run `uv add --dev --offline 'ast-grep-cli>=0.51.1,<0.52'`,
   which writes `pyproject.toml`'s `dev` group and `uv.lock`; the cache of the migration plan holds the wheel.
   Verify: `git grep -n -F 'ast-grep-cli' -- pyproject.toml uv.lock` prints a line in each.
-- [ ] 3.3 Add `tests/test_ast_grep.py` with `test_the_timeout_rule_flags_a_run_with_no_timeout` ([Tests](design.md#tests)): it runs the
+- [x] 3.3 Add `tests/test_ast_grep.py` with `test_the_timeout_rule_flags_a_run_with_no_timeout` ([Tests](design.md#tests)): it runs the
   `ast-grep` in the interpreter's own folder, in a temp project holding copies of `sgconfig.yml` and the rule file.
   Verify: `git grep -n 'def test_the_timeout_rule_flags_a_run_with_no_timeout' -- tests/test_ast_grep.py` prints a line.
-- [ ] 3.4 Add `sgconfig.yml` (`ruleDirs: [sg-rules]`) and `sg-rules/subprocess-run-needs-timeout.yml` to [D3](design.md#d3): language
+- [x] 3.4 Add `sgconfig.yml` (`ruleDirs: [sg-rules]`) and `sg-rules/subprocess-run-needs-timeout.yml` to [D3](design.md#d3): language
   `python`, `severity: error`, files `skills/**` and `scripts/**`, a `subprocess.run($$$ARGS)` call with no `timeout=` argument.
   Verify: `uv run pytest -q tests/test_ast_grep.py` exits 0.
-- [ ] 3.5 Give each site `uv run ast-grep scan` prints a `timeout=` of its module's `TIMEOUT_SECONDS`, adding `TIMEOUT_SECONDS = 600`
+- [x] 3.5 Give each site `uv run ast-grep scan` prints a `timeout=` of its module's `TIMEOUT_SECONDS`, adding `TIMEOUT_SECONDS = 600`
   to a module that has none; `skills/mf-converge/scripts/gate_run.py`'s `make gate` call takes `GATE_SECONDS = 3600`.
   Verify: `uv run ast-grep scan` exits 0; `uv run pytest -q -m "not slow"` exits 0.
-- [ ] 3.6 Edit the `gate` and `check` recipes of `Makefile`: add `ast-grep` after the docstring line of each; its lines
+- [x] 3.6 Edit the `gate` and `check` recipes of `Makefile`: add `ast-grep` after the docstring line of each; its lines
   are quoted below for `gate_check.py`.
   ```diff
   + 	uv run ast-grep scan
   ```
   Verify: `git grep -c 'uv run ast-grep scan' -- Makefile` prints `Makefile:2`.
-- [ ] 3.7 In `CONTRIBUTING.md`, under *The evidence a change carries*, add the ratchet: a repeat card of a syntactic class becomes a rule of
+- [x] 3.7 In `CONTRIBUTING.md`, under *The evidence a change carries*, add the ratchet: a repeat card of a syntactic class becomes a rule of
   `sg-rules/` at the next paydown.
   Verify: `git grep -n 'sg-rules' -- CONTRIBUTING.md` prints a line.
 

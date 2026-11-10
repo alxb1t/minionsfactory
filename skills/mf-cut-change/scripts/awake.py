@@ -16,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
 CAFFEINATE = "caffeinate"
 HOLD_SECONDS = 7200
 LAUNCHERS = {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "uv"}
@@ -38,6 +39,7 @@ def _record(change_id: str) -> Path:
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     if done.returncode != 0 and "not a git repository" in done.stderr:
         raise Stop("awake: cannot run — not in a git repository")
@@ -54,7 +56,10 @@ def _record(change_id: str) -> Path:
 def _ps(field: str, pid: int) -> str:
     """Return `ps`'s `field` for `pid`, or "" when it names nothing."""
     done = subprocess.run(
-        ["ps", "-o", f"{field}=", "-p", str(pid)], capture_output=True, text=True
+        ["ps", "-o", f"{field}=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     return done.stdout.strip()
 

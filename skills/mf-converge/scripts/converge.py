@@ -36,6 +36,7 @@ OVERLAP = runpy.run_path(str(HERE / "overlap.py"))
 INTEGRATE = runpy.run_path(str(HERE.parents[1] / "mf-integrate/scripts/integrate.py"))
 ROLES = ("conformance", "adversarial")
 CAP = 3
+TIMEOUT_SECONDS = 600
 SMALL = ("one line", "a test", "one line and a test")
 SIZE = re.compile(r"size:([^:]*)$")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
@@ -290,7 +291,13 @@ class Context:
 
 def git(tree: Path, *args: str) -> str:
     """Return git's output for `args` in `tree`, or halt naming the command."""
-    done = subprocess.run(["git", *args], cwd=tree, capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+    )
     if done.returncode != 0:
         raise Halt(f"git {args[0]} failed: {done.stderr.strip()}")
     return done.stdout
@@ -1566,6 +1573,7 @@ def ancestor(context: Context, older: str, newer: str) -> bool:
         ["git", "merge-base", "--is-ancestor", older, newer],
         cwd=context.tree,
         capture_output=True,
+        timeout=TIMEOUT_SECONDS,
     )
     return done.returncode == 0
 
@@ -1620,6 +1628,7 @@ def added(context: Context, judged: str) -> None:
         cwd=context.tree,
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     tasks = PLAN_CHECK["subtasks"]
     was = {

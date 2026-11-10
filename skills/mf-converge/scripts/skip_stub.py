@@ -15,6 +15,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
 ROLES = ("conformance", "adversarial")
 BODY = "Skipped by the plan: no worker judged this round."
 STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\w+)", re.MULTILINE)
@@ -31,7 +32,13 @@ def _today() -> date:
 
 def _git(*args: str, cwd: Path | None = None) -> str:
     """Return git's output for `args` in `cwd`, else the current directory, or stop."""
-    done = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+    )
     if done.returncode != 0:
         raise Stop("no repository with a commit here")
     return done.stdout.strip()

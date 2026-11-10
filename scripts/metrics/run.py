@@ -24,6 +24,7 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+TIMEOUT_SECONDS = 600
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
 STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
@@ -122,7 +123,12 @@ def _checker(station: str) -> bool:
 def _git(root: Path, *args: str) -> str:
     """Return a git command's stripped stdout; a failure raises."""
     return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
 
 
@@ -488,7 +494,10 @@ class Version:
             raise Gap(f"no head in {name}")
         built = found[1]
         ancestor = ["git", "merge-base", "--is-ancestor", built, self.head]
-        if subprocess.run(ancestor, cwd=self.root, capture_output=True).returncode:
+        checked = subprocess.run(
+            ancestor, cwd=self.root, capture_output=True, timeout=TIMEOUT_SECONDS
+        )
+        if checked.returncode:
             raise Gap(f"{name}'s head is not in the version's history")
         span = f"{built}..{self.head}" if fixes else f"{self.base}..{built}"
         count = ("rev-list", "--first-parent", "--no-merges", "--count", span)

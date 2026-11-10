@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+TIMEOUT_SECONDS = 600
 CHANGES = Path(".minions/changes")
 # A repo no run has moved keeps its files here, and its worker logs under `RUNS`.
 FINDINGS = Path(".minions/findings")
@@ -550,7 +551,13 @@ def _all_sessions(folder: Path) -> tuple[Record, ...]:
 
 def _git_lines(repo: Path, *args: str) -> list[str]:
     """Return a git command's stdout lines in `repo`, none when it fails."""
-    done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+    )
     return done.stdout.splitlines() if done.returncode == 0 else []
 
 

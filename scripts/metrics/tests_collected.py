@@ -11,6 +11,8 @@ import re
 import subprocess
 import sys
 
+TIMEOUT_SECONDS = 600
+
 
 def collected(stdout: str, returncode: int) -> int:
     """Return the count `pytest --collect-only -q` printed; exit with why if none.
@@ -27,6 +29,9 @@ def collected(stdout: str, returncode: int) -> int:
 
 if __name__ == "__main__":
     done = subprocess.run(
-        ["uv", "run", "pytest", "--collect-only", "-q"], capture_output=True, text=True
+        ["uv", "run", "pytest", "--collect-only", "-q"],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     print(collected(done.stdout, done.returncode))

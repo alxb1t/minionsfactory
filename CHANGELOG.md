@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/docstrings.py` holds `C7` and `C3` for every docstring of a Python file, counting non-blank lines, and runs in
   `make gate` and `make check`. Each docstring over the limit keeps its summary and its `Why:` line (change
   `0110-gate-hardening`, phase 2).
+- `ast-grep-cli` joins the dev group, and `sg-rules/subprocess-run-needs-timeout.yml` holds that a `subprocess.run` call
+  passes `timeout=`, in `make gate` and `make check`. Each site gets its module's `TIMEOUT_SECONDS`, the `make gate` call
+  of `gate_run.py` `GATE_SECONDS`; `CONTRIBUTING.md` states the ratchet (change `0110-gate-hardening`, phase 3).
 
 ## [0.91.0] - 2026-11-10
 

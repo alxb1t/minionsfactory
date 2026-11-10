@@ -6,6 +6,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "ast-grep-cli>=0.51.1,<0.52",
     "coverage>=7.17.1",
     "diff-cover>=11.0.1",
     "markdown-it-py>=3,<4",

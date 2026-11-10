@@ -18,6 +18,9 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
+GATE_SECONDS = 3600
+
 
 class Stop(Exception):
     """End the run with `code`; the message is what it prints."""
@@ -33,7 +36,9 @@ def _run(
 ) -> subprocess.CompletedProcess[str]:
     """Return a command's result, its output captured; a missing tool stops the run."""
     try:
-        return subprocess.run(argv, capture_output=True, text=True, env=env)
+        return subprocess.run(
+            argv, capture_output=True, text=True, env=env, timeout=TIMEOUT_SECONDS
+        )
     except FileNotFoundError:
         raise Stop(2, f"gate: cannot run — {argv[0]} is missing") from None
 
@@ -125,6 +130,7 @@ def gate(fresh: bool) -> int:
         stderr=subprocess.STDOUT,
         text=True,
         errors="replace",
+        timeout=GATE_SECONDS,
     )
     code = done.returncode
     seconds = round(time.monotonic() - start)
