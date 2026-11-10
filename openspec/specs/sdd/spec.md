@@ -228,7 +228,9 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, each line and run heading written by
 `skills/mf-converge/scripts/stamp.py`, which takes the clock's time. One `stamp.py` call MAY write several events, each its
 own line, inserted so the last given is on top; the conductor SHALL write in one call the events it has with no command
-between them. Each run SHALL open
+between them. `stamp.py` SHALL exit 2, writing nothing, on a call that gives `done` or `halt` before another event, and on any
+event for a run whose top line is `done`, or `halt` naming neither `.minions/debt.lock` nor `.minions/backlog.lock`: an event after
+one needs a new `## Run` heading. A `halt` naming a lock takes the events of the converge that resumes it. Each run SHALL open
 with a `## Run N` heading placed above the previous run, and each event SHALL be inserted directly under the latest
 heading, so the newest run and the newest line are on top. No line SHALL be edited or deleted. The events SHALL be
 `start`, `freeze`, `fan-out`, `verdicts`, `shadow`, `fix`, `verify`, `pickup`, `catch-up`, `by rule`, `debt`, `halt` and
@@ -260,6 +262,22 @@ on and the model and effort its worker was given, `default` where none, and `tok
 #### Scenario: A converge run stops
 - **WHEN** the run halts or finishes
 - **THEN** its last event is `halt`, with the reason, or `done`
+
+#### Scenario: A debt and a done in one call
+- **WHEN** `stamp.py` is given the events `round 1 · debt — …` and then `round 1 · done — …`
+- **THEN** the log holds both lines under the latest heading, `done` on top
+
+#### Scenario: A done given before another event
+- **WHEN** `stamp.py` is given the events `round 1 · done — …` and then `round 1 · debt — …`
+- **THEN** it exits 2 with `stamp: cannot stamp — done goes last in a call`, and the log is unchanged
+
+#### Scenario: An event after a run's end
+- **WHEN** the latest run's top line is a `done`, or a `halt` naming no lock, and `stamp.py` is given an event
+- **THEN** it exits 2 with `stamp: cannot stamp — the run ends on <event>: open a ## Run for a new event`, and the log is unchanged
+
+#### Scenario: An event under a lock halt
+- **WHEN** the latest run's top line is a `halt` naming `.minions/debt.lock`, and `stamp.py` is given the event `round 2 · debt — …`
+- **THEN** the log holds the line under the latest heading, above the `halt`
 
 #### Scenario: A catch-up by rule
 - **WHEN** every merge of a catch-up replays by the fixed rules
@@ -558,13 +576,18 @@ sets SHALL be equal, non-empty, and numbered from `T1` with no gap.
 ### Requirement: A test is deleted or merged only as the design's table names it
 
 `skills/mf-build/SKILL.md` SHALL treat a test deleted or merged as the change's `design.md` `## Tests` table names it
-— each removed test mapped to the remaining test that carries its assertions and scenario ids, or to a decision
-in force at the base that retires it — as consolidation, not as weakening the gate, and SHALL halt on a deletion outside that table.
+— each removed test mapped to the remaining test that carries its assertions and scenario ids, to a decision
+in force at the base that retires it, or, when its proofs cover only a requirement the change's delta removes, to that
+requirement removed with the code under test — as consolidation, not as weakening the gate, and SHALL halt on a deletion outside that table.
 `skills/mf-cut-change/SKILL.md` SHALL write that table for every test a change deletes or merges. The fix station
 in `skills/mf-converge/SKILL.md` SHALL never delete or merge a test.
 
 #### Scenario: The build names the table, and the fix station never deletes
 - **WHEN** a phase deletes a test that `design.md`'s `## Tests` table maps to a decision in force at the base that retires it
+- **THEN** `mf-build` treats the deletion as consolidation and does not halt
+
+#### Scenario: A deletion with its requirement
+- **WHEN** a phase deletes a test whose proofs cover only a requirement the change's delta removes, with the code under test, and the table names that requirement
 - **THEN** `mf-build` treats the deletion as consolidation and does not halt
 
 #### Scenario: A deletion outside the table
@@ -1323,7 +1346,9 @@ worktree, logged, and a refusal SHALL be logged, never forced.
 
 `skills/mf-ship/scripts/conduct.py` SHALL decide each version's stage from git and the run directory alone, and SHALL
 pass a station only when the worker exits 0 and its check on disk passes — never on the worker's report. The converge
-check SHALL need `done` as the newest run's latest status-log event. Before the
+check SHALL need `done` as the newest run's latest status-log event. A newest run whose top line is no `halt` and holds a `done`
+below it SHALL pass the check when both findings files are clean at `HEAD` and the tree is clean, after the check stamps `done`
+again, `re-stamped by the run`, and logs it. Before the
 first station it SHALL run a probe worker that must edit, commit and run `make gate` in a scratch repo, or halt, save a usage
 limit, which halts only what runs on its executor. The scratch
 gate's recipe SHALL try a write to a file `conduct.py` made outside the worker's reach, and SHALL pass only when that write is
@@ -1349,6 +1374,12 @@ fail on a worker with no end, a run that ends on neither `halt` nor `done`, or a
 #### Scenario: A worker dies after clean findings
 - **WHEN** a converge worker exits 1 with both findings files clean at `HEAD` and no `done` in its status log
 - **THEN** the version halts, naming the exit, and nothing is released
+
+#### Scenario: A done under the top line
+- **WHEN** the newest run's top line is a `debt` with a `done` below it, both findings files are clean at `HEAD` and the tree is clean
+- **THEN** the converge check stamps `done` again, `re-stamped by the run`, logs it and passes, and the version goes on to release
+- **AND WHEN** a findings file is not clean at `HEAD`
+- **THEN** the check fails on that file and stamps nothing
 
 #### Scenario: A probe worker runs unsandboxed
 - **WHEN** the probe worker's write outside its reach lands
@@ -3945,8 +3976,9 @@ mention the change made false is carded as `drift`. The station SHALL say in its
 The conformance station SHALL run a **test-cost pass** after its sections, carding each new end-to-end test that a lower layer
 proves, that re-opens a state another test reaches, or that runs on engines its outcome cannot depend on. When the freeze
 removes a test, it SHALL run a **coverage-trace pass**, tracing each removed assertion and scenario id to the test that runs it
-now, or to the decision, in force at the base, that the design's `## Tests` table names as retiring it. A proof carried by
-neither SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The station SHALL say in its Summary
+now, to the decision, in force at the base, that the design's `## Tests` table names as retiring it, or to the requirement the
+change's delta removes, with the code under test, that the table names. A proof carried by
+none SHALL be `blocking`. Each round SHALL run both passes over that round's freeze. The station SHALL say in its Summary
 that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
 
 #### Scenario: Converge names both passes where they run and where they are checked
@@ -3958,8 +3990,12 @@ that each pass ran, and `skills/mf-converge/SKILL.md` SHALL check that it did.
 - **WHEN** the freeze removes a test that the `## Tests` table maps to a decision in force at the base
 - **THEN** the coverage-trace pass accepts the removal and cards nothing for it
 
+#### Scenario: The freeze removes a test with its requirement
+- **WHEN** the freeze removes a test whose proofs cover only a requirement the change's delta removes, and the `## Tests` table names that requirement
+- **THEN** the coverage-trace pass accepts the removal and cards nothing for it
+
 #### Scenario: A proof carried by neither
-- **WHEN** a removed assertion maps to no remaining test and to no retiring decision
+- **WHEN** a removed assertion maps to no remaining test, no retiring decision and no removed requirement
 - **THEN** conformance cards it `blocking`
 
 ### Requirement: A fix that reaches no surface takes its adversarial head by recomputation

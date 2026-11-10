@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.90.1] - 2026-11-10
+
+Gate: local 2m49s · CI not read under mf-ship · 0.90.0: local 4m43s · CI not read under mf-ship
+
 - `stamp.py` exits 2 on a `done` or `halt` given before another event, and on an event under a run whose top line is a
   `done` or `halt`, save a `halt` naming a debt or backlog lock; a converge's `done` stays its run's top line (change
   `0109-converge-done-order`, phase 1).
