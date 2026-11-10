@@ -26,3 +26,11 @@ argv = [
     "uv", "run", "--script", "skills/mf-converge/scripts/debt_match.py",
     "{minions}/debt.md", "{input}", "{out}/debt-cards.md",
 ]
+
+[[case]]
+name = "gate-integrity"
+reads = "a frozen diff patch, to the lines a worker starts from"
+each = ["changes/*/diff.patch"]
+argv = [
+    "uv", "run", "--script", "skills/mf-converge/scripts/gate_integrity.py", "{input}",
+]

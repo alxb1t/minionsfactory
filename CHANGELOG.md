@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py cut` fetches each package its brief approves into `.minions/uv-cache`, wheels only, from PyPI's hosts only,
   so the offline sandboxed gate finds a new dev dependency. A row that is no package name and plain version specifier, or
   a failed fetch, stops the cut with exit 2 before any reservation (change `0110-gate-hardening`, phase 4).
+- `skills/mf-converge/scripts/gate_integrity.py` reads a frozen patch to the lines `gate_check.py` cannot see: an added
+  suppression, skip, allowlist line, swallowed error or `pyproject.toml` setting, and a removed test or `assert`; a
+  moved line is none. `make corpus` runs it over each frozen patch (change `0110-gate-hardening`, phase 5).
 
 ## [0.91.0] - 2026-11-10
 

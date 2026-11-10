@@ -10,7 +10,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 2 — The docstring check, its sites fixed · moderate
 - [x] 3 — The timeout rule, its sites fixed · hard
 - [x] 4 — `conduct.py cut` prefetches the approved wheels · hard
-- [ ] 5 — `gate_integrity.py` · hard
+- [x] 5 — `gate_integrity.py` · hard
 - [ ] 6 — The evidence at every freeze · hard
 - [ ] 7 — The references, the ratchet and D79 · hard
 
@@ -118,7 +118,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 5.4 Add `skills/mf-converge/scripts/gate_integrity.py` to [D5](design.md#d5): a `uv` script with `lines(patch)`, the kinds and the line form
   of the design, a moved line dropped.
   Verify: `git grep -n '^def lines(' -- skills/mf-converge/scripts/gate_integrity.py` prints a line.
-- [ ] 5.5 Add `main(argv)` to it: print each line, or `None.` for a patch that holds nothing; exit 0 for any readable patch, 2 for an unreadable one.
+- [x] 5.5 Add `main(argv)` to it: print each line, or `None.` for a patch that holds nothing; exit 0 for any readable patch, 2 for an unreadable one.
   Verify: `uv run pytest -q tests/test_gate_integrity.py` exits 0; `make corpus` prints a `corpus: gate-integrity` line ending `runs · pass`,
   whatever its other cases print: the `open-cards` case reads old findings files of the run directory this change never touches.
 
