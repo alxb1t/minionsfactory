@@ -14,7 +14,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [ ] 1.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def isolated_home(' -e '^def test_betterleaks_finds_a_planted_key(' -- tests/conftest.py tests/test_guardrails.py` prints a line for each.
-- [ ] 1.2 Make the folder the acceptance runs name as pytest's base temp: inside the repository, ignored by it. Run `mkdir -p .minions/tmp`.
+- [ ] 1.2 Make `.minions/tmp`: inside the repository, ignored by it, the folder the pinned `sandboxed()` names as a converge gate's `TMPDIR` in the primary ([F1](design.md#context)). Run `mkdir -p .minions/tmp`.
   Verify: `ls -d .minions/tmp` prints `.minions/tmp`.
 - [ ] 1.3 In `G` extend `test_the_isolation_fixture_holds_home_under_tmp_path`: `GIT_CEILING_DIRECTORIES` equals `str(tmp_path.parent)`, per [D1](design.md#d1).
   Verify: `git grep -n 'GIT_CEILING_DIRECTORIES' -- tests/test_guardrails.py` prints a line.
@@ -22,8 +22,8 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   Verify: `uv run pytest -q tests/test_guardrails.py -k isolation_fixture` exits 0.
 - [ ] 1.5 In `test_betterleaks_finds_a_planted_key` run `subprocess.run(["git", "init", "-q", str(scanned)], check=True)` after `scanned.mkdir()`, so the scanned folder is its own repository.
   Verify: `git grep -n -F -e '"git", "init", "-q", str(scanned)' -- tests/test_guardrails.py` prints a line.
-- [ ] 1.6 Run the acceptance's tests of the read-or-write cases and the planted key with pytest's base temp inside the repository: `--basetemp` puts every `tmp_path` where a `TMPDIR` of `.minions/tmp` put it, and is no `env` prefix, which the permission list denies.
-  Verify: `uv run pytest -q --basetemp=.minions/tmp/base tests/test_corpus.py tests/test_facts.py tests/test_plan_check.py tests/test_skip_stub.py tests/test_verify_check.py tests/test_next_tag.py tests/test_pin.py tests/test_guardrails.py` exits 0.
+- [ ] 1.6 Run the acceptance's tests of the read-or-write cases and the planted key at pytest's default base temp: a build's sandbox refuses git's writes of `.git/hooks` and `.gitconfig` inside the repository, so converge's gate, under the pinned `sandboxed()`, runs them with `TMPDIR` inside the primary ([F7](design.md#context)).
+  Verify: `uv run pytest -q tests/test_corpus.py tests/test_facts.py tests/test_plan_check.py tests/test_skip_stub.py tests/test_verify_check.py tests/test_next_tag.py tests/test_pin.py tests/test_guardrails.py` exits 0.
 
 ## 2 — `sandboxed()` gives each command its own `TMPDIR`
 
@@ -58,5 +58,5 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
   Verify: `uv run pytest -q tests/test_conduct.py -k worker_carries_the_allowlist` exits 0.
 - [ ] 3.7 In `skills/mf-release/SKILL.md` replace lines 175-176 per [D8](design.md#d8): `.minions/tmp/` on Claude, a fresh folder outside every repository on Codex.
   Verify: `git grep -n 'outside every repository' -- skills/mf-release/SKILL.md` prints a line.
-- [ ] 3.8 Run the brief's acceptance tests with pytest's base temp inside the repository, as 1.6 does.
-  Verify: `uv run pytest -q --basetemp=.minions/tmp/base tests/test_sandboxed.py tests/test_corpus.py tests/test_facts.py tests/test_plan_check.py tests/test_skip_stub.py tests/test_verify_check.py tests/test_next_tag.py tests/test_pin.py tests/test_guardrails.py` exits 0.
+- [ ] 3.8 Run the brief's acceptance tests at pytest's default base temp, as 1.6 does.
+  Verify: `uv run pytest -q tests/test_sandboxed.py tests/test_corpus.py tests/test_facts.py tests/test_plan_check.py tests/test_skip_stub.py tests/test_verify_check.py tests/test_next_tag.py tests/test_pin.py tests/test_guardrails.py` exits 0.
