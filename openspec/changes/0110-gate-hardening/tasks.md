@@ -11,7 +11,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 3 — The timeout rule, its sites fixed · hard
 - [x] 4 — `conduct.py cut` prefetches the approved wheels · hard
 - [x] 5 — `gate_integrity.py` · hard
-- [ ] 6 — The evidence at every freeze · hard
+- [x] 6 — The evidence at every freeze · hard
 - [ ] 7 — The references, the ratchet and D79 · hard
 
 ## 1 — The wider lint, its sites cleaned
@@ -124,26 +124,26 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 6 — The evidence at every freeze
 
-- [ ] 6.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 6.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^PLACEHOLDERS = ' -e '^def freeze(' -e '^def checker_prompt(' -e '^def verify_prompt(' -e '^def fixer(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 6.2 Add `tests/test_evidence.py` with the tests of [the Tests table](design.md#tests) over patch, junit and design text.
+- [x] 6.2 Add `tests/test_evidence.py` with the tests of [the Tests table](design.md#tests) over patch, junit and design text.
   Verify: `git grep -n 'def test_a_section_is_capped' -- tests/test_evidence.py` prints a line.
-- [ ] 6.3 Add `skills/mf-converge/scripts/evidence.py` to [D6](design.md#d6): `LIMIT`, `candidates(patch)`, `stale(names, found, changed)`,
+- [x] 6.3 Add `skills/mf-converge/scripts/evidence.py` to [D6](design.md#d6): `LIMIT`, `candidates(patch)`, `stale(names, found, changed)`,
   `test_cost(patch, report, design)` and `render(change, base, head, sections)`, the shape of the design's *The shape of `evidence.md`*.
   Verify: `uv run pytest -q tests/test_evidence.py` exits 0.
-- [ ] 6.4 Extend `test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards` and `test_a_blocker_is_fixed_verified_and_cleared` in
+- [x] 6.4 Extend `test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards` and `test_a_blocker_is_fixed_verified_and_cleared` in
   `tests/test_converge.py` with the steps of [the Tests table](design.md#tests), each after the test's own.
   Verify: `git grep -n 'evidence.md' -- tests/test_converge.py` prints a line.
-- [ ] 6.5 In `K` load `evidence.py` and `gate_integrity.py` by `runpy` beside the other scripts, and add `"evidence"` to `PLACEHOLDERS`.
+- [x] 6.5 In `K` load `evidence.py` and `gate_integrity.py` by `runpy` beside the other scripts, and add `"evidence"` to `PLACEHOLDERS`.
   Verify: `git grep -n -e '"evidence"' -e 'gate_integrity.py' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 6.6 In `freeze` of `K` write `evidence.md` after `debt-cards.md` and before the stamp, running `plan_check.py` and one `git grep` through `_captured`, as [D6](design.md#d6) says;
+- [x] 6.6 In `freeze` of `K` write `evidence.md` after `debt-cards.md` and before the stamp, running `plan_check.py` and one `git grep` through `_captured`, as [D6](design.md#d6) says;
   with no candidate name, no `git grep` runs and *Stale-claim candidates* reads `None.`.
   Verify: `git grep -n 'evidence.md' -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 6.7 In `K` give `evidence=` to `checker_prompt`, `verify_prompt` and `fixer`, the path of `evidence.md`.
+- [x] 6.7 In `K` give `evidence=` to `checker_prompt`, `verify_prompt` and `fixer`, the path of `evidence.md`.
   Verify: `git grep -c 'evidence=' -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:3`.
-- [ ] 6.8 In the `## Prompt` of `generic-conformance.md`, `generic-adversarial.md`, `verify.md` and `fix.md` add one packet or input line naming `evidence.md` at `{evidence}`.
+- [x] 6.8 In the `## Prompt` of `generic-conformance.md`, `generic-adversarial.md`, `verify.md` and `fix.md` add one packet or input line naming `evidence.md` at `{evidence}`.
   Verify: `git grep -l -F '{evidence}' -- skills/mf-converge/references/` prints each of the four.
-- [ ] 6.9 Edit the lists of sandboxed commands in `test_a_clean_round_converges_with_no_fix`, `test_a_blocker_is_fixed_verified_and_cleared`,
+- [x] 6.9 Edit the lists of sandboxed commands in `test_a_clean_round_converges_with_no_fix`, `test_a_blocker_is_fixed_verified_and_cleared`,
   `test_round_one_pickup_rides_with_the_fix` and `test_a_pickup_check_runs_on_the_needed_role`: each gains `plan_check.py` after each freeze, and `git` after one whose patch removes a name.
   Verify: `uv run pytest -q -m "not slow"` exits 0.
 
