@@ -3138,6 +3138,7 @@ def _temp_folder(prefix: str) -> Path:
         ["git", "-C", str(parent), "rev-parse", "--git-dir"],
         stdin=subprocess.DEVNULL,
         capture_output=True,
+        timeout=GIT_TIMEOUT,
     )
     if inside.returncode == 0:
         raise Stop(
