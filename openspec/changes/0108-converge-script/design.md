@@ -406,6 +406,7 @@ None.
 |---|---|
 | the script is ~2k lines and its tests more; the status log's text drifts from what `conduct.py` matches | the status log is byte for byte ([D3](#d3)); `test_a_clean_round_converges_with_no_fix` and the resume cases assert each event; the slow test drives `check` |
 | `0106-cut-scripts` and this change both open `_models_file`, `_table`, `_models`, `PROMPTS` and `main` | a text merge for `mf-integrate`; this change deletes the converge entry of `PROMPTS` and adds one subparser |
+| this change's own converge runs the pinned `plan_check.py`, which lacks [C8](#c-rows)'s skip, so it flags the living lines of the requirement the delta removes | for this change's converge alone, the person put this branch's `plan_check.py` into the pinned tree, its original kept and restored after the release (2026-11-10) |
 | a pinned skill (D55) keeps a live run on its tree across the switch | a findings file without the new fields is malformed, one rewrite worker fills it ([D5](#d5)); the status log's format is unchanged |
 | a Still true? command that exits 1 for another reason drops a debt card as moot | the report names the command; the cost is a re-found card, as the old check's |
 | the real Seatbelt gate may fail a step the fakes pass (`/dev`, `uv` cache) | [0107](../0107-sandbox-runner/design.md#risks--trade-offs) keeps its list of paths to widen; the first run is the person's |
