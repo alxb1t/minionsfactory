@@ -170,7 +170,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 Converge round 2 left S1 and S3 open; this phase answers them by [D10](design.md#d10) and [D11](design.md#d11).
 
 - [x] 8.1 **HALT CHECK** The base holds the header expressions and the module-wide sum the cards name.
-  Verify: `git grep -n -e '^FILE = ' -- skills/mf-converge/scripts/gate_integrity.py` prints a line; `git grep -n -e '^HEADER = ' -e '^def _time(' -- skills/mf-converge/scripts/evidence.py` prints a line for each.
+  Verify: `git grep -n -e '^FILE = ' 214ce9d -- skills/mf-converge/scripts/gate_integrity.py` prints a line; `git grep -n -e '^HEADER = ' -e '^def _time(' 214ce9d -- skills/mf-converge/scripts/evidence.py` prints a line for each.
 - [x] 8.2 Extend `test_a_path_with_a_space_or_quotes_keeps_its_own_lines` in `tests/test_gate_integrity.py` as [the Tests table](design.md#tests) says, each header in Git's form of [F12](design.md#context), and read its quoted name as `café.py`.
   Verify: `git grep -n -F 'tests/a b/x.py' -- tests/test_gate_integrity.py` prints a line.
 - [x] 8.3 Extend `test_a_path_with_a_space_is_read_as_its_own_file` in `tests/test_evidence.py`, and add `test_a_test_is_identified_by_its_module_class_and_name`, as [the Tests table](design.md#tests) says.
