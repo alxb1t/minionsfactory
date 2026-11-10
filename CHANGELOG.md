@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D79, *A tool finds, a checker judges*, extends D66, D77 and D78. The worker references start from `evidence.md`, never
   re-derive a line it holds and judge its judgment half; `CONTRIBUTING.md` states that a rule a tool can hold goes to the
   gate (change `0110-gate-hardening`, phase 7).
+- `gate_integrity.py` and `evidence.py` read a patch's files by Git's own header lines, not by splitting `diff --git` at
+  ` b/`: a path with a space or a quoted non-ASCII name keeps its own lines, and a quoted name is read as UTF-8. A test's
+  time is its module's, class's and name's own, so `TestFast.test_main` no longer sums `TestSlow.test_main` (change
+  `0110-gate-hardening`, phase 8).
 
 ## [0.91.1] - 2026-11-10
 

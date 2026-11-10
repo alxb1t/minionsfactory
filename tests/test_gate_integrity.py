@@ -32,22 +32,82 @@ def _patch(path: str, *body: str) -> str:
     return head + "@@ -10,9 +10,9 @@\n" + "".join(f"{line}\n" for line in body)
 
 
+_HUNK = "@@ -10,9 +10,9 @@\n"
+
+
 def test_a_path_with_a_space_or_quotes_keeps_its_own_lines() -> None:
-    spaced = _patch("tests/with space.py", "+x = f()  # noqa: A")
     plain = _patch("a.py", "+y = 1  # noqa: B")
+    # Git ends an unquoted name that holds a space with a tab; the header holds ` b/`.
+    spaced = (
+        "diff --git a/tests/a b/x.py b/tests/a b/x.py\n"
+        "--- a/tests/a b/x.py\t\n+++ b/tests/a b/x.py\t\n"
+        f"{_HUNK}+x = f()  # noqa: A\n"
+    )
     name = "caf\\303\\251.py"
-    quoted = f'diff --git "a/{name}" "b/{name}"\n@@ -10,9 +10,9 @@\n+z = 1  # noqa: C\n'
+    quoted = (
+        f'diff --git "a/{name}" "b/{name}"\n--- "a/{name}"\n+++ "b/{name}"\n'
+        f"{_HUNK}+z = 1  # noqa: C\n"
+    )
     assert gate_integrity.lines(spaced) == [
-        "noqa · tests/with space.py:10 · x = f()  # noqa: A"
+        "noqa · tests/a b/x.py:10 · x = f()  # noqa: A"
     ]
     # Each file keeps its own lines, whichever comes first.
     assert gate_integrity.lines(plain + spaced) == [
         "noqa · a.py:10 · y = 1  # noqa: B",
-        "noqa · tests/with space.py:10 · x = f()  # noqa: A",
+        "noqa · tests/a b/x.py:10 · x = f()  # noqa: A",
     ]
+    assert gate_integrity.lines(spaced + plain) == [
+        "noqa · tests/a b/x.py:10 · x = f()  # noqa: A",
+        "noqa · a.py:10 · y = 1  # noqa: B",
+    ]
+    # A quoted name is the UTF-8 its bytes spell, from its `+++` line or its header.
     assert gate_integrity.lines(plain + quoted) == [
         "noqa · a.py:10 · y = 1  # noqa: B",
-        f"noqa · {name}:10 · z = 1  # noqa: C",
+        "noqa · café.py:10 · z = 1  # noqa: C",
+    ]
+    only_header = f'diff --git "a/{name}" "b/{name}"\n{_HUNK}+z = 1  # noqa: C\n'
+    assert gate_integrity.lines(only_header) == ["noqa · café.py:10 · z = 1  # noqa: C"]
+
+
+def test_a_quoted_name_is_unquoted_as_git_quotes_it() -> None:
+    for quoted, path in (
+        (r'"b/tab\there.py"', "tab\there.py"),
+        (r'"b/say \"hi\" \\.py"', 'say "hi" \\.py'),
+        (r'"b/\a\b\n\v\f\r.py"', "\a\b\n\v\f\r.py"),
+    ):
+        patch = f"diff --git a/x b/y\n+++ {quoted}\n{_HUNK}+z = 1  # noqa: C\n"
+        assert gate_integrity.lines(patch) == [f"noqa · {path}:10 · z = 1  # noqa: C"]
+
+
+def test_a_file_is_named_by_its_header_lines_in_order() -> None:
+    body = f"{_HUNK}-    assert x\n+    assert y  # noqa: A\n"
+    gone = f"diff --git a/gone.py b/gone.py\n--- a/gone.py\n+++ /dev/null\n{body}"
+    moved = (
+        "diff --git a/old.py b/new.py\nrename from old.py\n"
+        f'rename to "caf\\303\\251.py"\n{body}'
+    )
+    both = "diff --git a/p b/q\n--- a/old.py\n+++ b/new.py\n" + body
+    fresh = f"diff --git a/new.py b/new.py\n--- /dev/null\n+++ b/new.py\n{body}"
+    assert [line.split(" · ")[1] for line in gate_integrity.lines(gone)] == [
+        "gone.py:10",
+        "gone.py:10",
+    ]
+    assert gate_integrity.lines(moved)[0].split(" · ")[1] == "café.py:10"
+    # The `+++` name wins; an added file names itself by it too.
+    assert gate_integrity.lines(both)[0].split(" · ")[1] == "new.py:10"
+    assert gate_integrity.lines(fresh)[0].split(" · ")[1] == "new.py:10"
+
+
+def test_a_hunk_of_a_file_with_no_path_reads_no_line() -> None:
+    plain = _patch("a.py", "+y = 1  # noqa: B")
+    unnamed = f"diff --git a/p b/q\n{_HUNK}+x = 1  # noqa: A\n"
+    stray = f"{_HUNK}+x = 1  # noqa: A\n"
+    # The two halves name two paths and no line says which is the file's.
+    assert gate_integrity.lines(unnamed) == []
+    assert gate_integrity.lines(stray + plain) == ["noqa · a.py:10 · y = 1  # noqa: B"]
+    # A file opened after a named one starts with no path.
+    assert gate_integrity.lines(plain + unnamed) == [
+        "noqa · a.py:10 · y = 1  # noqa: B"
     ]
 
 

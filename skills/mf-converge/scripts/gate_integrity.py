@@ -16,7 +16,22 @@ from pathlib import Path
 WIDTH = 120
 ALLOWLIST = ".betterleaks.toml"
 PYPROJECT = "pyproject.toml"
-FILE = re.compile(r'^diff --git (?:"a/.*"|a/.*?) "?b/(.*?)"?$')
+OPEN = re.compile(r"^(?=diff --git )", re.MULTILINE)
+MOVED = re.compile(r"^(?:rename|copy) to (.*)$")
+PREFIX = re.compile(r"^[ab]/")
+QUOTED = re.compile(rb'\\([0-7]{3}|[\\"abtnvfr])')
+ESCAPES = {
+    b"a": b"\a",
+    b"b": b"\b",
+    b"t": b"\t",
+    b"n": b"\n",
+    b"v": b"\v",
+    b"f": b"\f",
+    b"r": b"\r",
+    b"\\": b"\\",
+    b'"': b'"',
+}
+NULL = "/dev/null"
 HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 ADDED = {
     "noqa": re.compile(r"#\s*noqa"),
@@ -40,26 +55,74 @@ VERSION = re.compile(r"version\s*=")
 type Entry = tuple[str, int, str]
 
 
-def _files(patch: str) -> list[tuple[str, list[Entry]]]:
-    """Return each file's path and its hunk lines as `(sign, number, text)`.
+def _byte(match: re.Match[bytes]) -> bytes:
+    """Return the byte one escape of a Git-quoted name stands for."""
+    code = match[1]
+    return bytes([int(code, 8) & 0xFF]) if code.isdigit() else ESCAPES[code]
+
+
+def _unquote(name: str) -> str:
+    """Return the text a name in Git's quotes spells; any other name as it is.
+
+    e.g. a quoted `b/caf` with the octal bytes of `é` → "b/café"
+    """
+    if name[:1] != '"' or name[-1:] != '"':
+        return name
+    return QUOTED.sub(_byte, name[1:-1].encode()).decode(errors="replace")
+
+
+def _path(name: str) -> str:
+    """Return the path of a name in a header: unquoted, with no ending tab or `a/`."""
+    return PREFIX.sub("", _unquote(name.removesuffix("\t")))
+
+
+def _named(first: str, head: list[str]) -> str:
+    """Return the path a file's `diff --git` line and header lines name, or "".
+
+    e.g. the lines "diff --git a/p b/q" and "+++ b/a b/x.py" → "a b/x.py"
+    """
+    rest = first.removeprefix("diff --git ")
+    size = (len(rest) - 1) // 2
+    left, right = rest[:size], rest[size + 1 :]
+    same = len(rest) % 2 == 1 and rest[size] == " " and _path(left) == _path(right)
+    path = _path(right) if same else ""
+    for line in head:
+        if move := MOVED.match(line):
+            path = _unquote(move[1])
+        elif line[:4] in {"--- ", "+++ "} and line[4:] != NULL:
+            path = _path(line[4:])
+    return path
+
+
+def _entries(body: list[str]) -> list[Entry]:
+    """Return the hunk lines of a file as `(sign, number, text)`.
 
     e.g. "+x" on new line 7 → ("+", 7, "x"); a removed line is numbered on the old side
     """
-    files: list[tuple[str, list[Entry]]] = []
+    entries: list[Entry] = []
     old = new = 0
-    hunk = False
-    for line in patch.splitlines():
-        if header := FILE.match(line):
-            files.append((header[1], []))
-            hunk = False
-        elif files and (start := HUNK.match(line)):
+    for line in body:
+        if start := HUNK.match(line):
             old, new = int(start[1]), int(start[2])
-            hunk = True
-        elif hunk and line[:1] in {"+", "-", " ", ""}:
+        elif line[:1] in {"+", "-", " ", ""}:
             sign, text = line[:1] or " ", line[1:].strip()
-            files[-1][1].append((sign, old if sign == "-" else new, text))
+            entries.append((sign, old if sign == "-" else new, text))
             old += sign != "+"
             new += sign != "-"
+    return entries
+
+
+def _files(patch: str) -> list[tuple[str, list[Entry]]]:
+    """Return each named file's path and hunk lines; a file with no path is skipped.
+
+    Each `diff --git` line opens a file; its header lines name it until its first `@@`.
+    """
+    files: list[tuple[str, list[Entry]]] = []
+    for block in OPEN.split(patch)[1:]:
+        lines = block.splitlines()
+        cut = next((n for n, line in enumerate(lines) if HUNK.match(line)), len(lines))
+        if path := _named(lines[0], lines[1:cut]):
+            files.append((path, _entries(lines[cut:])))
     return files
 
 

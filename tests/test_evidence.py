@@ -133,16 +133,105 @@ def test_a_test_is_read_with_its_seconds() -> None:
     assert evidence.test_cost(_patch("a.py", "+x = 1"), "", "") == []
 
 
+def _git(path: str, *body: str) -> str:
+    # Git ends an unquoted name that holds a space with a tab.
+    end = "\t" if " " in path else ""
+    head = f"diff --git a/{path} b/{path}\n--- a/{path}{end}\n+++ b/{path}{end}\n"
+    return head + "@@ -10,9 +10,9 @@\n" + "".join(f"{line}\n" for line in body)
+
+
 def test_a_path_with_a_space_is_read_as_its_own_file() -> None:
-    spaced = _patch("tests/with space.py", "+def test_s(): ...")
+    spaced = _git("tests/a b/x.py", "+def test_s(): ...")
     plain = _patch("a.py", "+x = 1")
-    assert evidence.touched(spaced) == {"tests/with space.py"}
-    assert evidence.touched(plain + spaced) == {"a.py", "tests/with space.py"}
+    assert evidence.touched(spaced) == {"tests/a b/x.py"}
+    assert evidence.touched(plain + spaced) == {"a.py", "tests/a b/x.py"}
+    assert evidence.touched(spaced + plain) == {"a.py", "tests/a b/x.py"}
     assert evidence.test_cost(plain + spaced, "", "") == [
-        "added · tests/with space.py:10 · test_s · no time in the report"
+        "added · tests/a b/x.py:10 · test_s · no time in the report"
     ]
+    # The header alone names a path whose two halves agree, quoted or not.
     deleted = "diff --git a/old name.py b/old name.py\ndeleted file mode 100644\n"
     assert evidence.candidates(deleted) == ["old name.py"]
+    name = "caf\\303\\251.py"
+    header = f'diff --git "a/{name}" "b/{name}"\nold mode 100644\nnew mode 100755\n'
+    assert evidence.touched(header) == {"café.py"}
+    # A deleted file is named by its `---` line, and its `+++ /dev/null` marks it gone.
+    gone = (
+        "diff --git a/tests/a b/old.py b/tests/a b/old.py\ndeleted file mode 100644\n"
+        "--- a/tests/a b/old.py\t\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-def old_fn():\n"
+    )
+    assert evidence.candidates(plain + gone) == ["old_fn", "old.py"]
+    assert evidence.touched(gone) == {"tests/a b/old.py"}
+    bare = (
+        "diff --git a/tests/a b/old.py b/tests/a b/old.py\n--- a/tests/a b/old.py\t\n"
+    )
+    assert evidence.candidates(bare + "+++ /dev/null\n") == ["old.py"]
+
+
+def test_a_file_is_named_by_its_header_lines_in_order() -> None:
+    body = "@@ -10,9 +10,9 @@\n-def gone_fn():\n"
+    moved = (
+        "diff --git a/old.py b/new.py\nrename from old.py\n"
+        f'rename to "caf\\303\\251.py"\n{body}'
+    )
+    both = f"diff --git a/p b/q\n--- a/old.py\n+++ b/new.py\n{body}"
+    quoted = f'diff --git a/p b/q\n+++ "b/say \\"hi\\" \\\\ \\t.py"\n{body}'
+    unnamed = f"diff --git a/p b/q\n{body}"
+    assert evidence.touched(moved) == {"café.py"}
+    assert evidence.touched(both) == {"new.py"}
+    assert evidence.touched(quoted) == {'say "hi" \\ \t.py'}
+    # The halves name two paths and no line says which is the file's: it is no file.
+    assert evidence.touched(unnamed) == set()
+    assert evidence.candidates(unnamed + moved) == ["gone_fn"]
+    assert evidence.touched("@@ -1 +1 @@\n+x\n") == set()
+
+
+def test_a_test_is_identified_by_its_module_class_and_name() -> None:
+    report = (
+        '<testcase classname="tests.test_a.TestFast" name="test_main" time="0.1"/>'
+        '<testcase classname="tests.test_a.TestSlow" name="test_main" time="9.0"/>'
+        '<testcase classname="tests.test_a.TestSlow" name="test_cut[1]" time="1.5"/>'
+        '<testcase classname="tests.test_a.TestFast" name="test_cut[1]" time="0.1"/>'
+        '<testcase classname="tests.test_a.TestFast" name="test_cut[2]" time="0.2"/>'
+        '<testcase classname="tests.test_a.Outer.TestIn" name="test_in" time="2"/>'
+    )
+
+    def cost(*lines: str, header: str = "") -> list[str]:
+        text = _patch("tests/test_a.py").removesuffix("\n") + f"{header}\n"
+        return evidence.test_cost(text + "".join(f"{x}\n" for x in lines), report, "")
+
+    # The class is the nearest less indented line above, a context line first.
+    assert cost(" class TestFast:", " ", "+    def test_main(self): ...") == [
+        "added · tests/test_a.py:12 · test_main · 0.10 s"
+    ]
+    # A removed line is not in the file, and the hunk header names the class above.
+    assert cost(
+        "-class TestSlow:", "+    def test_main(self): ...", header=" class TestFast:"
+    ) == ["added · tests/test_a.py:10 · test_main · 0.10 s"]
+    assert cost("+    def test_main(self): ...", header=" class TestSlow:") == [
+        "added · tests/test_a.py:10 · test_main · 9.00 s"
+    ]
+    # A parametrized test sums within its own class alone; a nested class by its name.
+    assert cost("+class TestFast:", "+    def test_cut(self): ...") == [
+        "added · tests/test_a.py:11 · test_cut · 0.30 s"
+    ]
+    assert cost(" class TestIn:", "+    def test_in(self): ...") == [
+        "added · tests/test_a.py:11 · test_in · 2.00 s"
+    ]
+    # No class in the patch: each class's time. A module-level test has none of its own.
+    each = "test_main · 0.10 s in TestFast · 9.00 s in TestSlow"
+    assert cost("+    def test_main(self): ...") == [
+        f"added · tests/test_a.py:10 · {each}"
+    ]
+    assert cost("+def helper():", "+    def test_main(self): ...") == [
+        f"added · tests/test_a.py:11 · {each}"
+    ]
+    assert cost("+def test_main(): ...") == [
+        "added · tests/test_a.py:10 · test_main · no time in the report"
+    ]
+    assert cost("+    def test_none(self): ...") == [
+        "added · tests/test_a.py:10 · test_none · no time in the report"
+    ]
 
 
 def test_a_removed_test_is_read_against_the_design() -> None:
